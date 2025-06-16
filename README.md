@@ -12,7 +12,7 @@ I want this lab to be an all-encompassing Cybersecurity lab for sharpening my sk
 As a bonus, maybe I'll start to graduate from script-kiddie and improve my automation game with some coding. I forgot how many times I've attempted to START trying to learn how to code, but it always ends with me naturally gravitating back to one of my other hobbies out of frustration and wanting to be comfortable again. Now, with the power of ~*Adderall*~ immense focus, perhaps now's the time to harness this energy towards something resume-building, educational, time-consuming, wallet-shrinking, and spouse-angering since she will likely wonder just what in the double h-e-double hockey stick am I doing all alone in my office all day. Love ya, but I gotta hack. It's what I gotta do!
 
 ### The Human Element
-Will I have enough resources? Heck I don't know, I'm making this up as I go. I will absolutely be scouring the Amazon, Save My Server, Newegg, PCPartPicker I guess, eBay duh, and a few other places to search for deals that don't sound too jank sketch like the one refurbished absolute monster of a server I found for only $75.
+Will I have enough resources? Heck I don't know, I'm making this up as I go. I will be scouring Amazon, Save My Server, Newegg, PCPartPicker I guess, eBay duh, and a few other places to search for deals that don't sound too jank sketch like the one refurbished absolute monster of a server I found for only $75.
 
 _...tempting, but no..._
 
