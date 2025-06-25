@@ -1,1 +1,23 @@
- 
+Form Factor
+	Rack Server
+	Tower Server
+	Desktop
+	Laptop
+	SoC
+
+Manufacturer
+	Rack
+	Tower
+	Desktop
+	Laptop
+	SoC
+
+Specs
+	Power
+	NICs
+	RAM
+	Storage
+	RAID
+	vCPUS
+
+Clustering
