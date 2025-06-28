@@ -18,7 +18,7 @@ As a bonus, maybe I'll start to graduate from script-kiddie and improve my autom
 
 Will I have enough resources? Heck I don't know, I'm making this up as I go. I will be scouring Amazon, Save My Server, Newegg, PCPartPicker I guess, eBay duh, and a few other places to search for deals that don't sound too jank sketch like the one refurbished absolute monster of a server I found for only $75.
 
-...tempting, but no...
+***...tempting, but no...***
 
 Yes, I considered it. Times are hard.
 
