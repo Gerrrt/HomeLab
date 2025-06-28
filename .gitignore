@@ -1,6 +1,6 @@
 ISOs/proxmox-ve_8.4-1.iso
 software/balenaEtcher-2.1.2.Setup.exe
-certificates/Gandalf.Gondor.Lab/ca
+certificates/Gandalf.Gondor.Lab/ca.crt 
 certificates/Gandalf.Gondor.Lab/ca.pem
 certificates/Gandalf.Gondor.Lab/ca.srl
 certificates/Gandalf.Gondor.Lab/ca-key.pem
@@ -8,4 +8,4 @@ certificates/Gandalf.Gondor.Lab/cert.csr
 certificates/Gandalf.Gondor.Lab/cert.pem
 certificates/Gandalf.Gondor.Lab/cert-key.pem
 certificates/Gandalf.Gondor.Lab/extfile.cnf
-certificates/Gandalf.Gondor.Lab/fillchain.pem
+certificates/Gandalf.Gondor.Lab/fullchain.pem
