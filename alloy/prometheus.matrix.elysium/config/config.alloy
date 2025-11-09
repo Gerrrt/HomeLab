@@ -1,0 +1,271 @@
+
+// ============================================================================
+// METRICS COLLECTION
+// ============================================================================
+
+prometheus.exporter.cadvisor "dockermetrics" {
+  docker_host = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+}
+
+prometheus.scrape "dockermetrics" {
+  targets = prometheus.exporter.cadvisor.dockermetrics.targets
+  forward_to = [prometheus.remote_write.metrics_service.receiver]
+  scrape_interval = "60s"
+}
+
+discovery.relabel "metrics" {
+  targets = prometheus.exporter.unix.metrics.targets
+  rule {
+    target_label = "job"
+    replacement = string.format("%s-metrics", constants.hostname)
+  }
+}
+
+prometheus.exporter.unix "metrics" {
+  disable_collectors = ["ipvs", "btrfs", "infiniband", "xfs", "zfs"]
+  enable_collectors = ["meminfo"]
+  rootfs_path = "/rootfs"
+  filesystem {
+    fs_types_exclude = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|tmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
+    mount_points_exclude = "^/(dev|proc|run/credentials/.+|sys|var/lib/docker/.+)($|/)"
+    mount_timeout = "5s"
+  }
+  netclass {
+    ignored_devices = "^(veth.*|cali.*|[a-f0-9]{15})$"
+  }
+  netdev {
+    device_exclude = "^(veth.*|cali.*|[a-f0-9]{15})$"
+  }
+}
+
+prometheus.scrape "metrics" {
+  scrape_interval = "60s"
+  targets = discovery.relabel.metrics.output
+  forward_to = [prometheus.remote_write.metrics_service.receiver]
+}
+
+// ============================================================================
+// DOCKER LOG COLLECTION
+// ============================================================================
+
+discovery.docker "dockerlogs" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "dockerlogs" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex = "/(.*)"
+    target_label = "service_name"
+  }
+}
+
+loki.source.docker "default" {
+  host = "unix:///var/run/docker.sock"
+  targets = discovery.docker.dockerlogs.targets
+  labels = {"platform" = "docker"}
+  relabel_rules = discovery.relabel.dockerlogs.rules
+  forward_to = [loki.process.dockerlogs_filter.receiver]
+}
+
+loki.process "dockerlogs_filter" {
+  stage.drop {
+    expression = "GET /metrics"
+  }
+
+  stage.drop {
+    expression = "healthcheck"
+  }
+
+  stage.drop {
+    expression = "container=(grafana|alloy)"
+  }
+
+  forward_to = [loki.write.grafana_loki.receiver]
+}
+
+// ============================================================================
+// JOURNAL LOG COLLECTION
+// ============================================================================
+
+loki.source.journal "journal" {
+  max_age = "24h0m0s"
+  relabel_rules = discovery.relabel.journal.rules
+  forward_to = [loki.write.grafana_loki.receiver]
+  labels = {
+    component = "/var/log/journal",
+    instance = constants.hostname,
+    hostname = constants.hostname,
+    job = "/var/log/journal",
+  }
+  path = "/var/log/journal"
+}
+
+discovery.relabel "journal" {
+  targets = []
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label = "unit"
+  }
+  rule {
+    source_labels = ["__journal__boot_id"]
+    target_label = "boot_id"
+  }
+  rule {
+    source_labels = ["__journal__transport"]
+    target_label = "transport"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label = "level"
+  }
+}
+
+// ============================================================================
+// AUTH LOG COLLECTION
+// ============================================================================
+
+local.file_match "authlogs" {
+  path_targets = [
+    {
+      __address__ = "localhost",
+      __path__ = "/var/log/auth.log",
+      instance = constants.hostname,
+      job = "/var/log/auth.log",
+    },
+  ]
+  sync_period = "60s"
+}
+
+loki.source.file "authlogs" {
+  targets = local.file_match.authlogs.targets
+  forward_to = [loki.process.authlogs.receiver]
+  tail_from_end = true
+}
+
+loki.process "authlogs" {
+  stage.static_labels {
+    values = {
+      log_type = "authlog",
+      source = "authlog",
+    }
+  }
+  forward_to = [loki.process.log_processor.receiver]
+}
+
+// ============================================================================
+// VAR LOG COLLECTION
+// ============================================================================
+
+local.file_match "varlogs" {
+  path_targets = [
+    { 
+      __address__ = "localhost",
+      __path__ = "/var/log/{messages,*.log}",
+      __path_exclude__ = "/var/log/(syslog|auth.log)",
+      instance = constants.hostname,
+      job = "/var/log/*.log",
+  },
+  ]
+  sync_period = "60s"
+}
+
+loki.source.file "varlogs" {
+  targets = local.file_match.varlogs.targets
+  forward_to = [loki.process.varlogs.receiver]
+  tail_from_end = true
+}
+
+loki.process "varlogs" {
+  stage.static_labels {
+    values = {
+      log_type = "varlog",
+      source = "varlog",
+    }
+  }
+  forward_to = [loki.process.log_processor.receiver]
+}
+
+// ============================================================================
+// SYSLOG COLLECTION
+// ============================================================================
+
+local.file_match "syslog" {
+    path_targets = [
+    {
+      __address__ = "localhost",
+      __path__ = "/var/log/syslog",
+      instance = constants.hostname,
+      job = "/var/log/syslog",
+  },
+  ]
+  sync_period = "60s"
+}
+
+loki.source.file "syslog" {
+  targets = local.file_match.syslog.targets
+  forward_to = [loki.process.syslog.receiver]
+  tail_from_end = true
+}
+
+loki.process "syslog" {
+  stage.static_labels {
+    values = {
+      log_type = "syslog",
+      source = "syslog",
+    }
+  }
+  forward_to = [loki.process.log_processor.receiver]
+}
+
+// ============================================================================
+// LOG PROCESSOR
+// ============================================================================
+
+loki.process "log_processor" {
+  forward_to = [loki.write.grafana_loki.receiver]
+  stage.regex {
+    expression = "(?P<level_regex>(?i)\b(emerg|panic|corrupt|fatal|alert|crit|critical|err|eror|error|warn|warning|info|information|informational|notice|opened|closed|dbug|debug|dbg)\b)"
+  }
+
+  stage.template {
+    source = "level_lower"
+    template = "{{ .level_regex | ToLower }}"
+  }
+
+  stage.template {
+    source = "level_parsed"
+    template = `{{ if eq .level_lower "emerg" }}critical{{ else if eq .level_lower "panic" }}critical{{ else if eq .level_lower "corrupt" }}critical{{ else if eq .level_lower "fatal" }}critical{{ else if eq .level_lower "alert" }}critical{{ else if eq .level_lower "crit" }}critical{{ else if eq .level_lower "critical" }}critical{{ else if eq .level_lower "err" }}error{{ else if eq .level_lower "eror" }}error{{ else if eq .level_lower "error" }}error{{ else if eq .level_lower "warn" }}warning{{ else if eq .level_lower "warning" }}warning{{ else if eq .level_lower "info" }}info{{ else if eq .level_lower "information" }}info{{ else if eq .level_lower "informational" }}info{{ else if eq .level_lower "notice" }}info{{ else if eq .level_lower "dbug" }}debug{{ else if eq .level_lower "debug" }}debug{{ else if eq .level_lower "dbg" }}debug{{ else }}info{{ end }}`
+  }
+
+  stage.labels {
+    values = {
+      "level" = "level_parsed",
+    }
+  }
+}
+
+// ============================================================================
+// REMOTE ENDPOINTS
+// ============================================================================
+
+loki.write "grafana_loki" {
+  endpoint {
+    url = "http://10.0.99.20:3100/loki/api/v1/push"
+  }
+  external_labels = {
+    host = constants.hostname,
+  }
+}
+
+prometheus.remote_write "metrics_service" {
+  endpoint {
+    url = "http://10.0.99.20:9090/api/v1/write"
+  }
+  external_labels = {
+    host = constants.hostname,
+  }
+}

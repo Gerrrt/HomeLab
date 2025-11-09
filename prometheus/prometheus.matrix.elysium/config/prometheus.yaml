@@ -1,0 +1,75 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'snmp_exporter_pfSense'
+    scrape_interval: 60s
+    scrape_timeout: 45s
+    static_configs:
+      - targets: ['10.0.99.1']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 10.0.99.20:9116
+    metrics_path: /snmp
+    params:
+      module: ['morpheus']
+      auth: ['pfsense']
+
+  - job_name: 'snmp_exporter_apc'
+    scrape_interval: 60s
+    scrape_timeout: 45s
+    static_configs:
+      - targets: ['10.0.99.10']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 10.0.99.20:9116
+    metrics_path: /snmp
+    params:
+      module: ['mjolnir']
+      auth: ['apc']
+
+  - job_name: 'snmp_exporter_iLO'
+    scrape_interval: 60s
+    scrape_timeout: 45s
+    static_configs:
+      - targets: ['10.0.30.10']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 10.0.99.20:9116
+    metrics_path: /snmp
+    params:
+      module: ['shiva']
+      auth: ['iLO']
+
+  - job_name: 'snmp_exporter_mokerlink'
+    scrape_interval: 60s
+    scrape_timeout: 45s
+    static_configs:
+      - targets: ['10.7.7.2']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 10.0.99.20:9116
+    metrics_path: /snmp
+    params:
+      module: ['neo']
+      auth: ['mokerlink']
