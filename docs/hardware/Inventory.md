@@ -2,46 +2,43 @@
 
 ## WAN Network
 
-###
-
- | Hostname | IP             | MAC               | Make       | Model               | CPU                                     | RAM    | Storage | BIOS Version      | Operating System     | Software/Services | Location                  | Credentials | Notes    |
- | -------- | -------------- | ----------------- | ---------- | ------------------- | --------------------------------------- | ------ | ------- | ----------------- | -------------------- | ----------------- | ------------------------- | ----------- | -------- |
- | morpheus | 73.140.244.168 | 80:e8:2c:2d:77:e2 | HP         | Prodesk 600 G4 Mini | Intel(R) Core(TM) i5-8500 CPU @ 3.00GHz | 2x16GB | 1TB SSD | Q22 Ver. 02.29.01 | FreeBSD 15.0-Current | pfSense           | Basement (Server Rack[5]) | :x:         | Firewall |
- | comcast  | 73.140.244.1   | 00:1c:73:00:00:99 | ISP Router | :x:                 | :x:                                     | :x:    | :x:     | :x:               | :x:                  | :x:               | ISP                       | :x:         | Xfinity  |
+| $\color{limegreen}{Hostname}$ | $\color{limegreen}{IP}$ | $\color{limegreen}{MAC}$ | $\color{limegreen}{Device}$ | $\color{limegreen}{OS}$ | $\color{limegreen}{Location}$ | $\color{limegreen}{Role}$ |
+| :---------------------------: | :---------------------: | :----------------------: | :-------------------------: | :---------------------: | :---------------------------: | :-----------------------: |
+|           morpheus            |     73.140.244.168      |    80:e8:2c:2d:77:e2     |   HP/Prodesk_600_G4_Mini    |  FreeBSD_15.0_Current   |           Server[5]           |          pfSense          |
 
 ## LAN Network
 
-| Hostname |    IP    | MAC               | Make      |        Model        | CPU                                     | RAM    | Storage |   BIOS Version    |   Operating System   | Software/Services |         Location          | Credentials          |         Notes          |
-| :------: | :------: | ----------------- | :-------- | :-----------------: | --------------------------------------- | ------ | ------- | :---------------: | :------------------: | :---------------: | :-----------------------: | -------------------- | :--------------------: |
-| morpheus | 10.7.7.1 | 02:26:26:02:0c:15 | HP        | ProDesk 600 G4 Mini | Intel(R) Core(TM) i5-8500 CPU @ 3.00GHz | 2x16GB | 1TB SSD | Q22 Ver. 02.29.01 | FreeBSD 15.0-Current |      pfSense      | Basement (Server Rack[5]) | :x:                  |        Firewall        |
-|   :x:    | 10.7.7.2 | 1c:2a:a3:2f:10:9b | Mokerlink |      G2402GSM       | :x:                                     | :x:    | :x:     |        :x:        |         :x:          |    Web Manager    | Basement (Server Rack[9]) | neo/GCAgca23762574!@ | 24-port Managed Switch |
+| $\color{limegreen}{Hostname}$ | $\color{limegreen}{IP}$ | $\color{limegreen}{MAC}$ | $\color{limegreen}{Device}$ | $\color{limegreen}{OS}$ | $\color{limegreen}{Location}$ | $\color{limegreen}{Role}$ |
+| :---------------------------: | :---------------------: | :----------------------: | :-------------------------: | :---------------------: | :---------------------------: | :-----------------------: |
+|           morpheus            |        10.7.7.1         |    02:26:26:02:0c:15     |   HP/Prodesk_600_G4_Mini    |  FreeBSD_15.0_Current   |           Server[5]           |         Firewall          |
+|              :x:              |        10.7.7.2         |    1c:2a:a3:2f:10:9b     |          Mokerlink          |           :x:           |           Server[9]           |          Switch           |
 
 ## Winterfell (VLAN 99 - Management)
 
-|  Hostname  |     IP     | MAC               | Make          |        Model        | CPU                                      | RAM    | Storage   |   BIOS Version    |   Operating System   |                Software/Services                |          Location           | Credentials              |            Notes             |
-| :--------: | :--------: | ----------------- | :------------ | :-----------------: | ---------------------------------------- | ------ | --------- | :---------------: | :------------------: | :---------------------------------------------: | :-------------------------: | ------------------------ | :--------------------------: |
-|  morpheus  | 10.0.99.1  | 02:26:26:02:0c:15 | HP            | ProDesk 600 G4 Mini | Intel(R) Core(TM) i5-8500 CPU @ 3.00GHz  | 2x16GB | 1TB SSD   | Q22 Ver. 02.29.01 | FreeBSD 15.0-Current |                     pfSense                     |  Basement (Server Rack[5])  | admin/GCAgca23762574!@   |           Firewall           |
-|  mjolnir   | 10.0.99.10 | 28:29:86:80:1a:55 | APC Smart UPS |     SMX1500RM2U     | :x:                                      | :x:    | :x:       |  UPS 09.8 (ID20)  |        APC OS        |              Smart-UPS Application              | Basement (Server Rack[1-2]) | apc/GCAgca23762574!@     | Uninterruptible Power supply |
-| prometheus | 10.0.99.20 | 00:05:1b:dd:f8:28 | Apple         |   MacBookPro10,2    | Intel(R) Core(TM) i5-3210M CPU @ 2.50GHz | 8GB    | 128GB SSD |  Apple 429.0.0.0  |    Ubuntu 24.04.3    | Prometheus, Grafana, Loki, Alloy, SNMP-Exporter |      Basement (Shelf)       | robo/GCAgca23762574!@    |       Network Monitor        |
-|   oracle   | 10.0.99.30 | 58:8a:5a:31:20:6a | Dell Laptop   |  Inspiron 15-3565   | AMD A6-9200 RADEON R4                    | 4GB    | 128GB     |    Dell 1.12.0    |    Ubuntu 24.04.3    |                      Alloy                      |      Basement (Shelf)       | atropos/GCAgca23762574!@ |  Secondary Network Monitor   |
+| $\color{limegreen}{Hostname}$ | $\color{limegreen}{IP}$ | $\color{limegreen}{MAC}$ | $\color{limegreen}{Device}$ | $\color{limegreen}{OS}$ | $\color{limegreen}{Location}$ | $\color{limegreen}{Role}$ |
+| :---------------------------: | :---------------------: | :----------------------: | :-------------------------: | :---------------------: | :---------------------------: | :-----------------------: |
+|           morpheus            |        10.0.99.1        |    02:26:26:02:0c:15     |   HP/Prodesk_600_G4_Mini    |  FreeBSD_15.0_Current   |           Server[5]           |         Firewall          |
+|            mjolnir            |       10.0.99.10        |    28:29:86:80:1a:55     |        APC Smart UPS        |         APC OS          |          Server[1-2]          |            UPS            |
+|          prometheus           |       10.0.99.20        |    00:05:1b:dd:f8:28     |      Apple_MacBookPro       |     Ubuntu 24.04.3      |             Shelf             |        Prometheus         |
+|            oracle             |       10.0.99.30        |    58:8a:5a:31:20:6a     |    Dell_Inspiron_15_3565    |     Ubuntu 24.04.3      |             Shelf             |       Prometheus(2)       |
 
 ## Hicks (VLAN 50 - Trusted Devices)
 
-|    Hostname     |     IP      | MAC               | Make      |              Model              | CPU                                                          | RAM    | Storage    |       BIOS Version       |   Operating System   | Software/Services |         Location          | Credentials         |      Notes       |
-| :-------------: | :---------: | ----------------- | :-------- | :-----------------------------: | ------------------------------------------------------------ | ------ | ---------- | :----------------------: | :------------------: | :---------------: | :-----------------------: | ------------------- | :--------------: |
-|    morpheus     |  10.0.50.1  | 02:26:26:02:0c:15 | HP        |       ProDesk 600 G4 Mini       | Intel(R) Core(TM) i5-8500 CPU @ 3.00GHz                      | 2x16GB | 1TB SSD    |    Q22 Ver. 02.29.01     | FreeBSD 15.0-Current |      pfSense      | Basement (Server Rack[5]) | :x:                 |     Firewall     |
-| Mekenna-Gaming  | 10.0.50.10  | 04:ed:33:52:6e:94 | HP        |        Pavillion Gaming         | Intel Core i5-9300H                                          | 8GB    | 256 GB SSD |        F.27 Rev.A        |      Windows 11      |        :x:        |        Living Room        | :x:                 |      Laptop      |
-| Mekenna-Desktop | 10.0.50.20  | 04:42:1a:ec:1f:24 | ASUS      | ROG Strix X570-E Gaming WiFi II | AMD Ryzen 9 5950X                                            | 32GB   | 1TB SSD    | American Megatrends 5302 |      Windows 11      |        :x:        |          Office           | :x:                 |    Desktop PC    |
-| Mekenna-Laptop  | 10.0.50.69  | e8:f6:73:a4:32:86 | Microsoft |  Surface Laptop 6 for Business  | Intel64 Family 6 Model 170 Stepping 4 GenuineIntel ~1400 Mhz | 16GB   | 512GB      |   Microsoft 20.111.143   |      Windows 11      |        :x:        |          Office           | :x:                 | Laptop for Work  |
-| Garrett-Laptop  | 10.0.50.70  | 4c:ea:41:66:f2:70 | Microsoft |  Surface Laptop 6 for Business  | Intel64 Family 6 Model 170 Stepping 4 GenuineIntel ~1400 Mhz | 16GB   | 512GB      |   Microsoft 20.111.143   |      Windows 11      |        :x:        |         Basement          | :x:                 | Laptop for Work  |
-| Garrett-MacBook | 10.0.50.80  | 4c:ea:41:68:b4:c5 | Apple     |           MacBook Pro           | Apple M2                                                     | 8GB    | 256GB      |     iBoot-13822.1.2      |  MacOS Tahoe 26.0.1  |       Alloy       |         Basement          | :x:                 |      Laptop      |
-| Garrett-Desktop | 10.0.50.90  | 04:42:1a:07:41:ee | ASUS      |  ROG Crosshair VIII Dark Hero   | AMD Ryzen 9 5950X                                            | 128GB  | 2TB SSD    | American Megatrends 5302 |      Windows 11      |        :x:        |         Basement          | :x:                 |    Desktop PC    |
-|      eero       | 10.0.50.104 | 9c:57:bc:76:e3:32 | eero      |             Pro 6E              | :x:                                                          | :x:    | :x:        |           :x:            |        eeroOS        |        :x:        |        Dining Room        | Hicks/OotyToots!213 | WiFi Mesh System |
-| Garrett-iPhone  | 10.0.50.105 | fe:ee:aa:9a:c6:30 | Apple     |            iPhone 16            | A18                                                          | 8GB    | 128GB      |           :x:            |       iOS 26.1       |        :x:        |            :x:            | :x:                 |    Cellphone     |
-|  Mekenna-Pixel  | 10.0.50.109 | fa:cc:aa:c6:1e:9c | Google    |             Pixel 7             | Google Tensor G2                                             | 8GB    | 128GB      |           :x:            |      Android 13      |        :x:        |            :x:            | :x:                 |    Cellphone     |
-|      eero       | 10.0.50.110 | 9c:57:bc:77:a6:32 | eero      |             Pro 6E              | :x:                                                          | :x:    | :x:        |           :x:            |        eeroOS        |        :x:        |        Media Room         | Hicks/OotyToots!213 | WiFi Mesh System |
-|      eero       | 10.0.50.111 | fc:3f:a6:2f:a1:92 | eero      |             Pro 6E              | :x:                                                          | :x:    | :x:        |           :x:            |        eeroOS        |        :x:        |         Playroom          | Hicks/OotyToots!213 | WiFi Mesh System |
-|  Garrett-Watch  | 10.0.50.112 | f6:b8:72:17:c2:f3 | Apple     |         Watch Series 10         | :x:                                                          | :x:    | :x:        |           :x:            |    watchOS 26.0.2    |        :x:        |            :x:            | :x:                 |   Smart Watch    |
+| $\color{limegreen}{Hostname}$ | $\color{limegreen}{IP}$ | $\color{limegreen}{MAC}$ | $\color{limegreen}{Device}$ | $\color{limegreen}{OS}$ | $\color{limegreen}{Location}$ | $\color{limegreen}{Role}$ |
+| :---------------------------: | :---------------------: | :----------------------: | :-------------------------: | :---------------------: | :---------------------------: | :-----------------------: |
+|           morpheus            |        10.0.50.1        |    02:26:26:02:0c:15     |   HP/ProDesk_600_G4_Mini    |  FreeBSD_15.0_Current   |           Server[5]           |         Firewall          |
+|           M_Gaming            |       10.0.50.10        |    04:ed:33:52:6e:94     |     HP Pavillion Gaming     |       Windows 11        |          Living_Room          |          Laptop           |
+|           M_Desktop           |       10.0.50.20        |    04:42:1a:ec:1f:24     |    ASUS/ROG Strix X570-E    |       Windows 11        |            Office             |          Desktop          |
+|           M_Laptop            |       10.0.50.69        |    e8:f6:73:a4:32:86     |     Microsoft Surface 6     |       Windows 11        |            Office             |          Work_PC          |
+|           G_Laptop            |       10.0.50.70        |    4c:ea:41:66:f2:70     |     Microsoft Surface 6     |       Windows 11        |           Basement            |          Work_PC          |
+|           G_MacBook           |       10.0.50.80        |    4c:ea:41:68:b4:c5     |      Apple MacBook Pro      |   MacOS_Tahoe_26.0.1    |           Basement            |          Laptop           |
+|           G_Desktop           |       10.0.50.90        |    04:42:1a:07:41:ee     |   ASUS/ROG Crosshair VIII   |       Windows 11        |           Basement            |          Desktop          |
+|             eero              |       10.0.50.104       |    9c:57:bc:76:e3:32     |         eero Pro 6E         |         eeroOS          |          Dining_Room          |           WiFi            |
+|           G_iPhone            |       10.0.50.105       |    fe:ee:aa:9a:c6:30     |       Apple iPhone 16       |        iOS 26.1         |              :x:              |         Cellphone         |
+|            M_Pixel            |       10.0.50.109       |    fa:cc:aa:c6:1e:9c     |       Google Pixel 7        |       Android 13        |              :x:              |         Cellphone         |
+|             eero              |       10.0.50.110       |    9c:57:bc:77:a6:32     |         eero Pro 6E         |         eeroOS          |          Media_Room           |           WiFi            |
+|             eero              |       10.0.50.111       |    fc:3f:a6:2f:a1:92     |         eero Pro 6E         |         eeroOS          |           Playroom            |           WiFi            |
+|            G_Watch            |       10.0.50.112       |    f6:b8:72:17:c2:f3     |       Apple_Watch_10        |     watchOS_26.0.2      |              :x:              |           Watch           |
 
 ## CasaBonita (VLAN 40 - Media)
 
