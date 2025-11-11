@@ -88,8 +88,8 @@
 
 ## Degens (VLAN 10 - Guest Network)
 
-    |         Hostname          | IP  | MAC | Make | Model | CPU | RAM | Storage | BIOS Version | Operating System | Software/Services | Location | Credentials | Notes |
-    | :-----------------------: | :-: | --- | :--- | :---: | --- | --- | ------- | :----------: | :--------------: | :---------------: | :------: | ----------- | :---: |
+    |          Hostname          | IP  | MAC | Make | Model | CPU | RAM | Storage | BIOS Version | Operating System | Software/Services | Location | Credentials | Notes |
+    | :------------------------: | :-: | --- | :--- | :---: | --- | --- | ------- | :----------: | :--------------: | :---------------: | :------: | ----------- | :---: |
     | No current house guests :) |     |     |      |       |     |     |         |              |                  |                   |          |             |       |
 
 ## Miscellaneous
