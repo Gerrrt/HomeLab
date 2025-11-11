@@ -1,4 +1,4 @@
-# Cybersecurity HomeLab
+# HomeLab
 
 ## Introduction
 
@@ -11,6 +11,8 @@ I've been wanting to build my own HomeLab for years, and now that I have plenty 
 I want this lab to be an all-encompassing Cybersecurity lab for sharpening my skills and continuous learning. I want to include Red Team, Blue Team, Penetration Testing, Web Apps, Docker, Kubernetes, Development, Analysis, Reverse Engineering, Threat Hunting, Intrusion Detection, CTF's, Mobile, VulnHub, annnnnnnnnnnnd I'm sure I'll add more when/if I remember. I have no idea how it's going to look at this time, nor do I know yet what sorts of extra hardware I'll need to purchase to supplement what I already have.
 
 As a bonus, maybe I'll start to graduate from script-kiddie and improve my automation game with some coding. I forgot how many times I've attempted to START trying to learn how to code, but it always ends with me naturally gravitating back to one of my other hobbies out of frustration and wanting to be comfortable again. Now, with the power of ~*Adderall*~ immense focus, perhaps now's the time to harness this energy towards something resume-building, educational, time-consuming, wallet-shrinking, and spouse-angering since she will likely wonder just what in the double h-e-double hockey stick am I doing all alone in my office all day. Love ya, but I gotta hack. It's what I gotta do!
+
+~*UPDATE*~: As with most projects this one has evolved over time to include not just a playground, but my entire home network set up. I've only made my wife upset a certain number of times that remain <10 but unfortunately still >1. I'd say that average is pretty good.
 
 ## The Human Element
 
