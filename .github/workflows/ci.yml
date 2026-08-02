@@ -16,9 +16,11 @@ concurrency:
 
 env:
   STACK: stacks/observability
-  PROM_IMAGE: prom/prometheus:v3.1.0
-  AM_IMAGE: prom/alertmanager:v0.28.0
-  ALLOY_IMAGE: grafana/alloy:v1.6.1
+  # Image versions are NOT duplicated here. They are resolved from compose.yaml
+  # at run time by scripts/image-for.sh, because Dependabot only updates
+  # compose.yaml — hardcoded copies went stale silently and CI ended up
+  # validating v3.1.0 configs against a stack running v3.13.2.
+  GITLEAKS_IMAGE: zricethezav/gitleaks:v8.24.0
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -58,8 +60,33 @@ jobs:
           cp "$STACK/.env.example" "$STACK/.env"
           echo "GRAFANA_ADMIN_PASSWORD=validation-only" >> "$STACK/.env"
 
+      # Single source of truth: whatever compose.yaml pins is what gets tested.
+      - name: Resolve pinned images from compose.yaml
+        run: |
+          {
+            echo "PROM_IMAGE=$(./scripts/image-for.sh prometheus)"
+            echo "AM_IMAGE=$(./scripts/image-for.sh alertmanager)"
+            echo "ALLOY_IMAGE=$(./scripts/image-for.sh alloy)"
+          } >> "$GITHUB_ENV"
+          ./scripts/image-for.sh prometheus
+          ./scripts/image-for.sh alertmanager
+          ./scripts/image-for.sh alloy
+
       - name: docker compose config
         run: docker compose -f "$STACK/compose.yaml" config -q
+
+      # Guard against the duplication coming back. Any image: pin outside
+      # compose.yaml is drift waiting to happen, since Dependabot cannot see it.
+      - name: Verify image versions are not duplicated outside compose.yaml
+        run: |
+          if grep -rnE '(prom|grafana)/[a-z-]+:v?[0-9]+\.[0-9]+' \
+               --include='*.sh' --include='*.yml' --include='Makefile' \
+               scripts .github Makefile 2>/dev/null \
+             | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' ; then
+            echo "::error::pinned image version outside compose.yaml — use scripts/image-for.sh"
+            exit 1
+          fi
+          echo "no duplicated image pins"
 
       # Covers every place an image is referenced, not just compose.yaml — the
       # first version of this check only looked at the stack and let :latest
@@ -98,8 +125,8 @@ jobs:
 
       # `fmt --test` exits non-zero if the file is not canonically formatted, and
       # fails outright on a syntax error. It does not validate that components
-      # are configured correctly — Alloy v1.6.1 has no `validate` subcommand, so
-      # that is only caught at load time on the host.
+      # are configured correctly — Alloy has no `validate` subcommand, so that is
+      # only caught at load time on the host.
       - name: alloy fmt --test
         run: |
           docker run --rm --entrypoint alloy \
@@ -143,13 +170,13 @@ jobs:
       - name: gitleaks — working tree
         run: |
           docker run --rm -v "$PWD:/repo" -w /repo \
-            zricethezav/gitleaks:v8.24.0 \
+            "$GITLEAKS_IMAGE" \
             detect --no-git --no-banner --redact -c .gitleaks.toml -v
 
       - name: gitleaks — full history
         run: |
           docker run --rm -v "$PWD:/repo" -w /repo \
-            zricethezav/gitleaks:v8.24.0 \
+            "$GITLEAKS_IMAGE" \
             detect --no-banner --redact -c .gitleaks.toml --log-opts="--all" -v
 
       # gitleaks cannot be the control here. .purge-secrets.txt is gitignored so

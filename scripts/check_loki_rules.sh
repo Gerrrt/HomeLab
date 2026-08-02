@@ -20,7 +20,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STACK="${REPO_ROOT}/stacks/observability"
-LOKI_IMAGE="grafana/loki:3.3.2"
+# Resolved from compose.yaml — see scripts/image-for.sh.
+LOKI_IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" loki)"
 BOOT_SECONDS="${BOOT_SECONDS:-45}"
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }

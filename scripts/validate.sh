@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 #
-# Everything CI runs, runnable locally. Uses containers for the Prometheus and
-# Alertmanager tooling so the versions match what actually runs in production.
+# Everything CI runs, runnable locally.
+#
+# Image versions come from compose.yaml via scripts/image-for.sh, so the
+# containers used here are the ones actually deployed. A locally installed
+# binary is preferred when present for speed — if yours is a different version
+# from the pin, CI is the authority.
 #
 # Usage: scripts/validate.sh
 
@@ -11,9 +15,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}" || exit 1
 
 STACK="stacks/observability"
-PROM_IMAGE="prom/prometheus:v3.1.0"
-AM_IMAGE="prom/alertmanager:v0.28.0"
-ALLOY_IMAGE="grafana/alloy:v1.6.1"
+# Resolved from compose.yaml so Dependabot's bumps reach the checks. Hardcoding
+# these meant CI validated Prometheus v3.1.0 configs while the stack ran v3.13.2.
+PROM_IMAGE="$(./scripts/image-for.sh prometheus)"
+AM_IMAGE="$(./scripts/image-for.sh alertmanager)"
+ALLOY_IMAGE="$(./scripts/image-for.sh alloy)"
 
 FAILED=0
 pass() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
@@ -111,7 +117,7 @@ else
 fi
 
 # `fmt --test` fails on a syntax error and on non-canonical formatting. It does
-# not check component configuration — v1.6.1 has no `validate` subcommand.
+# not check component configuration — Alloy has no `validate` subcommand.
 if ((${#ALLOY[@]})); then
   if "${ALLOY[@]}" fmt --test "${STACK}/alloy/config.alloy" >/dev/null 2>&1; then
     pass "alloy fmt --test"
