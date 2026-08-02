@@ -64,9 +64,37 @@ fi
 # ---------------------------------------------------------------------------
 # 3. encrypted secrets file
 # ---------------------------------------------------------------------------
-if [[ -f "${SECRETS_FILE}" ]]; then
-  info "$(basename "${SECRETS_FILE}") already exists — leaving it alone"
+# "The file exists" is not the same as "the secrets are set up". An earlier
+# version of this script redirected sops' stdout into this path, and shell
+# redirection creates the file before the command runs — so a failed encrypt
+# left a 0-byte file behind. Treating that as "already done" made the script
+# skip creation silently, and the next `make secrets-edit` failed with the
+# unhelpful "sops metadata not found".
+#
+# Three distinct states, three different answers.
+if [[ -f "${SECRETS_FILE}" ]] && grep -q '^sops:' "${SECRETS_FILE}" 2>/dev/null; then
+  info "$(basename "${SECRETS_FILE}") already exists and is encrypted — leaving it alone"
+
+elif [[ -s "${SECRETS_FILE}" ]]; then
+  # Non-empty but not SOPS-encrypted. Never delete this: it could be real
+  # credentials someone wrote by hand and has not encrypted yet.
+  die "${SECRETS_FILE}
+exists but is not SOPS-encrypted.
+
+If it holds real values you want to keep, encrypt it in place:
+  sops --encrypt --in-place ${SECRETS_FILE}
+
+If it is junk from a failed run, remove it and re-run:
+  rm ${SECRETS_FILE} && make secrets-init"
+
 else
+  # Absent, or an empty file left by a failed run. An empty file carries no
+  # data, so removing it is safe.
+  if [[ -e "${SECRETS_FILE}" ]]; then
+    warn "removing empty $(basename "${SECRETS_FILE}") left by a previous failed run"
+    rm -f "${SECRETS_FILE}"
+  fi
+
   info "creating $(basename "${SECRETS_FILE}") from the template"
 
   # Copy to the destination name FIRST, then encrypt in place.
