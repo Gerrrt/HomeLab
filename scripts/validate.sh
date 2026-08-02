@@ -130,6 +130,19 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "Compose health dependencies"
+# ---------------------------------------------------------------------------
+if have python3; then
+  if python3 scripts/check_compose_health.py; then
+    pass "compose health dependencies"
+  else
+    fail "compose health dependencies"
+  fi
+else
+  skip "python3 not installed"
+fi
+
+# ---------------------------------------------------------------------------
 head_ "Loki rules"
 # ---------------------------------------------------------------------------
 if ./scripts/check_loki_rules.sh; then
