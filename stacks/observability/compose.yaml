@@ -87,7 +87,7 @@ services:
   # ---------------------------------------------------------------------------
   loki:
     <<: *service-defaults
-    image: grafana/loki:3.3.2
+    image: grafana/loki:3.7.4
     container_name: loki
     user: "10001:10001"
     command: -config.file=/etc/loki/loki-config.yaml
@@ -132,7 +132,7 @@ services:
   # ---------------------------------------------------------------------------
   grafana:
     <<: *service-defaults
-    image: grafana/grafana-oss:11.5.2
+    image: grafana/grafana-oss:13.0.2
     container_name: grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
@@ -172,7 +172,7 @@ services:
   # ---------------------------------------------------------------------------
   alloy:
     <<: *service-defaults
-    image: grafana/alloy:v1.6.1
+    image: grafana/alloy:v1.18.0
     container_name: alloy
     privileged: true
     environment:
