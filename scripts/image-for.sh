@@ -13,11 +13,23 @@
 # config`: this runs before any of those are guaranteed present, and needs no
 # .env for the ${VAR:?} guards.
 #
-# Usage: scripts/image-for.sh <service>        e.g. loki -> grafana/loki:3.7.4
+# Usage:
+#   scripts/image-for.sh <service>              full reference, digest included
+#   scripts/image-for.sh --tag-only <service>   repo:tag, digest stripped
+#
+# --tag-only exists for the one case where a digest must NOT be carried across:
+# deriving prom/snmp-generator from prom/snmp-exporter. They share a version but
+# are different images, so reusing the exporter's digest produces a reference
+# that cannot be pulled.
 
 set -euo pipefail
 
-SERVICE="${1:?usage: image-for.sh <service>}"
+TAG_ONLY=0
+if [[ "${1:-}" == "--tag-only" ]]; then
+  TAG_ONLY=1
+  shift
+fi
+SERVICE="${1:?usage: image-for.sh [--tag-only] <service>}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE="${COMPOSE_FILE:-${REPO_ROOT}/stacks/observability/compose.yaml}"
 
@@ -41,5 +53,8 @@ if [[ -z "${image}" ]]; then
   printf 'no image found for service %s in %s\n' "${SERVICE}" "${COMPOSE}" >&2
   exit 1
 fi
+
+# Strip the @sha256:... suffix when only the tag was asked for.
+((TAG_ONLY)) && image="${image%%@*}"
 
 printf '%s\n' "${image}"

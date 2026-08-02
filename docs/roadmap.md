@@ -67,5 +67,7 @@ inventory. Ordered roughly by how much it matters.
 - [x] Add alerting (32 rules) and Alertmanager routing
 - [x] Move secrets to SOPS + age
 - [x] Add CI: lint, config validation, secret scanning
+- [x] Pin every image by digest, not just tag, with drift detection in CI
+- [x] Add SECURITY.md with a disclosure policy and known-exposure summary
 - [x] Loki alerting rules (8) for auth, SSH brute force and disk/OOM events,
       validated in CI by booting the pinned Loki image against them
