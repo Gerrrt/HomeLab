@@ -68,8 +68,45 @@ if [[ -f "${SECRETS_FILE}" ]]; then
   info "$(basename "${SECRETS_FILE}") already exists — leaving it alone"
 else
   info "creating $(basename "${SECRETS_FILE}") from the template"
-  sops --encrypt "${EXAMPLE_FILE}" > "${SECRETS_FILE}"
+
+  # Copy to the destination name FIRST, then encrypt in place.
+  #
+  # SOPS chooses a creation_rule by matching path_regex against the *input*
+  # path. Encrypting the template directly — `sops -e observability.example.yaml
+  # > observability.sops.yaml` — makes SOPS test the rule against the example
+  # filename, which does not end in .sops.yaml, so no rule matches and it exits
+  # with "no matching creation rules found". The output name is never consulted.
+  cp "${EXAMPLE_FILE}" "${SECRETS_FILE}"
+
+  # From here until encryption is verified, the file is PLAINTEXT sitting at a
+  # path that is meant to be committed and whose name says "encrypted". It is
+  # deliberately not gitignored, so anything that leaves it behind is a leak
+  # waiting to be committed.
+  #
+  # The trap covers every exit, not just the two failures checked below: a
+  # chmod failure under `set -e`, a Ctrl-C mid-encrypt, a SIGTERM. Cleared only
+  # once the sops metadata block is confirmed present.
+  trap 'rm -f "${SECRETS_FILE}"' EXIT INT TERM
+
   chmod 600 "${SECRETS_FILE}"
+
+  if ! sops --encrypt --in-place "${SECRETS_FILE}"; then
+    die "encryption failed — the partial file has been removed rather than
+leave plaintext credentials at a path that looks encrypted.
+
+Check that .sops.yaml lists a valid age recipient:
+  grep -A2 creation_rules ${SOPS_CONFIG}"
+  fi
+
+  # Do not trust the exit status alone. CI catches a plaintext secrets file, but
+  # only after it has been pushed.
+  if ! grep -q '^sops:' "${SECRETS_FILE}"; then
+    die "sops reported success but produced no encrypted output — file removed"
+  fi
+
+  # Confirmed encrypted: the file may now survive.
+  trap - EXIT INT TERM
+
   warn "It still contains the placeholder values. Edit it now:"
   warn "  make secrets-edit"
 fi
