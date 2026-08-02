@@ -102,17 +102,25 @@ fi
 # ---------------------------------------------------------------------------
 head_ "Alloy"
 # ---------------------------------------------------------------------------
-if have_docker; then
-  if docker run --rm -v "${REPO_ROOT}:/repo" -w /repo --entrypoint alloy "${ALLOY_IMAGE}" \
-       fmt --verify "${STACK}/alloy/config.alloy" >/dev/null 2>&1; then
-    pass "alloy fmt --verify"
+if have alloy; then
+  ALLOY=(alloy)
+elif have_docker; then
+  ALLOY=(docker run --rm -v "${REPO_ROOT}:/repo" -w /repo --entrypoint alloy "${ALLOY_IMAGE}")
+else
+  ALLOY=()
+fi
+
+# `fmt --test` fails on a syntax error and on non-canonical formatting. It does
+# not check component configuration — v1.6.1 has no `validate` subcommand.
+if ((${#ALLOY[@]})); then
+  if "${ALLOY[@]}" fmt --test "${STACK}/alloy/config.alloy" >/dev/null 2>&1; then
+    pass "alloy fmt --test"
   else
-    docker run --rm -v "${REPO_ROOT}:/repo" -w /repo --entrypoint alloy "${ALLOY_IMAGE}" \
-      fmt --verify "${STACK}/alloy/config.alloy"
-    fail "alloy fmt --verify"
+    "${ALLOY[@]}" fmt --test "${STACK}/alloy/config.alloy"
+    fail "alloy fmt --test"
   fi
 else
-  skip "alloy fmt (needs a docker daemon)"
+  skip "no alloy binary and no docker daemon"
 fi
 
 # ---------------------------------------------------------------------------

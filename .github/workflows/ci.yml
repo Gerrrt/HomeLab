@@ -96,11 +96,15 @@ jobs:
             -v "$PWD:/repo" -w /repo "$AM_IMAGE" \
             check-config "$STACK/alertmanager/alertmanager.yaml"
 
-      - name: alloy fmt --verify
+      # `fmt --test` exits non-zero if the file is not canonically formatted, and
+      # fails outright on a syntax error. It does not validate that components
+      # are configured correctly — Alloy v1.6.1 has no `validate` subcommand, so
+      # that is only caught at load time on the host.
+      - name: alloy fmt --test
         run: |
           docker run --rm --entrypoint alloy \
             -v "$PWD:/repo" -w /repo "$ALLOY_IMAGE" \
-            fmt --verify "$STACK/alloy/config.alloy"
+            fmt --test "$STACK/alloy/config.alloy"
 
       - name: Validate Grafana dashboards
         run: python3 scripts/check_dashboards.py
