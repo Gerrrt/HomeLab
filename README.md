@@ -1,39 +1,197 @@
+<div align="center">
+
 # HomeLab
 
-## Introduction
+**A segmented home network and its observability stack, managed as code.**
 
-Alright, well... Here we go I guess?
+[![CI](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml/badge.svg)](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Secrets: SOPS + age](https://img.shields.io/badge/secrets-SOPS%20%2B%20age-6f42c1.svg)](docs/adr/0005-secrets-with-sops-and-age.md)
+[![Prometheus](https://img.shields.io/badge/Prometheus-v3.1.0-E6522C.svg?logo=prometheus&logoColor=white)](stacks/observability/prometheus)
+[![Grafana](https://img.shields.io/badge/Grafana-11.5-F46800.svg?logo=grafana&logoColor=white)](stacks/observability/grafana)
+[![Loki](https://img.shields.io/badge/Loki-3.3-F5A800.svg?logo=grafana&logoColor=white)](stacks/observability/loki)
+[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2015-212121.svg)](docs/network.md)
 
-I've been wanting to build my own HomeLab for years, and now that I have plenty of time on my hands due to an indefinitely delayed West-Coast move, and an empty house except for 2 anxious puppies, why not?
+[Architecture](docs/architecture.md) ·
+[Network](docs/network.md) ·
+[Observability](docs/observability.md) ·
+[Security](docs/security.md) ·
+[Runbooks](docs/runbooks) ·
+[Decisions](docs/adr) ·
+[Roadmap](docs/roadmap.md)
 
-## Objective
+</div>
 
-I want this lab to be an all-encompassing Cybersecurity lab for sharpening my skills and continuous learning. I want to include Red Team, Blue Team, Penetration Testing, Web Apps, Docker, Kubernetes, Development, Analysis, Reverse Engineering, Threat Hunting, Intrusion Detection, CTF's, Mobile, VulnHub, annnnnnnnnnnnd I'm sure I'll add more when/if I remember. I have no idea how it's going to look at this time, nor do I know yet what sorts of extra hardware I'll need to purchase to supplement what I already have.
+---
 
-As a bonus, maybe I'll start to graduate from script-kiddie and improve my automation game with some coding. I forgot how many times I've attempted to START trying to learn how to code, but it always ends with me naturally gravitating back to one of my other hobbies out of frustration and wanting to be comfortable again. Now, with the power of ~*Adderall*~ immense focus, perhaps now's the time to harness this energy towards something resume-building, educational, time-consuming, wallet-shrinking, and spouse-angering since she will likely wonder just what in the double h-e-double hockey stick am I doing all alone in my office all day. Love ya, but I gotta hack. It's what I gotta do!
+Seven VLANs behind a pfSense firewall, default-deny between every segment, with
+a Prometheus/Loki/Grafana stack watching all of it. Every config in this
+repository is the config that runs, validated on every push.
 
-_*UPDATE*_: As with most projects this one has evolved over time to include not just a playground, but my entire home network set up. I've only made my wife upset a certain number of times that remain <10 but unfortunately still >1. I'd say that average is pretty good.
+It started as a place to practise security work and turned into the network the
+house actually depends on, which changed the requirements considerably — a
+broken experiment is a learning opportunity, a broken DHCP server is a domestic
+incident.
 
-## The Human Element
+## Highlights
 
-Will I have enough resources? Heck I don't know, I'm making this up as I go. I will be scouring Amazon, Save My Server, Newegg, PCPartPicker I guess, eBay duh, and a few other places to search for deals that don't sound too jank sketch like the one refurbished absolute monster of a server I found for only $75.
+- **Network segmented by trust, not by function.** Seven VLANs; IoT, media and
+  guest segments are terminal — egress only, no path to anything else. Exactly
+  two inter-VLAN rules exist. [Why](docs/adr/0002-vlan-segmentation-strategy.md)
+- **Full observability pipeline for a mixed estate.** Grafana Alloy agents push
+  metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
+  can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
+  identically everywhere. [How](docs/architecture.md#observability-data-flow)
+- **Dashboards and alerting as code.** 5 provisioned dashboards, 79 panels, 32
+  alert rules with severity routing and inhibition. No dashboard exists only in
+  a database.
+- **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
+  decrypted at deploy time into gitignored paths, with `git log` showing which
+  credential rotated and when — but never to what.
+  [Why](docs/adr/0005-secrets-with-sops-and-age.md)
+- **CI that actually validates the infrastructure.** `docker compose config`,
+  `promtool`, `amtool`, `alloy fmt`, dashboard-JSON and datasource checks, every
+  dashboard's PromQL parsed, plus `gitleaks` over the full history.
+- **Documented decisions and runbooks.** Five ADRs covering what was chosen and
+  what was rejected; four runbooks for the operations that are easy to get wrong
+  at 1am.
 
-***...tempting, but no...***
+## Architecture
 
-Yes, I considered it. Times are hard.
+```mermaid
+graph TB
+    INET([Internet]) --- FW{{"morpheus · pfSense<br/>HP ProDesk 600 G4"}}
+    FW --- SW[neo · 26-port managed switch]
 
-## Possibilities
+    subgraph V99["VLAN 99 · Management"]
+        MON["<b>prometheus</b><br/>observability stack"]
+        UPS["mjolnir · UPS"]
+    end
+    subgraph V50["VLAN 50 · Trusted"]
+        WS["workstations"]
+    end
+    subgraph V30["VLAN 30 · Lab"]
+        HV["shiva · Proxmox"]
+    end
+    subgraph Terminal["VLANs 40 / 20 / 10 · egress only"]
+        UNTRUSTED["media · IoT · guest"]
+    end
 
-So far, Amazon appears to be the most promising with some of the best deals I've seen. They even have plenty of seemingly honest reviews that slightly boost my confidence it would be a good choice.
+    SW --- V99
+    SW --- V50
+    SW --- V30
+    SW --- Terminal
+    WS -.->|management| V99
+    WS -.->|lab| V30
 
-Servers I'm considering:
+    classDef mgmt fill:#1f6f4a,stroke:#2ea043,color:#fff
+    classDef trusted fill:#1f4e79,stroke:#388bfd,color:#fff
+    classDef untrusted fill:#6e2c2c,stroke:#f85149,color:#fff
+    classDef infra fill:#4a3f7a,stroke:#a371f7,color:#fff
+    class MON,UPS mgmt
+    class WS trusted
+    class UNTRUSTED untrusted
+    class HV,FW,SW infra
+```
 
-- Dell PowerEdge
-- Enterprise Proliant
-- ...and that's about it for now.
+Dotted lines are the only two paths between segments. Everything else reaches
+the internet and nothing more. Full topology and data flow in
+[`docs/architecture.md`](docs/architecture.md).
 
-Of course whichever machine I get is going to be beefed up enough in order to host all the machines I want, and it will be virtualized with Proxmox. No license purchases here, no Sir.
+## Stack
 
-## Engage
+| Layer | Tool | Role |
+| --- | --- | --- |
+| Firewall / routing | pfSense on FreeBSD 15 | VLANs, DHCP, default-deny |
+| Virtualisation | Proxmox VE | Lab hypervisor |
+| Metrics | Prometheus | 30-day retention, remote-write receiver |
+| Logs | Loki | Single-binary, filesystem storage |
+| Collection | Grafana Alloy | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
+| Network polling | snmp_exporter | pfSense, switch, UPS, iLO |
+| Alerting | Alertmanager | Severity routing, inhibition |
+| Visualisation | Grafana | 5 provisioned dashboards |
+| Secrets | SOPS + age | Encrypted in-repo |
+| CI | GitHub Actions | Lint, config validation, secret scanning |
 
-After that the real fun starts. I absolutely can't wait to stupidly mess up the entire environment and then frantically try to fix it, but inevitably make things worse through spastic troubleshooting and desperation. It's all in the name of bettering myself and learning, right? Even if it degrades my health? ***Hell yea***.
+## Repository layout
+
+```text
+.
+├── stacks/observability/     # the deployed stack — one compose file, six services
+│   ├── compose.yaml
+│   ├── prometheus/           # config, file_sd targets, 32 alert rules
+│   ├── alertmanager/         # routing and inhibition
+│   ├── loki/                 # single-binary config
+│   ├── alloy/                # one agent config, used on every host
+│   ├── snmp-exporter/        # generator.yaml is the source of truth
+│   └── grafana/              # provisioning + 5 dashboards
+├── secrets/                  # SOPS-encrypted; see secrets/README.md
+├── scripts/                  # bootstrap, render, validate, history purge
+├── docs/
+│   ├── architecture.md  network.md  hardware.md
+│   ├── observability.md  security.md  roadmap.md
+│   ├── adr/                  # 5 architecture decision records
+│   └── runbooks/             # deploy, add device, rotate creds, purge history
+└── Makefile                  # make help
+```
+
+## Quick start
+
+Requires Docker with the compose plugin, plus [`sops`](https://github.com/getsops/sops)
+and [`age`](https://github.com/FiloSottile/age).
+
+```bash
+git clone https://github.com/Gerrrt/HomeLab.git && cd HomeLab
+
+make secrets-init     # generate an age keypair, create the encrypted secrets file
+make secrets-edit     # fill in real values
+make validate         # everything CI runs
+make up               # render config and start the stack
+```
+
+Grafana on `:3000`, Prometheus on `:9090`. Full procedure, verification steps and
+troubleshooting in [`docs/runbooks/deploy-stack.md`](docs/runbooks/deploy-stack.md).
+
+```console
+$ make help
+  up               Render config and start the stack
+  down             Stop the stack (volumes are preserved)
+  reload           Hot-reload Prometheus and Alertmanager without a restart
+  secrets-init     Generate an age keypair and create the encrypted secrets file
+  secrets-edit     Edit the encrypted secrets in $EDITOR
+  validate         Run every check CI runs
+  backup           Back up the stack's volumes to ./backups/
+  ...
+```
+
+<!-- Dashboard screenshots go here once the stack has real data worth showing.
+     docs/images/README.md lists the filenames to use, how to capture them,
+     and what to check for before publishing them publicly. -->
+
+## What runs it
+
+The entire observability stack runs on a 2012 MacBook Pro with Ubuntu Server on
+it. Four SNMP devices at a 60-second interval, Alloy agents, and 30 days of
+metrics, on hardware that was otherwise going to landfill. Hardware details in
+[`docs/hardware.md`](docs/hardware.md).
+
+## Security posture
+
+Segmentation rationale, threat model, secrets handling, and an explicit account
+of what this repository deliberately does not publish (full MAC addresses,
+owner-linked device names, camera placement) are in
+[`docs/security.md`](docs/security.md).
+
+Historical credential exposure in this repository's git history is documented
+there too, along with the runbooks to remediate it — including the parts not yet
+done.
+
+## Roadmap
+
+Open work is tracked in [`docs/roadmap.md`](docs/roadmap.md). The current top
+items: rotate the SNMP communities, purge the old ones from git history, replace
+the UPS battery, and get 64-bit interface counters off the switch.
+
+## License
+
+[MIT](LICENSE)

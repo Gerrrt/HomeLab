@@ -1,0 +1,105 @@
+# Runbook: Deploy the observability stack
+
+**Target:** `prometheus` (10.0.99.20), VLAN 99
+**Time:** ~10 minutes on a clean host
+
+## Prerequisites
+
+```bash
+docker --version          # 24+ with the compose plugin
+sops --version            # https://github.com/getsops/sops/releases
+age --version             # https://github.com/FiloSottile/age/releases
+```
+
+## First deployment
+
+```bash
+git clone <repo> HomeLab && cd HomeLab
+
+make secrets-init     # generates an age keypair, creates the encrypted file
+make secrets-edit     # replace every change-me value
+make validate         # confirm the configs are sound before starting anything
+make up
+```
+
+`make up` renders the decrypted config and starts all six services. Give it a
+minute — Grafana waits on Prometheus and Loki reporting healthy.
+
+> **Back up `~/.config/sops/age/keys.txt` off this machine now.** Without it the
+> encrypted secrets in the repository cannot be decrypted by anything, including
+> you.
+
+## Verify
+
+```bash
+make ps                                     # all six services healthy
+curl -s localhost:9090/-/healthy            # Prometheus
+curl -s localhost:3100/ready                # Loki
+curl -s localhost:9093/-/healthy            # Alertmanager
+curl -s localhost:3000/api/health           # Grafana
+```
+
+Then in the UI:
+
+1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
+   take up to 45 seconds on their first scrape.
+2. **Prometheus → Status → Rules.** 32 rules loaded, none in error.
+3. **Grafana → Dashboards → HomeLab.** Five dashboards, populated.
+4. **Grafana → Explore → Loki**, run `{host=~".+"}`. Logs should be arriving.
+5. Confirm level normalisation is working — this has been silently broken
+   before:
+
+   ```logql
+   sum by (level) (count_over_time({host=~".+"}[1h]))
+   ```
+
+   More than one series means the regex is matching. Only `info` means it is not
+   (see `docs/observability.md`).
+
+## Updating
+
+```bash
+git pull
+make validate
+make up          # recreates only what changed
+```
+
+Config-only changes to Prometheus rules or Alertmanager routing do not need a
+restart:
+
+```bash
+make reload
+```
+
+## Rolling back
+
+Images are pinned, so rolling back is a git operation:
+
+```bash
+git revert <commit>
+make up
+```
+
+Data volumes survive `make down` and `make up`. Only `make nuke` destroys them,
+and it prompts.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `GRAFANA_ADMIN_PASSWORD: unset` | `.env` not rendered | `make render` |
+| `unsubstituted placeholders remain` | A `SNMP_COMMUNITY_*` key is missing from the secrets file | `make secrets-edit` |
+| SNMP targets `DOWN` | Community mismatch, or the device is not reachable from VLAN 99 | `snmpwalk -v2c -c '<community>' <ip> 1.3.6.1.2.1.1.1.0` |
+| Grafana panels empty, no error | Datasource UID mismatch | `make check-dashboards` |
+| Loki `ready` returns 503 for a while | Normal on first start | Wait ~45s |
+| Every log line labelled `info` | The level regex is not matching | See `docs/observability.md` |
+
+## Backups
+
+```bash
+make backup      # tars each data volume into ./backups/
+```
+
+Prometheus and Loki data is reproducible-ish (it re-accumulates), but Grafana's
+volume holds annotations and users. The dashboards themselves are in git, so a
+lost Grafana volume is an inconvenience rather than a loss.
