@@ -146,9 +146,16 @@ jobs:
             -v "$PWD:/repo" -w /repo "$ALLOY_IMAGE" \
             fmt --test "$STACK/alloy/config.alloy"
 
+      # `docker compose config` happily accepts a service_healthy dependency on
+      # a service that can never report healthy — the stack then hangs at deploy
+      # time with no error at all. Loki's distroless image has no wget to probe
+      # with, which is exactly how that happened here.
+      - name: Verify health dependencies are satisfiable
+        run: python3 scripts/check_compose_health.py
+
       # promtool cannot check these — it parses PromQL and rejects every LogQL
-      # stream selector. Loki itself is the only thing that understands them,
-      # so the checker boots the pinned image with the rules mounted.
+      # stream selector. Loki itself is the only thing that understands them, so
+      # the checker boots the pinned image with the rules mounted.
       - name: Validate Loki rules
         run: ./scripts/check_loki_rules.sh
 

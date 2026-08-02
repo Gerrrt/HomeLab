@@ -96,6 +96,10 @@ check-rules: ## Validate Prometheus rules and config
 	promtool check config $(STACK_DIR)/prometheus/prometheus.yaml
 	promtool check rules $(STACK_DIR)/prometheus/rules/*.rules.yaml
 
+.PHONY: check-compose-health
+check-compose-health: ## Verify compose health dependencies can be satisfied
+	python3 scripts/check_compose_health.py
+
 .PHONY: check-loki-rules
 check-loki-rules: ## Validate Loki (LogQL) alerting rules
 	./scripts/check_loki_rules.sh
