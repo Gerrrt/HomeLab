@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+#
+# Everything CI runs, runnable locally. Uses containers for the Prometheus and
+# Alertmanager tooling so the versions match what actually runs in production.
+#
+# Usage: scripts/validate.sh
+
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${REPO_ROOT}" || exit 1
+
+STACK="stacks/observability"
+PROM_IMAGE="prom/prometheus:v3.1.0"
+AM_IMAGE="prom/alertmanager:v0.28.0"
+ALLOY_IMAGE="grafana/alloy:v1.6.1"
+
+FAILED=0
+pass() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
+fail() { printf '\033[0;31m  FAIL\033[0m %s\n' "$*"; FAILED=1; }
+skip() { printf '\033[0;33m  SKIP\033[0m %s\n' "$*"; }
+head_() { printf '\n\033[1m%s\033[0m\n' "$*"; }
+
+have() { command -v "$1" >/dev/null 2>&1; }
+have_docker() { have docker && docker info >/dev/null 2>&1; }
+
+# ---------------------------------------------------------------------------
+head_ "Compose"
+# ---------------------------------------------------------------------------
+if have docker; then
+  # A .env is required for the ${VAR:?} guards; use the example values plus
+  # throwaway secrets so validation does not depend on a decryption key.
+  TMP_ENV="$(mktemp)"
+  trap 'rm -f "${TMP_ENV}"' EXIT
+  cat "${STACK}/.env.example" > "${TMP_ENV}"
+  cat >> "${TMP_ENV}" <<'EOF'
+GRAFANA_ADMIN_PASSWORD=validation-only
+ALERTMANAGER_WEBHOOK_URL=https://example.invalid/hook
+EOF
+  if docker compose --env-file "${TMP_ENV}" -f "${STACK}/compose.yaml" config -q 2>/dev/null; then
+    pass "docker compose config"
+  else
+    docker compose --env-file "${TMP_ENV}" -f "${STACK}/compose.yaml" config -q
+    fail "docker compose config"
+  fi
+else
+  skip "docker not installed"
+fi
+
+# ---------------------------------------------------------------------------
+head_ "Prometheus"
+# ---------------------------------------------------------------------------
+if have promtool; then
+  PROMTOOL=(promtool)
+elif have_docker; then
+  PROMTOOL=(docker run --rm --entrypoint promtool -v "${REPO_ROOT}:/repo" -w /repo "${PROM_IMAGE}")
+else
+  PROMTOOL=()
+fi
+
+if ((${#PROMTOOL[@]})); then
+  if "${PROMTOOL[@]}" check config "${STACK}/prometheus/prometheus.yaml" 2>&1 \
+      | grep -qE '^\s*SUCCESS'; then
+    pass "promtool check config"
+  else
+    "${PROMTOOL[@]}" check config "${STACK}/prometheus/prometheus.yaml"
+    fail "promtool check config"
+  fi
+
+  if "${PROMTOOL[@]}" check rules "${STACK}"/prometheus/rules/*.rules.yaml >/dev/null 2>&1; then
+    pass "promtool check rules"
+  else
+    "${PROMTOOL[@]}" check rules "${STACK}"/prometheus/rules/*.rules.yaml
+    fail "promtool check rules"
+  fi
+else
+  skip "no promtool and no docker daemon"
+fi
+
+# ---------------------------------------------------------------------------
+head_ "Alertmanager"
+# ---------------------------------------------------------------------------
+if have amtool; then
+  AMTOOL=(amtool)
+elif have_docker; then
+  AMTOOL=(docker run --rm --entrypoint amtool -e ALERTMANAGER_WEBHOOK_URL=https://example.invalid/hook \
+          -v "${REPO_ROOT}:/repo" -w /repo "${AM_IMAGE}")
+else
+  AMTOOL=()
+fi
+
+if ((${#AMTOOL[@]})); then
+  export ALERTMANAGER_WEBHOOK_URL="${ALERTMANAGER_WEBHOOK_URL:-https://example.invalid/hook}"
+  if "${AMTOOL[@]}" check-config "${STACK}/alertmanager/alertmanager.yaml" >/dev/null 2>&1; then
+    pass "amtool check-config"
+  else
+    "${AMTOOL[@]}" check-config "${STACK}/alertmanager/alertmanager.yaml"
+    fail "amtool check-config"
+  fi
+else
+  skip "no amtool and no docker daemon"
+fi
+
+# ---------------------------------------------------------------------------
+head_ "Alloy"
+# ---------------------------------------------------------------------------
+if have_docker; then
+  if docker run --rm -v "${REPO_ROOT}:/repo" -w /repo --entrypoint alloy "${ALLOY_IMAGE}" \
+       fmt --verify "${STACK}/alloy/config.alloy" >/dev/null 2>&1; then
+    pass "alloy fmt --verify"
+  else
+    docker run --rm -v "${REPO_ROOT}:/repo" -w /repo --entrypoint alloy "${ALLOY_IMAGE}" \
+      fmt --verify "${STACK}/alloy/config.alloy"
+    fail "alloy fmt --verify"
+  fi
+else
+  skip "alloy fmt (needs a docker daemon)"
+fi
+
+# ---------------------------------------------------------------------------
+head_ "Grafana dashboards"
+# ---------------------------------------------------------------------------
+if have python3; then
+  if python3 scripts/check_dashboards.py; then
+    pass "dashboard JSON and datasource references"
+  else
+    fail "dashboard JSON and datasource references"
+  fi
+else
+  skip "python3 not installed"
+fi
+
+# ---------------------------------------------------------------------------
+head_ "YAML / Markdown / shell"
+# ---------------------------------------------------------------------------
+if have yamllint; then
+  if yamllint . >/dev/null 2>&1; then pass "yamllint"; else yamllint .; fail "yamllint"; fi
+else
+  skip "yamllint not installed (pip install yamllint)"
+fi
+
+if have markdownlint-cli2; then
+  if markdownlint-cli2 >/dev/null 2>&1; then pass "markdownlint"; else markdownlint-cli2; fail "markdownlint"; fi
+else
+  skip "markdownlint-cli2 not installed (npm i -g markdownlint-cli2)"
+fi
+
+if have shellcheck; then
+  if shellcheck scripts/*.sh; then pass "shellcheck"; else fail "shellcheck"; fi
+else
+  skip "shellcheck not installed"
+fi
+
+# ---------------------------------------------------------------------------
+head_ "Secrets"
+# ---------------------------------------------------------------------------
+if have gitleaks; then
+  if gitleaks detect --no-banner --redact -c .gitleaks.toml >/dev/null 2>&1; then
+    pass "gitleaks (working tree)"
+  else
+    gitleaks detect --no-banner --redact -c .gitleaks.toml
+    fail "gitleaks (working tree)"
+  fi
+else
+  skip "gitleaks not installed"
+fi
+
+# Cheap belt-and-braces check that no rendered/decrypted artefact is staged.
+if git ls-files --error-unmatch "${STACK}/.env" >/dev/null 2>&1 \
+   || git ls-files "${STACK}/snmp-exporter/.rendered" | grep -q .; then
+  fail "a rendered or decrypted file is tracked by git"
+else
+  pass "no rendered or decrypted files tracked"
+fi
+
+printf '\n'
+if ((FAILED)); then
+  printf '\033[0;31mvalidation failed\033[0m\n'; exit 1
+fi
+printf '\033[0;32mall checks passed\033[0m\n'

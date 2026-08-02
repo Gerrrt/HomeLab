@@ -1,0 +1,34 @@
+---
+name: Planned change
+description: New device, new service, or a change to the network
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: What and why
+    validations:
+      required: true
+
+  - type: dropdown
+    id: vlan
+    attributes:
+      label: Which VLAN does this touch
+      multiple: true
+      options:
+        - "99 — Winterfell (management)"
+        - "50 — Hicks (trusted)"
+        - "40 — CasaBonita (media)"
+        - "30 — ImaginationLAN (lab)"
+        - "20 — Skids (IoT)"
+        - "10 — Degens (guest)"
+        - None / not network-facing
+
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Security review
+      options:
+        - label: Does not weaken the default-deny posture between VLANs
+        - label: Any new credential goes in `secrets/*.sops.yaml`
+        - label: Any new device is added to `docs/network.md` with an OUI-truncated MAC

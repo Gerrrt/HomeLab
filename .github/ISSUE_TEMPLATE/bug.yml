@@ -1,0 +1,43 @@
+---
+name: Something is broken
+description: A service, dashboard, alert or metric is not behaving
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Prometheus / alerting
+        - Grafana / dashboards
+        - Loki / log collection
+        - Alloy agent
+        - SNMP / network devices
+        - Deployment (compose, secrets, scripts)
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happens instead
+      description: Include the query, panel or alert name where relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: >-
+        Output of `make validate`, `docker compose logs <service>`, or the
+        failing PromQL. Redact community strings and passwords.
+      render: shell
