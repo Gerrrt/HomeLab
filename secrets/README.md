@@ -4,11 +4,19 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) using an
 [age](https://github.com/FiloSottile/age) key, committed in encrypted form, and
 decrypted only in memory at deploy time.
 
-| File | Committed? | Encrypted? | Contains |
+| File | In this repo? | Encrypted? | Contains |
 | --- | --- | --- | --- |
 | `observability.example.yaml` | yes | no | Key names and placeholder values |
-| `observability.sops.yaml` | yes | **yes** | Real credentials |
+| `observability.sops.yaml` | **not yet** — created by `make secrets-init`, then committed | **yes** | Real credentials |
 | `~/.config/sops/age/keys.txt` | **never** | n/a | The private key |
+
+> `observability.sops.yaml` is deliberately absent from the repository right
+> now. Encrypting it requires an age keypair, and generating that keypair here
+> would mean either committing a private key or encrypting to a key nobody
+> holds. `make secrets-init` creates both on the machine that will run the
+> stack; the encrypted result is then committed as normal. Until that has been
+> run, `make up` fails with a clear error rather than starting a stack with
+> default credentials.
 
 ## Why encrypted-in-git rather than a gitignored `.env`
 
@@ -53,11 +61,14 @@ plaintext never lands on disk unencrypted.
 `scripts/render-config.sh` runs before `docker compose up`. It decrypts this
 file, exports the values as environment variables, and:
 
-- writes `stacks/observability/.env` for compose to interpolate (gitignored);
+- writes `stacks/observability/.env` with only the values compose interpolates
+  (the Grafana credentials);
 - renders `snmp-exporter/snmp.yaml`'s `${SNMP_COMMUNITY_*}` placeholders into
-  `snmp-exporter/.rendered/snmp.yaml` (gitignored), which is what the container
-  actually mounts.
+  `snmp-exporter/.rendered/snmp.yaml`, which is what the container mounts;
+- writes `alertmanager/.rendered/webhook_url`, because Alertmanager does not
+  expand environment variables and reads receiver URLs via `url_file`.
 
+All three are gitignored, and each secret is written to exactly one of them.
 Nothing writes a secret into a tracked file.
 
 ## Rotating

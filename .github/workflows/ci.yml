@@ -56,21 +56,25 @@ jobs:
       - name: Seed a validation-only .env
         run: |
           cp "$STACK/.env.example" "$STACK/.env"
-          {
-            echo "GRAFANA_ADMIN_PASSWORD=validation-only"
-            echo "ALERTMANAGER_WEBHOOK_URL=https://example.invalid/hook"
-          } >> "$STACK/.env"
+          echo "GRAFANA_ADMIN_PASSWORD=validation-only" >> "$STACK/.env"
 
       - name: docker compose config
         run: docker compose -f "$STACK/compose.yaml" config -q
 
+      # Covers every place an image is referenced, not just compose.yaml — the
+      # first version of this check only looked at the stack and let :latest
+      # through in the workflow itself and in the Makefile.
       - name: Verify no image uses a floating tag
         run: |
-          if grep -nE '^\s*image:.*:latest\s*$' "$STACK/compose.yaml"; then
+          if grep -rnE '(^|[[:space:]])[a-z0-9._/-]+:latest([[:space:]]|$)' \
+               --include='*.yaml' --include='*.yml' --include='Makefile' \
+               --include='*.sh' . \
+             | grep -v '^\./\.git/' \
+             | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' ; then
             echo "::error::floating :latest tag found — pin an explicit version"
             exit 1
           fi
-          echo "all images pinned"
+          echo "all image references pinned"
 
       - name: promtool check config
         run: |
@@ -84,10 +88,11 @@ jobs:
             -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
             check rules "$STACK"/prometheus/rules/*.rules.yaml
 
+      # No secret needed: the receiver URL comes from url_file, which
+      # Alertmanager reads at notify time rather than at config load time.
       - name: amtool check-config
         run: |
           docker run --rm --entrypoint amtool \
-            -e ALERTMANAGER_WEBHOOK_URL=https://example.invalid/hook \
             -v "$PWD:/repo" -w /repo "$AM_IMAGE" \
             check-config "$STACK/alertmanager/alertmanager.yaml"
 
@@ -128,13 +133,13 @@ jobs:
       - name: gitleaks — working tree
         run: |
           docker run --rm -v "$PWD:/repo" -w /repo \
-            zricethezav/gitleaks:latest \
+            zricethezav/gitleaks:v8.24.0 \
             detect --no-git --no-banner --redact -c .gitleaks.toml -v
 
       - name: gitleaks — full history
         run: |
           docker run --rm -v "$PWD:/repo" -w /repo \
-            zricethezav/gitleaks:latest \
+            zricethezav/gitleaks:v8.24.0 \
             detect --no-banner --redact -c .gitleaks.toml --log-opts="--all" -v
 
       - name: Assert no decrypted artefact is tracked
