@@ -33,6 +33,21 @@ trap 'rm -rf "${WORK}"' EXIT
 mkdir -p "${WORK}/rules/fake" "${WORK}/data"
 cp "${RULES_DIR}"/*.yaml "${WORK}/rules/fake/"
 
+# The Loki image runs as uid 10001, while mktemp -d creates a 0700 directory
+# owned by the invoking user. Without this the container cannot read its own
+# config, exits within seconds, and the run looks like "the ruler evaluated
+# nothing" rather than a permissions problem. Throwaway directory, so the broad
+# mode is fine.
+chmod -R a+rwX "${WORK}"
+
+# PyYAML is not guaranteed on a clean runner, and the failure mode without this
+# guard is an opaque ModuleNotFoundError inside a heredoc.
+if ! python3 -c 'import yaml' 2>/dev/null; then
+  info "installing PyYAML"
+  python3 -m pip install --quiet --disable-pip-version-check pyyaml >/dev/null 2>&1 \
+    || die "PyYAML is required and could not be installed"
+fi
+
 # Rewrite every path in the real config to point inside the scratch dir, so the
 # rules are checked against the same settings production uses.
 python3 - "$STACK/loki/loki-config.yaml" "${WORK}" > "${WORK}/loki.yaml" <<'PY'
@@ -64,9 +79,13 @@ else
 fi
 
 OUT="${WORK}/loki.log"
+# Re-apply after loki.yaml was generated above, so the container user can read
+# it too.
+chmod -R a+rwX "${WORK}" 2>/dev/null || true
 timeout "${BOOT_SECONDS}" "${RUN[@]}" \
   -config.file="${WORK}/loki.yaml" -target=all \
   -server.http-listen-port=3197 > "${OUT}" 2>&1
+rc=$?
 
 if grep -qiE 'parse error|failed to parse|syntax error' "${OUT}"; then
   printf '\033[0;31m  FAIL\033[0m LogQL parse error in the Loki rules\n'
@@ -78,7 +97,16 @@ fi
 # if the ruler never read the files at all.
 evaluated="$(grep -o 'rule_name=[A-Za-z]*' "${OUT}" | sort -u | wc -l)"
 if ((evaluated == 0)); then
-  printf '\033[0;31m  FAIL\033[0m the ruler evaluated no rules — check the tenant path\n'
+  printf '\033[0;31m  FAIL\033[0m the ruler evaluated no rules\n'
+  # rc 124 is the timeout we expect (Loki runs until killed). Anything else
+  # means Loki died early — usually it could not read the mounted files.
+  if ((rc != 124)); then
+    printf '        loki exited early with status %s; last output:\n' "${rc}"
+  else
+    printf '        loki ran the full %ss but never evaluated a rule.\n' "${BOOT_SECONDS}"
+    printf '        Check the ruler tenant path (<directory>/fake/).\n'
+  fi
+  tail -n 15 "${OUT}" | sed 's/^/        /'
   exit 1
 fi
 
