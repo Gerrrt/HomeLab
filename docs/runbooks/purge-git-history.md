@@ -18,7 +18,13 @@ Verify for yourself before and after:
 
 ```bash
 git show 647d90a~1:certificates/Gandalf.Gondor.Lab/ca-key.pem | head -1
-git log --all -S "$(cat .purge-secrets.txt)" --oneline
+
+# One literal per line, so loop — `$(cat ...)` would fold the whole file into a
+# single search string and match nothing.
+while IFS= read -r s; do
+  [ -z "$s" ] && continue
+  git log --all -S "$s" --oneline
+done < .purge-secrets.txt
 ```
 
 Deleting a file in a later commit does not remove it from history. `git show`
@@ -65,7 +71,8 @@ inspection — check it before continuing:
 ```bash
 cd /tmp/<scratch>/repo
 git log --oneline | head
-git log --all -S "$(cat .purge-secrets.txt)" --oneline   # must be empty
+while IFS= read -r s; do [ -n "$s" ] && git log --all -S "$s" --oneline; done \
+  < .purge-secrets.txt          # must print nothing
 ```
 
 ## Execute
@@ -113,7 +120,10 @@ git push --force --tags origin
 
 ```bash
 git log --all --oneline -- certificates/            # empty
-git grep -I -e "$(cat .purge-secrets.txt)" $(git rev-list --all)   # no matches
+# -F: a rotated community is a random string and may contain regex characters.
+while IFS= read -r s; do
+  [ -n "$s" ] && git grep -IF -e "$s" $(git rev-list --all)
+done < .purge-secrets.txt        # no matches
 gitleaks detect --no-banner --redact -c .gitleaks.toml --log-opts="--all"
 ```
 

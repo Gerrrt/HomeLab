@@ -48,9 +48,6 @@ paths = [
   '''secrets/.*\.sops\.yaml$''',
   # Documents required key names and deliberately carries change-me values.
   '''secrets/.*\.example\.yaml$''',
-  # The list of literals to purge, written by the operator at purge time.
-  # Gitignored; never committed.
-  '''\.purge-secrets\.txt$''',
 ]
 
 regexes = [

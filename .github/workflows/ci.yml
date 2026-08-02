@@ -152,10 +152,14 @@ jobs:
             zricethezav/gitleaks:v8.24.0 \
             detect --no-banner --redact -c .gitleaks.toml --log-opts="--all" -v
 
+      # gitleaks cannot be the control here. .purge-secrets.txt is gitignored so
+      # the filesystem scan skips it, and its contents are bare literals with no
+      # keyword context for a rule to match. The control is simply that it must
+      # never be a tracked file.
       - name: Assert no decrypted artefact is tracked
         run: |
           fail=0
-          for pattern in '.env' '.rendered/'; do
+          for pattern in '.env' '.rendered/' '.purge-secrets.txt'; do
             if git ls-files | grep -E "(^|/)${pattern//./\\.}" | grep -v '\.env\.example'; then
               echo "::error::tracked file matching '${pattern}' — it must be gitignored"
               fail=1
