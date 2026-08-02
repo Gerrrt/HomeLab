@@ -36,6 +36,8 @@ data/
 # ---- Local tooling ----
 .venv/
 node_modules/
+__pycache__/
+*.py[cod]
 *.log
 *.tmp
 *.bak
