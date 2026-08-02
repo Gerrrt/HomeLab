@@ -33,9 +33,6 @@ inventory. Ordered roughly by how much it matters.
       inventory currently agree on the address but describe different things.
 - [ ] Capture dashboard screenshots for the README once the stack has a few days
       of real data. → [`images/README.md`](images/README.md)
-- [ ] Loki alerting rules — the ruler is configured and pointed at Alertmanager
-      but no log-based rules exist yet. Repeated SSH auth failure is the obvious
-      first one.
 
 ## Infrastructure
 
@@ -70,3 +67,5 @@ inventory. Ordered roughly by how much it matters.
 - [x] Add alerting (32 rules) and Alertmanager routing
 - [x] Move secrets to SOPS + age
 - [x] Add CI: lint, config validation, secret scanning
+- [x] Loki alerting rules (8) for auth, SSH brute force and disk/OOM events,
+      validated in CI by booting the pinned Loki image against them
