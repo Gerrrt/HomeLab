@@ -96,6 +96,18 @@ check-rules: ## Validate Prometheus rules and config
 	promtool check config $(STACK_DIR)/prometheus/prometheus.yaml
 	promtool check rules $(STACK_DIR)/prometheus/rules/*.rules.yaml
 
+.PHONY: check-loki-rules
+check-loki-rules: ## Validate Loki (LogQL) alerting rules
+	./scripts/check_loki_rules.sh
+
+.PHONY: pin-digests
+pin-digests: ## Re-resolve image digests in compose.yaml (--write applies)
+	./scripts/pin-digests.sh --write
+
+.PHONY: check-digests
+check-digests: ## Verify pinned digests still match the registry
+	./scripts/pin-digests.sh
+
 .PHONY: scan
 scan: ## Scan the working tree and history for secrets
 	gitleaks detect --no-banner --redact -c .gitleaks.toml
@@ -107,13 +119,19 @@ scan: ## Scan the working tree and history for secrets
 
 .PHONY: snmp-generate
 snmp-generate: ## Regenerate snmp.yaml from generator.yaml
+	@# The generator is released in lockstep with snmp-exporter but is not a
+	@# compose service, so its version is derived from the exporter's pin rather
+	@# than duplicated — see scripts/image-for.sh.
+	@# --tag-only: the exporter's digest does not belong to the generator.
+	@gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
+	printf 'using %s\n' "$$gen"; \
 	docker run --rm \
 		-v "$(PWD)/$(STACK_DIR)/snmp-exporter:/opt/" \
 		-e SNMP_COMMUNITY_PFSENSE='$${SNMP_COMMUNITY_PFSENSE}' \
 		-e SNMP_COMMUNITY_APC='$${SNMP_COMMUNITY_APC}' \
 		-e SNMP_COMMUNITY_MOKERLINK='$${SNMP_COMMUNITY_MOKERLINK}' \
 		-e SNMP_COMMUNITY_ILO='$${SNMP_COMMUNITY_ILO}' \
-		prom/snmp-generator:v0.28.0 generate \
+		"$$gen" generate \
 		-m /opt/mibs -g /opt/generator.yaml -o /opt/snmp.yaml
 	@printf '\033[0;33mCheck the diff before committing — placeholders must survive.\033[0m\n'
 

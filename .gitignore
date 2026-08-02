@@ -20,6 +20,8 @@ secrets/*
 *.crt
 age.key
 keys.txt
+# Literals fed to scripts/purge-history.sh — never commit these.
+.purge-secrets.txt
 certificates/
 
 # ---- Rendered / decrypted config (produced by scripts/render-config.sh) ----

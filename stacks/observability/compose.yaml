@@ -28,7 +28,7 @@ services:
   # ---------------------------------------------------------------------------
   prometheus:
     <<: *service-defaults
-    image: prom/prometheus:v3.13.2
+    image: prom/prometheus:v3.13.2@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
     container_name: prometheus
     user: "65534:65534"
     command:
@@ -57,7 +57,7 @@ services:
   # ---------------------------------------------------------------------------
   alertmanager:
     <<: *service-defaults
-    image: prom/alertmanager:v0.33.1
+    image: prom/alertmanager:v0.33.1@sha256:9e082985f56f4c8c9f724e18f2288c6708f472e56a5286b8863d080434ea065d
     container_name: alertmanager
     user: "65534:65534"
     command:
@@ -87,12 +87,15 @@ services:
   # ---------------------------------------------------------------------------
   loki:
     <<: *service-defaults
-    image: grafana/loki:3.7.4
+    image: grafana/loki:3.7.4@sha256:87f0a067673756a3cede1bcbf0c74875f7df9b09fddb53e399d0c576f756cfcc
     container_name: loki
     user: "10001:10001"
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      # Loki's local ruler reads <directory>/<tenant>/. auth_enabled is false,
+      # so the tenant is "fake".
+      - ./loki/rules:/etc/loki/rules/fake:ro
       - loki-data:/loki
     ports:
       - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
@@ -110,7 +113,7 @@ services:
   # ---------------------------------------------------------------------------
   snmp-exporter:
     <<: *service-defaults
-    image: prom/snmp-exporter:v0.30.1
+    image: prom/snmp-exporter:v0.30.1@sha256:e5fd5e8b43ace6c088fe9bf0b37b7fff0e04380bee352be7ec41b853a4dd5859
     container_name: snmp-exporter
     user: "65534:65534"
     command:
@@ -132,7 +135,7 @@ services:
   # ---------------------------------------------------------------------------
   grafana:
     <<: *service-defaults
-    image: grafana/grafana-oss:13.0.2
+    image: grafana/grafana-oss:13.0.2@sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2
     container_name: grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
@@ -172,7 +175,7 @@ services:
   # ---------------------------------------------------------------------------
   alloy:
     <<: *service-defaults
-    image: grafana/alloy:v1.18.0
+    image: grafana/alloy:v1.18.0@sha256:491b0578c04983fd54fe99b587b6fab4404dc46d0dc16677bd6b00cc1140b308
     container_name: alloy
     privileged: true
     environment:
