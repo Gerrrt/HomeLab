@@ -48,9 +48,9 @@ paths = [
   '''secrets/.*\.sops\.yaml$''',
   # Documents required key names and deliberately carries change-me values.
   '''secrets/.*\.example\.yaml$''',
-  # Documents the leak it teaches you to remove.
-  '''docs/runbooks/purge-git-history\.md$''',
-  '''scripts/purge-history\.sh$''',
+  # The list of literals to purge, written by the operator at purge time.
+  # Gitignored; never committed.
+  '''\.purge-secrets\.txt$''',
 ]
 
 regexes = [
