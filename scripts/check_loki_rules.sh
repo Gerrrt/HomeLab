@@ -30,7 +30,8 @@ RULES_DIR="${STACK}/loki/rules"
 [[ -d "${RULES_DIR}" ]] || die "no rules directory at ${RULES_DIR}"
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "${WORK}"' EXIT
+# Loki writes as its own uid; never let cleanup failure mask the result.
+trap 'rm -rf "${WORK}" 2>/dev/null || true' EXIT
 # auth_enabled is false, so Loki's local ruler looks under <dir>/fake/.
 mkdir -p "${WORK}/rules/fake" "${WORK}/data"
 cp "${RULES_DIR}"/*.yaml "${WORK}/rules/fake/"
@@ -68,13 +69,30 @@ cfg["ruler"]["rule_path"] = f"{work}/data/rules-temp"
 yaml.safe_dump(cfg, sys.stdout)
 PY
 
+# Rule groups use interval: 1m in production, and Loki jitters a group's first
+# evaluation across that interval — so a short boot window can legitimately see
+# no evaluations, which looks identical to a misconfigured tenant path. Shorten
+# the interval in the throwaway copies only; the committed rules and their LogQL
+# are untouched.
+python3 - "${WORK}/rules/fake" <<'SPEEDUP'
+import pathlib, sys, yaml
+for f in pathlib.Path(sys.argv[1]).glob("*.yaml"):
+    doc = yaml.safe_load(f.read_text())
+    for group in doc.get("groups", []):
+        group["interval"] = "5s"
+    f.write_text(yaml.safe_dump(doc))
+SPEEDUP
+
 n_rules="$(grep -ch '^ *- alert:' "${RULES_DIR}"/*.yaml | paste -sd+ | bc || true)"
 info "checking ${n_rules} Loki rule(s)"
 
 if command -v loki >/dev/null 2>&1; then
   RUN=(loki)
 elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-  RUN=(docker run --rm -v "${WORK}:${WORK}" -w "${WORK}" --entrypoint loki "${LOKI_IMAGE}")
+  # --user: without it Loki writes as uid 10001 and the runner cannot delete
+  # the scratch directory afterwards, filling the log with rm errors.
+  RUN=(docker run --rm --user "$(id -u):$(id -g)" \
+       -v "${WORK}:${WORK}" -w "${WORK}" --entrypoint loki "${LOKI_IMAGE}")
 else
   printf '\033[0;33m  SKIP\033[0m no loki binary and no docker daemon\n'
   exit 0
