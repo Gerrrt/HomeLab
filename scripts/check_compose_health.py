@@ -20,25 +20,70 @@ Usage: scripts/check_compose_health.py [compose.yaml]
 from __future__ import annotations
 
 import pathlib
+import subprocess
 import sys
 
+# PyYAML is not guaranteed on a clean runner, and this script gates CI. Install
+# it rather than failing a green compose file on a missing library — the same
+# thing scripts/check_loki_rules.sh does, for the same reason.
 try:
     import yaml
 except ModuleNotFoundError:
-    sys.exit("PyYAML is required: python3 -m pip install pyyaml")
+    print("installing PyYAML", file=sys.stderr)
+    if subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--quiet",
+         "--disable-pip-version-check", "pyyaml"],
+        check=False,
+    ).returncode:
+        sys.exit("PyYAML is required and could not be installed")
+    import yaml
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT = REPO / "stacks/observability/compose.yaml"
 
-# Images with no shell and no userland. A healthcheck cannot exec anything in
-# these beyond the service binary itself.
+# An image reference says nothing about its base, so a substring heuristic alone
+# would not have caught the bug this script exists to prevent: the offending
+# image was `grafana/loki`, which contains none of the markers below. Known
+# no-userland images therefore have to be listed by name.
+#
+# Verified against each project's published Dockerfile:
+#   grafana/loki       gcr.io/distroless/static:nonroot  — /usr/bin/loki only
+# For contrast, and so nobody adds them here by pattern-matching on the vendor:
+#   prom/prometheus, prom/alertmanager, prom/snmp-exporter  busybox
+#   grafana/grafana-oss                                     alpine
+#   grafana/alloy                                           ubuntu
+# — all four can run a wget healthcheck, and do.
+NO_USERLAND_IMAGES = frozenset({"grafana/loki"})
+
+# Still worth keeping for images that name their own base. Catches anything
+# pulled straight from a distroless or scratch reference.
 DISTROLESS_MARKERS = ("distroless", "/static", "scratch")
+
+
+def has_no_userland(image: str) -> bool:
+    """True if a healthcheck could not exec anything inside this image."""
+    repository = image.split("@", 1)[0]
+    # Strip the tag, but only if the trailing colon is a tag separator and not
+    # the port in a registry host such as registry.local:5000/grafana/loki.
+    head, sep, tail = repository.rpartition(":")
+    if sep and "/" not in tail:
+        repository = head
+    repository = repository.lower()
+    # Match bare and registry-qualified forms alike, so docker.io/grafana/loki
+    # and registry.local:5000/grafana/loki are recognised as the same image.
+    if any(
+        repository == known or repository.endswith(f"/{known}")
+        for known in NO_USERLAND_IMAGES
+    ):
+        return True
+    return any(marker in image.lower() for marker in DISTROLESS_MARKERS)
 
 
 def main() -> int:
     path = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT
     if not path.exists():
-        return int(bool(print(f"no compose file at {path}", file=sys.stderr))) or 1
+        print(f"no compose file at {path}", file=sys.stderr)
+        return 1
 
     compose = yaml.safe_load(path.read_text(encoding="utf-8"))
     services = compose.get("services") or {}
@@ -77,10 +122,11 @@ def main() -> int:
         test = check.get("test")
         if isinstance(test, list) and test and test[0] in ("CMD", "CMD-SHELL"):
             binary = test[1] if len(test) > 1 else ""
-            if any(m in image.lower() for m in DISTROLESS_MARKERS):
+            if has_no_userland(image):
                 problems.append(
-                    f"{name} has a healthcheck exec'ing {binary!r} but its image "
-                    f"looks distroless — there is no userland to run it"
+                    f"{name} has a healthcheck exec'ing {binary!r}, but {image} "
+                    f"has no shell and no userland — the probe can never run, so "
+                    f"{name} stays 'starting' forever"
                 )
 
     for problem in problems:

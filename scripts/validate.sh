@@ -134,9 +134,9 @@ head_ "Compose health dependencies"
 # ---------------------------------------------------------------------------
 if have python3; then
   if python3 scripts/check_compose_health.py; then
-    pass "health dependencies satisfiable"
+    pass "compose health dependencies"
   else
-    fail "health dependencies satisfiable"
+    fail "compose health dependencies"
   fi
 else
   skip "python3 not installed"
