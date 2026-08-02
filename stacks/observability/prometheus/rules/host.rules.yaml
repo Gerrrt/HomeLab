@@ -1,0 +1,87 @@
+---
+groups:
+  - name: host
+    interval: 30s
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "{{ $labels.job }} target {{ $labels.instance }} is down"
+          description: >-
+            Prometheus has failed to scrape {{ $labels.instance }}
+            ({{ $labels.job }}) for 5 minutes.
+
+      - alert: HostDiskWillFillIn24h
+        # Predictive rather than a static threshold: a disk sitting at 86% and
+        # stable is not an emergency, one climbing fast at 60% is.
+        expr: |
+          predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}[6h], 24 * 3600) < 0
+          and on (instance, device)
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes < 0.30
+        for: 1h
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} fills within 24h"
+          description: >-
+            {{ $labels.mountpoint }} on {{ $labels.instance }} ({{ $labels.device }})
+            is below 30% free and, extrapolating the last 6 hours, reaches zero
+            within a day.
+
+      - alert: HostDiskCritical
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.10
+        for: 15m
+        labels:
+          severity: critical
+          category: capacity
+        annotations:
+          summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} below 10% free"
+
+      - alert: HostMemoryPressure
+        expr: |
+          node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+        for: 15m
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "{{ $labels.instance }} has less than 10% memory available"
+
+      - alert: HostHighLoad
+        # Normalised by core count so the same rule works on the 2012 MacBook
+        # and the DL360 without tuning.
+        expr: |
+          node_load15 / count without (cpu, mode) (node_cpu_seconds_total{mode="idle"}) > 2
+        for: 30m
+        labels:
+          severity: warning
+          category: saturation
+        annotations:
+          summary: "{{ $labels.instance }} load is {{ $value | humanize }}x core count"
+
+      - alert: HostClockSkew
+        expr: abs(node_timex_offset_seconds) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} clock is {{ $value | humanizeDuration }} off"
+          description: >-
+            Clock skew breaks log correlation across hosts and can invalidate
+            rate() calculations.
+
+      - alert: HostRebooted
+        expr: time() - node_boot_time_seconds < 600
+        labels:
+          severity: info
+          category: availability
+        annotations:
+          summary: "{{ $labels.instance }} rebooted in the last 10 minutes"

@@ -1,0 +1,170 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  STACK: stacks/observability
+  PROM_IMAGE: prom/prometheus:v3.1.0
+  AM_IMAGE: prom/alertmanager:v0.28.0
+  ALLOY_IMAGE: grafana/alloy:v1.6.1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: yamllint
+        run: pipx run yamllint --strict .
+
+      - name: markdownlint
+        run: npx --yes markdownlint-cli2
+
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
+
+      - name: EditorConfig
+        uses: editorconfig-checker/action-editorconfig-checker@v2
+
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Validate configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The ${VAR:?} guards in compose.yaml exist so a missing secret fails
+      # loudly at deploy time. CI supplies throwaway values so validation never
+      # needs a decryption key.
+      - name: Seed a validation-only .env
+        run: |
+          cp "$STACK/.env.example" "$STACK/.env"
+          echo "GRAFANA_ADMIN_PASSWORD=validation-only" >> "$STACK/.env"
+
+      - name: docker compose config
+        run: docker compose -f "$STACK/compose.yaml" config -q
+
+      # Covers every place an image is referenced, not just compose.yaml — the
+      # first version of this check only looked at the stack and let :latest
+      # through in the workflow itself and in the Makefile.
+      - name: Verify no image uses a floating tag
+        run: |
+          if grep -rnE '(^|[[:space:]])[a-z0-9._/-]+:latest([[:space:]]|$)' \
+               --include='*.yaml' --include='*.yml' --include='Makefile' \
+               --include='*.sh' . \
+             | grep -v '^\./\.git/' \
+             | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' ; then
+            echo "::error::floating :latest tag found — pin an explicit version"
+            exit 1
+          fi
+          echo "all image references pinned"
+
+      - name: promtool check config
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
+            check config "$STACK/prometheus/prometheus.yaml"
+
+      - name: promtool check rules
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
+            check rules "$STACK"/prometheus/rules/*.rules.yaml
+
+      # No secret needed: the receiver URL comes from url_file, which
+      # Alertmanager reads at notify time rather than at config load time.
+      - name: amtool check-config
+        run: |
+          docker run --rm --entrypoint amtool \
+            -v "$PWD:/repo" -w /repo "$AM_IMAGE" \
+            check-config "$STACK/alertmanager/alertmanager.yaml"
+
+      # `fmt --test` exits non-zero if the file is not canonically formatted, and
+      # fails outright on a syntax error. It does not validate that components
+      # are configured correctly — Alloy v1.6.1 has no `validate` subcommand, so
+      # that is only caught at load time on the host.
+      - name: alloy fmt --test
+        run: |
+          docker run --rm --entrypoint alloy \
+            -v "$PWD:/repo" -w /repo "$ALLOY_IMAGE" \
+            fmt --test "$STACK/alloy/config.alloy"
+
+      - name: Validate Grafana dashboards
+        run: python3 scripts/check_dashboards.py
+
+      # Dashboard queries are as easy to typo as alert rules, and a broken one
+      # shows up as an empty panel rather than an error. Parse them all.
+      - name: Parse every dashboard PromQL expression
+        run: |
+          python3 scripts/check_dashboards.py --emit-promql > /tmp/dashboard-exprs.yaml
+          docker run --rm --entrypoint promtool \
+            -v /tmp:/tmp "$PROM_IMAGE" check rules /tmp/dashboard-exprs.yaml
+
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Two scans, because they answer different questions.
+      #
+      # The working-tree scan asks "is there a secret in the code as it stands"
+      # and must always be clean. The history scan asks "has one ever been
+      # committed" — it honours .gitleaksignore, which enumerates the nine known
+      # historical findings with the reason each is there. Once the history
+      # purge in docs/runbooks/purge-git-history.md has run, that file goes away
+      # and this job keeps passing on its own merits.
+      - name: gitleaks — working tree
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            zricethezav/gitleaks:v8.24.0 \
+            detect --no-git --no-banner --redact -c .gitleaks.toml -v
+
+      - name: gitleaks — full history
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            zricethezav/gitleaks:v8.24.0 \
+            detect --no-banner --redact -c .gitleaks.toml --log-opts="--all" -v
+
+      - name: Assert no decrypted artefact is tracked
+        run: |
+          fail=0
+          for pattern in '.env' '.rendered/'; do
+            if git ls-files | grep -E "(^|/)${pattern//./\\.}" | grep -v '\.env\.example'; then
+              echo "::error::tracked file matching '${pattern}' — it must be gitignored"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      - name: Assert SOPS files are actually encrypted
+        run: |
+          shopt -s nullglob
+          fail=0
+          for f in secrets/*.sops.yaml; do
+            if ! grep -q '^sops:' "$f"; then
+              echo "::error file=$f::not SOPS-encrypted"
+              fail=1
+            fi
+          done
+          exit "$fail"

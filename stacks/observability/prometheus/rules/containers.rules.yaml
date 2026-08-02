@@ -1,0 +1,94 @@
+---
+# Container metrics arrive via the cAdvisor exporter embedded in Alloy.
+groups:
+  - name: containers
+    interval: 60s
+    rules:
+      - alert: ContainerRestartLoop
+        # container_start_time_seconds changes on every (re)start; more than
+        # three changes in 15 minutes is a crash loop rather than a deploy.
+        expr: changes(container_start_time_seconds{name!=""}[15m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Container {{ $labels.name }} on {{ $labels.host }} is restarting repeatedly"
+          description: "{{ $value }} restarts in the last 15 minutes."
+
+      - alert: ContainerOomKilled
+        expr: increase(container_oom_events_total{name!=""}[15m]) > 0
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Container {{ $labels.name }} was OOM-killed"
+
+      - alert: ContainerHighMemory
+        # Only meaningful where a limit is actually set; the spec_memory_limit
+        # guard excludes unlimited containers, which report the host total.
+        expr: |
+          container_memory_working_set_bytes{name!=""}
+          / container_spec_memory_limit_bytes{name!=""} > 0.90
+          and container_spec_memory_limit_bytes{name!=""} > 0
+        for: 15m
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Container {{ $labels.name }} at {{ $value | humanizePercentage }} of its memory limit"
+
+      - alert: ContainerCpuThrottled
+        expr: |
+          rate(container_cpu_cfs_throttled_periods_total{name!=""}[15m])
+          / clamp_min(rate(container_cpu_cfs_periods_total{name!=""}[15m]), 1) > 0.25
+        for: 30m
+        labels:
+          severity: info
+          category: saturation
+        annotations:
+          summary: "Container {{ $labels.name }} throttled {{ $value | humanizePercentage }} of CPU periods"
+
+      # --- The observability stack watching itself --------------------------
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "Prometheus rejected its own config reload on {{ $labels.instance }}"
+
+      - alert: PrometheusRuleEvaluationFailures
+        expr: increase(prometheus_rule_evaluation_failures_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $value }} rule evaluation failures in the last 15 minutes"
+
+      - alert: AlertmanagerNotificationsFailing
+        expr: increase(alertmanager_notifications_failed_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "Alertmanager cannot deliver notifications via {{ $labels.integration }}"
+          description: >-
+            Alerts are firing but not reaching anyone — this makes every other
+            rule in this repository silently useless.
+
+      - alert: LokiIngestionStalled
+        expr: |
+          sum(rate(loki_distributor_lines_received_total[30m])) == 0
+        for: 30m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Loki has received no log lines for 30 minutes"
+          description: >-
+            Either every Alloy agent is down or the push endpoint is
+            unreachable. Logs are being lost, not queued indefinitely.

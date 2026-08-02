@@ -1,0 +1,210 @@
+---
+# Observability stack for the matrix.elysium homelab.
+#
+# Deployed on: prometheus (10.0.99.20, VLAN 99 / Winterfell)
+# Deploy with:  make up      (from the repository root)
+#
+# Image tags are pinned deliberately — `:latest` makes a rollback impossible to
+# describe and lets a breaking upstream release land silently. Dependabot opens
+# a PR for each bump, and CI validates the configs against the new tag.
+
+name: observability
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging: *default-logging
+  networks: [observability]
+
+services:
+  # ---------------------------------------------------------------------------
+  # Metrics store. Also acts as the remote-write sink for Alloy agents running
+  # on other hosts, hence --web.enable-remote-write-receiver.
+  # ---------------------------------------------------------------------------
+  prometheus:
+    <<: *service-defaults
+    image: prom/prometheus:v3.1.0
+    container_name: prometheus
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
+      - --web.enable-remote-write-receiver
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - ./prometheus/targets:/etc/prometheus/targets:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Alert routing. Receiver URLs come from SOPS-encrypted secrets, never the
+  # compose file — see secrets/README.md.
+  # ---------------------------------------------------------------------------
+  alertmanager:
+    <<: *service-defaults
+    image: prom/alertmanager:v0.28.0
+    container_name: alertmanager
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yaml
+      - --storage.path=/alertmanager
+      - --web.external-url=http://${MONITORING_HOST:-10.0.99.20}:${ALERTMANAGER_PORT:-9093}
+    volumes:
+      - ./alertmanager/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
+      # Contains webhook_url, written by scripts/render-config.sh. Alertmanager
+      # does not expand environment variables, so the receiver URL is read from
+      # a file via `url_file`.
+      - ./alertmanager/.rendered:/etc/alertmanager/secrets:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${ALERTMANAGER_PORT:-9093}:9093"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Log store. Single-binary mode with filesystem storage: this lab pushes well
+  # under 1 GB/day, so the operational cost of a microservices deployment buys
+  # nothing. See docs/adr/0003-observability-stack-selection.md.
+  # ---------------------------------------------------------------------------
+  loki:
+    <<: *service-defaults
+    image: grafana/loki:3.3.2
+    container_name: loki
+    user: "10001:10001"
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+  # ---------------------------------------------------------------------------
+  # SNMP polling proxy for pfSense, the MokerLink switch, the APC UPS and iLO.
+  # snmp.yaml is rendered from the committed template by scripts/render-config.sh
+  # so the community string is never written to disk in the repo.
+  # ---------------------------------------------------------------------------
+  snmp-exporter:
+    <<: *service-defaults
+    image: prom/snmp-exporter:v0.28.0
+    container_name: snmp-exporter
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/snmp_exporter/snmp.yaml
+    volumes:
+      - ./snmp-exporter/.rendered/snmp.yaml:/etc/snmp_exporter/snmp.yaml:ro
+    expose:
+      - "9116"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9116/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Visualisation. Datasources and dashboards are provisioned from files, so a
+  # wiped volume costs nothing but annotations — the dashboards are in git.
+  # ---------------------------------------------------------------------------
+  grafana:
+    <<: *service-defaults
+    image: grafana/grafana-oss:11.5.2
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in secrets/observability.sops.yaml}
+      GF_SECURITY_COOKIE_SECURE: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Collection agent for this host: cAdvisor + node metrics, Docker/journal/
+  # syslog/auth logs. The same config.alloy runs on every other monitored host
+  # with LOKI_URL / PROMETHEUS_REMOTE_WRITE_URL pointed back here.
+  # ---------------------------------------------------------------------------
+  alloy:
+    <<: *service-defaults
+    image: grafana/alloy:v1.6.1
+    container_name: alloy
+    privileged: true
+    environment:
+      LOKI_URL: http://loki:3100/loki/api/v1/push
+      PROMETHEUS_REMOTE_WRITE_URL: http://prometheus:9090/api/v1/write
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+      - /:/rootfs:ro
+    ports:
+      - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+    depends_on:
+      loki:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+
+networks:
+  observability:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  alertmanager-data:
+  loki-data:
+  grafana-data:
+  alloy-data:

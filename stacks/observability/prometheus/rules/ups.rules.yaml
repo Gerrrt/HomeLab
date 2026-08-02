@@ -1,0 +1,79 @@
+---
+# APC Smart-UPS (mjolnir, 10.0.99.10) via UPS-MIB.
+#
+# The UPS currently has no working battery — see docs/roadmap.md. Until that is
+# fixed a mains loss is an immediate hard shutdown of the whole rack, which is
+# why every rule here is deliberately loud and routed to the `urgent` receiver
+# by category=power in alertmanager.yaml.
+groups:
+  - name: ups
+    interval: 60s
+    rules:
+      - alert: UpsOnBattery
+        expr: upsSecondsOnBattery > 0
+        for: 30s
+        labels:
+          severity: critical
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }} is running on battery"
+          description: >-
+            On battery for {{ $value | humanizeDuration }}. Estimated runtime
+            remaining is reported by upsEstimatedMinutesRemaining.
+
+      - alert: UpsBatteryLow
+        # UPS-MIB upsBatteryStatus: 1=unknown 2=normal 3=low 4=depleted
+        expr: upsBatteryStatus > 2
+        for: 1m
+        labels:
+          severity: critical
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }} battery status is {{ $value }} (>2 = low/depleted)"
+
+      - alert: UpsRuntimeCritical
+        expr: upsEstimatedMinutesRemaining < 5
+        for: 1m
+        labels:
+          severity: critical
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }} has {{ $value }} minutes of runtime left"
+
+      - alert: UpsChargeLow
+        expr: upsEstimatedChargeRemaining < 50
+        for: 10m
+        labels:
+          severity: warning
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }} charge at {{ $value }}%"
+
+      - alert: UpsOverloaded
+        expr: upsOutputPercentLoad > 80
+        for: 15m
+        labels:
+          severity: warning
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }} output load at {{ $value }}%"
+          description: >-
+            Sustained load above 80% shortens battery runtime non-linearly.
+
+      - alert: UpsAlarmPresent
+        expr: upsAlarmsPresent > 0
+        for: 5m
+        labels:
+          severity: warning
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }} reports {{ $value }} active alarm(s)"
+
+      - alert: UpsBatteryTemperatureHigh
+        expr: upsBatteryTemperature > 40
+        for: 15m
+        labels:
+          severity: warning
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }} battery at {{ $value }}°C"

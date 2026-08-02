@@ -1,0 +1,21 @@
+---
+# SOPS encryption policy.
+#
+# Everything under secrets/ matching *.sops.yaml is encrypted with the age
+# recipient below.
+#
+# SOPS encrypts values and leaves keys in plaintext by default, which is exactly
+# what we want: `git log -p secrets/observability.sops.yaml` shows *which*
+# credential rotated and when, without revealing what it rotated to.
+#
+# The public key here is safe to commit; it can only encrypt. The matching
+# private key lives at ~/.config/sops/age/keys.txt on the deployment host and is
+# never in this repository.
+#
+# Run `make secrets-init` on a fresh machine to generate a keypair and write its
+# public half into this file.
+
+creation_rules:
+  - path_regex: secrets/.*\.sops\.ya?ml$
+    age: >-
+      REPLACE_WITH_YOUR_AGE_PUBLIC_KEY

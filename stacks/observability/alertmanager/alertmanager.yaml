@@ -1,0 +1,75 @@
+---
+# Alert routing.
+#
+# The receiver URL is a secret (a webhook URL is a bearer credential — anyone
+# holding it can post to it), so it is not in this file.
+#
+# Alertmanager does NOT expand environment variables in its config. The
+# supported mechanism is `url_file`, which reads the URL from disk at notify
+# time. scripts/render-config.sh decrypts secrets/observability.sops.yaml and
+# writes .rendered/webhook_url, which compose mounts read-only at
+# /etc/alertmanager/secrets/. Both the rendered directory and its contents are
+# gitignored.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  group_by: ["alertname", "device", "instance"]
+  group_wait: 30s
+  group_interval: 5m
+  # Don't re-nag every hour for something already known to be broken.
+  repeat_interval: 12h
+
+  routes:
+    # Power events page immediately and repeat aggressively — a UPS on battery
+    # with no spare battery installed is a short fuse.
+    - receiver: urgent
+      matchers:
+        - severity = "critical"
+        - category = "power"
+      group_wait: 0s
+      repeat_interval: 30m
+
+    - receiver: urgent
+      matchers:
+        - severity = "critical"
+      group_wait: 10s
+      repeat_interval: 4h
+
+    - receiver: default
+      matchers:
+        - severity = "warning"
+
+    # Informational alerts are recorded but never notified.
+    - receiver: "null"
+      matchers:
+        - severity = "info"
+
+inhibit_rules:
+  # If a host is down, don't also complain about its disks and its scrape.
+  - source_matchers: [severity = "critical"]
+    target_matchers: [severity = "warning"]
+    equal: ["alertname", "instance"]
+
+  - source_matchers: [alertname = "InstanceDown"]
+    target_matchers: [severity =~ "warning|critical"]
+    equal: ["instance"]
+
+  # A dead SNMP exporter makes every device look dead.
+  - source_matchers: [alertname = "SnmpExporterDown"]
+    target_matchers: [alertname = "SnmpTargetUnreachable"]
+
+receivers:
+  - name: "null"
+
+  - name: default
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/webhook_url
+        send_resolved: true
+
+  - name: urgent
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/webhook_url
+        send_resolved: true

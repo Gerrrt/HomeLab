@@ -1,0 +1,70 @@
+---
+# Single-binary Loki with filesystem storage. This lab produces well under
+# 1 GB/day of logs, so a microservices deployment would add operational cost
+# for no benefit. See docs/adr/0003-observability-stack-selection.md.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+
+common:
+  # Everything lives under /loki, which is a named volume in compose.yaml.
+  # This previously pointed at /tmp/loki while the volume was mounted at /loki,
+  # so every log line was written to the container's writable layer and lost on
+  # recreate.
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/index_cache
+  filesystem:
+    directory: /loki/chunks
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+  compaction_interval: 10m
+
+limits_config:
+  volume_enabled: true
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  # 30 days, matching the Prometheus retention default in .env.example.
+  retention_period: 720h
+  max_query_series: 5000
+  allow_structured_metadata: true
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://alertmanager:9093
+  enable_api: true
+
+analytics:
+  reporting_enabled: false
