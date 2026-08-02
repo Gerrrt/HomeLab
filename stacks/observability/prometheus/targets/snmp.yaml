@@ -1,0 +1,41 @@
+---
+# SNMP scrape targets, consumed by the `snmp` job via file_sd_configs.
+# Hot-reloaded every 5 minutes — no Prometheus restart required.
+#
+# `module` selects the OID set from snmp-exporter/generator.yaml.
+# `auth`   selects the credential block (one per device, not shared).
+#
+# To add a device, append a block here and add a matching module + auth to
+# snmp-exporter/generator.yaml. See docs/runbooks/add-monitored-device.md.
+
+- targets: ["10.0.99.1"]
+  labels:
+    module: pfsense
+    auth: auth_pfsense
+    device: morpheus
+    role: firewall
+    vlan: "99"
+
+- targets: ["10.0.99.10"]
+  labels:
+    module: apc_ups
+    auth: auth_apc
+    device: mjolnir
+    role: ups
+    vlan: "99"
+
+- targets: ["10.7.7.2"]
+  labels:
+    module: mokerlink
+    auth: auth_mokerlink
+    device: neo
+    role: switch
+    vlan: lan
+
+- targets: ["10.0.30.10"]
+  labels:
+    module: ilo
+    auth: auth_ilo
+    device: shiva
+    role: hypervisor-bmc
+    vlan: "30"
