@@ -77,23 +77,35 @@ else
   # filename, which does not end in .sops.yaml, so no rule matches and it exits
   # with "no matching creation rules found". The output name is never consulted.
   cp "${EXAMPLE_FILE}" "${SECRETS_FILE}"
+
+  # From here until encryption is verified, the file is PLAINTEXT sitting at a
+  # path that is meant to be committed and whose name says "encrypted". It is
+  # deliberately not gitignored, so anything that leaves it behind is a leak
+  # waiting to be committed.
+  #
+  # The trap covers every exit, not just the two failures checked below: a
+  # chmod failure under `set -e`, a Ctrl-C mid-encrypt, a SIGTERM. Cleared only
+  # once the sops metadata block is confirmed present.
+  trap 'rm -f "${SECRETS_FILE}"' EXIT INT TERM
+
   chmod 600 "${SECRETS_FILE}"
 
   if ! sops --encrypt --in-place "${SECRETS_FILE}"; then
-    rm -f "${SECRETS_FILE}"
-    die "encryption failed — removed the partial file rather than leave
-plaintext credentials sitting at a path that looks encrypted.
+    die "encryption failed — the partial file has been removed rather than
+leave plaintext credentials at a path that looks encrypted.
 
 Check that .sops.yaml lists a valid age recipient:
   grep -A2 creation_rules ${SOPS_CONFIG}"
   fi
 
-  # A plaintext file at this path would be committed as if it were encrypted,
-  # and CI only catches that after the push. Verify before claiming success.
+  # Do not trust the exit status alone. CI catches a plaintext secrets file, but
+  # only after it has been pushed.
   if ! grep -q '^sops:' "${SECRETS_FILE}"; then
-    rm -f "${SECRETS_FILE}"
     die "sops reported success but produced no encrypted output — file removed"
   fi
+
+  # Confirmed encrypted: the file may now survive.
+  trap - EXIT INT TERM
 
   warn "It still contains the placeholder values. Edit it now:"
   warn "  make secrets-edit"
