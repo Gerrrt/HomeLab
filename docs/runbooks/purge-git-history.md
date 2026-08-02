@@ -18,7 +18,7 @@ Verify for yourself before and after:
 
 ```bash
 git show 647d90a~1:certificates/Gandalf.Gondor.Lab/ca-key.pem | head -1
-git log --all -S '7H3r315N05p00N' --oneline
+git log --all -S "$(cat .purge-secrets.txt)" --oneline
 ```
 
 Deleting a file in a later commit does not remove it from history. `git show`
@@ -37,8 +37,20 @@ while after a force-push, and forks keep it indefinitely.
 4. Install the tool:
 
    ```bash
-   pipx install git-filter-repo
+   sudo apt install git-filter-repo     # or: pipx install git-filter-repo
    ```
+
+5. **Write the literals to redact into `.purge-secrets.txt`**, one per line:
+
+   ```bash
+   printf '%s\n' 'the-old-snmp-community' > .purge-secrets.txt
+   ```
+
+   This file is gitignored on purpose. The script reads from it rather than
+   hardcoding the value, because a purge tool that contains a copy of the secret
+   leaves the secret in the repository after a successful purge — which is
+   exactly what the first version of this script did. Delete the file when you
+   are finished.
 
 ## Dry run
 
@@ -53,7 +65,7 @@ inspection — check it before continuing:
 ```bash
 cd /tmp/<scratch>/repo
 git log --oneline | head
-git log --all -S '7H3r315N05p00N' --oneline    # must be empty
+git log --all -S "$(cat .purge-secrets.txt)" --oneline   # must be empty
 ```
 
 ## Execute
@@ -101,7 +113,7 @@ git push --force --tags origin
 
 ```bash
 git log --all --oneline -- certificates/            # empty
-git grep -I '7H3r315N05p00N' $(git rev-list --all)  # no matches
+git grep -I -e "$(cat .purge-secrets.txt)" $(git rev-list --all)   # no matches
 gitleaks detect --no-banner --redact -c .gitleaks.toml --log-opts="--all"
 ```
 
