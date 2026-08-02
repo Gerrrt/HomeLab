@@ -1,15 +1,18 @@
 ---
 # Alert routing.
 #
-# The receiver URL is injected from the SOPS-encrypted secrets file at deploy
-# time — Alertmanager expands $ENV_VAR references in *_url fields natively, so
-# the webhook never touches the repository.
+# The receiver URL is a secret (a webhook URL is a bearer credential — anyone
+# holding it can post to it), so it is not in this file.
+#
+# Alertmanager does NOT expand environment variables in its config. The
+# supported mechanism is `url_file`, which reads the URL from disk at notify
+# time. scripts/render-config.sh decrypts secrets/observability.sops.yaml and
+# writes .rendered/webhook_url, which compose mounts read-only at
+# /etc/alertmanager/secrets/. Both the rendered directory and its contents are
+# gitignored.
 
 global:
   resolve_timeout: 5m
-
-templates:
-  - /etc/alertmanager/templates/*.tmpl
 
 route:
   receiver: default
@@ -63,10 +66,10 @@ receivers:
 
   - name: default
     webhook_configs:
-      - url: $ALERTMANAGER_WEBHOOK_URL
+      - url_file: /etc/alertmanager/secrets/webhook_url
         send_resolved: true
 
   - name: urgent
     webhook_configs:
-      - url: $ALERTMANAGER_WEBHOOK_URL
+      - url_file: /etc/alertmanager/secrets/webhook_url
         send_resolved: true

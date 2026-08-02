@@ -113,7 +113,7 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml
 		-e SNMP_COMMUNITY_APC='$${SNMP_COMMUNITY_APC}' \
 		-e SNMP_COMMUNITY_MOKERLINK='$${SNMP_COMMUNITY_MOKERLINK}' \
 		-e SNMP_COMMUNITY_ILO='$${SNMP_COMMUNITY_ILO}' \
-		prom/snmp-generator:latest generate \
+		prom/snmp-generator:v0.28.0 generate \
 		-m /opt/mibs -g /opt/generator.yaml -o /opt/snmp.yaml
 	@printf '\033[0;33mCheck the diff before committing — placeholders must survive.\033[0m\n'
 

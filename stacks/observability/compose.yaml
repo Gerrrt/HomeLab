@@ -64,10 +64,12 @@ services:
       - --config.file=/etc/alertmanager/alertmanager.yaml
       - --storage.path=/alertmanager
       - --web.external-url=http://${MONITORING_HOST:-10.0.99.20}:${ALERTMANAGER_PORT:-9093}
-    environment:
-      ALERTMANAGER_WEBHOOK_URL: ${ALERTMANAGER_WEBHOOK_URL:?set in secrets/observability.sops.yaml}
     volumes:
       - ./alertmanager/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
+      # Contains webhook_url, written by scripts/render-config.sh. Alertmanager
+      # does not expand environment variables, so the receiver URL is read from
+      # a file via `url_file`.
+      - ./alertmanager/.rendered:/etc/alertmanager/secrets:ro
       - alertmanager-data:/alertmanager
     ports:
       - "${BIND_ADDR:-0.0.0.0}:${ALERTMANAGER_PORT:-9093}:9093"

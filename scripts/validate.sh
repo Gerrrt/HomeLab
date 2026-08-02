@@ -33,10 +33,7 @@ if have docker; then
   TMP_ENV="$(mktemp)"
   trap 'rm -f "${TMP_ENV}"' EXIT
   cat "${STACK}/.env.example" > "${TMP_ENV}"
-  cat >> "${TMP_ENV}" <<'EOF'
-GRAFANA_ADMIN_PASSWORD=validation-only
-ALERTMANAGER_WEBHOOK_URL=https://example.invalid/hook
-EOF
+  echo "GRAFANA_ADMIN_PASSWORD=validation-only" >> "${TMP_ENV}"
   if docker compose --env-file "${TMP_ENV}" -f "${STACK}/compose.yaml" config -q 2>/dev/null; then
     pass "docker compose config"
   else
@@ -83,14 +80,15 @@ head_ "Alertmanager"
 if have amtool; then
   AMTOOL=(amtool)
 elif have_docker; then
-  AMTOOL=(docker run --rm --entrypoint amtool -e ALERTMANAGER_WEBHOOK_URL=https://example.invalid/hook \
+  AMTOOL=(docker run --rm --entrypoint amtool \
           -v "${REPO_ROOT}:/repo" -w /repo "${AM_IMAGE}")
 else
   AMTOOL=()
 fi
 
+# The receiver URL comes from url_file, which Alertmanager reads at notify time
+# rather than at load time — so this validates without any secret present.
 if ((${#AMTOOL[@]})); then
-  export ALERTMANAGER_WEBHOOK_URL="${ALERTMANAGER_WEBHOOK_URL:-https://example.invalid/hook}"
   if "${AMTOOL[@]}" check-config "${STACK}/alertmanager/alertmanager.yaml" >/dev/null 2>&1; then
     pass "amtool check-config"
   else
@@ -154,12 +152,21 @@ fi
 # ---------------------------------------------------------------------------
 head_ "Secrets"
 # ---------------------------------------------------------------------------
+# Both scans, matching CI exactly. Running only the working-tree scan locally
+# would let `make validate` pass while CI fails on history, or vice versa.
 if have gitleaks; then
-  if gitleaks detect --no-banner --redact -c .gitleaks.toml >/dev/null 2>&1; then
+  if gitleaks detect --no-git --no-banner --redact -c .gitleaks.toml >/dev/null 2>&1; then
     pass "gitleaks (working tree)"
   else
-    gitleaks detect --no-banner --redact -c .gitleaks.toml
+    gitleaks detect --no-git --no-banner --redact -c .gitleaks.toml
     fail "gitleaks (working tree)"
+  fi
+
+  if gitleaks detect --no-banner --redact -c .gitleaks.toml --log-opts="--all" >/dev/null 2>&1; then
+    pass "gitleaks (full history)"
+  else
+    gitleaks detect --no-banner --redact -c .gitleaks.toml --log-opts="--all"
+    fail "gitleaks (full history)"
   fi
 else
   skip "gitleaks not installed"
