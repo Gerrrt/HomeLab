@@ -64,9 +64,55 @@ fi
 # ---------------------------------------------------------------------------
 # 3. encrypted secrets file
 # ---------------------------------------------------------------------------
-if [[ -f "${SECRETS_FILE}" ]]; then
-  info "$(basename "${SECRETS_FILE}") already exists — leaving it alone"
+# "The file exists" is not the same as "the secrets are set up". An earlier
+# version of this script redirected sops' stdout into this path, and shell
+# redirection creates the file before the command runs — so a failed encrypt
+# left a 0-byte file behind. Treating that as "already done" made the script
+# skip creation silently, and the next `make secrets-edit` failed with the
+# unhelpful "sops metadata not found".
+#
+# An unreadable file has to be ruled out before anything reads it. [[ -s ]] is a
+# stat, not a read, so it succeeds on a file this process cannot open — without
+# this check a chmod 000 file falls through to "not SOPS-encrypted" and the
+# advice below tells you to delete what may be a perfectly good encrypted file.
+if [[ -e "${SECRETS_FILE}" && ! -r "${SECRETS_FILE}" ]]; then
+  die "$(printf '%q' "${SECRETS_FILE}")
+exists but is not readable by $(id -un).
+
+Its contents cannot be inspected, so its state is unknown — do not delete it.
+Fix ownership or permissions first:
+  sudo chown $(id -un) $(printf '%q' "${SECRETS_FILE}")
+  chmod 600 $(printf '%q' "${SECRETS_FILE}")"
+fi
+
+# Four distinct states, four different answers.
+if [[ -f "${SECRETS_FILE}" ]] && grep -q '^sops:' "${SECRETS_FILE}"; then
+  info "$(basename "${SECRETS_FILE}") already exists and is encrypted — leaving it alone"
+
+elif [[ -s "${SECRETS_FILE}" ]]; then
+  # Non-empty but not SOPS-encrypted. Never delete this: it could be real
+  # credentials someone wrote by hand and has not encrypted yet.
+  #
+  # The paths below are %q-quoted because they are meant to be copied and
+  # pasted, and a stack name containing a space or a glob character would
+  # otherwise produce a command that acts on something else entirely.
+  die "$(printf '%q' "${SECRETS_FILE}")
+exists but is not SOPS-encrypted.
+
+If it holds real values you want to keep, encrypt it in place:
+  sops --encrypt --in-place $(printf '%q' "${SECRETS_FILE}")
+
+If it is junk from a failed run, remove it and re-run:
+  rm -- $(printf '%q' "${SECRETS_FILE}") && make secrets-init"
+
 else
+  # Absent, or an empty file left by a failed run. An empty file carries no
+  # data, so removing it is safe.
+  if [[ -e "${SECRETS_FILE}" ]]; then
+    warn "removing empty $(basename "${SECRETS_FILE}") left by a previous failed run"
+    rm -f "${SECRETS_FILE}"
+  fi
+
   info "creating $(basename "${SECRETS_FILE}") from the template"
 
   # Copy to the destination name FIRST, then encrypt in place.
