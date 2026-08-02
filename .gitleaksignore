@@ -1,0 +1,33 @@
+# Known historical exposure, acknowledged rather than hidden.
+#
+# These nine findings are real. They are secrets that were genuinely committed
+# to this repository and are still reachable in git history. They are listed
+# here so that CI's full-history scan stays meaningful — a scan that is red for
+# a known reason gets ignored, and then a *new* leak goes unnoticed too.
+#
+# This file is not remediation. Remediation is:
+#   1. Rotate the credentials  -> docs/runbooks/rotate-snmp-community.md
+#   2. Purge them from history -> docs/runbooks/purge-git-history.md
+# Both are tracked in docs/roadmap.md and described in docs/security.md.
+#
+# After the history purge these fingerprints become stale and this file should
+# be deleted. If gitleaks then reports nothing, the job is finished.
+
+# --- Shared SNMP community string, committed in plaintext (commit ee3d443) ---
+# One string reused across pfSense, the APC UPS, the MokerLink switch and iLO.
+ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:4
+ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:10
+ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:16
+ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:22
+
+# --- Grafana admin password inline in the compose file (commit ee3d443) ---
+# admin/admin, alongside GF_AUTH_ANONYMOUS_ENABLED=true with Admin role.
+ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:grafana/prometheus.matrix.elysium/docker-compose.yaml:grafana-inline-password:7
+
+# --- TLS private keys (introduced efb2632, deleted in 647d90a) ---
+# Passphrase-encrypted, which mitigates but does not resolve. Still recoverable
+# with `git show 647d90a~1:certificates/Gandalf.Gondor.Lab/ca-key.pem`.
+efb263225de6ee4961421596fd43e3f69b3bce8f:certificates/Gandalf.Gondor.Lab/ca-key.pem:private-key:1
+efb263225de6ee4961421596fd43e3f69b3bce8f:certificates/Gandalf.Gondor.Lab/ca-key.pem:private-key-block:1
+efb263225de6ee4961421596fd43e3f69b3bce8f:certificates/Gandalf.Gondor.Lab/cert-key.pem:private-key:1
+efb263225de6ee4961421596fd43e3f69b3bce8f:certificates/Gandalf.Gondor.Lab/cert-key.pem:private-key-block:1

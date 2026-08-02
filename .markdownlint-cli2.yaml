@@ -1,0 +1,21 @@
+---
+config:
+  default: true
+  # Tables in docs/network.md and the README badge row exceed any sane limit.
+  MD013: false
+  # Duplicate headings are meaningful in per-VLAN sections (each has "Notes").
+  MD024:
+    siblings_only: true
+  # Inline HTML is used for centred badges and <details> blocks.
+  MD033: false
+  # The README's first heading is preceded by a centred badge block.
+  MD041: false
+  # Bare URLs appear inside code fences only.
+  MD034: true
+
+globs:
+  - "**/*.md"
+
+ignores:
+  - node_modules/**
+  - .venv/**

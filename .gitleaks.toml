@@ -1,0 +1,65 @@
+title = "HomeLab gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# ---------------------------------------------------------------------------
+# Homelab-specific rules. The default ruleset is tuned for cloud provider keys
+# and misses the credentials that actually matter here.
+# ---------------------------------------------------------------------------
+
+# gitleaks compiles with RE2, which has no lookahead. Both rules below exclude
+# ${PLACEHOLDER} values by requiring the first character of the value to be
+# something other than '$', rather than by using a negative lookahead.
+
+[[rules]]
+id = "snmp-community-plaintext"
+description = "SNMP community string committed in plaintext"
+regex = '''(?i)community\s*:\s*["']?[^\s"'#$][^\s"'#]{3,}'''
+path = '''.*\.(ya?ml)$'''
+tags = ["snmp", "credential"]
+
+[[rules]]
+id = "grafana-inline-password"
+description = "Grafana admin password set inline instead of from the environment"
+regex = '''GF_SECURITY_ADMIN_PASSWORD\s*[:=]\s*[^\s$]+'''
+tags = ["grafana", "credential"]
+
+[[rules]]
+id = "private-key-block"
+description = "PEM private key"
+regex = '''-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----'''
+tags = ["key"]
+
+[[rules]]
+id = "age-secret-key"
+description = "age private key"
+regex = '''AGE-SECRET-KEY-1[0-9A-Z]{50,}'''
+tags = ["age", "key"]
+
+# ---------------------------------------------------------------------------
+# Allowlist
+# ---------------------------------------------------------------------------
+[allowlist]
+description = "Templates, placeholders and encrypted files"
+
+paths = [
+  # Encrypted at rest — the ciphertext is meant to be committed.
+  '''secrets/.*\.sops\.yaml$''',
+  # Documents required key names and deliberately carries change-me values.
+  '''secrets/.*\.example\.yaml$''',
+  # Documents the leak it teaches you to remove.
+  '''docs/runbooks/purge-git-history\.md$''',
+  '''scripts/purge-history\.sh$''',
+]
+
+regexes = [
+  # ${PLACEHOLDER} substitution targets are not secrets.
+  '''\$\{[A-Z_]+\}''',
+  '''change-me[a-z-]*''',
+  '''REPLACE_WITH_YOUR_AGE_PUBLIC_KEY''',
+  '''example\.invalid''',
+  '''validation-only''',
+  # age *public* keys are safe to commit; only the secret key matters.
+  '''age1[a-z0-9]{58}''',
+]

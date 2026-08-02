@@ -1,0 +1,166 @@
+# Architecture
+
+## Network topology
+
+Every segment terminates on pfSense. There is no route between segments unless a
+rule creates one, and only two such rules exist.
+
+```mermaid
+graph TB
+    INET([Internet])
+    GW[ISP Gateway<br/>bridge mode]
+    FW{{"morpheus<br/>pfSense · FreeBSD 15<br/>HP ProDesk 600 G4"}}
+    SW[neo · MokerLink 26-port<br/>802.1Q trunk]
+
+    INET --- GW --- FW --- SW
+
+    subgraph V99["VLAN 99 · Winterfell · Management"]
+        MON["prometheus · 10.0.99.20<br/><b>observability stack</b>"]
+        UPS["mjolnir · APC Smart-UPS"]
+        SPARE["oracle · spare"]
+    end
+
+    subgraph V50["VLAN 50 · Hicks · Trusted"]
+        WS["workstations · laptops · phones"]
+    end
+
+    subgraph V40["VLAN 40 · CasaBonita · Media"]
+        TV["TV · consoles · streaming"]
+    end
+
+    subgraph V30["VLAN 30 · ImaginationLAN · Lab"]
+        HV["shiva · ProLiant DL360 Gen9<br/>Proxmox VE"]
+    end
+
+    subgraph V20["VLAN 20 · Skids · IoT"]
+        IOT["cameras · assistants · sensors"]
+    end
+
+    subgraph V10["VLAN 10 · Degens · Guest"]
+        GUEST["guest devices"]
+    end
+
+    SW --- V99
+    SW --- V50
+    SW --- V40
+    SW --- V30
+    SW --- V20
+    SW --- V10
+
+    WS -.->|"management access<br/>(the only inbound path)"| V99
+    WS -.->|lab access| V30
+
+    classDef mgmt fill:#1f6f4a,stroke:#2ea043,color:#fff
+    classDef trusted fill:#1f4e79,stroke:#388bfd,color:#fff
+    classDef untrusted fill:#6e2c2c,stroke:#f85149,color:#fff
+    classDef infra fill:#4a3f7a,stroke:#a371f7,color:#fff
+    class MON,UPS,SPARE mgmt
+    class WS trusted
+    class IOT,GUEST,TV untrusted
+    class HV,FW,SW infra
+```
+
+Everything reaches the internet. Nothing reaches anything else, with two
+exceptions drawn as dotted lines above: trusted workstations may administer
+management, and may reach the lab. IoT, media and guest are terminal — traffic
+goes out, nothing comes back in.
+
+The full device inventory is in [`network.md`](network.md); the reasoning behind
+the split is in [`security.md`](security.md).
+
+## Observability data flow
+
+```mermaid
+graph LR
+    subgraph Sources["Monitored estate"]
+        direction TB
+        PF["morpheus<br/>pfSense"]
+        UPSD["mjolnir<br/>APC UPS"]
+        SWD["neo<br/>switch"]
+        ILO["shiva<br/>iLO"]
+        HOSTS["Linux hosts<br/>+ Docker"]
+    end
+
+    subgraph Stack["prometheus · 10.0.99.20 · one compose stack"]
+        direction TB
+        SNMP["snmp-exporter<br/>:9116"]
+        ALLOY["Alloy<br/>cAdvisor · node · logs"]
+        PROM[("Prometheus<br/>:9090 · 30d")]
+        LOKI[("Loki<br/>:3100 · 30d")]
+        AM["Alertmanager<br/>:9093"]
+        GRAF["Grafana<br/>:3000"]
+    end
+
+    OUT([Webhook<br/>notification])
+
+    PF -->|SNMP v2c| SNMP
+    UPSD -->|SNMP v2c| SNMP
+    SWD -->|SNMP v2c| SNMP
+    ILO -->|SNMP v2c| SNMP
+    HOSTS -->|metrics + logs| ALLOY
+
+    SNMP -->|scrape /snmp| PROM
+    ALLOY -->|remote_write| PROM
+    ALLOY -->|push| LOKI
+    PROM -->|alerts| AM
+    AM --> OUT
+    PROM --> GRAF
+    LOKI --> GRAF
+
+    classDef store fill:#4a3f7a,stroke:#a371f7,color:#fff
+    classDef agent fill:#1f4e79,stroke:#388bfd,color:#fff
+    class PROM,LOKI store
+    class SNMP,ALLOY agent
+```
+
+Two collection paths, because the estate has two kinds of device:
+
+- **Things that run an agent.** Linux hosts get a Grafana Alloy agent, which
+  gathers node metrics, cAdvisor container metrics, the systemd journal, syslog
+  and `auth.log`, then pushes to Loki and remote-writes to Prometheus. The same
+  `config.alloy` runs everywhere; only two environment variables differ.
+- **Things that cannot.** The firewall, switch, UPS and BMC are polled over SNMP
+  through `snmp-exporter`, which Prometheus scrapes as a proxy.
+
+Remote-write rather than scrape for agents means a new host appears in
+Prometheus as soon as its agent starts — no target list to edit, no firewall
+hole from the monitoring VLAN into the monitored one.
+
+## Host and stack mapping
+
+| Host | VLAN | Stack | Contents |
+| --- | --- | --- | --- |
+| `prometheus` (10.0.99.20) | 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, Alloy |
+| `shiva` (10.0.30.10) | 30 | *(none yet)* | Proxmox VE — see [roadmap](roadmap.md) |
+| `oracle` (10.0.99.30) | 99 | *(none yet)* | Undecided |
+
+One directory per stack, not one per service. A stack is the unit that gets
+deployed together; a second host means a second directory under `stacks/`, not a
+re-shard of everything. Reasoning in
+[ADR-0004](adr/0004-one-compose-stack-per-host.md).
+
+## Ports
+
+| Service | Port | Bound to | Notes |
+| --- | --- | --- | --- |
+| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human |
+| Prometheus | 9090 | `${BIND_ADDR}` | Also the remote-write receiver for agents |
+| Loki | 3100 | `${BIND_ADDR}` | Push endpoint for agents |
+| Alertmanager | 9093 | `${BIND_ADDR}` | |
+| Alloy | 12345 | `127.0.0.1` | Debug UI, deliberately not exposed |
+| snmp-exporter | 9116 | *compose network only* | Never published to a host interface |
+
+`BIND_ADDR` defaults to `0.0.0.0` and is set in `.env`. Setting it to the host's
+VLAN 99 address confines the whole stack to the management segment; the
+published ports exist because agents on other hosts need to reach Prometheus and
+Loki.
+
+## Reference diagrams
+
+The Mermaid diagrams above are the maintained ones — they render on GitHub, diff
+as text, and cannot drift out of sync with the repo without a visible change.
+
+- [Current topology export](diagrams/current/matrix_elysium.png) — detailed
+  physical drawing, 9871×4466. Its editable `.drawio` source was lost in an
+  earlier commit, which is a large part of why the diagrams above are Mermaid.
+- [Previous topology](diagrams/previous/Network_Diagram.png)
