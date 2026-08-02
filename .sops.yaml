@@ -18,4 +18,4 @@
 creation_rules:
   - path_regex: secrets/.*\.sops\.ya?ml$
     age: >-
-      REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
+      age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x
