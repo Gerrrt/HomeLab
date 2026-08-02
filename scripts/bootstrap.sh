@@ -68,8 +68,33 @@ if [[ -f "${SECRETS_FILE}" ]]; then
   info "$(basename "${SECRETS_FILE}") already exists — leaving it alone"
 else
   info "creating $(basename "${SECRETS_FILE}") from the template"
-  sops --encrypt "${EXAMPLE_FILE}" > "${SECRETS_FILE}"
+
+  # Copy to the destination name FIRST, then encrypt in place.
+  #
+  # SOPS chooses a creation_rule by matching path_regex against the *input*
+  # path. Encrypting the template directly — `sops -e observability.example.yaml
+  # > observability.sops.yaml` — makes SOPS test the rule against the example
+  # filename, which does not end in .sops.yaml, so no rule matches and it exits
+  # with "no matching creation rules found". The output name is never consulted.
+  cp "${EXAMPLE_FILE}" "${SECRETS_FILE}"
   chmod 600 "${SECRETS_FILE}"
+
+  if ! sops --encrypt --in-place "${SECRETS_FILE}"; then
+    rm -f "${SECRETS_FILE}"
+    die "encryption failed — removed the partial file rather than leave
+plaintext credentials sitting at a path that looks encrypted.
+
+Check that .sops.yaml lists a valid age recipient:
+  grep -A2 creation_rules ${SOPS_CONFIG}"
+  fi
+
+  # A plaintext file at this path would be committed as if it were encrypted,
+  # and CI only catches that after the push. Verify before claiming success.
+  if ! grep -q '^sops:' "${SECRETS_FILE}"; then
+    rm -f "${SECRETS_FILE}"
+    die "sops reported success but produced no encrypted output — file removed"
+  fi
+
   warn "It still contains the placeholder values. Edit it now:"
   warn "  make secrets-edit"
 fi
