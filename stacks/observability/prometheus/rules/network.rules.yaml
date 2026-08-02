@@ -1,0 +1,125 @@
+---
+groups:
+  - name: network
+    interval: 60s
+    rules:
+      - alert: SnmpExporterDown
+        expr: up{job="snmp-exporter"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "snmp-exporter is down — every SNMP device will appear unreachable"
+
+      - alert: SnmpTargetUnreachable
+        expr: up{job="snmp"} == 0
+        for: 10m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "SNMP device {{ $labels.device }} ({{ $labels.instance }}) is not responding"
+          description: >-
+            Role {{ $labels.role }} on VLAN {{ $labels.vlan }}. Check the device
+            is up and that its SNMP community still matches the one in
+            secrets/observability.sops.yaml.
+
+      - alert: SnmpScrapeSlow
+        expr: scrape_duration_seconds{job="snmp"} > 30
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "SNMP scrape of {{ $labels.device }} takes {{ $value | humanizeDuration }}"
+          description: >-
+            The scrape timeout is 45s. A walk creeping toward it will start
+            producing gaps — narrow the module's OID list in generator.yaml.
+
+      # --- Firewall (pfSense / BEGEMOT-PF-MIB) ------------------------------
+      - alert: PfNotRunning
+        expr: pfStatusRunning == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Packet filter is NOT running on {{ $labels.device }}"
+          description: >-
+            pf is disabled. Inter-VLAN isolation and the default-deny posture
+            are not being enforced.
+
+      - alert: PfStateTableNearLimit
+        expr: pfStateTableCount / pfLimitsStates > 0.80
+        for: 10m
+        labels:
+          severity: warning
+          category: saturation
+        annotations:
+          summary: "pf state table at {{ $value | humanizePercentage }} of limit"
+          description: >-
+            New connections are dropped once the state table fills.
+
+      - alert: PfMemoryDropsIncreasing
+        expr: rate(pfCounterMemDrop[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+          category: saturation
+        annotations:
+          summary: "pf is dropping packets for lack of memory on {{ $labels.device }}"
+
+      # --- Switch (MokerLink / IF-MIB) --------------------------------------
+      - alert: SwitchInterfaceDown
+        # ifOperStatus: 1=up 2=down 3=testing. Only alerts on ports that were
+        # up at some point in the last hour, so unused ports stay quiet.
+        expr: |
+          ifOperStatus == 2
+          and on (instance, ifIndex) (max_over_time(ifOperStatus[1h]) == 1)
+        for: 5m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Interface {{ $labels.ifDescr }} on {{ $labels.device }} went down"
+
+      - alert: SwitchCounterWrapSuspected
+        # ifInOctets/ifOutOctets are 32-bit and wrap in ~34s at gigabit line
+        # rate. A negative delta at a 60s scrape means the counter wrapped and
+        # the throughput figure for that window is wrong.
+        # Fix is ifXTable (64-bit) — tracked in docs/roadmap.md.
+        expr: rate(ifInOctets[5m]) < 0 or rate(ifOutOctets[5m]) < 0
+        for: 10m
+        labels:
+          severity: info
+          category: correctness
+        annotations:
+          summary: "32-bit interface counter wrapped on {{ $labels.device }}:{{ $labels.ifDescr }}"
+
+      # --- Hypervisor BMC (HPE iLO / CPQ MIBs) ------------------------------
+      # CPQ condition values: 1=other 2=ok 3=degraded 4=failed
+      - alert: IloHardwareDegraded
+        expr: |
+          cpqHeTemperatureCondition > 2
+          or cpqHeFltTolPowerSupplyCondition > 2
+          or cpqDaLogDrvCondition > 2
+          or cpqDaPhyDrvCondition > 2
+        for: 5m
+        labels:
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "iLO on {{ $labels.device }} reports degraded or failed hardware"
+          description: >-
+            CPQ condition code {{ $value }} (3 = degraded, 4 = failed). Check
+            the iLO web UI for the specific component.
+
+      - alert: IloBatteryCondition
+        expr: cpqHeSysBackupBatteryCondition > 2
+        for: 30m
+        labels:
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "RAID cache / system backup battery degraded on {{ $labels.device }}"
