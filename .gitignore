@@ -1,9 +1,47 @@
-ISOs/proxmox-ve_8.4-1.iso
-software/balenaEtcher-2.1.2.Setup.exe
-certificates/Gandalf.Gondor.Lab/
-docs/hardware/Keyboard.pdf
-docs/hardware/Mar.pdf
-docs/hardware/mouse.pdf
-docs/hardware/Server1.pdf
-prometheus/prometheus.matrix.elysium/.DS_Store
-prometheus/.DS_Store
+# ---- OS cruft ----
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+
+# ---- Secrets ----
+# Only *.sops.yaml (encrypted at rest) may be committed under secrets/.
+.env
+.env.*
+!.env.example
+secrets/*
+!secrets/*.sops.yaml
+!secrets/*.example.yaml
+!secrets/README.md
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+age.key
+keys.txt
+certificates/
+
+# ---- Rendered / decrypted config (produced by scripts/render-config.sh) ----
+**/.rendered/
+
+# ---- Runtime state produced by the stack ----
+data/
+**/data/
+*.db
+*.wal
+
+# ---- Local tooling ----
+.venv/
+node_modules/
+*.log
+*.tmp
+*.bak
+*.orig
+
+# ---- Large local artifacts never meant for git ----
+ISOs/
+software/
+*.iso
+*.exe
+docs/hardware/*.pdf

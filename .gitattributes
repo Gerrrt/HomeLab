@@ -1,0 +1,11 @@
+# The snmp_exporter config is machine-generated from snmp-exporter/generator.yaml.
+# Marking it as generated keeps 14k lines of OID definitions out of GitHub's
+# language stats and collapses it by default in diffs.
+stacks/observability/snmp-exporter/snmp.yaml linguist-generated=true -diff
+
+# Grafana dashboard JSON is exported by Grafana, not hand-maintained line by line.
+stacks/observability/grafana/dashboards/*.json linguist-generated=true
+
+# Normalise line endings.
+* text=auto eol=lf
+*.png binary

@@ -1,3 +1,17 @@
+// =============================================================================
+// Grafana Alloy — unified metrics and log collection agent.
+//
+// This same file runs on every monitored host. The two remote endpoints are
+// read from the environment so a host outside the compose network can point at
+// the monitoring host explicitly:
+//
+//   LOKI_URL=http://10.0.99.20:3100/loki/api/v1/push
+//   PROMETHEUS_REMOTE_WRITE_URL=http://10.0.99.20:9090/api/v1/write
+//
+// Inside the observability stack the compose service names are the defaults.
+// See docs/observability.md.
+// =============================================================================
+
 // ============================================================================
 // METRICS COLLECTION
 // ============================================================================
@@ -236,7 +250,7 @@ loki.process "log_processor" {
 	forward_to = [loki.write.grafana_loki.receiver]
 
 	stage.regex {
-		expression = "(?P<level_regex>(?i)\b(emerg|panic|corrupt|fatal|alert|crit|critical|err|eror|error|warn|warning|info|information|informational|notice|opened|closed|dbug|debug|dbg)\b)"
+		expression = `(?P<level_regex>(?i)\b(emerg|panic|corrupt|fatal|alert|crit|critical|err|eror|error|warn|warning|info|information|informational|notice|opened|closed|dbug|debug|dbg)\b)`
 	}
 
 	stage.template {
@@ -262,7 +276,7 @@ loki.process "log_processor" {
 
 loki.write "grafana_loki" {
 	endpoint {
-		url = "http://10.0.99.20:3100/loki/api/v1/push"
+		url = coalesce(sys.env("LOKI_URL"), "http://loki:3100/loki/api/v1/push")
 	}
 	external_labels = {
 		host = constants.hostname,
@@ -271,7 +285,7 @@ loki.write "grafana_loki" {
 
 prometheus.remote_write "metrics_service" {
 	endpoint {
-		url = "http://10.0.99.20:9090/api/v1/write"
+		url = coalesce(sys.env("PROMETHEUS_REMOTE_WRITE_URL"), "http://prometheus:9090/api/v1/write")
 	}
 	external_labels = {
 		host = constants.hostname,

@@ -1,0 +1,81 @@
+---
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+  external_labels:
+    site: matrix.elysium
+    monitor: winterfell
+
+rule_files:
+  - /etc/prometheus/rules/*.rules.yaml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # The stack monitoring itself. Names resolve on the compose network, so moving
+  # the monitoring host no longer means editing this file.
+  # ---------------------------------------------------------------------------
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+
+  - job_name: snmp-exporter
+    static_configs:
+      - targets: ["snmp-exporter:9116"]
+
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+
+  # ---------------------------------------------------------------------------
+  # SNMP network devices.
+  #
+  # This replaced four near-identical jobs that differed only in target, module
+  # and auth. Targets now live in targets/snmp.yaml and are hot-reloaded by
+  # file_sd without restarting Prometheus; adding a device is a three-line
+  # append. See docs/runbooks/add-monitored-device.md.
+  #
+  # The `module` and `auth` labels on each target are promoted to the query
+  # parameters snmp_exporter expects, then dropped so they do not become
+  # metric labels.
+  # ---------------------------------------------------------------------------
+  - job_name: snmp
+    scrape_interval: 60s
+    scrape_timeout: 45s
+    metrics_path: /snmp
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/snmp.yaml
+        refresh_interval: 5m
+    relabel_configs:
+      # The file_sd target is the *device* address, which becomes the query arg.
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [module]
+        target_label: __param_module
+      - source_labels: [auth]
+        target_label: __param_auth
+      - regex: (module|auth)
+        action: labeldrop
+      # ...and the address Prometheus actually connects to is the exporter.
+      - target_label: __address__
+        replacement: snmp-exporter:9116
