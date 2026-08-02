@@ -93,6 +93,9 @@ services:
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      # Loki's local ruler reads <directory>/<tenant>/. auth_enabled is false,
+      # so the tenant is "fake".
+      - ./loki/rules:/etc/loki/rules/fake:ro
       - loki-data:/loki
     ports:
       - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"

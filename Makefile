@@ -96,6 +96,10 @@ check-rules: ## Validate Prometheus rules and config
 	promtool check config $(STACK_DIR)/prometheus/prometheus.yaml
 	promtool check rules $(STACK_DIR)/prometheus/rules/*.rules.yaml
 
+.PHONY: check-loki-rules
+check-loki-rules: ## Validate Loki (LogQL) alerting rules
+	./scripts/check_loki_rules.sh
+
 .PHONY: scan
 scan: ## Scan the working tree and history for secrets
 	gitleaks detect --no-banner --redact -c .gitleaks.toml

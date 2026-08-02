@@ -106,6 +106,12 @@ jobs:
             -v "$PWD:/repo" -w /repo "$ALLOY_IMAGE" \
             fmt --test "$STACK/alloy/config.alloy"
 
+      # promtool cannot check these — it parses PromQL and rejects every LogQL
+      # stream selector. Loki itself is the only thing that understands them,
+      # so the checker boots the pinned image with the rules mounted.
+      - name: Validate Loki rules
+        run: ./scripts/check_loki_rules.sh
+
       - name: Validate Grafana dashboards
         run: python3 scripts/check_dashboards.py
 
