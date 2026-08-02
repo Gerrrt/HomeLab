@@ -119,17 +119,21 @@ report() {
   # non-zero and the check silently reports clean. Measured on this repo: a
   # string present in 17 of 49 commits was reported as absent. A security check
   # that fails open is worse than no check.
+  # -F throughout: a rotated community is a random string and may contain regex
+  # metacharacters. Without it, values containing [ ] ( ) . * + ? are either
+  # mis-parsed or make grep error out — and a grep that errors reports no match,
+  # which is one more way to fail open.
   local leaked=0 literal hit
   local ignore_name; ignore_name="$(basename "${SECRETS_LIST}")"
   for literal in "${LITERALS[@]}"; do
     # `|| true` is load-bearing: under `set -o pipefail` the xargs 123 above
     # would abort the whole script before this check ever printed anything.
     hit="$(git -C "${target}" rev-list --all \
-             | xargs -r -I{} git -C "${target}" grep -lI -e "${literal}" {} -- 2>/dev/null \
+             | xargs -r -I{} git -C "${target}" grep -lIF -e "${literal}" {} -- 2>/dev/null \
              | head -n1 || true)"
     [[ -n "${hit}" ]] && { leaked=1; printf '         history:  %s\n' "${hit}"; }
 
-    hit="$(grep -rlI -e "${literal}" "${target}" \
+    hit="$(grep -rlIF -e "${literal}" "${target}" \
              --exclude-dir=.git --exclude="${ignore_name}" 2>/dev/null | head -n1 || true)"
     [[ -n "${hit}" ]] && { leaked=1; printf '         worktree: %s\n' "${hit}"; }
   done

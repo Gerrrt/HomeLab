@@ -189,12 +189,16 @@ else
   skip "gitleaks not installed"
 fi
 
-# Cheap belt-and-braces check that no rendered/decrypted artefact is staged.
+# Cheap belt-and-braces check that no rendered or decrypted artefact is staged.
+# gitleaks cannot cover .purge-secrets.txt — it is gitignored (so the filesystem
+# scan skips it) and holds bare literals with no keyword context to match. Being
+# untracked is the control.
 if git ls-files --error-unmatch "${STACK}/.env" >/dev/null 2>&1 \
-   || git ls-files "${STACK}/snmp-exporter/.rendered" | grep -q .; then
-  fail "a rendered or decrypted file is tracked by git"
+   || git ls-files "${STACK}/snmp-exporter/.rendered" | grep -q . \
+   || git ls-files | grep -q '\.purge-secrets\.txt'; then
+  fail "a rendered, decrypted or purge-secrets file is tracked by git"
 else
-  pass "no rendered or decrypted files tracked"
+  pass "no rendered, decrypted or purge-secrets files tracked"
 fi
 
 printf '\n'

@@ -14,7 +14,9 @@
 #
 # Usage: scripts/check_loki_rules.sh
 
-set -uo pipefail
+# -e is on: a failed cp or config rewrite must not produce a cheerful PASS.
+# The one command allowed to fail is the timeout below, which is guarded.
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STACK="${REPO_ROOT}/stacks/observability"
@@ -66,7 +68,7 @@ cfg["ruler"]["rule_path"] = f"{work}/data/rules-temp"
 yaml.safe_dump(cfg, sys.stdout)
 PY
 
-n_rules="$(grep -ch '^ *- alert:' "${RULES_DIR}"/*.yaml | paste -sd+ | bc)"
+n_rules="$(grep -ch '^ *- alert:' "${RULES_DIR}"/*.yaml | paste -sd+ | bc || true)"
 info "checking ${n_rules} Loki rule(s)"
 
 if command -v loki >/dev/null 2>&1; then
@@ -82,10 +84,11 @@ OUT="${WORK}/loki.log"
 # Re-apply after loki.yaml was generated above, so the container user can read
 # it too.
 chmod -R a+rwX "${WORK}" 2>/dev/null || true
+# Loki runs until killed, so a 124 from timeout is the expected outcome.
+rc=0
 timeout "${BOOT_SECONDS}" "${RUN[@]}" \
   -config.file="${WORK}/loki.yaml" -target=all \
-  -server.http-listen-port=3197 > "${OUT}" 2>&1
-rc=$?
+  -server.http-listen-port=3197 > "${OUT}" 2>&1 || rc=$?
 
 if grep -qiE 'parse error|failed to parse|syntax error' "${OUT}"; then
   printf '\033[0;31m  FAIL\033[0m LogQL parse error in the Loki rules\n'
@@ -95,7 +98,8 @@ fi
 
 # Confirm the ruler actually loaded them. A silent "no errors" is not evidence
 # if the ruler never read the files at all.
-evaluated="$(grep -o 'rule_name=[A-Za-z]*' "${OUT}" | sort -u | wc -l)"
+evaluated="$(grep -oE 'rule_name="?[A-Za-z_][A-Za-z0-9_]*' "${OUT}" \
+             | sed 's/^rule_name="\?//' | sort -u | wc -l || true)"
 if ((evaluated == 0)); then
   printf '\033[0;31m  FAIL\033[0m the ruler evaluated no rules\n'
   # rc 124 is the timeout we expect (Loki runs until killed). Anything else
