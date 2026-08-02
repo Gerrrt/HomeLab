@@ -3,6 +3,9 @@ extends: default
 
 ignore: |
   stacks/observability/snmp-exporter/snmp.yaml
+  # SOPS output: machine-generated ciphertext, not hand-written YAML. It does
+  # not follow comment/indent conventions and never will.
+  secrets/*.sops.yaml
   stacks/observability/snmp-exporter/.rendered/
   node_modules/
   .venv/

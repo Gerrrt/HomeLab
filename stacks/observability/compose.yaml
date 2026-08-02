@@ -99,12 +99,22 @@ services:
       - loki-data:/loki
     ports:
       - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 45s
+
+  # No healthcheck on loki, deliberately.
+  #
+  # grafana/loki is built FROM gcr.io/distroless/static:nonroot. The image
+  # contains /usr/bin/loki and nothing else — no shell, no wget, no curl. A
+  # Docker healthcheck can only exec something inside the container, so there is
+  # nothing available to probe with, and any `test:` here fails forever.
+  #
+  # That is not cosmetic: an unhealthy service blocks anything waiting on it via
+  # `depends_on: condition: service_healthy`, so Grafana and Alloy never start
+  # and the stack appears to hang with Loki "starting" indefinitely.
+  #
+  # Readiness is instead observed from outside the container:
+  #   curl -s localhost:3100/ready
+  # and continuously by Prometheus, which scrapes loki:3100 as the `loki` job —
+  # `InstanceDown{job="loki"}` and `LokiIngestionStalled` both cover it.
 
   # ---------------------------------------------------------------------------
   # SNMP polling proxy for pfSense, the MokerLink switch, the APC UPS and iLO.
@@ -159,8 +169,12 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
+      # service_started, not service_healthy: Loki is distroless and cannot
+      # report health (see the loki service above). Grafana's Loki datasource is
+      # resolved lazily per query, so starting before Loki is fully ready costs
+      # nothing beyond an empty panel for a few seconds.
       loki:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
       interval: 30s
@@ -196,8 +210,11 @@ services:
     ports:
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
     depends_on:
+      # service_started for loki, for the same reason as grafana above: the
+      # distroless image cannot report health. Alloy retries a failed push with
+      # backoff and buffers in the meantime, so racing Loki's startup is safe.
       loki:
-        condition: service_healthy
+        condition: service_started
       prometheus:
         condition: service_healthy
 
