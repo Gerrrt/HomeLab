@@ -61,7 +61,11 @@ ruler:
   storage:
     type: local
     local:
-      directory: /loki/rules
+      # Loki's local ruler reads <directory>/<tenant>/*.yaml. With
+      # auth_enabled: false the tenant is literally "fake", so compose mounts
+      # loki/rules/ at /etc/loki/rules/fake. Kept outside /loki so the
+      # read-only rule mount does not collide with the data volume.
+      directory: /etc/loki/rules
   rule_path: /loki/rules-temp
   alertmanager_url: http://alertmanager:9093
   enable_api: true

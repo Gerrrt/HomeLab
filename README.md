@@ -7,15 +7,15 @@
 [![CI](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml/badge.svg)](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Secrets: SOPS + age](https://img.shields.io/badge/secrets-SOPS%20%2B%20age-6f42c1.svg)](docs/adr/0005-secrets-with-sops-and-age.md)
-[![Prometheus](https://img.shields.io/badge/Prometheus-v3.1.0-E6522C.svg?logo=prometheus&logoColor=white)](stacks/observability/prometheus)
-[![Grafana](https://img.shields.io/badge/Grafana-11.5-F46800.svg?logo=grafana&logoColor=white)](stacks/observability/grafana)
-[![Loki](https://img.shields.io/badge/Loki-3.3-F5A800.svg?logo=grafana&logoColor=white)](stacks/observability/loki)
+[![Prometheus](https://img.shields.io/badge/Prometheus-E6522C.svg?logo=prometheus&logoColor=white)](stacks/observability/prometheus)
+[![Grafana](https://img.shields.io/badge/Grafana-F46800.svg?logo=grafana&logoColor=white)](stacks/observability/grafana)
+[![Loki](https://img.shields.io/badge/Loki-F5A800.svg?logo=grafana&logoColor=white)](stacks/observability/loki)
 [![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2015-212121.svg)](docs/network.md)
 
 [Architecture](docs/architecture.md) ·
 [Network](docs/network.md) ·
 [Observability](docs/observability.md) ·
-[Security](docs/security.md) ·
+[Security](SECURITY.md) ·
 [Runbooks](docs/runbooks) ·
 [Decisions](docs/adr) ·
 [Roadmap](docs/roadmap.md)
@@ -42,16 +42,20 @@ incident.
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
-- **Dashboards and alerting as code.** 5 provisioned dashboards, 79 panels, 32
-  alert rules with severity routing and inhibition. No dashboard exists only in
-  a database.
+- **Dashboards and alerting as code.** 5 provisioned dashboards, 79 panels, and
+  40 alert rules — 32 metric-based in Prometheus, 8 log-based in Loki — sharing
+  one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
   credential rotated and when — but never to what.
   [Why](docs/adr/0005-secrets-with-sops-and-age.md)
 - **CI that actually validates the infrastructure.** `docker compose config`,
-  `promtool`, `amtool`, `alloy fmt`, dashboard-JSON and datasource checks, every
-  dashboard's PromQL parsed, plus `gitleaks` over the full history.
+  `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
+  dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
+  `gitleaks` over the full history.
+- **Supply chain pinned by digest.** Every image carries both a tag and a
+  `sha256:` digest, so a moved tag cannot change what deploys. CI enforces it;
+  `make pin-digests` re-resolves them from the registry.
 - **Documented decisions and runbooks.** Five ADRs covering what was chosen and
   what was rejected; four runbooks for the operations that are easy to get wrong
   at 1am.
@@ -111,7 +115,7 @@ the internet and nothing more. Full topology and data flow in
 | Alerting | Alertmanager | Severity routing, inhibition |
 | Visualisation | Grafana | 5 provisioned dashboards |
 | Secrets | SOPS + age | Encrypted in-repo |
-| CI | GitHub Actions | Lint, config validation, secret scanning |
+| CI | GitHub Actions | Lint, config validation, secret scanning, digest pinning |
 
 ## Repository layout
 
@@ -121,12 +125,13 @@ the internet and nothing more. Full topology and data flow in
 │   ├── compose.yaml
 │   ├── prometheus/           # config, file_sd targets, 32 alert rules
 │   ├── alertmanager/         # routing and inhibition
-│   ├── loki/                 # single-binary config
+│   ├── loki/                 # single-binary config + 8 LogQL rules
 │   ├── alloy/                # one agent config, used on every host
 │   ├── snmp-exporter/        # generator.yaml is the source of truth
 │   └── grafana/              # provisioning + 5 dashboards
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
-├── scripts/                  # bootstrap, render, validate, history purge
+├── scripts/                  # bootstrap, render, validate, pin-digests, purge
+├── SECURITY.md               # disclosure policy and known exposure
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
@@ -184,7 +189,12 @@ owner-linked device names, camera placement) are in
 
 Historical credential exposure in this repository's git history is documented
 there too, along with the runbooks to remediate it — including the parts not yet
-done.
+done. [`SECURITY.md`](SECURITY.md) carries the disclosure policy and a summary of
+what is known.
+
+Container images are pinned by **tag and digest**. A tag is a mutable pointer; a
+digest is the content hash, so a moved tag cannot change what gets deployed. CI
+enforces it, and `make pin-digests` re-resolves them.
 
 ## Roadmap
 

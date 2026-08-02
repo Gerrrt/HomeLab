@@ -1,0 +1,131 @@
+---
+# Log-based alerts, evaluated by Loki's ruler and sent to the same Alertmanager
+# as the Prometheus rules.
+#
+# These exist because some conditions are only visible in logs. A metric can
+# tell you sshd is running; only the log tells you it rejected forty passwords
+# in five minutes.
+#
+# Loki rule files use the Prometheus alerting schema with LogQL expressions, so
+# `severity` and `category` route through exactly the same Alertmanager tree.
+groups:
+  - name: authentication
+    interval: 1m
+    rules:
+      - alert: SshBruteForce
+        # /var/log/auth.log, labelled log_type="authlog" by config.alloy.
+        expr: |
+          sum by (host) (
+            count_over_time({log_type="authlog"} |~ "(?i)failed (password|publickey)" [5m])
+          ) > 20
+        for: 2m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: {{ $value }} failed SSH auths in 5 minutes"
+          description: >-
+            Sustained authentication failure. On a management-VLAN host this
+            should be close to zero — nothing on VLAN 99 is internet-facing.
+
+      - alert: SshBruteForceSevere
+        expr: |
+          sum by (host) (
+            count_over_time({log_type="authlog"} |~ "(?i)failed (password|publickey)" [5m])
+          ) > 100
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: {{ $value }} failed SSH auths in 5 minutes"
+
+      - alert: SshLoginFromUnexpectedSubnet
+        # Accepted logins should only ever originate from Hicks (10.0.50.0/24)
+        # or from within management itself. Anything else means a firewall rule
+        # is not doing what the documentation claims.
+        expr: |
+          sum by (host) (
+            count_over_time(
+              {log_type="authlog"}
+              |~ "Accepted (password|publickey)"
+              != "10.0.50."
+              != "10.0.99."
+              [10m]
+            )
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: SSH login accepted from outside VLAN 50/99"
+          description: >-
+            Either segmentation is broken or the source ranges in this rule are
+            stale. Both are worth knowing about immediately.
+
+      - alert: SudoFailure
+        expr: |
+          sum by (host) (
+            count_over_time({log_type="authlog"} |~ "sudo:.*authentication failure" [10m])
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: repeated sudo authentication failures"
+
+      - alert: NewUserOrGroupCreated
+        expr: |
+          sum by (host) (
+            count_over_time({log_type="authlog"} |~ "(useradd|groupadd|usermod).*new (user|group)" [10m])
+          ) > 0
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: a user or group was created"
+          description: >-
+            Expected during provisioning, worth a second look otherwise.
+
+  - name: system
+    interval: 1m
+    rules:
+      - alert: KernelOomKill
+        # The kernel's own record. Complements ContainerOomKilled in
+        # containers.rules.yaml, which only sees cgroup events.
+        expr: |
+          sum by (host) (
+            count_over_time({log_type=~"syslog|varlog"} |~ "Out of memory: Kill(ed)? process" [15m])
+          ) > 0
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "{{ $labels.host }}: kernel OOM killer fired"
+
+      - alert: FilesystemRemountedReadOnly
+        expr: |
+          sum by (host) (
+            count_over_time({log_type=~"syslog|varlog"} |~ "Remounting filesystem read-only" [15m])
+          ) > 0
+        labels:
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "{{ $labels.host }}: filesystem remounted read-only"
+          description: >-
+            Almost always failing storage. The monitoring host runs on a
+            thirteen-year-old laptop SSD, so this is not hypothetical.
+
+      - alert: DiskIoErrors
+        expr: |
+          sum by (host) (
+            count_over_time({log_type=~"syslog|varlog"} |~ "(I/O error|ata[0-9]+.*failed|SMART.*FAILED)" [15m])
+          ) > 0
+        labels:
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "{{ $labels.host }}: disk I/O errors in the kernel log"

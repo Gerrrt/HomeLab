@@ -70,6 +70,35 @@ expression in every panel is syntactically valid.
 
 ## Alerting
 
+40 rules in total: 32 metric-based in `prometheus/rules/`, and 8 log-based in
+`loki/rules/`.
+
+### Log-based (Loki ruler)
+
+Some conditions only exist in logs. A metric confirms sshd is running; only the
+log shows it rejecting forty passwords in five minutes. `loki/rules/security.rules.yaml`
+covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
+failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
+errors.
+
+They use the same `severity` and `category` labels as the Prometheus rules and
+are sent to the same Alertmanager, so routing and inhibition are shared.
+
+Loki's local ruler reads `<directory>/<tenant>/`, and with `auth_enabled: false`
+the tenant is literally `fake` — hence the `loki/rules:/etc/loki/rules/fake`
+mount in `compose.yaml`. Getting that path wrong produces no error, just a ruler
+that silently evaluates nothing.
+
+`promtool` cannot validate these; it parses PromQL and rejects every LogQL
+stream selector. `scripts/check_loki_rules.sh` boots the pinned Loki image with
+the rules mounted and fails on a parse error, then asserts the ruler actually
+evaluated them. Note that `loki -verify-config` is *not* sufficient on its own —
+it validates the config file and never opens the rule files. A file containing
+`count_over_time({{{BROKEN` passes `-verify-config` and is caught only by the
+boot check.
+
+### Metric-based (Prometheus)
+
 32 rules across four files in `prometheus/rules/`:
 
 | File | Covers |
