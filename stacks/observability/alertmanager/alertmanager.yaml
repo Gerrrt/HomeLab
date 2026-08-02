@@ -1,0 +1,72 @@
+---
+# Alert routing.
+#
+# The receiver URL is injected from the SOPS-encrypted secrets file at deploy
+# time — Alertmanager expands $ENV_VAR references in *_url fields natively, so
+# the webhook never touches the repository.
+
+global:
+  resolve_timeout: 5m
+
+templates:
+  - /etc/alertmanager/templates/*.tmpl
+
+route:
+  receiver: default
+  group_by: ["alertname", "device", "instance"]
+  group_wait: 30s
+  group_interval: 5m
+  # Don't re-nag every hour for something already known to be broken.
+  repeat_interval: 12h
+
+  routes:
+    # Power events page immediately and repeat aggressively — a UPS on battery
+    # with no spare battery installed is a short fuse.
+    - receiver: urgent
+      matchers:
+        - severity = "critical"
+        - category = "power"
+      group_wait: 0s
+      repeat_interval: 30m
+
+    - receiver: urgent
+      matchers:
+        - severity = "critical"
+      group_wait: 10s
+      repeat_interval: 4h
+
+    - receiver: default
+      matchers:
+        - severity = "warning"
+
+    # Informational alerts are recorded but never notified.
+    - receiver: "null"
+      matchers:
+        - severity = "info"
+
+inhibit_rules:
+  # If a host is down, don't also complain about its disks and its scrape.
+  - source_matchers: [severity = "critical"]
+    target_matchers: [severity = "warning"]
+    equal: ["alertname", "instance"]
+
+  - source_matchers: [alertname = "InstanceDown"]
+    target_matchers: [severity =~ "warning|critical"]
+    equal: ["instance"]
+
+  # A dead SNMP exporter makes every device look dead.
+  - source_matchers: [alertname = "SnmpExporterDown"]
+    target_matchers: [alertname = "SnmpTargetUnreachable"]
+
+receivers:
+  - name: "null"
+
+  - name: default
+    webhook_configs:
+      - url: $ALERTMANAGER_WEBHOOK_URL
+        send_resolved: true
+
+  - name: urgent
+    webhook_configs:
+      - url: $ALERTMANAGER_WEBHOOK_URL
+        send_resolved: true
