@@ -103,6 +103,19 @@ jobs:
           fi
           echo "all image references pinned"
 
+      # A tag is a mutable pointer; a digest is the content hash. Every service
+      # image must carry both, so a moved tag cannot change what gets deployed.
+      - name: Verify every image is pinned by digest
+        run: |
+          missing=0
+          while read -r ref; do
+            case "$ref" in
+              *@sha256:*) ;;
+              *) echo "::error::$ref is not pinned by digest — run make pin-digests"; missing=1 ;;
+            esac
+          done < <(awk '$1 == "image:" { print $2 }' "$STACK/compose.yaml")
+          exit "$missing"
+
       - name: promtool check config
         run: |
           docker run --rm --entrypoint promtool \

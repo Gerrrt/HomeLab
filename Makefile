@@ -100,6 +100,14 @@ check-rules: ## Validate Prometheus rules and config
 check-loki-rules: ## Validate Loki (LogQL) alerting rules
 	./scripts/check_loki_rules.sh
 
+.PHONY: pin-digests
+pin-digests: ## Re-resolve image digests in compose.yaml (--write applies)
+	./scripts/pin-digests.sh --write
+
+.PHONY: check-digests
+check-digests: ## Verify pinned digests still match the registry
+	./scripts/pin-digests.sh
+
 .PHONY: scan
 scan: ## Scan the working tree and history for secrets
 	gitleaks detect --no-banner --redact -c .gitleaks.toml
@@ -114,7 +122,8 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml
 	@# The generator is released in lockstep with snmp-exporter but is not a
 	@# compose service, so its version is derived from the exporter's pin rather
 	@# than duplicated — see scripts/image-for.sh.
-	@gen="$$(./scripts/image-for.sh snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
+	@# --tag-only: the exporter's digest does not belong to the generator.
+	@gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
 	printf 'using %s\n' "$$gen"; \
 	docker run --rm \
 		-v "$(PWD)/$(STACK_DIR)/snmp-exporter:/opt/" \
