@@ -66,6 +66,13 @@ while IFS=$'\t' read -r ip auth dev; do
     || die "auth label '${auth}' in ${TARGETS} does not start with 'auth_', so no secret key name can be derived from it"
 
   suffix="${auth#auth_}"
+  # The suffix becomes part of a shell variable name that callers read through
+  # ${!var} indirect expansion. A label like auth_a.pc or auth_a-pc satisfies
+  # the prefix check above but yields SNMP_COMMUNITY_A.PC, which is not a valid
+  # identifier — bash then fails at the point of use with "bad substitution",
+  # several files away from the label that caused it. Reject it here instead.
+  [[ "${suffix}" =~ ^[A-Za-z0-9_]+$ ]] \
+    || die "auth label '${auth}' in ${TARGETS} yields the invalid variable name SNMP_COMMUNITY_${suffix^^} — the part after 'auth_' must be letters, digits or underscores"
   inventory+="${ip}"$'\t'"${auth}"$'\t'"${dev}"$'\t'"SNMP_COMMUNITY_${suffix^^}"$'\n'
 done <<< "${records}"
 
