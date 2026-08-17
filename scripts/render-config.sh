@@ -140,6 +140,15 @@ info "writing $(basename "${STACK_DIR}")/.env"
   if [[ -f "${STACK_DIR}/.env.example" ]]; then
     grep -vE '^\s*#|^\s*$' "${STACK_DIR}/.env.example" || true
   fi
+
+  # The rendered secrets above are 0600 and owned by whoever ran this script.
+  # The two containers that mount them (alertmanager, snmp-exporter) must run as
+  # that same UID or they cannot read their own config. Hardcoding 65534 here is
+  # what left snmp-exporter crash-looping on "permission denied" for two weeks —
+  # silently, because `restart: unless-stopped` retries forever and a container
+  # that is always restarting looks alive.
+  printf 'RENDER_UID=%s\n' "$(id -u)"
+  printf 'RENDER_GID=%s\n' "$(id -g)"
   for var in "${COMPOSE_VARS[@]}"; do
     [[ -n "${!var:-}" ]] && printf '%s=%s\n' "${var}" "${!var}"
   done
