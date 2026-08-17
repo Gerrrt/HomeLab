@@ -54,18 +54,11 @@ jobs:
 
       # The ${VAR:?} guards in compose.yaml exist so a missing secret fails
       # loudly at deploy time. CI supplies throwaway values so validation never
-      # needs a decryption key.
+      # needs a decryption key. The list of variables lives in the script, which
+      # scripts/validate.sh also calls — inlining it here is what let CI and the
+      # local run drift apart. The .env written here stays gitignored.
       - name: Seed a validation-only .env
-        run: |
-          cp "$STACK/.env.example" "$STACK/.env"
-          {
-            echo "GRAFANA_ADMIN_PASSWORD=validation-only"
-            # RENDER_UID/GID are written by render-config.sh from the deploying
-            # user, so they are host-specific and absent from .env.example. Any
-            # value satisfies the ${VAR:?} guards that compose.yaml sets on them.
-            echo "RENDER_UID=65534"
-            echo "RENDER_GID=65534"
-          } >> "$STACK/.env"
+        run: ./scripts/seed-validation-env.sh "$STACK/.env"
 
       # Single source of truth: whatever compose.yaml pins is what gets tested.
       - name: Resolve pinned images from compose.yaml
