@@ -484,7 +484,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "upsOutputWatts",
+          "expr": "upsOutputPower",
           "legendFormat": "__auto",
           "range": false,
           "instant": true,
@@ -810,7 +810,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "upsOutputWatts",
+          "expr": "upsOutputPower",
           "legendFormat": "output watts",
           "range": true,
           "instant": false,

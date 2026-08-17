@@ -139,10 +139,11 @@ short:
 
 The stack is small, but two things will bite if ignored:
 
-- **The `ilo` SNMP module exposes ~1,355 metrics.** The HP Insight tree is
+- **The `ilo` SNMP module exposes ~1,600 metrics.** The HP Insight tree is
   enormous. It is scraped once a minute from one device, which is fine — but do
   not add a second module that broad without trimming the OID list in
-  `generator.yaml`.
+  `generator.yaml`. All four modules together are ~1,800 metrics per scrape
+  cycle.
 - **Loki labels must stay low-cardinality.** `host`, `level`, `log_type`,
   `service_name` and `unit` are bounded. Never promote a request ID, IP address
   or timestamp to a label; use `|=` line filters instead.
