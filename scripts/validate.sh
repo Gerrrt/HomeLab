@@ -34,20 +34,15 @@ have_docker() { have docker && docker info >/dev/null 2>&1; }
 head_ "Compose"
 # ---------------------------------------------------------------------------
 if have docker; then
-  # A .env is required for the ${VAR:?} guards; use the example values plus
-  # throwaway secrets so validation does not depend on a decryption key.
+  # A .env is required for the ${VAR:?} guards; seeded by the same script CI
+  # uses, so a variable added there cannot pass locally and fail in CI. Written
+  # to a temp file rather than ${STACK}/.env so a local run never leaves an .env
+  # sitting next to a real one.
   TMP_ENV="$(mktemp)"
   trap 'rm -f "${TMP_ENV}"' EXIT
-  cat "${STACK}/.env.example" > "${TMP_ENV}"
-  {
-    echo "GRAFANA_ADMIN_PASSWORD=validation-only"
-    # RENDER_UID/GID come from the deploying user via render-config.sh and are
-    # host-specific, so they are deliberately not in .env.example. Any value
-    # validates — this only needs to satisfy the ${VAR:?} guards.
-    echo "RENDER_UID=65534"
-    echo "RENDER_GID=65534"
-  } >> "${TMP_ENV}"
-  if docker compose --env-file "${TMP_ENV}" -f "${STACK}/compose.yaml" config -q 2>/dev/null; then
+  if ! ./scripts/seed-validation-env.sh "${TMP_ENV}"; then
+    fail "seed a validation-only .env"
+  elif docker compose --env-file "${TMP_ENV}" -f "${STACK}/compose.yaml" config -q 2>/dev/null; then
     pass "docker compose config"
   else
     docker compose --env-file "${TMP_ENV}" -f "${STACK}/compose.yaml" config -q
