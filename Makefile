@@ -42,9 +42,20 @@ logs: ## Tail logs (SERVICE=grafana to narrow)
 	$(COMPOSE) logs -f --tail=100 $(SERVICE)
 
 .PHONY: reload
-reload: ## Hot-reload Prometheus and Alertmanager without a restart
+reload: ## Hot-reload Prometheus, Alertmanager and snmp-exporter (no restart)
 	$(COMPOSE) exec prometheus   wget -q -O- --post-data='' http://localhost:9090/-/reload
 	$(COMPOSE) exec alertmanager wget -q -O- --post-data='' http://localhost:9093/-/reload
+	@# snmp-exporter reads its config once at startup, but v0.30.1 also serves an
+	@# unconditional POST /-/reload — no --web.enable-lifecycle gate, unlike
+	@# Prometheus. That is what lets an SNMP community rotation be
+	@# `make render && make reload` rather than a container recreate.
+	@#
+	@# It works only because render-config.sh writes the rendered file with `>`,
+	@# truncating in place and keeping the inode. The container bind-mounts the
+	@# file, not the directory, so switching to write-temp-then-mv would leave
+	@# the mount pointing at the old inode and this reload would cheerfully
+	@# re-read the old community.
+	$(COMPOSE) exec snmp-exporter wget -q -O- --post-data='' http://localhost:9116/-/reload
 	@printf '\033[0;32mreloaded\033[0m\n'
 
 .PHONY: nuke
@@ -138,6 +149,18 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml
 		"$$gen" generate \
 		-m /opt/mibs -g /opt/generator.yaml -o /opt/snmp.yaml
 	@printf '\033[0;33mCheck the diff before committing — placeholders must survive.\033[0m\n'
+
+.PHONY: snmp-verify
+snmp-verify: ## Check each SNMP device answers to its community (ARGS=--old)
+	@# Deliberately under Maintenance, not Validation: everything under
+	@# Validation is offline and safe for CI, whereas this needs the age key and
+	@# sends packets to production devices. Keeping it here stops anyone folding
+	@# it into `make validate`.
+	./scripts/snmp-verify.sh $(ARGS)
+
+.PHONY: gen-secret
+gen-secret: ## Generate a random secret (ARGS=--snmp for one per SNMP device)
+	./scripts/gen-secret.sh $(ARGS)
 
 .PHONY: backup
 backup: ## Back up the stack's volumes to ./backups/

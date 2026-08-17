@@ -85,8 +85,17 @@ make secrets-edit      # add SNMP_COMMUNITY_NEWDEVICE
 Give it its own community. Reusing one across devices means a single captured
 SNMPv2c packet — which is cleartext — grants read access to all of them.
 
-Then add the variable to the `envsubst` list and the `REQUIRED` array in
-`scripts/render-config.sh`.
+Then add the variable to the `REQUIRED` array in `scripts/render-config.sh`.
+That array is the single list — the substitution loop below it is derived from
+`REQUIRED`, filtered to `SNMP_COMMUNITY_*`, so there is no second place to
+forget.
+
+Forgetting it fails closed: `render-config.sh` greps the rendered file for any
+surviving `${SNMP_COMMUNITY` and refuses to continue, so you get an error at
+render time rather than an exporter polling with an empty community.
+`make validate` also checks that every device in `targets/snmp.yaml` has a
+matching key here, in `secrets/observability.example.yaml`, and in
+`generator.yaml`.
 
 ### 3. Add the target — `prometheus/targets/snmp.yaml`
 

@@ -7,16 +7,20 @@ decrypted only in memory at deploy time.
 | File | In this repo? | Encrypted? | Contains |
 | --- | --- | --- | --- |
 | `observability.example.yaml` | yes | no | Key names and placeholder values |
-| `observability.sops.yaml` | **not yet** — created by `make secrets-init`, then committed | **yes** | Real credentials |
+| `observability.sops.yaml` | yes — created by `make secrets-init`, committed encrypted | **yes** | Real credentials |
 | `~/.config/sops/age/keys.txt` | **never** | n/a | The private key |
 
-> `observability.sops.yaml` is deliberately absent from the repository right
-> now. Encrypting it requires an age keypair, and generating that keypair here
-> would mean either committing a private key or encrypting to a key nobody
-> holds. `make secrets-init` creates both on the machine that will run the
-> stack; the encrypted result is then committed as normal. Until that has been
-> run, `make up` fails with a clear error rather than starting a stack with
-> default credentials.
+> What is committed is ciphertext: the values are encrypted to the age
+> recipients listed in [`.sops.yaml`](../.sops.yaml), and the key names are left
+> in plaintext on purpose, so the set of required credentials is discoverable
+> without holding a decryption key.
+>
+> On a host that holds none of those private keys, `make render` fails at
+> decryption rather than starting the stack with defaults. To bring a second
+> host in, run `make secrets-init` there to generate its keypair, add its public
+> half to `.sops.yaml` as an additional recipient, and re-key the file with
+> `sops updatekeys secrets/observability.sops.yaml` from a host that can already
+> decrypt it. `secrets-init` refuses to overwrite an existing encrypted file.
 
 ## Why encrypted-in-git rather than a gitignored `.env`
 
@@ -74,6 +78,9 @@ Nothing writes a secret into a tracked file.
 ## Rotating
 
 See [`docs/runbooks/rotate-snmp-community.md`](../docs/runbooks/rotate-snmp-community.md).
+`make gen-secret` produces values safe for every consumer in this repo, and
+`make snmp-verify` confirms a rotation landed without putting the community into
+your shell history.
 
 > **Note on this repository's history.** Earlier commits contained a plaintext
 > SNMP community string shared across all four devices, and encrypted TLS
