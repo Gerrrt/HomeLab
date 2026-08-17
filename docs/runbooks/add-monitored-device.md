@@ -55,7 +55,20 @@ thinking about before you do.
 
 ## An SNMP device
 
-Three edits, no restart.
+Three steps, no restart. They touch five files:
+
+| File | What goes in it |
+| --- | --- |
+| `snmp-exporter/generator.yaml` | the auth block and the module (step 1) |
+| `secrets/observability.sops.yaml` | the real community, via `make secrets-edit` (step 2) |
+| `scripts/render-config.sh` | the key name, in the `REQUIRED` array (step 2) |
+| `secrets/observability.example.yaml` | the key name and a `change-me` placeholder (step 2) |
+| `prometheus/targets/snmp.yaml` | the target and its labels (step 3) |
+
+`make validate` cross-checks all of these against each other, so forgetting one
+is caught before it reaches a device. The `snmp-generate` target used to carry a
+sixth copy of the list; it now derives that from `targets/snmp.yaml`, so there is
+nothing to update there.
 
 ### 1. Define how to poll it — `snmp-exporter/generator.yaml`
 
@@ -81,6 +94,10 @@ problem if repeated.
 ```bash
 make secrets-edit      # add SNMP_COMMUNITY_NEWDEVICE
 ```
+
+Add the same key name to [`secrets/observability.example.yaml`](../../secrets/observability.example.yaml)
+with a `change-me` value, so the required set stays discoverable without a
+decryption key.
 
 Give it its own community. Reusing one across devices means a single captured
 SNMPv2c packet — which is cleartext — grants read access to all of them.
@@ -126,8 +143,9 @@ new module.
 ### Verify
 
 ```bash
-# Does the device answer at all?
-snmpwalk -v2c -c '<community>' 10.0.99.40 1.3.6.1.2.1.1.1.0
+# Does the device answer at all? (reads the community from SOPS rather than
+# taking it on the command line, where ps would expose it)
+./scripts/snmp-verify.sh --device <hostname>
 
 # Does the exporter understand it?
 curl -s 'http://localhost:9116/snmp?target=10.0.99.40&module=newdevice&auth=auth_newdevice' | head

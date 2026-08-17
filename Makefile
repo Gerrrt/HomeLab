@@ -138,17 +138,47 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml
 	@# compose service, so its version is derived from the exporter's pin rather
 	@# than duplicated — see scripts/image-for.sh.
 	@# --tag-only: the exporter's digest does not belong to the generator.
-	@gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
+	@#
+	@# Each -e sets a community variable to its own literal ${PLACEHOLDER} text,
+	@# so the generator writes the placeholder back into snmp.yaml rather than
+	@# baking in a real community.
+	@#
+	@# The flags are derived from the device inventory rather than listed here,
+	@# because this list used to be a fifth copy of the device list and the only
+	@# one that failed OPEN. A device missing its -e flag leaves the variable
+	@# unset in the container, the generator expands it to empty, and snmp.yaml
+	@# gets `community:` with nothing after it — which render-config.sh's guard
+	@# cannot catch, because that guard looks for surviving placeholders and an
+	@# empty expansion leaves none. The result is an exporter polling with no
+	@# community at all. Hence: derive the list, then assert every placeholder
+	@# actually survived.
+	@set -euo pipefail; \
+	gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
 	printf 'using %s\n' "$$gen"; \
+	vars=(); flags=(); \
+	while IFS=$$'\t' read -r _ip _auth _device var; do \
+		[[ -n "$$var" ]] || continue; \
+		vars+=("$$var"); \
+		flags+=(-e "$$var=\$${$$var}"); \
+	done < <(./scripts/snmp-targets.sh); \
+	(($${#vars[@]} > 0)) || { printf '\033[0;31merror:\033[0m no SNMP devices in the inventory\n' >&2; exit 1; }; \
+	printf 'placeholders: %s\n' "$${vars[*]}"; \
 	docker run --rm \
 		-v "$(PWD)/$(STACK_DIR)/snmp-exporter:/opt/" \
-		-e SNMP_COMMUNITY_PFSENSE='$${SNMP_COMMUNITY_PFSENSE}' \
-		-e SNMP_COMMUNITY_APC='$${SNMP_COMMUNITY_APC}' \
-		-e SNMP_COMMUNITY_MOKERLINK='$${SNMP_COMMUNITY_MOKERLINK}' \
-		-e SNMP_COMMUNITY_ILO='$${SNMP_COMMUNITY_ILO}' \
+		"$${flags[@]}" \
 		"$$gen" generate \
-		-m /opt/mibs -g /opt/generator.yaml -o /opt/snmp.yaml
-	@printf '\033[0;33mCheck the diff before committing — placeholders must survive.\033[0m\n'
+		-m /opt/mibs -g /opt/generator.yaml -o /opt/snmp.yaml; \
+	missing=(); \
+	for v in "$${vars[@]}"; do \
+		grep -qF "\$${$$v}" "$(STACK_DIR)/snmp-exporter/snmp.yaml" || missing+=("$$v"); \
+	done; \
+	if (($${#missing[@]} > 0)); then \
+		printf '\033[0;31merror:\033[0m placeholders missing from the generated snmp.yaml: %s\n' "$${missing[*]}" >&2; \
+		printf 'the generator expanded them to empty, so snmp-exporter would poll with no community.\n' >&2; \
+		printf 'snmp.yaml has NOT been restored — inspect it, then `git checkout -- %s/snmp-exporter/snmp.yaml`\n' "$(STACK_DIR)" >&2; \
+		exit 1; \
+	fi; \
+	printf '\033[0;32mok\033[0m — %s placeholder(s) survived generation\n' "$${#vars[@]}"
 
 .PHONY: snmp-verify
 snmp-verify: ## Check each SNMP device answers to its community (ARGS=--old)
