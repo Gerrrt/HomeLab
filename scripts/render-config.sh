@@ -17,41 +17,27 @@ STACK="${1:-observability}"
 STACK_DIR="${REPO_ROOT}/stacks/${STACK}"
 SECRETS_FILE="${REPO_ROOT}/secrets/${STACK}.sops.yaml"
 
+# shellcheck source=secrets-env.sh
+source "${REPO_ROOT}/scripts/secrets-env.sh"
+
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[0;34m--\033[0m %s\n' "$*"; }
 
 [[ -d "${STACK_DIR}" ]] || die "no such stack: ${STACK_DIR}"
 
-command -v sops >/dev/null 2>&1 \
-  || die "sops not found. Install it: https://github.com/getsops/sops/releases"
-
-if [[ ! -f "${SECRETS_FILE}" ]]; then
-  die "${SECRETS_FILE} does not exist. Run 'make secrets-init' first."
-fi
-
 # ---------------------------------------------------------------------------
 # Decrypt. Keep the plaintext in a variable, never in a file.
+#
+# The decrypt-and-parse lives in scripts/secrets-env.sh because snmp-verify.sh
+# needs the same values, and two copies of a hand-rolled YAML parser will
+# eventually disagree about some edge case — at which point verification passes
+# for a string that this script renders differently. Sourcing also drops the
+# `export` this loop used to do: the secrets are read below via ${!var} in this
+# process, and exporting them handed every child (mkdir, cat, grep, chmod, id)
+# a copy of all four communities for no reason.
 # ---------------------------------------------------------------------------
 info "decrypting $(basename "${SECRETS_FILE}")"
-PLAINTEXT="$(sops --decrypt "${SECRETS_FILE}")" \
-  || die "decryption failed. Is ~/.config/sops/age/keys.txt present?"
-
-# Turn "key: value" YAML into shell exports. Values are single-quoted, with
-# embedded single quotes escaped, so passwords containing shell metacharacters
-# survive intact.
-while IFS= read -r line; do
-  [[ "${line}" =~ ^[[:space:]]*# ]] && continue
-  [[ "${line}" =~ ^[[:space:]]*$ ]] && continue
-  [[ "${line}" =~ ^---$ ]] && continue
-  key="${line%%:*}"
-  value="${line#*: }"
-  [[ "${key}" == "${line}" ]] && continue
-  # strip surrounding quotes if the YAML had them
-  value="${value%\"}"; value="${value#\"}"
-  value="${value%\'}"; value="${value#\'}"
-  printf -v "${key}" '%s' "${value}"
-  export "${key?}"
-done <<< "${PLAINTEXT}"
+load_secrets "${STACK}"
 
 REQUIRED=(
   GRAFANA_ADMIN_PASSWORD
@@ -90,9 +76,15 @@ if [[ -f "${SNMP_SRC}" ]]; then
   # a no-op on bash < 5.2, where the option does not exist.
   shopt -u patsub_replacement 2>/dev/null || true
 
+  # The substitution list is derived from REQUIRED rather than repeated, so
+  # adding a device means editing one list instead of two that silently drift.
+  # The prefix filter is what makes that safe: a REQUIRED entry that is not an
+  # SNMP community has no ${...} placeholder in snmp.yaml, so substituting it
+  # is a no-op. And a name in REQUIRED whose placeholder is misspelled in
+  # snmp.yaml is still caught by the independent grep below.
   snmp_content="$(cat "${SNMP_SRC}")"
-  for var in SNMP_COMMUNITY_PFSENSE SNMP_COMMUNITY_APC \
-             SNMP_COMMUNITY_MOKERLINK SNMP_COMMUNITY_ILO; do
+  for var in "${REQUIRED[@]}"; do
+    [[ "${var}" == SNMP_COMMUNITY_* ]] || continue
     snmp_content="${snmp_content//\$\{${var}\}/${!var}}"
   done
 
