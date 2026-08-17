@@ -193,6 +193,21 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "SNMP inventory"
+# ---------------------------------------------------------------------------
+# The device list is spread across prometheus/targets/snmp.yaml, generator.yaml,
+# render-config.sh's REQUIRED array and secrets/observability.example.yaml. Drift
+# between them is invisible until a poll goes out with an empty community — and
+# the generator path fails *open*, so nothing downstream catches it. This is
+# offline: no decryption, no network.
+if ./scripts/snmp-targets.sh --check >/dev/null 2>&1; then
+  pass "snmp inventory consistent across targets, generator, render and example"
+else
+  ./scripts/snmp-targets.sh --check
+  fail "snmp inventory is inconsistent"
+fi
+
+# ---------------------------------------------------------------------------
 head_ "Secrets"
 # ---------------------------------------------------------------------------
 # Both scans, matching CI exactly. Running only the working-tree scan locally

@@ -1,0 +1,11 @@
+# scripts/secrets-env.sh is sourced by its siblings. Without these, shellcheck
+# reports SC1091 ("not following") for every `source`, because CI invokes it as
+# `shellcheck scripts/*.sh` from the repo root and the library is resolved
+# relative to the sourcing script, not the working directory.
+#
+# The alternative — a `# shellcheck source=/dev/null` directive at each call
+# site — silences the warning by disabling cross-file checking entirely, which
+# is the opposite of what is wanted: the point of one shared parser is that
+# shellcheck can see through it.
+source-path=SCRIPTDIR
+external-sources=true

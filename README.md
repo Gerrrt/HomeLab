@@ -161,7 +161,7 @@ troubleshooting in [`docs/runbooks/deploy-stack.md`](docs/runbooks/deploy-stack.
 $ make help
   up               Render config and start the stack
   down             Stop the stack (volumes are preserved)
-  reload           Hot-reload Prometheus and Alertmanager without a restart
+  reload           Hot-reload Prometheus, Alertmanager and snmp-exporter (no restart)
   secrets-init     Generate an age keypair and create the encrypted secrets file
   secrets-edit     Edit the encrypted secrets in $EDITOR
   validate         Run every check CI runs
