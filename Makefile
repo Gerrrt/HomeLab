@@ -132,8 +132,12 @@ scan: ## Scan the working tree and history for secrets
 # Maintenance
 # ---------------------------------------------------------------------------
 
+.PHONY: snmp-mibs
+snmp-mibs: ## Download the vendor MIBs snmp-generate needs (gitignored)
+	./scripts/snmp-mibs.sh $(ARGS)
+
 .PHONY: snmp-generate
-snmp-generate: ## Regenerate snmp.yaml from generator.yaml
+snmp-generate: ## Regenerate snmp.yaml from generator.yaml (needs make snmp-mibs)
 	@# The generator is released in lockstep with snmp-exporter but is not a
 	@# compose service, so its version is derived from the exporter's pin rather
 	@# than duplicated — see scripts/image-for.sh.
@@ -152,7 +156,21 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml
 	@# empty expansion leaves none. The result is an exporter polling with no
 	@# community at all. Hence: derive the list, then assert every placeholder
 	@# actually survived.
+	@#
+	@# The metric count is compared before and after for the same reason. A
+	@# regeneration that loses metrics is nearly always a missing or changed MIB
+	@# rather than an intended edit, and the shrunken result is still a
+	@# perfectly valid snmp.yaml. Walking the bare CPQ enterprise root rather
+	@# than its subtrees silently cost ~1580 of them.
 	@set -euo pipefail; \
+	mibs="$(STACK_DIR)/snmp-exporter/mibs"; \
+	if [[ ! -d "$$mibs" ]] || [[ -z "$$(ls -A "$$mibs" 2>/dev/null)" ]]; then \
+		printf '\033[0;31merror:\033[0m no MIBs in %s\n' "$$mibs" >&2; \
+		printf 'The generator resolves OIDs through net-snmp and the image ships almost no MIBs.\n' >&2; \
+		printf 'Run: make snmp-mibs\n' >&2; \
+		exit 1; \
+	fi; \
+	before="$$(grep -c '^    - name: ' "$(STACK_DIR)/snmp-exporter/snmp.yaml" 2>/dev/null || echo 0)"; \
 	gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
 	printf 'using %s\n' "$$gen"; \
 	vars=(); flags=(); \
@@ -168,6 +186,12 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml
 		"$${flags[@]}" \
 		"$$gen" generate \
 		-m /opt/mibs -g /opt/generator.yaml -o /opt/snmp.yaml; \
+	after="$$(grep -c '^    - name: ' "$(STACK_DIR)/snmp-exporter/snmp.yaml" || echo 0)"; \
+	printf 'metrics: %s -> %s\n' "$$before" "$$after"; \
+	if (($$after < $$before)); then \
+		printf '\033[0;31mwarning:\033[0m regeneration LOST %s metric(s)\n' "$$((before - after))" >&2; \
+		printf 'Inspect the diff before committing. To discard:\n  git checkout -- %s/snmp-exporter/snmp.yaml\n' "$(STACK_DIR)" >&2; \
+	fi; \
 	missing=(); \
 	for v in "$${vars[@]}"; do \
 		grep -qF "\$${$$v}" "$(STACK_DIR)/snmp-exporter/snmp.yaml" || missing+=("$$v"); \

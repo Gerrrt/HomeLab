@@ -85,9 +85,28 @@ modules:
       - 1.3.6.1.2.1.2.2      # IF-MIB::ifTable
 ```
 
-Keep the OID list tight. The `ilo` module walks the whole HP Insight tree and
-produces ~1,355 metrics from one device; that is fine once and a cardinality
-problem if repeated.
+Keep the OID list tight. The `ilo` module walks the HP Insight tree and produces
+~1,600 metrics from one device; that is fine once and a cardinality problem if
+repeated.
+
+Prefer listing the subtrees you want over the vendor's enterprise root. Several
+vendors define that root in more than one MIB under slightly different names,
+which leaves net-snmp with sibling nodes for the same OID; the generator
+descends only the first and quietly emits a handful of metrics instead of
+thousands. The `ilo` module walks seven explicit `1.3.6.1.4.1.232.*` subtrees
+for exactly that reason.
+
+Regenerating `snmp.yaml` after editing this file needs the vendor MIBs, which
+are not in the repository:
+
+```bash
+make snmp-mibs        # one-off, ~6 MB into a gitignored mibs/
+make snmp-generate
+```
+
+`snmp-generate` reports the metric count before and after and warns if the total
+dropped — `snmp.yaml` is marked `-diff` in `.gitattributes`, so a regression is
+not something you can eyeball in a diff.
 
 ### 2. Add the credential
 

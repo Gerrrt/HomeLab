@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+#
+# Download the MIBs that `make snmp-generate` needs into a gitignored mibs/
+# directory.
+#
+# The generator resolves numeric OIDs to names and types through net-snmp, and
+# net-snmp can only do that for MIBs it has on disk. The prom/snmp-generator
+# image ships thirteen NET-SNMP/UCD MIBs and none of the IETF or vendor ones,
+# so without this `make snmp-generate` dies with
+#
+#   Error generating config netsnmp: cannot find oid '1.3.6.1.2.1.33.1' to walk
+#
+# These are not vendored into the repository: the HPE bundle alone is 5.5 MB of
+# vendor-licensed files, and they are a build-time input rather than
+# configuration. snmp.yaml — the thing the generator produces — IS committed,
+# so a normal deploy never needs any of this.
+#
+# Sources mirror prometheus/snmp_exporter's own generator Makefile, so this
+# tracks whatever upstream considers canonical.
+#
+# Usage:
+#   scripts/snmp-mibs.sh            download anything missing
+#   scripts/snmp-mibs.sh --force    re-download everything
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MIBDIR="${REPO_ROOT}/stacks/observability/snmp-exporter/mibs"
+
+die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+info() { printf '\033[0;34m--\033[0m %s\n' "$*"; }
+
+FORCE=0
+[[ "${1:-}" == "--force" ]] && FORCE=1
+
+command -v curl >/dev/null 2>&1 || die "curl not found"
+command -v tar  >/dev/null 2>&1 || die "tar not found"
+
+# Pinned refs. net-snmp and FreeBSD are tags; the HPE URL embeds its own
+# version. UPS-MIB comes from the same mirror upstream uses — it is a branch
+# ref there, which is why it is the one source that can move under us.
+NET_SNMP_URL='https://raw.githubusercontent.com/net-snmp/net-snmp/v5.9/mibs'
+FREEBSD_URL='https://raw.githubusercontent.com/freebsd/freebsd-src/release/14.2.0'
+UPS_MIB_URL='https://raw.githubusercontent.com/pgmillon/observium/refs/heads/master/mibs/UPS-MIB'
+HPE_URL='https://downloads.hpe.com/pub/softlib2/software1/pubsw-linux/p1580676047/v229101/upd11.85mib.tar.gz'
+
+CURL_OPTS=(-L -sS --retry 3 --retry-delay 3 --fail --max-time 180)
+
+mkdir -p "${MIBDIR}"
+
+# fetch <destination-name> <url>
+fetch() {
+  local name="$1" url="$2" dest="${MIBDIR}/$1"
+  if [[ -s "${dest}" ]] && ((! FORCE)); then
+    return 0
+  fi
+  curl "${CURL_OPTS[@]}" -o "${dest}" "${url}" || die "failed to download ${name} from ${url}"
+  # A 200 that is not a MIB (a login page, an error document) would otherwise
+  # sit there and produce a baffling parse failure much later.
+  grep -q 'DEFINITIONS' "${dest}" \
+    || die "${name} does not look like a MIB — the URL may have moved: ${url}"
+}
+
+# ---------------------------------------------------------------------------
+# IETF core, from net-snmp. IF-MIB covers the switch, and everything else here
+# is a dependency of one of the four modules rather than a module in its own
+# right.
+# ---------------------------------------------------------------------------
+info "IETF core MIBs (net-snmp v5.9)"
+for m in SNMPv2-SMI SNMPv2-TC SNMPv2-CONF SNMPv2-MIB IF-MIB IP-MIB \
+         INET-ADDRESS-MIB HCNUM-TC HOST-RESOURCES-MIB IANAifType-MIB; do
+  fetch "${m}" "${NET_SNMP_URL}/${m}.txt"
+done
+
+# ---------------------------------------------------------------------------
+# UPS-MIB (RFC 1628) for the APC. net-snmp does not ship it.
+# ---------------------------------------------------------------------------
+info "UPS-MIB"
+fetch UPS-MIB "${UPS_MIB_URL}"
+
+# ---------------------------------------------------------------------------
+# pfSense exposes pf through FreeBSD's bsnmpd. BEGEMOT-PF-MIB imports from
+# BEGEMOT-MIB, which imports from FOKUS-MIB; miss either and the generator
+# fails with "Missing MIB" rather than merely losing the pfsense module.
+# ---------------------------------------------------------------------------
+info "FreeBSD bsnmpd MIBs (pfSense)"
+fetch FOKUS-MIB      "${FREEBSD_URL}/contrib/bsnmp/snmpd/FOKUS-MIB.txt"
+fetch BEGEMOT-MIB    "${FREEBSD_URL}/contrib/bsnmp/snmpd/BEGEMOT-MIB.txt"
+fetch BEGEMOT-PF-MIB "${FREEBSD_URL}/usr.sbin/bsnmpd/modules/snmp_pf/BEGEMOT-PF-MIB.txt"
+
+# ---------------------------------------------------------------------------
+# HPE Insight, for the iLO. Only the *cpq* files are kept — the bundle also
+# carries Cisco and VMware MIBs that nothing here walks. Matches what upstream
+# extracts.
+# ---------------------------------------------------------------------------
+if [[ -n "$(find "${MIBDIR}" -maxdepth 1 -name 'cpq*' -print -quit)" ]] && ((! FORCE)); then
+  info "HPE Insight MIBs already present"
+else
+  info "HPE Insight MIBs (5.5 MB download)"
+  tmp="$(mktemp)"; tmpdir="$(mktemp -d)"
+  trap 'rm -rf "${tmp}" "${tmpdir}"' EXIT INT TERM
+  curl "${CURL_OPTS[@]}" \
+    -H 'user-agent: Mozilla/5.0 snmp_exporter/generator' \
+    -o "${tmp}" "${HPE_URL}" || die "failed to download the HPE MIB bundle from ${HPE_URL}"
+  tar -xf "${tmp}" -C "${tmpdir}" || die "could not extract the HPE MIB bundle"
+  # shellcheck disable=SC2312  # the find's own failure is what the -z tests
+  if [[ -z "$(find "${tmpdir}" -name '*cpq*.mib' -print -quit)" ]]; then
+    die "the HPE bundle contained no cpq*.mib files — its layout may have changed"
+  fi
+  find "${tmpdir}" -name '*cpq*.mib' -exec cp {} "${MIBDIR}/" \;
+fi
+
+count="$(find "${MIBDIR}" -maxdepth 1 -type f | wc -l)"
+info "done — ${count} MIB(s) in stacks/observability/snmp-exporter/mibs/"
