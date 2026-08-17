@@ -59,7 +59,11 @@ services:
     <<: *service-defaults
     image: prom/alertmanager:v0.33.1@sha256:9e082985f56f4c8c9f724e18f2288c6708f472e56a5286b8863d080434ea065d
     container_name: alertmanager
-    user: "65534:65534"
+    # Mounts ./alertmanager/.rendered, written 0600 by render-config.sh, so it
+    # must run as the UID that rendered it. Required rather than defaulted: a
+    # stale .env predating RENDER_UID would otherwise silently fall back to
+    # 65534 and reintroduce the permission-denied crash loop this guards against.
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
     command:
       - --config.file=/etc/alertmanager/alertmanager.yaml
       - --storage.path=/alertmanager
@@ -125,7 +129,10 @@ services:
     <<: *service-defaults
     image: prom/snmp-exporter:v0.30.1@sha256:e5fd5e8b43ace6c088fe9bf0b37b7fff0e04380bee352be7ec41b853a4dd5859
     container_name: snmp-exporter
-    user: "65534:65534"
+    # Mounts ./snmp-exporter/.rendered/snmp.yaml, written 0600 by
+    # render-config.sh, so it must run as the UID that rendered it. Required,
+    # not defaulted — see the note on alertmanager above.
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
     command:
       - --config.file=/etc/snmp_exporter/snmp.yaml
     volumes:

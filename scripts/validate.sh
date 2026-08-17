@@ -39,7 +39,14 @@ if have docker; then
   TMP_ENV="$(mktemp)"
   trap 'rm -f "${TMP_ENV}"' EXIT
   cat "${STACK}/.env.example" > "${TMP_ENV}"
-  echo "GRAFANA_ADMIN_PASSWORD=validation-only" >> "${TMP_ENV}"
+  {
+    echo "GRAFANA_ADMIN_PASSWORD=validation-only"
+    # RENDER_UID/GID come from the deploying user via render-config.sh and are
+    # host-specific, so they are deliberately not in .env.example. Any value
+    # validates — this only needs to satisfy the ${VAR:?} guards.
+    echo "RENDER_UID=65534"
+    echo "RENDER_GID=65534"
+  } >> "${TMP_ENV}"
   if docker compose --env-file "${TMP_ENV}" -f "${STACK}/compose.yaml" config -q 2>/dev/null; then
     pass "docker compose config"
   else
