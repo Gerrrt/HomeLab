@@ -65,7 +65,19 @@ modules:
 
   # HPE ProLiant DL360 Gen9 iLO (shiva, 10.0.30.10) — SNMPv2-MIB system group
   # plus the Compaq/HP Insight enterprise tree for hardware health.
+  # The CPQ subtrees are listed individually rather than as the enterprise root
+  # 1.3.6.1.4.1.232. Several of HPE's MIBs each define that root under a
+  # different name (compaq, Compaq), so net-snmp's tree ends up with sibling
+  # nodes for the same OID and the generator descends only the first of them.
+  # Walking the bare root yields 12 metrics instead of ~1600 — and it does so
+  # silently, with no error, which is exactly how it would slip through.
   ilo:
     walk:
-      - 1.3.6.1.2.1.1     # SNMPv2-MIB::system
-      - 1.3.6.1.4.1.232   # CPQ (HP Insight) enterprise subtree
+      - 1.3.6.1.2.1.1        # SNMPv2-MIB::system
+      - 1.3.6.1.4.1.232.1    # cpqSystemInfo
+      - 1.3.6.1.4.1.232.2    # cpqDriveArray
+      - 1.3.6.1.4.1.232.3    # cpqSm2 / iLO
+      - 1.3.6.1.4.1.232.6    # cpqHealth
+      - 1.3.6.1.4.1.232.8    # cpqNic
+      - 1.3.6.1.4.1.232.9    # cpqIde
+      - 1.3.6.1.4.1.232.11   # cpqHost
