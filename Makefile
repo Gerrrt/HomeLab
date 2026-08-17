@@ -42,9 +42,20 @@ logs: ## Tail logs (SERVICE=grafana to narrow)
 	$(COMPOSE) logs -f --tail=100 $(SERVICE)
 
 .PHONY: reload
-reload: ## Hot-reload Prometheus and Alertmanager without a restart
+reload: ## Hot-reload Prometheus, Alertmanager and snmp-exporter (no restart)
 	$(COMPOSE) exec prometheus   wget -q -O- --post-data='' http://localhost:9090/-/reload
 	$(COMPOSE) exec alertmanager wget -q -O- --post-data='' http://localhost:9093/-/reload
+	@# snmp-exporter reads its config once at startup, but v0.30.1 also serves an
+	@# unconditional POST /-/reload — no --web.enable-lifecycle gate, unlike
+	@# Prometheus. That is what lets an SNMP community rotation be
+	@# `make render && make reload` rather than a container recreate.
+	@#
+	@# It works only because render-config.sh writes the rendered file with `>`,
+	@# truncating in place and keeping the inode. The container bind-mounts the
+	@# file, not the directory, so switching to write-temp-then-mv would leave
+	@# the mount pointing at the old inode and this reload would cheerfully
+	@# re-read the old community.
+	$(COMPOSE) exec snmp-exporter wget -q -O- --post-data='' http://localhost:9116/-/reload
 	@printf '\033[0;32mreloaded\033[0m\n'
 
 .PHONY: nuke
@@ -121,23 +132,89 @@ scan: ## Scan the working tree and history for secrets
 # Maintenance
 # ---------------------------------------------------------------------------
 
+.PHONY: snmp-mibs
+snmp-mibs: ## Download the vendor MIBs snmp-generate needs (gitignored)
+	./scripts/snmp-mibs.sh $(ARGS)
+
 .PHONY: snmp-generate
-snmp-generate: ## Regenerate snmp.yaml from generator.yaml
+snmp-generate: ## Regenerate snmp.yaml from generator.yaml (needs make snmp-mibs)
 	@# The generator is released in lockstep with snmp-exporter but is not a
 	@# compose service, so its version is derived from the exporter's pin rather
 	@# than duplicated — see scripts/image-for.sh.
 	@# --tag-only: the exporter's digest does not belong to the generator.
-	@gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
+	@#
+	@# Each -e sets a community variable to its own literal ${PLACEHOLDER} text,
+	@# so the generator writes the placeholder back into snmp.yaml rather than
+	@# baking in a real community.
+	@#
+	@# The flags are derived from the device inventory rather than listed here,
+	@# because this list used to be a fifth copy of the device list and the only
+	@# one that failed OPEN. A device missing its -e flag leaves the variable
+	@# unset in the container, the generator expands it to empty, and snmp.yaml
+	@# gets `community:` with nothing after it — which render-config.sh's guard
+	@# cannot catch, because that guard looks for surviving placeholders and an
+	@# empty expansion leaves none. The result is an exporter polling with no
+	@# community at all. Hence: derive the list, then assert every placeholder
+	@# actually survived.
+	@#
+	@# The metric count is compared before and after for the same reason. A
+	@# regeneration that loses metrics is nearly always a missing or changed MIB
+	@# rather than an intended edit, and the shrunken result is still a
+	@# perfectly valid snmp.yaml. Walking the bare CPQ enterprise root rather
+	@# than its subtrees silently cost ~1580 of them.
+	@set -euo pipefail; \
+	mibs="$(STACK_DIR)/snmp-exporter/mibs"; \
+	if [[ ! -d "$$mibs" ]] || [[ -z "$$(ls -A "$$mibs" 2>/dev/null)" ]]; then \
+		printf '\033[0;31merror:\033[0m no MIBs in %s\n' "$$mibs" >&2; \
+		printf 'The generator resolves OIDs through net-snmp and the image ships almost no MIBs.\n' >&2; \
+		printf 'Run: make snmp-mibs\n' >&2; \
+		exit 1; \
+	fi; \
+	before="$$(grep -c '^    - name: ' "$(STACK_DIR)/snmp-exporter/snmp.yaml" 2>/dev/null || echo 0)"; \
+	gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
 	printf 'using %s\n' "$$gen"; \
+	vars=(); flags=(); \
+	while IFS=$$'\t' read -r _ip _auth _device var; do \
+		[[ -n "$$var" ]] || continue; \
+		vars+=("$$var"); \
+		flags+=(-e "$$var=\$${$$var}"); \
+	done < <(./scripts/snmp-targets.sh); \
+	(($${#vars[@]} > 0)) || { printf '\033[0;31merror:\033[0m no SNMP devices in the inventory\n' >&2; exit 1; }; \
+	printf 'placeholders: %s\n' "$${vars[*]}"; \
 	docker run --rm \
 		-v "$(PWD)/$(STACK_DIR)/snmp-exporter:/opt/" \
-		-e SNMP_COMMUNITY_PFSENSE='$${SNMP_COMMUNITY_PFSENSE}' \
-		-e SNMP_COMMUNITY_APC='$${SNMP_COMMUNITY_APC}' \
-		-e SNMP_COMMUNITY_MOKERLINK='$${SNMP_COMMUNITY_MOKERLINK}' \
-		-e SNMP_COMMUNITY_ILO='$${SNMP_COMMUNITY_ILO}' \
+		"$${flags[@]}" \
 		"$$gen" generate \
-		-m /opt/mibs -g /opt/generator.yaml -o /opt/snmp.yaml
-	@printf '\033[0;33mCheck the diff before committing — placeholders must survive.\033[0m\n'
+		-m /opt/mibs -g /opt/generator.yaml -o /opt/snmp.yaml; \
+	after="$$(grep -c '^    - name: ' "$(STACK_DIR)/snmp-exporter/snmp.yaml" || echo 0)"; \
+	printf 'metrics: %s -> %s\n' "$$before" "$$after"; \
+	if (($$after < $$before)); then \
+		printf '\033[0;31mwarning:\033[0m regeneration LOST %s metric(s)\n' "$$((before - after))" >&2; \
+		printf 'Inspect the diff before committing. To discard:\n  git checkout -- %s/snmp-exporter/snmp.yaml\n' "$(STACK_DIR)" >&2; \
+	fi; \
+	missing=(); \
+	for v in "$${vars[@]}"; do \
+		grep -qF "\$${$$v}" "$(STACK_DIR)/snmp-exporter/snmp.yaml" || missing+=("$$v"); \
+	done; \
+	if (($${#missing[@]} > 0)); then \
+		printf '\033[0;31merror:\033[0m placeholders missing from the generated snmp.yaml: %s\n' "$${missing[*]}" >&2; \
+		printf 'the generator expanded them to empty, so snmp-exporter would poll with no community.\n' >&2; \
+		printf 'snmp.yaml has NOT been restored — inspect it, then `git checkout -- %s/snmp-exporter/snmp.yaml`\n' "$(STACK_DIR)" >&2; \
+		exit 1; \
+	fi; \
+	printf '\033[0;32mok\033[0m — %s placeholder(s) survived generation\n' "$${#vars[@]}"
+
+.PHONY: snmp-verify
+snmp-verify: ## Check each SNMP device answers to its community (ARGS=--old)
+	@# Deliberately under Maintenance, not Validation: everything under
+	@# Validation is offline and safe for CI, whereas this needs the age key and
+	@# sends packets to production devices. Keeping it here stops anyone folding
+	@# it into `make validate`.
+	./scripts/snmp-verify.sh $(ARGS)
+
+.PHONY: gen-secret
+gen-secret: ## Generate a random secret (ARGS=--snmp for one per SNMP device)
+	./scripts/gen-secret.sh $(ARGS)
 
 .PHONY: backup
 backup: ## Back up the stack's volumes to ./backups/

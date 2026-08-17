@@ -55,7 +55,20 @@ thinking about before you do.
 
 ## An SNMP device
 
-Three edits, no restart.
+Three steps, no restart. They touch five files:
+
+| File | What goes in it |
+| --- | --- |
+| `snmp-exporter/generator.yaml` | the auth block and the module (step 1) |
+| `secrets/observability.sops.yaml` | the real community, via `make secrets-edit` (step 2) |
+| `scripts/render-config.sh` | the key name, in the `REQUIRED` array (step 2) |
+| `secrets/observability.example.yaml` | the key name and a `change-me` placeholder (step 2) |
+| `prometheus/targets/snmp.yaml` | the target and its labels (step 3) |
+
+`make validate` cross-checks all of these against each other, so forgetting one
+is caught before it reaches a device. The `snmp-generate` target used to carry a
+sixth copy of the list; it now derives that from `targets/snmp.yaml`, so there is
+nothing to update there.
 
 ### 1. Define how to poll it — `snmp-exporter/generator.yaml`
 
@@ -72,9 +85,28 @@ modules:
       - 1.3.6.1.2.1.2.2      # IF-MIB::ifTable
 ```
 
-Keep the OID list tight. The `ilo` module walks the whole HP Insight tree and
-produces ~1,355 metrics from one device; that is fine once and a cardinality
-problem if repeated.
+Keep the OID list tight. The `ilo` module walks the HP Insight tree and produces
+~1,600 metrics from one device; that is fine once and a cardinality problem if
+repeated.
+
+Prefer listing the subtrees you want over the vendor's enterprise root. Several
+vendors define that root in more than one MIB under slightly different names,
+which leaves net-snmp with sibling nodes for the same OID; the generator
+descends only the first and quietly emits a handful of metrics instead of
+thousands. The `ilo` module walks seven explicit `1.3.6.1.4.1.232.*` subtrees
+for exactly that reason.
+
+Regenerating `snmp.yaml` after editing this file needs the vendor MIBs, which
+are not in the repository:
+
+```bash
+make snmp-mibs        # one-off, ~6 MB into a gitignored mibs/
+make snmp-generate
+```
+
+`snmp-generate` reports the metric count before and after and warns if the total
+dropped — `snmp.yaml` is marked `-diff` in `.gitattributes`, so a regression is
+not something you can eyeball in a diff.
 
 ### 2. Add the credential
 
@@ -82,11 +114,24 @@ problem if repeated.
 make secrets-edit      # add SNMP_COMMUNITY_NEWDEVICE
 ```
 
+Add the same key name to [`secrets/observability.example.yaml`](../../secrets/observability.example.yaml)
+with a `change-me` value, so the required set stays discoverable without a
+decryption key.
+
 Give it its own community. Reusing one across devices means a single captured
 SNMPv2c packet — which is cleartext — grants read access to all of them.
 
-Then add the variable to the `envsubst` list and the `REQUIRED` array in
-`scripts/render-config.sh`.
+Then add the variable to the `REQUIRED` array in `scripts/render-config.sh`.
+That array is the single list — the substitution loop below it is derived from
+`REQUIRED`, filtered to `SNMP_COMMUNITY_*`, so there is no second place to
+forget.
+
+Forgetting it fails closed: `render-config.sh` greps the rendered file for any
+surviving `${SNMP_COMMUNITY` and refuses to continue, so you get an error at
+render time rather than an exporter polling with an empty community.
+`make validate` also checks that every device in `targets/snmp.yaml` has a
+matching key here, in `secrets/observability.example.yaml`, and in
+`generator.yaml`.
 
 ### 3. Add the target — `prometheus/targets/snmp.yaml`
 
@@ -117,8 +162,9 @@ new module.
 ### Verify
 
 ```bash
-# Does the device answer at all?
-snmpwalk -v2c -c '<community>' 10.0.99.40 1.3.6.1.2.1.1.1.0
+# Does the device answer at all? (reads the community from SOPS rather than
+# taking it on the command line, where ps would expose it)
+./scripts/snmp-verify.sh --device <hostname>
 
 # Does the exporter understand it?
 curl -s 'http://localhost:9116/snmp?target=10.0.99.40&module=newdevice&auth=auth_newdevice' | head

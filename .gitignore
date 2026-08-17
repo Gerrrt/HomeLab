@@ -27,6 +27,11 @@ certificates/
 # ---- Rendered / decrypted config (produced by scripts/render-config.sh) ----
 **/.rendered/
 
+# ---- Build-time input for `make snmp-generate` (scripts/snmp-mibs.sh) ----
+# Vendor MIBs, several MB of them, needed only to regenerate snmp.yaml. The
+# generated snmp.yaml itself IS committed, so a deploy never needs these.
+stacks/*/snmp-exporter/mibs/
+
 # ---- Runtime state produced by the stack ----
 data/
 **/data/

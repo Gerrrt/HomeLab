@@ -64,8 +64,8 @@ make validate
 make up          # recreates only what changed
 ```
 
-Config-only changes to Prometheus rules or Alertmanager routing do not need a
-restart:
+Config-only changes to Prometheus rules, Alertmanager routing or the rendered
+snmp-exporter config do not need a restart:
 
 ```bash
 make reload
@@ -89,7 +89,7 @@ and it prompts.
 | --- | --- | --- |
 | `GRAFANA_ADMIN_PASSWORD: unset` | `.env` not rendered | `make render` |
 | `unsubstituted placeholders remain` | A `SNMP_COMMUNITY_*` key is missing from the secrets file | `make secrets-edit` |
-| SNMP targets `DOWN` | Community mismatch, or the device is not reachable from VLAN 99 | `snmpwalk -v2c -c '<community>' <ip> 1.3.6.1.2.1.1.1.0` |
+| SNMP targets `DOWN` | Community mismatch, or the device is not reachable from VLAN 99 | `make snmp-verify` (keeps the community out of your shell history) |
 | Grafana panels empty, no error | Datasource UID mismatch | `make check-dashboards` |
 | Loki `ready` returns 503 for a while | Normal on first start | Wait ~45s |
 | Every log line labelled `info` | The level regex is not matching | See `docs/observability.md` |
