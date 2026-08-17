@@ -58,7 +58,14 @@ jobs:
       - name: Seed a validation-only .env
         run: |
           cp "$STACK/.env.example" "$STACK/.env"
-          echo "GRAFANA_ADMIN_PASSWORD=validation-only" >> "$STACK/.env"
+          {
+            echo "GRAFANA_ADMIN_PASSWORD=validation-only"
+            # RENDER_UID/GID are written by render-config.sh from the deploying
+            # user, so they are host-specific and absent from .env.example. Any
+            # value satisfies the ${VAR:?} guards that compose.yaml sets on them.
+            echo "RENDER_UID=65534"
+            echo "RENDER_GID=65534"
+          } >> "$STACK/.env"
 
       # Single source of truth: whatever compose.yaml pins is what gets tested.
       - name: Resolve pinned images from compose.yaml
