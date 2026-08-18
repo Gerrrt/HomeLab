@@ -53,7 +53,31 @@ modules:
   # Packet filter counters, state table usage, per-interface pf statistics.
   pfsense:
     walk:
-      - 1.3.6.1.4.1.12325.1  # BEGEMOT-PF-MIB::begemotPf
+      # begemotPf is 12325.1.200, not 12325.1 — the old value swept in all of
+      # begemot, including begemotSnmpd's internal tables, and pfTableAddresses
+      # below. The subtrees are listed individually rather than walking
+      # 12325.1.200 wholesale, because the whole point is to exclude one child.
+      - 1.3.6.1.4.1.12325.1.200.1.1   # pfStatus
+      - 1.3.6.1.4.1.12325.1.200.1.2   # pfCounter
+      - 1.3.6.1.4.1.12325.1.200.1.3   # pfStateTable
+      - 1.3.6.1.4.1.12325.1.200.1.4   # pfSrcNodes
+      - 1.3.6.1.4.1.12325.1.200.1.5   # pfLimits
+      - 1.3.6.1.4.1.12325.1.200.1.6   # pfTimeouts
+      - 1.3.6.1.4.1.12325.1.200.1.7   # pfInterfaces
+      - 1.3.6.1.4.1.12325.1.200.1.8   # pfInterfaces (detail)
+      # .1.9 is pfTables, and it holds two tables of very different cost, so it
+      # is descended into rather than taken whole:
+      - 1.3.6.1.4.1.12325.1.200.1.9.1 # pfTablesTblNumber   1 row
+      - 1.3.6.1.4.1.12325.1.200.1.9.2 # pfTablesTblTable  323 rows, 0.4s
+      # .1.9.3 pfTablesAddrTable is DELIBERATELY EXCLUDED — one row per address
+      # in every pf table, i.e. every entry of every blocklist. Measured on
+      # morpheus at 50,917+ rows still climbing after 20s, against ~1,800 rows
+      # for all of begemotPf combined. It pushed the scrape past the 45s
+      # scrape_timeout, so pfSense reported down with "context deadline
+      # exceeded" while its community was perfectly fine. It grows with every
+      # blocklist added, and nothing queries the pfTablesAddr* metrics.
+      - 1.3.6.1.4.1.12325.1.200.1.10  # pfLabels
+      - 1.3.6.1.4.1.12325.1.200.1.11  # pfLabels (detail)
 
   # MokerLink 26-port managed switch (neo, 10.7.7.2) — IF-MIB ifTable.
   # NOTE: 32-bit counters only. Adding ifXTable (64-bit) is tracked in
