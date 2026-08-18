@@ -16263,7 +16263,19 @@ modules:
         type: gauge
   pfsense:
     walk:
-    - 1.3.6.1.4.1.12325.1
+    - 1.3.6.1.4.1.12325.1.200.1.1
+    - 1.3.6.1.4.1.12325.1.200.1.10
+    - 1.3.6.1.4.1.12325.1.200.1.11
+    - 1.3.6.1.4.1.12325.1.200.1.2
+    - 1.3.6.1.4.1.12325.1.200.1.3
+    - 1.3.6.1.4.1.12325.1.200.1.4
+    - 1.3.6.1.4.1.12325.1.200.1.5
+    - 1.3.6.1.4.1.12325.1.200.1.6
+    - 1.3.6.1.4.1.12325.1.200.1.7
+    - 1.3.6.1.4.1.12325.1.200.1.8
+    - 1.3.6.1.4.1.12325.1.200.1.9.2
+    get:
+    - 1.3.6.1.4.1.12325.1.200.1.9.1.0
     metrics:
     - name: pfStatusRunning
       oid: 1.3.6.1.4.1.12325.1.200.1.1.1
@@ -16289,6 +16301,116 @@ modules:
       oid: 1.3.6.1.4.1.12325.1.200.1.1.4
       type: OctetString
       help: The (unique) host identifier of the machine running pf. - 1.3.6.1.4.1.12325.1.200.1.1.4
+    - name: pfAltqQueueNumber
+      oid: 1.3.6.1.4.1.12325.1.200.1.10.1
+      type: gauge
+      help: The number of queues in the active set. - 1.3.6.1.4.1.12325.1.200.1.10.1
+    - name: pfAltqQueueIndex
+      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.1
+      type: gauge
+      help: A unique value, greater than zero, for each queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.1
+      indexes:
+      - labelname: pfAltqQueueIndex
+        type: gauge
+    - name: pfAltqQueueDescr
+      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.2
+      type: OctetString
+      help: The name of the queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.2
+      indexes:
+      - labelname: pfAltqQueueIndex
+        type: gauge
+    - name: pfAltqQueueParent
+      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.3
+      type: OctetString
+      help: Name of the queue's parent if it has one. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.3
+      indexes:
+      - labelname: pfAltqQueueIndex
+        type: gauge
+    - name: pfAltqQueueScheduler
+      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.4
+      type: gauge
+      help: Scheduler algorithm implemented by this queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.4
+      indexes:
+      - labelname: pfAltqQueueIndex
+        type: gauge
+      enum_values:
+        1: cbq
+        8: hfsc
+        11: priq
+    - name: pfAltqQueueBandwidth
+      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.5
+      type: gauge
+      help: Bandwitch assigned to this queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.5
+      indexes:
+      - labelname: pfAltqQueueIndex
+        type: gauge
+    - name: pfAltqQueuePriority
+      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.6
+      type: gauge
+      help: Priority level of the queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.6
+      indexes:
+      - labelname: pfAltqQueueIndex
+        type: gauge
+    - name: pfAltqQueueLimit
+      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.7
+      type: gauge
+      help: Maximum number of packets in the queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.7
+      indexes:
+      - labelname: pfAltqQueueIndex
+        type: gauge
+    - name: pfLabelsLblNumber
+      oid: 1.3.6.1.4.1.12325.1.200.1.11.1
+      type: gauge
+      help: The number of labeled filter rules on this system. - 1.3.6.1.4.1.12325.1.200.1.11.1
+    - name: pfLabelsLblIndex
+      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.1
+      type: gauge
+      help: A unique value, greater than zero, for each label. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.1
+      indexes:
+      - labelname: pfLabelsLblIndex
+        type: gauge
+    - name: pfLabelsLblName
+      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.2
+      type: OctetString
+      help: The name of the rule label. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.2
+      indexes:
+      - labelname: pfLabelsLblIndex
+        type: gauge
+    - name: pfLabelsLblEvals
+      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.3
+      type: counter
+      help: The number of rule evaluations. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.3
+      indexes:
+      - labelname: pfLabelsLblIndex
+        type: gauge
+    - name: pfLabelsLblBytesIn
+      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.4
+      type: counter
+      help: The number of incoming bytes matched by the rule. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.4
+      indexes:
+      - labelname: pfLabelsLblIndex
+        type: gauge
+    - name: pfLabelsLblBytesOut
+      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.5
+      type: counter
+      help: The number of outgoing bytes matched by the rule. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.5
+      indexes:
+      - labelname: pfLabelsLblIndex
+        type: gauge
+    - name: pfLabelsLblPktsIn
+      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.6
+      type: counter
+      help: The number of incoming packets matched by the rule. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.6
+      indexes:
+      - labelname: pfLabelsLblIndex
+        type: gauge
+    - name: pfLabelsLblPktsOut
+      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.7
+      type: counter
+      help: The number of outgoing packets matched by the rule. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.7
+      indexes:
+      - labelname: pfLabelsLblIndex
+        type: gauge
     - name: pfCounterMatch
       oid: 1.3.6.1.4.1.12325.1.200.1.2.1
       type: counter
@@ -16809,214 +16931,4 @@ modules:
         1.3.6.1.4.1.12325.1.200.1.9.2.1.20
       indexes:
       - labelname: pfTablesTblIndex
-        type: gauge
-    - name: pfTablesAddrIndex
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.1
-      type: gauge
-      help: A unique value, greater than zero, for each address. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.1
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrNetType
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.2
-      type: gauge
-      help: The type of address in the corresponding pfTablesAddrNet object. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.2
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-      enum_values:
-        0: unknown
-        1: ipv4
-        2: ipv6
-        3: ipv4z
-        4: ipv6z
-        16: dns
-    - name: pfTablesAddrNet
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.3
-      type: InetAddress
-      help: The IP address of this particular table entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.3
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrPrefix
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.4
-      type: gauge
-      help: The CIDR netmask of this particular table entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.4
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrTZero
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.5
-      type: gauge
-      help: The time passed since this entry's statistics were last cleared, or the
-        time passed since this entry was loaded into the table, whichever is sooner.
-        - 1.3.6.1.4.1.12325.1.200.1.9.3.1.5
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrBytesInPass
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.6
-      type: counter
-      help: The number of inbound bytes passed as a result of this entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.6
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrBytesInBlock
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.7
-      type: counter
-      help: The number of inbound bytes blocked as a result of this entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.7
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrBytesOutPass
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.8
-      type: counter
-      help: The number of outbound bytes passed as a result of this entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.8
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrBytesOutBlock
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.9
-      type: counter
-      help: The number of outbound bytes blocked as a result of this entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.9
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrPktsInPass
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.10
-      type: counter
-      help: The number of inbound packets passed as a result of this entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.10
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrPktsInBlock
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.11
-      type: counter
-      help: The number of inbound packets blocked as a result of this entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.11
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrPktsOutPass
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.12
-      type: counter
-      help: The number of outbound packets passed as a result of this entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.12
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfTablesAddrPktsOutBlock
-      oid: 1.3.6.1.4.1.12325.1.200.1.9.3.1.13
-      type: counter
-      help: The number of outbound packets blocked as a result of this entry. - 1.3.6.1.4.1.12325.1.200.1.9.3.1.13
-      indexes:
-      - labelname: pfTablesAddrIndex
-        type: gauge
-    - name: pfAltqQueueNumber
-      oid: 1.3.6.1.4.1.12325.1.200.1.10.1
-      type: gauge
-      help: The number of queues in the active set. - 1.3.6.1.4.1.12325.1.200.1.10.1
-    - name: pfAltqQueueIndex
-      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.1
-      type: gauge
-      help: A unique value, greater than zero, for each queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.1
-      indexes:
-      - labelname: pfAltqQueueIndex
-        type: gauge
-    - name: pfAltqQueueDescr
-      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.2
-      type: OctetString
-      help: The name of the queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.2
-      indexes:
-      - labelname: pfAltqQueueIndex
-        type: gauge
-    - name: pfAltqQueueParent
-      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.3
-      type: OctetString
-      help: Name of the queue's parent if it has one. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.3
-      indexes:
-      - labelname: pfAltqQueueIndex
-        type: gauge
-    - name: pfAltqQueueScheduler
-      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.4
-      type: gauge
-      help: Scheduler algorithm implemented by this queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.4
-      indexes:
-      - labelname: pfAltqQueueIndex
-        type: gauge
-      enum_values:
-        1: cbq
-        8: hfsc
-        11: priq
-    - name: pfAltqQueueBandwidth
-      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.5
-      type: gauge
-      help: Bandwitch assigned to this queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.5
-      indexes:
-      - labelname: pfAltqQueueIndex
-        type: gauge
-    - name: pfAltqQueuePriority
-      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.6
-      type: gauge
-      help: Priority level of the queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.6
-      indexes:
-      - labelname: pfAltqQueueIndex
-        type: gauge
-    - name: pfAltqQueueLimit
-      oid: 1.3.6.1.4.1.12325.1.200.1.10.2.1.7
-      type: gauge
-      help: Maximum number of packets in the queue. - 1.3.6.1.4.1.12325.1.200.1.10.2.1.7
-      indexes:
-      - labelname: pfAltqQueueIndex
-        type: gauge
-    - name: pfLabelsLblNumber
-      oid: 1.3.6.1.4.1.12325.1.200.1.11.1
-      type: gauge
-      help: The number of labeled filter rules on this system. - 1.3.6.1.4.1.12325.1.200.1.11.1
-    - name: pfLabelsLblIndex
-      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.1
-      type: gauge
-      help: A unique value, greater than zero, for each label. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.1
-      indexes:
-      - labelname: pfLabelsLblIndex
-        type: gauge
-    - name: pfLabelsLblName
-      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.2
-      type: OctetString
-      help: The name of the rule label. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.2
-      indexes:
-      - labelname: pfLabelsLblIndex
-        type: gauge
-    - name: pfLabelsLblEvals
-      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.3
-      type: counter
-      help: The number of rule evaluations. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.3
-      indexes:
-      - labelname: pfLabelsLblIndex
-        type: gauge
-    - name: pfLabelsLblBytesIn
-      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.4
-      type: counter
-      help: The number of incoming bytes matched by the rule. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.4
-      indexes:
-      - labelname: pfLabelsLblIndex
-        type: gauge
-    - name: pfLabelsLblBytesOut
-      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.5
-      type: counter
-      help: The number of outgoing bytes matched by the rule. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.5
-      indexes:
-      - labelname: pfLabelsLblIndex
-        type: gauge
-    - name: pfLabelsLblPktsIn
-      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.6
-      type: counter
-      help: The number of incoming packets matched by the rule. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.6
-      indexes:
-      - labelname: pfLabelsLblIndex
-        type: gauge
-    - name: pfLabelsLblPktsOut
-      oid: 1.3.6.1.4.1.12325.1.200.1.11.2.1.7
-      type: counter
-      help: The number of outgoing packets matched by the rule. - 1.3.6.1.4.1.12325.1.200.1.11.2.1.7
-      indexes:
-      - labelname: pfLabelsLblIndex
         type: gauge
