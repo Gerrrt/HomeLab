@@ -90,6 +90,11 @@ make gen-secret ARGS="--snmp --length 15"
 `[A-Za-z0-9]` only — every other character has a specific way of going wrong
 quietly somewhere between `secrets-edit` and the wire.
 
+The card in this lab accepts 16 and is verified working at that length, so the
+cap is not universal to the model. Check yours rather than assuming it either
+way: from the monitoring host, a silent truncation and a correct community are
+indistinguishable — both present as the device refusing you.
+
 Note that SNMPv2c sends these in cleartext on every poll. Distinct communities
 limit the blast radius of a captured packet; they do not make the protocol
 secure. Moving to SNMPv3 authPriv is tracked in [`roadmap.md`](../roadmap.md) —
@@ -188,6 +193,11 @@ up{job="snmp"}
 The target should return within 60 seconds. The `SnmpTargetUnreachable` alert
 fires after 10 minutes, so a mistake here announces itself.
 
+If a device fails here, establish whether you broke it before you roll anything
+back — `max_over_time(up{job="snmp",instance="<ip>"}[30d])`. `1` means it was
+working before you started and the rotation is the suspect; `0` means it never
+worked, the rotation is not the cause, and reverting will not bring it back.
+
 ### 2.5 Remove the old community, then prove it is gone
 
 Only once §2.4 is green. Delete the old entry in the device's UI — some UIs
@@ -198,7 +208,9 @@ require deleting the row rather than blanking the field — then:
 ```
 
 It prompts for the old community without echoing it, and asserts each device now
-refuses it.
+refuses it. It requires a terminal and refuses a pipe on purpose — `echo "$old" |
+...` would put the old community into your shell history, which is the leak this
+tooling exists to close. Run it yourself; no script or agent can.
 
 `--old` only checks devices that just passed their current-community check.
 SNMPv2c has no "wrong community" reply — a device that rejects you simply drops
@@ -206,6 +218,12 @@ the packet — so a timeout against an unreachable device is indistinguishable f
 a timeout against a device that correctly refused you. Anything else is reported
 `SKIP`, never `PASS`: reporting it as success would be the tool agreeing with you
 rather than checking you.
+
+A `SKIP` is not a pass deferred, it is an open question. If a device never
+answered its current community, you do not know whether it still accepts the old
+one — and if the old one leaked, that device is still exposed. Do not record the
+rotation as complete while any device is `SKIP`. Fix the current-community check
+first; `--old` only becomes meaningful for that device at that point.
 
 ## 3. Commit
 
@@ -217,11 +235,22 @@ git commit -m "chore(secrets): rotate SNMP communities"
 The diff shows *which* keys changed and nothing about their values — SOPS
 encrypts values and leaves keys in plaintext.
 
-Then close the loop, because three files currently assert this has not happened:
+Then close the loop, because these files carry the rotation's status and will
+otherwise assert it never happened:
 
-- [`SECURITY.md`](../../SECURITY.md) — the "not yet rotated on the devices" note
-- [`docs/roadmap.md`](../roadmap.md) — the unchecked box
-- [`secrets/README.md`](../../secrets/README.md) — the rotation pointer
+- [`SECURITY.md`](../../SECURITY.md) — the "Known exposure" row. This is the
+  ledger; correct it here first.
+- [`docs/security.md`](../security.md) — the historical-exposure row and the
+  SNMPv2c bullets, which `SECURITY.md` points at for detail. Leaving this one
+  stale makes the two disagree, which is worse than either being stale alone.
+- [`docs/roadmap.md`](../roadmap.md) — the checkbox.
+
+[`secrets/README.md`](../../secrets/README.md) points at `SECURITY.md` rather
+than restating the status, and needs no edit. Keep it that way.
+
+Record what `snmp-verify` actually printed — which devices passed, which refused
+the old community, which were `SKIP` — on the tracking issue. §2.5's output is
+the only evidence the rotation happened, and it lives in a terminal that closes.
 
 ## If something goes wrong
 
@@ -266,8 +295,9 @@ care how many times you write it.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | All four `FAIL` | Not the devices — you are not on `10.0.99.0/24`, or sops decrypted a stale file | `ping 10.0.99.1`; re-run `make render` |
-| Only `neo` (`10.7.7.2`) fails | `10.7.7.0/24` is a separate segment; the pfSense rule permitting `10.0.99.20 → 10.7.7.2:161` is missing or was reset | Check pfSense **Firewall → Rules**; test from a host on that segment |
-| One device fails right after you changed it | The UI truncated the community, or you removed the wrong entry | Re-enter it; check the field's max length (the APC NMC truncates at 15 on several firmwares) |
+| Only `neo` (`10.7.7.2`) fails | `10.7.7.0/24` is a separate segment reached through pfSense; the rule permitting `10.0.99.20 → 10.7.7.2` either does not exist, was reset, or does not cover UDP/161 | `ping 10.7.7.2` and `nc -vz 10.7.7.2 80` from the monitoring host. If both succeed while SNMP times out, the return path is fine and the fault is protocol-specific — check the *protocol and port* on the pfSense rule (**Firewall → Rules**) before you touch the switch |
+| A device `FAIL`s and you cannot tell whether you broke it | An SNMPv2c timeout looks identical for a wrong community, a filtered path, and a device that never worked | Ask Prometheus before rolling anything back: `max_over_time(up{job="snmp",instance="<ip>"}[30d])`. `1` means it worked before you started, so the rotation is the suspect. `0` means it never worked, the rotation is not the cause, and rolling back will not help |
+| One device fails right after you changed it | The UI truncated the community, or you removed the wrong entry | Re-enter it; check the field's max length (the APC NMC truncates at 15 on several firmwares; the card in this lab does not — it is verified at 16) |
 | `--old` reports `STILL ACCEPTED` | The device added the new community alongside the old one | Delete the old entry explicitly — some UIs need the row deleted, not blanked |
 | `--old` reports `SKIP` | The current-community check failed for that device, so a timeout proves nothing | Fix the current check first |
 | `error: ... contains whitespace or '#'` | A community was typed with a space or `#` into SOPS | `make secrets-edit`; regenerate with `make gen-secret` |
