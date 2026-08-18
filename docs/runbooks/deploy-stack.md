@@ -61,14 +61,19 @@ Then in the UI:
 ```bash
 git pull
 make validate
-make up          # recreates only what changed
+make up          # recreates changed services, then reloads config on the rest
 ```
 
-Config-only changes to Prometheus rules, Alertmanager routing or the rendered
-snmp-exporter config do not need a restart:
+`make up` recreates a container only when its *service definition* changes — a
+changed bind-mounted config file is invisible to `docker compose up -d`. So
+`make up` finishes by reloading Prometheus, Alertmanager and snmp-exporter from
+disk, and fails if any of them will not take the new config.
+
+A config-only change — Prometheus rules, Alertmanager routing, the rendered
+snmp-exporter config — needs no compose round trip at all:
 
 ```bash
-make reload
+make render && make reload
 ```
 
 ## Rolling back
@@ -93,6 +98,7 @@ and it prompts.
 | Grafana panels empty, no error | Datasource UID mismatch | `make check-dashboards` |
 | Loki `ready` returns 503 for a while | Normal on first start | Wait ~45s |
 | Every log line labelled `info` | The level regex is not matching | See `docs/observability.md` |
+| `make up` fails: `did not accept a reload within 60s` | A service started but never bound its listener, so it may be serving a stale config | `make logs SERVICE=<name>`; raise `RELOAD_TIMEOUT` only if the box is genuinely that slow |
 
 ## Backups
 

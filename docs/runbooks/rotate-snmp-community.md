@@ -154,8 +154,13 @@ make reload
 `make render` fails loudly if any placeholder is left unsubstituted, so a typo in
 a key name is caught before anything restarts. `make reload` is enough:
 snmp-exporter reads its config once at startup but serves an unconditional
-`POST /-/reload`, so no container needs recreating. `make up` also works and is
-not wrong, it just does more than is needed.
+`POST /-/reload`, so no container needs recreating.
+
+`make up` also works — it runs the same reload after `docker compose up -d`.
+Until PR #19 it did **not**, and that was a trap rather than a longer road:
+`compose up -d` recreates a container only when its *service definition*
+changes, so a freshly rendered `snmp.yaml` was invisible to it. `make up`
+reported success and snmp-exporter went on polling with the old community.
 
 ### 2.4 Verify
 
@@ -269,7 +274,8 @@ care how many times you write it.
 | `error: malformed line ... expected 'KEY: value'` | A key was written `KEY:value`, with no space after the colon | `make secrets-edit` |
 | Target still `DOWN` a minute after `make reload` | snmp-exporter reloaded from the *old* rendered file | You skipped `make render`. Run `make render && make reload` |
 | `unsubstituted placeholders remain` | A `SNMP_COMMUNITY_*` key is missing from the secrets file | `make secrets-edit` |
-| `make reload` fails on the snmp-exporter line | The container is not running | `make ps`, then `make up` |
+| `error: snmp-exporter is not running` | The container is stopped or crash-looping | `make ps`, then `make up` |
+| `error: snmp-exporter refused the reload` | The rendered `snmp.yaml` does not parse; it is **still serving the old config** | `make snmp-generate` output is bad — inspect it, or `git checkout --` it |
 | Target `UP` but every metric missing | The community works; the module does not match the device | `curl -s 'localhost:9116/snmp?target=<ip>&module=<m>&auth=auth_<m>'` |
 | iLO unreachable after saving | The management processor reset | Wait 2 minutes, then `hponcfg` from the host OS, or the rack |
 | The UPS card stops responding on save | The NMC restarted its NIC | Wait 60s. The UPS is still supplying power |

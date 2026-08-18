@@ -20,6 +20,12 @@ help: ## Show this help
 .PHONY: up
 up: render ## Render config and start the stack
 	$(COMPOSE) up -d --remove-orphans
+	@# `up -d` recreates a container only when its *service definition* changes,
+	@# so a freshly rendered snmp.yaml or an edited prometheus.yaml is invisible
+	@# to it and the container keeps serving what it parsed at startup. Without
+	@# this line `make up` reports success over a stale config — see
+	@# scripts/reload-config.sh for the incident that produced it.
+	./scripts/reload-config.sh $(STACK)
 	@printf '\n\033[0;32mup\033[0m — Grafana: http://localhost:$${GRAFANA_PORT:-3000}\n'
 
 .PHONY: down
@@ -43,20 +49,10 @@ logs: ## Tail logs (SERVICE=grafana to narrow)
 
 .PHONY: reload
 reload: ## Hot-reload Prometheus, Alertmanager and snmp-exporter (no restart)
-	$(COMPOSE) exec prometheus   wget -q -O- --post-data='' http://localhost:9090/-/reload
-	$(COMPOSE) exec alertmanager wget -q -O- --post-data='' http://localhost:9093/-/reload
-	@# snmp-exporter reads its config once at startup, but v0.30.1 also serves an
-	@# unconditional POST /-/reload — no --web.enable-lifecycle gate, unlike
-	@# Prometheus. That is what lets an SNMP community rotation be
-	@# `make render && make reload` rather than a container recreate.
-	@#
-	@# It works only because render-config.sh writes the rendered file with `>`,
-	@# truncating in place and keeping the inode. The container bind-mounts the
-	@# file, not the directory, so switching to write-temp-then-mv would leave
-	@# the mount pointing at the old inode and this reload would cheerfully
-	@# re-read the old community.
-	$(COMPOSE) exec snmp-exporter wget -q -O- --post-data='' http://localhost:9116/-/reload
-	@printf '\033[0;32mreloaded\033[0m\n'
+	@# `make up` runs this too. It stays a separate target because a config-only
+	@# change — an SNMP community rotation, an Alertmanager route edit — needs
+	@# only `make render && make reload`, with no compose round trip.
+	./scripts/reload-config.sh $(STACK)
 
 .PHONY: nuke
 nuke: ## Stop the stack AND delete its volumes (destroys all metrics and logs)
