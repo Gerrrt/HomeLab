@@ -140,7 +140,15 @@ services:
     expose:
       - "9116"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9116/health"]
+      # /-/healthy, not /health. snmp_exporter v0.30.1 serves no /health — it
+      # returns 404 — so this probe failed on every run and the container sat
+      # permanently unhealthy while working perfectly. It was invisible because
+      # nothing depends_on snmp-exporter and Docker does not restart on
+      # unhealthy, so the only symptom was a status in `make ps` that had always
+      # been there. A healthcheck that cannot pass is worse than none: it
+      # reports a permanent fault the operator learns to scroll past, and it
+      # deadlocks the first service that ever waits on service_healthy.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9116/-/healthy"]
       interval: 60s
       timeout: 10s
       retries: 3
