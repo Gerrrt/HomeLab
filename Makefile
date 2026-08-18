@@ -26,7 +26,17 @@ up: render ## Render config and start the stack
 	@# this line `make up` reports success over a stale config — see
 	@# scripts/reload-config.sh for the incident that produced it.
 	./scripts/reload-config.sh $(STACK)
-	@printf '\n\033[0;32mup\033[0m — Grafana: http://localhost:$${GRAFANA_PORT:-3000}\n'
+	@# The port is read back out of the rendered .env rather than expanded here.
+	@# GRAFANA_PORT lives in $(STACK_DIR)/.env, which docker compose reads and make
+	@# does not, so a bare $${GRAFANA_PORT:-3000} in a recipe yields 3000 whatever
+	@# the operator actually set — a wrong URL that looks right. This line was
+	@# previously inside a single-quoted printf format, so it did not expand at
+	@# all and printed the literal text `$${GRAFANA_PORT:-3000}`: the same bug,
+	@# just honest about it. Passed as a %s argument, not interpolated into the
+	@# format, so a stray % in the value cannot be read as a format spec.
+	@# tail -1 because compose takes the last of duplicate keys.
+	@port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
+	printf '\n\033[0;32mup\033[0m — Grafana: http://localhost:%s\n' "$${port:-3000}"
 
 .PHONY: down
 down: ## Stop the stack (volumes are preserved)
