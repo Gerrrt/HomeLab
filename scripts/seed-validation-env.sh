@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#
+# Write a throwaway .env that satisfies compose.yaml's ${VAR:?} guards.
+#
+# The guards exist so a missing secret fails loudly at deploy time rather than
+# starting a stack with defaults. Validation still has to get past them, so both
+# CI and scripts/validate.sh need an .env holding values that are never
+# deployed. That list used to be written out twice — once in
+# .github/workflows/ci.yml and once in scripts/validate.sh — and it drifted the
+# first time it changed: the commit adding the RENDER_UID/RENDER_GID guards
+# updated only validate.sh, so it passed locally and failed in CI.
+#
+# Nothing written here is a secret and nothing here is ever deployed. The values
+# only need to exist.
+#
+# Usage: scripts/seed-validation-env.sh <output-path>
+#
+# The caller owns the output path and its cleanup: CI writes the gitignored
+# stacks/observability/.env, validate.sh writes an mktemp file it removes on
+# exit. Keeping lifetime out here is what lets one script serve both.
+
+set -euo pipefail
+
+OUT="${1:?usage: seed-validation-env.sh <output-path>}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STACK="${REPO_ROOT}/stacks/observability"
+
+cat "${STACK}/.env.example" > "${OUT}"
+{
+  echo "GRAFANA_ADMIN_PASSWORD=validation-only"
+  # RENDER_UID/GID are written to .env by render-config.sh from the deploying
+  # user, so they are host-specific and deliberately absent from .env.example.
+  echo "RENDER_UID=65534"
+  echo "RENDER_GID=65534"
+} >> "${OUT}"
+
+# Sharing this script stops the two callers drifting from each other. This check
+# stops both of them drifting from compose.yaml: a newly added ${VAR:?} guard
+# fails here, naming the variable, instead of surfacing later as an opaque
+# compose interpolation error in whichever caller runs first.
+missing=()
+while read -r var; do
+  [[ -n "${var}" ]] || continue
+  grep -qE "^${var}=" "${OUT}" || missing+=("${var}")
+done < <(grep -oE '\$\{[A-Za-z_][A-Za-z0-9_]*:\?' "${STACK}/compose.yaml" \
+         | sed 's/^\${//; s/:?$//' | sort -u)
+
+if ((${#missing[@]})); then
+  printf 'compose.yaml guards %s, which the validation .env does not set.\n' \
+    "${missing[*]}" >&2
+  printf 'Add a throwaway value for it to %s\n' "${BASH_SOURCE[0]}" >&2
+  exit 1
+fi
