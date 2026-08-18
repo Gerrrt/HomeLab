@@ -157,7 +157,7 @@ after being converted to query parameters, so they never become metric labels.
 make up                    # render secrets, start everything
 make ps                    # container status
 make logs SERVICE=grafana  # tail one service
-make reload                # hot-reload Prometheus + Alertmanager config
+make reload                # hot-reload Prometheus, Alertmanager, snmp-exporter
 make validate              # everything CI runs
 make backup                # tar the data volumes into ./backups/
 make down                  # stop, keep data
@@ -166,4 +166,10 @@ make nuke                  # stop, destroy data (prompts)
 
 Prometheus and Alertmanager are started with lifecycle endpoints enabled, so
 rule and route changes apply via `make reload` without dropping the TSDB head
-block.
+block. snmp-exporter serves `POST /-/reload` unconditionally, with no lifecycle
+flag to enable.
+
+`make up` runs that same reload as its last step. It has to: `docker compose up
+-d` keys off the service definition, not the contents of the files it mounts,
+so without the reload a re-rendered config would sit on disk while the
+container served the copy it parsed at startup.
