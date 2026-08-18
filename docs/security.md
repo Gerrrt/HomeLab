@@ -59,7 +59,7 @@ repository must be treated as compromised:
 
 | What | Where | Status |
 | --- | --- | --- |
-| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` | Replaced with per-device placeholders. **Rotate on the devices** — see [runbook](runbooks/rotate-snmp-community.md) |
+| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` | Replaced with four distinct per-device values, SOPS-encrypted. Rotated on `morpheus`, `mjolnir` and `shiva`, each verified answering its new community and refusing the old. **Not rotated on `neo`** — see [#22](https://github.com/Gerrrt/HomeLab/issues/22) and the [runbook](runbooks/rotate-snmp-community.md) |
 | Grafana `admin` / `admin` with anonymous Admin access | compose file | Fixed: password from SOPS, anonymous auth disabled |
 | Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` but reachable at `647d90a~1` | Still in history. **Purge and regenerate** — see [runbook](runbooks/purge-git-history.md) |
 
@@ -77,12 +77,16 @@ stale and the file gets deleted.
 
 The devices are polled with SNMPv2c, which transmits the community string in
 cleartext. Anyone with a port on the management VLAN can read it off a single
-packet. Two mitigations are in place and one is not:
+packet. Two mitigations are in place, one only partly, and one is not:
 
-- **Done:** each device now has a distinct community, so one captured packet
-  does not grant read access to the whole fleet.
-- **Done:** SNMP is only reachable on the management VLAN, which nothing but
-  specific trusted hosts can enter.
+- **Done, with one exception:** each device has its own community, so one
+  captured packet no longer grants read access to the whole fleet. Three are
+  confirmed live on the hardware. The switch's exists only in SOPS — it has
+  never been proven on the device, because `10.7.7.2` has never answered a poll
+  ([#22](https://github.com/Gerrrt/HomeLab/issues/22)).
+- **Done:** SNMP is reachable only on the management VLAN and the
+  switch-management LAN, neither of which anything but specific trusted hosts
+  can enter.
 - **Not done:** SNMPv3 with authPriv. The MokerLink switch does not support it.
   Tracked in [roadmap](roadmap.md).
 
