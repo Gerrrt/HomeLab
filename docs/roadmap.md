@@ -5,8 +5,13 @@ inventory. Ordered roughly by how much it matters.
 
 ## Security
 
-- [ ] **Rotate the SNMP communities on all four devices.** The previous shared
-      string was committed in plaintext and must be considered public.
+- [ ] **Finish the SNMP rotation on the MokerLink switch (`neo`, 10.7.7.2).**
+      pfSense, the APC and iLO are done — each answers to its own new community
+      and refuses the old one. The switch is not, and cannot be verified,
+      because it has never answered SNMP at all: `up{job="snmp"}` for
+      `10.7.7.2` has been `0` for the full 30-day retention window, so the
+      failure predates the rotation rather than being caused by it. Blocked on
+      [#22](https://github.com/Gerrrt/HomeLab/issues/22).
       → [runbook](runbooks/rotate-snmp-community.md)
 - [ ] **Purge `certificates/` and the old community string from git history**,
       then regenerate the CA and leaf certificates.
@@ -71,3 +76,6 @@ inventory. Ordered roughly by how much it matters.
 - [x] Add SECURITY.md with a disclosure policy and known-exposure summary
 - [x] Loki alerting rules (8) for auth, SSH brute force and disk/OOM events,
       validated in CI by booting the pinned Loki image against them
+- [x] Give every SNMP device its own community, and rotate three of the four on
+      the hardware (pfSense, the APC NMC, iLO), confirming each refuses the old
+      shared string

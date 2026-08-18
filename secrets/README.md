@@ -82,6 +82,10 @@ See [`docs/runbooks/rotate-snmp-community.md`](../docs/runbooks/rotate-snmp-comm
 `make snmp-verify` confirms a rotation landed without putting the community into
 your shell history.
 
+Which devices are actually rotated is recorded in
+[`SECURITY.md`](../SECURITY.md), not here. One place to correct when it changes
+is the only arrangement that survives the next rotation.
+
 > **Note on this repository's history.** Earlier commits contained a plaintext
 > SNMP community string shared across all four devices, and encrypted TLS
 > private keys. Both must be treated as compromised regardless of the current
