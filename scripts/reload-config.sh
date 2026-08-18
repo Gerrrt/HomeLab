@@ -110,10 +110,20 @@ reload_one() {
       return 0
     fi
 
-    # wget exit 8 is "server issued an error response" — the service answered
-    # and refused. That is a config on disk that does not parse, and no amount
-    # of waiting fixes it, so do not spend the timeout pretending otherwise.
-    if ((rc == 8)); then
+    # "The service answered and refused" means a config on disk that does not
+    # parse, and no amount of waiting fixes it — so do not spend the timeout
+    # pretending otherwise.
+    #
+    # Detected by message, not by exit status, because all three images ship
+    # BusyBox wget and BusyBox exits 1 for everything: a refused connection and
+    # an HTTP 500 are indistinguishable by status. This was written against GNU
+    # wget's exit 8 first, which meant the branch could never fire and every
+    # unparseable config waited out the full timeout before reporting a
+    # misleading "did not accept a reload" — the wrong diagnosis for a service
+    # that had answered immediately and said exactly what was wrong. The exit 8
+    # test is kept for an image that ever ships GNU wget; on these three it is
+    # the string that fires.
+    if ((rc == 8)) || [[ "${out}" == *"server returned error"* ]]; then
       [[ -n "${out}" ]] && printf '%s\n' "${out}" >&2
       die "${svc} refused the reload: its config on disk does not parse. It is still serving the previous config."
     fi
