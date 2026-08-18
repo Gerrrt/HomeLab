@@ -12,22 +12,40 @@
 #
 # After the history purge these fingerprints become stale and this file should
 # be deleted. If gitleaks then reports nothing, the job is finished.
+#
+# Each finding is listed twice: gitleaks <=8.25 writes the full 40-char commit
+# SHA into a fingerprint, 8.26+ writes the 7-char short form, and a fingerprint
+# is matched as a literal string. CI pins v8.24.0 (see GITLEAKS_IMAGE in
+# .github/workflows/ci.yml) while a local `brew install gitleaks` is far newer,
+# so a single form makes `make validate` red on the developer machine and green
+# in CI, for nine findings that are already known. A red gate for a known reason
+# is the exact failure this file exists to prevent. Listing both forms costs
+# nothing: an entry that matches no finding is inert.
 
 # --- Shared SNMP community string, committed in plaintext (commit ee3d443) ---
 # One string reused across pfSense, the APC UPS, the MokerLink switch and iLO.
 ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:4
+ee3d443:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:4
 ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:10
+ee3d443:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:10
 ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:16
+ee3d443:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:16
 ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:22
+ee3d443:snmp-exporter/prometheus.matrix.elysium/config/snmp.yaml:snmp-community-plaintext:22
 
 # --- Grafana admin password inline in the compose file (commit ee3d443) ---
 # admin/admin, alongside GF_AUTH_ANONYMOUS_ENABLED=true with Admin role.
 ee3d443abc19029f182edbcf9beadb3e6ca8f7c5:grafana/prometheus.matrix.elysium/docker-compose.yaml:grafana-inline-password:7
+ee3d443:grafana/prometheus.matrix.elysium/docker-compose.yaml:grafana-inline-password:7
 
 # --- TLS private keys (introduced efb2632, deleted in 647d90a) ---
 # Passphrase-encrypted, which mitigates but does not resolve. Still recoverable
 # with `git show 647d90a~1:certificates/Gandalf.Gondor.Lab/ca-key.pem`.
 efb263225de6ee4961421596fd43e3f69b3bce8f:certificates/Gandalf.Gondor.Lab/ca-key.pem:private-key:1
+efb2632:certificates/Gandalf.Gondor.Lab/ca-key.pem:private-key:1
 efb263225de6ee4961421596fd43e3f69b3bce8f:certificates/Gandalf.Gondor.Lab/ca-key.pem:private-key-block:1
+efb2632:certificates/Gandalf.Gondor.Lab/ca-key.pem:private-key-block:1
 efb263225de6ee4961421596fd43e3f69b3bce8f:certificates/Gandalf.Gondor.Lab/cert-key.pem:private-key:1
+efb2632:certificates/Gandalf.Gondor.Lab/cert-key.pem:private-key:1
 efb263225de6ee4961421596fd43e3f69b3bce8f:certificates/Gandalf.Gondor.Lab/cert-key.pem:private-key-block:1
+efb2632:certificates/Gandalf.Gondor.Lab/cert-key.pem:private-key-block:1
