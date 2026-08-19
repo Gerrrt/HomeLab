@@ -36,7 +36,7 @@ make ps                                     # all six services healthy
 curl -s localhost:9090/-/healthy            # Prometheus
 curl -s localhost:3100/ready                # Loki
 curl -s localhost:9093/-/healthy            # Alertmanager
-curl -s localhost:3000/api/health           # Grafana
+curl -sk https://localhost:3000/api/health  # Grafana (-k: lab CA)
 ```
 
 Then in the UI:
