@@ -59,7 +59,7 @@ repository must be treated as compromised:
 
 | What | Where | Status |
 | --- | --- | --- |
-| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` | Replaced with four distinct per-device values, SOPS-encrypted. Rotated on `morpheus`, `mjolnir` and `shiva`, each verified answering its new community and refusing the old. **Not rotated on `neo`** — see [#22](https://github.com/Gerrrt/HomeLab/issues/22) and the [runbook](runbooks/rotate-snmp-community.md) |
+| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` | Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old; `neo` answers the new one but still accepts its previous community — accepted risk, see [`SECURITY.md`](../SECURITY.md) and the [runbook](runbooks/rotate-snmp-community.md) |
 | Grafana `admin` / `admin` with anonymous Admin access | compose file | Fixed: password from SOPS, anonymous auth disabled |
 | Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` but reachable at `647d90a~1` | Still in history. **Purge and regenerate** — see [runbook](runbooks/purge-git-history.md) |
 
@@ -79,11 +79,10 @@ The devices are polled with SNMPv2c, which transmits the community string in
 cleartext. Anyone with a port on the management VLAN can read it off a single
 packet. Two mitigations are in place, one only partly, and one is not:
 
-- **Done, with one exception:** each device has its own community, so one
-  captured packet no longer grants read access to the whole fleet. Three are
-  confirmed live on the hardware. The switch's exists only in SOPS — it has
-  never been proven on the device, because `10.7.7.2` is not currently answering
-  polls ([#22](https://github.com/Gerrrt/HomeLab/issues/22)).
+- **Done:** each device has its own community, confirmed live on all four, so
+  one captured packet no longer grants read access to the whole fleet. The
+  switch does still accept its own previous community as well — an accepted
+  residual, recorded in [`SECURITY.md`](../SECURITY.md).
 - **Done:** SNMP is reachable only on the management VLAN and the
   switch-management LAN, neither of which anything but specific trusted hosts
   can enter.
