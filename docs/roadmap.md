@@ -16,9 +16,6 @@ inventory. Ordered roughly by how much it matters.
 - [ ] Move to SNMPv3 authPriv where the hardware supports it. pfSense, the APC
       and iLO all do; the MokerLink switch does not, which is the blocker for
       doing it uniformly.
-- [ ] Put Grafana behind TLS rather than plain HTTP on the management VLAN.
-      The CA and a `grafana.matrix.elysium` leaf already exist — see
-      [runbook](runbooks/generate-certificates.md) — so this is wiring, not PKI.
 - [ ] Decide whether the lab VLAN needs egress filtering before the
       deliberately-vulnerable playground exists.
 
@@ -28,6 +25,12 @@ inventory. Ordered roughly by how much it matters.
       current `ifTable` counters are 32-bit and wrap in roughly 34 seconds at
       gigabit line rate, so sustained high-throughput ports under-report. The
       `SwitchCounterWrapSuspected` alert detects this but does not fix it.
+      Now actionable — the switch has only been polling since the three faults
+      in [#22](https://github.com/Gerrrt/HomeLab/issues/22) were cleared. Mind
+      the trap documented in `generator.yaml`: this switch returns `ifSpecific`
+      with a zero-length value that makes snmp-exporter discard the whole
+      response, so the walk lists individual columns and must stay clear of
+      column 22.
 - [ ] Deploy Alloy to the remaining hosts — currently only the monitoring host
       and one other report in. `shiva` and `oracle` are next.
 - [ ] Add blackbox-exporter for uptime and TLS-expiry checks on internal
@@ -77,9 +80,21 @@ inventory. Ordered roughly by how much it matters.
       validated in CI by booting the pinned Loki image against them
 - [x] Replace the CA and leaf certificates that leaked, and add tooling so
       issuing one is a command rather than a research project
+- [x] Serve Grafana over TLS with that CA, verified end to end — Prometheus
+      scrapes it with `ca_file` and `server_name` rather than
+      `insecure_skip_verify`
+- [x] Point Alertmanager at a real receiver. The webhook was the
+      `ntfy.example.invalid` placeholder for the entire life of the stack, so
+      no alert had ever been delivered
+- [x] Surface firing alerts on the dashboards. Forty rules and one routing tree
+      existed with nothing showing them; four dashboards now carry a table of
+      their own component's alerts
+- [x] Stop the UPS dashboard reporting a battery that is not there — the
+      management card fabricates charge, runtime and status
 - [x] Purge the shared SNMP community, the inline Grafana password and the
       TLS private keys under `certificates/` from git history, and delete the
       `.gitleaksignore` that acknowledged them
-- [x] Give every SNMP device its own community, and rotate three of the four on
-      the hardware (pfSense, the APC NMC, iLO), confirming each refuses the old
-      shared string
+- [x] Give every SNMP device its own community and rotate all four on the
+      hardware, confirming pfSense, the APC NMC and iLO each refuse the old
+      shared string. The switch accepts its new one but also still holds its
+      previous community — an accepted residual, recorded in `SECURITY.md`
