@@ -26,7 +26,7 @@
 # Usage:
 #   scripts/snmp-verify.sh                  every device, current community
 #   scripts/snmp-verify.sh --device neo     one device (name or IP)
-#   scripts/snmp-verify.sh --old            also check the old one is refused
+#   scripts/snmp-verify.sh --old            also check the old ones are refused
 #   scripts/snmp-verify.sh --dry-run        show the mapping; no decrypt, no packets
 
 set -euo pipefail
@@ -230,18 +230,21 @@ done <<< "${INVENTORY}"
 # Old community
 # ---------------------------------------------------------------------------
 if ((CHECK_OLD)); then
-  # A terminal is required. Accepting the old community on stdin would let
-  # someone write `echo "$old" | scripts/snmp-verify.sh --old`, putting it into
-  # their shell history — the exact leak this script exists to close.
-  [[ -t 0 ]] || die "--old needs a terminal: it reads the old community without echoing it"
-  printf 'Old community (not echoed; written only to a 0600 file that is deleted on exit): ' >&2
-  IFS= read -rs OLD_COMMUNITY
-  printf '\n' >&2
-  [[ -n "${OLD_COMMUNITY}" ]] || die "no old community entered"
+  # A terminal is required. Accepting old communities on stdin would let someone
+  # write `echo "$old" | scripts/snmp-verify.sh --old`, putting them into their
+  # shell history — the exact leak this script exists to close.
+  [[ -t 0 ]] || die "--old needs a terminal: it reads the old communities without echoing them"
 
   head_ "Old community (must be refused)"
-  write_conf "${WORK}/old" "${OLD_COMMUNITY}" "the old community"
 
+  # Asked for per device, not once. A single prompt was right when one community
+  # was shared across all four; after a rotation each device has its own
+  # predecessor, and testing one string against every device proves nothing
+  # about the three it never belonged to. Enter is a skip, because the usual
+  # case is checking one device you just rotated.
+  printf '  Each device is asked separately. Press Enter to skip one.\n\n' >&2
+
+  asked=0
   while IFS=$'\t' read -r ip auth device var; do
     [[ -n "${ip}" ]] || continue
 
@@ -258,8 +261,22 @@ if ((CHECK_OLD)); then
       continue
     fi
 
+    # Read from the terminal explicitly: this loop's stdin is the inventory.
+    printf '  old community for %-10s (not echoed, Enter to skip): ' "${device}" >&2
+    IFS= read -rs old_one < /dev/tty
+    printf '\n' >&2
+
+    if [[ -z "${old_one}" ]]; then
+      skip "$(printf '%-10s %-12s %s' "${device}" "${ip}" "not checked — no old community given")"
+      continue
+    fi
+    asked=$((asked + 1))
+
+    write_conf "${WORK}/old-${device}" "${old_one}" "the old community for ${device}"
+    old_one=""
+
     # -r 0: a timeout is the expected outcome, so retrying only doubles the wait.
-    probe "${ip}" "${WORK}/old" 0
+    probe "${ip}" "${WORK}/old-${device}" 0
 
     case "${PROBE_STATUS}" in
       ok|nosuchobject)
@@ -273,6 +290,8 @@ if ((CHECK_OLD)); then
         ;;
     esac
   done <<< "${INVENTORY}"
+
+  ((asked > 0)) || die "no old community entered for any device — nothing was checked"
 fi
 
 printf '\n'
