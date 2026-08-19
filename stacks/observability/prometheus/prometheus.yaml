@@ -32,7 +32,15 @@ scrape_configs:
     static_configs:
       - targets: ["loki:3100"]
 
+  # Grafana serves TLS with a certificate from the lab's own CA. Verified
+  # properly rather than with insecure_skip_verify: the CA is mounted in, and
+  # the leaf carries `grafana` as a SAN alongside its FQDN precisely so this
+  # scrape can check the name it actually connects to.
   - job_name: grafana
+    scheme: https
+    tls_config:
+      ca_file: /etc/prometheus/tls/ca.pem
+      server_name: grafana
     static_configs:
       - targets: ["grafana:3000"]
 

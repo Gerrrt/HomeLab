@@ -15,11 +15,15 @@
 #
 # Usage:
 #   scripts/gen-certs.sh --ca                     create the CA (refuses if it exists)
-#   scripts/gen-certs.sh --host <fqdn> [--ip IP]  issue a leaf signed by the CA
+#   scripts/gen-certs.sh --host <fqdn> [--ip IP] [--dns NAME]
 #   scripts/gen-certs.sh --list                   show what exists, and when it expires
 #
 #   --ip <addr>     add an IP SAN; repeatable. Internal DNS is unresolved in
 #                   this lab (docs/roadmap.md), so most leaves want one.
+#   --dns <name>    add an extra DNS SAN; repeatable. A service reached under
+#                   more than one name — its FQDN from a browser and its compose
+#                   service name from inside the network — needs every one of
+#                   them, or verification fails for the names that are missing.
 #   --days <n>      leaf lifetime, default 825
 #   --force         overwrite an existing CA or leaf
 #
@@ -50,6 +54,7 @@ head_() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 MODE=""
 HOST=""
 IPS=()
+DNS=()
 FORCE=0
 
 while (($#)); do
@@ -58,6 +63,7 @@ while (($#)); do
     --list)  MODE="list"; shift ;;
     --host)  MODE="leaf"; HOST="${2:?--host needs an FQDN}"; shift 2 ;;
     --ip)    IPS+=("${2:?--ip needs an address}"); shift 2 ;;
+    --dns)   DNS+=("${2:?--dns needs a name}"); shift 2 ;;
     --days)  LEAF_DAYS="${2:?--days needs a number}"; shift 2 ;;
     --force) FORCE=1; shift ;;
     -h|--help) sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -143,6 +149,9 @@ fi
 # failure — "x509: certificate relies on legacy Common Name field" — reads as a
 # trust problem rather than a missing field, so it costs an hour to diagnose.
 SAN="DNS:${HOST}"
+for name in "${DNS[@]}"; do
+  SAN+=",DNS:${name}"
+done
 for ip in "${IPS[@]}"; do
   SAN+=",IP:${ip}"
 done
@@ -169,7 +178,12 @@ openssl x509 -req -in "${TMP}/csr.pem" -sha256 \
   -out "${CRT}" -days "${LEAF_DAYS}" \
   -extfile <(printf 'subjectAltName=%s\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' "${SAN}") 2>/dev/null
 
-chmod 600 "${KEY}"
+# 0640, not 0600. A container serving this key runs as its own uid — Grafana is
+# 472:0 — and cannot read a file owned by the operator at 0600. The compose
+# service is given the operator's gid as a supplementary group instead of the
+# key being made world-readable. This costs nothing: certificates/ is 0700, so
+# no other local user can traverse to the file whatever its own mode says.
+chmod 640 "${KEY}"
 chmod 644 "${CRT}"
 
 # Prove it verifies against the CA now, rather than discovering at deploy time

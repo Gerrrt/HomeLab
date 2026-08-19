@@ -36,7 +36,8 @@ up: render ## Render config and start the stack
 	@# format, so a stray % in the value cannot be read as a format spec.
 	@# tail -1 because compose takes the last of duplicate keys.
 	@port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
-	printf '\n\033[0;32mup\033[0m — Grafana: http://localhost:%s\n' "$${port:-3000}"
+	printf '\n\033[0;32mup\033[0m — Grafana: https://localhost:%s\n' "$${port:-3000}"
+	@printf '   (self-signed by the lab CA — trust certificates/ca.pem, see docs/runbooks/generate-certificates.md)\n'
 
 .PHONY: down
 down: ## Stop the stack (volumes are preserved)

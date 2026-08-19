@@ -12,7 +12,7 @@ Once the stack has a few days of real data:
 
 ```bash
 make up
-# open http://<monitoring-host>:3000, log in, HomeLab folder
+# open https://<monitoring-host>:3000, log in, HomeLab folder
 ```
 
 For each dashboard, set the time range to something with visible activity
