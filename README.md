@@ -201,8 +201,8 @@ enforces it, and `make pin-digests` re-resolves them.
 Open work is tracked in [`docs/roadmap.md`](docs/roadmap.md). The current top
 items: finish the SNMP rotation on the switch, purge the old communities from
 git history, replace the UPS battery, and get 64-bit interface counters off the
-switch. The first and last of those share a blocker — the switch has never
-answered an SNMP poll at all.
+switch. The first and last of those share a blocker — the switch is not
+currently answering SNMP.
 
 ## License
 
