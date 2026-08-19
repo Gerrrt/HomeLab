@@ -82,8 +82,8 @@ packet. Two mitigations are in place, one only partly, and one is not:
 - **Done, with one exception:** each device has its own community, so one
   captured packet no longer grants read access to the whole fleet. Three are
   confirmed live on the hardware. The switch's exists only in SOPS — it has
-  never been proven on the device, because `10.7.7.2` has never answered a poll
-  ([#22](https://github.com/Gerrrt/HomeLab/issues/22)).
+  never been proven on the device, because `10.7.7.2` is not currently answering
+  polls ([#22](https://github.com/Gerrrt/HomeLab/issues/22)).
 - **Done:** SNMP is reachable only on the management VLAN and the
   switch-management LAN, neither of which anything but specific trusted hosts
   can enter.
