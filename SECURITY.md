@@ -38,9 +38,9 @@ is a very different thing from an overlooked one. Full detail in
 
 | What | Status |
 | --- | --- |
-| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated on all four devices; each answers to its own new community. The firewall, the UPS and the BMC additionally refuse the old one. **The switch still accepts its previous community alongside the new one** — see below. **The original shared string is also still present in git history.** Treat both as public. |
+| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated on all four devices; each answers to its own new community. The firewall, the UPS and the BMC additionally refuse the old one. **The switch still accepts its previous community alongside the new one** — see below. The original shared string has been purged from git history, though it must still be treated as public — it was reachable in a public repository and cannot be un-seen. |
 | Grafana `admin`/`admin` with anonymous Admin access enabled | Fixed — anonymous auth off, password from SOPS |
-| Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD`, still reachable in history. Purge tooling and a runbook are provided; not yet run. |
+| Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD` and purged from history. The CA and leaf certificates still need regenerating — assume the old keys are compromised. |
 
 The switch is the honest gap, and it is a deliberate one. `neo` (10.7.7.2) is
 rotated and polling, but it also still accepts the community it held before the
@@ -63,11 +63,11 @@ Remediation is tracked in [`docs/roadmap.md`](docs/roadmap.md), with procedures
 in [`docs/runbooks/rotate-snmp-community.md`](docs/runbooks/rotate-snmp-community.md)
 and [`docs/runbooks/purge-git-history.md`](docs/runbooks/purge-git-history.md).
 
-[`.gitleaksignore`](.gitleaksignore) enumerates all nine historical findings
-individually, with a note on each. It exists so the full-history scan stays
-meaningful — a job that is permanently red for a known reason gets ignored, and
-then a genuinely new leak goes unnoticed alongside it. It is an acknowledgement,
-not a fix, and it gets deleted once the purge has run.
+There is no `.gitleaksignore`. There was one, enumerating nine historical
+findings so the full-history scan stayed meaningful; the purge removed what it
+acknowledged, so it was deleted. CI now scans the whole history with no
+exceptions, which is the only way to know the purge worked — an ignore file
+large enough to cover real findings can also hide new ones.
 
 ## What this repository will not contain
 

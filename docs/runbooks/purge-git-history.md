@@ -3,7 +3,14 @@
 **This rewrites every commit SHA in the repository and requires a force-push to
 `main`.** Read the whole page before starting.
 
-## What is still in history
+> **This has been run once already.** The shared SNMP community, the inline
+> Grafana password and the TLS keys under `certificates/` are gone, and
+> `.gitleaksignore` was deleted with them. The page is kept because the
+> procedure is the thing worth keeping, and because two of its steps have
+> traps worth not rediscovering — see **Verify**. The table below describes
+> the state before that run.
+
+## What was in history
 
 | What | Introduced | Removed from HEAD | Still reachable at |
 | --- | --- | --- | --- |
@@ -11,8 +18,9 @@
 | Grafana `admin`/`admin` inline | `ee3d443` | yes | every commit in between |
 | TLS private keys under `certificates/` | `efb2632` | `647d90a` | `647d90a~1` |
 
-All nine individual findings are enumerated in
-[`.gitleaksignore`](../../.gitleaksignore) with their fingerprints.
+All nine individual findings were enumerated in `.gitleaksignore` with their
+fingerprints. That file has since been deleted: the purge removed what it
+acknowledged, and CI now scans full history with no exceptions.
 
 Verify for yourself before and after:
 
@@ -117,6 +125,19 @@ git push --force --tags origin
   is how you know the purge worked.
 
 ## Verify
+
+Two traps here, both of which made a failed purge look like a successful one:
+
+- **The verification is only as good as the literals.** It greps for each entry
+  in `.purge-secrets.txt`, so an entry that never appeared in history reports
+  `PASS` having tested nothing. The Grafana line is
+  `REDACTED-ROTATED-CREDENTIAL`, with an equals sign — the colon form
+  passes verification and redacts nothing. Confirm each literal actually
+  matches something *before* trusting the result.
+- **gitleaks matches the redaction placeholder.** `community: REDACTED-ROTATED-CREDENTIAL`
+  still satisfies a rule looking for `community:\s*<anything>`, so a clean purge
+  stays red. `.gitleaks.toml` allowlists `REDACTED-ROTATED-CREDENTIAL` for this
+  reason; without it there is no way to prove the purge worked.
 
 ```bash
 git log --all --oneline -- certificates/            # empty

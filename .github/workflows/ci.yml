@@ -183,10 +183,10 @@ jobs:
       #
       # The working-tree scan asks "is there a secret in the code as it stands"
       # and must always be clean. The history scan asks "has one ever been
-      # committed" — it honours .gitleaksignore, which enumerates the nine known
-      # historical findings with the reason each is there. Once the history
-      # purge in docs/runbooks/purge-git-history.md has run, that file goes away
-      # and this job keeps passing on its own merits.
+      # committed", and must now be clean unconditionally too: there is no
+      # .gitleaksignore any more. The purge in docs/runbooks/purge-git-history.md
+      # removed what that file used to acknowledge, and deleting it is how a
+      # future finding stays visible instead of being masked by a stale entry.
       - name: gitleaks — working tree
         run: |
           docker run --rm -v "$PWD:/repo" -w /repo \

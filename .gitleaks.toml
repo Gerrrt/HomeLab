@@ -59,4 +59,9 @@ regexes = [
   '''validation-only''',
   # age *public* keys are safe to commit; only the secret key matters.
   '''age1[a-z0-9]{58}''',
+  # What scripts/purge-history.sh leaves behind where a secret used to be.
+  # Without this, every redacted line still matches the rule that found the
+  # original — the history scan would stay red after a successful purge, and a
+  # purge you cannot prove worked is worth very little.
+  '''REDACTED-ROTATED-CREDENTIAL''',
 ]

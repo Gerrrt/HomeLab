@@ -59,19 +59,19 @@ repository must be treated as compromised:
 
 | What | Where | Status |
 | --- | --- | --- |
-| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` | Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old; `neo` answers the new one but still accepts its previous community — accepted risk, see [`SECURITY.md`](../SECURITY.md) and the [runbook](runbooks/rotate-snmp-community.md) |
+| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` (now rewritten) | Purged from history. Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old; `neo` answers the new one but still accepts its previous community — accepted risk, see [`SECURITY.md`](../SECURITY.md) and the [runbook](runbooks/rotate-snmp-community.md) |
 | Grafana `admin` / `admin` with anonymous Admin access | compose file | Fixed: password from SOPS, anonymous auth disabled |
-| Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` but reachable at `647d90a~1` | Still in history. **Purge and regenerate** — see [runbook](runbooks/purge-git-history.md) |
+| Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` | Purged from history. **Still to regenerate** the CA and leaf certificates — see [runbook](runbooks/purge-git-history.md) |
 
-CI scans both the working tree and the full history. The working-tree scan must
-be clean unconditionally. The history scan honours
-[`.gitleaksignore`](../.gitleaksignore), which lists all nine historical
-findings individually, each annotated with what it is and why it is still there.
+CI scans both the working tree and the full history, with no ignore file. Both
+must be clean unconditionally.
 
-That file is an acknowledgement, not a fix. It exists because a CI job that is
-permanently red for a known reason gets ignored — and then a genuinely new leak
-goes unnoticed alongside it. Once the history purge runs, the fingerprints go
-stale and the file gets deleted.
+There was a `.gitleaksignore` listing nine historical findings, each annotated
+with what it was and why it was still there. It was an acknowledgement, not a
+fix, and it existed because a CI job that is permanently red for a known reason
+gets ignored — and then a genuinely new leak goes unnoticed alongside it. The
+purge removed what it acknowledged, so the file was deleted. A history scan
+that passes with no exceptions is the evidence the purge worked.
 
 ### Why SNMPv2c is still a weak point
 

@@ -13,8 +13,9 @@ inventory. Ordered roughly by how much it matters.
       and reachable only from the management VLAN. Overwrite the row with a
       fresh value rather than deleting it, next time the switch is down anyway.
       → [runbook](runbooks/rotate-snmp-community.md)
-- [ ] **Purge `certificates/` and the old community string from git history**,
-      then regenerate the CA and leaf certificates.
+- [ ] **Regenerate the CA and leaf certificates.** The old keys were purged
+      from git history, but they were public before that and must be treated as
+      compromised.
       → [runbook](runbooks/purge-git-history.md)
 - [ ] Move to SNMPv3 authPriv where the hardware supports it. pfSense, the APC
       and iLO all do; the MokerLink switch does not, which is the blocker for
@@ -76,6 +77,9 @@ inventory. Ordered roughly by how much it matters.
 - [x] Add SECURITY.md with a disclosure policy and known-exposure summary
 - [x] Loki alerting rules (8) for auth, SSH brute force and disk/OOM events,
       validated in CI by booting the pinned Loki image against them
+- [x] Purge the shared SNMP community, the inline Grafana password and the
+      TLS private keys under `certificates/` from git history, and delete the
+      `.gitleaksignore` that acknowledged them
 - [x] Give every SNMP device its own community, and rotate three of the four on
       the hardware (pfSense, the APC NMC, iLO), confirming each refuses the old
       shared string
