@@ -43,6 +43,10 @@ fail() { printf '\033[0;31m  FAIL\033[0m %s\n' "$*"; FAILED=1; }
 skip() { printf '\033[0;33m  SKIP\033[0m %s\n' "$*"; }
 head_() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
+# sysDescr, as a node and as the instance GETBULK returns for it.
+SYSDESCR_NODE='1.3.6.1.2.1.1.1'
+SYSDESCR_OID='.1.3.6.1.2.1.1.1.0'
+
 FAILED=0
 CHECK_OLD=0
 DRY_RUN=0
@@ -140,10 +144,23 @@ Regenerate it with scripts/gen-secret.sh and set it on the device."
 # Sets PROBE_STATUS to ok | noresponse | nosuchobject | error, and PROBE_DETAIL
 # to something safe to print.
 #
-# snmpget rather than snmpwalk: one GET of exactly sysDescr.0, one round trip.
-# The old runbook's `snmpwalk ... 1.3.6.1.2.1.1.1.0` did a GETNEXT *from*
-# sysDescr.0 and so returned sysObjectID — its claim that each device "must
-# return a sysDescr string" was never quite right.
+# GETBULK, not GET. The MokerLink switch answers GETBULK and silently drops both
+# GET and GETNEXT, so a GET-based probe times out against it no matter which
+# community is used. That is not merely a cosmetic FAIL: --old infers "rejected"
+# from a timeout, so a probe the device never answers would report every
+# community as refused, including one that still works. The check would agree
+# with the operator instead of testing them, which is the one thing this script
+# exists not to do.
+#
+# One GETBULK with non-repeaters 0 and max-repetitions 1 is a single round trip
+# returning a single varbind — the same cost as the GET it replaces. All four
+# devices are SNMPv2c and all four answer it.
+#
+# It is aimed at the sysDescr *node*, not sysDescr.0, because GETBULK is
+# GETNEXT-shaped: asking for 1.3.6.1.2.1.1.1 returns 1.3.6.1.2.1.1.1.0. The
+# returned OID is then asserted, because unlike GET, a GETBULK against a device
+# with no sysDescr does not raise an error — it just returns whatever comes
+# next, which would otherwise be reported as a pass carrying the wrong value.
 #
 # MIBS= disables MIB loading: the OID is numeric, and a partial MIB directory
 # on the operator's host otherwise prints twenty lines of parse warnings that
@@ -158,18 +175,20 @@ probe() {
   PROBE_STATUS=""; PROBE_DETAIL=""
 
   out="$(timeout 15 env MIBS= SNMPCONFPATH="${conf_dir}" \
-          snmpget -v2c -t 2 -r "${retries}" -Oqv "${ip}${SNMP_VERIFY_PORT:+:${SNMP_VERIFY_PORT}}" \
-          1.3.6.1.2.1.1.1.0 2>&1)" || rc=$?
+          snmpbulkget -v2c -t 2 -r "${retries}" -Cn0 -Cr1 -Oqn \
+          "${ip}${SNMP_VERIFY_PORT:+:${SNMP_VERIFY_PORT}}" \
+          "${SYSDESCR_NODE}" 2>&1)" || rc=$?
 
   # net-snmp can echo an offending config line on a parse error, and that line
   # is the defCommunity line. So `out` is classified and then discarded — it is
   # never printed, and never passed to sed for redaction either, because that
   # would put the community into sed's own argument vector.
-  if ((rc == 0)) && [[ "${out}" == *"No Such Object"* || "${out}" == *"No Such Instance"* ]]; then
-    PROBE_STATUS="nosuchobject"
-  elif ((rc == 0)) && [[ -n "${out}" ]]; then
+  if ((rc == 0)) && [[ "${out}" == "${SYSDESCR_OID} "* ]]; then
     PROBE_STATUS="ok"
-    PROBE_DETAIL="$(printf '%s' "${out}" | tr -cd '[:print:]' | cut -c1-60)"
+    PROBE_DETAIL="$(printf '%s' "${out#"${SYSDESCR_OID} "}" | tr -cd '[:print:]' | cut -c1-60)"
+  elif ((rc == 0)) && [[ -n "${out}" ]]; then
+    # Answered, but the varbind after the sysDescr node is something else.
+    PROBE_STATUS="nosuchobject"
   elif [[ "${out}" == *"Timeout"* ]]; then
     PROBE_STATUS="noresponse"
   else
