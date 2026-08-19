@@ -40,6 +40,20 @@
   },
   "panels": [
     {
+      "type": "text",
+      "title": "No battery is installed in this UPS",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Every battery figure on this dashboard is fabricated.** `mjolnir` has no battery pack fitted, yet its management card still reports `batteryNormal`, 100% charge, 48.0 V and a runtime estimate. It raises no alarm (`upsAlarmsPresent = 0`).\n\nA mains loss is therefore an **immediate hard shutdown of the rack**, with no warning from here. Treat charge, runtime, battery status and battery temperature below as decoration until a pack is fitted — every alert in `ups.rules.yaml` is dead for the same reason.\n\nDo **not** run a UPS self-test to get an honest reading: a self-test transfers the load to battery, and with none fitted that is the outage it is meant to warn about. Tracked in `docs/roadmap.md`."
+      }
+    },
+    {
       "type": "stat",
       "title": "Power source",
       "description": "Seconds spent on battery. Anything above zero means mains power is gone.",
@@ -51,7 +65,7 @@
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 0
+        "y": 4
       },
       "fieldConfig": {
         "defaults": {
@@ -130,8 +144,8 @@
     },
     {
       "type": "gauge",
-      "title": "Battery charge",
-      "description": "",
+      "title": "Battery charge (fabricated — no battery fitted)",
+      "description": "No battery pack is fitted to mjolnir. The management card reports this value anyway; it does not reflect any hardware. See the banner at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -140,7 +154,7 @@
         "h": 8,
         "w": 5,
         "x": 5,
-        "y": 0
+        "y": 4
       },
       "fieldConfig": {
         "defaults": {
@@ -208,7 +222,7 @@
         "h": 8,
         "w": 5,
         "x": 10,
-        "y": 0
+        "y": 4
       },
       "fieldConfig": {
         "defaults": {
@@ -266,8 +280,8 @@
     },
     {
       "type": "stat",
-      "title": "Runtime remaining",
-      "description": "",
+      "title": "Runtime remaining (fabricated — no battery fitted)",
+      "description": "No battery pack is fitted to mjolnir. The management card reports this value anyway; it does not reflect any hardware. See the banner at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -276,7 +290,7 @@
         "h": 4,
         "w": 5,
         "x": 15,
-        "y": 0
+        "y": 4
       },
       "fieldConfig": {
         "defaults": {
@@ -336,8 +350,8 @@
     },
     {
       "type": "stat",
-      "title": "Battery status",
-      "description": "UPS-MIB: 1 unknown, 2 normal, 3 low, 4 depleted.",
+      "title": "Battery status (fabricated — no battery fitted)",
+      "description": "No battery pack is fitted to mjolnir. The management card reports this value anyway; it does not reflect any hardware. See the banner at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -346,7 +360,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 0
+        "y": 4
       },
       "fieldConfig": {
         "defaults": {
@@ -432,8 +446,8 @@
     },
     {
       "type": "stat",
-      "title": "Output power",
-      "description": "",
+      "title": "Output power (not reported by this NMC)",
+      "description": "This NMC firmware reports upsOutputPower as 0 regardless of actual draw; use Output load instead.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -442,7 +456,7 @@
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 4
+        "y": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -504,7 +518,7 @@
         "h": 4,
         "w": 5,
         "x": 15,
-        "y": 4
+        "y": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -560,8 +574,8 @@
     },
     {
       "type": "stat",
-      "title": "Battery temp",
-      "description": "",
+      "title": "Battery temp (fabricated — no battery fitted)",
+      "description": "No battery pack is fitted to mjolnir. The management card reports this value anyway; it does not reflect any hardware. See the banner at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -570,7 +584,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 4
+        "y": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -636,14 +650,14 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 12
       },
       "panels": []
     },
     {
       "type": "timeseries",
-      "title": "Battery charge and runtime",
-      "description": "",
+      "title": "Battery charge and runtime (fabricated — no battery fitted)",
+      "description": "No battery pack is fitted to mjolnir. The management card reports this value anyway; it does not reflect any hardware. See the banner at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -652,7 +666,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -741,7 +755,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -830,7 +844,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -918,7 +932,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -1006,7 +1020,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 29
       },
       "fieldConfig": {
         "defaults": {
