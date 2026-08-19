@@ -40,7 +40,7 @@ is a very different thing from an overlooked one. Full detail in
 | --- | --- |
 | SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated on all four devices; each answers to its own new community. The firewall, the UPS and the BMC additionally refuse the old one. **The switch still accepts its previous community alongside the new one** — see below. The original shared string has been purged from git history, though it must still be treated as public — it was reachable in a public repository and cannot be un-seen. |
 | Grafana `admin`/`admin` with anonymous Admin access enabled | Fixed — anonymous auth off, password from SOPS |
-| Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD` and purged from history. The CA and leaf certificates still need regenerating — assume the old keys are compromised. |
+| Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD` and purged from history. A new CA and leaf have been generated with [`scripts/gen-certs.sh`](scripts/gen-certs.sh); the old keys are superseded and should be treated as compromised wherever they were ever trusted. |
 
 The switch is the honest gap, and it is a deliberate one. `neo` (10.7.7.2) is
 rotated and polling, but it also still accepts the community it held before the

@@ -58,7 +58,7 @@ incident.
   `sha256:` digest, so a moved tag cannot change what deploys. CI enforces it;
   `make pin-digests` re-resolves them from the registry.
 - **Documented decisions and runbooks.** Five ADRs covering what was chosen and
-  what was rejected; four runbooks for the operations that are easy to get wrong
+  what was rejected; five runbooks for the operations that are easy to get wrong
   at 1am.
 
 ## Architecture
@@ -137,7 +137,7 @@ the internet and nothing more. Full topology and data flow in
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
 │   ├── adr/                  # 5 architecture decision records
-│   └── runbooks/             # deploy, add device, rotate creds, purge history
+│   └── runbooks/             # deploy, add device, rotate creds, certs, purge history
 └── Makefile                  # make help
 ```
 

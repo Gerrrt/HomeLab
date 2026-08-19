@@ -218,6 +218,13 @@ snmp-verify: ## Check each SNMP device answers to its community (ARGS=--old)
 	@# it into `make validate`.
 	./scripts/snmp-verify.sh $(ARGS)
 
+.PHONY: certs
+certs: ## Create the internal CA / issue a leaf (ARGS="--host x.matrix.elysium --ip 10.0.0.1")
+	@# certificates/ is gitignored. Nothing in the stack terminates TLS yet —
+	@# see docs/roadmap.md — so this exists so that the CA is created
+	@# deliberately rather than improvised the day something needs it.
+	./scripts/gen-certs.sh $(ARGS)
+
 .PHONY: gen-secret
 gen-secret: ## Generate a random secret (ARGS=--snmp for one per SNMP device)
 	./scripts/gen-secret.sh $(ARGS)

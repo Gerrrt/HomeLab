@@ -61,7 +61,7 @@ repository must be treated as compromised:
 | --- | --- | --- |
 | SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` (now rewritten) | Purged from history. Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old; `neo` answers the new one but still accepts its previous community — accepted risk, see [`SECURITY.md`](../SECURITY.md) and the [runbook](runbooks/rotate-snmp-community.md) |
 | Grafana `admin` / `admin` with anonymous Admin access | compose file | Fixed: password from SOPS, anonymous auth disabled |
-| Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` | Purged from history. **Still to regenerate** the CA and leaf certificates — see [runbook](runbooks/purge-git-history.md) |
+| Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` | Purged from history, and the CA replaced — see [runbook](runbooks/generate-certificates.md). Anything that trusted the old CA must be re-pointed at the new one |
 
 CI scans both the working tree and the full history, with no ignore file. Both
 must be clean unconditionally.

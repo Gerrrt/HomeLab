@@ -13,14 +13,12 @@ inventory. Ordered roughly by how much it matters.
       and reachable only from the management VLAN. Overwrite the row with a
       fresh value rather than deleting it, next time the switch is down anyway.
       → [runbook](runbooks/rotate-snmp-community.md)
-- [ ] **Regenerate the CA and leaf certificates.** The old keys were purged
-      from git history, but they were public before that and must be treated as
-      compromised.
-      → [runbook](runbooks/purge-git-history.md)
 - [ ] Move to SNMPv3 authPriv where the hardware supports it. pfSense, the APC
       and iLO all do; the MokerLink switch does not, which is the blocker for
       doing it uniformly.
 - [ ] Put Grafana behind TLS rather than plain HTTP on the management VLAN.
+      The CA and a `grafana.matrix.elysium` leaf already exist — see
+      [runbook](runbooks/generate-certificates.md) — so this is wiring, not PKI.
 - [ ] Decide whether the lab VLAN needs egress filtering before the
       deliberately-vulnerable playground exists.
 
@@ -77,6 +75,8 @@ inventory. Ordered roughly by how much it matters.
 - [x] Add SECURITY.md with a disclosure policy and known-exposure summary
 - [x] Loki alerting rules (8) for auth, SSH brute force and disk/OOM events,
       validated in CI by booting the pinned Loki image against them
+- [x] Replace the CA and leaf certificates that leaked, and add tooling so
+      issuing one is a command rather than a research project
 - [x] Purge the shared SNMP community, the inline Grafana password and the
       TLS private keys under `certificates/` from git history, and delete the
       `.gitleaksignore` that acknowledged them
