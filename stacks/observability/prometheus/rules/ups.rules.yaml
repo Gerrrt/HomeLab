@@ -40,6 +40,7 @@ groups:
         expr: upsSecondsOnBattery > 0
         for: 30s
         labels:
+          component: power
           severity: critical
           category: power
         annotations:
@@ -53,6 +54,7 @@ groups:
         expr: upsBatteryStatus > 2
         for: 1m
         labels:
+          component: power
           severity: critical
           category: power
         annotations:
@@ -62,6 +64,7 @@ groups:
         expr: upsEstimatedMinutesRemaining < 5
         for: 1m
         labels:
+          component: power
           severity: critical
           category: power
         annotations:
@@ -71,6 +74,7 @@ groups:
         expr: upsEstimatedChargeRemaining < 50
         for: 10m
         labels:
+          component: power
           severity: warning
           category: power
         annotations:
@@ -80,6 +84,7 @@ groups:
         expr: upsOutputPercentLoad > 80
         for: 15m
         labels:
+          component: power
           severity: warning
           category: power
         annotations:
@@ -91,6 +96,7 @@ groups:
         expr: upsAlarmsPresent > 0
         for: 5m
         labels:
+          component: power
           severity: warning
           category: power
         annotations:
@@ -100,6 +106,7 @@ groups:
         expr: upsBatteryTemperature > 40
         for: 15m
         labels:
+          component: power
           severity: warning
           category: power
         annotations:

@@ -9,7 +9,7 @@ rather than "misconfigured". This checks the things Grafana will not:
   * every datasource UID resolves to one declared in provisioning;
   * every dashboard UID is unique across the folder;
   * panels fit the 24-column grid and do not overlap;
-  * every panel has at least one target.
+  * every panel that queries data has at least one target.
 
 Additionally, every PromQL expression is emitted to stdout in Prometheus
 recording-rule form when --emit-promql is passed, so promtool can parse them.
@@ -27,6 +27,16 @@ DATASOURCES = REPO / "stacks/observability/grafana/provisioning/datasources/data
 
 # UIDs Grafana provides itself.
 BUILTIN_UIDS = {"-- Grafana --", "-- Mixed --", "-- Dashboard --", "grafana"}
+
+# Panel types that legitimately carry no targets.
+#
+# row and text render no data at all. alertlist is different and worth naming:
+# it does read from a datasource, but not through a query — it pulls alerts from
+# the Alertmanager datasource named in its own options, so a targets array would
+# be meaningless. Requiring one here would have forced a fake target onto every
+# alert panel, which is exactly the kind of thing that teaches people to work
+# around this script rather than trust it.
+TARGETLESS_PANEL_TYPES = {"row", "text", "alertlist"}
 
 
 def declared_datasource_uids() -> set[str]:
@@ -116,7 +126,7 @@ def main() -> int:
                     f"{name}: panel '{title}' overflows the 24-column grid "
                     f"(x={grid['x']} w={grid['w']})"
                 )
-            if panel.get("type") not in ("row", "text") and not panel.get("targets"):
+            if panel.get("type") not in TARGETLESS_PANEL_TYPES and not panel.get("targets"):
                 problems.append(f"{name}: panel '{title}' has no targets")
 
             for other in panels[i + 1:]:

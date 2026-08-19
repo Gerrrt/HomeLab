@@ -7,6 +7,7 @@ groups:
         expr: up{job="snmp-exporter"} == 0
         for: 5m
         labels:
+          component: network
           severity: critical
           category: availability
         annotations:
@@ -16,6 +17,7 @@ groups:
         expr: up{job="snmp"} == 0
         for: 10m
         labels:
+          component: network
           severity: warning
           category: availability
         annotations:
@@ -29,6 +31,7 @@ groups:
         expr: scrape_duration_seconds{job="snmp"} > 30
         for: 15m
         labels:
+          component: network
           severity: warning
           category: performance
         annotations:
@@ -42,6 +45,7 @@ groups:
         expr: pfStatusRunning == 0
         for: 2m
         labels:
+          component: network
           severity: critical
           category: security
         annotations:
@@ -54,6 +58,7 @@ groups:
         expr: pfStateTableCount / pfLimitsStates > 0.80
         for: 10m
         labels:
+          component: network
           severity: warning
           category: saturation
         annotations:
@@ -65,6 +70,7 @@ groups:
         expr: rate(pfCounterMemDrop[15m]) > 0
         for: 15m
         labels:
+          component: network
           severity: warning
           category: saturation
         annotations:
@@ -79,6 +85,7 @@ groups:
           and on (instance, ifIndex) (max_over_time(ifOperStatus[1h]) == 1)
         for: 5m
         labels:
+          component: network
           severity: warning
           category: availability
         annotations:
@@ -92,6 +99,7 @@ groups:
         expr: rate(ifInOctets[5m]) < 0 or rate(ifOutOctets[5m]) < 0
         for: 10m
         labels:
+          component: network
           severity: info
           category: correctness
         annotations:
@@ -107,6 +115,7 @@ groups:
           or cpqDaPhyDrvCondition > 2
         for: 5m
         labels:
+          component: network
           severity: critical
           category: hardware
         annotations:
@@ -119,6 +128,7 @@ groups:
         expr: cpqHeSysBackupBatteryCondition > 2
         for: 30m
         labels:
+          component: network
           severity: warning
           category: hardware
         annotations:
