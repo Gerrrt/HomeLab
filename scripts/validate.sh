@@ -229,12 +229,16 @@ fi
 # gitleaks cannot cover .purge-secrets.txt — it is gitignored (so the filesystem
 # scan skips it) and holds bare literals with no keyword context to match. Being
 # untracked is the control.
+# certificates/ is in that list because its contents were committed once and
+# had to be removed by rewriting every commit in the repository. The cheapest
+# possible check is that it never becomes tracked again.
 if git ls-files --error-unmatch "${STACK}/.env" >/dev/null 2>&1 \
    || git ls-files "${STACK}/snmp-exporter/.rendered" | grep -q . \
-   || git ls-files | grep -q '\.purge-secrets\.txt'; then
-  fail "a rendered, decrypted or purge-secrets file is tracked by git"
+   || git ls-files | grep -q '\.purge-secrets\.txt' \
+   || git ls-files | grep -q '^certificates/'; then
+  fail "a rendered, decrypted, purge-secrets or certificate file is tracked by git"
 else
-  pass "no rendered, decrypted or purge-secrets files tracked"
+  pass "no rendered, decrypted, purge-secrets or certificate files tracked"
 fi
 
 printf '\n'

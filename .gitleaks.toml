@@ -48,6 +48,20 @@ paths = [
   '''secrets/.*\.sops\.yaml$''',
   # Documents required key names and deliberately carries change-me values.
   '''secrets/.*\.example\.yaml$''',
+  # The next two hold real secrets on purpose, and are gitignored. They exist
+  # only on a host that has actually deployed, so CI — which scans a fresh
+  # checkout — never sees them; the filesystem scan on the monitoring host does,
+  # and reported eight findings that are all working as designed.
+  #
+  # Allowlisting them is not a weakening. gitleaks was never the control here:
+  # the control is that neither may ever become a tracked file, which CI and
+  # scripts/validate.sh both assert directly. A `make validate` that is
+  # permanently red for a known reason is a `make validate` nobody reads.
+  #
+  # Decrypted at deploy time by scripts/render-config.sh.
+  '''\.rendered/''',
+  # The lab's own CA and leaf keys, created by scripts/gen-certs.sh.
+  '''certificates/''',
 ]
 
 regexes = [

@@ -206,7 +206,7 @@ jobs:
       - name: Assert no decrypted artefact is tracked
         run: |
           fail=0
-          for pattern in '.env' '.rendered/' '.purge-secrets.txt'; do
+          for pattern in '.env' '.rendered/' '.purge-secrets.txt' 'certificates/'; do
             if git ls-files | grep -E "(^|/)${pattern//./\\.}" | grep -v '\.env\.example'; then
               echo "::error::tracked file matching '${pattern}' — it must be gitignored"
               fail=1
