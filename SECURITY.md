@@ -38,16 +38,18 @@ is a very different thing from an overlooked one. Full detail in
 
 | What | Status |
 | --- | --- |
-| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated and verified on the firewall, the UPS and the BMC: each answers to its own new community and refuses the old one. **Not rotated on the switch**, which has never answered an SNMP poll at all — so whether it still accepts the old community is unknown, not proven clean. **Still present in git history.** Treat the old string as public. |
+| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated and verified on the firewall, the UPS and the BMC: each answers to its own new community and refuses the old one. **Not rotated on the switch**, which is not answering SNMP — so whether it still accepts the old community is unknown, not proven clean. **Still present in git history.** Treat the old string as public. |
 | Grafana `admin`/`admin` with anonymous Admin access enabled | Fixed — anonymous auth off, password from SOPS |
 | Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD`, still reachable in history. Purge tooling and a runbook are provided; not yet run. |
 
 The switch is the honest gap. `10.7.7.2` has returned `up == 0` for every scrape
-in the 30-day retention window, which predates the rotation — the target has
-never worked, so its failure is not evidence that the rotation broke anything,
-and its silence is not evidence that the old community was removed. It is
-reachable at layer 3 from the monitoring host on ICMP and TCP/80; only UDP/161
-fails. Tracked separately in [#22](https://github.com/Gerrrt/HomeLab/issues/22).
+the monitoring stack has ever taken — all four SNMP series begin together when
+the stack was rebuilt, so the failure predates the rotation and is not evidence
+that the rotation broke anything. Nor is its silence evidence that the old
+community was removed. It is reachable at layer 3 on ICMP and TCP/80; only
+UDP/161 fails, which is the signature of a wedged SNMP agent rather than a dead
+device. Tracked separately in
+[#22](https://github.com/Gerrrt/HomeLab/issues/22).
 
 Remediation is tracked in [`docs/roadmap.md`](docs/roadmap.md), with procedures
 in [`docs/runbooks/rotate-snmp-community.md`](docs/runbooks/rotate-snmp-community.md)
