@@ -38,18 +38,26 @@ is a very different thing from an overlooked one. Full detail in
 
 | What | Status |
 | --- | --- |
-| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated and verified on the firewall, the UPS and the BMC: each answers to its own new community and refuses the old one. **Not rotated on the switch**, which is not answering SNMP — so whether it still accepts the old community is unknown, not proven clean. **Still present in git history.** Treat the old string as public. |
+| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated on all four devices; each answers to its own new community. The firewall, the UPS and the BMC additionally refuse the old one. **The switch still accepts its previous community alongside the new one** — see below. **The original shared string is also still present in git history.** Treat both as public. |
 | Grafana `admin`/`admin` with anonymous Admin access enabled | Fixed — anonymous auth off, password from SOPS |
 | Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD`, still reachable in history. Purge tooling and a runbook are provided; not yet run. |
 
-The switch is the honest gap. `10.7.7.2` has returned `up == 0` for every scrape
-the monitoring stack has ever taken — all four SNMP series begin together when
-the stack was rebuilt, so the failure predates the rotation and is not evidence
-that the rotation broke anything. Nor is its silence evidence that the old
-community was removed. It is reachable at layer 3 on ICMP and TCP/80; only
-UDP/161 fails, which is the signature of a wedged SNMP agent rather than a dead
-device. Tracked separately in
-[#22](https://github.com/Gerrrt/HomeLab/issues/22).
+The switch is the honest gap, and it is a deliberate one. `neo` (10.7.7.2) is
+rotated and polling, but it also still accepts the community it held before the
+rotation, verified after a reboot so the result reflects its saved
+configuration rather than a stale agent. Its firmware does not persist a
+deletion from the SNMP community table: the row can be removed, applied and
+saved, and the entry is still there after a restart. Each attempt also drops
+the SNMP agent until the switch is rebooted, and it is the switch the whole
+network runs through.
+
+The residual risk is accepted rather than overlooked. The community is
+read-only, and reaching UDP/161 on `10.7.7.2` requires both a foothold on the
+management VLAN and the specific pfSense rule that permits `10.0.99.20` to
+reach it — it is not exposed beyond the management segment. The way to close it
+without fighting the firmware is to overwrite that row with a fresh value
+rather than delete it, on some future pass when the switch is already being
+taken down for something else.
 
 Remediation is tracked in [`docs/roadmap.md`](docs/roadmap.md), with procedures
 in [`docs/runbooks/rotate-snmp-community.md`](docs/runbooks/rotate-snmp-community.md)
