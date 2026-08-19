@@ -5,13 +5,13 @@ inventory. Ordered roughly by how much it matters.
 
 ## Security
 
-- [ ] **Finish the SNMP rotation on the MokerLink switch (`neo`, 10.7.7.2).**
-      pfSense, the APC and iLO are done — each answers to its own new community
-      and refuses the old one. The switch is not, and cannot be verified,
-      because it is not answering SNMP: `up{job="snmp"}` for `10.7.7.2` has
-      been `0` for every scrape the current stack has taken, so the failure
-      predates the rotation rather than being caused by it. Blocked on
-      [#22](https://github.com/Gerrrt/HomeLab/issues/22).
+- [ ] **Retire the MokerLink switch's previous SNMP community.** All four
+      devices are rotated, but `neo` still accepts its old community alongside
+      the new one: its firmware does not persist a deletion from the community
+      table, and each attempt drops the SNMP agent until the switch is
+      rebooted. Low priority and accepted for now — the community is read-only
+      and reachable only from the management VLAN. Overwrite the row with a
+      fresh value rather than deleting it, next time the switch is down anyway.
       → [runbook](runbooks/rotate-snmp-community.md)
 - [ ] **Purge `certificates/` and the old community string from git history**,
       then regenerate the CA and leaf certificates.
