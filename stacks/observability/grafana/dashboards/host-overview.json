@@ -62,12 +62,12 @@
   },
   "panels": [
     {
-      "type": "alertlist",
-      "title": "Host alerts firing",
-      "description": "Firing and pending alerts carrying component=host, from the Alertmanager datasource — so a silenced alert shows as silenced rather than simply vanishing. Empty is the good state.",
+      "type": "table",
+      "title": "Host alerts",
+      "description": "Firing and pending alerts carrying component=host, from the ALERTS series Prometheus exposes for its own rules. Empty is the good state. Silences live in Alertmanager and are not reflected here — see the dashboard README note.",
       "datasource": {
-        "type": "alertmanager",
-        "uid": "alertmanager"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "h": 6,
@@ -75,23 +75,154 @@
         "x": 0,
         "y": 0
       },
-      "options": {
-        "alertInstanceLabelFilter": "{component=\"host\"}",
-        "alertName": "",
-        "dashboardAlerts": false,
-        "datasource": "alertmanager",
-        "groupBy": [],
-        "groupMode": "default",
-        "maxItems": 20,
-        "sortOrder": 1,
-        "stateFilter": {
-          "error": true,
-          "firing": true,
-          "noData": false,
-          "normal": false,
-          "pending": true
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "ALERTS{component=\"host\",alertstate=~\"firing|pending\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "Value": true,
+              "component": true,
+              "job": true,
+              "monitor": true,
+              "site": true,
+              "role": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "alertname": "Alert",
+              "alertstate": "State",
+              "severity": "Severity",
+              "category": "Category",
+              "device": "Device",
+              "instance": "Instance",
+              "vlan": "VLAN"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
-        "viewMode": "list"
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "critical": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "warning": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "info": {
+                        "color": "blue",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "firing": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "pending": {
+                        "color": "yellow",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Severity"
+          }
+        ]
       }
     },
     {
