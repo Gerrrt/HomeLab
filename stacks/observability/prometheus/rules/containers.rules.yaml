@@ -10,6 +10,7 @@ groups:
         expr: changes(container_start_time_seconds{name!=""}[15m]) > 3
         for: 5m
         labels:
+          component: containers
           severity: warning
           category: availability
         annotations:
@@ -19,6 +20,7 @@ groups:
       - alert: ContainerOomKilled
         expr: increase(container_oom_events_total{name!=""}[15m]) > 0
         labels:
+          component: containers
           severity: warning
           category: capacity
         annotations:
@@ -33,6 +35,7 @@ groups:
           and container_spec_memory_limit_bytes{name!=""} > 0
         for: 15m
         labels:
+          component: containers
           severity: warning
           category: capacity
         annotations:
@@ -44,6 +47,7 @@ groups:
           / clamp_min(rate(container_cpu_cfs_periods_total{name!=""}[15m]), 1) > 0.25
         for: 30m
         labels:
+          component: containers
           severity: info
           category: saturation
         annotations:
@@ -54,6 +58,7 @@ groups:
         expr: prometheus_config_last_reload_successful == 0
         for: 5m
         labels:
+          component: containers
           severity: critical
           category: correctness
         annotations:
@@ -63,6 +68,7 @@ groups:
         expr: increase(prometheus_rule_evaluation_failures_total[15m]) > 0
         for: 5m
         labels:
+          component: containers
           severity: warning
           category: correctness
         annotations:
@@ -72,6 +78,7 @@ groups:
         expr: increase(alertmanager_notifications_failed_total[15m]) > 0
         for: 5m
         labels:
+          component: containers
           severity: critical
           category: correctness
         annotations:
@@ -85,6 +92,7 @@ groups:
           sum(rate(loki_distributor_lines_received_total[30m])) == 0
         for: 30m
         labels:
+          component: containers
           severity: warning
           category: availability
         annotations:

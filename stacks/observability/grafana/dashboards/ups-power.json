@@ -40,11 +40,44 @@
   },
   "panels": [
     {
+      "type": "alertlist",
+      "title": "Power alerts firing",
+      "description": "Firing and pending alerts carrying component=power, from the Alertmanager datasource — so a silenced alert shows as silenced rather than simply vanishing. Empty is the good state.",
+      "datasource": {
+        "type": "alertmanager",
+        "uid": "alertmanager"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "alertInstanceLabelFilter": "{component=\"power\"}",
+        "alertName": "",
+        "dashboardAlerts": false,
+        "datasource": "alertmanager",
+        "groupBy": [],
+        "groupMode": "default",
+        "maxItems": 20,
+        "sortOrder": 1,
+        "stateFilter": {
+          "error": true,
+          "firing": true,
+          "noData": false,
+          "normal": false,
+          "pending": true
+        },
+        "viewMode": "list"
+      }
+    },
+    {
       "type": "text",
       "title": "No battery is installed in this UPS",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 6,
         "w": 24,
         "h": 4
       },
@@ -65,7 +98,7 @@
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 4
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -154,7 +187,7 @@
         "h": 8,
         "w": 5,
         "x": 5,
-        "y": 4
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -222,7 +255,7 @@
         "h": 8,
         "w": 5,
         "x": 10,
-        "y": 4
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -290,7 +323,7 @@
         "h": 4,
         "w": 5,
         "x": 15,
-        "y": 4
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -360,7 +393,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 4
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -456,7 +489,7 @@
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 8
+        "y": 14
       },
       "fieldConfig": {
         "defaults": {
@@ -518,7 +551,7 @@
         "h": 4,
         "w": 5,
         "x": 15,
-        "y": 8
+        "y": 14
       },
       "fieldConfig": {
         "defaults": {
@@ -584,7 +617,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 8
+        "y": 14
       },
       "fieldConfig": {
         "defaults": {
@@ -650,7 +683,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 18
       },
       "panels": []
     },
@@ -666,7 +699,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 13
+        "y": 19
       },
       "fieldConfig": {
         "defaults": {
@@ -755,7 +788,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 13
+        "y": 19
       },
       "fieldConfig": {
         "defaults": {
@@ -844,7 +877,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 27
       },
       "fieldConfig": {
         "defaults": {
@@ -932,7 +965,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 27
       },
       "fieldConfig": {
         "defaults": {
@@ -1020,7 +1053,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 35
       },
       "fieldConfig": {
         "defaults": {

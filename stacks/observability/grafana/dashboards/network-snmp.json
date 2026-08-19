@@ -40,6 +40,39 @@
   },
   "panels": [
     {
+      "type": "alertlist",
+      "title": "Network & firewall alerts firing",
+      "description": "Firing and pending alerts carrying component=network, from the Alertmanager datasource — so a silenced alert shows as silenced rather than simply vanishing. Empty is the good state.",
+      "datasource": {
+        "type": "alertmanager",
+        "uid": "alertmanager"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "alertInstanceLabelFilter": "{component=\"network\"}",
+        "alertName": "",
+        "dashboardAlerts": false,
+        "datasource": "alertmanager",
+        "groupBy": [],
+        "groupMode": "default",
+        "maxItems": 20,
+        "sortOrder": 1,
+        "stateFilter": {
+          "error": true,
+          "firing": true,
+          "noData": false,
+          "normal": false,
+          "pending": true
+        },
+        "viewMode": "list"
+      }
+    },
+    {
       "type": "stat",
       "title": "Packet filter",
       "description": "pf enforces inter-VLAN isolation. If this reads DOWN the network is flat.",
@@ -51,7 +84,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 0
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -133,7 +166,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 0
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -203,7 +236,7 @@
         "h": 8,
         "w": 5,
         "x": 8,
-        "y": 0
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -271,7 +304,7 @@
         "h": 4,
         "w": 5,
         "x": 13,
-        "y": 0
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -333,7 +366,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 0
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -395,7 +428,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 4
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -457,7 +490,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 4
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -520,7 +553,7 @@
         "h": 4,
         "w": 5,
         "x": 13,
-        "y": 4
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -586,7 +619,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 4
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -649,7 +682,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 14
       },
       "panels": []
     },
@@ -665,7 +698,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 15
       },
       "fieldConfig": {
         "defaults": {
@@ -754,7 +787,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 15
       },
       "fieldConfig": {
         "defaults": {
@@ -855,7 +888,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 23
       },
       "fieldConfig": {
         "defaults": {
@@ -980,7 +1013,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 23
       },
       "fieldConfig": {
         "defaults": {
@@ -1065,7 +1098,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 31
       },
       "panels": []
     },
@@ -1081,7 +1114,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 32
       },
       "fieldConfig": {
         "defaults": {
@@ -1169,7 +1202,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 41
       },
       "fieldConfig": {
         "defaults": {
@@ -1286,7 +1319,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 50
       },
       "panels": []
     },
@@ -1302,7 +1335,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 45
+        "y": 51
       },
       "fieldConfig": {
         "defaults": {
@@ -1379,7 +1412,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 45
+        "y": 51
       },
       "fieldConfig": {
         "defaults": {

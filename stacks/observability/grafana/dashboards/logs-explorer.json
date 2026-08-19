@@ -85,6 +85,39 @@
   },
   "panels": [
     {
+      "type": "alertlist",
+      "title": "Log-based alerts firing",
+      "description": "Firing and pending alerts carrying component=logs, from the Alertmanager datasource — so a silenced alert shows as silenced rather than simply vanishing. Empty is the good state.",
+      "datasource": {
+        "type": "alertmanager",
+        "uid": "alertmanager"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "alertInstanceLabelFilter": "{component=\"logs\"}",
+        "alertName": "",
+        "dashboardAlerts": false,
+        "datasource": "alertmanager",
+        "groupBy": [],
+        "groupMode": "default",
+        "maxItems": 20,
+        "sortOrder": 1,
+        "stateFilter": {
+          "error": true,
+          "firing": true,
+          "noData": false,
+          "normal": false,
+          "pending": true
+        },
+        "viewMode": "list"
+      }
+    },
+    {
       "type": "stat",
       "title": "Lines/s (all hosts)",
       "description": "",
@@ -96,7 +129,7 @@
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 0
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -159,7 +192,7 @@
         "h": 4,
         "w": 5,
         "x": 5,
-        "y": 0
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -229,7 +262,7 @@
         "h": 4,
         "w": 5,
         "x": 10,
-        "y": 0
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -295,7 +328,7 @@
         "h": 4,
         "w": 9,
         "x": 15,
-        "y": 0
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -361,7 +394,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 4
+        "y": 10
       },
       "panels": []
     },
@@ -377,7 +410,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 5
+        "y": 11
       },
       "fieldConfig": {
         "defaults": {
@@ -458,7 +491,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 5
+        "y": 11
       },
       "fieldConfig": {
         "defaults": {
@@ -539,7 +572,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 13
+        "y": 19
       },
       "fieldConfig": {
         "defaults": {
@@ -616,7 +649,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 13
+        "y": 19
       },
       "fieldConfig": {
         "defaults": {
@@ -693,7 +726,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 21
+        "y": 27
       },
       "panels": []
     },
@@ -709,7 +742,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 28
       },
       "options": {
         "showTime": true,
@@ -746,7 +779,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 39
       },
       "options": {
         "showTime": true,
@@ -783,7 +816,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 50
       },
       "options": {
         "showTime": true,

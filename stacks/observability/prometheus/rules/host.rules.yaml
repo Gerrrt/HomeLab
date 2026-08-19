@@ -7,6 +7,7 @@ groups:
         expr: up == 0
         for: 5m
         labels:
+          component: host
           severity: critical
           category: availability
         annotations:
@@ -24,6 +25,7 @@ groups:
           node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes < 0.30
         for: 1h
         labels:
+          component: host
           severity: warning
           category: capacity
         annotations:
@@ -39,6 +41,7 @@ groups:
           / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.10
         for: 15m
         labels:
+          component: host
           severity: critical
           category: capacity
         annotations:
@@ -49,6 +52,7 @@ groups:
           node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
         for: 15m
         labels:
+          component: host
           severity: warning
           category: capacity
         annotations:
@@ -61,6 +65,7 @@ groups:
           node_load15 / count without (cpu, mode) (node_cpu_seconds_total{mode="idle"}) > 2
         for: 30m
         labels:
+          component: host
           severity: warning
           category: saturation
         annotations:
@@ -70,6 +75,7 @@ groups:
         expr: abs(node_timex_offset_seconds) > 0.5
         for: 10m
         labels:
+          component: host
           severity: warning
           category: correctness
         annotations:
@@ -81,6 +87,7 @@ groups:
       - alert: HostRebooted
         expr: time() - node_boot_time_seconds < 600
         labels:
+          component: host
           severity: info
           category: availability
         annotations:
