@@ -4,13 +4,14 @@
 
 **A segmented home network and its observability stack, managed as code.**
 
-[![CI](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml/badge.svg)](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Secrets: SOPS + age](https://img.shields.io/badge/secrets-SOPS%20%2B%20age-6f42c1.svg)](docs/adr/0005-secrets-with-sops-and-age.md)
-[![Prometheus](https://img.shields.io/badge/Prometheus-E6522C.svg?logo=prometheus&logoColor=white)](stacks/observability/prometheus)
-[![Grafana](https://img.shields.io/badge/Grafana-F46800.svg?logo=grafana&logoColor=white)](stacks/observability/grafana)
-[![Loki](https://img.shields.io/badge/Loki-F5A800.svg?logo=grafana&logoColor=white)](stacks/observability/loki)
-[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2015-212121.svg)](docs/network.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/ci.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=CI)](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=plastic)](LICENSE)
+[![SOPS](https://img.shields.io/badge/SOPS-6f42c1?style=plastic)](https://github.com/getsops/sops)
+[![age](https://img.shields.io/badge/age-6f42c1?style=plastic)](https://github.com/FiloSottile/age)
+[![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io)
+[![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
+[![Loki](https://img.shields.io/badge/Loki-F5A800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/loki/)
+[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2015-212121?style=plastic)](https://www.pfsense.org)
 
 [Architecture](docs/architecture.md) ·
 [Network](docs/network.md) ·
@@ -106,16 +107,16 @@ the internet and nothing more. Full topology and data flow in
 
 | Layer | Tool | Role |
 | --- | --- | --- |
-| Firewall / routing | pfSense on FreeBSD 15 | VLANs, DHCP, default-deny |
+| Firewall / routing | [pfSense on FreeBSD 15](docs/network.md) | VLANs, DHCP, default-deny |
 | Virtualisation | Proxmox VE | Lab hypervisor |
-| Metrics | Prometheus | 30-day retention, remote-write receiver |
-| Logs | Loki | Single-binary, filesystem storage |
-| Collection | Grafana Alloy | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
-| Network polling | snmp_exporter | pfSense, switch, UPS, iLO |
-| Alerting | Alertmanager | Severity routing, inhibition |
-| Visualisation | Grafana | 5 provisioned dashboards |
-| Secrets | SOPS + age | Encrypted in-repo |
-| CI | GitHub Actions | Lint, config validation, secret scanning, digest pinning |
+| Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention, remote-write receiver |
+| Logs | [Loki](stacks/observability/loki) | Single-binary, filesystem storage |
+| Collection | [Grafana Alloy](stacks/observability/alloy) | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
+| Network polling | [snmp_exporter](stacks/observability/snmp-exporter) | pfSense, switch, UPS, iLO |
+| Alerting | [Alertmanager](stacks/observability/alertmanager) | Severity routing, inhibition |
+| Visualisation | [Grafana](stacks/observability/grafana) | 5 provisioned dashboards |
+| Secrets | [SOPS + age](secrets) | Encrypted in-repo |
+| CI | [GitHub Actions](.github/workflows/ci.yml) | Lint, config validation, secret scanning, digest pinning |
 
 ## Repository layout
 
