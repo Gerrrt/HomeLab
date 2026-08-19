@@ -207,10 +207,15 @@ require deleting the row rather than blanking the field — then:
 ./scripts/snmp-verify.sh --old
 ```
 
-It prompts for the old community without echoing it, and asserts each device now
-refuses it. It requires a terminal and refuses a pipe on purpose — `echo "$old" |
-...` would put the old community into your shell history, which is the leak this
-tooling exists to close. Run it yourself; no script or agent can.
+It asks for the old community **per device**, without echoing it, and asserts
+each one now refuses it. Press Enter to skip a device — the usual case is
+checking the one you just rotated, and a single string tested against all four
+proves nothing about the three it never belonged to. It refuses to report
+success if you skip everything.
+
+It requires a terminal and refuses a pipe on purpose — `echo "$old" | ...` would
+put the old community into your shell history, which is the leak this tooling
+exists to close. Run it yourself; no script or agent can.
 
 `--old` only checks devices that just passed their current-community check.
 SNMPv2c has no "wrong community" reply — a device that rejects you simply drops
