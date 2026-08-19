@@ -1,10 +1,37 @@
 ---
 # APC Smart-UPS (mjolnir, 10.0.99.10) via UPS-MIB.
 #
-# The UPS currently has no working battery — see docs/roadmap.md. Until that is
-# fixed a mains loss is an immediate hard shutdown of the whole rack, which is
-# why every rule here is deliberately loud and routed to the `urgent` receiver
-# by category=power in alertmanager.yaml.
+# READ THIS BEFORE TRUSTING ANY ALERT BELOW.
+#
+# The UPS has no battery pack fitted — see docs/roadmap.md. A mains loss is an
+# immediate hard shutdown of the whole rack. Every rule here is deliberately
+# loud and routed to the `urgent` receiver by category=power in
+# alertmanager.yaml.
+#
+# None of them can fire for that condition. The management card does not report
+# the missing pack; it fabricates a healthy one. Observed on a UPS with no
+# battery physically present:
+#
+#   upsBatteryStatus              2     (batteryNormal)
+#   upsEstimatedChargeRemaining   100   (percent)
+#   upsEstimatedMinutesRemaining  63    (minutes of runtime it does not have)
+#   upsBatteryVoltage             480   (48.0 V)
+#   upsAlarmsPresent              0     (no alarm raised)
+#
+# So UpsBatteryLow, UpsChargeLow, UpsRuntimeCritical and UpsAlarmPresent are
+# all comfortably inside their thresholds and will stay there. These rules are
+# kept because they become correct the moment a pack is fitted — not because
+# they are protecting anything today. A quiet `ups` group is not evidence of
+# runtime.
+#
+# UpsOnBattery, UpsOverloaded and UpsBatteryTemperatureHigh read mains-side or
+# load-side values and are unaffected. UpsOnBattery in particular would still
+# fire on a transfer — it would just be reporting an outage already in progress
+# rather than warning of one.
+#
+# Do not run a UPS self-test to force an honest reading. A self-test transfers
+# the load to battery; with none fitted, that is the outage it exists to warn
+# about. upsTestResultsSummary is 6 (noTestsInitiated) and should stay there.
 groups:
   - name: ups
     interval: 60s
