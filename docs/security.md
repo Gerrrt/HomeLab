@@ -54,7 +54,8 @@ assumption consistent with what they are.
 - Credentials are encrypted with [SOPS](https://github.com/getsops/sops) + age
   and committed in encrypted form. See [`secrets/README.md`](../secrets/README.md).
 - The private key lives at `~/.config/sops/age/keys.txt` on the deployment host
-  and is never in the repository.
+  and is never in the repository. That host's disk is not encrypted — see
+  [below](#everything-above-sits-on-an-unencrypted-disk).
 - That key is the single point of failure for every encrypted secret here, so it
   is copied off the host and the copy is proven to decrypt with
   `make secrets-verify-backup KEY=<copy>` — which refuses to run against the live
@@ -93,6 +94,41 @@ fix, and it existed because a CI job that is permanently red for a known reason
 gets ignored — and then a genuinely new leak goes unnoticed alongside it. The
 purge removed what it acknowledged, so the file was deleted. A history scan
 that passes with no exceptions is the evidence the purge worked.
+
+### Everything above sits on an unencrypted disk
+
+Every entry in that table is something that happened once. This one is a
+standing property of the host, which is why it is stated separately rather than
+added as a sixth row.
+
+Measured on `prometheus` (10.0.99.20):
+
+- `/dev/mapper` holds `control` and `ubuntu--vg-ubuntu--lv` and nothing else —
+  no LUKS anywhere. The root filesystem is plain ext4 on LVM.
+- `/boot` and the EFI partition are likewise plain.
+- `/swap.img` is 4 GiB, unencrypted, on that same root filesystem, and in use.
+  Anything the stack has held in memory can have been paged into it.
+
+So the age private key at `~/.config/sops/age/keys.txt`, the rendered artefacts
+under `snmp-exporter/.rendered/` and `alertmanager/.rendered/`, and
+`stacks/observability/.env` — the last three hold plaintext by design, because
+something has to hand the containers a usable credential — are protected by
+nothing but file permissions. They are all mode 600 and owned by `robo`, which
+is the right setting and is also the entire control. Permissions are enforced by
+the running kernel; they mean nothing to a disk read on another machine.
+
+This is accepted, not scheduled. The threat model above already excludes an
+attacker with physical access to the rack, and this is that exclusion restated
+where it actually bites. Full-disk encryption on a headless host has its own
+failure mode — either a passphrase nobody is present to type after a power cut,
+or a key stored on the same machine, which is most of the way back to where this
+started.
+
+It is recorded because it changes the severity of things that would otherwise
+look minor. The undo-file leak above is the worked example: three community
+strings at mode 664 in `~/.local/state/nvim/undodir/` were a real finding
+*because* the disk beneath them is readable. On an encrypted disk that is a much
+smaller problem. Neither fact is interesting alone.
 
 ### The UPS reports a battery it does not have
 
