@@ -41,6 +41,9 @@ is a very different thing from an overlooked one. Full detail in
 | SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated on all four devices; each answers to its own new community. The firewall, the UPS and the BMC additionally refuse the old one. **The switch still accepts its previous community alongside the new one** — see below. The original shared string has been purged from git history, though it must still be treated as public — it was reachable in a public repository and cannot be un-seen. |
 | Grafana `admin`/`admin` with anonymous Admin access enabled | Fixed — anonymous auth off, password from SOPS |
 | Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD` and purged from history. A new CA and leaf have been generated with [`scripts/gen-certs.sh`](scripts/gen-certs.sh); the old keys are superseded and should be treated as compromised wherever they were ever trusted. |
+| Decrypted secrets in editor undo files, written by `make secrets-edit` | Found 2026-08-20: three files under `~/.local/state/nvim/undodir/` holding the live pfSense, APC and iLO SNMP communities in plaintext, mode 664. Shredded. `make secrets-edit` now hardens `$EDITOR` before handing it plaintext, so it cannot recur. Never committed and never left the host, so those three communities were not rotated on that basis. |
+| Alertmanager webhook URL and the MokerLink SNMP community, in a local Claude Code session transcript | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook topic was rotated — on the public ntfy instance the topic name *is* the credential, there is nothing to revoke — and delivery re-verified end to end. The switch community deliberately was not: rotating it means the `neo` residual above all over again. |
+| The monitoring host's disk and swap are unencrypted | **Accepted residual, not a fix in progress** — see below. |
 
 The switch is the honest gap, and it is a deliberate one. `neo` (10.7.7.2) is
 rotated and polling, but it also still accepts the community it held before the
@@ -68,6 +71,29 @@ findings so the full-history scan stayed meaningful; the purge removed what it
 acknowledged, so it was deleted. CI now scans the whole history with no
 exceptions, which is the only way to know the purge worked — an ignore file
 large enough to cover real findings can also hide new ones.
+
+The unencrypted disk is a different kind of entry from the rest of that table.
+The others each happened once and have a date; this one is a standing property
+of the host. Measured on `prometheus` (10.0.99.20): `/dev/mapper` holds only
+`control` and the LVM logical volume, so there is no LUKS anywhere — the root
+filesystem is plain ext4 on LVM — and `/swap.img` is 4 GiB, unencrypted, on that
+same filesystem.
+
+So `~/.config/sops/age/keys.txt` and the rendered artefacts under
+`snmp-exporter/.rendered/`, `alertmanager/.rendered/` and
+`stacks/observability/.env` — which hold plaintext by design — are all mode 600
+and owned by `robo`, and file permissions are the only thing protecting them.
+Permissions mean nothing to someone holding the disk.
+
+This is accepted rather than tracked as work. The threat model in
+[`docs/security.md`](docs/security.md) already excludes an attacker with
+physical access to the rack, and this is that same exclusion stated at the
+filesystem level: recycled hardware, a home lab, and full-disk encryption on a
+headless host that must boot unattended after a power cut is a trade with its
+own failure mode. It is written down because the undo-file row above
+was only serious *because* of this — an undo file at mode 664 on an encrypted
+disk is a much smaller problem, and the two facts are easy to lose track of
+separately.
 
 ## What this repository will not contain
 
