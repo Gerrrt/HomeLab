@@ -104,6 +104,26 @@ This tree is published. Move it out before verifying it, and check that it was
 never committed:  git log --all --oneline -- $(printf '%q' "${BACKUP_ABS#"${REPO_ROOT}/"}")"
 fi
 
+# The same checkbox, one tree out. The failure above only knows about *this*
+# repository. A copy parked in any other working tree — a dotfiles repo, a notes
+# repo, a scratch clone — passes it silently, and `.gitignore` is a filename
+# match there too, so the copy is committable wherever it landed. Warned rather
+# than refused for the reason the sync folders below are: the script cannot see
+# whether that repository has a remote, and a git-tracked air-gapped vault is a
+# legitimate place to keep this.
+#
+# GIT_DIR and GIT_WORK_TREE are cleared for the same reason section 4 clears
+# SOPS_AGE_KEY: inherited, either one makes the answer describe some other
+# repository entirely.
+if backup_repo="$(env -u GIT_DIR -u GIT_WORK_TREE \
+                    git -C "$(dirname "${BACKUP_ABS}")" \
+                    rev-parse --show-toplevel 2>/dev/null)"; then
+  warn "the backup is inside a git working tree:  ${backup_repo}"
+  warn "if that repository has a remote, one 'git add .' publishes the private key."
+  warn "check whether it is even ignored there:"
+  warn "  git -C $(printf '%q' "${backup_repo}") check-ignore -v $(printf '%q' "${BACKUP_ABS}")"
+fi
+
 # Advice, not a verdict: the script cannot know what a directory syncs to, and
 # for some people a synced vault *is* the durable copy. Saying so out loud is
 # the useful part.
