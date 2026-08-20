@@ -137,11 +137,15 @@ reports 100% state of charge, 48.0 VDC, a battery temperature, an hour of
 runtime, a 2030 replacement date, and `upsAlarmsPresent = 0`. Every one of those
 values is derived rather than measured.
 
-The single honest signal it emits is the self-test result, which returns
-**Refused — internal fault**. Any alert rule keyed on charge, runtime or alarm
-count will therefore never fire, no matter how bad things get. Rules for this
-device must key on `upsAdvTestDiagnosticsResults` and the age of the last
-successful test instead.
+The single honest signal it emits is the self-test result. The management card
+renders it as **Refused — internal fault**; over SNMP it is
+`upsTestResultsSummary = 4` (aborted), from the standard UPS-MIB the `apc_ups`
+module already walks. No extra OIDs were needed to see it.
+
+Any alert rule keyed on charge, runtime or alarm count will therefore never
+fire, no matter how bad things get. `UpsSelfTestFailed` and `UpsBatteryUnproven`
+in `ups.rules.yaml` key on the self-test instead, and are the only two rules in
+that file that can detect this condition.
 
 This is worth stating carefully: the monitoring did not fail, and neither did
 the rules. The device lied, and the rules trusted it.

@@ -29,9 +29,33 @@
 # fire on a transfer — it would just be reporting an outage already in progress
 # rather than warning of one.
 #
-# Do not run a UPS self-test to force an honest reading. A self-test transfers
-# the load to battery; with none fitted, that is the outage it exists to warn
-# about. upsTestResultsSummary is 6 (noTestsInitiated) and should stay there.
+# THE ONE METRIC THAT DOES NOT LIE.
+#
+# upsTestResultsSummary is the exception to everything above. It reports the
+# result of the last diagnostics test, and the UPS will not fake one — with no
+# pack fitted it cannot complete a test, so it reports the failure honestly
+# while charge, runtime, voltage and alarm count all read healthy.
+#
+#   1 donePass   2 doneWarning   3 doneError
+#   4 aborted    5 inProgress    6 noTestsInitiated
+#
+# Observed on this UPS: 4 (aborted). The management card's own diagnostics page
+# renders the same state as "Refused — internal fault".
+#
+# UpsSelfTestFailed and UpsBatteryUnproven below are keyed on it, and they are
+# the only two rules in this file that can detect the current condition.
+#
+# Still do not run a UPS self-test by hand to force a reading. A test transfers
+# the load to battery; with a pack fitted but weak, that is the outage it exists
+# to warn about. The refusal above was safe only because no transfer occurred.
+# Once a pack is in, enable the NMC's *scheduled* self-test instead so this
+# metric stays live evidence rather than a stale last-known result.
+#
+# Known limit: a value of 1 (donePass) is the last result, not a fresh one. If
+# the NMC stops testing entirely the value simply stops changing, and nothing
+# here detects that. upsTestStartTime is sysUpTime-relative and does not survive
+# an agent restart, so it is not a usable staleness signal. Scheduled tests on
+# the device are the control; this file cannot substitute for them.
 groups:
   - name: ups
     interval: 60s
@@ -111,3 +135,53 @@ groups:
           category: power
         annotations:
           summary: "UPS {{ $labels.device }} battery at {{ $value }}°C"
+
+      # The two rules that can actually detect a UPS which cannot carry load.
+      # Everything above this point reads a value the management card is willing
+      # to fabricate; these read the one it is not.
+
+      - alert: UpsSelfTestFailed
+        # 2=doneWarning 3=doneError 4=aborted. Bounded below 5 so that
+        # 5 (inProgress) does not trip the rule mid-test, and above 1 so that
+        # 1 (donePass) does not. 6 is handled by UpsBatteryUnproven.
+        expr: upsTestResultsSummary > 1 and upsTestResultsSummary < 5
+        for: 5m
+        labels:
+          component: power
+          severity: critical
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }} failed its self-test (result {{ $value }})"
+          description: >-
+            2=doneWarning 3=doneError 4=aborted. A UPS that cannot complete a
+            self-test cannot be assumed to carry the load, whatever its charge
+            and runtime metrics claim. Check the management card's diagnostics
+            page — "Refused / internal fault" here means no pack is fitted or
+            the pack is not seen.
+
+      - alert: UpsBatteryUnproven
+        # 6 = noTestsInitiated. Not a safe resting state: it is the state in
+        # which a UPS has never demonstrated it can do its job, and it is
+        # indistinguishable from a healthy one on every other metric.
+        #
+        # Expressed over a range rather than as `for: 7d`, deliberately. A long
+        # `for` measures continuous pending time in Prometheus's own memory, so
+        # any restart inside the window resets it — on a stack that gets
+        # redeployed, an alert with `for: 7d` may simply never fire. Reading the
+        # stored series instead survives restarts. min and max both equal to 6
+        # means the value never left 6 across the window.
+        expr: |
+          min_over_time(upsTestResultsSummary[7d]) == 6
+          and
+          max_over_time(upsTestResultsSummary[7d]) == 6
+        for: 30m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }} has not completed a self-test in 7 days"
+          description: >-
+            The UPS has never proven it can carry the load. Enable scheduled
+            self-tests on the management card so this becomes live evidence
+            rather than an absence of it.

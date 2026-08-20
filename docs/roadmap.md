@@ -41,9 +41,12 @@ inventory. Ordered roughly by how much it matters.
 ## Infrastructure
 
 - [ ] **Replace the UPS battery.** `mjolnir` currently has none, so a mains loss
-      is an immediate hard shutdown of the rack. Every rule in
-      `ups.rules.yaml` is currently reporting on a UPS that cannot actually hold
-      the load.
+      is an immediate hard shutdown of the rack. A replacement APCRBC115
+      cartridge is on order. Most rules in `ups.rules.yaml` still report on a UPS
+      that cannot hold the load — but `UpsSelfTestFailed` now detects it, keyed
+      on the one metric the management card does not fabricate. Once the pack is
+      fitted, enable **scheduled self-tests** on the NMC so that rule stays live
+      evidence rather than a stale last-known result.
 - [ ] Decide what `oracle` (10.0.99.30) is for. It is a dual-core AMD A6-9200
       with 4 GB and a 5400 rpm disk — considerably less machine than this list
       previously claimed, and too little for anything demanding.
