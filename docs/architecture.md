@@ -29,7 +29,7 @@ graph TB
     end
 
     subgraph V30["VLAN 30 · ImaginationLAN · Lab"]
-        HV["shiva · ProLiant DL360 Gen9<br/>Proxmox VE"]
+        HV["Saruman · ProLiant DL360 Gen9<br/>Proxmox VE<br/>BMC: shiva"]
     end
 
     subgraph V20["VLAN 20 · Skids · IoT"]
@@ -131,7 +131,7 @@ hole from the monitoring VLAN into the monitored one.
 | Host | VLAN | Stack | Contents |
 | --- | --- | --- | --- |
 | `prometheus` (10.0.99.20) | 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, Alloy |
-| `shiva` (10.0.30.10) | 30 | *(none yet)* | Proxmox VE — see [roadmap](roadmap.md) |
+| `Saruman` (10.0.30.110) | 30 | *(none yet)* | Proxmox VE 9.2.11, no guests — see [roadmap](roadmap.md) |
 | `oracle` (10.0.99.30) | 99 | *(none yet)* | Undecided |
 
 One directory per stack, not one per service. A stack is the unit that gets

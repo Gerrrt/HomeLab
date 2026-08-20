@@ -9,7 +9,7 @@ landfill.
 | U | Device | Role |
 | --- | --- | --- |
 | U1–U2 | APC Smart-UPS[^UPS] | Power |
-| U3 | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox hypervisor (`shiva`) |
+| U3 | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox hypervisor (`Saruman`, BMC `shiva`) |
 | U5 | HP ProDesk 600 G4 Mini[^ProDesk] | pfSense firewall (`morpheus`) |
 | U6 | MT-VIKI 8-port KVM[^KVM] | Console access |
 | U7 | Jadol 24-port patch panel[^Panel] | Cabling |
@@ -25,14 +25,30 @@ through the house.
 | Host | Hardware | CPU | RAM | Storage | OS |
 | --- | --- | --- | --- | --- | --- |
 | `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB SSD | FreeBSD 15.0 (pfSense) |
-| `shiva` | HPE ProLiant DL360 Gen9 | 2× Xeon E5 v3/v4 | — | — | Proxmox VE |
-| `prometheus` | Apple MacBook Pro (2012) | i5/i7 | — | SSD | Ubuntu Server 24.04.3 |
-| `oracle` | Dell Inspiron 15 | i5-1235U | 32 GB | 2 TB SSD | Ubuntu Server 24.04.3 |
+| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 | Proxmox VE 9.2.11 |
+| `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04.3 |
+| `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04.3 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
 SNMP devices at a 60-second interval, two Alloy agents, and 30 days of metric
 retention without complaint — which is a useful thing to know before spending
-money on a monitoring host.
+money on a monitoring host. Its RAM is soldered at 8 GB and it has no built-in
+Ethernet, so it reaches the network over a USB NIC.
+
+`oracle` was previously recorded here as an i5-1235U with 32 GB and a 2 TB SSD.
+It is not: it is a dual-core AMD A6-9200 with 4 GB and a 5400 rpm disk. The
+older entry described a machine that does not exist, which is worth stating
+plainly because it was load-bearing in planning.
+
+## Management
+
+| Host | BMC | Address | Notes |
+| --- | --- | --- | --- |
+| `Saruman` | `shiva` — HPE iLO 4, firmware 2.82 | `10.0.30.10` | iLO Advanced licensed. Dedicated network port. DHCP with a reservation |
+
+The BMC and the host it manages carry different names and different addresses:
+`shiva` is the iLO, `Saruman` is the hypervisor at `10.0.30.110`. Earlier
+revisions of this repository treated `shiva` as the hypervisor itself.
 
 ## Accessories
 
