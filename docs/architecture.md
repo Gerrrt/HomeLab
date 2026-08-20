@@ -148,6 +148,7 @@ re-shard of everything. Reasoning in
 | Loki | 3100 | `${BIND_ADDR}` | Push endpoint for agents |
 | Alertmanager | 9093 | `${BIND_ADDR}` | |
 | Alloy | 12345 | `127.0.0.1` | Debug UI, deliberately not exposed |
+| Alloy syslog | 1514/udp | `${BIND_ADDR}` | Network syslog receiver — pfSense pushes here |
 | snmp-exporter | 9116 | *compose network only* | Never published to a host interface |
 
 `BIND_ADDR` defaults to `0.0.0.0` and is set in `.env`. Setting it to the host's

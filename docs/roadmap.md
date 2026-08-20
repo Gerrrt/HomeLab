@@ -33,6 +33,10 @@ inventory. Ordered roughly by how much it matters.
       column 22.
 - [ ] Deploy Alloy to the remaining hosts — currently only the monitoring host
       and one other report in. `Saruman` and `oracle` are next.
+- [ ] **Turn on remote logging on `morpheus`.** The receiver, parsing and three
+      firewall alert rules are deployed; the firewall is not yet sending. Until
+      it does, `FirewallLogsStopped` is the only one of them that can fire. →
+      [runbook](runbooks/ship-firewall-logs.md)
 - [ ] Add blackbox-exporter for uptime and TLS-expiry checks on internal
       services.
 - [ ] Capture dashboard screenshots for the README once the stack has a few days

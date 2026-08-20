@@ -137,3 +137,89 @@ groups:
           category: hardware
         annotations:
           summary: "{{ $labels.host }}: disk I/O errors in the kernel log"
+
+  # ---------------------------------------------------------------------------
+  # Firewall. morpheus pushes syslog to Alloy's network listener; config.alloy
+  # labels filterlog lines with app, action, direction and interface.
+  #
+  # Source and destination addresses are deliberately NOT labels — ADR-0003
+  # records label cardinality as this stack's live constraint. They are matched
+  # in the line instead, which costs a regex at query time and nothing at
+  # ingest.
+  #
+  # The CSV field order puts src immediately before dst, so `,<src>,<dst>,`
+  # anchors both at once rather than matching two addresses anywhere in a line.
+  # ---------------------------------------------------------------------------
+  - name: firewall
+    interval: 1m
+    rules:
+      - alert: TerminalSegmentReachedInternalNetwork
+        # VLANs 10, 20 and 40 are terminal by design — egress only, no path to
+        # anything internal. A PASS from one of them to the lab, trusted or
+        # management segment means the rule set is not what this repository
+        # says it is. There is no benign version of this.
+        expr: |
+          sum by (interface) (
+            count_over_time(
+              {app="filterlog", action="pass"}
+              |~ ",10\.0\.(10|20|40)\.[0-9]+,10\.0\.(30|50|99)\.[0-9]+," [5m]
+            )
+          ) > 0
+        for: 0s
+        labels:
+          component: logs
+          severity: critical
+          category: security
+        annotations:
+          summary: "Segmentation breach: terminal VLAN passed to an internal segment on {{ $labels.interface }}"
+          description: >-
+            A packet from VLAN 10, 20 or 40 was PASSED toward VLAN 30, 50 or 99.
+            ADR-0002 says that path does not exist. Either a rule was changed or
+            an interface was reassigned. Treat as a live segmentation failure.
+
+      - alert: IoTAttemptedLateralMovement
+        # The mirror image: correctly BLOCKED attempts out of the IoT segment.
+        # The control worked. The point is that a camera or a $20 Tuya device
+        # repeatedly probing other segments is behaving like something that has
+        # been compromised, and nothing else in this stack would show it.
+        expr: |
+          sum by (interface) (
+            count_over_time(
+              {app="filterlog", action="block"}
+              |~ ",10\.0\.20\.[0-9]+,10\.0\.(30|50|99)\.[0-9]+," [10m]
+            )
+          ) > 20
+        for: 5m
+        labels:
+          component: logs
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $value }} blocked IoT→internal attempts in 10 minutes on {{ $labels.interface }}"
+          description: >-
+            Segmentation held. Something on VLAN 20 is repeatedly trying to
+            leave it — identify the source address from the log line and decide
+            whether it is misconfigured or compromised.
+
+      - alert: FirewallLogsStopped
+        # The pipeline breaking is indistinguishable from a quiet network, and
+        # a quiet firewall log looks exactly like a healthy one. morpheus passes
+        # traffic for the whole house; it is never silent for half an hour.
+        #
+        # This is the rule that notices the syslog listener died, pfSense's
+        # remote-logging setting was reset by an update, or Alloy stopped
+        # accepting UDP — none of which any other alert here would catch.
+        expr: |
+          absent_over_time({app="filterlog"}[30m])
+        for: 0s
+        labels:
+          component: logs
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "No firewall logs received for 30 minutes"
+          description: >-
+            morpheus has stopped shipping filterlog to Loki, or Alloy has
+            stopped receiving it. Check Services → System Logs → Settings on
+            pfSense, and that UDP 1514 is still published by the alloy
+            container.

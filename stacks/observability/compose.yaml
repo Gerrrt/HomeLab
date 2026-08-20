@@ -246,6 +246,11 @@ services:
       - /:/rootfs:ro
     ports:
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+      # Network syslog for devices that cannot run an agent — morpheus today.
+      # Unlike the debug UI above this must be reachable off-host, so it binds
+      # to BIND_ADDR. 1514 rather than 514: the container does not run as root
+      # and cannot take a privileged port. pfSense sends UDP by default.
+      - "${BIND_ADDR:-0.0.0.0}:${SYSLOG_PORT:-1514}:1514/udp"
     depends_on:
       # service_started for loki, for the same reason as grafana above: the
       # distroless image cannot report health. Alloy retries a failed push with
