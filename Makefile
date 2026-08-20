@@ -219,6 +219,18 @@ snmp-verify: ## Check each SNMP device answers to its community (ARGS=--old)
 	@# it into `make validate`.
 	./scripts/snmp-verify.sh $(ARGS)
 
+.PHONY: secrets-verify-backup
+secrets-verify-backup: ## Check a backup age key decrypts the secrets (KEY=/path/to/keys.txt)
+	@# Under Maintenance rather than Validation for the same reason as
+	@# snmp-verify: everything under Validation is offline and safe for CI,
+	@# and this needs a private key on disk. It must never end up inside
+	@# `make validate`, where it would either always skip or ask CI for a key.
+	@#
+	@# KEY rather than ARGS because there is exactly one argument and it is
+	@# required — an empty ARGS would reach the script as no argument at all
+	@# and print usage, which reads like the target is broken.
+	./scripts/verify-key-backup.sh "$(KEY)" $(STACK)
+
 .PHONY: certs
 certs: ## Create the internal CA / issue a leaf (ARGS="--host x.matrix.elysium --ip 10.0.0.1")
 	@# certificates/ is gitignored. Nothing in the stack terminates TLS yet —
