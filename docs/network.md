@@ -22,7 +22,7 @@ allowed to reach.
 | [Degens](#degens--vlan-10--guest) | 10 | `10.0.10.0/24` | Guest Wi-Fi | Internet |
 
 Hostnames are thematic rather than functional — `morpheus` is the firewall,
-`mjolnir` the UPS, `shiva` the hypervisor. The Role column is the source of
+`mjolnir` the UPS, `Saruman` the hypervisor. The Role column is the source of
 truth for what a box actually does.
 
 ---
@@ -77,7 +77,7 @@ only one Hicks is permitted to reach for management.
 | morpheus | `10.0.99.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 15.0 | Rack U5 | Firewall |
 | mjolnir | `10.0.99.10` | `28:29:86:xx:xx:xx` | APC Smart-UPS[^UPS] | — | Rack U1–U2 | UPS |
 | prometheus | `10.0.99.20` | `00:05:1b:xx:xx:xx` | Apple MacBook Pro (2012)[^MacBookPro] | Ubuntu 24.04.3 | Shelf | **Observability stack** |
-| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15[^Dell] | Ubuntu 24.04.3 | Shelf | Spare / undecided |
+| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 24.04.3 | Shelf | Spare / undecided |
 
 ### Notes
 
@@ -172,20 +172,26 @@ Where things get broken on purpose.
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 15.0 | Rack U5 | Firewall |
-| shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE | Rack U3 | Hypervisor |
+| shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
+| Saruman | `10.0.30.110` | — | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9.2.11 | Rack U3 | Hypervisor |
 
 ### Notes
 
 - Reachable from Hicks only; outbound internet permitted.
-- `shiva` will host services for the main network once physical hosts run out.
+- `shiva` and `Saruman` are the same physical box: `shiva` is the iLO BMC on its
+  dedicated port, `Saruman` is the Proxmox install. They are separate addresses
+  and separate names, and conflating them is a mistake this document previously
+  made.
+- `Saruman` currently runs no guests.
 - A second server ("ifrit") is planned to carry the deliberately-vulnerable
   playground, isolated from everything here.
 
 > [!NOTE]
-> `10.0.30.10` is polled over SNMP as the ProLiant's iLO. If the iLO ever moves
-> to a dedicated address, update
-> `stacks/observability/prometheus/targets/snmp.yaml` to match — the host and
-> its BMC currently share this address.
+> `10.0.30.10` is the iLO BMC, not the hypervisor, and it is what
+> `stacks/observability/prometheus/targets/snmp.yaml` polls — the `hypervisor-bmc`
+> role label there is accurate. The BMC takes its address by DHCP, so it is held
+> by a reservation on pfSense; without one, a new lease would silently break the
+> SNMP target, which hard-codes the address.
 
 [^Shiva]: [HPE ProLiant DL360 Gen9](https://buy.hpe.com/us/en/servers/rack-servers/proliant-dl300-servers/proliant-dl360-server/p/1010026922)
 

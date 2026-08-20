@@ -32,12 +32,9 @@ inventory. Ordered roughly by how much it matters.
       response, so the walk lists individual columns and must stay clear of
       column 22.
 - [ ] Deploy Alloy to the remaining hosts — currently only the monitoring host
-      and one other report in. `shiva` and `oracle` are next.
+      and one other report in. `Saruman` and `oracle` are next.
 - [ ] Add blackbox-exporter for uptime and TLS-expiry checks on internal
       services.
-- [ ] Confirm whether `10.0.30.10` is genuinely both the Proxmox host and its
-      iLO, or whether one of the two records is stale. The SNMP target and the
-      inventory currently agree on the address but describe different things.
 - [ ] Capture dashboard screenshots for the README once the stack has a few days
       of real data. → [`images/README.md`](images/README.md)
 
@@ -47,8 +44,9 @@ inventory. Ordered roughly by how much it matters.
       is an immediate hard shutdown of the rack. Every rule in
       `ups.rules.yaml` is currently reporting on a UPS that cannot actually hold
       the load.
-- [ ] Decide what `oracle` (10.0.99.30) is for. It is a 32 GB / 2 TB machine
-      sitting idle on the management VLAN.
+- [ ] Decide what `oracle` (10.0.99.30) is for. It is a dual-core AMD A6-9200
+      with 4 GB and a 5400 rpm disk — considerably less machine than this list
+      previously claimed, and too little for anything demanding.
 - [ ] Plan and build the NAS on VLAN 40.
 - [ ] Procure a second server ("ifrit") for the isolated playground network.
 - [ ] Build the playground — **only** after the main network is finished.
@@ -65,6 +63,9 @@ inventory. Ordered roughly by how much it matters.
 
 ## Done
 
+- [x] Settle the `10.0.30.10` question. It is the iLO BMC on its dedicated port;
+      the Proxmox host is `Saruman` at `10.0.30.110`. The SNMP target's
+      `hypervisor-bmc` role label was correct all along — the inventory was not
 - [x] Bridge mode on the ISP gateway
 - [x] Lock down guest VLAN firewall rules
 - [x] Move IoT devices onto their own SSID and VLAN

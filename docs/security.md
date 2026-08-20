@@ -15,7 +15,7 @@ What this network is actually built to survive:
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | Losing visibility of a failure | 32 alert rules, 30 days of metrics and logs |
-| Mains power loss | UPS on the management VLAN, monitored, alerts on `category=power` |
+| Mains power loss | **Not currently defended.** `mjolnir` has no battery installed — see below |
 
 What it explicitly does **not** defend against: a determined attacker with
 physical access to the rack, a supply-chain compromise in an upstream container
@@ -24,11 +24,21 @@ filtering by domain, and no MFA on the internal services.
 
 ## Segmentation
 
-Default deny between every segment. Two exceptions:
+Default deny between every segment. Three exceptions:
 
 1. Specific hosts on **Hicks (50)** may reach **Winterfell (99)** on management
    ports. Without this there is no way to administer anything.
 2. **Hicks (50)** may reach **ImaginationLAN (30)** so the lab is usable.
+3. **Winterfell (99)** may reach `10.0.30.10` on **ImaginationLAN (30)** for
+   SNMP. This is how `snmp-exporter` polls the ProLiant's iLO, and it has been
+   in place — and answering — for as long as that target has existed.
+
+[ADR-0002](adr/0002-vlan-segmentation-strategy.md) records two rules, which was
+accurate when the decision was made. The third arrived with the monitoring
+stack and was never written down. It is the safe direction — management
+initiating into the lab, never the reverse — but an undocumented rule is still
+an undocumented rule, and a document that overstates a control is worse than
+one that admits the exception.
 
 Everything else — IoT, media, guest — gets internet and nothing more.
 
@@ -83,6 +93,22 @@ fix, and it existed because a CI job that is permanently red for a known reason
 gets ignored — and then a genuinely new leak goes unnoticed alongside it. The
 purge removed what it acknowledged, so the file was deleted. A history scan
 that passes with no exceptions is the evidence the purge worked.
+
+### The UPS reports a battery it does not have
+
+`mjolnir` has no battery installed. Its Network Management Card nonetheless
+reports 100% state of charge, 48.0 VDC, a battery temperature, an hour of
+runtime, a 2030 replacement date, and `upsAlarmsPresent = 0`. Every one of those
+values is derived rather than measured.
+
+The single honest signal it emits is the self-test result, which returns
+**Refused — internal fault**. Any alert rule keyed on charge, runtime or alarm
+count will therefore never fire, no matter how bad things get. Rules for this
+device must key on `upsAdvTestDiagnosticsResults` and the age of the last
+successful test instead.
+
+This is worth stating carefully: the monitoring did not fail, and neither did
+the rules. The device lied, and the rules trusted it.
 
 ### Why SNMPv2c is still a weak point
 

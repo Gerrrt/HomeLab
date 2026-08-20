@@ -76,7 +76,7 @@ graph TB
         WS["workstations"]
     end
     subgraph V30["VLAN 30 · Lab"]
-        HV["shiva · Proxmox"]
+        HV["Saruman · Proxmox<br/>BMC: shiva"]
     end
     subgraph Terminal["VLANs 40 / 20 / 10 · egress only"]
         UNTRUSTED["media · IoT · guest"]
