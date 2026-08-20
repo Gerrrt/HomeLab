@@ -151,7 +151,12 @@ The third thing that goes wrong: a backup that is durable and also public.
 
 - **Not in a git repository.** `.gitignore` here matches `keys.txt` and
   `age.key`, which protects nothing outside this tree and nothing under a
-  different filename.
+  different filename. `make secrets-verify-backup` refuses outright if the copy
+  is inside *this* repository, and warns if it is inside any other working tree
+  — a dotfiles repo, a notes repo, a scratch clone. That one is a warning rather
+  than a refusal because the script cannot see whether that repository has a
+  remote, and a git-tracked repo that never leaves the machine is a legitimate
+  place to keep this.
 - **Not in plaintext in a synced folder.** Dropbox, OneDrive, Google Drive,
   iCloud, Nextcloud, Syncthing — a plaintext copy there is a readable copy on
   someone else's disk. `make secrets-verify-backup` warns when the path looks
@@ -209,5 +214,6 @@ another key that can leak.
 | `is not a readable age identity file` | Truncated, wrapped, or mis-transcribed secret line | Re-copy. Check the whole `AGE-SECRET-KEY-1…` line landed on one line |
 | `decryption failed with this key` after the recipient matched | Right public half, damaged secret half — a partial copy | Re-copy from the original while the host still exists |
 | `the backup is inside this repository` | The copy was written into the working tree | Move it out, then `git log --all -- <path>` to confirm it was never committed |
+| `the backup is inside a git working tree` | The copy is in some *other* repository, which `.gitignore` here cannot help with | Check it is ignored — or better, move it somewhere no repository covers. Harmless if that repo has no remote |
 | `no encrypted secrets at secrets/observability.sops.yaml` | Wrong working directory, or a fresh clone that never ran `make secrets-init` | Run from the repo root |
 | `mode 644 — group or other can read this copy` | A copy written without `umask 077` | `chmod 600` it, and consider it seen by anything else on that machine |
