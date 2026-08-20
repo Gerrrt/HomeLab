@@ -53,6 +53,9 @@ assumption consistent with what they are.
   [`runbooks/back-up-the-age-key.md`](runbooks/back-up-the-age-key.md).
 - `scripts/render-config.sh` decrypts at deploy time into gitignored files.
   Nothing writes a plaintext secret into a tracked path.
+- `make secrets-edit` hardens `$EDITOR` before handing it the decrypted file, so
+  the editor cannot persist the plaintext in an undo file, swap file or backup
+  that sops does not shred. See [`secrets/README.md`](../secrets/README.md).
 - CI runs `gitleaks` with rules specifically for SNMP communities, inline
   Grafana passwords, PEM private keys and age secret keys, and separately
   asserts that every `secrets/*.sops.yaml` is genuinely encrypted.
@@ -67,6 +70,8 @@ repository must be treated as compromised:
 | --- | --- | --- |
 | SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` (now rewritten) | Purged from history. Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old; `neo` answers the new one but still accepts its previous community — accepted risk, see [`SECURITY.md`](../SECURITY.md) and the [runbook](runbooks/rotate-snmp-community.md) |
 | Grafana `admin` / `admin` with anonymous Admin access | compose file | Fixed: password from SOPS, anonymous auth disabled |
+| Decrypted secrets in editor undo files | `~/.local/state/nvim/undodir/`, written by `make secrets-edit` | Found 2026-08-20: three files holding the live pfSense, APC and iLO SNMP communities in plaintext, mode 664, on an unencrypted disk. Shredded. `make secrets-edit` now hardens the editor first, so it cannot recur. Never committed, never left the host, so the communities were not rotated on that basis |
+| Alertmanager webhook URL and the MokerLink SNMP community | a local Claude Code session transcript under `~/.claude/projects/` | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook was rotated because it is a one-line regenerate; the switch community was not, because rotating it means the `neo` residual below all over again |
 | Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` | Purged from history, and the CA replaced — see [runbook](runbooks/generate-certificates.md). Anything that trusted the old CA must be re-pointed at the new one |
 
 CI scans both the working tree and the full history, with no ignore file. Both

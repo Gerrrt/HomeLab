@@ -91,17 +91,52 @@ judgement, not a check.
 > directory, and refuses to run against the live key file at all — so a pass
 > means the backup did the work.
 
-### Verifying a paper backup
+### Do not open the copy in an editor
 
-Type it **back in** and verify that file. Verifying the copy you pasted from is
-verifying your clipboard; verifying the copy you typed is verifying your
-handwriting, which is the thing that will actually fail.
+Both flows below write the key to a file with `cat >`, not with `vi`. That is
+not a style preference.
+
+`sops` decrypts to a temp file and opens `$EDITOR` on it, and a vim or neovim
+configured with `undofile` writes the buffer — the full text — into a permanent
+undodir. The same is true of any file you open to paste a key into. `shred -u`
+on the tmpfs file then removes the copy you can see and leaves the one you
+cannot, on the unencrypted disk, indefinitely.
+
+This was not hypothetical: it is how three live SNMP community strings came to
+be sitting in `~/.local/state/nvim/undodir/` on the monitoring host, which is
+why [`make secrets-edit`](../../scripts/secrets-edit.sh) now hardens the editor
+before handing it plaintext. `cat >` has no such machinery — it writes what you
+give it and nothing else.
+
+If you genuinely need an editor, `vim -u NONE -i NONE -n` skips the config that
+turns those features on.
+
+### Verifying a password-manager backup
+
+Verify what came back **out** of the vault, not what you put in — verifying the
+copy you pasted from verifies your clipboard.
 
 ```bash
 umask 077
-vi /dev/shm/restore-test.txt          # transcribe from the paper
+cat > /dev/shm/restore-test.txt       # paste from the vault, then Ctrl-D
 make secrets-verify-backup KEY=/dev/shm/restore-test.txt
-shred -u /dev/shm/restore-test.txt
+rm -f /dev/shm/restore-test.txt
+```
+
+`/dev/shm` is tmpfs, so the copy lives in RAM and never reaches the disk. That
+is also why `rm` is enough here and `shred`'s overwrite would be theatre —
+tmpfs has no stable blocks to overwrite.
+
+### Verifying a paper backup
+
+Type it **back in** and verify that file. Verifying the copy you typed is
+verifying your handwriting, which is the thing that will actually fail.
+
+```bash
+umask 077
+cat > /dev/shm/restore-test.txt       # transcribe from the paper, then Ctrl-D
+make secrets-verify-backup KEY=/dev/shm/restore-test.txt
+rm -f /dev/shm/restore-test.txt
 ```
 
 age keys transcribe better than most secrets: uppercase Bech32, so the data part
@@ -117,10 +152,21 @@ The third thing that goes wrong: a backup that is durable and also public.
 - **Not in a git repository.** `.gitignore` here matches `keys.txt` and
   `age.key`, which protects nothing outside this tree and nothing under a
   different filename.
-- **Not in a synced folder.** Dropbox, OneDrive, Google Drive, iCloud,
-  Nextcloud, Syncthing — a copy there is a copy on someone else's disk.
-  `make secrets-verify-backup` warns when the path looks like one, but it can
-  only see the path, not what the folder actually syncs to.
+- **Not in plaintext in a synced folder.** Dropbox, OneDrive, Google Drive,
+  iCloud, Nextcloud, Syncthing — a plaintext copy there is a readable copy on
+  someone else's disk. `make secrets-verify-backup` warns when the path looks
+  like one, but it can only see the path, not what the folder actually syncs to,
+  which is why it warns rather than refuses.
+
+  A password manager syncing an **end-to-end-encrypted** vault is a different
+  thing and is not disqualified by this — it is the default choice recommended
+  above. The provider holds a blob it cannot read. Its real failure modes are
+  losing the master password and losing the account recovery material, which is
+  the next bullet.
+- **Not recoverable only from the host you are insuring.** If the vault's own
+  recovery material — a 1Password Emergency Kit, a Bitwarden export, the TOTP
+  seed guarding the account — exists nowhere but this machine, the backup is
+  circular: the disk that dies takes the means of opening the copy with it.
 - **Not on the monitoring host.** A second copy on the same disk is not a
   backup. The script refuses to verify the live key for this reason.
 

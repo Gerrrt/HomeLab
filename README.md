@@ -165,6 +165,7 @@ $ make help
   reload           Hot-reload Prometheus, Alertmanager and snmp-exporter (no restart)
   secrets-init     Generate an age keypair and create the encrypted secrets file
   secrets-edit     Edit the encrypted secrets in $EDITOR
+  secrets-verify-backup  Check a backup age key decrypts the secrets
   validate         Run every check CI runs
   backup           Back up the stack's volumes to ./backups/
   ...

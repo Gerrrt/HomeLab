@@ -64,8 +64,16 @@ make secrets-verify-backup KEY=/path/to/the/copy
 make secrets-edit
 ```
 
-Decrypts to a temporary file, opens `$EDITOR`, re-encrypts on save. The
-plaintext never lands on disk unencrypted.
+Decrypts to a temporary file, opens `$EDITOR`, re-encrypts on save.
+
+The target runs [`scripts/secrets-edit.sh`](../scripts/secrets-edit.sh) rather
+than `sops` directly, because "the plaintext never lands on disk" is only true
+once the editor has been told not to keep its own copy. A vim or neovim with
+`undofile` set writes the buffer into a permanent undodir that sops does not
+shred — which is how three live SNMP community strings came to be sitting in
+`~/.local/state/nvim/undodir/` on the monitoring host. The script disables undo
+files, swap files, backups and viminfo/shada for that one invocation. Set
+`SECRETS_EDITOR` to override it, and read the script's header first.
 
 ## How they reach the containers
 

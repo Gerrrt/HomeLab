@@ -81,7 +81,14 @@ secrets-init: ## Generate an age keypair and create the encrypted secrets file
 
 .PHONY: secrets-edit
 secrets-edit: ## Edit the encrypted secrets in $$EDITOR
-	sops $(SECRETS)
+	@# Not a bare `sops $(SECRETS)`. sops decrypts to a temp file and opens
+	@# $$EDITOR on it, and a vim or neovim with `undofile` set then writes that
+	@# buffer — the decrypted secrets — into a permanent undodir. sops shreds
+	@# its own temp file on exit; nothing shreds the undo file. Found in the
+	@# wild on the monitoring host: three of them holding the live SNMP
+	@# community strings for pfSense, the APC NMC and iLO, mode 664, on an
+	@# unencrypted disk. scripts/secrets-edit.sh silences the editor first.
+	./scripts/secrets-edit.sh $(STACK)
 
 .PHONY: secrets-show
 secrets-show: ## Print the decrypted secrets to stdout (careful)
