@@ -235,10 +235,11 @@ fi
 if git ls-files --error-unmatch "${STACK}/.env" >/dev/null 2>&1 \
    || git ls-files "${STACK}/snmp-exporter/.rendered" | grep -q . \
    || git ls-files | grep -q '\.purge-secrets\.txt' \
-   || git ls-files | grep -q '^certificates/'; then
-  fail "a rendered, decrypted, purge-secrets or certificate file is tracked by git"
+   || git ls-files | grep -q '^certificates/' \
+   || git ls-files | grep -q '^backups/'; then
+  fail "a rendered, decrypted, purge-secrets, certificate or backup file is tracked by git"
 else
-  pass "no rendered, decrypted, purge-secrets or certificate files tracked"
+  pass "no rendered, decrypted, purge-secrets, certificate or backup files tracked"
 fi
 
 printf '\n'
