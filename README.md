@@ -37,8 +37,9 @@ incident.
 ## Highlights
 
 - **Network segmented by trust, not by function.** Seven VLANs; IoT, media and
-  guest segments are terminal — egress only, no path to anything else. Exactly
-  two inter-VLAN rules exist. [Why](docs/adr/0002-vlan-segmentation-strategy.md)
+  guest segments are terminal — egress only, no path to anything else. Three
+  inter-VLAN rules exist, each directional and documented.
+  [Why](docs/adr/0002-vlan-segmentation-strategy.md)
 - **Full observability pipeline for a mixed estate.** Grafana Alloy agents push
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
@@ -57,9 +58,9 @@ incident.
 - **Supply chain pinned by digest.** Every image carries both a tag and a
   `sha256:` digest, so a moved tag cannot change what deploys. CI enforces it;
   `make pin-digests` re-resolves them from the registry.
-- **Documented decisions and runbooks.** Five ADRs covering what was chosen and
-  what was rejected; six runbooks for the operations that are easy to get wrong
-  at 1am.
+- **Documented decisions and runbooks.** Eight ADRs covering what was chosen and
+  what was rejected — including the costs accepted knowingly; six runbooks for
+  the operations that are easy to get wrong at 1am.
 
 ## Architecture
 
@@ -136,7 +137,7 @@ the internet and nothing more. Full topology and data flow in
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 5 architecture decision records
+│   ├── adr/                  # 8 architecture decision records
 │   └── runbooks/             # deploy, add device, rotate creds, certs, key backup, purge
 └── Makefile                  # make help
 ```
