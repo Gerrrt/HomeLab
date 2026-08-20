@@ -40,6 +40,8 @@ else
   chmod 600 "${KEY_FILE}"
   warn "BACK THIS FILE UP OFF THIS MACHINE. Without it the encrypted secrets"
   warn "in this repository are unrecoverable."
+  warn "  docs/runbooks/back-up-the-age-key.md"
+  warn "  make secrets-verify-backup KEY=<the copy>   # proves the copy decrypts"
 fi
 
 PUBLIC_KEY="$(grep -oE 'age1[a-z0-9]+' "${KEY_FILE}" | head -n1)"
@@ -163,4 +165,11 @@ Next steps:
   1. make secrets-edit     # replace every change-me value
   2. make validate         # confirm the configs are sound
   3. make up               # render config and start the stack
+
+And the one that has no second chance — back up ${KEY_FILE} off this
+machine, then prove the copy works:
+
+  make secrets-verify-backup KEY=/path/to/the/copy
+
+  docs/runbooks/back-up-the-age-key.md
 EOF

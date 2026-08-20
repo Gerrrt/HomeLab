@@ -45,6 +45,12 @@ assumption consistent with what they are.
   and committed in encrypted form. See [`secrets/README.md`](../secrets/README.md).
 - The private key lives at `~/.config/sops/age/keys.txt` on the deployment host
   and is never in the repository.
+- That key is the single point of failure for every encrypted secret here, so it
+  is copied off the host and the copy is proven to decrypt with
+  `make secrets-verify-backup KEY=<copy>` — which refuses to run against the live
+  key and blanks the environment first, because the obvious hand-typed
+  equivalent passes even for an unrelated keypair. See
+  [`runbooks/back-up-the-age-key.md`](runbooks/back-up-the-age-key.md).
 - `scripts/render-config.sh` decrypts at deploy time into gitignored files.
   Nothing writes a plaintext secret into a tracked path.
 - CI runs `gitleaks` with rules specifically for SNMP communities, inline

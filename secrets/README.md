@@ -49,7 +49,14 @@ public half into `.sops.yaml`, and encrypts `observability.example.yaml` into
 `observability.sops.yaml` for you to fill in.
 
 **Back up `~/.config/sops/age/keys.txt` somewhere outside this machine.**
-Without it the encrypted file is unrecoverable.
+Without it the encrypted file is unrecoverable — not "reset with some effort",
+but gone, with every secret in it re-entered by hand on four devices. The
+procedure, and the way to prove the backup actually decrypts, are in
+[`docs/runbooks/back-up-the-age-key.md`](../docs/runbooks/back-up-the-age-key.md):
+
+```bash
+make secrets-verify-backup KEY=/path/to/the/copy
+```
 
 ## Editing
 
