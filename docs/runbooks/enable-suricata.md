@@ -129,8 +129,35 @@ Save.
 
 Then **Interfaces → Skids → Categories** and enable, to start:
 
-`emerging-malware` · `emerging-trojan` · `emerging-exploit` ·
-`emerging-scan` · `emerging-policy`
+| Category | Why |
+| --- | --- |
+| `emerging-malware` | The big one — 16 MB. **Absorbed the retired `emerging-trojan`**, so that coverage is here, not missing |
+| `emerging-exploit` | |
+| `emerging-scan` | |
+| `emerging-policy` | Tiny (~2 KB) and easy to scroll past in the alphabetical list. It is there |
+| `emerging-attack_response` | Command output flowing *back* from a host — evidence of a device already compromised rather than one being probed. Low volume, and the highest-value signal available on a segment of cameras and an alarm hub |
+
+> [!NOTE]
+> **There is no `emerging-trojan`.** Emerging Threats retired it and folded those
+> rules into `emerging-malware`. Earlier revisions of this runbook named it, which
+> sends you looking for a category that has not shipped in years. If you are
+> checking this list against another guide, that is why.
+
+**Nothing needs disabling.** A new interface starts with no categories selected,
+so the end state is these five ticked and nothing else. If your build pre-ticked
+anything, untick it.
+
+> [!IMPORTANT]
+> **Leave `Resolve Flowbits` enabled.**
+>
+> It auto-enables rules from categories you did *not* select, when a rule you did
+> select depends on a flowbit those rules set. Turn it off and a rule in
+> `emerging-malware` waiting on a flowbit from, say, `emerging-web_client` simply
+> never fires — and nothing anywhere reports that it cannot.
+>
+> That is a silently disarmed detection, which is the failure mode this whole
+> stack is built to avoid. The cost is a handful of extra rules you did not pick.
+> Pay it.
 
 Save, then **restart Suricata on the interface** so the selection is loaded. A
 saved category list is not a running one.
@@ -195,25 +222,20 @@ An IDS that has never been shown to report anything is indistinguishable from on
 that is not running, and this stack deliberately has no `SuricataStopped` rule to
 tell you otherwise (see *Rollback*).
 
-Whichever route you take, it has to originate **on VLAN 20** and travel in
-**plaintext**. Suricata sits on the firewall and cannot see inside TLS, so an
-HTTPS request proves nothing about your rules — only that a connection happened.
+It has to originate **on VLAN 20** and travel in **plaintext**. Suricata sits on
+the firewall and cannot see inside TLS, so an HTTPS request proves nothing about
+your rules — only that a connection happened.
 
-### If you have a shell on a VLAN 20 device
+> [!NOTE]
+> Earlier revisions used `curl -A "BlackSun" http://example.com/` and claimed
+> `emerging-policy` carried a signature for that user agent. **It does not.**
+> `emerging-policy.rules` is about 2 KB of Dameware, TeamViewer and Radmin
+> detections; the BlackSun signature lives in `emerging-user_agents`, which this
+> runbook does not enable. That test would have fired for nobody — a verification
+> step that was itself unverified.
 
-```bash
-curl -A "BlackSun" http://example.com/
-```
-
-`ET POLICY` carries a signature for that user agent, and `emerging-policy` is one
-of the five categories enabled above.
-
-### If you do not — the case here
-
-VLAN 20 is cameras, a doorbell and an alarm hub. Nothing on it takes a shell, and
-a phone browser cannot set a user agent. Rather than go looking for an ET
-signature that is simultaneously browser-reachable, plaintext, and inside those
-five categories, add two local rules that depend on none of that.
+The test below depends on **no ET category at all**, which is the point: it tests
+the pipeline, not the ruleset.
 
 **Interfaces → Skids → Rules → Category: `custom.rules`:**
 
@@ -224,11 +246,16 @@ alert dns any any -> any any (msg:"HOMELAB IDS PIPELINE TEST dns"; dns.query; co
 
 Save, then restart Suricata on the interface so the rules load.
 
-From a phone joined to the **Skids** SSID, visit:
+Trigger it from anything on VLAN 20. A phone joined to the **Skids** SSID,
+visiting:
 
 ```text
 http://homelab-ids-test.neverssl.com/homelab-ids-test
 ```
+
+or, if you do have a shell on that segment, the same URL via
+`curl http://homelab-ids-test.neverssl.com/homelab-ids-test`. Either works — the
+rules match the request, not the client.
 
 Two rules, because each covers the other's blind spot. Browsers try HTTPS first,
 so the `http://` URL may be silently upgraded and never appear in plaintext — but
