@@ -53,6 +53,27 @@ docker compose ps alloy          # expect 0.0.0.0:1514->1514/udp
 ss -ulnp | grep 1514
 ```
 
+> [!IMPORTANT]
+> **Confirm the running process is actually using the config you just edited.**
+> `config.alloy` is a bind mount, and `docker compose up -d` recreates a
+> container only when its *service definition* changes — image, command, ports,
+> environment. An edited mounted file is invisible to that comparison, so
+> compose leaves the container running and **exits 0 reporting success** while
+> Alloy carries on with what it parsed at boot.
+>
+> `scripts/reload-config.sh` now restarts Alloy as part of `make up`, so this
+> should take care of itself. Verify it anyway — the check is one line, and this
+> failure looks identical to the config being wrong:
+>
+> ```bash
+> docker inspect -f '{{.State.StartedAt}}' alloy
+> stat -c '%y  %n' alloy/config.alloy
+> ```
+>
+> **If the file is newer than the process, the running agent has never seen it.**
+> `docker compose restart alloy` fixes it. This cost an evening of debugging a
+> config that was correct and simply not loaded.
+
 ---
 
 ## 2. Point pfSense at it
@@ -81,10 +102,14 @@ No firewall rule is needed. `morpheus` already has an interface on VLAN 99
 > watch. Editing the server list a second time and saving again forced the
 > reload, and traffic started in the same second.
 >
-> So make a second, deliberate save before concluding anything is broken. If you
-> would rather be certain than superstitious, **Diagnostics → Command Prompt** →
-> `/etc/rc.restart_webgui` is heavy-handed but reloads the logging daemon along
-> with everything else.
+> Observed **twice** in one evening, the second time after nothing more than
+> removing a stale entry from the server list. Assume the reload does not stick.
+>
+> **The sequence that works:** untick *Enable Remote Logging* → **Save** →
+> re-tick it → **Save**. Taking the daemon down and back up is reliable in a way
+> that a single save is not. If it still will not send, **Diagnostics → Command
+> Prompt** → *Execute PHP Command* → `system_syslogd_start();` restarts it
+> directly.
 >
 > The consequence for debugging is the reason §3 exists: a correct-looking
 > settings page is not evidence that the daemon is sending, and an empty Loki
