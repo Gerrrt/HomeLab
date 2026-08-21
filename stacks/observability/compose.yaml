@@ -226,18 +226,31 @@ services:
   # ---------------------------------------------------------------------------
   alloy:
     <<: *service-defaults
-    # Gives constants.hostname a real name instead of the container ID. Written
-    # into .env by scripts/render-config.sh; see the comment there. The fallback
-    # is deliberately obvious rather than plausible — a `host="alloy"` label
-    # means render was skipped, which is easier to spot than a hostname that
-    # looks right.
-    hostname: ${ALLOY_HOSTNAME:-alloy}
+    # No `hostname:` here, deliberately. Setting it is the only way to give
+    # constants.hostname a real name, and it also registers that name in Docker's
+    # embedded DNS — on a host called `prometheus` that produced a second A
+    # record for `prometheus` aimed at this container, and remote_write started
+    # dialling Alloy instead of Prometheus. config.alloy reads ALLOY_HOSTNAME
+    # from the environment instead; the header of that file has the whole story.
     image: grafana/alloy:v1.18.1@sha256:0f4434c92b3e6cdac38bb129b344e1790c246f7b6e2eaffcc16a5fa363240e33
     container_name: alloy
     privileged: true
+    # Without this the cAdvisor exporter reports exactly one series, id="/",
+    # and every per-container metric is missing — which is what the Docker
+    # Containers dashboard and four of the eight rules in containers.rules.yaml
+    # are built on. `privileged: true` is not enough: on cgroup v2 Docker's
+    # default namespace mode is `private`, so the container's own cgroup IS the
+    # root it can see, and cAdvisor faithfully reports the one cgroup it finds.
+    # Nothing errors. The exporter stays healthy and the dashboard stays empty.
+    cgroup: host
     environment:
       LOKI_URL: http://loki:3100/loki/api/v1/push
       PROMETHEUS_REMOTE_WRITE_URL: http://prometheus:9090/api/v1/write
+      # The name this agent labels its metrics and logs with. Written into .env
+      # by scripts/render-config.sh; see the comment there. The fallback is
+      # deliberately obvious rather than plausible — a host="alloy" label means
+      # render was skipped, which is easier to spot than a name that looks right.
+      ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-alloy}
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
