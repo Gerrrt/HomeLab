@@ -120,7 +120,7 @@ on the IoT VLAN is enough.
 That last case looks like this — the same packet twice, once inbound on the NIC
 and once outbound to the container's address on the bridge:
 
-```
+```text
 enx0005…    In  IP 10.0.99.1.514 > 10.0.99.20.1514: SYSLOG local0.info, length: 166
 br-faa4ed…  Out IP 10.0.99.1.514 > 172.18.0.7.1514: SYSLOG local0.info, length: 166
 ```
