@@ -128,6 +128,14 @@ jobs:
             -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
             check rules "$STACK"/prometheus/rules/*.rules.yaml
 
+      # check rules only parses PromQL. It passed for months against a rule that
+      # could not fire for any input (#63); these are the tests that catch that.
+      - name: promtool test rules
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
+            test rules "$STACK"/prometheus/tests/*.test.yaml
+
       # No secret needed: the receiver URL comes from url_file, which
       # Alertmanager reads at notify time rather than at config load time.
       - name: amtool check-config

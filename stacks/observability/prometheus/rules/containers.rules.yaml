@@ -27,19 +27,34 @@ groups:
           summary: "Container {{ $labels.name }} was OOM-killed"
 
       - alert: ContainerHighMemory
-        # Only meaningful where a limit is actually set; the spec_memory_limit
-        # guard excludes unlimited containers, which report the host total.
+        # Measured against the host, not against a limit. The limit-based form
+        # this replaces could not fire: it divided by
+        # container_spec_memory_limit_bytes and guarded on that being > 0, but
+        # no service in compose.yaml sets a memory limit, so cAdvisor reports 0
+        # for all six and the guard excluded every one of them. See #63.
+        #
+        # Do not "simplify" this to `/ machine_memory_bytes`. That form returns
+        # no series at all: machine_memory_bytes carries boot_id, machine_id and
+        # system_uuid, the container series carry name, id and image, so nothing
+        # matches and the rule silently goes unfireable again. The on(instance)
+        # join is what makes it work, and group_left is mandatory — six
+        # containers to one machine series is many-to-one, and Prometheus
+        # rejects that as an error unless the grouping is explicit.
+        #
+        # 0.40 of 7.6 GiB is ~3 GB in one container, against a whole-stack
+        # working set of ~790 MB. HostMemoryPressure in host.rules.yaml already
+        # catches the host running out; this one fires earlier and, unlike that
+        # rule, names which container is responsible.
         expr: |
           container_memory_working_set_bytes{name!=""}
-          / container_spec_memory_limit_bytes{name!=""} > 0.90
-          and container_spec_memory_limit_bytes{name!=""} > 0
+          / on(instance) group_left machine_memory_bytes > 0.40
         for: 15m
         labels:
           component: containers
           severity: warning
           category: capacity
         annotations:
-          summary: "Container {{ $labels.name }} at {{ $value | humanizePercentage }} of its memory limit"
+          summary: "Container {{ $labels.name }} is using {{ $value | humanizePercentage }} of host memory"
 
       - alert: ContainerCpuThrottled
         expr: |

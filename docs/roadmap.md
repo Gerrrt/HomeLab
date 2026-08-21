@@ -44,6 +44,14 @@ issues intact. Nothing was summarised away.
 - **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Add blackbox-exporter**
   for uptime and TLS-expiry on internal services. Until it exists, expiry is
   something you find out about from a browser warning.
+- **[#114](https://github.com/Gerrrt/HomeLab/issues/114) Set memory limits on
+  the six services.** Nothing in `compose.yaml` bounds a leak, so one container
+  can take the host down — and the host has 8 GB soldered. Blocked on data
+  rather than on agreement: cAdvisor has only reported correctly since
+  [#62](https://github.com/Gerrrt/HomeLab/pull/62), so there are hours of
+  history to size from, not the 30 days retention implies, and `grafana` alone
+  swings 3.7x inside that window. A limit picked from it would be a guess at an
+  OOM kill.
 - **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
   screenshots.** `make screenshots` does four of the five; the Logs dashboard is
   deliberately excluded. → [`images/README.md`](images/README.md)
@@ -59,13 +67,25 @@ new since this file was last honest:
   to extract.
 - **[#67](https://github.com/Gerrrt/HomeLab/issues/67)** No dead man's switch on
   the notification path — a 200 into a dead topic is a successful notification.
-- **[#63](https://github.com/Gerrrt/HomeLab/issues/63)** `ContainerHighMemory`
-  cannot fire, because nothing sets a memory limit.
 
 Two collection faults of the same kind were fixed in
 [#62](https://github.com/Gerrrt/HomeLab/pull/62): the agent was answering to the
 name of the server, and cAdvisor could only see its own cgroup. Both ran healthy
 and produced nothing.
+
+[#63](https://github.com/Gerrrt/HomeLab/issues/63) was the same fault one layer
+up. `ContainerHighMemory` divided by a memory limit no service sets and guarded
+on it being non-zero, so it could not fire for any input while showing as loaded
+and healthy. It now measures against the host total instead. `promtool check
+rules` had passed it the entire time — it parses PromQL and never asks whether
+an expression can be true — so the fix came with the first `promtool test rules`
+unit tests in the repo, which fail if the rule stops being able to fire. They
+cover that one rule. The other 33 are still syntax-checked only, so the same
+class of fault could be sitting in any of them and would look just as healthy.
+Setting the memory limits themselves is
+[#114](https://github.com/Gerrrt/HomeLab/issues/114), deliberately separate: a
+limit enforces, a rule detects, and making the second depend on the first is
+what left this one unfireable for months.
 
 ## Infrastructure
 
@@ -159,12 +179,12 @@ months.
 - [x] Stand up Prometheus, Grafana, Loki, snmp-exporter and Alloy
 - [x] Consolidate five broken compose files into one working stack
 - [x] Provision Grafana datasources and dashboards from files
-- [x] Add alerting (32 rules) and Alertmanager routing
+- [x] Add alerting (34 rules) and Alertmanager routing
 - [x] Move secrets to SOPS + age
 - [x] Add CI: lint, config validation, secret scanning
 - [x] Pin every image by digest, not just tag, with drift detection in CI
 - [x] Add SECURITY.md with a disclosure policy and known-exposure summary
-- [x] Loki alerting rules (8) for auth, SSH brute force and disk/OOM events,
+- [x] Loki alerting rules (13) for auth, SSH brute force and disk/OOM events,
       validated in CI by booting the pinned Loki image against them
 - [x] Replace the CA and leaf certificates that leaked, and add tooling so
       issuing one is a command rather than a research project

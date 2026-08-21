@@ -23,7 +23,8 @@ compose.yaml               all six services, one network, health-gated ordering
 prometheus/
   prometheus.yaml          scrape config; SNMP via file_sd
   targets/snmp.yaml        SNMP targets — hot-reloaded, no restart needed
-  rules/*.rules.yaml       32 alert rules across host/network/ups/containers
+  rules/*.rules.yaml       34 alert rules across host/network/ups/containers
+  tests/*.test.yaml        promtool unit tests — assert the rules can fire
 alertmanager/
   alertmanager.yaml        severity + category routing, inhibition
 loki/loki-config.yaml      single-binary, filesystem, 30-day retention
@@ -33,7 +34,7 @@ snmp-exporter/
   snmp.yaml                generated, 14k lines, ${PLACEHOLDER} communities
 grafana/
   provisioning/            datasources + dashboard provider
-  dashboards/*.json        5 dashboards, 79 panels
+  dashboards/*.json        5 dashboards, 84 panels
 ```
 
 ## Things worth knowing before editing
@@ -58,5 +59,6 @@ make validate
 ```
 
 Runs `docker compose config`, `promtool check config`, `promtool check rules`,
-`amtool check-config`, `alloy fmt --verify`, the dashboard checks, yamllint,
-markdownlint, shellcheck and gitleaks. Same set CI runs.
+`promtool test rules`, `amtool check-config`, `alloy fmt --verify`, the
+dashboard checks, yamllint, markdownlint, shellcheck and gitleaks. Same set CI
+runs.
