@@ -14,8 +14,9 @@ make screenshots
 ```
 
 `scripts/capture-screenshots.sh` starts the `capture` profile's renderer, shoots
-all five dashboards over a 24-hour window, and stops the renderer again. Nothing
-is left running and `docker compose ps` shows the same six services afterwards.
+four of the five dashboards over a 24-hour window, and stops the renderer again.
+Nothing is left running and `docker compose ps` shows the same six services
+afterwards.
 
 Filenames and dashboards are paired in the script, not here, so they cannot
 drift:
@@ -26,7 +27,6 @@ drift:
 | `docker-containers.png` | Docker Containers |
 | `network-snmp.png` | Network & Firewall |
 | `ups-power.png` | UPS & Power |
-| `logs-explorer.png` | Logs |
 
 Height is derived per dashboard from its own JSON, so adding a panel makes the
 screenshot taller instead of pushing the new panel out of frame.
@@ -44,19 +44,30 @@ what the screenshot is for.
 `make screenshots` is cheap and repeatable. Re-running it tomorrow is the
 correct fix for a bad window, not cropping.
 
+## The Logs dashboard is not captured
+
+There are five dashboards and four screenshots. `homelab-logs` is excluded on
+purpose.
+
+Its Authentication log panel renders `auth.log` verbatim — real usernames, real
+source addresses, real session IDs — and so do the other two stream panels. That
+is not a bad time range or an unlucky window; showing log lines is the entire
+point of the dashboard, so there is no capture of it that does not publish them.
+
+Excluding it in the script beats capturing it and relying on someone noticing.
+The check that catches this is the one that runs every time, not the one that
+depends on reading carefully at the end of a long afternoon.
+
+If it is ever wanted, the thing to build first is redaction — not a reminder.
+
 ## Before publishing
 
 These are going into a public repository. Check each image for:
 
 - Full MAC addresses in table panels
 - The WAN IP address in any interface panel
-- Hostnames or usernames in log lines
+- Hostnames or usernames anywhere in a table or legend
 - Anything in a Grafana annotation or query bar you did not mean to publish
-
-The **Logs** dashboard is the one that reliably fails this check. Its
-Authentication log panel renders `auth.log` verbatim, which means real
-usernames, real source addresses and real session IDs. Read that image properly
-before it goes anywhere.
 
 Crop or blur rather than re-shooting — it is easier to be thorough. There is no
 image editor on the monitoring host; do it wherever you are reading this.

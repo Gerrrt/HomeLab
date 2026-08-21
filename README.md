@@ -193,8 +193,9 @@ $ make help
 ```
 
 <!-- Dashboard screenshots go here once the stack has real data worth showing.
-     docs/images/README.md lists the filenames to use, how to capture them,
-     and what to check for before publishing them publicly. -->
+     `make screenshots` captures them; docs/images/README.md lists the
+     filenames, and says why the Logs dashboard is deliberately not among
+     them. -->
 
 ## What runs it
 
