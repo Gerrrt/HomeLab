@@ -95,6 +95,25 @@ inventory. Ordered roughly by how much it matters.
       — charge, runtime, voltage — to start reporting real values for the first
       time, which makes `UpsBatteryLow`, `UpsChargeLow` and `UpsRuntimeCritical`
       meaningful rules rather than decorative ones.
+- [ ] **Rack the shelf switch.** A 1U vented shelf (~$25–45) in **U4**, the one
+      free slot, carrying the unmanaged TP-Link that `prometheus` and `oracle`
+      hang off. **Buy it with the UPS pack above, not after** — the pack alone
+      leaves the monitoring path half-protected. Both shelf machines are laptops
+      with their own batteries, so on a mains cut they stay *running* and go
+      *deaf*: the switch between them and the network has no battery at all, and
+      a monitoring host that survives the event it exists to observe but cannot
+      report it is a strange way to lose an evidence trail. The shelf has room
+      beside the switch for the ProDesk in the item above — rack its cold-spare
+      role but leave it **powered off**, since a spare that is plugged in and on
+      the network is exposed to whatever took the primary.
+
+      Two things to check before ordering, neither answerable from this
+      repository: whether the open frame takes a full-depth shelf alongside the
+      24-port patch panel, and whether U4 is empty *on purpose*. It is not
+      thermal spacing — 1U servers cool front-to-back — but it may be service
+      clearance above the DL360, and a 9U frame at 8/9 full is awkward to work
+      in. If the working room is worth more, a UPS-fed power strip protects the
+      switch just as well and costs less.
 - [ ] Decide what `oracle` (10.0.99.30) is for. It is a dual-core AMD A6-9200
       with 4 GB and a 5400 rpm disk — considerably less machine than this list
       previously claimed, and too little for anything demanding.
