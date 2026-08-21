@@ -6,6 +6,28 @@ They are deliberately absent rather than faked — a mocked-up dashboard image i
 a monitoring repository is worse than none, because it cannot be checked against
 the JSON that produced it.
 
+## What is here now
+
+Two of the four, not four. `network-snmp.png` and `ups-power.png` pass the
+checklist at the bottom of this file. `host-overview.png` and
+`docker-containers.png` do not yet, and are absent rather than committed with a
+note apologising for them:
+
+| File | Why it is not here |
+| --- | --- |
+| `host-overview.png` | A 14-hour hole, 02:00 to 16:00, where the agent was down. Half the panels are a flat line — the exact thing "The window matters" below warns about. |
+| `docker-containers.png` | cAdvisor only started reporting correctly in [#62](https://github.com/Gerrrt/HomeLab/pull/62), so 22 of the 24 hours are empty. |
+
+Both are a re-shoot, not a repair: run `make screenshots` again once the stack
+has a clean day behind it. Tracked in
+[#12](https://github.com/Gerrrt/HomeLab/issues/12).
+
+The Container inventory panel on the Docker dashboard used to publish the
+absolute path of `compose.yaml` — and so a username — because it excluded
+fields by name and cAdvisor kept adding new ones. It now filters to an
+allowlist. That was caught by this checklist working, which is the argument for
+having it.
+
 ## Capturing them
 
 ```bash
