@@ -10,6 +10,24 @@
 //
 // Inside the observability stack the compose service names are the defaults.
 // See docs/observability.md.
+//
+// ALLOY_HOSTNAME is the name this agent labels everything with, and it is read
+// from the environment rather than taken from constants.hostname.
+//
+// constants.hostname is the CONTAINER's hostname, and the only way to give the
+// container a real one is `hostname:` in compose — which also registers that
+// name in Docker's embedded DNS. This host is called `prometheus`, so doing
+// that published a second A record for the name `prometheus` pointing at the
+// Alloy container. Every remote_write to http://prometheus:9090 then had a
+// 50/50 chance of dialling Alloy itself, which refuses on 9090.
+//
+// Observed: host and container metrics stopped for twelve and a half hours
+// while `up{job="alloy"}` stayed 1 the entire time, because Alloy's own
+// /metrics endpoint was never the thing that was broken. Nothing alerted.
+//
+// The coalesce fallback to constants.hostname is kept so an agent started
+// without the variable still labels itself with something, the way it always
+// did — a container ID is wrong, but it is visibly wrong.
 // =============================================================================
 
 // ============================================================================
@@ -19,12 +37,33 @@
 prometheus.exporter.cadvisor "dockermetrics" {
 	docker_host      = "unix:///var/run/docker.sock"
 	storage_duration = "5m"
+
+	// Once the container can see the host's cgroups (compose sets cgroup: host,
+	// see the comment there) cAdvisor reports every systemd slice on the machine
+	// as well as the containers — 3365 series where 450 are Docker's. Every
+	// dashboard and rule here filters on name!="", so the rest is retention spent
+	// on nothing.
+	docker_only = true
 }
 
 prometheus.scrape "dockermetrics" {
-	targets         = prometheus.exporter.cadvisor.dockermetrics.targets
+	targets         = discovery.relabel.dockermetrics.output
 	forward_to      = [prometheus.remote_write.metrics_service.receiver]
 	scrape_interval = "60s"
+}
+
+// Both exporters default `instance` to constants.hostname, which is the
+// container ID now that the container no longer carries a hostname. Overwrite
+// it from the environment for the same reason every other label here is set
+// that way — see the header. Without this the dashboards' $instance variable
+// lists a hex string that changes on every redeploy.
+discovery.relabel "dockermetrics" {
+	targets = prometheus.exporter.cadvisor.dockermetrics.targets
+
+	rule {
+		target_label = "instance"
+		replacement  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname)
+	}
 }
 
 discovery.relabel "metrics" {
@@ -32,7 +71,12 @@ discovery.relabel "metrics" {
 
 	rule {
 		target_label = "job"
-		replacement  = string.format("%s-metrics", constants.hostname)
+		replacement  = string.format("%s-metrics", coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname))
+	}
+
+	rule {
+		target_label = "instance"
+		replacement  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname)
 	}
 }
 
@@ -114,8 +158,8 @@ loki.source.journal "journal" {
 	forward_to    = [loki.write.grafana_loki.receiver]
 	labels        = {
 		component = "/var/log/journal",
-		instance  = constants.hostname,
-		hostname  = constants.hostname,
+		instance  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
+		hostname  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 		job       = "/var/log/journal",
 	}
 	path = "/var/log/journal"
@@ -154,7 +198,7 @@ local.file_match "authlogs" {
 		{
 			__address__ = "localhost",
 			__path__    = "/var/log/auth.log",
-			instance    = constants.hostname,
+			instance    = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 			job         = "/var/log/auth.log",
 		},
 	]
@@ -187,7 +231,7 @@ local.file_match "varlogs" {
 			__address__      = "localhost",
 			__path__         = "/var/log/{messages,*.log}",
 			__path_exclude__ = "/var/log/(syslog|auth.log)",
-			instance         = constants.hostname,
+			instance         = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 			job              = "/var/log/*.log",
 		},
 	]
@@ -219,7 +263,7 @@ local.file_match "syslog" {
 		{
 			__address__ = "localhost",
 			__path__    = "/var/log/syslog",
-			instance    = constants.hostname,
+			instance    = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 			job         = "/var/log/syslog",
 		},
 	]
@@ -444,13 +488,13 @@ loki.write "grafana_loki" {
 		url = coalesce(sys.env("LOKI_URL"), "http://loki:3100/loki/api/v1/push")
 	}
 	external_labels = {
-		host = constants.hostname,
+		host = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 	}
 }
 
 // Network syslog is written through its own client, deliberately.
 //
-// loki.write.grafana_loki stamps host = constants.hostname on everything it
+// loki.write.grafana_loki stamps the agent host label on everything it
 // sends, which is correct for logs this machine produces and wrong for logs it
 // merely relays. Reusing it would relabel every pfSense line as though it came
 // from prometheus, and {host="morpheus"} would return nothing at all.
@@ -468,6 +512,6 @@ prometheus.remote_write "metrics_service" {
 		url = coalesce(sys.env("PROMETHEUS_REMOTE_WRITE_URL"), "http://prometheus:9090/api/v1/write")
 	}
 	external_labels = {
-		host = constants.hostname,
+		host = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 	}
 }

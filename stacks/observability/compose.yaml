@@ -184,6 +184,23 @@ services:
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
       PROMETHEUS_URL: http://prometheus:9090
       LOKI_URL: http://loki:3100
+      # Where to send a render request, and the URL the renderer is told to
+      # fetch back. With the `capture` profile off — which is every normal
+      # deploy — Grafana probes the absent renderer three times at startup and
+      # logs three errors before giving up. It then serves normally and picks
+      # the renderer up on the next render request without a restart. Three
+      # lines of startup noise is the whole cost; it is written down here so
+      # that finding them in the log is not a fault diagnosis.
+      # See the renderer service at the foot of this file.
+      GF_RENDERING_SERVER_URL: http://renderer:8081/render
+      GF_RENDERING_CALLBACK_URL: https://grafana:3000/
+      # Required, not defaulted, and not optional: Grafana refuses to *start*
+      # with the built-in renderer token once a rendering server is configured,
+      # so a missing value here is a crash loop on the dashboard host, not a
+      # failed screenshot. The required-variable guard below turns that into a
+      # named error at `make up` instead, before anything is recreated.
+      # Shared with the renderer's AUTH_TOKEN below.
+      GF_RENDERING_RENDERER_TOKEN: ${GRAFANA_RENDERER_TOKEN:?set in secrets/observability.sops.yaml}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -226,18 +243,31 @@ services:
   # ---------------------------------------------------------------------------
   alloy:
     <<: *service-defaults
-    # Gives constants.hostname a real name instead of the container ID. Written
-    # into .env by scripts/render-config.sh; see the comment there. The fallback
-    # is deliberately obvious rather than plausible — a `host="alloy"` label
-    # means render was skipped, which is easier to spot than a hostname that
-    # looks right.
-    hostname: ${ALLOY_HOSTNAME:-alloy}
+    # No `hostname:` here, deliberately. Setting it is the only way to give
+    # constants.hostname a real name, and it also registers that name in Docker's
+    # embedded DNS — on a host called `prometheus` that produced a second A
+    # record for `prometheus` aimed at this container, and remote_write started
+    # dialling Alloy instead of Prometheus. config.alloy reads ALLOY_HOSTNAME
+    # from the environment instead; the header of that file has the whole story.
     image: grafana/alloy:v1.18.1@sha256:0f4434c92b3e6cdac38bb129b344e1790c246f7b6e2eaffcc16a5fa363240e33
     container_name: alloy
     privileged: true
+    # Without this the cAdvisor exporter reports exactly one series, id="/",
+    # and every per-container metric is missing — which is what the Docker
+    # Containers dashboard and four of the eight rules in containers.rules.yaml
+    # are built on. `privileged: true` is not enough: on cgroup v2 Docker's
+    # default namespace mode is `private`, so the container's own cgroup IS the
+    # root it can see, and cAdvisor faithfully reports the one cgroup it finds.
+    # Nothing errors. The exporter stays healthy and the dashboard stays empty.
+    cgroup: host
     environment:
       LOKI_URL: http://loki:3100/loki/api/v1/push
       PROMETHEUS_REMOTE_WRITE_URL: http://prometheus:9090/api/v1/write
+      # The name this agent labels its metrics and logs with. Written into .env
+      # by scripts/render-config.sh; see the comment there. The fallback is
+      # deliberately obvious rather than plausible — a host="alloy" label means
+      # render was skipped, which is easier to spot than a name that looks right.
+      ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-alloy}
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
@@ -265,6 +295,55 @@ services:
         condition: service_started
       prometheus:
         condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Headless renderer for dashboard screenshots. NOT part of the running stack:
+  # it sits behind the `capture` profile, so `make up` neither starts it nor
+  # pulls it, and `docker compose ps` shows six services as before.
+  #
+  # It exists because the monitoring host has no browser and Grafana has no
+  # built-in PNG export — screenshots for the README were the one artefact this
+  # repository could not produce from its own tooling. Started and stopped by
+  # scripts/capture-screenshots.sh; see docs/images/README.md.
+  # ---------------------------------------------------------------------------
+  renderer:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: grafana/grafana-image-renderer:v5.12.1@sha256:e925ba95a07372527cd79827381f83f3fe7895511ee46508e35fd9400b56a369
+    container_name: renderer
+    environment:
+      # The renderer loads the dashboard in a headless Chromium, and Chromium
+      # is what rejects the lab CA — not the Go process wrapping it. It reads
+      # trust from an NSS database, not from a PEM on disk or SSL_CERT_FILE, so
+      # there is no way to hand it certificates/ca.pem without building a custom
+      # image around certutil. Tried and abandoned: NODE_EXTRA_CA_CERTS does
+      # nothing here (this renderer stopped being a Node process at v5) and the
+      # failure it leaves is ERR_CERT_AUTHORITY_INVALID from inside the browser.
+      #
+      # So this accepts any certificate — knowingly, and narrowly. The container
+      # exists only for the seconds a `make screenshots` run takes, it is not
+      # published, and the only host it contacts is Grafana on this bridge. It
+      # is the same trade-off Grafana's own healthcheck makes with
+      # --no-check-certificate, over a shorter life and a smaller surface.
+      #
+      # BROWSER_FLAGS, not RENDERING_IGNORE_HTTPS_ERRORS: that name belongs to
+      # the Node implementation this image stopped being at v5, and v5 ignores
+      # it silently — the render still fails with ERR_CERT_AUTHORITY_INVALID and
+      # nothing says why. `grafana-image-renderer server --help` is the list of
+      # what this version actually reads.
+      BROWSER_FLAGS: --ignore-certificate-errors
+      # The other half of GF_RENDERING_RENDERER_TOKEN. The renderer rejects any
+      # render request that does not carry it, which is what stops anything else
+      # on this network asking it to fetch an authenticated Grafana URL.
+      AUTH_TOKEN: ${GRAFANA_RENDERER_TOKEN:?set in secrets/observability.sops.yaml}
+      LOG_LEVEL: info
+    # Deliberately not published. The only client is Grafana, on this network.
+    expose:
+      - "8081"
+    # Chromium in a container with the default 64MB /dev/shm crashes part-way
+    # through a large dashboard, which presents as a truncated PNG rather than
+    # an error.
+    shm_size: "1gb"
 
 networks:
   observability:

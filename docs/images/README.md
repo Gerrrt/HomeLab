@@ -8,18 +8,17 @@ the JSON that produced it.
 
 ## Capturing them
 
-Once the stack has a few days of real data:
-
 ```bash
-make up
-# open https://<monitoring-host>:3000, log in, HomeLab folder
+make up            # the stack has to be running
+make screenshots
 ```
 
-For each dashboard, set the time range to something with visible activity
-(24h works well), then use Grafana's **Share → Export → Save as image**, or take
-a full-page browser screenshot.
+`scripts/capture-screenshots.sh` starts the `capture` profile's renderer, shoots
+all five dashboards over a 24-hour window, and stops the renderer again. Nothing
+is left running and `docker compose ps` shows the same six services afterwards.
 
-Save as:
+Filenames and dashboards are paired in the script, not here, so they cannot
+drift:
 
 | File | Dashboard |
 | --- | --- |
@@ -29,7 +28,21 @@ Save as:
 | `ups-power.png` | UPS & Power |
 | `logs-explorer.png` | Logs |
 
+Height is derived per dashboard from its own JSON, so adding a panel makes the
+screenshot taller instead of pushing the new panel out of frame.
+
 Then uncomment the screenshot block in the root `README.md`.
+
+### The window matters
+
+The renderer captures `now-24h` to `now`, so **anything that was broken in the
+last day is in the picture**. After fixing a collection fault, wait a full day
+before shooting or the image publishes the outage: a flat line across half the
+host dashboard reads as "this stack does not work", which is the opposite of
+what the screenshot is for.
+
+`make screenshots` is cheap and repeatable. Re-running it tomorrow is the
+correct fix for a bad window, not cropping.
 
 ## Before publishing
 
@@ -40,4 +53,10 @@ These are going into a public repository. Check each image for:
 - Hostnames or usernames in log lines
 - Anything in a Grafana annotation or query bar you did not mean to publish
 
-Crop or blur rather than re-shooting — it is easier to be thorough.
+The **Logs** dashboard is the one that reliably fails this check. Its
+Authentication log panel renders `auth.log` verbatim, which means real
+usernames, real source addresses and real session IDs. Read that image properly
+before it goes anywhere.
+
+Crop or blur rather than re-shooting — it is easier to be thorough. There is no
+image editor on the monitoring host; do it wherever you are reading this.

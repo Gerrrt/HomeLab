@@ -38,9 +38,17 @@
         "multi": true,
         "regex": "",
         "sort": 1,
-        "current": {},
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
         "options": [],
-        "hide": 0
+        "hide": 0,
+        "allValue": ".+"
       },
       {
         "name": "level",

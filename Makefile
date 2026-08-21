@@ -249,6 +249,18 @@ certs: ## Create the internal CA / issue a leaf (ARGS="--host x.matrix.elysium -
 gen-secret: ## Generate a random secret (ARGS=--snmp for one per SNMP device)
 	./scripts/gen-secret.sh $(ARGS)
 
+.PHONY: screenshots
+screenshots: ## Render the dashboards to docs/images/ (stack must be up)
+	@# Under Maintenance, not Validation, for the same reason as snmp-verify and
+	@# secrets-verify-backup: it needs the decrypted Grafana password and a
+	@# running stack, so it must never be reachable from `make validate`, where
+	@# it would either always skip or ask CI for a secret.
+	@#
+	@# It starts the `capture` profile's renderer, shoots five PNGs and stops it
+	@# again. Review every image before committing — docs/images/README.md says
+	@# what to look for.
+	./scripts/capture-screenshots.sh $(STACK)
+
 .PHONY: backup
 backup-firewall: ## Pull morpheus's pfSense config and encrypt it to ./backups/
 	@# The single largest unmitigated failure in the estate is morpheus dying
