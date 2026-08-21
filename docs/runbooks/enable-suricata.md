@@ -93,10 +93,14 @@ log-shipping runbook only enabled Firewall Events.
 
 Then, from the monitoring host:
 
+`/loki/api/v1/query` is the instant endpoint and takes metric queries only — a
+bare `{app="suricata"}` selector is rejected. Wrap it, as here:
+
 ```bash
 # Are alerts arriving and being parsed into labels?
 curl -sG http://localhost:3100/loki/api/v1/query \
-  --data-urlencode 'query={app="suricata"}' | jq -r '.data.result[].stream' | head
+  --data-urlencode 'query=sum by (classification,priority) (count_over_time({app="suricata"}[10m]))' \
+  | jq -r '.data.result[] | "\(.metric.priority)\t\(.metric.classification)\t\(.value[1])"'
 
 # Did the ids rule group load?
 curl -s http://localhost:3100/loki/api/v1/rules | grep -o 'name: ids' || echo "ids group NOT loaded"

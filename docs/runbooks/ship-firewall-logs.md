@@ -79,15 +79,28 @@ No firewall rule is needed. `morpheus` already has an interface on VLAN 99
 
 From the monitoring host — within a minute:
 
-```bash
-# Is anything arriving at all, and is it labelled with the SENDER's hostname?
-curl -sG http://localhost:3100/loki/api/v1/query \
-  --data-urlencode 'query={host="morpheus"}' | jq -r '.data.result[].stream' | head
+> [!NOTE]
+> `/loki/api/v1/query` is the **instant** endpoint and accepts metric queries
+> only. A bare log selector like `{host="morpheus"}` returns *"log queries are
+> not supported as an instant query type"*. Either wrap it in
+> `count_over_time(...)` as below, or use `/loki/api/v1/query_range` with
+> `start` and `end`. The checks here use the metric form because it answers the
+> question more directly anyway.
 
-# Are filterlog lines being parsed into labels?
+```bash
+# Which hosts is Loki seeing at all? morpheus should appear once logs arrive.
+curl -s 'http://localhost:3100/loki/api/v1/label/host/values' | jq -r '.data[]'
+
+# Is it labelled with the SENDER's hostname, and which apps are arriving?
 curl -sG http://localhost:3100/loki/api/v1/query \
-  --data-urlencode 'query={app="filterlog"} | line_format "{{.action}} {{.direction}} {{.interface}}"' \
-  | jq -r '.data.result[].values[][1]' | head
+  --data-urlencode 'query=sum by (host,app) (count_over_time({host="morpheus"}[5m]))' \
+  | jq -r '.data.result[] | "\(.metric.host)\t\(.metric.app)\t\(.value[1])"'
+
+# Are filterlog lines being parsed into labels? Empty action/interface here
+# means the regex did not match your log format.
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (action,direction,interface) (count_over_time({app="filterlog"}[5m]))' \
+  | jq -r '.data.result[] | "\(.metric.action)\t\(.metric.direction)\t\(.metric.interface)\t\(.value[1])"'
 ```
 
 You should see `host="morpheus"`, and `action` as `pass`/`block`.
