@@ -19,8 +19,16 @@ What this network is actually built to survive:
 
 What it explicitly does **not** defend against: a determined attacker with
 physical access to the rack, a supply-chain compromise in an upstream container
-image, or a vulnerability in pfSense itself. There is no IDS/IPS, no egress
-filtering by domain, and no MFA on the internal services.
+image, or a vulnerability in pfSense itself. There is no egress filtering by
+domain, and no MFA on the internal services.
+
+Intrusion detection is no longer absent but is not yet running. Suricata belongs
+on `morpheus` rather than the hypervisor — it is the only device that sees the
+IoT and guest segments, per
+[ADR-0006](adr/0006-detect-at-the-chokepoint.md) — and the parsing and alert
+rules for it are deployed. The package itself is not installed yet;
+[`runbooks/enable-suricata.md`](runbooks/enable-suricata.md) covers it, and it
+runs alert-only. Until that is done this line still reads "no IDS", honestly.
 
 ## Segmentation
 
