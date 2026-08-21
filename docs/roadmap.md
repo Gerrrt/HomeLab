@@ -107,13 +107,19 @@ inventory. Ordered roughly by how much it matters.
       role but leave it **powered off**, since a spare that is plugged in and on
       the network is exposed to whatever took the primary.
 
-      Two things to check before ordering, neither answerable from this
-      repository: whether the open frame takes a full-depth shelf alongside the
-      24-port patch panel, and whether U4 is empty *on purpose*. It is not
-      thermal spacing — 1U servers cool front-to-back — but it may be service
-      clearance above the DL360, and a 9U frame at 8/9 full is awkward to work
-      in. If the working room is worth more, a UPS-fed power strip protects the
-      switch just as well and costs less.
+      Measured at the rack 2026-08-21, so the spec is settled: **4-post frame,
+      square mounting holes, depth is not a constraint.** That means a full 1U
+      shelf with rear support — not a cantilever — and **cage nuts plus screws**,
+      which most shelves include but not all; check the listing rather than
+      discovering it on the day. U4 is empty only because nothing had been chosen
+      for it, so there is no service clearance to preserve.
+
+      The one thing that could have removed the purchase has been checked and
+      does not: `morpheus` sits at U5 in a **purpose-built mount that holds one
+      ProDesk Mini** — a single-device bracket, not a shelf with spare room. So
+      the switch needs its own U, and the shelf is the way to give it one. The
+      1U shelf also has room beside the switch for a second small box later,
+      which the U5 bracket by design does not.
 - [ ] Decide what `oracle` (10.0.99.30) is for. It is a dual-core AMD A6-9200
       with 4 GB and a 5400 rpm disk — considerably less machine than this list
       previously claimed, and too little for anything demanding.
