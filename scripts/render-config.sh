@@ -141,6 +141,19 @@ info "writing $(basename "${STACK_DIR}")/.env"
   # that is always restarting looks alive.
   printf 'RENDER_UID=%s\n' "$(id -u)"
   printf 'RENDER_GID=%s\n' "$(id -g)"
+
+  # Alloy labels every log and metric it produces with constants.hostname,
+  # which inside a container is the CONTAINER ID unless compose sets one.
+  # Left alone, `host` is a 12-character hex string that changes every time the
+  # container is recreated — so it identifies nothing, and each redeploy mints a
+  # new label value and therefore a new Loki stream. Observed: two values for
+  # one machine after a single restart, and `sum by (host)` in the auth and
+  # system alert rules grouping by something meaningless.
+  #
+  # Written here rather than hardcoded in compose.yaml so that config.alloy and
+  # the compose file stay identical on every monitored host, which is the
+  # property ADR-0003 leans on.
+  printf 'ALLOY_HOSTNAME=%s\n' "$(hostname)"
   for var in "${COMPOSE_VARS[@]}"; do
     [[ -n "${!var:-}" ]] && printf '%s=%s\n' "${var}" "${!var}"
   done

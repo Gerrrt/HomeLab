@@ -17,6 +17,7 @@ sudo cp /path/to/HomeLab/stacks/observability/alloy/config.alloy /opt/alloy/
 
 sudo docker run -d \
   --name alloy --restart unless-stopped --privileged \
+  --hostname "$(hostname)" \
   -e LOKI_URL=http://10.0.99.20:3100/loki/api/v1/push \
   -e PROMETHEUS_REMOTE_WRITE_URL=http://10.0.99.20:9090/api/v1/write \
   -v /opt/alloy/config.alloy:/etc/alloy/config.alloy:ro \
@@ -25,7 +26,7 @@ sudo docker run -d \
   -v /var/log:/var/log:ro \
   -v /:/rootfs:ro \
   -p 127.0.0.1:12345:12345 \
-  grafana/alloy:v1.6.1 \
+  grafana/alloy:v1.18.1 \
     run --server.http.listen-addr=0.0.0.0:12345 \
         --storage.path=/var/lib/alloy/data \
         /etc/alloy/config.alloy
@@ -33,6 +34,19 @@ sudo docker run -d \
 
 The two `*_URL` variables are the only difference from the monitoring host's own
 agent — inside the compose stack they default to service names.
+
+`--hostname` is not optional. Alloy labels everything it produces with
+`constants.hostname`, which inside a container is the **container ID** unless one
+is set — a hex string that identifies nothing and changes every time the
+container is recreated. Without it the new host appears in Loki and Prometheus
+under a name that is different tomorrow, and `sum by (host)` groups by noise.
+The compose stack does the same thing via `ALLOY_HOSTNAME`, written by
+`scripts/render-config.sh`.
+
+Keep the image tag in step with `stacks/observability/compose.yaml`. The version
+above is the one the stack currently runs; the compose file pins it by digest as
+well, which this command deliberately does not — a remote agent that will not
+start because a digest moved is worse than one running a slightly older tag.
 
 **Verify** (from the monitoring host, within a minute or two):
 
