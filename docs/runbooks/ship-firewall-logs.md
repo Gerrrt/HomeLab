@@ -128,6 +128,29 @@ br-faa4ed…  Out IP 10.0.99.1.514 > 172.18.0.7.1514: SYSLOG local0.info, length
 Source port 514 is normal and not a misconfiguration — that is syslogd's
 outbound port. Only the **destination** port matters.
 
+Then read the payload, not just the headers. `-A` prints it as ASCII:
+
+```bash
+sudo tcpdump -ni any -A -c 3 'udp port 1514'
+```
+
+```text
+<134>Aug 20 20:25:28 filterlog[97178]: 4,,,1000000103,em0,match,block,in,4,...
+```
+
+Two things in that line cost an evening, and both are invisible from Loki:
+
+**There is no hostname.** RFC 3164 is `<PRI>TIMESTAMP HOSTNAME TAG:` — pfSense
+goes straight from timestamp to tag. `__syslog_message_hostname` is therefore
+empty, Loki drops empty labels, and the streams carry no `host` at all. This is
+why `config.alloy` derives `host` from the connection address instead.
+
+**The timestamp is local, and says so nowhere.** Compare it against the capture
+time in the left column. Above, `20:25:28` was captured at `03:25:28` UTC —
+morpheus runs seven hours behind and RFC 3164 has no timezone field. This is why
+`use_incoming_timestamp` is `false`; see the comment in `config.alloy` for what
+happens when it is not.
+
 If packets are arriving but nothing lands in Loki, Alloy's own counters settle it
 in one command:
 
@@ -181,6 +204,24 @@ curl -sG http://localhost:3100/loki/api/v1/query \
 ```
 
 You should see `host="morpheus"`, and `action` as `pass`/`block`.
+
+That name does not come from the log line. pfSense sends no hostname (§3), so
+`config.alloy` maps it from the connection address `10.0.99.1`. A second syslog
+sender needs its own rule, or it arrives with no `host` label at all — and a
+stream with no `host` is invisible to every `{host="..."}` query, which reads
+exactly like nothing being sent.
+
+> [!CAUTION]
+> **An empty result is not evidence of absence.** Check
+> `loki_source_syslog_entries_total` from §3 before believing one. Alloy
+> receiving and Loki storing are not the same thing as a query matching: entries
+> written with a bad timestamp are accepted with a `204`, are never counted in
+> `loki_discarded_samples_total`, and cannot be reached by any range you would
+> think to try. That combination — every counter green, every query empty — is
+> what the `use_incoming_timestamp` comment in `config.alloy` exists to prevent
+> recurring.
+
+One more label trap, on the other path:
 
 > [!NOTE]
 > If logs arrive but are labelled `host="prometheus"`, the network syslog stream

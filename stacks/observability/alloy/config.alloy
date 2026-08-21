@@ -254,16 +254,36 @@ loki.process "syslog" {
 // pfSense reaches this on the management VLAN, where it already has an
 // interface (10.0.99.1), so no firewall rule is required.
 //
-// UDP and RFC3164 because that is what pfSense sends by default. BSD syslog
-// carries no year, hence rfc3164_default_to_current_year — without it every
-// line lands in year zero and Loki drops it as outside the retention window.
+// UDP and RFC3164 because that is what pfSense sends by default.
+//
+// use_incoming_timestamp is DELIBERATELY false. RFC3164 carries neither a year
+// nor a timezone, and trusting a timestamp with neither is how the first
+// deployment of this listener failed. Measured on the wire:
+//
+//   <134>Aug 20 20:25:28 filterlog[97178]: 4,,,1000000103,em0,match,block,in,...
+//
+// captured at 03:25:28 UTC. morpheus runs on local time, seven hours behind, and
+// says nothing about it — so an incoming timestamp is wrong by the UTC offset
+// even in the best case, and the best case is not what happened. Loki accepted
+// every push with a 204, discarded nothing (loki_discarded_samples_total never
+// incremented), and no query over any range returned a single line. The entries
+// were stored at a timestamp no sane query window covers.
+//
+// A year-zero time.Time is the likely culprit and it does not fail loudly:
+// Go documents UnixNano as undefined outside 1678-2262, so it overflows int64
+// and wraps rather than reading as obviously ancient. Nothing rejects it.
+//
+// rfc3164_default_to_current_year stays on — it is still correct about the year,
+// and it costs nothing — but it is no longer load-bearing. Alloy now stamps
+// receive time instead. morpheus is one hop away on the same VLAN, so that is
+// accurate to milliseconds, and it is a value this stack can reason about.
 loki.source.syslog "network" {
 	listener {
 		address                         = "0.0.0.0:1514"
 		protocol                        = "udp"
 		syslog_format                   = "rfc3164"
 		rfc3164_default_to_current_year = true
-		use_incoming_timestamp          = true
+		use_incoming_timestamp          = false
 
 		labels = {
 			log_type = "syslog",
@@ -282,9 +302,36 @@ loki.relabel "network_syslog" {
 
 	// The SENDING device's hostname becomes `host`. This is the reason
 	// loki.write.network_syslog below exists — see the comment there.
+	//
+	// pfSense does not send one. RFC3164 is <PRI>TIMESTAMP HOSTNAME TAG:, and
+	// what arrives on the wire is:
+	//
+	//   <134>Aug 20 20:25:28 filterlog[97178]: 4,,,1000000103,em0,match,block,...
+	//
+	// Timestamp straight to tag, no hostname field. So __syslog_message_hostname
+	// is empty, Loki drops empty labels, and the streams carried no `host` at
+	// all — which is why {host="morpheus"} returned nothing and looked for all
+	// the world like the logs were not arriving.
+	//
+	// The connection address supplies it instead. Order matters: this rule sets
+	// the default, and the rule below overrides it only when the message
+	// actually carries a hostname. One value per sender, so no cardinality cost.
+	rule {
+		source_labels = ["__syslog_connection_ip_address"]
+		regex         = "10\\.0\\.99\\.1"
+		target_label  = "host"
+		replacement   = "morpheus"
+	}
+
+	// `(.+)` is load-bearing, not decoration. A relabel rule whose regex does
+	// not match is a no-op, so an empty message hostname leaves the name derived
+	// above intact. With the default regex of `(.*)` this would match the empty
+	// string and blank the label back out.
 	rule {
 		source_labels = ["__syslog_message_hostname"]
+		regex         = "(.+)"
 		target_label  = "host"
+		replacement   = "$1"
 	}
 
 	// pfSense tags filterlog, dhcpd, unbound, sshd and so on. Low cardinality,
