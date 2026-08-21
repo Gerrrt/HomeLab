@@ -108,16 +108,32 @@ producing noise if they all start together.
 
 **Services → Suricata → Global Settings**:
 
-- **Enable ET Open** — free, well-maintained, and the right default here.
-- Leave Snort VRT off unless you have an Oinkcode.
-- **Update Interval:** every 12 hours. **Update Start Time:** something
-  unsociable, so a ruleset that starts matching normal traffic does so while
-  you are awake rather than at 03:00.
+- **Install ETOpen Emerging Threats rules** — free, well-maintained, and the
+  right default here.
+- Leave Snort VRT and Snort GPLv2 off unless you have an Oinkcode.
+- **Update Interval:** every 12 hours. **Update Start Time:** a **waking hour**.
+  A ruleset update can start matching normal traffic, and you want to be around
+  when it does rather than asleep at 03:00.
+
+Save.
+
+> [!IMPORTANT]
+> **Now force an update: Suricata → Updates → Update Rules.**
+>
+> Ticking ET Open only records a preference. It downloads nothing. Until the
+> ruleset is actually on disk **the Categories list below is empty**, which looks
+> exactly like a broken runbook rather than a missing download.
+>
+> It is roughly 60 MB, so on a 15 Mbps line give it a minute. Wait for the tab to
+> report a successful update before continuing.
 
 Then **Interfaces → Skids → Categories** and enable, to start:
 
 `emerging-malware` · `emerging-trojan` · `emerging-exploit` ·
 `emerging-scan` · `emerging-policy`
+
+Save, then **restart Suricata on the interface** so the selection is loaded. A
+saved category list is not a running one.
 
 That is a deliberately narrow set. Enabling everything produces a volume of
 alerts that guarantees you stop reading them, which is worse than having no IDS
