@@ -44,6 +44,14 @@ issues intact. Nothing was summarised away.
 - **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Add blackbox-exporter**
   for uptime and TLS-expiry on internal services. Until it exists, expiry is
   something you find out about from a browser warning.
+- **[#114](https://github.com/Gerrrt/HomeLab/issues/114) Set memory limits on
+  the six services.** Nothing in `compose.yaml` bounds a leak, so one container
+  can take the host down — and the host has 8 GB soldered. Blocked on data
+  rather than on agreement: cAdvisor has only reported correctly since
+  [#62](https://github.com/Gerrrt/HomeLab/pull/62), so there are hours of
+  history to size from, not the 30 days retention implies, and `grafana` alone
+  swings 3.7x inside that window. A limit picked from it would be a guess at an
+  OOM kill.
 - **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
   screenshots.** `make screenshots` does four of the five; the Logs dashboard is
   deliberately excluded. → [`images/README.md`](images/README.md)
@@ -74,6 +82,10 @@ an expression can be true — so the fix came with the first `promtool test rule
 unit tests in the repo, which fail if the rule stops being able to fire. They
 cover that one rule. The other 33 are still syntax-checked only, so the same
 class of fault could be sitting in any of them and would look just as healthy.
+Setting the memory limits themselves is
+[#114](https://github.com/Gerrrt/HomeLab/issues/114), deliberately separate: a
+limit enforces, a rule detects, and making the second depend on the first is
+what left this one unfireable for months.
 
 ## Infrastructure
 
