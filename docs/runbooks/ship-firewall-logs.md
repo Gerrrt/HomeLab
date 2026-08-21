@@ -205,20 +205,23 @@ curl -sG http://localhost:3100/loki/api/v1/query \
 
 You should see `host="morpheus"`, and `action` as `pass`/`block`.
 
-> [!NOTE]
-> `host="morpheus"` comes from the **connection address**, not from the message.
-> pfSense sends no hostname (see §3), so the name is mapped from `10.0.99.1` by
-> a relabel rule in `config.alloy`. If you add a second syslog sender, it needs
-> its own rule or it arrives with no `host` label — and a stream with no `host`
-> is invisible to every `{host="..."}` query, which reads exactly like nothing
-> being sent.
+That name does not come from the log line. pfSense sends no hostname (§3), so
+`config.alloy` maps it from the connection address `10.0.99.1`. A second syslog
+sender needs its own rule, or it arrives with no `host` label at all — and a
+stream with no `host` is invisible to every `{host="..."}` query, which reads
+exactly like nothing being sent.
 
-> [!NOTE]
-> If a query returns nothing, check `loki_source_syslog_entries_total` from §3
-> before believing it. Alloy receiving and Loki storing are not the same thing
-> as a query matching: entries stored with a bad timestamp are accepted with a
-> `204`, are never counted in `loki_discarded_samples_total`, and cannot be
-> found by any range you would think to try. **Empty is not evidence of absence.**
+> [!CAUTION]
+> **An empty result is not evidence of absence.** Check
+> `loki_source_syslog_entries_total` from §3 before believing one. Alloy
+> receiving and Loki storing are not the same thing as a query matching: entries
+> written with a bad timestamp are accepted with a `204`, are never counted in
+> `loki_discarded_samples_total`, and cannot be reached by any range you would
+> think to try. That combination — every counter green, every query empty — is
+> what the `use_incoming_timestamp` comment in `config.alloy` exists to prevent
+> recurring.
+
+One more label trap, on the other path:
 
 > [!NOTE]
 > If logs arrive but are labelled `host="prometheus"`, the network syslog stream
