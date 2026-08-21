@@ -1151,7 +1151,7 @@
     {
       "type": "table",
       "title": "Container inventory",
-      "description": "",
+      "description": "Allowlist, not denylist. cAdvisor attaches every Docker label as a container_label_* field, and two of them (com_docker_compose_project_config_files, _project_working_dir) carry the absolute path of the compose file - i.e. a username. The previous excludeByName list did not name them, so they rendered as columns and went into a screenshot headed for a public repo. A denylist has to be updated every time a label is added; this keeps only the three fields the panel is for.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1224,21 +1224,26 @@
       ],
       "transformations": [
         {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(name|host|Value)$"
+            }
+          }
+        },
+        {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "job": true,
-              "id": true,
-              "image": true,
-              "site": true,
-              "monitor": true,
-              "instance": true
+            "excludeByName": {},
+            "indexByName": {
+              "name": 0,
+              "host": 1,
+              "Value": 2
             },
             "renameByName": {
               "Value": "Uptime",
-              "name": "Container"
+              "name": "Container",
+              "host": "Host"
             }
           }
         }
