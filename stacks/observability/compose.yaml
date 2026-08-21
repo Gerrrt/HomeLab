@@ -226,6 +226,12 @@ services:
   # ---------------------------------------------------------------------------
   alloy:
     <<: *service-defaults
+    # Gives constants.hostname a real name instead of the container ID. Written
+    # into .env by scripts/render-config.sh; see the comment there. The fallback
+    # is deliberately obvious rather than plausible — a `host="alloy"` label
+    # means render was skipped, which is easier to spot than a hostname that
+    # looks right.
+    hostname: ${ALLOY_HOSTNAME:-alloy}
     image: grafana/alloy:v1.18.1@sha256:0f4434c92b3e6cdac38bb129b344e1790c246f7b6e2eaffcc16a5fa363240e33
     container_name: alloy
     privileged: true
