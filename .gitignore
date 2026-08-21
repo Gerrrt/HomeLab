@@ -32,6 +32,15 @@ certificates/
 # generated snmp.yaml itself IS committed, so a deploy never needs these.
 stacks/*/snmp-exporter/mibs/
 
+# ---- Backups ----
+# `make backup` writes stack volumes here; `make backup-firewall` writes the
+# SOPS-encrypted pfSense config here. Neither belongs in git. The firewall
+# config in particular carries the WAN address, the full rule set and user
+# password hashes — docs/security.md says those are deliberately unpublished,
+# and encryption does not change that a public repository is the wrong place
+# for them. See scripts/backup-firewall.sh.
+backups/
+
 # ---- Runtime state produced by the stack ----
 data/
 **/data/

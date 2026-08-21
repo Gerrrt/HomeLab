@@ -250,6 +250,12 @@ gen-secret: ## Generate a random secret (ARGS=--snmp for one per SNMP device)
 	./scripts/gen-secret.sh $(ARGS)
 
 .PHONY: backup
+backup-firewall: ## Pull morpheus's pfSense config and encrypt it to ./backups/
+	@# The single largest unmitigated failure in the estate is morpheus dying
+	@# with no config export. Output is gitignored and never committed — see
+	@# the header of scripts/backup-firewall.sh for why.
+	./scripts/backup-firewall.sh $(ARGS)
+
 backup: ## Back up the stack's volumes to ./backups/
 	@mkdir -p backups
 	@for v in prometheus-data loki-data grafana-data alertmanager-data; do \

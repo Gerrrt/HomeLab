@@ -33,6 +33,10 @@ inventory. Ordered roughly by how much it matters.
       column 22.
 - [ ] Deploy Alloy to the remaining hosts — currently only the monitoring host
       and one other report in. `Saruman` and `oracle` are next.
+- [ ] **Turn on remote logging on `morpheus`.** The receiver, parsing and three
+      firewall alert rules are deployed; the firewall is not yet sending. Until
+      it does, `FirewallLogsStopped` is the only one of them that can fire. →
+      [runbook](runbooks/ship-firewall-logs.md)
 - [ ] Add blackbox-exporter for uptime and TLS-expiry checks on internal
       services.
 - [ ] Capture dashboard screenshots for the README once the stack has a few days
@@ -40,6 +44,14 @@ inventory. Ordered roughly by how much it matters.
 
 ## Infrastructure
 
+- [ ] **Copy the firewall backup off `prometheus`, and buy a spare.**
+      `make backup-firewall` now exports and encrypts morpheus's config, and
+      [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) documents the
+      restore — but a backup on the same shelf as the thing it protects is not a
+      backup, and the runbook is a hypothesis until it has been restored onto a
+      spare once. The spare should be the same ProDesk model: pfSense stores
+      interface assignments by device name, so identical hardware restores
+      straight through and anything else drops you into the console dialogue.
 - [ ] **Replace the UPS battery.** `mjolnir` currently has none, so a mains loss
       is an immediate hard shutdown of the rack. A replacement APCRBC115
       cartridge is on order. Most rules in `ups.rules.yaml` still report on a UPS

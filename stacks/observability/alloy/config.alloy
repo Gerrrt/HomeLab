@@ -243,6 +243,98 @@ loki.process "syslog" {
 }
 
 // ============================================================================
+// NETWORK SYSLOG — devices that cannot run an agent
+// ============================================================================
+//
+// morpheus terminates every VLAN in this lab, which makes it the only device
+// that sees inter-VLAN and egress traffic for the whole house. It is also a
+// FreeBSD appliance that cannot run Alloy. Until this listener existed, Loki
+// held auth.log from two Linux hosts and nothing from the firewall.
+//
+// pfSense reaches this on the management VLAN, where it already has an
+// interface (10.0.99.1), so no firewall rule is required.
+//
+// UDP and RFC3164 because that is what pfSense sends by default. BSD syslog
+// carries no year, hence rfc3164_default_to_current_year — without it every
+// line lands in year zero and Loki drops it as outside the retention window.
+loki.source.syslog "network" {
+	listener {
+		address                         = "0.0.0.0:1514"
+		protocol                        = "udp"
+		syslog_format                   = "rfc3164"
+		rfc3164_default_to_current_year = true
+		use_incoming_timestamp          = true
+
+		labels = {
+			log_type = "syslog",
+			source   = "network",
+		}
+	}
+
+	relabel_rules = loki.relabel.network_syslog.rules
+	forward_to    = [loki.process.network_syslog.receiver]
+}
+
+// forward_to is empty on purpose: this component exists only to supply .rules
+// to the listener above.
+loki.relabel "network_syslog" {
+	forward_to = []
+
+	// The SENDING device's hostname becomes `host`. This is the reason
+	// loki.write.network_syslog below exists — see the comment there.
+	rule {
+		source_labels = ["__syslog_message_hostname"]
+		target_label  = "host"
+	}
+
+	// pfSense tags filterlog, dhcpd, unbound, sshd and so on. Low cardinality,
+	// and it is how you separate firewall decisions from everything else.
+	rule {
+		source_labels = ["__syslog_message_app_name"]
+		target_label  = "app"
+	}
+
+	// Severity from the syslog PRI, rather than regex-sniffing the message the
+	// way log_processor has to for file sources. The protocol already carries
+	// it; there is no reason to guess.
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		target_label  = "level"
+	}
+}
+
+loki.process "network_syslog" {
+	forward_to = [loki.write.network_syslog.receiver]
+
+	// pfSense filterlog is CSV inside the syslog message:
+	//
+	//   rulenr,subrulenr,anchor,tracker,interface,reason,action,direction,
+	//   ipversion,tos,ecn,ttl,id,offset,flags,protoid,proto,length,
+	//   src,dst,srcport,dstport,...
+	//
+	// Only the first eight fields are captured. src, dst and the ports are
+	// deliberately NOT promoted to labels — ADR-0003 records label cardinality
+	// as this stack's live constraint, and a label per source address is the
+	// textbook way to detonate it. They stay in the line, where LogQL can
+	// filter them at query time without indexing them.
+	stage.match {
+		selector = `{app="filterlog"}`
+
+		stage.regex {
+			expression = `^\d+,\d*,[^,]*,\d+,(?P<interface>[^,]+),(?P<reason>[^,]+),(?P<action>pass|block),(?P<direction>in|out),`
+		}
+
+		stage.labels {
+			values = {
+				interface = "interface",
+				action    = "action",
+				direction = "direction",
+			}
+		}
+	}
+}
+
+// ============================================================================
 // LOG PROCESSOR
 // ============================================================================
 
@@ -280,6 +372,21 @@ loki.write "grafana_loki" {
 	}
 	external_labels = {
 		host = constants.hostname,
+	}
+}
+
+// Network syslog is written through its own client, deliberately.
+//
+// loki.write.grafana_loki stamps host = constants.hostname on everything it
+// sends, which is correct for logs this machine produces and wrong for logs it
+// merely relays. Reusing it would relabel every pfSense line as though it came
+// from prometheus, and {host="morpheus"} would return nothing at all.
+//
+// No external_labels here, so the `host` set from the sender's own hostname in
+// loki.relabel.network_syslog survives to Loki.
+loki.write "network_syslog" {
+	endpoint {
+		url = coalesce(sys.env("LOKI_URL"), "http://loki:3100/loki/api/v1/push")
 	}
 }
 
