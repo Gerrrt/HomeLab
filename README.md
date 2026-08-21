@@ -225,11 +225,17 @@ enforces it, and `make pin-digests` re-resolves them.
 Open work is tracked in
 [Issues](https://github.com/Gerrrt/HomeLab/issues);
 [`docs/roadmap.md`](docs/roadmap.md) is the narrative — what is outstanding and
-why it is in that order. The current top
-items: finish the SNMP rotation on the switch, purge the old communities from
-git history, replace the UPS battery, and get 64-bit interface counters off the
-switch. The first and last of those share a blocker — the switch is not
-currently answering SNMP.
+why it is in that order.
+
+The current top items: replace the UPS battery and rack the shelf switch, which
+are one purchase — the pack alone leaves the monitoring path half-protected
+([#93](https://github.com/Gerrrt/HomeLab/issues/93),
+[#110](https://github.com/Gerrrt/HomeLab/issues/110)); get the firewall backup
+off the machine it protects, and buy the spare that turns its restore runbook
+from a hypothesis into something rehearsed
+([#92](https://github.com/Gerrrt/HomeLab/issues/92)); and take 64-bit interface
+counters off the switch, which is unblocked now that it is polling again
+([#87](https://github.com/Gerrrt/HomeLab/issues/87)).
 
 ## License
 
