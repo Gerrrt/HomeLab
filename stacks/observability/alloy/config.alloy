@@ -317,6 +317,32 @@ loki.process "network_syslog" {
 	// as this stack's live constraint, and a label per source address is the
 	// textbook way to detonate it. They stay in the line, where LogQL can
 	// filter them at query time without indexing them.
+	// Suricata writes alerts to pfSense's system log, so they arrive on this same
+	// listener once "System Events" is enabled in Remote Syslog Contents. Format:
+	//
+	//   [1:2013028:7] ET POLICY curl User-Agent Outbound
+	//   [Classification: Attempted Information Leak] [Priority: 2]
+	//   {TCP} 10.0.20.5:443 -> 203.0.113.9:80
+	//
+	// priority and classification become labels — 4 and ~40 values respectively.
+	// The signature ID does not: there are tens of thousands of rules in ET Open,
+	// and one label value per firing signature is the same cardinality mistake
+	// as one per source address. It stays in the line.
+	stage.match {
+		selector = `{app="suricata"}`
+
+		stage.regex {
+			expression = `\[Classification: (?P<classification>[^\]]+)\] \[Priority: (?P<priority>\d+)\]`
+		}
+
+		stage.labels {
+			values = {
+				classification = "classification",
+				priority       = "priority",
+			}
+		}
+	}
+
 	stage.match {
 		selector = `{app="filterlog"}`
 

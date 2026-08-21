@@ -37,6 +37,15 @@ inventory. Ordered roughly by how much it matters.
       firewall alert rules are deployed; the firewall is not yet sending. Until
       it does, `FirewallLogsStopped` is the only one of them that can fire. →
       [runbook](runbooks/ship-firewall-logs.md)
+- [ ] **Enable Suricata on `morpheus`.** Parsing and two alert rules are
+      deployed; the IDS is not yet installed. IDS-only on the IoT and guest
+      interfaces, and expect several days of tuning before the alerts mean
+      anything. → [runbook](runbooks/enable-suricata.md) · ADR-0006
+- [ ] **Detect Suricata being dead.** A quiet IDS and a stopped IDS produce
+      identical log output, so no log rule can tell them apart — unlike
+      `FirewallLogsStopped`, which works because a firewall is never silent.
+      This needs a process or heartbeat metric from `morpheus`, which the SNMP
+      module does not currently expose.
 - [ ] Add blackbox-exporter for uptime and TLS-expiry checks on internal
       services.
 - [ ] Capture dashboard screenshots for the README once the stack has a few days

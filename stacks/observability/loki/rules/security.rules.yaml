@@ -231,3 +231,64 @@ groups:
             stopped receiving it. Check Services → System Logs → Settings on
             pfSense, and that UDP 1514 is still published by the alloy
             container.
+
+  # ---------------------------------------------------------------------------
+  # Intrusion detection. Suricata runs on morpheus in IDS mode — alert only, no
+  # blocking — on the IoT and guest interfaces. See
+  # docs/runbooks/enable-suricata.md and ADR-0006 for why the sensor lives on
+  # the firewall rather than on the hypervisor.
+  #
+  # NO "SuricataStopped" RULE, DELIBERATELY.
+  #
+  # The firewall group above has FirewallLogsStopped because morpheus passes
+  # traffic for the whole house and is never silent for thirty minutes — so
+  # silence there means the pipeline broke. Suricata is the opposite: a quiet
+  # IDS is the expected state on a healthy network, and absence of alerts is
+  # indistinguishable from absence of the service. Detecting that Suricata
+  # died needs a heartbeat or a process metric, not a log rule, and inventing
+  # a threshold here would produce exactly the sort of alert that cannot fire
+  # while looking like one that can. Tracked in docs/roadmap.md.
+  # ---------------------------------------------------------------------------
+  - name: ids
+    interval: 1m
+    rules:
+      - alert: SuricataHighPriorityAlert
+        # Priority 1 is Suricata's most severe class — successful exploitation,
+        # trojan activity, known-bad command and control. On the IoT segment
+        # this warrants looking at the same evening, not the same quarter.
+        expr: |
+          sum by (classification) (
+            count_over_time({app="suricata", priority="1"} [10m])
+          ) > 0
+        for: 0s
+        labels:
+          component: logs
+          severity: critical
+          category: security
+        annotations:
+          summary: "Suricata priority-1: {{ $labels.classification }} ({{ $value }} in 10m)"
+          description: >-
+            Highest-severity signature class. Identify the source address from
+            the log line. If it is a device on VLAN 20, treat it as compromised
+            until shown otherwise rather than as a false positive — that segment
+            exists on the assumption that its devices already are.
+
+      - alert: SuricataAlertStorm
+        # Deliberately a volume rule rather than a severity one. A sudden flood
+        # is either a scan in progress or a ruleset that has started matching
+        # normal traffic after an update. Both need a human; neither shows up in
+        # a per-signature rule.
+        expr: |
+          sum(count_over_time({app="suricata"} [10m])) > 200
+        for: 5m
+        labels:
+          component: logs
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $value }} Suricata alerts in 10 minutes"
+          description: >-
+            Either something is scanning, or a rule update started matching
+            ordinary traffic. Check which signature dominates before tuning —
+            silencing a noisy rule that is actually correct is how an IDS
+            becomes decorative.
