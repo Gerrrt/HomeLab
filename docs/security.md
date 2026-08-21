@@ -22,13 +22,30 @@ physical access to the rack, a supply-chain compromise in an upstream container
 image, or a vulnerability in pfSense itself. There is no egress filtering by
 domain, and no MFA on the internal services.
 
-Intrusion detection is no longer absent but is not yet running. Suricata belongs
-on `morpheus` rather than the hypervisor — it is the only device that sees the
-IoT and guest segments, per
-[ADR-0006](adr/0006-detect-at-the-chokepoint.md) — and the parsing and alert
-rules for it are deployed. The package itself is not installed yet;
-[`runbooks/enable-suricata.md`](runbooks/enable-suricata.md) covers it, and it
-runs alert-only. Until that is done this line still reads "no IDS", honestly.
+**Intrusion detection is running as of 2026-08-21**, on the **Skids (VLAN 20)**
+interface only. Suricata sits on `morpheus` rather than the hypervisor because it
+is the only device that sees the IoT and guest segments, per
+[ADR-0006](adr/0006-detect-at-the-chokepoint.md). Alerts reach Loki through the
+firewall's syslog pipe, with `classification` and `priority` parsed into labels;
+`SuricataHighPriorityAlert` and `SuricataAlertStorm` are armed against them.
+[`runbooks/enable-suricata.md`](runbooks/enable-suricata.md) covers the setup and
+the tuning.
+
+Three limits, stated rather than implied:
+
+- **It is alert-only.** `Block Offenders` is off and stays off until a fortnight
+  of understood alerts, and probably not on VLAN 20 even then — an auto-block
+  there can take out a camera or the alarm hub.
+- **It watches one segment.** Guest (VLAN 10) is next; the rest are unwatched.
+  WAN deliberately never will be.
+- **It sees plaintext only.** Suricata cannot inspect inside TLS, so the useful
+  signal is DNS, SNI, JA3 and the diminishing share of traffic still in the
+  clear.
+
+There is still **no way to detect Suricata itself dying** — a quiet IDS and a
+stopped one produce identical log output, so no log rule can separate them. That
+needs a process metric and is tracked in [`roadmap.md`](roadmap.md). Until it
+exists, a silent `ids` alert group is not evidence that anything is watching.
 
 ## Segmentation
 

@@ -33,10 +33,10 @@ inventory. Ordered roughly by how much it matters.
       column 22.
 - [ ] Deploy Alloy to the remaining hosts — currently only the monitoring host
       and one other report in. `Saruman` and `oracle` are next.
-- [ ] **Enable Suricata on `morpheus`.** Parsing and two alert rules are
-      deployed; the IDS is not yet installed. IDS-only on the IoT and guest
-      interfaces, and expect several days of tuning before the alerts mean
-      anything. → [runbook](runbooks/enable-suricata.md) · ADR-0006
+- [ ] **Extend Suricata to Degens (VLAN 10).** Running on Skids since
+      2026-08-21, alert-only. Add the guest segment once Skids has been quiet and
+      understood for a few days — one interface at a time, or you cannot tell
+      which is producing the noise. → [runbook](runbooks/enable-suricata.md)
 - [ ] **Detect Suricata being dead.** A quiet IDS and a stopped IDS produce
       identical log output, so no log rule can tell them apart — unlike
       `FirewallLogsStopped`, which works because a firewall is never silent.
@@ -93,6 +93,13 @@ inventory. Ordered roughly by how much it matters.
 
 ## Done
 
+- [x] **Enable Suricata on `morpheus`.** Running on Skids (VLAN 20) alert-only
+      since 2026-08-21; alerts reach Loki with classification and priority parsed
+      into labels, verified against real traffic. First tuning decision made from
+      measurement rather than prediction: sid 2200121 "Ethertype unknown" was
+      100% of alerts and turned out to be LLDP from `neo`, suppressed by
+      signature rather than by disabling the whole `decoder-events` category.
+      → [runbook](runbooks/enable-suricata.md) · ADR-0006
 - [x] **Turn on remote logging on `morpheus`.** The firewall now ships filterlog
       to Loki, so `TerminalSegmentReachedInternalNetwork` and
       `IoTAttemptedLateralMovement` have input for the first time. pfSense saved
