@@ -33,10 +33,6 @@ inventory. Ordered roughly by how much it matters.
       column 22.
 - [ ] Deploy Alloy to the remaining hosts — currently only the monitoring host
       and one other report in. `Saruman` and `oracle` are next.
-- [ ] **Turn on remote logging on `morpheus`.** The receiver, parsing and three
-      firewall alert rules are deployed; the firewall is not yet sending. Until
-      it does, `FirewallLogsStopped` is the only one of them that can fire. →
-      [runbook](runbooks/ship-firewall-logs.md)
 - [ ] **Enable Suricata on `morpheus`.** Parsing and two alert rules are
       deployed; the IDS is not yet installed. IDS-only on the IoT and guest
       interfaces, and expect several days of tuning before the alerts mean
@@ -87,6 +83,13 @@ inventory. Ordered roughly by how much it matters.
 
 ## Done
 
+- [x] **Turn on remote logging on `morpheus`.** The firewall now ships filterlog
+      to Loki, so `TerminalSegmentReachedInternalNetwork` and
+      `IoTAttemptedLateralMovement` have input for the first time. pfSense saved
+      the settings without restarting `syslogd` and sent nothing until the page
+      was saved a second time — the runbook now says so, and says to confirm on
+      the wire with tcpdump before believing an empty query.
+      → [runbook](runbooks/ship-firewall-logs.md)
 - [x] Settle the `10.0.30.10` question. It is the iLO BMC on its dedicated port;
       the Proxmox host is `Saruman` at `10.0.30.110`. The SNMP target's
       `hypervisor-bmc` role label was correct all along — the inventory was not

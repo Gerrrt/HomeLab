@@ -2,7 +2,8 @@
 
 **Target:** `morpheus` (pfSense) → Alloy on `prometheus`
 **Time:** ten minutes, plus a careful first restart of Alloy
-**You will need:** the pfSense web UI and a shell on the monitoring host
+**You will need:** the pfSense web UI, and a shell on the monitoring host with
+`sudo` for tcpdump
 
 Every VLAN in this lab terminates on `morpheus`, which makes it the only device
 that sees inter-VLAN and egress traffic for the whole house. It is also a
@@ -73,11 +74,87 @@ is the hard way.
 No firewall rule is needed. `morpheus` already has an interface on VLAN 99
 (`10.0.99.1`) and `prometheus` is on the same segment.
 
+> [!IMPORTANT]
+> **Saving this page does not reliably restart `syslogd`.** Observed here: the
+> settings saved, the page redisplayed with every field correct, and pfSense sent
+> **nothing at all** — no packets on any port, for as long as anyone cared to
+> watch. Editing the server list a second time and saving again forced the
+> reload, and traffic started in the same second.
+>
+> So make a second, deliberate save before concluding anything is broken. If you
+> would rather be certain than superstitious, **Diagnostics → Command Prompt** →
+> `/etc/rc.restart_webgui` is heavy-handed but reloads the logging daemon along
+> with everything else.
+>
+> The consequence for debugging is the reason §3 exists: a correct-looking
+> settings page is not evidence that the daemon is sending, and an empty Loki
+> query cannot tell you which of the two it is.
+
+Use the **full `host:port`** form. A bare `10.0.99.20` sends to syslog's default
+port 514, where nothing is listening — the packets are simply discarded and the
+symptom is identical to not sending at all.
+
 ---
 
-## 3. Verify
+## 3. Confirm it is actually sending
 
-From the monitoring host — within a minute:
+Do this **before** querying Loki. It reads the wire rather than a UI, and it is
+the only step that separates *pfSense is not sending* from *the packets arrive
+and something downstream drops them*. Those two faults look the same from
+Loki and have completely different fixes.
+
+```bash
+sudo tcpdump -ni any 'udp port 1514 or udp port 514' -c 10
+```
+
+Generate something the firewall will log while this runs — browsing from a phone
+on the IoT VLAN is enough.
+
+| What you see | What it means |
+| --- | --- |
+| Nothing on either port | pfSense is not sending. Go back to §2 and save a second time. |
+| Traffic to port **514** | A bare IP was entered in the server list. Nothing listens there. Fix it to `10.0.99.20:1514`. |
+| Traffic to **1514** on the physical NIC only | It is arriving but not reaching the container. Recheck the port publish in §1. |
+| Traffic to **1514** on both the NIC and a `br-`/`veth` interface | Correct. Docker is forwarding it to Alloy. Continue to §4. |
+
+That last case looks like this — the same packet twice, once inbound on the NIC
+and once outbound to the container's address on the bridge:
+
+```text
+enx0005…    In  IP 10.0.99.1.514 > 10.0.99.20.1514: SYSLOG local0.info, length: 166
+br-faa4ed…  Out IP 10.0.99.1.514 > 172.18.0.7.1514: SYSLOG local0.info, length: 166
+```
+
+Source port 514 is normal and not a misconfiguration — that is syslogd's
+outbound port. Only the **destination** port matters.
+
+If packets are arriving but nothing lands in Loki, Alloy's own counters settle it
+in one command:
+
+```bash
+curl -s localhost:12345/metrics | grep -E \
+  'loki_source_syslog_(entries|parsing_errors|empty_messages)_total|loki_write_(sent|dropped)_entries_total'
+```
+
+| Reading | Fault |
+| --- | --- |
+| `entries_total` 0 | Nothing reached the listener. Not an Alloy problem — go back to tcpdump. |
+| `entries_total` climbing, `parsing_errors_total` climbing | Received but unparseable. The sender is not emitting RFC 3164. |
+| `entries_total` climbing, `write_sent_entries_total` flat | Parsed but not shipped. Check `loki_write_dropped_entries_total` for the reason label, and that Loki is up. |
+| Both climbing together | Working. The problem is your query, not the pipeline. |
+
+> [!NOTE]
+> `loki_relabel_entries_processed{component_id="loki.relabel.network_syslog"}`
+> reads **0 forever, and that is correct.** That component exists only to hand
+> its `.rules` to `loki.source.syslog`; the relabelling happens inside the
+> listener, so the component itself never sees an entry. It looks like a dead
+> component and is not one.
+
+---
+
+## 4. Verify
+
+From the monitoring host, a minute or so after the reload — not instantly:
 
 > [!NOTE]
 > `/loki/api/v1/query` is the **instant** endpoint and accepts metric queries
@@ -93,13 +170,13 @@ curl -s 'http://localhost:3100/loki/api/v1/label/host/values' | jq -r '.data[]'
 
 # Is it labelled with the SENDER's hostname, and which apps are arriving?
 curl -sG http://localhost:3100/loki/api/v1/query \
-  --data-urlencode 'query=sum by (host,app) (count_over_time({host="morpheus"}[5m]))' \
+  --data-urlencode 'query=sum by (host,app) (count_over_time({host="morpheus"}[10m]))' \
   | jq -r '.data.result[] | "\(.metric.host)\t\(.metric.app)\t\(.value[1])"'
 
 # Are filterlog lines being parsed into labels? Empty action/interface here
 # means the regex did not match your log format.
 curl -sG http://localhost:3100/loki/api/v1/query \
-  --data-urlencode 'query=sum by (action,direction,interface) (count_over_time({app="filterlog"}[5m]))' \
+  --data-urlencode 'query=sum by (action,direction,interface) (count_over_time({app="filterlog"}[10m]))' \
   | jq -r '.data.result[] | "\(.metric.action)\t\(.metric.direction)\t\(.metric.interface)\t\(.value[1])"'
 ```
 
@@ -121,7 +198,7 @@ curl -s http://localhost:3100/loki/api/v1/rules | grep -o 'name: firewall' || ec
 
 ---
 
-## 4. Prove the segmentation rules mean something
+## 5. Prove the segmentation rules mean something
 
 `TerminalSegmentReachedInternalNetwork` fires on a PASS from VLAN 10, 20 or 40
 toward 30, 50 or 99. It should never fire. Confirm the *inverse* is being
@@ -141,7 +218,7 @@ by that distinction before; see the header of
 
 ---
 
-## 5. Watch the volume for a day
+## 6. Watch the volume for a day
 
 ```bash
 curl -sG http://localhost:3100/loki/api/v1/query \
