@@ -149,6 +149,14 @@ groups:
   #
   # The CSV field order puts src immediately before dst, so `,<src>,<dst>,`
   # anchors both at once rather than matching two addresses anywhere in a line.
+  #
+  # Regexes below are in BACKTICKS, not double quotes. LogQL string literals use
+  # Go escaping rules, where `\.` is not a valid escape sequence inside a
+  # double-quoted string — Loki rejects the whole file with "invalid char
+  # escape" and the ruler then loads none of these rules. Backticks are LogQL's
+  # raw-string form and pass the regex through untouched. This is caught by
+  # scripts/check_loki_rules.sh, which boots a real Loki against the file; it is
+  # not caught by anything that only parses YAML.
   # ---------------------------------------------------------------------------
   - name: firewall
     interval: 1m
@@ -162,7 +170,7 @@ groups:
           sum by (interface) (
             count_over_time(
               {app="filterlog", action="pass"}
-              |~ ",10\.0\.(10|20|40)\.[0-9]+,10\.0\.(30|50|99)\.[0-9]+," [5m]
+              |~ `,10\.0\.(10|20|40)\.[0-9]+,10\.0\.(30|50|99)\.[0-9]+,` [5m]
             )
           ) > 0
         for: 0s
@@ -186,7 +194,7 @@ groups:
           sum by (interface) (
             count_over_time(
               {app="filterlog", action="block"}
-              |~ ",10\.0\.20\.[0-9]+,10\.0\.(30|50|99)\.[0-9]+," [10m]
+              |~ `,10\.0\.20\.[0-9]+,10\.0\.(30|50|99)\.[0-9]+,` [10m]
             )
           ) > 20
         for: 5m
