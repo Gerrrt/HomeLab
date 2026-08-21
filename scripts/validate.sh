@@ -22,13 +22,43 @@ AM_IMAGE="$(./scripts/image-for.sh alertmanager)"
 ALLOY_IMAGE="$(./scripts/image-for.sh alloy)"
 
 FAILED=0
+SKIPPED=0
 pass() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
 fail() { printf '\033[0;31m  FAIL\033[0m %s\n' "$*"; FAILED=1; }
-skip() { printf '\033[0;33m  SKIP\033[0m %s\n' "$*"; }
+# Skips are counted, and the count is printed in the summary. A run that ends
+# `all checks passed` while five checks never executed is making a claim it has
+# not earned — the same shape of lie as a UPS reporting a battery it does not
+# have, which this repository has been bitten by. See the summary at the bottom.
+skip() { printf '\033[0;33m  SKIP\033[0m %s\n' "$*"; SKIPPED=$((SKIPPED + 1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 have_docker() { have docker && docker info >/dev/null 2>&1; }
+
+# Run a linter that does not need to be installed to be available.
+#
+# yamllint, markdownlint-cli2 and shellcheck were all reported as "not
+# installed" on a host where CI runs them successfully every push — because CI
+# invokes them through `pipx run` and `npx --yes`, and this script only probed
+# for a globally installed binary and gave up. Two red CI runs were spent on
+# defects that a local `make validate` could have caught and reported as passing
+# instead.
+#
+# So: prefer the real binary, fall back to the same runner CI uses. The fallback
+# needs a network on first use and caches afterwards; if it is unavailable the
+# check still skips, but now it skips because the tool is genuinely unreachable
+# rather than because it was not apt-installed.
+runner_for() {
+  local tool="$1"
+  if have "${tool}"; then printf '%s' "${tool}"; return 0; fi
+  case "${tool}" in
+    yamllint)
+      have pipx && printf 'pipx run %s' "${tool}" && return 0 ;;
+    markdownlint-cli2)
+      have npx && printf 'npx --yes %s' "${tool}" && return 0 ;;
+  esac
+  return 1
+}
 
 # ---------------------------------------------------------------------------
 head_ "Compose"
@@ -169,16 +199,18 @@ fi
 # ---------------------------------------------------------------------------
 head_ "YAML / Markdown / shell"
 # ---------------------------------------------------------------------------
-if have yamllint; then
-  if yamllint . >/dev/null 2>&1; then pass "yamllint"; else yamllint .; fail "yamllint"; fi
+if YAMLLINT="$(runner_for yamllint)"; then
+  # shellcheck disable=SC2086  # deliberately word-split: may be "pipx run yamllint"
+  if $YAMLLINT . >/dev/null 2>&1; then pass "yamllint"; else $YAMLLINT .; fail "yamllint"; fi
 else
-  skip "yamllint not installed (pip install yamllint)"
+  skip "yamllint unavailable (pip install yamllint, or install pipx)"
 fi
 
-if have markdownlint-cli2; then
-  if markdownlint-cli2 >/dev/null 2>&1; then pass "markdownlint"; else markdownlint-cli2; fail "markdownlint"; fi
+if MDLINT="$(runner_for markdownlint-cli2)"; then
+  # shellcheck disable=SC2086  # deliberately word-split: may be "npx --yes markdownlint-cli2"
+  if $MDLINT >/dev/null 2>&1; then pass "markdownlint"; else $MDLINT; fail "markdownlint"; fi
 else
-  skip "markdownlint-cli2 not installed (npm i -g markdownlint-cli2)"
+  skip "markdownlint-cli2 unavailable (npm i -g markdownlint-cli2, or install npx)"
 fi
 
 if have shellcheck; then
@@ -246,4 +278,10 @@ printf '\n'
 if ((FAILED)); then
   printf '\033[0;31mvalidation failed\033[0m\n'; exit 1
 fi
-printf '\033[0;32mall checks passed\033[0m\n'
+if ((SKIPPED)); then
+  printf '\033[0;32mall checks passed\033[0m \033[0;33m(%d skipped — NOT run, not verified)\033[0m\n' "${SKIPPED}"
+  printf 'Skipped checks prove nothing. CI runs the full set; a clean run here is\n'
+  printf 'weaker evidence than it looks.\n'
+else
+  printf '\033[0;32mall checks passed\033[0m\n'
+fi
