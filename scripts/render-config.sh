@@ -41,6 +41,7 @@ load_secrets "${STACK}"
 
 REQUIRED=(
   GRAFANA_ADMIN_PASSWORD
+  GRAFANA_RENDERER_TOKEN
   ALERTMANAGER_WEBHOOK_URL
   SNMP_COMMUNITY_PFSENSE
   SNMP_COMMUNITY_APC
@@ -122,7 +123,7 @@ fi
 # webhook_url; copying them into .env as well would spread the same secret
 # across three files for no benefit.
 # ---------------------------------------------------------------------------
-COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD)
+COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_RENDERER_TOKEN)
 ENV_FILE="${STACK_DIR}/.env"
 info "writing $(basename "${STACK_DIR}")/.env"
 

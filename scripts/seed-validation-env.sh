@@ -28,6 +28,7 @@ STACK="${REPO_ROOT}/stacks/observability"
 cat "${STACK}/.env.example" > "${OUT}"
 {
   echo "GRAFANA_ADMIN_PASSWORD=validation-only"
+  echo "GRAFANA_RENDERER_TOKEN=validation-only"
   # RENDER_UID/GID are written to .env by render-config.sh from the deploying
   # user, so they are host-specific and deliberately absent from .env.example.
   echo "RENDER_UID=65534"
