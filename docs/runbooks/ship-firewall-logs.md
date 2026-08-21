@@ -26,9 +26,17 @@ are silently dropped.
 > validate component arguments. Bring Alloy up on its own and read its logs
 > before assuming this worked.
 
+The two commands run from **different directories**. `make render` needs the
+repository root, where the only Makefile lives; `docker compose` needs
+`stacks/observability`, where `compose.yaml` lives. Running either from the
+other's directory fails — `docker compose` with
+`no configuration file provided: not found`.
+
 ```bash
-cd ~/HomeLab/stacks/observability
-make render
+cd ~/HomeLab
+make render                        # Makefile is at the repo root
+
+cd stacks/observability            # compose.yaml is here
 docker compose up -d alloy
 docker compose logs --tail=50 alloy
 ```
