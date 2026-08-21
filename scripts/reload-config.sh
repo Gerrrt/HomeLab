@@ -26,6 +26,10 @@
 #                 what lets an SNMP community rotation be `make render && make
 #                 reload` rather than a container recreate.
 #
+# Alloy is deliberately NOT in that list and is restarted instead, at the bottom
+# of this file, for reasons written out there. Its absence from this script is
+# what made `make up` a silent no-op for every config.alloy change.
+#
 # The snmp-exporter reload works only because render-config.sh writes the
 # rendered file with `>`, truncating in place and keeping the inode. The
 # container bind-mounts the file, not the directory, so switching to
@@ -139,8 +143,69 @@ reload_one() {
   done
 }
 
+# Alloy is the exception, and gets restarted rather than reloaded.
+#
+# Not for want of a reload path — Alloy documents both POST /-/reload and
+# SIGHUP. The problem is verifying that the reload landed, which is the whole
+# point of this script:
+#
+#   * `compose exec ... wget` works for the three above because their images are
+#     Alpine/BusyBox based. grafana/alloy is not. There is no wget and no curl
+#     inside it to POST with.
+#   * SIGHUP needs nothing in-container, but it is silent. Alloy keeps serving
+#     the previous config when the new one fails to parse and reports it only in
+#     its logs — precisely the failure this script exists to catch.
+#   * Alloy's controller metrics cover component health, not config loading. A
+#     rejected reload leaves the old components running and healthy, so nothing
+#     there moves either.
+#
+# A restart has none of that ambiguity. If the config parses, the process comes
+# back running it; if it does not, Alloy exits, and `restart: unless-stopped`
+# turns that into a crash loop that docker reports as `restarting` rather than
+# `running`. The state is readable from outside with no cooperation from the
+# image.
+#
+# It is affordable here in a way it would not be for Prometheus. Alloy's WAL and
+# file positions live in the alloy-data volume, so a restart re-reads from where
+# it left off rather than re-sending or skipping. There is no TSDB head to drop.
+#
+# This gap is why `make up` was a no-op for config.alloy: nothing recreated the
+# container and nothing reloaded it, so a fifty-minute-old process kept serving
+# the config it booted with while the deploy reported success. Measured on
+# prometheus: container started 02:48:40, config written 03:38:45, and the
+# deploy in between changed nothing.
+#
+# The cost is a restart of Alloy on every `make up`, including the ones where
+# config.alloy did not change. A few seconds of collection gap, resumed from the
+# WAL, is the right trade against a deploy that silently does nothing — and
+# comparing file mtime against container start time to skip it would reintroduce
+# a decision this script exists to stop making.
+restart_alloy() {
+  local stable=0 deadline
+
+  is_running alloy || die \
+    "alloy is not running, so there is nothing to reload. Check 'make ps', then 'make up'."
+
+  "${COMPOSE[@]}" restart alloy >/dev/null 2>&1 || die "could not restart alloy"
+
+  # A container about to die from a bad config is briefly `running`, so require
+  # it to stay that way rather than sampling once and believing the first answer.
+  deadline=$((SECONDS + TIMEOUT))
+  while ((stable < 3)); do
+    if is_running alloy; then stable=$((stable + 1)); else stable=0; fi
+    if ((SECONDS >= deadline)); then
+      die "alloy did not stay up within ${TIMEOUT}s. Its config on disk probably does not parse — check 'make logs SERVICE=alloy'."
+    fi
+    sleep 1
+  done
+
+  ok "alloy (restarted)"
+}
+
 for entry in "${SERVICES[@]}"; do
   reload_one "${entry%%:*}" "${entry##*:}"
 done
+
+restart_alloy
 
 printf '\033[0;32mreloaded\033[0m — every service re-read its config from disk\n'

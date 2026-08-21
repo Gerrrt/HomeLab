@@ -48,6 +48,26 @@ above is the one the stack currently runs; the compose file pins it by digest as
 well, which this command deliberately does not — a remote agent that will not
 start because a digest moved is worse than one running a slightly older tag.
 
+> [!IMPORTANT]
+> **Editing `/opt/alloy/config.alloy` later does nothing on its own.** It is a
+> bind mount, and Alloy reads it once at startup. Copying a new one over it
+> leaves the running process on the old config with no indication anything is
+> wrong — no error, no restart, no change in behaviour except that your edit is
+> not in effect.
+>
+> After any change to that file: `sudo docker restart alloy`. Confirm it took by
+> checking the process is newer than the file, which is the one measurement that
+> cannot be fooled:
+>
+> ```bash
+> docker inspect -f '{{.State.StartedAt}}' alloy
+> stat -c '%y  %n' /opt/alloy/config.alloy
+> ```
+>
+> On the monitoring host itself this is handled by `make up`, via
+> `scripts/reload-config.sh`. A standalone agent started with `docker run` has no
+> such wrapper, so it is on you.
+
 **Verify** (from the monitoring host, within a minute or two):
 
 ```promql
