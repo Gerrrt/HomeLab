@@ -24,9 +24,20 @@ device.
 
 ## 0. Prerequisites
 
-- Firewall logs already reaching Loki. If `{app="filterlog"}` returns nothing,
-  stop and finish [`ship-firewall-logs.md`](ship-firewall-logs.md) first —
-  Suricata rides the same pipe.
+- Firewall logs already reaching Loki. Suricata rides the same pipe, so if this
+  is not working, nothing below will be either:
+
+  ```bash
+  curl -sG http://localhost:3100/loki/api/v1/query \
+    --data-urlencode 'query=sum by (host, app) (count_over_time({source="network"}[5m]))' \
+    | jq -r '.data.result[] | "\(.metric.host)\t\(.metric.app)\t\(.value[1])"'
+  ```
+
+  Expect `morpheus  filterlog  <n>`. If it is empty, stop and finish
+  [`ship-firewall-logs.md`](ship-firewall-logs.md) first. Note it is a **metric**
+  query — a bare `{app="filterlog"}` selector is rejected by the instant
+  endpoint, and the rejection looks like an absence of data if you pipe it
+  straight to `jq`.
 - The unconfigured Snort package removed. Two IDS packages installed, one
   dormant, is how you end up debugging the wrong one.
 
@@ -90,6 +101,33 @@ at all — the same failure the `.gitleaksignore` story in
 Suricata writes to the pfSense **system log**, so **Status → System Logs →
 Settings** must include **System Events** in *Remote Syslog Contents* — the
 log-shipping runbook only enabled Firewall Events.
+
+> [!CAUTION]
+> **That is the page that stops `syslogd` forwarding, and you now have a working
+> firewall log stream to lose.**
+>
+> Editing *Remote Syslog Contents* means saving the same settings page that
+> twice left the daemon not sending during the log-shipping deploy — once on
+> first enable, once after merely removing a stale server entry. Both times the
+> page redisplayed perfectly and **zero packets** went out. See §2 of
+> [`ship-firewall-logs.md`](ship-firewall-logs.md).
+>
+> So save it the reliable way: tick **System Events**, **Save**, then untick
+> *Enable Remote Logging* → **Save** → re-tick → **Save**.
+>
+> Then confirm you did not trade filterlog for suricata. Run this **before**
+> going looking for Suricata alerts:
+>
+> ```bash
+> curl -sG http://localhost:3100/loki/api/v1/query \
+>   --data-urlencode 'query=sum by (app) (count_over_time({source="network"}[5m]))' \
+>   | jq -r '.data.result[] | "\(.metric.app)\t\(.value[1])"'
+> ```
+>
+> `filterlog` must still be there with a climbing count. If it has gone quiet,
+> the syslog change killed the stream and nothing else in this runbook will work
+> — go back and do the untick/save/re-tick/save cycle. **An empty Suricata query
+> means nothing until you know filterlog survived.**
 
 Then, from the monitoring host:
 

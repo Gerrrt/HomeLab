@@ -64,6 +64,16 @@ inventory. Ordered roughly by how much it matters.
       on the one metric the management card does not fabricate. Once the pack is
       fitted, enable **scheduled self-tests** on the NMC so that rule stays live
       evidence rather than a stale last-known result.
+
+      `UpsSelfTestFailed` is **silenced in Alertmanager until 2026-09-20**, not
+      dismissed. It routes on `category=power` to the `urgent` receiver with
+      `group_wait: 0s` and `repeat_interval: 30m`, so leaving it firing meant
+      paging every half hour about a condition already known and tracked here —
+      which is how an urgent receiver stops being read. The silence carries an
+      expiry on purpose: if the pack still is not fitted when it lapses, the
+      alert comes back and asks again. **Do not extend it without checking
+      whether the battery arrived** — an indefinitely silenced critical is
+      indistinguishable from one nobody noticed.
 - [ ] Decide what `oracle` (10.0.99.30) is for. It is a dual-core AMD A6-9200
       with 4 GB and a 5400 rpm disk — considerably less machine than this list
       previously claimed, and too little for anything demanding.
