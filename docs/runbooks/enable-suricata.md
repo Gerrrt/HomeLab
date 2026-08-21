@@ -132,20 +132,53 @@ Then **Interfaces → Skids → Categories** and enable, to start:
 | Category | Why |
 | --- | --- |
 | `emerging-malware` | The big one — 16 MB. **Absorbed the retired `emerging-trojan`**, so that coverage is here, not missing |
-| `emerging-exploit` | |
-| `emerging-scan` | |
-| `emerging-policy` | Tiny (~2 KB) and easy to scroll past in the alphabetical list. It is there |
-| `emerging-attack_response` | Command output flowing *back* from a host — evidence of a device already compromised rather than one being probed. Low volume, and the highest-value signal available on a segment of cameras and an alarm hub |
+| `emerging-botcc` | **Botnet command-and-control.** Mirai-family malware is the single largest threat to a segment of cheap cameras, and this is the category that catches one phoning home. Matches on known C2 addresses, so it is close to noiseless |
+| `emerging-attack_response` | Command output flowing *back* from a host — evidence of a device already compromised rather than one being probed |
+| `emerging-scan` | Probing, inbound and outbound. A camera scanning your other segments is the alarm |
+| `emerging-exploit` | Exploitation attempts against the devices themselves |
+
+`emerging-coinminer` is a cheap sixth if you want it: a small file, and mining is
+classic post-compromise behaviour on a device with a CPU and no supervision.
 
 > [!NOTE]
-> **There is no `emerging-trojan`.** Emerging Threats retired it and folded those
-> rules into `emerging-malware`. Earlier revisions of this runbook named it, which
-> sends you looking for a category that has not shipped in years. If you are
-> checking this list against another guide, that is why.
+> **The category names here are pfSense's, not upstream Emerging Threats'.**
+> The package reorganises ET Open, so this list does not match
+> `rules.emergingthreats.net` file-for-file:
+>
+> - **`emerging-trojan` does not exist anywhere.** ET retired it and folded those
+>   rules into `emerging-malware`.
+> - **`emerging-policy` does not exist in pfSense**, although it does upstream.
+>   Its contents are split across `emerging-remote_access`,
+>   `emerging-file_sharing`, `emerging-dyn_dns`, `emerging-chat` and
+>   `emerging-games`. None of those earn a slot on an IoT segment.
+>
+> **The list on your box is the authority.** Earlier revisions of this runbook
+> named both of the above, which sent people hunting for categories that were
+> never going to be there.
 
-**Nothing needs disabling.** A new interface starts with no categories selected,
-so the end state is these five ticked and nothing else. If your build pre-ticked
-anything, untick it.
+Ticking those five is not the whole picture, because the interface did not start
+empty:
+
+> [!IMPORTANT]
+> **Suricata's own rules are already enabled, and this runbook previously claimed
+> otherwise.**
+>
+> Everything without an `emerging-` prefix — `decoder-events`, `stream-events`,
+> `app-layer-events`, `files`, and the ~24 per-protocol `*-events` files — ships
+> with Suricata itself and comes **pre-ticked**. Adding the five above adds to
+> them; it does not replace them.
+>
+> **Leave them on through the observation period.** They detect protocol
+> anomalies rather than attacks, so they are the likely source of volume — but §5
+> is several days of measuring exactly that, and its `topk` query will tell you
+> what actually fires on *this* network. Prune on evidence, not on reputation.
+>
+> If Loki volume becomes a problem before you have that evidence,
+> **`decoder-events` and `stream-events` are the two to cut first** — they fire
+> on retransmissions and malformed packets, which a house full of cheap wireless
+> devices produces constantly.
+
+One setting on this page is worth understanding rather than accepting:
 
 > [!IMPORTANT]
 > **Leave `Resolve Flowbits` enabled.**
@@ -228,11 +261,11 @@ your rules — only that a connection happened.
 
 > [!NOTE]
 > Earlier revisions used `curl -A "BlackSun" http://example.com/` and claimed
-> `emerging-policy` carried a signature for that user agent. **It does not.**
-> `emerging-policy.rules` is about 2 KB of Dameware, TeamViewer and Radmin
-> detections; the BlackSun signature lives in `emerging-user_agents`, which this
-> runbook does not enable. That test would have fired for nobody — a verification
-> step that was itself unverified.
+> `emerging-policy` carried a signature for that user agent. It does not — and
+> `emerging-policy` is not even a category pfSense offers (see §3). The BlackSun
+> signature lives in `emerging-user_agents`, which this runbook does not enable.
+> **That test would have fired for nobody:** a verification step that was itself
+> unverified.
 
 The test below depends on **no ET category at all**, which is the point: it tests
 the pipeline, not the ruleset.
