@@ -228,3 +228,14 @@ fingerprint of a house is not. Withheld on purpose:
 
 The public IP was already redacted in the original inventory — the rest of this
 is the same instinct applied consistently.
+
+**Rack patch-cable colours are published**, and that is a deliberate exception
+worth defending rather than an oversight. It is the same *shape* of information
+as the camera-to-room mapping above — a physical-security detail — but not the
+same *reach*. A room mapping is useful remotely: you learn which camera covers
+which door straight off this page, without ever approaching the house. A cable
+colour is useful only to someone already standing at the rack, who can see the
+cables, read the switch port labels and reach the firewall's console port
+regardless. It tells an attacker nothing their position has not already given
+them, and it tells a maintainer a great deal. See
+[ADR-0009](adr/0009-colour-vlans-by-cable-not-by-trust.md).

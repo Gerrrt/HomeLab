@@ -4,22 +4,29 @@ Seven VLANs behind a pfSense firewall, default-deny between segments. Each
 section below lists the devices on a segment, how it is wired, and what it is
 allowed to reach.
 
+The **Rack** column is the physical patch-cable colour, and this table is the
+authority for it. Colour runs down the visible spectrum as the VLAN id descends,
+so the colour tells you where a segment sits in this list. It does **not** encode
+trust — [ADR-0002](adr/0002-vlan-segmentation-strategy.md) ranks ImaginationLAN
+above CasaBonita, which the spectrum does not. Reasoning in
+[ADR-0009](adr/0009-colour-vlans-by-cable-not-by-trust.md).
+
 > **On the data in this file.** MAC addresses are truncated to their OUI (the
 > vendor half); personal devices are listed by role rather than by owner. This
 > is a public repository, and a full device fingerprint of a house is an
 > inventory for someone else. The rationale is in
 > [`security.md`](security.md#what-this-repository-deliberately-does-not-publish).
 
-| Segment | VLAN | Subnet | Purpose | Reaches |
-| --- | --- | --- | --- | --- |
-| WAN | — | ISP-assigned | Uplink | — |
-| LAN | — | `10.7.7.0/24` | Switch management only | Nothing |
-| [Winterfell](#winterfell--vlan-99--management) | 99 | `10.0.99.0/24` | Infrastructure management | Internet |
-| [Hicks](#hicks--vlan-50--trusted) | 50 | `10.0.50.0/24` | Trusted workstations | Internet, 99, 30 |
-| [CasaBonita](#casabonita--vlan-40--media) | 40 | `10.0.40.0/24` | TVs and consoles | Internet |
-| [ImaginationLAN](#imaginationlan--vlan-30--lab) | 30 | `10.0.30.0/24` | Hypervisor / lab | Internet |
-| [Skids](#skids--vlan-20--iot) | 20 | `10.0.20.0/24` | IoT and cameras | Internet |
-| [Degens](#degens--vlan-10--guest) | 10 | `10.0.10.0/24` | Guest Wi-Fi | Internet |
+| Segment | VLAN | Rack | Subnet | Purpose | Reaches |
+| --- | --- | --- | --- | --- | --- |
+| WAN | — | — | ISP-assigned | Uplink | — |
+| LAN | — | — | `10.7.7.0/24` | Switch management only | Nothing |
+| [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet |
+| [Hicks](#hicks--vlan-50--trusted) | 50 | 🟠 Orange | `10.0.50.0/24` | Trusted workstations | Internet, 99, 30 |
+| [CasaBonita](#casabonita--vlan-40--media) | 40 | 🟡 Yellow | `10.0.40.0/24` | TVs and consoles | Internet |
+| [ImaginationLAN](#imaginationlan--vlan-30--lab) | 30 | 🟢 Green | `10.0.30.0/24` | Hypervisor / lab | Internet |
+| [Skids](#skids--vlan-20--iot) | 20 | 🔵 Blue | `10.0.20.0/24` | IoT and cameras | Internet |
+| [Degens](#degens--vlan-10--guest) | 10 | 🟣 Purple | `10.0.10.0/24` | Guest Wi-Fi | Internet |
 
 Hostnames are thematic rather than functional — `morpheus` is the firewall,
 `mjolnir` the UPS, `Saruman` the hypervisor. The Role column is the source of
@@ -69,6 +76,8 @@ truth for what a box actually does.
 
 ## Winterfell — VLAN 99 — Management
 
+🔴 **Red** on the rack.
+
 Infrastructure. The only segment that can administer other segments, and the
 only one Hicks is permitted to reach for management.
 
@@ -99,6 +108,8 @@ only one Hicks is permitted to reach for management.
 ---
 
 ## Hicks — VLAN 50 — Trusted
+
+🟠 **Orange** on the rack.
 
 Personal and work machines. The only segment with a path into management.
 
@@ -140,6 +151,8 @@ Personal and work machines. The only segment with a path into management.
 
 ## CasaBonita — VLAN 40 — Media
 
+🟡 **Yellow** on the rack.
+
 Televisions and consoles. Internet only.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
@@ -166,6 +179,8 @@ Televisions and consoles. Internet only.
 ---
 
 ## ImaginationLAN — VLAN 30 — Lab
+
+🟢 **Green** on the rack.
 
 Where things get broken on purpose.
 
@@ -198,6 +213,8 @@ Where things get broken on purpose.
 ---
 
 ## Skids — VLAN 20 — IoT
+
+🔵 **Blue** on the rack.
 
 Everything with a cloud dependency and no patch story. The largest segment and
 the least trusted.
@@ -241,6 +258,8 @@ the least trusted.
 ---
 
 ## Degens — VLAN 10 — Guest
+
+🟣 **Purple** on the rack.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |

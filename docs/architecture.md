@@ -50,20 +50,48 @@ graph TB
     WS -.->|"management access<br/>(the only inbound path)"| V99
     WS -.->|lab access| V30
 
-    classDef mgmt fill:#1f6f4a,stroke:#2ea043,color:#fff
-    classDef trusted fill:#1f4e79,stroke:#388bfd,color:#fff
-    classDef untrusted fill:#6e2c2c,stroke:#f85149,color:#fff
-    classDef infra fill:#4a3f7a,stroke:#a371f7,color:#fff
-    class MON,UPS,SPARE mgmt
-    class WS trusted
-    class IOT,GUEST,TV untrusted
-    class HV,FW,SW infra
+    %% Fill is the patch-cable colour in the rack — see network.md, ADR-0009.
+    %% A dashed border marks a terminal segment: traffic goes out, nothing
+    %% comes back in. Grey is not a segment; it carries every VLAN.
+    %% stroke-dasharray must be last on its line and space-separated — a comma
+    %% is the property delimiter and would truncate the value.
+    classDef vlan99 fill:#6e2c2c,stroke:#f85149,color:#fff
+    classDef vlan50 fill:#7a3f12,stroke:#db6d28,color:#fff
+    classDef vlan30 fill:#1f6f4a,stroke:#2ea043,color:#fff
+    classDef infra  fill:#30363d,stroke:#8b949e,color:#e6edf3
+    classDef vlan40 fill:#a87f00,stroke:#e3b341,color:#0d1117,stroke-dasharray: 6 4
+    classDef vlan20 fill:#1f4e79,stroke:#388bfd,color:#fff,stroke-dasharray: 6 4
+    classDef vlan10 fill:#4a3f7a,stroke:#a371f7,color:#fff,stroke-dasharray: 6 4
+
+    class MON,UPS,SPARE vlan99
+    class WS vlan50
+    class HV vlan30
+    class TV vlan40
+    class IOT vlan20
+    class GUEST vlan10
+    class GW,FW,SW infra
+
+    %% classDef is unreliable on subgraphs (mermaid-js/mermaid#1726), so the
+    %% clusters are styled explicitly and the dash is applied to their inner
+    %% nodes as well — the cue survives either way.
+    style V99 fill:#161b22,stroke:#f85149,stroke-width:2px,color:#f85149
+    style V50 fill:#161b22,stroke:#db6d28,stroke-width:2px,color:#db6d28
+    style V30 fill:#161b22,stroke:#2ea043,stroke-width:2px,color:#2ea043
+    style V40 fill:#161b22,stroke:#e3b341,stroke-width:2px,color:#e3b341,stroke-dasharray: 6 4
+    style V20 fill:#161b22,stroke:#388bfd,stroke-width:2px,color:#388bfd,stroke-dasharray: 6 4
+    style V10 fill:#161b22,stroke:#a371f7,stroke-width:2px,color:#a371f7,stroke-dasharray: 6 4
 ```
 
 Everything reaches the internet. Nothing reaches anything else, with two
 exceptions drawn as dotted lines above: trusted workstations may administer
 management, and may reach the lab. IoT, media and guest are terminal — traffic
 goes out, nothing comes back in.
+
+Segment colour is the patch-cable colour in the rack, so the diagram and the
+hardware can be read against each other. A dashed border marks a terminal
+segment. Grey is not a segment: the gateway, firewall and switch carry every
+VLAN at once. Reasoning in
+[ADR-0009](adr/0009-colour-vlans-by-cable-not-by-trust.md).
 
 The full device inventory is in [`network.md`](network.md); the reasoning behind
 the split is in [`security.md`](security.md).
@@ -107,8 +135,12 @@ graph LR
     PROM --> GRAF
     LOKI --> GRAF
 
-    classDef store fill:#4a3f7a,stroke:#a371f7,color:#fff
-    classDef agent fill:#1f4e79,stroke:#388bfd,color:#fff
+    %% Deliberately outside the VLAN palette — this diagram is about data
+    %% paths, not segments, and reusing a cable colour here would read as a
+    %% claim about which segment a component is on. Grey means the same thing
+    %% in both diagrams: plumbing. No dashes — that means "terminal" now.
+    classDef store fill:#1b3a3f,stroke:#39c5cf,color:#e6edf3,stroke-width:2px
+    classDef agent fill:#30363d,stroke:#8b949e,color:#e6edf3,stroke-width:2px
     class PROM,LOKI store
     class SNMP,ALLOY agent
 ```
@@ -130,9 +162,9 @@ hole from the monitoring VLAN into the monitored one.
 
 | Host | VLAN | Stack | Contents |
 | --- | --- | --- | --- |
-| `prometheus` (10.0.99.20) | 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, Alloy |
-| `Saruman` (10.0.30.110) | 30 | *(none yet)* | Proxmox VE 9.2.11, no guests — see [roadmap](roadmap.md) |
-| `oracle` (10.0.99.30) | 99 | *(none yet)* | Undecided |
+| `prometheus` (10.0.99.20) | 🔴 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, Alloy |
+| `Saruman` (10.0.30.110) | 🟢 30 | *(none yet)* | Proxmox VE 9.2.11, no guests — see [roadmap](roadmap.md) |
+| `oracle` (10.0.99.30) | 🔴 99 | *(none yet)* | Undecided |
 
 One directory per stack, not one per service. A stack is the unit that gets
 deployed together; a second host means a second directory under `stacks/`, not a
@@ -164,4 +196,8 @@ as text, and cannot drift out of sync with the repo without a visible change.
 - [Current topology export](diagrams/current/matrix_elysium.png) — detailed
   physical drawing, 9871×4466. Its editable `.drawio` source was lost in an
   earlier commit, which is a large part of why the diagrams above are Mermaid.
+  **It predates the rack colour scheme and cannot be recoloured** — with no
+  source file there is nothing to edit. Treat the Mermaid diagrams and
+  [`network.md`](network.md) as authoritative for colour; this one is
+  authoritative only for physical layout.
 - [Previous topology](diagrams/previous/Network_Diagram.png)
