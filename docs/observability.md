@@ -70,7 +70,7 @@ expression in every panel is syntactically valid.
 
 ## Alerting
 
-40 rules in total: 32 metric-based in `prometheus/rules/`, and 8 log-based in
+47 rules in total: 34 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -99,14 +99,25 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-32 rules across four files in `prometheus/rules/`:
+34 rules across four files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
 | `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew, reboots |
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware |
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature |
-| `containers.rules.yaml` | Restart loops, OOM kills, throttling, and the stack watching itself |
+| `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling, and the stack watching itself |
+
+`promtool check rules` validates that these parse. It does not — and cannot —
+tell you whether a rule can ever be true: `ContainerHighMemory` passed it for
+months while dividing by a memory limit no service sets, so it showed as loaded
+and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/HomeLab/issues/63)).
+`prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
+feed a rule synthetic series and assert it fires — paired with a case asserting
+it stays quiet, because a test that only ever expects silence would have passed
+against the broken rule too. Coverage is one rule of 34 so far:
+`ContainerHighMemory`. The other 33 are still validated for syntax only, which
+is exactly the standing #63 had.
 
 Routing is by `severity` and `category` (see `alertmanager/alertmanager.yaml`).
 `critical` + `category=power` pages immediately and repeats every 30 minutes;

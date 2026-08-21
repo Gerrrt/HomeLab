@@ -1,0 +1,150 @@
+---
+# Unit tests for containers.rules.yaml.
+#
+# These exist because of #63. ContainerHighMemory sat in the rule file for
+# months unable to fire for any input: it divided by
+# container_spec_memory_limit_bytes and guarded on that being > 0, and nothing
+# in compose.yaml sets a memory limit. `promtool check rules` passed the whole
+# time — it parses PromQL, it does not ask whether an expression can ever be
+# true. The rule showed as loaded and healthy on the Prometheus status page,
+# which is the failure mode ups.rules.yaml warns about at length: a rule that
+# cannot fire is worse than no rule.
+#
+# So the assertion that matters is not "the YAML is valid", it is "this
+# expression produces an alert for a real input". Every case below is paired
+# with a quiet case, because a test that only ever expects silence would have
+# passed against the broken rule too.
+#
+# The firing fixture carries container_spec_memory_limit_bytes at 0 on purpose.
+# That is what cAdvisor really reports for these containers, so the fixture is
+# faithful to production — and the old expression still cannot fire against it,
+# which is the whole finding rather than an artefact of a thin fixture.
+#
+# What these do NOT prove: the fixtures are synthetic, so nothing here notices
+# if cAdvisor renames or drops a label. They guard the expression, not the data
+# feeding it. A green run means the rule is still able to fire, not that it is
+# still wired to anything.
+rule_files:
+  - ../rules/containers.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- ContainerHighMemory: fires ------------------------------------------
+  # 4097804288 / 8195608576 is exactly 0.5 of the host, held past for: 15m.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "4097804288x25"
+      - series: 'container_spec_memory_limit_bytes{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "0x25"
+      - series: 'machine_memory_bytes{instance="prometheus",host="prometheus",job="integrations/cadvisor",boot_id="081fcc5d",machine_id="62b6e52e"}'
+        values: "8195608576x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerHighMemory
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerHighMemory
+              name: loki
+              instance: prometheus
+              host: prometheus
+              job: integrations/cadvisor
+              component: containers
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Container loki is using 50% of host memory"
+
+      # Not yet held long enough — for: 15m has not elapsed at 10m.
+      - eval_time: 10m
+        alertname: ContainerHighMemory
+        exp_alerts: []
+
+  # --- ContainerHighMemory: stays quiet at normal usage ---------------------
+  # 163912171 / 8195608576 is ~2%, which is what the stack actually runs at.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "163912171x25"
+      - series: 'machine_memory_bytes{instance="prometheus",host="prometheus",job="integrations/cadvisor",boot_id="081fcc5d",machine_id="62b6e52e"}'
+        values: "8195608576x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerHighMemory
+        exp_alerts: []
+
+  # --- ContainerHighMemory: 0.40 is load-bearing ----------------------------
+  # 3196287344 / 8195608576 is 39% — just under. With the 50% firing case above
+  # this brackets the threshold to (0.39, 0.50]. It does not pin it to exactly
+  # 0.40, but a drive-by retune can no longer land silently.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{name="prometheus",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "3196287344x25"
+      - series: 'machine_memory_bytes{instance="prometheus",host="prometheus",job="integrations/cadvisor",boot_id="081fcc5d",machine_id="62b6e52e"}'
+        values: "8195608576x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerHighMemory
+        exp_alerts: []
+
+  # --- ContainerHighMemory: many containers, one machine --------------------
+  # Two series on the left of the join and one on the right is many-to-one,
+  # which Prometheus refuses to evaluate without an explicit group_left. With a
+  # single container the join is 1:1 and a dropped group_left only quietly
+  # strips `name`; this case is what makes that error real.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "4097804288x25"
+      - series: 'container_memory_working_set_bytes{name="grafana",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "163912171x25"
+      - series: 'machine_memory_bytes{instance="prometheus",host="prometheus",job="integrations/cadvisor",boot_id="081fcc5d",machine_id="62b6e52e"}'
+        values: "8195608576x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerHighMemory
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerHighMemory
+              name: loki
+              instance: prometheus
+              host: prometheus
+              job: integrations/cadvisor
+              component: containers
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Container loki is using 50% of host memory"
+
+  # --- ContainerHighMemory: each host against its own total -----------------
+  # config.alloy is written to run on every host, so this rule has to survive a
+  # second agent joining. Same container name on both, different host sizes: a
+  # join keyed on anything the two hosts share — `job`, or an absent `host` —
+  # collapses them into one match group and errors instead of alerting.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "163912171x25"
+      - series: 'container_memory_working_set_bytes{name="alloy",instance="saruman",host="saruman",job="integrations/cadvisor"}'
+        values: "17179869184x25"
+      - series: 'machine_memory_bytes{instance="prometheus",host="prometheus",job="integrations/cadvisor",boot_id="081fcc5d",machine_id="62b6e52e"}'
+        values: "8195608576x25"
+      - series: 'machine_memory_bytes{instance="saruman",host="saruman",job="integrations/cadvisor",boot_id="4d1a9f70",machine_id="a3c2e011"}'
+        values: "34359738368x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerHighMemory
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerHighMemory
+              name: alloy
+              instance: saruman
+              host: saruman
+              job: integrations/cadvisor
+              component: containers
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Container alloy is using 50% of host memory"

@@ -108,6 +108,16 @@ if ((${#PROMTOOL[@]})); then
     "${PROMTOOL[@]}" check rules "${STACK}"/prometheus/rules/*.rules.yaml
     fail "promtool check rules"
   fi
+
+  # `check rules` only parses PromQL; it cannot tell whether an expression can
+  # ever be true. ContainerHighMemory passed it for months while being
+  # unfireable (#63). The unit tests are what actually assert the rules fire.
+  if "${PROMTOOL[@]}" test rules "${STACK}"/prometheus/tests/*.test.yaml >/dev/null 2>&1; then
+    pass "promtool test rules"
+  else
+    "${PROMTOOL[@]}" test rules "${STACK}"/prometheus/tests/*.test.yaml
+    fail "promtool test rules"
+  fi
 else
   skip "no promtool and no docker daemon"
 fi

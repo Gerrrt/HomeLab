@@ -44,8 +44,8 @@ incident.
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
-- **Dashboards and alerting as code.** 5 provisioned dashboards, 79 panels, and
-  40 alert rules — 32 metric-based in Prometheus, 8 log-based in Loki — sharing
+- **Dashboards and alerting as code.** 5 provisioned dashboards, 84 panels, and
+  47 alert rules — 34 metric-based in Prometheus, 13 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -143,9 +143,9 @@ rack; a dashed border means egress only. Full topology and data flow in
 .
 ├── stacks/observability/     # the deployed stack — one compose file, six services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 32 alert rules
+│   ├── prometheus/           # config, file_sd targets, 34 alert rules
 │   ├── alertmanager/         # routing and inhibition
-│   ├── loki/                 # single-binary config + 8 LogQL rules
+│   ├── loki/                 # single-binary config + 13 LogQL rules
 │   ├── alloy/                # one agent config, used on every host
 │   ├── snmp-exporter/        # generator.yaml is the source of truth
 │   └── grafana/              # provisioning + 5 dashboards
