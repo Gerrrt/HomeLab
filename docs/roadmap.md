@@ -79,33 +79,13 @@ and produced nothing.
   The management card fabricates a healthy pack. **The `UpsSelfTestFailed`
   silence must be deleted the moment the pack is fitted, not left to expire** —
   the issue carries the command and the reasoning.
-- [ ] **Rack the shelf switch.** A 1U vented shelf (~$25–45) in **U4**, the one
-      free slot, carrying the unmanaged TP-Link that `prometheus` and `oracle`
-      hang off. **Buy it with the UPS pack above, not after** — the pack alone
-      leaves the monitoring path half-protected. Both shelf machines are laptops
-      with their own batteries, so on a mains cut they stay *running* and go
-      *deaf*: the switch between them and the network has no battery at all, and
-      a monitoring host that survives the event it exists to observe but cannot
-      report it is a strange way to lose an evidence trail. The shelf has room
-      beside the switch for the ProDesk in the item above — rack its cold-spare
-      role but leave it **powered off**, since a spare that is plugged in and on
-      the network is exposed to whatever took the primary.
-
-      Measured at the rack 2026-08-21, so the spec is settled: **4-post frame,
-      square mounting holes, depth is not a constraint.** That means a full 1U
-      shelf with rear support — not a cantilever — and **cage nuts plus screws**,
-      which most shelves include but not all; check the listing rather than
-      discovering it on the day. U4 is empty only because nothing had been chosen
-      for it, so there is no service clearance to preserve.
-
-      The one thing that could have removed the purchase has been checked and
-      does not: `morpheus` sits at U5 in a **purpose-built mount that holds one
-      ProDesk Mini** — a single-device bracket, not a shelf with spare room. So
-      the switch needs its own U, and the shelf is the way to give it one. The
-      1U shelf also has room beside the switch for a second small box later,
-      which the U5 bracket by design does not.
-
-      This one has no issue yet — everything else in this file does.
+- **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
+  A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
+  `oracle` hang off. **Buy it with the UPS pack above, not after** — both shelf
+  machines are laptops, so on a mains cut they stay running and go deaf while the
+  switch between them and the network has no battery at all. Spec settled at the
+  rack on 2026-08-21; the spare ProDesk from
+  [#92](https://github.com/Gerrrt/HomeLab/issues/92) racks here too, powered off.
 - **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle` is
   for.** A dual-core A6-9200 with 4 GB and a 5400 rpm disk — too little for
   anything demanding, and a candidate for the jobs that need a machine that is
