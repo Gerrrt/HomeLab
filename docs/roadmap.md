@@ -114,10 +114,12 @@ inventory. Ordered roughly by how much it matters.
       discovering it on the day. U4 is empty only because nothing had been chosen
       for it, so there is no service clearance to preserve.
 
-      Still unchecked, and it could remove the purchase: **how `morpheus` is
-      mounted at U5.** Something already holds a ProDesk Mini there, and if it is
-      a shelf with room left, an 8-port switch has much the same footprint and
-      could share it.
+      The one thing that could have removed the purchase has been checked and
+      does not: `morpheus` sits at U5 in a **purpose-built mount that holds one
+      ProDesk Mini** — a single-device bracket, not a shelf with spare room. So
+      the switch needs its own U, and the shelf is the way to give it one. The
+      1U shelf also has room beside the switch for a second small box later,
+      which the U5 bracket by design does not.
 - [ ] Decide what `oracle` (10.0.99.30) is for. It is a dual-core AMD A6-9200
       with 4 GB and a 5400 rpm disk — considerably less machine than this list
       previously claimed, and too little for anything demanding.
