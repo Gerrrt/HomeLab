@@ -52,15 +52,45 @@ It appears afterwards under **Services → Suricata**.
 
 ## 2. Configure the interfaces
 
+> [!IMPORTANT]
+> **`Services → Suricata` opens an empty Interfaces list, and none of the
+> settings below exist yet.** Not hidden, not collapsed — not present. `Add` is
+> what creates the interface *and* the page that holds every field in this
+> section.
+>
+> The same applies to §3 and §4: the tab row across the top (*Categories*,
+> *Rules*, *Flow/Stream*, …) only appears **after the interface has been saved
+> once**. Looking for rule categories before then is looking for a tab that does
+> not exist.
+>
+> Order for the whole runbook, therefore:
+> **Add → set the fields below → Save → Categories (§3) → Rules (§4) → restart
+> the interface.**
+
 **Services → Suricata → Interfaces → Add**. Do **Skids (VLAN 20)** first, alone.
 
-| Setting | Value | Why |
-| --- | --- | --- |
-| Interface | Skids / VLAN 20 | The segment with cameras, a doorbell, an alarm hub and a $20 Tuya device |
-| Enable | ✔ | |
-| **Block Offenders** | **OFF** | Non-negotiable for now. See §5 |
-| Send Alerts to System Log | ✔ | This is what puts alerts on the syslog pipe |
-| Log to a File | ✔ | Local copy for tuning; Loki is for alerting |
+The page is long and sectioned. Only these matter:
+
+| Section | Setting | Value | Why |
+| --- | --- | --- | --- |
+| General Settings | Enable | ✔ | |
+| General Settings | Interface | Skids / VLAN 20 | The segment with cameras, a doorbell, an alarm hub and a $20 Tuya device |
+| Logging Settings | **Send Alerts to System Log** | ✔ | **The only setting this pipeline depends on.** Nothing downstream works without it — it is what puts alerts on the syslog pipe to Loki |
+| Block Settings | **Block Offenders** | **unticked** | Non-negotiable for now. See §5. With it off, *IPS Mode* below it is irrelevant |
+
+**Everything else: leave at default.** Performance, detection engine, EVE/JSON
+output, flow and stream timeouts — this stack consumes none of it, and changing
+things here to look thorough is how you end up debugging Suricata instead of
+using it.
+
+> [!NOTE]
+> Two fields in *Logging Settings* are worth recognising and **not** changing.
+> `Log Facility` and `Log Priority` decide how these alerts appear on the syslog
+> wire. pfSense's `filterlog` arrives as `<134>` — facility `local0`, severity
+> `info` — and Suricata may well default to `local1`. That difference is
+> harmless: `config.alloy` keys on the syslog **tag**, not the facility, so
+> alerts are labelled `app="suricata"` either way. It looks like a discrepancy in
+> a raw `tcpdump` and is not one.
 
 Add **Degens (VLAN 10)** the same way once VLAN 20 has been quiet for a few
 days. Do not add all interfaces at once — you cannot tell which one is
