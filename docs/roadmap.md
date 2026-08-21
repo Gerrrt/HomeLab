@@ -65,15 +65,36 @@ inventory. Ordered roughly by how much it matters.
       fitted, enable **scheduled self-tests** on the NMC so that rule stays live
       evidence rather than a stale last-known result.
 
-      `UpsSelfTestFailed` is **silenced in Alertmanager until 2026-09-20**, not
-      dismissed. It routes on `category=power` to the `urgent` receiver with
-      `group_wait: 0s` and `repeat_interval: 30m`, so leaving it firing meant
-      paging every half hour about a condition already known and tracked here —
-      which is how an urgent receiver stops being read. The silence carries an
-      expiry on purpose: if the pack still is not fitted when it lapses, the
-      alert comes back and asks again. **Do not extend it without checking
-      whether the battery arrived** — an indefinitely silenced critical is
-      indistinguishable from one nobody noticed.
+      `UpsSelfTestFailed` is **silenced in Alertmanager until 2026-09-20**
+      (`54f1715c-e57b-4322-8a6d-5435bc8e1bd8`), not dismissed. It routes on
+      `category=power` to the `urgent` receiver with `group_wait: 0s` and
+      `repeat_interval: 30m`, so leaving it firing meant paging every half hour
+      about a condition already known and tracked here — which is how an urgent
+      receiver stops being read. The silence carries an expiry on purpose: if the
+      pack still is not fitted when it lapses, the alert comes back and asks
+      again. **Do not extend it without checking whether the battery arrived** —
+      an indefinitely silenced critical is indistinguishable from one nobody
+      noticed.
+
+      **Delete that silence the moment the pack is fitted. Do not wait for it to
+      expire.** Between fitting and 20 September the silence would suppress
+      `UpsSelfTestFailed` on a UPS that can now genuinely report — including a
+      new pack that is itself faulty or badly seated, which is exactly when you
+      want to hear about it. The window is the whole point of a silence and also
+      its whole risk.
+
+      ```bash
+      curl -sS -X DELETE \
+        http://localhost:9093/api/v2/silence/54f1715c-e57b-4322-8a6d-5435bc8e1bd8
+      ```
+
+      Then, in order: run **one** self-test from the management card and confirm
+      `upsTestResultsSummary` reads `1` (donePass) rather than `4` (aborted);
+      enable **scheduled** self-tests so the metric stays live evidence instead
+      of a stale last-known result; and expect the previously-fabricated metrics
+      — charge, runtime, voltage — to start reporting real values for the first
+      time, which makes `UpsBatteryLow`, `UpsChargeLow` and `UpsRuntimeCritical`
+      meaningful rules rather than decorative ones.
 - [ ] Decide what `oracle` (10.0.99.30) is for. It is a dual-core AMD A6-9200
       with 4 GB and a 5400 rpm disk — considerably less machine than this list
       previously claimed, and too little for anything demanding.
