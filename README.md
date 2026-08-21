@@ -222,7 +222,10 @@ enforces it, and `make pin-digests` re-resolves them.
 
 ## Roadmap
 
-Open work is tracked in [`docs/roadmap.md`](docs/roadmap.md). The current top
+Open work is tracked in
+[Issues](https://github.com/Gerrrt/HomeLab/issues);
+[`docs/roadmap.md`](docs/roadmap.md) is the narrative — what is outstanding and
+why it is in that order. The current top
 items: finish the SNMP rotation on the switch, purge the old communities from
 git history, replace the UPS battery, and get 64-bit interface counters off the
 switch. The first and last of those share a blocker — the switch is not

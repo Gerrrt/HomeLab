@@ -3,98 +3,82 @@
 Open work, extracted from the per-VLAN task lists that used to live inside the
 inventory. Ordered roughly by how much it matters.
 
+**The tracking lives in [Issues](https://github.com/Gerrrt/HomeLab/issues).**
+This file is the shape of the work — what is outstanding, and why it is in this
+order. Whether a thing is started, blocked or done is on its issue. Two places
+holding the same checkbox is how a checkbox stops being true, and this file has
+already been wrong about the switch answering SNMP and about the history purge.
+
+Detail that used to live here — the trap in the MokerLink walk, the exact order
+to bring the UPS back, the isolation question `ifrit` defers — moved to the
+issues intact. Nothing was summarised away.
+
 ## Security
 
-- [ ] **Retire the MokerLink switch's previous SNMP community.** All four
-      devices are rotated, but `neo` still accepts its old community alongside
-      the new one: its firmware does not persist a deletion from the community
-      table, and each attempt drops the SNMP agent until the switch is
-      rebooted. Low priority and accepted for now — the community is read-only
-      and reachable only from the management VLAN. Overwrite the row with a
-      fresh value rather than deleting it, next time the switch is down anyway.
-      → [runbook](runbooks/rotate-snmp-community.md)
-- [ ] Move to SNMPv3 authPriv where the hardware supports it. pfSense, the APC
-      and iLO all do; the MokerLink switch does not, which is the blocker for
-      doing it uniformly.
-- [ ] Decide whether the lab VLAN needs egress filtering before the
-      deliberately-vulnerable playground exists.
+- **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
+  switch's previous SNMP community.** `neo` still accepts its old one alongside
+  the new; its firmware will not persist a deletion. Accepted residual, recorded
+  in `SECURITY.md`. → [runbook](runbooks/rotate-snmp-community.md)
+- **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv.**
+  Three of four devices can. The MokerLink switch cannot, which is the blocker
+  for doing it uniformly.
+- **[#86](https://github.com/Gerrrt/HomeLab/issues/86) Decide whether the lab
+  VLAN needs egress filtering** — before the playground exists, not after.
 
 ## Monitoring
 
-- [ ] **Add `ifXTable` (64-bit counters) to the `mokerlink` SNMP module.** The
-      current `ifTable` counters are 32-bit and wrap in roughly 34 seconds at
-      gigabit line rate, so sustained high-throughput ports under-report. The
-      `SwitchCounterWrapSuspected` alert detects this but does not fix it.
-      Now actionable — the switch has only been polling since the three faults
-      in [#22](https://github.com/Gerrrt/HomeLab/issues/22) were cleared. Mind
-      the trap documented in `generator.yaml`: this switch returns `ifSpecific`
-      with a zero-length value that makes snmp-exporter discard the whole
-      response, so the walk lists individual columns and must stay clear of
-      column 22.
-- [ ] Deploy Alloy to the remaining hosts — currently only the monitoring host
-      and one other report in. `Saruman` and `oracle` are next.
-- [ ] **Extend Suricata to Degens (VLAN 10).** Running on Skids since
-      2026-08-21, alert-only. Add the guest segment once Skids has been quiet and
-      understood for a few days — one interface at a time, or you cannot tell
-      which is producing the noise. → [runbook](runbooks/enable-suricata.md)
-- [ ] **Detect Suricata being dead.** A quiet IDS and a stopped IDS produce
-      identical log output, so no log rule can tell them apart — unlike
-      `FirewallLogsStopped`, which works because a firewall is never silent.
-      This needs a process or heartbeat metric from `morpheus`, which the SNMP
-      module does not currently expose.
-- [ ] Add blackbox-exporter for uptime and TLS-expiry checks on internal
-      services.
-- [ ] Capture dashboard screenshots for the README once the stack has a few days
-      of real data. → [`images/README.md`](images/README.md)
+- **[#87](https://github.com/Gerrrt/HomeLab/issues/87) Add `ifXTable` (64-bit
+  counters) to the `mokerlink` module.** The current 32-bit counters wrap in ~34
+  seconds at gigabit. Now actionable — the switch has been polling since the
+  faults in [#22](https://github.com/Gerrrt/HomeLab/issues/22) cleared. The walk
+  has a trap in it; the issue carries the detail.
+- **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to `Saruman`
+  and `oracle`.** Only the monitoring host runs an agent; `morpheus` reaches Loki
+  by network syslog and has no host metrics.
+- **[#89](https://github.com/Gerrrt/HomeLab/issues/89) Extend Suricata to Degens
+  (VLAN 10).** One interface at a time, once Skids has been quiet and understood
+  for a few days. → [runbook](runbooks/enable-suricata.md)
+- **[#90](https://github.com/Gerrrt/HomeLab/issues/90) Detect Suricata being
+  dead.** A quiet IDS and a stopped one produce identical output, so no log rule
+  can tell them apart. Needs a heartbeat the SNMP module does not expose.
+- **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Add blackbox-exporter**
+  for uptime and TLS-expiry on internal services. Until it exists, expiry is
+  something you find out about from a browser warning.
+- **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
+  screenshots.** `make screenshots` does four of the five; the Logs dashboard is
+  deliberately excluded. → [`images/README.md`](images/README.md)
+
+### The stack does not watch itself
+
+Found while verifying [#12](https://github.com/Gerrrt/HomeLab/issues/12), and
+new since this file was last honest:
+
+- **[#81](https://github.com/Gerrrt/HomeLab/issues/81)** No dashboard for the
+  observability stack itself, and **[#82](https://github.com/Gerrrt/HomeLab/issues/82)**
+  none for the Suricata and firewall-log labels `config.alloy` goes to trouble
+  to extract.
+- **[#67](https://github.com/Gerrrt/HomeLab/issues/67)** No dead man's switch on
+  the notification path — a 200 into a dead topic is a successful notification.
+- **[#63](https://github.com/Gerrrt/HomeLab/issues/63)** `ContainerHighMemory`
+  cannot fire, because nothing sets a memory limit.
+
+Two collection faults of the same kind were fixed in
+[#62](https://github.com/Gerrrt/HomeLab/pull/62): the agent was answering to the
+name of the server, and cAdvisor could only see its own cgroup. Both ran healthy
+and produced nothing.
 
 ## Infrastructure
 
-- [ ] **Copy the firewall backup off `prometheus`, and buy a spare.**
-      `make backup-firewall` now exports and encrypts morpheus's config, and
-      [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) documents the
-      restore — but a backup on the same shelf as the thing it protects is not a
-      backup, and the runbook is a hypothesis until it has been restored onto a
-      spare once. The spare should be the same ProDesk model: pfSense stores
-      interface assignments by device name, so identical hardware restores
-      straight through and anything else drops you into the console dialogue.
-- [ ] **Replace the UPS battery.** `mjolnir` currently has none, so a mains loss
-      is an immediate hard shutdown of the rack. A replacement APCRBC115
-      cartridge is on order. Most rules in `ups.rules.yaml` still report on a UPS
-      that cannot hold the load — but `UpsSelfTestFailed` now detects it, keyed
-      on the one metric the management card does not fabricate. Once the pack is
-      fitted, enable **scheduled self-tests** on the NMC so that rule stays live
-      evidence rather than a stale last-known result.
-
-      `UpsSelfTestFailed` is **silenced in Alertmanager until 2026-09-20**
-      (`54f1715c-e57b-4322-8a6d-5435bc8e1bd8`), not dismissed. It routes on
-      `category=power` to the `urgent` receiver with `group_wait: 0s` and
-      `repeat_interval: 30m`, so leaving it firing meant paging every half hour
-      about a condition already known and tracked here — which is how an urgent
-      receiver stops being read. The silence carries an expiry on purpose: if the
-      pack still is not fitted when it lapses, the alert comes back and asks
-      again. **Do not extend it without checking whether the battery arrived** —
-      an indefinitely silenced critical is indistinguishable from one nobody
-      noticed.
-
-      **Delete that silence the moment the pack is fitted. Do not wait for it to
-      expire.** Between fitting and 20 September the silence would suppress
-      `UpsSelfTestFailed` on a UPS that can now genuinely report — including a
-      new pack that is itself faulty or badly seated, which is exactly when you
-      want to hear about it. The window is the whole point of a silence and also
-      its whole risk.
-
-      ```bash
-      curl -sS -X DELETE \
-        http://localhost:9093/api/v2/silence/54f1715c-e57b-4322-8a6d-5435bc8e1bd8
-      ```
-
-      Then, in order: run **one** self-test from the management card and confirm
-      `upsTestResultsSummary` reads `1` (donePass) rather than `4` (aborted);
-      enable **scheduled** self-tests so the metric stays live evidence instead
-      of a stale last-known result; and expect the previously-fabricated metrics
-      — charge, runtime, voltage — to start reporting real values for the first
-      time, which makes `UpsBatteryLow`, `UpsChargeLow` and `UpsRuntimeCritical`
-      meaningful rules rather than decorative ones.
+- **[#92](https://github.com/Gerrrt/HomeLab/issues/92) Get the firewall backup
+  off `prometheus`, and buy a spare ProDesk.** A backup on the same shelf as the
+  thing it protects is not a backup, and
+  [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) stays a
+  hypothesis until it has been restored onto a spare once.
+- **[#93](https://github.com/Gerrrt/HomeLab/issues/93) Replace the UPS battery.**
+  `mjolnir` has none, so a mains loss is an immediate hard shutdown of the rack.
+  The management card fabricates a healthy pack. **The `UpsSelfTestFailed`
+  silence must be deleted the moment the pack is fitted, not left to expire** —
+  the issue carries the command and the reasoning.
 - [ ] **Rack the shelf switch.** A 1U vented shelf (~$25–45) in **U4**, the one
       free slot, carrying the unmanaged TP-Link that `prometheus` and `oracle`
       hang off. **Buy it with the UPS pack above, not after** — the pack alone
@@ -120,22 +104,55 @@ inventory. Ordered roughly by how much it matters.
       the switch needs its own U, and the shelf is the way to give it one. The
       1U shelf also has room beside the switch for a second small box later,
       which the U5 bracket by design does not.
-- [ ] Decide what `oracle` (10.0.99.30) is for. It is a dual-core AMD A6-9200
-      with 4 GB and a 5400 rpm disk — considerably less machine than this list
-      previously claimed, and too little for anything demanding.
-- [ ] Plan and build the NAS on VLAN 40.
-- [ ] Procure a second server ("ifrit") for the isolated playground network.
-- [ ] Build the playground — **only** after the main network is finished.
-- [ ] Work out DNS for the MokerLink management UI so it is not reached by IP.
+
+      This one has no issue yet — everything else in this file does.
+- **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle` is
+  for.** A dual-core A6-9200 with 4 GB and a 5400 rpm disk — too little for
+  anything demanding, and a candidate for the jobs that need a machine that is
+  *not* the monitoring host.
+- **[#95](https://github.com/Gerrrt/HomeLab/issues/95) Plan and build the NAS on
+  VLAN 40.** Adds an inter-VLAN rule and changes what "terminal" means for that
+  segment. ADR-0008.
+- **[#96](https://github.com/Gerrrt/HomeLab/issues/96) Procure `ifrit` and build
+  the playground** — only after the main network is finished. ADR-0007 defers the
+  isolation mechanism, and that deferral is the real work.
+- **[#97](https://github.com/Gerrrt/HomeLab/issues/97) Work out DNS for the
+  MokerLink management UI** so it is not reached by IP, and can hold a
+  certificate that verifies.
 
 ## Automation
 
-- [ ] Home Assistant integration with the eero API, so device joins and leaves
-      show up as events rather than being discovered by accident.
-- [ ] Move stack deployment from `make up` over SSH to something pull-based, so
-      the monitoring host converges on the repo rather than being pushed to.
-- [ ] Automate the Grafana dashboard export step — the current loop (edit in UI,
-      copy JSON, commit) is manual and therefore skipped under pressure.
+- **[#98](https://github.com/Gerrrt/HomeLab/issues/98) Home Assistant ↔ the eero
+  API**, so device joins and leaves are events rather than accidents. Blocked
+  behind ADR-0008's sensitive tier.
+- **[#99](https://github.com/Gerrrt/HomeLab/issues/99) Move deployment from
+  `make up` over SSH to something pull-based**, so the host converges on the repo
+  rather than being pushed to.
+- **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
+  dashboard export step** — the current loop is manual and therefore skipped
+  under pressure.
+- **[#77](https://github.com/Gerrrt/HomeLab/issues/77) Schedule something.**
+  Nothing runs `make backup`, `make backup-firewall`, `make check-digests` or
+  `make secrets-verify-backup` on a timer. The last of those is the only proof
+  the secrets are recoverable.
+
+## Decided but not built
+
+Accepted ADRs with no work behind them. Recorded here because an accepted ADR
+with nothing tracking it is indistinguishable from a rejected one after six
+months.
+
+- **[#101](https://github.com/Gerrrt/HomeLab/issues/101)** ADR-0007's
+  `stacks/lab/` on `Saruman` — Wazuh, Velociraptor, PBS, a Windows domain, and a
+  second observability stack.
+- **[#102](https://github.com/Gerrrt/HomeLab/issues/102)** ADR-0008's sensitive
+  tier and its two new firewall rules.
+- **[#103](https://github.com/Gerrrt/HomeLab/issues/103)** The SSO deferral
+  ADR-0008 takes knowingly — give it an expiry.
+- **[#104](https://github.com/Gerrrt/HomeLab/issues/104)** A superseding ADR:
+  0002 says two inter-VLAN rules exist and there are three.
+- **[#105](https://github.com/Gerrrt/HomeLab/issues/105)** Confirm the
+  unconfigured Snort package actually went.
 
 ## Done
 
