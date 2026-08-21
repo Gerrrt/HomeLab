@@ -342,6 +342,46 @@ Tune by **disabling individual signatures**, not whole categories — and record
 why in the pfSense rule comment, because a suppressed rule with no explanation
 is indistinguishable from one suppressed by mistake.
 
+### The first one, measured on this network
+
+Within fifteen minutes of enabling the interface, **every single Suricata alert
+was the same signature**:
+
+```text
+[1:2200121:1] SURICATA Ethertype unknown [Classification: Generic Protocol Command Decode] [Priority: 3]
+```
+
+Twenty in fifteen minutes, roughly 1,900 a day, and decoding the raw packets in
+the alert body explains all of them: destination `01:80:C2:00:00:0E` with
+ethertype `0x88CC` is **LLDP**, and a broadcast frame with ethertype `0x9104` is
+vendor traffic. Both are `neo` doing ordinary layer-2 switch things.
+
+That signature lives in `decoder-events.rules`, one of Suricata's own pre-enabled
+categories. **Suppress the signature, do not disable the category** — the rest of
+`decoder-events` catches genuinely malformed packets:
+
+```text
+# SURICATA Ethertype unknown — LLDP (0x88CC) and vendor ethertype 0x9104 from
+# neo. Normal L2 switch behaviour, not an anomaly.
+suppress gen_id 1, sig_id 2200121
+```
+
+The quickest route is **Services → Suricata → Alerts**, find one of those rows
+and click the suppress icon beside the signature; pfSense writes the list entry
+for you. Then attach the suppress list to the interface.
+
+Note what the volume is *not* a problem for. At roughly 285 KB a day this costs
+Loki nothing. The cost is that it was **100% of the alerts** — real findings would
+be buried in it, and "are there any Suricata alerts?" stops being a question
+worth asking. That is the reason to tune, not disk.
+
+> [!CAUTION]
+> **Alert bodies contain raw packet bytes, including MAC addresses.**
+> `security.md` requires MACs truncated to their OUI anywhere in this repository,
+> and `roadmap.md` has an open item to capture dashboard screenshots for the
+> README. A Suricata panel showing these lines would publish them. Crop or
+> redact before any screenshot leaves the machine.
+
 **Only consider Block Offenders after a fortnight of clean, understood alerts,
 and even then not on a segment the household depends on.** Blocking on VLAN 20
 means an auto-block can take out a camera, the alarm hub, or the baby monitor.
