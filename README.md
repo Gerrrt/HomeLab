@@ -69,18 +69,20 @@ graph TB
     INET([Internet]) --- FW{{"morpheus · pfSense<br/>HP ProDesk 600 G4"}}
     FW --- SW[neo · 26-port managed switch]
 
-    subgraph V99["VLAN 99 · Management"]
+    subgraph V99["VLAN 99 · Winterfell · Management"]
         MON["<b>prometheus</b><br/>observability stack"]
         UPS["mjolnir · UPS"]
     end
-    subgraph V50["VLAN 50 · Trusted"]
+    subgraph V50["VLAN 50 · Hicks · Trusted"]
         WS["workstations"]
     end
-    subgraph V30["VLAN 30 · Lab"]
+    subgraph V30["VLAN 30 · ImaginationLAN · Lab"]
         HV["Saruman · Proxmox<br/>BMC: shiva"]
     end
     subgraph Terminal["VLANs 40 / 20 / 10 · egress only"]
-        UNTRUSTED["media · IoT · guest"]
+        TV["40 · CasaBonita<br/>media"]
+        IOT["20 · Skids<br/>IoT"]
+        GUEST["10 · Degens<br/>guest"]
     end
 
     SW --- V99
@@ -90,18 +92,34 @@ graph TB
     WS -.->|management| V99
     WS -.->|lab| V30
 
-    classDef mgmt fill:#1f6f4a,stroke:#2ea043,color:#fff
-    classDef trusted fill:#1f4e79,stroke:#388bfd,color:#fff
-    classDef untrusted fill:#6e2c2c,stroke:#f85149,color:#fff
-    classDef infra fill:#4a3f7a,stroke:#a371f7,color:#fff
-    class MON,UPS mgmt
-    class WS trusted
-    class UNTRUSTED untrusted
-    class HV,FW,SW infra
+    %% Fill is the patch-cable colour in the rack. A dashed border means the
+    %% segment is terminal — egress only. Grey carries every VLAN, so it gets
+    %% no colour of its own. See docs/adr/0009.
+    classDef vlan99 fill:#6e2c2c,stroke:#f85149,color:#fff
+    classDef vlan50 fill:#7a3f12,stroke:#db6d28,color:#fff
+    classDef vlan30 fill:#1f6f4a,stroke:#2ea043,color:#fff
+    classDef infra  fill:#30363d,stroke:#8b949e,color:#e6edf3
+    classDef vlan40 fill:#a87f00,stroke:#e3b341,color:#0d1117,stroke-dasharray: 6 4
+    classDef vlan20 fill:#1f4e79,stroke:#388bfd,color:#fff,stroke-dasharray: 6 4
+    classDef vlan10 fill:#4a3f7a,stroke:#a371f7,color:#fff,stroke-dasharray: 6 4
+
+    class MON,UPS vlan99
+    class WS vlan50
+    class HV vlan30
+    class TV vlan40
+    class IOT vlan20
+    class GUEST vlan10
+    class FW,SW infra
+
+    style V99 fill:#161b22,stroke:#f85149,stroke-width:2px,color:#f85149
+    style V50 fill:#161b22,stroke:#db6d28,stroke-width:2px,color:#db6d28
+    style V30 fill:#161b22,stroke:#2ea043,stroke-width:2px,color:#2ea043
+    style Terminal fill:#161b22,stroke:#8b949e,stroke-width:2px,color:#8b949e,stroke-dasharray: 6 4
 ```
 
 Dotted lines are the only two paths between segments. Everything else reaches
-the internet and nothing more. Full topology and data flow in
+the internet and nothing more. Segment colour matches the patch cable in the
+rack; a dashed border means egress only. Full topology and data flow in
 [`docs/architecture.md`](docs/architecture.md).
 
 ## Stack

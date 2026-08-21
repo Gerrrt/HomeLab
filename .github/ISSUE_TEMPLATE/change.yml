@@ -16,12 +16,12 @@ body:
       label: Which VLAN does this touch
       multiple: true
       options:
-        - "99 — Winterfell (management)"
-        - "50 — Hicks (trusted)"
-        - "40 — CasaBonita (media)"
-        - "30 — ImaginationLAN (lab)"
-        - "20 — Skids (IoT)"
-        - "10 — Degens (guest)"
+        - "🔴 99 — Winterfell (management)"
+        - "🟠 50 — Hicks (trusted)"
+        - "🟡 40 — CasaBonita (media)"
+        - "🟢 30 — ImaginationLAN (lab)"
+        - "🔵 20 — Skids (IoT)"
+        - "🟣 10 — Degens (guest)"
         - None / not network-facing
 
   - type: checkboxes

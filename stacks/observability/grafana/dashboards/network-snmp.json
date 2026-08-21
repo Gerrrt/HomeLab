@@ -181,6 +181,59 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "VLAN"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "99": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "50": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "40": {
+                        "color": "semi-dark-yellow",
+                        "index": 2
+                      },
+                      "30": {
+                        "color": "green",
+                        "index": 3
+                      },
+                      "20": {
+                        "color": "blue",
+                        "index": 4
+                      },
+                      "10": {
+                        "color": "purple",
+                        "index": 5
+                      },
+                      "lan": {
+                        "color": "#484f58",
+                        "index": 6
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
           }
         ]
       },
