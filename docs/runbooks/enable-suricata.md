@@ -144,14 +144,77 @@ curl -sG http://localhost:3100/loki/api/v1/query \
 curl -s http://localhost:3100/loki/api/v1/rules | grep -o 'name: ids' || echo "ids group NOT loaded"
 ```
 
-Generate a harmless alert to prove the path end to end, from a VLAN 20 device:
+Now generate a harmless alert to prove the path end to end. **Do not skip this.**
+An IDS that has never been shown to report anything is indistinguishable from one
+that is not running, and this stack deliberately has no `SuricataStopped` rule to
+tell you otherwise (see *Rollback*).
+
+Whichever route you take, it has to originate **on VLAN 20** and travel in
+**plaintext**. Suricata sits on the firewall and cannot see inside TLS, so an
+HTTPS request proves nothing about your rules — only that a connection happened.
+
+### If you have a shell on a VLAN 20 device
 
 ```bash
 curl -A "BlackSun" http://example.com/
 ```
 
-`ET POLICY` has a signature for that user agent. If nothing appears within a
-minute, the problem is between Suricata and Loki, not with your rules.
+`ET POLICY` carries a signature for that user agent, and `emerging-policy` is one
+of the five categories enabled above.
+
+### If you do not — the case here
+
+VLAN 20 is cameras, a doorbell and an alarm hub. Nothing on it takes a shell, and
+a phone browser cannot set a user agent. Rather than go looking for an ET
+signature that is simultaneously browser-reachable, plaintext, and inside those
+five categories, add two local rules that depend on none of that.
+
+**Interfaces → Skids → Rules → Category: `custom.rules`:**
+
+```text
+alert http any any -> any any (msg:"HOMELAB IDS PIPELINE TEST http"; flow:established,to_server; http.uri; content:"/homelab-ids-test"; classtype:not-suspicious; sid:9000001; rev:1;)
+alert dns any any -> any any (msg:"HOMELAB IDS PIPELINE TEST dns"; dns.query; content:"homelab-ids-test"; nocase; classtype:not-suspicious; sid:9000002; rev:1;)
+```
+
+Save, then restart Suricata on the interface so the rules load.
+
+From a phone joined to the **Skids** SSID, visit:
+
+```text
+http://homelab-ids-test.neverssl.com/homelab-ids-test
+```
+
+Two rules, because each covers the other's blind spot. Browsers try HTTPS first,
+so the `http://` URL may be silently upgraded and never appear in plaintext — but
+the DNS lookup happens before any of that and is visible regardless, unless the
+phone is using DoH. Whichever one fires proves the path.
+`neverssl.com` exists specifically to not redirect to HTTPS, which is why it is
+the host here rather than `example.com`.
+
+`classtype:not-suspicious` renders as `[Classification: Not Suspicious Traffic]
+[Priority: 3]`. That exercises the parsing regex in `config.alloy` **without**
+tripping `SuricataHighPriorityAlert`, which wants priority 1 — a pipeline test
+should not page anyone.
+
+Confirm both the alert and its labels:
+
+```bash
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (classification,priority) (count_over_time({app="suricata"} |= `HOMELAB IDS PIPELINE TEST` [10m]))' \
+  | jq -r '.data.result[] | "\(.metric.priority)\t\(.metric.classification)\t\(.value[1])"'
+```
+
+Expect `3  Not Suspicious Traffic  1`. **Empty `classification` or `priority`
+with a non-zero count means the alert arrived but the regex did not match it** —
+a different fault from nothing arriving, and one that would otherwise look
+identical.
+
+**Delete both rules once this passes.** They are a test, not a detection, and a
+permanent rule matching a string nobody remembers choosing is how a ruleset
+becomes untrustworthy.
+
+If nothing appears within a minute, the problem is between Suricata and Loki, not
+with your rules — go back to the syslog check above before touching categories.
 
 ---
 
