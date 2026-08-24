@@ -144,6 +144,37 @@ jobs:
             -v "$PWD:/repo" -w /repo "$AM_IMAGE" \
             check-config "$STACK/alertmanager/alertmanager.yaml"
 
+      # check-config proves the tree parses and that every route names a
+      # receiver that exists. It does not say WHICH receiver an alert reaches,
+      # and the tree is first-match-wins with no `continue` — so demoting a
+      # category route below the bare `severity` routes stops it matching while
+      # check-config still reports SUCCESS. Verified: that mutation passes
+      # check-config and fails the assertions below.
+      #
+      # Same six assertions as scripts/validate.sh. Both places, one commit:
+      # this pair has drifted before (#68).
+      - name: amtool config routes test
+        run: |
+          fail=0
+          while read -r expected labels; do
+            [ -n "$expected" ] || continue
+            # shellcheck disable=SC2086
+            docker run --rm --entrypoint amtool \
+              -v "$PWD:/repo" -w /repo "$AM_IMAGE" \
+              config routes test \
+              --config.file="$STACK/alertmanager/alertmanager.yaml" \
+              --verify.receivers="$expected" $labels \
+              || { echo "::error::expected $expected for $labels"; fail=1; }
+          done <<'ROUTES'
+          urgent    severity=critical category=power
+          security  severity=critical category=security
+          security  severity=warning category=security
+          urgent    severity=critical category=availability
+          default   severity=warning category=capacity
+          null      severity=info category=correctness
+          ROUTES
+          exit $fail
+
       # `fmt --test` exits non-zero if the file is not canonically formatted, and
       # fails outright on a syntax error. It does not validate that components
       # are configured correctly — Alloy has no `validate` subcommand, so that is

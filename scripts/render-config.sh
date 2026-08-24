@@ -43,6 +43,8 @@ REQUIRED=(
   GRAFANA_ADMIN_PASSWORD
   GRAFANA_RENDERER_TOKEN
   ALERTMANAGER_WEBHOOK_URL
+  ALERTMANAGER_URGENT_WEBHOOK_URL
+  ALERTMANAGER_SECURITY_WEBHOOK_URL
   SNMP_COMMUNITY_PFSENSE
   SNMP_COMMUNITY_APC
   SNMP_COMMUNITY_MOKERLINK
@@ -101,27 +103,67 @@ if [[ -f "${SNMP_SRC}" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Render the Alertmanager webhook URL
+# Render the Alertmanager receiver URLs
 #
 # Alertmanager does not expand environment variables in its config. `url_file`
-# is the supported mechanism, so the URL is written to a file that compose
+# is the supported mechanism, so each URL is written to a file that compose
 # mounts read-only.
+#
+# One file per channel, driven by this list rather than three copies of the
+# same four lines — the three receivers in alertmanager.yaml were three names
+# for one URL until #66, and the shape that made that easy was a block written
+# out once and never generalised. Adding a fourth channel is now one entry here
+# plus one in REQUIRED above.
+#
+# The variable name is not derived from the filename (or vice versa): the
+# default channel's variable predates the other two and is not
+# ALERTMANAGER_DEFAULT_WEBHOOK_URL, and renaming a key in an encrypted file to
+# suit a loop is a worse trade than writing the pair out.
 # ---------------------------------------------------------------------------
+AM_CHANNELS=(
+  "ALERTMANAGER_WEBHOOK_URL:webhook_url"
+  "ALERTMANAGER_URGENT_WEBHOOK_URL:urgent_url"
+  "ALERTMANAGER_SECURITY_WEBHOOK_URL:security_url"
+)
 AM_OUT_DIR="${STACK_DIR}/alertmanager/.rendered"
 if [[ -f "${STACK_DIR}/alertmanager/alertmanager.yaml" ]]; then
-  info "rendering alertmanager webhook_url"
+  info "rendering ${#AM_CHANNELS[@]} alertmanager receiver URL(s)"
   mkdir -p "${AM_OUT_DIR}"
-  printf '%s' "${ALERTMANAGER_WEBHOOK_URL}" > "${AM_OUT_DIR}/webhook_url"
-  chmod 600 "${AM_OUT_DIR}/webhook_url"
+  chmod 700 "${AM_OUT_DIR}"
+  for channel in "${AM_CHANNELS[@]}"; do
+    var="${channel%%:*}"
+    file="${channel##*:}"
+    # No trailing newline: Alertmanager takes the file's whole content as the
+    # URL, and a newline in a URL is a delivery error rather than a warning.
+    printf '%s' "${!var}" > "${AM_OUT_DIR}/${file}"
+    chmod 600 "${AM_OUT_DIR}/${file}"
+  done
+  unset channel var file
+
+  # Every url_file alertmanager.yaml names must be one this loop just wrote. A
+  # url_file that does not exist is not a config error — Alertmanager reads it
+  # at notify time, so the stack starts, amtool check-config passes, and the
+  # first real alert is the thing that discovers the missing file. Adding a
+  # receiver and forgetting AM_CHANNELS now fails here at deploy time instead.
+  while read -r wanted; do
+    [[ -f "${AM_OUT_DIR}/${wanted}" ]] \
+      || die "alertmanager.yaml reads ${wanted}, which nothing in AM_CHANNELS renders"
+  #
+  # Anchored on `url_file:` rather than on the path fragment. A bare
+  # `secrets/[a-z_]+` also matched `secrets/observability.sops.yaml` in this
+  # file's own header comment, and reported the header as a missing channel.
+  done < <(grep -oE 'url_file:[[:space:]]*/etc/alertmanager/secrets/[a-z_]+' \
+             "${STACK_DIR}/alertmanager/alertmanager.yaml" \
+           | sed 's|.*/||' | sort -u)
 fi
 
 # ---------------------------------------------------------------------------
 # Write .env for compose interpolation
 #
 # Only the values compose actually interpolates are written here. The SNMP
-# communities go into the rendered snmp.yaml and the webhook URL into
-# webhook_url; copying them into .env as well would spread the same secret
-# across three files for no benefit.
+# communities go into the rendered snmp.yaml and the receiver URLs into their
+# own files under alertmanager/.rendered; copying them into .env as well would
+# spread the same secret across two files for no benefit.
 # ---------------------------------------------------------------------------
 COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_RENDERER_TOKEN)
 ENV_FILE="${STACK_DIR}/.env"

@@ -1,15 +1,22 @@
 ---
 # Alert routing.
 #
-# The receiver URL is a secret (a webhook URL is a bearer credential — anyone
-# holding it can post to it), so it is not in this file.
+# Receiver URLs are secrets (a webhook URL is a bearer credential — anyone
+# holding it can post to it), so they are not in this file.
 #
 # Alertmanager does NOT expand environment variables in its config. The
 # supported mechanism is `url_file`, which reads the URL from disk at notify
 # time. scripts/render-config.sh decrypts secrets/observability.sops.yaml and
-# writes .rendered/webhook_url, which compose mounts read-only at
-# /etc/alertmanager/secrets/. Both the rendered directory and its contents are
-# gitignored.
+# writes one file per channel into .rendered/, which compose mounts read-only
+# at /etc/alertmanager/secrets/. Both the rendered directory and its contents
+# are gitignored.
+#
+# There are three channels and three destinations. They used to be three names
+# for one URL, which meant `urgent` and `default` differed only in how often
+# they repeated — a UPS on battery and a slow scrape landed in the same place
+# (#66). Point them at three separate topics on whatever receiver you use, so
+# the phone can treat them differently: the routing tree below decides which
+# alert is urgent, but only a distinct destination can make that audible.
 
 global:
   resolve_timeout: 5m
@@ -22,6 +29,11 @@ route:
   # Don't re-nag every hour for something already known to be broken.
   repeat_interval: 12h
 
+  # FIRST MATCH WINS, and none of these set `continue`, so ORDER IS THE DESIGN.
+  # Every category-specific route has to sit above the bare `severity` routes
+  # at the bottom; move one below them and it silently stops matching while the
+  # config still loads and still validates. scripts/validate.sh asserts the
+  # whole table with `amtool config routes test` for exactly that reason.
   routes:
     # Power events page immediately and repeat aggressively — a UPS on battery
     # with no spare battery installed is a short fuse.
@@ -31,6 +43,29 @@ route:
         - category = "power"
       group_wait: 0s
       repeat_interval: 30m
+
+    # Security gets its own destination at both severities. There are ten rules
+    # labelled category=security across security.rules.yaml and
+    # network.rules.yaml — SSH brute force, a terminal segment reaching the
+    # internal network, IoT lateral movement, priority-1 Suricata. Routed on
+    # severity alone, the warning-severity half of that list arrived in the
+    # default channel on a 12-hour repeat, indistinguishable from a disk
+    # filling up. `category = "power"` above is the precedent.
+    - receiver: security
+      matchers:
+        - severity = "critical"
+        - category = "security"
+      group_wait: 0s
+      repeat_interval: 1h
+
+    # Still 4h rather than the default 12h: a brute-force attempt that is still
+    # running four hours later is a different situation from one that stopped.
+    - receiver: security
+      matchers:
+        - severity = "warning"
+        - category = "security"
+      group_wait: 30s
+      repeat_interval: 4h
 
     - receiver: urgent
       matchers:
@@ -71,5 +106,10 @@ receivers:
 
   - name: urgent
     webhook_configs:
-      - url_file: /etc/alertmanager/secrets/webhook_url
+      - url_file: /etc/alertmanager/secrets/urgent_url
+        send_resolved: true
+
+  - name: security
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/security_url
         send_resolved: true

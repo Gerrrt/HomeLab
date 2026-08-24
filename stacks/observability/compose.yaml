@@ -73,9 +73,9 @@ services:
       - --web.external-url=http://${MONITORING_HOST:-10.0.99.20}:${ALERTMANAGER_PORT:-9093}
     volumes:
       - ./alertmanager/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
-      # Contains webhook_url, written by scripts/render-config.sh. Alertmanager
-      # does not expand environment variables, so the receiver URL is read from
-      # a file via `url_file`.
+      # One file per notification channel, written by scripts/render-config.sh.
+      # Alertmanager does not expand environment variables, so each receiver
+      # URL is read from a file via `url_file`.
       - ./alertmanager/.rendered:/etc/alertmanager/secrets:ro
       - alertmanager-data:/alertmanager
     ports:
