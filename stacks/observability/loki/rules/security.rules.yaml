@@ -248,6 +248,11 @@ groups:
   # died needs a heartbeat or a process metric, not a log rule, and inventing
   # a threshold here would produce exactly the sort of alert that cannot fire
   # while looking like one that can. Tracked in docs/roadmap.md.
+  #
+  # prometheus/rules/watchdog.rules.yaml is the worked example of the heartbeat
+  # this comment is describing, built for the notification path (#67). Suricata
+  # would need the same shape: something that reports in when healthy, and an
+  # observer that acts on the silence.
   # ---------------------------------------------------------------------------
   - name: ids
     interval: 1m

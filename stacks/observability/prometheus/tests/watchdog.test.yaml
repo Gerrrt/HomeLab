@@ -1,0 +1,71 @@
+---
+# Unit test for watchdog.rules.yaml.
+#
+# There is deliberately no paired "stays quiet" case here, and that is a
+# departure from containers.test.yaml, which pairs every firing case with a
+# silent one. The reasoning there was that a test which only ever expects
+# silence would have passed against the unfireable rule in #63. Watchdog is the
+# mirror image: `vector(1)` is unconditional by design, so there is no input
+# that should silence it and a quiet case would be asserting a bug.
+#
+# What IS under test is the label set, which is the part that can break
+# silently. `severity: none` is what keeps this alert out of the bare `severity`
+# routes and, more importantly, out of the second inhibit rule — which matches
+# severity =~ "warning|critical" with equal: ["instance"], and Alertmanager
+# treats absent == absent as equal. A drive-by edit setting `severity: warning`
+# here would produce a dead man's switch that goes silent every time
+# InstanceDown fires, while promtool check rules still passed and the Prometheus
+# status page still showed it loaded, healthy and firing.
+#
+# What this does NOT prove: that the notification reaches anything. Nothing
+# offline can prove that — it is the whole reason #67 needs a watcher outside
+# this host. See docs/runbooks/verify-the-alert-path.md.
+rule_files:
+  - ../rules/watchdog.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- Watchdog: fires with no input series at all --------------------------
+  # No input_series on purpose. A rule that needs nothing to fire is exactly
+  # what a heartbeat has to be: no scrape to fail, no series to go stale, no
+  # label join to collapse.
+  - interval: 1m
+    input_series: []
+    alert_rule_test:
+      # for: 0s, so it is firing at the first evaluation rather than pending.
+      - eval_time: 1m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels:
+              alertname: Watchdog
+              component: watchdog
+              severity: none
+              category: monitoring
+            exp_annotations:
+              summary: "Alerting path is alive"
+              description: >-
+                Always firing. This exists so that its absence is detectable —
+                nothing here needs looking at, and its arrival means Prometheus
+                evaluated a rule, reached Alertmanager, and Alertmanager
+                delivered. If you are reading this because it STOPPED, see
+                docs/runbooks/verify-the-alert-path.md.
+
+      # Still firing an hour later. A heartbeat that fires once and resolves is
+      # a heartbeat that trips its own watcher.
+      - eval_time: 60m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels:
+              alertname: Watchdog
+              component: watchdog
+              severity: none
+              category: monitoring
+            exp_annotations:
+              summary: "Alerting path is alive"
+              description: >-
+                Always firing. This exists so that its absence is detectable —
+                nothing here needs looking at, and its arrival means Prometheus
+                evaluated a rule, reached Alertmanager, and Alertmanager
+                delivered. If you are reading this because it STOPPED, see
+                docs/runbooks/verify-the-alert-path.md.

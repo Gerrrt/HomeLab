@@ -166,6 +166,7 @@ jobs:
               --verify.receivers="$expected" $labels \
               || { echo "::error::expected $expected for $labels"; fail=1; }
           done <<'ROUTES'
+          heartbeat,default alertname=Watchdog severity=none category=monitoring
           urgent    severity=critical category=power
           security  severity=critical category=security
           security  severity=warning category=security
