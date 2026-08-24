@@ -11,7 +11,7 @@
 # at /etc/alertmanager/secrets/. Both the rendered directory and its contents
 # are gitignored.
 #
-# There are three channels and three destinations. They used to be three names
+# There are four channels and four destinations. They used to be three names
 # for one URL, which meant `urgent` and `default` differed only in how often
 # they repeated — a UPS on battery and a slow scrape landed in the same place
 # (#66). Point them at three separate topics on whatever receiver you use, so
@@ -35,6 +35,40 @@ route:
   # config still loads and still validates. scripts/validate.sh asserts the
   # whole table with `amtool config routes test` for exactly that reason.
   routes:
+    # --- The dead man's switch, and it has to be first ---------------------
+    #
+    # Watchdog fires unconditionally and forever (prometheus/rules/watchdog.rules.yaml).
+    # Its firing means nothing; its ABSENCE is the signal, so both of these
+    # routes exist to make the absence observable in two different ways.
+    #
+    # `continue: true` on the first is what lets ONE rule produce TWO
+    # notifications on two cadences, rather than duplicating the expression in
+    # the rule file. It is the only `continue` in this tree — everything below
+    # is first-match-wins.
+    #
+    # 5m to the heartbeat URL, which is a cron-monitor ping watched from off
+    # this host. Keep this at or under the external check's period; the runbook
+    # states the relationship, so retuning one without the other is visible.
+    - receiver: heartbeat
+      matchers:
+        - alertname = "Watchdog"
+      group_wait: 0s
+      group_interval: 5m
+      repeat_interval: 5m
+      continue: true
+
+    # 24h to the REAL alert channel. This is the half that catches #67's actual
+    # failure: a webhook that is well-formed, reachable, returns 200 and is
+    # pointed at nothing. It travels the identical URL real warnings travel, so
+    # a deleted topic shows up as a missing daily heartbeat instead of as
+    # nothing at all. The heartbeat route above cannot see that, because it
+    # proves delivery to a different URL.
+    - receiver: default
+      matchers:
+        - alertname = "Watchdog"
+      group_wait: 0s
+      repeat_interval: 24h
+
     # Power events page immediately and repeat aggressively — a UPS on battery
     # with no spare battery installed is a short fuse.
     - receiver: urgent
@@ -113,3 +147,12 @@ receivers:
     webhook_configs:
       - url_file: /etc/alertmanager/secrets/security_url
         send_resolved: true
+
+  # send_resolved: false, deliberately. If Prometheus stops sending Watchdog,
+  # Alertmanager expires it after resolve_timeout and the pings simply stop —
+  # which is precisely the signal the external check is waiting for. A resolved
+  # notification here would be one last successful ping on the way out the door.
+  - name: heartbeat
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/heartbeat_url
+        send_resolved: false

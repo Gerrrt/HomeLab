@@ -14,7 +14,7 @@ What this network is actually built to survive:
 | A smart TV's firmware phoning somewhere unexpected | VLAN 40 is terminal, egress only |
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
-| Losing visibility of a failure | 34 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 35 alert rules, 30 days of metrics and logs |
 | Mains power loss | **Not currently defended.** `mjolnir` has no battery installed — see below |
 
 What it explicitly does **not** defend against: a determined attacker with

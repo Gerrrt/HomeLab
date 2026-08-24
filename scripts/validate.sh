@@ -153,6 +153,11 @@ if ((${#AMTOOL[@]})); then
   #
   # Each line below is one row of the table in alertmanager.yaml.
   # --verify.receivers exits non-zero when the resolved receiver differs.
+  #
+  # The Watchdog row expects TWO receivers because its first route sets
+  # `continue: true` — the one place in the tree that does. That row is also
+  # what catches a `severity` slip on the watchdog rule: with `info` it would
+  # resolve to "null" and the dead man's switch would be silently disarmed.
   routes_ok=1
   while read -r expected labels; do
     [[ -n "${expected}" ]] || continue
@@ -166,6 +171,7 @@ if ((${#AMTOOL[@]})); then
       routes_ok=0
     fi
   done <<'ROUTES'
+heartbeat,default alertname=Watchdog severity=none category=monitoring
 urgent    severity=critical category=power
 security  severity=critical category=security
 security  severity=warning category=security
@@ -175,7 +181,7 @@ null      severity=info category=correctness
 ROUTES
 
   if ((routes_ok)); then
-    pass "amtool config routes test (6 assertions)"
+    pass "amtool config routes test (7 assertions)"
   else
     fail "amtool config routes test"
   fi

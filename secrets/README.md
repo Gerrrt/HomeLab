@@ -85,8 +85,9 @@ file, exports the values as environment variables, and:
 - renders `snmp-exporter/snmp.yaml`'s `${SNMP_COMMUNITY_*}` placeholders into
   `snmp-exporter/.rendered/snmp.yaml`, which is what the container mounts;
 - writes one file per notification channel into `alertmanager/.rendered/` —
-  `webhook_url`, `urgent_url` and `security_url` — because Alertmanager does not
-  expand environment variables and reads receiver URLs via `url_file`.
+  `webhook_url`, `urgent_url`, `security_url` and `heartbeat_url` — because
+  Alertmanager does not expand environment variables and reads receiver URLs
+  via `url_file`.
 
 All of them are gitignored, and each secret is written to exactly one of them.
 Nothing writes a secret into a tracked file.

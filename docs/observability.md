@@ -70,7 +70,7 @@ expression in every panel is syntactically valid.
 
 ## Alerting
 
-47 rules in total: 34 metric-based in `prometheus/rules/`, and 13 log-based in
+48 rules in total: 35 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -99,7 +99,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-34 rules across four files in `prometheus/rules/`:
+35 rules across five files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -107,6 +107,7 @@ boot check.
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware |
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature |
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling, and the stack watching itself |
+| `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 
 `promtool check rules` validates that these parse. It does not — and cannot —
 tell you whether a rule can ever be true: `ContainerHighMemory` passed it for
@@ -115,9 +116,9 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is one rule of 34 so far:
-`ContainerHighMemory`. The other 33 are still validated for syntax only, which
-is exactly the standing #63 had.
+against the broken rule too. Coverage is two rules of 35 so far:
+`ContainerHighMemory` and `Watchdog`. The other 33 are still validated for
+syntax only, which is exactly the standing #63 had.
 
 Disk alerting is predictive rather than a fixed threshold — `predict_linear` over
 a 6-hour window, firing when the extrapolation reaches zero within a day *and*
@@ -159,6 +160,44 @@ was tried. `scripts/validate.sh` and CI therefore assert the table itself with
 Inhibit rules stop cascades: a down host suppresses its own disk warnings, and a
 dead `snmp-exporter` suppresses the "every device is unreachable" storm that
 would otherwise follow.
+
+### The dead man's switch
+
+`AlertmanagerNotificationsFailing` catches delivery *errors*. It cannot catch a
+webhook URL that is well-formed, reachable, and pointed at nothing — a 200 into a
+deleted ntfy topic is a successful notification by every measure Alertmanager
+has. That is not hypothetical: the webhook was the `ntfy.example.invalid`
+placeholder for the entire life of the stack and nothing noticed, because the
+only symptom is that alerts stop arriving, which is also what a healthy week
+looks like ([#67](https://github.com/Gerrrt/HomeLab/issues/67)).
+
+`prometheus/rules/watchdog.rules.yaml` holds one rule, `Watchdog`, whose
+expression is `vector(1)`. It fires unconditionally and forever. **Its firing
+carries no information; its absence is the entire signal.** One `continue: true`
+— the only one in the tree — sends it to two places:
+
+| Route | Destination | Cadence | Catches |
+| --- | --- | --- | --- |
+| `heartbeat` | external cron-monitor ping | 5m | Prometheus stopped evaluating, Alertmanager died, no outbound network |
+| `default` | the real alert channel | 24h | the alert channel itself is a 200 into nothing |
+
+Neither half substitutes for the other. The heartbeat proves delivery to a
+*different* URL than real alerts use, so it cannot see a deleted topic; the daily
+notification travels the identical URL your warnings travel, but nothing
+machine-checks its absence.
+
+The watcher lives off this host by necessity — a watcher here fails at the same
+moment as the thing it is watching. Setting it up, the coupling between
+`repeat_interval` and the external check's period and grace, and how to read
+which half went quiet are in
+[`runbooks/verify-the-alert-path.md`](runbooks/verify-the-alert-path.md).
+
+This is the same reasoning `loki/rules/security.rules.yaml` already applies to
+the firewall with `FirewallLogsStopped`, and the reason it gives for deliberately
+*not* writing a `SuricataStopped` rule: absence of alerts is indistinguishable
+from absence of the service, and detecting that needs a heartbeat rather than a
+threshold. The notification path was the one place that argument had not been
+turned on itself.
 
 ## Adding a monitored device
 

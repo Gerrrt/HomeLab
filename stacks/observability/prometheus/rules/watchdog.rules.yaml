@@ -1,0 +1,65 @@
+---
+# A dead man's switch on the notification path.
+#
+# AlertmanagerNotificationsFailing (containers.rules.yaml) catches delivery
+# ERRORS — a refused connection, a 5xx. It cannot catch a webhook URL that is
+# well-formed, reachable, and pointed at nothing: a 200 into a deleted ntfy
+# topic is a successful notification by every measure Alertmanager has.
+#
+# That is not hypothetical here. The webhook was the ntfy.example.invalid
+# placeholder for the entire life of the stack and nothing noticed, because the
+# only symptom is that alerts stop arriving — which is also what a healthy week
+# looks like.
+#
+# This repository already applies exactly this reasoning elsewhere.
+# security.rules.yaml has FirewallLogsStopped because a firewall passing traffic
+# for the whole house is never silent for thirty minutes, and it explains at
+# length why there is deliberately NO SuricataStopped rule: "absence of alerts is
+# indistinguishable from absence of the service", and detecting that needs a
+# heartbeat, not a log rule. The notification path was the one place the
+# reasoning was never turned on itself. Tracked in #67.
+#
+# THE INVERSION THAT MAKES THIS RULE MAKE SENSE: its firing carries no
+# information whatsoever. Its ABSENCE is the entire signal. Nothing inside this
+# stack can act on that, because a watcher on this host fails at the same moment
+# as the thing it is watching — so the watching is done by an external service,
+# and docs/runbooks/verify-the-alert-path.md is where that half is written down.
+groups:
+  - name: watchdog
+    interval: 1m
+    rules:
+      - alert: Watchdog
+        # Unconditional, by design. `vector(1)` has no inputs, so there is no
+        # data problem, no scrape, no label join and no threshold that can stop
+        # this from firing. Anything that stops the heartbeat arriving is
+        # therefore a fault in the path itself: rule evaluation, the send to
+        # Alertmanager, routing, or delivery.
+        expr: vector(1)
+        for: 0s
+        labels:
+          component: watchdog
+          # severity: none is load-bearing, not a placeholder.
+          #
+          # 1. It keeps the alert out of the three bare `severity` routes at the
+          #    bottom of alertmanager.yaml. With `info` it would be swallowed by
+          #    the "null" receiver; with `warning` or `critical` it would page.
+          #    Its own routes match on alertname and sit above all of them.
+          #
+          # 2. It keeps the alert out of both inhibit_rules. The second matches
+          #    target_matchers: [severity =~ "warning|critical"] with
+          #    equal: ["instance"] — and Alertmanager treats absent == absent as
+          #    equal, so a Watchdog carrying a warning severity and no instance
+          #    label would be silenced every single time InstanceDown fired.
+          #    A dead man's switch that goes quiet exactly when a host goes down
+          #    is worse than none: it would report the path healthy right up to
+          #    the moment it stopped, and then look like the host's fault.
+          severity: none
+          category: monitoring
+        annotations:
+          summary: "Alerting path is alive"
+          description: >-
+            Always firing. This exists so that its absence is detectable —
+            nothing here needs looking at, and its arrival means Prometheus
+            evaluated a rule, reached Alertmanager, and Alertmanager delivered.
+            If you are reading this because it STOPPED, see
+            docs/runbooks/verify-the-alert-path.md.
