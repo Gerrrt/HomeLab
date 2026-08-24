@@ -143,6 +143,42 @@ if ((${#AMTOOL[@]})); then
     "${AMTOOL[@]}" check-config "${STACK}/alertmanager/alertmanager.yaml"
     fail "amtool check-config"
   fi
+
+  # check-config proves the tree parses and that every route names a receiver
+  # that exists. It says nothing about WHICH receiver an alert reaches, and the
+  # routing tree is first-match-wins with no `continue` anywhere — so moving a
+  # category route below the bare `severity` routes stops it matching while
+  # check-config still passes. That is the #66 failure shape exactly: a config
+  # that loads, validates, and delivers to the wrong place.
+  #
+  # Each line below is one row of the table in alertmanager.yaml.
+  # --verify.receivers exits non-zero when the resolved receiver differs.
+  routes_ok=1
+  while read -r expected labels; do
+    [[ -n "${expected}" ]] || continue
+    # shellcheck disable=SC2086  # labels is a deliberate word-split list
+    if ! "${AMTOOL[@]}" config routes test \
+         --config.file="${STACK}/alertmanager/alertmanager.yaml" \
+         --verify.receivers="${expected}" ${labels} >/dev/null 2>&1; then
+      printf 'expected %s for %s, got: ' "${expected}" "${labels}" >&2
+      "${AMTOOL[@]}" config routes test \
+        --config.file="${STACK}/alertmanager/alertmanager.yaml" ${labels} >&2
+      routes_ok=0
+    fi
+  done <<'ROUTES'
+urgent    severity=critical category=power
+security  severity=critical category=security
+security  severity=warning category=security
+urgent    severity=critical category=availability
+default   severity=warning category=capacity
+null      severity=info category=correctness
+ROUTES
+
+  if ((routes_ok)); then
+    pass "amtool config routes test (6 assertions)"
+  else
+    fail "amtool config routes test"
+  fi
 else
   skip "no amtool and no docker daemon"
 fi

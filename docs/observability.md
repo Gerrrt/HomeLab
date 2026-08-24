@@ -119,19 +119,46 @@ against the broken rule too. Coverage is one rule of 34 so far:
 `ContainerHighMemory`. The other 33 are still validated for syntax only, which
 is exactly the standing #63 had.
 
-Routing is by `severity` and `category` (see `alertmanager/alertmanager.yaml`).
-`critical` + `category=power` pages immediately and repeats every 30 minutes;
-other criticals repeat every 4 hours; warnings every 12; `info` is recorded but
-never notified.
-
-Inhibit rules stop cascades: a down host suppresses its own disk warnings, and a
-dead `snmp-exporter` suppresses the "every device is unreachable" storm that
-would otherwise follow.
-
 Disk alerting is predictive rather than a fixed threshold — `predict_linear` over
 a 6-hour window, firing when the extrapolation reaches zero within a day *and*
 free space is already under 30%. A disk sitting at 86% and stable is not an
 emergency; one climbing fast at 60% is.
+
+### Routing
+
+Three receivers, **three separate destinations** (see
+`alertmanager/alertmanager.yaml`). They were three names for one webhook URL
+until [#66](https://github.com/Gerrrt/HomeLab/issues/66), which meant `urgent`
+and `default` differed only in how often they repeated — a UPS on battery and a
+slow scrape landed in the same place. The routing tree decides which alert is
+urgent; only a distinct destination makes that difference audible, because
+per-topic sound and do-not-disturb settings live on the receiving end.
+
+| Matches | Receiver | First notification | Repeats |
+| --- | --- | --- | --- |
+| `critical` + `category=power` | `urgent` | immediately | 30m |
+| `critical` + `category=security` | `security` | immediately | 1h |
+| `warning` + `category=security` | `security` | 30s | 4h |
+| `critical` (anything else) | `urgent` | 10s | 4h |
+| `warning` (anything else) | `default` | 30s | 12h |
+| `info` | `null` | never | — |
+
+Security has its own destination at both severities because ten rules carry
+`category: security` — SSH brute force, a terminal segment reaching the internal
+network, IoT lateral movement, priority-1 Suricata — and routed on `severity`
+alone, the warning-severity half of that list arrived in the default channel on
+a 12-hour repeat, indistinguishable from a disk filling up. `category=power`
+was the precedent.
+
+**First match wins and nothing sets `continue`, so the order of those rows is
+the design.** A category route moved below the bare `severity` rows silently
+stops matching, and `amtool check-config` still reports SUCCESS — that mutation
+was tried. `scripts/validate.sh` and CI therefore assert the table itself with
+`amtool config routes test --verify.receivers`, one assertion per row.
+
+Inhibit rules stop cascades: a down host suppresses its own disk warnings, and a
+dead `snmp-exporter` suppresses the "every device is unreachable" storm that
+would otherwise follow.
 
 ## Adding a monitored device
 

@@ -84,10 +84,11 @@ file, exports the values as environment variables, and:
   (the Grafana credentials);
 - renders `snmp-exporter/snmp.yaml`'s `${SNMP_COMMUNITY_*}` placeholders into
   `snmp-exporter/.rendered/snmp.yaml`, which is what the container mounts;
-- writes `alertmanager/.rendered/webhook_url`, because Alertmanager does not
+- writes one file per notification channel into `alertmanager/.rendered/` —
+  `webhook_url`, `urgent_url` and `security_url` — because Alertmanager does not
   expand environment variables and reads receiver URLs via `url_file`.
 
-All three are gitignored, and each secret is written to exactly one of them.
+All of them are gitignored, and each secret is written to exactly one of them.
 Nothing writes a secret into a tracked file.
 
 ## Rotating
