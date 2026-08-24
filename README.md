@@ -192,10 +192,27 @@ $ make help
   ...
 ```
 
-<!-- Dashboard screenshots go here once the stack has real data worth showing.
-     `make screenshots` captures them; docs/images/README.md lists the
-     filenames, and says why the Logs dashboard is deliberately not among
-     them. -->
+## Dashboards
+
+Rendered from the running stack by `make screenshots`, over a 24-hour window.
+Four of the five provisioned dashboards are here; `docs/images/README.md`
+explains why the Logs dashboard is deliberately not among them.
+
+![Host Overview dashboard: CPU, memory, load, storage and network for every host
+running an Alloy agent, with a table of firing host alerts across the
+top.](docs/images/host-overview.png)
+
+![Docker Containers dashboard: per-container CPU, memory, network and filesystem
+writes from cAdvisor, alongside restart counts, CPU throttling and a container
+inventory.](docs/images/docker-containers.png)
+
+![Network & Firewall dashboard: pfSense pf state table and packet filter drops,
+MokerLink switch interface throughput and link status, and HPE iLO chassis power
+draw and hardware health.](docs/images/network-snmp.png)
+
+![UPS & Power dashboard: APC power source, output load, input and output voltage
+and runtime, under a banner explaining that every battery figure is fabricated
+because no battery pack is fitted.](docs/images/ups-power.png)
 
 ## What runs it
 

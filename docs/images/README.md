@@ -2,31 +2,33 @@
 
 Dashboard screenshots go here and are referenced from the root `README.md`.
 
-They are deliberately absent rather than faked — a mocked-up dashboard image in
-a monitoring repository is worse than none, because it cannot be checked against
-the JSON that produced it.
+Every one is a real render of the real stack. A mocked-up dashboard image in a
+monitoring repository is worse than none, because it cannot be checked against
+the JSON that produced it — so an image that cannot honestly be captured is left
+out rather than illustrated.
 
 ## What is here now
 
-Two of the four, not four. `network-snmp.png` and `ups-power.png` pass the
-checklist at the bottom of this file. `host-overview.png` and
-`docker-containers.png` do not yet, and are absent rather than committed with a
-note apologising for them:
+All four, captured in a single run on 2026-08-22 over a 24-hour window. One run
+rather than four afternoons: a set shot at the same moment is comparable, and a
+gap in one of them is visible against the others.
 
-| File | Why it is not here |
-| --- | --- |
-| `host-overview.png` | A 14-hour hole, 02:00 to 16:00, where the agent was down. Half the panels are a flat line — the exact thing "The window matters" below warns about. |
-| `docker-containers.png` | cAdvisor only started reporting correctly in [#62](https://github.com/Gerrrt/HomeLab/pull/62), so 22 of the 24 hours are empty. |
+Which file holds which dashboard is in the table under "Capturing them" below,
+because that pairing is defined in the capture script rather than here.
 
-Both are a re-shoot, not a repair: run `make screenshots` again once the stack
-has a clean day behind it. Tracked in
-[#12](https://github.com/Gerrrt/HomeLab/issues/12).
+Two things in them are real and should not be tidied away on the next capture.
+`network-snmp.png` shows `IloBatteryCondition` firing on `shiva` — that is a
+genuine hardware fault, tracked in
+[#76](https://github.com/Gerrrt/HomeLab/issues/76), and a screenshot of a stack
+with nothing wrong would be the less honest picture. `docker-containers.png`
+carries a `renderer` series in two legends: that is the `capture` profile
+container taking the screenshot, which exists only for the duration of a
+capture, which is why the inventory below it lists six containers and not seven.
 
-The Container inventory panel on the Docker dashboard used to publish the
-absolute path of `compose.yaml` — and so a username — because it excluded
-fields by name and cAdvisor kept adding new ones. It now filters to an
-allowlist. That was caught by this checklist working, which is the argument for
-having it.
+The Container inventory panel used to publish the absolute path of
+`compose.yaml` — and so a username — because it excluded fields by name and
+cAdvisor kept adding new ones. It now filters to an allowlist. That was caught
+by this checklist working, which is the argument for having it.
 
 ## Capturing them
 
@@ -53,7 +55,9 @@ drift:
 Height is derived per dashboard from its own JSON, so adding a panel makes the
 screenshot taller instead of pushing the new panel out of frame.
 
-Then uncomment the screenshot block in the root `README.md`.
+Overwrite the existing files in place. The root `README.md` references them
+by name, so a re-shoot needs no edit there — but it does need the checklist
+at the bottom of this file running over it again before it is committed.
 
 ### The window matters
 
