@@ -24,7 +24,7 @@ Six assertions, each comparing prose against something machine-readable:
   3. Host and stack table  docs/architecture.md <-> docs/network.md, stacks/
   4. Ports table           docs/architecture.md <-> compose.yaml
   5. Compute table         docs/hardware.md <-> docs/network.md
-  6. Image versions        prose <-> compose.yaml
+  6. Image versions        no version pins in prose; compose.yaml owns them
 
 Only present-tense documents are checked. `docs/roadmap.md` and `docs/adr/`
 record what was true when the work landed — `roadmap.md` still says "(34 rules)"
@@ -468,20 +468,35 @@ def check_compute_table() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# 6. Image versions quoted in prose
+# 6. Image versions must not appear in prose at all
 # ---------------------------------------------------------------------------
 def check_image_versions() -> list[str]:
-    pinned = {}
+    """compose.yaml is the only place an image version may appear.
+
+    An earlier version of this check asserted that a version quoted in prose
+    *matched* compose.yaml. That keeps the documents honest but keeps the
+    duplication, and the duplication is the actual defect: Dependabot edits
+    only compose.yaml, so a version written anywhere else is stale from the
+    next bump onward. All six in the stack README went stale exactly that way
+    (#73), and matching them would have made every Dependabot PR red until
+    someone hand-edited a table.
+
+    ci.yml already refuses duplicated pins in shell, YAML and the Makefile —
+    "hardcoded copies went stale silently" — but its grep does not cover
+    Markdown, which is how the six survived. This is that rule, extended to
+    prose.
+    """
+    pinned = set()
     doc = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
     for svc in (doc.get("services") or {}).values():
         image = str((svc or {}).get("image", ""))
-        if not image:
-            continue
-        repository, _, tag = image.partition("@")[0].rpartition(":")
-        pinned[repository] = tag
+        if image:
+            pinned.add(image.partition("@")[0].rpartition(":")[0])
 
-    # Only inline code spans. Prose mentioning an image without a version, and
-    # anything inside a URL, is not a pin and must not be treated as one.
+    # Only inline code spans, and only a repository compose.yaml actually
+    # pins. An OS version in a hardware table is not an image pin, and neither
+    # is a registry path mentioned without a tag — naming the image is fine,
+    # naming its version is what goes stale.
     span = re.compile(r"`([a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*):([^`\s]+)`")
     problems = []
     for rel in PROSE:
@@ -490,11 +505,12 @@ def check_image_versions() -> list[str]:
             continue
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for match in span.finditer(line):
-                repository, tag = match.group(1), match.group(2).split("@")[0]
-                if repository in pinned and tag != pinned[repository]:
+                repository = match.group(1)
+                if repository in pinned:
                     problems.append(
-                        f"{rel}:{n} says {repository}:{tag}; compose.yaml pins "
-                        f"{pinned[repository]}"
+                        f"{rel}:{n} pins {repository}:{match.group(2)}; only "
+                        f"compose.yaml may carry a version — drop the tag and "
+                        f"write `{repository}`"
                     )
     return problems
 
@@ -508,7 +524,7 @@ def main() -> int:
         ("host and stack mapping", check_host_stack_table),
         ("ports table against compose.yaml", check_ports),
         ("compute table against docs/network.md", check_compute_table),
-        ("image versions quoted in prose", check_image_versions),
+        ("image versions in prose (compose.yaml owns them)", check_image_versions),
     )
 
     total = 0
