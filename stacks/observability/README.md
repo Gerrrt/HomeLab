@@ -8,12 +8,12 @@ make up        # from the repository root
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `prometheus` | `prom/prometheus:v3.1.0` | 9090 | Metrics store, remote-write receiver, rule evaluation |
-| `alertmanager` | `prom/alertmanager:v0.28.0` | 9093 | Alert routing, grouping, inhibition |
-| `loki` | `grafana/loki:3.3.2` | 3100 | Log store |
-| `grafana` | `grafana/grafana-oss:11.5.2` | 3000 | Dashboards |
-| `snmp-exporter` | `prom/snmp-exporter:v0.28.0` | *internal* | SNMP polling proxy |
-| `alloy` | `grafana/alloy:v1.6.1` | 12345 (localhost) | Metric and log collection |
+| `prometheus` | `prom/prometheus:v3.14.0` | 9090 | Metrics store, remote-write receiver, rule evaluation |
+| `alertmanager` | `prom/alertmanager:v0.34.0` | 9093 | Alert routing, grouping, inhibition |
+| `loki` | `grafana/loki:3.7.6` | 3100 | Log store |
+| `grafana` | `grafana/grafana-oss:13.0.2` | 3000 | Dashboards |
+| `snmp-exporter` | `prom/snmp-exporter:v0.30.1` | *internal* | SNMP polling proxy |
+| `alloy` | `grafana/alloy:v1.18.1` | 12345 (localhost) | Metric and log collection |
 
 ## Layout
 
@@ -23,7 +23,7 @@ compose.yaml               all six services, one network, health-gated ordering
 prometheus/
   prometheus.yaml          scrape config; SNMP via file_sd
   targets/snmp.yaml        SNMP targets — hot-reloaded, no restart needed
-  rules/*.rules.yaml       34 alert rules across host/network/ups/containers
+  rules/*.rules.yaml       35 alert rules across host/network/ups/containers
   tests/*.test.yaml        promtool unit tests — assert the rules can fire
 alertmanager/
   alertmanager.yaml        severity + category routing, inhibition

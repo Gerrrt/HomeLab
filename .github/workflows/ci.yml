@@ -199,6 +199,26 @@ jobs:
       - name: Validate Loki rules
         run: ./scripts/check_loki_rules.sh
 
+      # The device list is spread across snmp.yaml, generator.yaml,
+      # render-config.sh's REQUIRED array and the example secrets file. Drift
+      # between them is invisible until a poll goes out with an empty community,
+      # and the generator path fails *open*.
+      #
+      # This ran in scripts/validate.sh and nowhere else — it was the only check
+      # `make validate` had that CI did not, so it had never run on a pull
+      # request. That asymmetry is #68.
+      - name: Verify the SNMP inventory agrees with itself
+        run: ./scripts/snmp-targets.sh --check
+
+      # Documentation was the last defect class here with no check at all. This
+      # asserts the prose agrees with the configs it describes — rule and panel
+      # counts, SNMP targets against docs/network.md, the host/stack and ports
+      # tables against compose.yaml, and image versions quoted in Markdown.
+      # #72 (counts stale in eight places) and #73 (six stale image versions,
+      # "and CI does not check Markdown") are both this check's absence.
+      - name: Verify the documents agree with the configs
+        run: python3 scripts/check_docs.py
+
       - name: Validate Grafana dashboards
         run: python3 scripts/check_dashboards.py
 
