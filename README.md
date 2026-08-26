@@ -160,7 +160,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 10 architecture decision records
+│   ├── adr/                  # 11 architecture decision records
 │   └── runbooks/             # deploy, add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, ship firewall logs,
 │                             #   enable suricata
