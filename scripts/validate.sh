@@ -249,6 +249,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "Documentation"
+# ---------------------------------------------------------------------------
+# Asserts the prose still agrees with the configs it describes: rule and panel
+# counts, the SNMP inventory against docs/network.md, the host/stack and ports
+# tables against compose.yaml, and image versions quoted in Markdown. Doc drift
+# is the one defect class here that had no check — see #72, #73 and #104.
+if have python3; then
+  if python3 scripts/check_docs.py; then
+    pass "documents agree with the configs"
+  else
+    fail "documents disagree with the configs"
+  fi
+else
+  skip "python3 not installed"
+fi
+
+# ---------------------------------------------------------------------------
 head_ "YAML / Markdown / shell"
 # ---------------------------------------------------------------------------
 if YAMLLINT="$(runner_for yamllint)"; then

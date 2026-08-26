@@ -55,6 +55,11 @@ incident.
   `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
   dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
   `gitleaks` over the full history.
+- **CI that validates the documentation too.** Six assertions cross-check
+  this prose against the configs it describes — rule and panel counts, the
+  SNMP inventory against `docs/network.md`, the host/stack and ports tables
+  against `compose.yaml`, and every image version quoted in Markdown. A
+  document that disagrees with the repository fails the build.
 - **Supply chain pinned by digest.** Every image carries both a tag and a
   `sha256:` digest, so a moved tag cannot change what deploys. CI enforces it;
   `make pin-digests` re-resolves them from the registry.
