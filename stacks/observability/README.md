@@ -8,12 +8,12 @@ make up        # from the repository root
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `prometheus` | `prom/prometheus:v3.14.0` | 9090 | Metrics store, remote-write receiver, rule evaluation |
-| `alertmanager` | `prom/alertmanager:v0.34.0` | 9093 | Alert routing, grouping, inhibition |
-| `loki` | `grafana/loki:3.7.6` | 3100 | Log store |
-| `grafana` | `grafana/grafana-oss:13.0.2` | 3000 | Dashboards |
-| `snmp-exporter` | `prom/snmp-exporter:v0.30.1` | *internal* | SNMP polling proxy |
-| `alloy` | `grafana/alloy:v1.18.1` | 12345 (localhost) | Metric and log collection |
+| `prometheus` | `prom/prometheus` | 9090 | Metrics store, remote-write receiver, rule evaluation |
+| `alertmanager` | `prom/alertmanager` | 9093 | Alert routing, grouping, inhibition |
+| `loki` | `grafana/loki` | 3100 | Log store |
+| `grafana` | `grafana/grafana-oss` | 3000 | Dashboards |
+| `snmp-exporter` | `prom/snmp-exporter` | *internal* | SNMP polling proxy |
+| `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 
 ## Layout
 
@@ -50,7 +50,14 @@ grafana/
   block dropped.
 - **Adding an SNMP target needs no restart** — file_sd re-reads every 5 minutes.
   Adding a *module* does, because snmp-exporter reads its config once.
-- **Image tags are pinned.** CI fails on `:latest`. Dependabot proposes bumps.
+- **Image tags are pinned, and the versions are not repeated here.** Every image
+  in `compose.yaml` carries a tag *and* a `sha256:` digest; CI fails on
+  `:latest` and on any image missing a digest, and Dependabot proposes bumps.
+  The table above deliberately names images without versions — Dependabot only
+  edits `compose.yaml`, so a version written anywhere else goes stale the moment
+  it lands, which is what happened to all six of these (#73).
+  `scripts/check_docs.py` now fails the build if a version pin reappears in
+  prose. `docker compose images` prints what is actually running.
 
 ## Validate before deploying
 

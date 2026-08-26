@@ -58,8 +58,10 @@ incident.
 - **CI that validates the documentation too.** Six assertions cross-check
   this prose against the configs it describes — rule and panel counts, the
   SNMP inventory against `docs/network.md`, the host/stack and ports tables
-  against `compose.yaml`, and every image version quoted in Markdown. A
-  document that disagrees with the repository fails the build.
+  against `compose.yaml`, and a ban on image versions in prose — Dependabot
+  edits only `compose.yaml`, so a version written anywhere else is stale
+  from the next bump. A document that disagrees with the repository fails
+  the build.
 - **Supply chain pinned by digest.** Every image carries both a tag and a
   `sha256:` digest, so a moved tag cannot change what deploys. CI enforces it;
   `make pin-digests` re-resolves them from the registry.
