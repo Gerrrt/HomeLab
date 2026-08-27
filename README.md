@@ -165,7 +165,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 │   ├── adr/                  # 11 architecture decision records
 │   └── runbooks/             # deploy, add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, ship firewall logs,
-│                             #   enable suricata
+│                             #   enable suricata, fit the UPS battery
 └── Makefile                  # make help
 ```
 
