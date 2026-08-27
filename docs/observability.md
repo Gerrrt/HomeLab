@@ -105,7 +105,7 @@ boot check.
 | --- | --- |
 | `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew, reboots |
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware |
-| `ups.rules.yaml` | On battery, low battery, runtime, load, temperature |
+| `ups.rules.yaml` | On battery, low battery, runtime, load, temperature. No pack is fitted, so most of these read values the management card fabricates — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling, and the stack watching itself |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 

@@ -99,6 +99,7 @@ what left this one unfireable for months.
   The management card fabricates a healthy pack. **The `UpsSelfTestFailed`
   silence must be deleted the moment the pack is fitted, not left to expire** —
   the issue carries the command and the reasoning.
+  → [runbook](runbooks/fit-the-ups-battery.md)
 - **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
   A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
   `oracle` hang off. **Buy it with the UPS pack above, not after** — both shelf
@@ -106,6 +107,7 @@ what left this one unfireable for months.
   switch between them and the network has no battery at all. Spec settled at the
   rack on 2026-08-21; the spare ProDesk from
   [#92](https://github.com/Gerrrt/HomeLab/issues/92) racks here too, powered off.
+  → [runbook](runbooks/fit-the-ups-battery.md)
 - **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle` is
   for.** A dual-core A6-9200 with 4 GB and a 5400 rpm disk — too little for
   anything demanding, and a candidate for the jobs that need a machine that is
