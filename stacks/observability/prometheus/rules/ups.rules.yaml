@@ -3,53 +3,73 @@
 #
 # READ THIS BEFORE TRUSTING ANY ALERT BELOW.
 #
-# The UPS has no battery pack fitted — see docs/roadmap.md. A mains loss is an
-# immediate hard shutdown of the whole rack. Every rule here is deliberately
-# loud and routed to the `urgent` receiver by category=power in
+# An APCRBC115 pack was fitted on 2026-08-28. Until then the UPS had none and a
+# mains loss was an immediate hard shutdown of the whole rack. Every rule here
+# is deliberately loud and routed to the `urgent` receiver by category=power in
 # alertmanager.yaml.
 #
-# None of them can fire for that condition. The management card does not report
-# the missing pack; it fabricates a healthy one. Observed on a UPS with no
-# battery physically present:
+# A fitted pack is not yet a proven one, and here that distinction is not
+# pedantry. The management card never reported the missing pack; it fabricated
+# a healthy one. Observed on this UPS with no battery physically present:
 #
 #   upsBatteryStatus              2     (batteryNormal)
 #   upsEstimatedChargeRemaining   100   (percent)
-#   upsEstimatedMinutesRemaining  63    (minutes of runtime it does not have)
+#   upsEstimatedMinutesRemaining  63    (minutes of runtime it did not have)
 #   upsBatteryVoltage             480   (48.0 V)
 #   upsAlarmsPresent              0     (no alarm raised)
 #
-# So UpsBatteryLow, UpsChargeLow, UpsRuntimeCritical and UpsAlarmPresent are
-# all comfortably inside their thresholds and will stay there. These rules are
-# kept because they become correct the moment a pack is fitted — not because
-# they are protecting anything today. A quiet `ups` group is not evidence of
-# runtime.
+# A card that cannot see a pack which *is* fitted — one badly seated, or dead on
+# arrival — reports those same five values. So the numbers looking healthy is
+# not evidence; only their having moved off that pre-fit baseline is. Step 5 of
+# docs/runbooks/fit-the-ups-battery.md is that comparison, and it has not been
+# made yet.
+#
+# Until it has, UpsBatteryLow, UpsChargeLow, UpsRuntimeCritical and
+# UpsAlarmPresent sit comfortably inside their thresholds and still tell you
+# nothing. They are kept because they become correct the moment the card is
+# reading real hardware — not because they are protecting anything yet. A quiet
+# `ups` group is not evidence of runtime.
 #
 # UpsOnBattery, UpsOverloaded and UpsBatteryTemperatureHigh read mains-side or
-# load-side values and are unaffected. UpsOnBattery in particular would still
-# fire on a transfer — it would just be reporting an outage already in progress
-# rather than warning of one.
+# load-side values and were unaffected throughout. UpsOnBattery in particular
+# would still fire on a transfer — it would just be reporting an outage already
+# in progress rather than warning of one.
 #
 # THE ONE METRIC THAT DOES NOT LIE.
 #
 # upsTestResultsSummary is the exception to everything above. It reports the
-# result of the last diagnostics test, and the UPS will not fake one — with no
-# pack fitted it cannot complete a test, so it reports the failure honestly
+# result of the last diagnostics test, and the UPS will not fake one — without a
+# usable pack it cannot complete a test, so it reports the failure honestly
 # while charge, runtime, voltage and alarm count all read healthy.
 #
 #   1 donePass   2 doneWarning   3 doneError
 #   4 aborted    5 inProgress    6 noTestsInitiated
 #
-# Observed on this UPS: 4 (aborted). The management card's own diagnostics page
-# renders the same state as "Refused — internal fault".
+# Observed before the fit: 4 (aborted), which the management card's own
+# diagnostics page rendered as "Refused — internal fault". No self-test has been
+# run since the pack went in, so that remains the last stored result and this
+# metric has not yet had anything new to say.
 #
 # UpsSelfTestFailed and UpsBatteryUnproven below are keyed on it, and they are
-# the only two rules in this file that can detect the current condition.
+# the only two rules in this file that can tell a UPS which works from one that
+# merely looks like it does.
 #
-# Still do not run a UPS self-test by hand to force a reading. A test transfers
-# the load to battery; with a pack fitted but weak, that is the outage it exists
-# to warn about. The refusal above was safe only because no transfer occurred.
-# Once a pack is in, enable the NMC's *scheduled* self-test instead so this
-# metric stays live evidence rather than a stale last-known result.
+# WHAT IS STILL OUTSTANDING, AND WHY THIS HEADER IS NOT SHORTER YET.
+#
+# UpsSelfTestFailed is silenced in Alertmanager until 2026-09-20
+# (54f1715c-e57b-4322-8a6d-5435bc8e1bd8). That silence was correct while nothing
+# could be done about a missing pack — it fired every 30 minutes about a known
+# condition, which is how an urgent receiver stops being read. It stopped being
+# correct the moment a pack was fitted, because it now suppresses the single
+# rule that could report that pack being faulty or badly seated. Delete it
+# before running the self-test, not after: run them in the other order and the
+# one result most worth seeing is the one that is hidden.
+#
+# Still do not run self-tests by hand to keep the metric warm. A test transfers
+# the load to battery, and on a pack that is weak that is the outage the alert
+# exists to warn about. The pre-fit refusals were safe only because no transfer
+# ever occurred. Enable the NMC's *scheduled* self-test instead, so this metric
+# stays live evidence rather than a stale last-known result.
 #
 # Known limit: a value of 1 (donePass) is the last result, not a fresh one. If
 # the NMC stops testing entirely the value simply stops changing, and nothing
@@ -156,8 +176,9 @@ groups:
             2=doneWarning 3=doneError 4=aborted. A UPS that cannot complete a
             self-test cannot be assumed to carry the load, whatever its charge
             and runtime metrics claim. Check the management card's diagnostics
-            page — "Refused / internal fault" here means no pack is fitted or
-            the pack is not seen.
+            page — "Refused / internal fault" means the pack is not seen, and
+            now that one is fitted that is a finding about the pack or its
+            seating rather than about an empty bay.
 
       - alert: UpsBatteryUnproven
         # 6 = noTestsInitiated. Not a safe resting state: it is the state in

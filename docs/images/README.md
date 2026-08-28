@@ -25,6 +25,15 @@ carries a `renderer` series in two legends: that is the `capture` profile
 container taking the screenshot, which exists only for the duration of a
 capture, which is why the inventory below it lists six containers and not seven.
 
+`ups-power.png` is out of date in one specific way, and knowingly so. It was
+shot before a battery pack was fitted to `mjolnir` on 2026-08-28, so it still
+shows the old "No battery is installed in this UPS" banner and the
+"(fabricated — no battery fitted)" panel titles. It stays in place rather than
+being deleted — it is a real render of what the dashboard said that day, and the
+root `README.md` says underneath it when it was taken and what has changed
+since. Re-shoot it once the pack has passed a self-test, when the panels will
+read measured values instead of unproven ones.
+
 The Container inventory panel used to publish the absolute path of
 `compose.yaml` — and so a username — because it excluded fields by name and
 cAdvisor kept adding new ones. It now filters to an allowlist. That was caught

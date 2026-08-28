@@ -3,12 +3,32 @@
 **One rack visit, in an order that matters — and one alert that has to be
 un-silenced by hand at the right moment.**
 
-`mjolnir` has no battery pack fitted. A mains loss is an immediate hard shutdown
-of the entire rack, and `docs/security.md` lists it under "Not currently
-defended". The management card does not report the missing pack; it fabricates a
-healthy one, so every alert keyed on charge, runtime or alarm count is quietly
-dead. Only `UpsSelfTestFailed` and `UpsBatteryUnproven` in `ups.rules.yaml` can
-see the real condition, because they read the one value the card will not fake.
+> **Status — 2026-08-28: the pack is in, and nothing else is done.**
+>
+> The APCRBC115 was fitted. **Steps 3 to 6 are all outstanding**, and step 3 is
+> the urgent one: `UpsSelfTestFailed` is still silenced until 2026-09-20, so
+> right now the only alert that could report a faulty or badly seated new pack
+> is suppressed — on a pack nobody has tested yet.
+>
+> The shelf and the switch move (step 2, items 1–4) were not done either, so
+> [#110](https://github.com/Gerrrt/HomeLab/issues/110) is untouched and
+> `prometheus` and `oracle` still go deaf on a mains cut.
+>
+> Step 1's baseline was not captured before the fit. It does not have to be
+> re-derived: the pre-fit values are recorded in the table under step 1 and in
+> the header of `ups.rules.yaml`, and comparing against those is what step 5
+> needs.
+
+`mjolnir` ran with no battery pack for the whole life of this stack. A mains
+loss was an immediate hard shutdown of the entire rack. The management card
+never reported the missing pack; it fabricated a healthy one, so every alert
+keyed on charge, runtime or alarm count was quietly dead. Only
+`UpsSelfTestFailed` and `UpsBatteryUnproven` in `ups.rules.yaml` can see the
+real condition, because they read the one value the card will not fake.
+
+Fitting a pack does not by itself end any of that. A card that cannot see a pack
+which *is* present reports the same fabricated values as one over an empty bay,
+so the steps below are what turns a fitted battery into a proven one.
 
 The pack alone is not the whole fix.
 
@@ -45,7 +65,11 @@ card's web UI for `mjolnir` at `10.0.99.10`.
 ## 1. Record the baseline before touching anything
 
 The point of this step is that the after-state is *provably* different rather
-than assumed to be. Capture what the card claims today:
+than assumed to be. If the pack is already in and this was not run first, use
+the recorded pre-fit values in the table below as the baseline — they are the
+observed readings from this UPS, and `ups.rules.yaml` carries the same five.
+
+Capture what the card claims:
 
 ```bash
 for m in upsBatteryStatus upsEstimatedChargeRemaining \
@@ -58,8 +82,8 @@ for m in upsBatteryStatus upsEstimatedChargeRemaining \
 done
 ```
 
-Expected on a UPS with no pack fitted — every one of these is derived, not
-measured:
+Observed on this UPS with no pack fitted — every one of these was derived,
+not measured:
 
 | Metric | Reads | Means |
 | --- | --- | --- |
@@ -206,26 +230,44 @@ to settle before concluding anything.
 uplink to port 3 of the main switch, not the UPS. Nothing in this runbook
 touches VLAN configuration.
 
-## Only when all of the above passes — flip the documents
+## Flipping the documents — the first half is done, the second is not
 
-Several files currently assert, correctly, that there is no battery. They become
-wrong the moment this runbook succeeds, and they are a separate commit made
-*after* verification, not before:
+This happens in two passes, because "a pack is fitted" and "the UPS works" are
+different claims and became true at different times.
+
+**Done on 2026-08-28**, when the pack went in: every file that asserted there is
+no battery said something false from that moment, so they were moved to what was
+actually true — a pack is fitted and unproven, with the outstanding silence and
+self-test named. That is `ups-power.json`, `ups.rules.yaml`, `docs/security.md`,
+`docs/observability.md`, `README.md`, `docs/roadmap.md` and `docs/hardware.md`.
+
+**Still to do, only once step 5 passes** — a separate commit made after
+verification, not before:
 
 | File | What changes |
 | --- | --- |
-| `stacks/observability/grafana/dashboards/ups-power.json` | Delete the "No battery is installed in this UPS" banner panel; strip "(fabricated — no battery fitted)" from the six panel titles and their descriptions |
-| `stacks/observability/prometheus/rules/ups.rules.yaml` | Rewrite the header comment. The rules themselves do not change |
-| `docs/security.md` | The "Mains power loss" row in the threat table, and the "The UPS reports a battery it does not have" section |
-| `README.md` | The UPS dashboard screenshot alt text, and the "current top items" paragraph. Re-capture with `make screenshots` |
+| `stacks/observability/grafana/dashboards/ups-power.json` | Delete the "Battery fitted — not yet proven" banner panel; strip "(unproven — self-test pending)" from the five panel titles and reset their descriptions |
+| `stacks/observability/prometheus/rules/ups.rules.yaml` | Cut the header back to a short note. The rules themselves do not change |
+| `docs/security.md` | The "Mains power loss" row, and the closing paragraphs of "The UPS reported a battery it did not have" |
+| `docs/observability.md` | The `ups.rules.yaml` row of the rule-file table |
+| `README.md` | The UPS screenshot and the note under it, and the "current top items" paragraph. Re-capture with `make screenshots` |
+| `docs/roadmap.md` | Move #93 into Done. Existing entries stay as written; the roadmap is a record |
+
+And when the shelf is racked, which is a separate visit and separate issue:
+
+| File | What changes |
+| --- | --- |
 | `docs/hardware.md` | The 1U shelf into the rack table at U4, and into Accessories |
 | `docs/network.md` | The TP-Link note — now racked and on UPS power |
-| `docs/roadmap.md` | Move #93 and #110 into Done. Existing entries stay as written; the roadmap is a record |
+| `docs/roadmap.md` | Move #110 into Done |
 
 One coupling to know about before you start editing: **deleting the banner panel
 changes the dashboard's panel count**, and `scripts/check_docs.py` asserts every
-panel count quoted in prose against the live JSON. Move the numbers in the same
-commit or CI will fail. Run `make validate` before pushing.
+panel count quoted in prose against the live JSON. The banner was retitled
+rather than removed on 2026-08-28 for exactly that reason — the count did not
+move. When you do delete it, 84 becomes 83 in both `README.md` and
+`stacks/observability/README.md`, in the same commit, or CI will fail. Run
+`make validate` before pushing.
 
-Then close [#93](https://github.com/Gerrrt/HomeLab/issues/93) and
-[#110](https://github.com/Gerrrt/HomeLab/issues/110).
+Then close [#93](https://github.com/Gerrrt/HomeLab/issues/93), and
+[#110](https://github.com/Gerrrt/HomeLab/issues/110) when the shelf follows.

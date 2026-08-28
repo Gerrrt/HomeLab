@@ -95,10 +95,12 @@ what left this one unfireable for months.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) stays a
   hypothesis until it has been restored onto a spare once.
 - **[#93](https://github.com/Gerrrt/HomeLab/issues/93) Replace the UPS battery.**
-  `mjolnir` has none, so a mains loss is an immediate hard shutdown of the rack.
-  The management card fabricates a healthy pack. **The `UpsSelfTestFailed`
-  silence must be deleted the moment the pack is fitted, not left to expire** —
-  the issue carries the command and the reasoning.
+  An APCRBC115 went into `mjolnir` on 2026-08-28. That is the hardware done, not
+  the issue: the management card reports a healthy pack whether or not it can see
+  one, so nothing yet separates a good fit from a bad one. **The `UpsSelfTestFailed`
+  silence is still in place until 2026-09-20, and now suppresses the only alert
+  that could tell you which this is** — delete it, then self-test, then enable
+  scheduled tests on the card.
   → [runbook](runbooks/fit-the-ups-battery.md)
 - **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
   A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and

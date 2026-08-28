@@ -221,6 +221,10 @@ draw and hardware health.](docs/images/network-snmp.png)
 and runtime, under a banner explaining that every battery figure is fabricated
 because no battery pack is fitted.](docs/images/ups-power.png)
 
+That capture is from 2026-08-22, before a pack was fitted on 2026-08-28. The
+banner it shows has been rewritten since; re-shoot with `make screenshots` once
+the self-test has passed and the panels read something worth showing.
+
 ## What runs it
 
 The entire observability stack runs on a 2012 MacBook Pro with Ubuntu Server on
@@ -251,8 +255,10 @@ Open work is tracked in
 [`docs/roadmap.md`](docs/roadmap.md) is the narrative — what is outstanding and
 why it is in that order.
 
-The current top items: replace the UPS battery and rack the shelf switch, which
-are one purchase — the pack alone leaves the monitoring path half-protected
+The current top items: prove the UPS battery and rack the shelf switch. The pack
+went in on 2026-08-28 and has not yet passed a self-test, so the rack is not
+demonstrably protected yet; the switch between the monitoring host and the
+network still has no battery at all
 ([#93](https://github.com/Gerrrt/HomeLab/issues/93),
 [#110](https://github.com/Gerrrt/HomeLab/issues/110)); get the firewall backup
 off the machine it protects, and buy the spare that turns its restore runbook

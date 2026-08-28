@@ -15,7 +15,7 @@ What this network is actually built to survive:
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | Losing visibility of a failure | 35 alert rules, 30 days of metrics and logs |
-| Mains power loss | **Not currently defended.** `mjolnir` has no battery installed — see below |
+| Mains power loss | **Partly defended.** A pack was fitted to `mjolnir` on 2026-08-28 and has not yet proven it can carry the load — see below |
 
 What it explicitly does **not** defend against: a determined attacker with
 physical access to the rack, a supply-chain compromise in an upstream container
@@ -155,25 +155,39 @@ strings at mode 664 in `~/.local/state/nvim/undodir/` were a real finding
 *because* the disk beneath them is readable. On an encrypted disk that is a much
 smaller problem. Neither fact is interesting alone.
 
-### The UPS reports a battery it does not have
+### The UPS reported a battery it did not have
 
-`mjolnir` has no battery installed. Its Network Management Card nonetheless
-reports 100% state of charge, 48.0 VDC, a battery temperature, an hour of
-runtime, a 2030 replacement date, and `upsAlarmsPresent = 0`. Every one of those
-values is derived rather than measured.
+Until 2026-08-28 `mjolnir` had no battery installed. Its Network Management Card
+nonetheless reported 100% state of charge, 48.0 VDC, a battery temperature, an
+hour of runtime, a 2030 replacement date, and `upsAlarmsPresent = 0`. Every one
+of those values was derived rather than measured.
 
 The single honest signal it emits is the self-test result. The management card
-renders it as **Refused — internal fault**; over SNMP it is
+rendered it as **Refused — internal fault**; over SNMP it is
 `upsTestResultsSummary = 4` (aborted), from the standard UPS-MIB the `apc_ups`
 module already walks. No extra OIDs were needed to see it.
 
-Any alert rule keyed on charge, runtime or alarm count will therefore never
-fire, no matter how bad things get. `UpsSelfTestFailed` and `UpsBatteryUnproven`
-in `ups.rules.yaml` key on the self-test instead, and are the only two rules in
+Any alert rule keyed on charge, runtime or alarm count therefore could not fire,
+no matter how bad things got. `UpsSelfTestFailed` and `UpsBatteryUnproven` in
+`ups.rules.yaml` key on the self-test instead, and are the only two rules in
 that file that can detect this condition.
 
 This is worth stating carefully: the monitoring did not fail, and neither did
 the rules. The device lied, and the rules trusted it.
+
+**A pack was fitted on 2026-08-28, and that has not yet closed this.** A card
+that cannot see a pack which *is* present — badly seated, or faulty out of the
+box — emits the same five fabricated values as one sitting over an empty bay. So
+a healthy-looking dashboard distinguishes nothing; only a passing self-test, and
+charge and runtime that have moved off the pre-fit baseline, do.
+
+Neither has happened yet. No self-test has been run since the fit, so
+`upsTestResultsSummary` still holds its pre-fit `4`. And `UpsSelfTestFailed` is
+still silenced in Alertmanager until 2026-09-20 — a silence that was correct
+while nothing could be done about a missing pack, and which now suppresses the
+one rule that would report the new pack being bad. Deleting it is step 3 of
+[`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), it comes
+before the self-test rather than after, and it is outstanding.
 
 ### Why SNMPv2c is still a weak point
 
