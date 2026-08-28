@@ -95,12 +95,15 @@ what left this one unfireable for months.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) stays a
   hypothesis until it has been restored onto a spare once.
 - **[#93](https://github.com/Gerrrt/HomeLab/issues/93) Replace the UPS battery.**
-  An APCRBC115 went into `mjolnir` on 2026-08-28. That is the hardware done, not
-  the issue: the management card reports a healthy pack whether or not it can see
-  one, so nothing yet separates a good fit from a bad one. **The `UpsSelfTestFailed`
-  silence is still in place until 2026-09-20, and now suppresses the only alert
-  that could tell you which this is** — delete it, then self-test, then enable
-  scheduled tests on the card.
+  An APCRBC115 went into `mjolnir` on 2026-08-28 and passed its self-test the
+  same day: `upsTestResultsSummary` `4` → `1`, `upsBatteryVoltage` off its
+  fabricated `480`, runtime no longer pinned to exactly `63`. The
+  `UpsSelfTestFailed` silence was deleted rather than left to expire in
+  September, so the rule that would report a bad pack is live again. **What is
+  left is the last step: scheduled self-tests on the card.** Until they are on,
+  `1` is a last-known result with nothing refreshing it, and `UpsBatteryUnproven`
+  cannot detect a card that has quietly stopped testing — it matches `6`
+  (noTestsInitiated), and this one reads `1`.
   → [runbook](runbooks/fit-the-ups-battery.md)
 - **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
   A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
