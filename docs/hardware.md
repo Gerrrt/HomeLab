@@ -55,6 +55,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 - 1U rackmount tray for the ProDesk Mini[^ProDeskRackmount]
 - Sliding rails for the ProLiant[^Sliderail]
 - 1U universal rack mount for the APC[^Rail]
+- APCRBC115 replacement battery cartridge for the APC, fitted 2026-08-28
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]
