@@ -287,13 +287,16 @@ started on the result; §4 was run against it, including the negative assertions
 
 **What it found, which per-volume testing had not.**
 
-- **Grafana will not start without internet access.** `GF_INSTALL_PLUGINS` makes
-  the background installer contact `grafana.com` on every start, and a failure
-  there is fatal — Grafana crash-loops, even though both plugins are already
-  present in the restored volume. On a host that has lost its uplink, which is a
-  perfectly ordinary disaster, the restore succeeds and Grafana still will not
-  come up. Clearing that variable is the workaround; the plugins in the volume
-  are used regardless.
+- **Grafana would not start without internet access.** `GF_INSTALL_PLUGINS`
+  made the background installer contact `grafana.com` on every start, and a
+  failure there was fatal — Grafana crash-looped, even though both plugins were
+  already present in the restored volume. On a host that has lost its uplink,
+  which is a perfectly ordinary disaster, the restore succeeded and Grafana
+  still would not come up. Neither plugin was used by any dashboard, and one of
+  them was an Angular plugin this Grafana refuses to load anyway, so the
+  declaration was removed rather than repaired. Grafana's own bundled apps ship
+  inside the image and need no network, which is why an offline start works now
+  — verified on both fresh and restored volumes.
 - **Alloy replays, and now there is a number for it.** Restoring `alloy-data`
   put the log positions back to their offsets at the stamp, and Alloy re-read
   from there and re-shipped the lines with their original timestamps — about
