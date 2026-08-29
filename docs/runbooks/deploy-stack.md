@@ -86,7 +86,8 @@ make up
 ```
 
 Data volumes survive `make down` and `make up`. Only `make nuke` destroys them,
-and it prompts.
+it prompts, and it is recoverable from a backup set — see
+[`restore-the-stack.md`](restore-the-stack.md).
 
 ## Troubleshooting
 
@@ -103,9 +104,19 @@ and it prompts.
 ## Backups
 
 ```bash
-make backup      # tars each data volume into ./backups/
+make backup                                 # quiesce, archive, encrypt, verify
+make backup ARGS=--list                     # the sets that exist
+make restore ARGS="--dry-run --from latest" # prove the newest one is readable
 ```
 
-Prometheus and Loki data is reproducible-ish (it re-accumulates), but Grafana's
-volume holds annotations and users. The dashboards themselves are in git, so a
-lost Grafana volume is an inconvenience rather than a loss.
+`make backup` stops the services for the length of the copy — about ninety
+seconds — because a copy of a live store is not a backup. It writes one
+timestamped, age-encrypted, verified archive per volume into
+`backups/volumes/<STAMP>/`, keeps the seven newest complete sets, and prunes
+only after the new one has verified.
+
+Prometheus and Loki data re-accumulates, so losing it is a hole in the record
+rather than a loss of function. `grafana-data` is the exception and the reason
+this matters: the dashboards are in git, but the users, the annotations, the
+admin password and every UI edit that was never exported exist only in that
+volume. Restoring any of it is [`restore-the-stack.md`](restore-the-stack.md).

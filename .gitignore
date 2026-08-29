@@ -33,12 +33,18 @@ certificates/
 stacks/*/snmp-exporter/mibs/
 
 # ---- Backups ----
-# `make backup` writes stack volumes here; `make backup-firewall` writes the
-# SOPS-encrypted pfSense config here. Neither belongs in git. The firewall
-# config in particular carries the WAN address, the full rule set and user
+# `make backup` writes age-encrypted volume archives to backups/volumes/<stamp>/,
+# and `make restore` writes a pre-restore snapshot of what it is about to
+# replace to backups/volumes/.pre-restore-<stamp>/. `make backup-firewall`
+# writes the SOPS-encrypted pfSense config to backups/firewall/. None of it
+# belongs in git.
+#
+# The firewall config carries the WAN address, the full rule set and user
 # password hashes — docs/security.md says those are deliberately unpublished,
 # and encryption does not change that a public repository is the wrong place
-# for them. See scripts/backup-firewall.sh.
+# for them. grafana-data is the same argument: it holds the admin password
+# hash, every API token and every datasource credential. See
+# scripts/backup-firewall.sh.
 backups/
 
 # ---- Runtime state produced by the stack ----

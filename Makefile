@@ -262,21 +262,36 @@ screenshots: ## Render the dashboards to docs/images/ (stack must be up)
 	@# what to look for.
 	./scripts/capture-screenshots.sh $(STACK)
 
-.PHONY: backup
+.PHONY: backup-firewall
 backup-firewall: ## Pull morpheus's pfSense config and encrypt it to ./backups/
 	@# The single largest unmitigated failure in the estate is morpheus dying
 	@# with no config export. Output is gitignored and never committed — see
 	@# the header of scripts/backup-firewall.sh for why.
 	./scripts/backup-firewall.sh $(ARGS)
 
-backup: ## Back up the stack's volumes to ./backups/
-	@mkdir -p backups
-	@for v in prometheus-data loki-data grafana-data alertmanager-data; do \
-		printf 'backing up %s\n' "$$v"; \
-		docker run --rm -v $(STACK)_$$v:/data -v "$(PWD)/backups:/backup" \
-			alpine tar czf "/backup/$$v.tar.gz" -C /data . ; \
-	done
-	@printf '\033[0;32mwrote backups/\033[0m\n'
+.PHONY: backup
+backup: ## Quiesce the stack, archive its volumes to ./backups/ and verify
+	@# Thin on purpose. This target used to BE the implementation, and every
+	@# defect in #64 followed from that: one fixed output filename that tar
+	@# truncated at open, so the only way to lose a backup was to take one; a
+	@# hardcoded volume list that had silently skipped alloy-data since Alloy
+	@# was added; an unpinned `alpine`; a hot copy of an open TSDB; and no
+	@# verification beyond tar's exit status.
+	@#
+	@# The volume list and the services to stop are now derived from
+	@# compose.yaml, so a sixth volume cannot be forgotten. STACK goes in the
+	@# environment rather than positionally: the script's arguments are flags.
+	STACK=$(STACK) ./scripts/backup-volumes.sh $(ARGS)
+
+.PHONY: restore
+restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>")
+	@# Deliberately a separate script from `backup`. One script that both writes
+	@# archives and overwrites live volumes is one mistyped flag from an outage,
+	@# and scripts/backup-firewall.sh — the model for both — is non-destructive
+	@# throughout. The volume inventory is not duplicated: restore-volumes.sh
+	@# reads `backup-volumes.sh --inventory`, the way every SNMP tool reads
+	@# scripts/snmp-targets.sh.
+	STACK=$(STACK) ./scripts/restore-volumes.sh $(ARGS)
 
 .PHONY: purge-history-dry-run
 purge-history-dry-run: ## Preview the git-history secret purge (safe)

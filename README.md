@@ -65,9 +65,9 @@ incident.
 - **Supply chain pinned by digest.** Every image carries both a tag and a
   `sha256:` digest, so a moved tag cannot change what deploys. CI enforces it;
   `make pin-digests` re-resolves them from the registry.
-- **Documented decisions and runbooks.** Eight ADRs covering what was chosen and
-  what was rejected — including the costs accepted knowingly; nine runbooks for
-  the operations that are easy to get wrong at 1am.
+- **Documented decisions and runbooks.** Eleven ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; twelve
+  runbooks for the operations that are easy to get wrong at 1am.
 
 ## Architecture
 
@@ -164,7 +164,8 @@ rack; a dashed border means egress only. Full topology and data flow in
 │   ├── observability.md  security.md  roadmap.md
 │   ├── adr/                  # 11 architecture decision records
 │   └── runbooks/             # deploy, add device, rotate creds, certs, key backup,
-│                             #   purge, restore the firewall, ship firewall logs,
+│                             #   purge, restore the firewall, restore the stack,
+│                             #   ship firewall logs, verify the alert path,
 │                             #   enable suricata, fit the UPS battery
 └── Makefile                  # make help
 ```
@@ -195,7 +196,8 @@ $ make help
   secrets-edit     Edit the encrypted secrets in $EDITOR
   secrets-verify-backup  Check a backup age key decrypts the secrets
   validate         Run every check CI runs
-  backup           Back up the stack's volumes to ./backups/
+  backup           Quiesce the stack, archive its volumes to ./backups/ and verify
+  restore          Restore the stack's volumes from a backup set
   ...
 ```
 

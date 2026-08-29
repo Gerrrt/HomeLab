@@ -93,7 +93,11 @@ what left this one unfireable for months.
   off `prometheus`, and buy a spare ProDesk.** A backup on the same shelf as the
   thing it protects is not a backup, and
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) stays a
-  hypothesis until it has been restored onto a spare once.
+  hypothesis until it has been restored onto a spare once. The volume sets
+  `make backup` writes have exactly the same defect: they sit on the host they
+  protect. Individually they are now proven restorable — see the last section
+  of [`restore-the-stack.md`](runbooks/restore-the-stack.md) — but a
+  whole-stack restore has still never been performed.
 - **[#93](https://github.com/Gerrrt/HomeLab/issues/93) Replace the UPS battery.**
   An APCRBC115 went into `mjolnir` on 2026-08-28 and passed its self-test the
   same day: `upsTestResultsSummary` `4` → `1`, `upsBatteryVoltage` off its
@@ -141,7 +145,10 @@ what left this one unfireable for months.
 - **[#77](https://github.com/Gerrrt/HomeLab/issues/77) Schedule something.**
   Nothing runs `make backup`, `make backup-firewall`, `make check-digests` or
   `make secrets-verify-backup` on a timer. The last of those is the only proof
-  the secrets are recoverable.
+  the secrets are recoverable, and `make restore ARGS=--dry-run` is now the
+  only proof the volumes are — `make backup ARGS='--verify-only --all'` is the
+  cheap version to put on the timer, because it is what catches bit-rot in a
+  set nobody has touched for a week.
 
 ## Decided but not built
 
