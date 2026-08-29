@@ -49,6 +49,10 @@
 #
 # Environment:
 #   STACK              default observability
+#   COMPOSE_PROJECT_NAME   overrides the volume prefix, as it does for compose.
+#                          This is how a set is rehearsed into a scratch stack
+#                          rather than restored over the live one — see the last
+#                          section of docs/runbooks/restore-the-stack.md.
 #   SOPS_AGE_KEY_FILE  default ~/.config/sops/age/keys.txt
 set -euo pipefail
 
@@ -109,6 +113,7 @@ declare -A EXPECT_UID=(
 
 FROM=""
 ONLY=""
+SNAP_DIR=""
 DRY=0
 SAFETY=1
 MODE=restore
@@ -330,6 +335,15 @@ if ((SAFETY)); then
         "$(sha256sum "${SNAP_DIR}/${v}.tar.gz.age" | awk '{print $1}')"
     done
   } > "${SNAP_DIR}/MANIFEST"
+
+  # Restoring onto a bare host replaces nothing, so there is nothing to snapshot
+  # and an empty directory claiming to hold "the only copy" of what was replaced
+  # is worse than no directory at all.
+  if ((${#snapped[@]} == 0)); then
+    rm -rf -- "${SNAP_DIR}"
+    SNAP_DIR=""
+    info "no existing volumes to snapshot — nothing is being replaced"
+  fi
 fi
 
 for v in "${TARGETS[@]}"; do
@@ -369,10 +383,10 @@ done
 printf '\n'
 green "restored ${#TARGETS[@]} volume(s) from ${STAMP}"
 printf '\n'
-((SAFETY)) && {
+if ((SAFETY)) && [[ -n ${SNAP_DIR} ]]; then
   info "What you replaced is in ${SNAP_DIR#"${REPO_ROOT}"/} — the only copy. To roll back:"
   info "  make restore ARGS=\"--from .pre-restore-${STAMP}\""
-}
+fi
 info "The stack is STOPPED. Bring it up and then verify:"
 info "  make up"
 info "  docs/runbooks/restore-the-stack.md section 4"

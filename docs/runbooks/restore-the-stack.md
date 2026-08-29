@@ -144,6 +144,16 @@ Same, without `--only`. On a rebuilt host, do it in this order:
 > then restoring an older TSDB over it interleaves two sets of blocks, which is
 > not.
 
+One more thing bites only on a rebuilt host, and it is not about the volumes.
+
+> [!CAUTION]
+> **Grafana will not start if the host has no internet.** `GF_INSTALL_PLUGINS`
+> makes its background installer contact `grafana.com` on every start, and a
+> failure there is fatal — it crash-loops, even though both plugins are already
+> in the volume you just restored. If the uplink is part of what you are
+> recovering from, start Grafana with that variable emptied and put it back
+> once the network is up. Every other service starts offline.
+
 ---
 
 ## 4. Verify
@@ -159,11 +169,18 @@ curl -sG http://localhost:9090/api/v1/query \
   --data-urlencode "time=$(date -u -d '<STAMP> -1 hour' +%s)" \
   | jq '.data.result | length'          # zero means that block did not come back
 
-# 3. grafana-data — the dashboards are in git and prove nothing. Annotations
-#    and users exist only in the volume.
-curl -sk 'https://localhost:3000/api/search?type=dash-db' | jq length
-curl -sk -u admin:<the password from BEFORE the backup> \
-     'https://localhost:3000/api/annotations?limit=5' | jq '.[].time'
+# 3. grafana-data — the dashboards are provisioned from git and prove nothing;
+#    under unified storage they do not even appear in the legacy dashboard
+#    table. What exists only in the volume is the user table. Read it straight
+#    out of the database and skip the credential entirely:
+docker run --rm -v observability_grafana-data:/d:ro \
+  "$(./scripts/image-for.sh archiver)" cat /d/grafana.db > /tmp/g.db
+python3 -c "import sqlite3;print(sqlite3.connect('/tmp/g.db').execute(
+  \"select login, created from user\").fetchall())"
+#    The admin's `created` must PREDATE the restore. If it is today's date,
+#    grafana.db did not come back and Grafana provisioned itself a fresh one.
+#    This lab has no annotations, so the annotation timestamps some runbooks
+#    suggest are a vacuous check here — the user table is the one that works.
 
 # 4. alertmanager-data — silences live in the volume, not the config.
 docker exec alertmanager amtool silence query --alertmanager.url=http://localhost:9093
@@ -187,10 +204,20 @@ curl -sG http://localhost:9090/api/v1/query \
   --data-urlencode "time=<the stamp, plus thirty minutes>" \
   | jq '.data.result | length'          # must be zero
 
-# 6b. Alloy must not be re-shipping. Count Loki lines for a window that closed
-#     before the restore, then run it again ten minutes later. The number must
-#     not change. If it climbs, Alloy went back to an old position and is
-#     replaying files it has already sent.
+# 6b. Alloy WILL re-ship, and this measures how much. Restoring alloy-data puts
+#     the log positions back to their offsets at the stamp, so Alloy re-reads
+#     every file from there and pushes the lines again — carrying their
+#     ORIGINAL timestamps, so the duplicates land inside a window that closed
+#     before the restore. Count that window per host, twice, ten minutes apart.
+#     A climb is expected. It is not a failed restore; it is the cost of one,
+#     and it tells you how far Alloy still has to catch up.
+#
+#     Measured during the 2026-08-29 rehearsal: about 4,600 duplicate lines
+#     inside the hour before the stamp within four minutes of start-up.
+#
+#     The lines that must NOT climb are the ones carrying the ORIGINAL host
+#     label. Those are the restored data. If that number moves, something is
+#     writing into your restored history.
 
 # 6c. Grafana's admin password must NOT be the one in the rendered .env.
 #     Grafana applies GF_SECURITY_ADMIN_PASSWORD only when it creates the admin
@@ -207,9 +234,11 @@ curl -sG http://localhost:9090/api/v1/query \
 > check the age of what you are looking at, not that you are looking at
 > something. And 6c proves nothing if the backed-up database was created with
 > the password now in `.env`: identical values make the test vacuous while
-> looking like it passed. Where that is the case, use the annotation timestamps
-> from step 3 instead — an annotation older than the stamp cannot have been
-> written since the restart.
+> looking like it passed — and in this lab it IS the case, so 6c currently
+> proves nothing at all. Use the `created` column on the admin row from step 3
+> instead: a user created before the stamp cannot have been provisioned by the
+> restart, and that check does not depend on the password differing or on any
+> annotation existing.
 
 ---
 
@@ -232,20 +261,100 @@ curl -sG http://localhost:9090/api/v1/query \
 
 ## What is proven, and what is not
 
-The restore path was exercised on 2026-08-29 against a quiesced set, by
-extracting each archive into a scratch volume under a throwaway project name and
-starting the pinned image against it. Three claims came out of that as facts:
+The whole-stack restore in §3 was performed on 2026-08-29. It is no longer a
+hypothesis. The set was restored into a scratch project and the entire stack was
+started on the result; §4 was run against it, including the negative assertions.
 
-- **The Prometheus TSDB survives the round trip.** Every block was reported
-  healthy, the WAL replayed without error, and instant queries returned real
-  series from months before the backup was taken.
-- **Grafana opens the restored database.** It connected, found the schema
-  already current, performed no migrations and restored its plugin cache.
+**What it established.**
+
+- **The Prometheus TSDB restores and serves.** Every block was reported healthy,
+  the WAL replayed in about a second, and instant queries returned series from a
+  day and a week before the stamp.
+- **There is a genuine gap after the stamp.** Queries at the stamp plus thirty
+  minutes, one hour and three hours all returned nothing, which is the assertion
+  that catches a restore that quietly did nothing. The restored stack was
+  simultaneously scraping its own targets, so it was serving restored history
+  and collecting new data with a clean seam between them.
+- **`grafana.db` restores intact.** Compared table by table against the live
+  database: users, datasources, orgs, annotations and preferences all matched,
+  and the admin row's `created` was twelve days before the restore. A fresh
+  provisioning would have stamped it that day.
 - **Loki serves the restored store.** Label values came back, and a range query
-  over an hour that closed before the backup returned the log lines in it.
-- **Ownership survives.** The volumes came back owned by 65534, 10001 and 472,
-  which is what Prometheus, Loki and Grafana respectively need in order to
-  write to them.
+  over an hour that closed before the stamp returned the lines in it.
+- **`nflog` and `silences` come back** with their original modification times.
+- **Ownership survives.** The volumes came back owned by 65534, 10001 and 472 —
+  what Prometheus, Loki and Grafana need in order to write to them.
+
+**What it found, which per-volume testing had not.**
+
+- **Grafana will not start without internet access.** `GF_INSTALL_PLUGINS` makes
+  the background installer contact `grafana.com` on every start, and a failure
+  there is fatal — Grafana crash-loops, even though both plugins are already
+  present in the restored volume. On a host that has lost its uplink, which is a
+  perfectly ordinary disaster, the restore succeeds and Grafana still will not
+  come up. Clearing that variable is the workaround; the plugins in the volume
+  are used regardless.
+- **Alloy replays, and now there is a number for it.** Restoring `alloy-data`
+  put the log positions back to their offsets at the stamp, and Alloy re-read
+  from there and re-shipped the lines with their original timestamps — about
+  4,600 duplicates inside the hour before the stamp, within four minutes of
+  start-up, after which the count held steady across three samples. The restored
+  lines themselves never moved. Duplicates in Loki after a restore are expected
+  behaviour, not a symptom.
+
+**What is still not proven.** The rehearsal ran under a scratch project name
+with an overlay, and it used `docker compose up -d` rather than `make up` —
+`make up` renders config and hot-reloads, and takes no overlay. Restoring **in
+place, over the live project, and then running `make up`** has still never been
+done. That is a smaller gap than the one this closed, but it is not zero: it is
+the difference between "the data restores and a stack runs on it" and "this
+stack, on this host, comes back".
+
+## Rehearsing a restore without touching the live stack
+
+Both scripts honour `COMPOSE_PROJECT_NAME` the way compose itself does, so a set
+can be restored into a scratch project and started beside the live one. Write
+this overlay — `container_name` is not namespaced by project, so without it
+every service collides with the running stack:
+
+```yaml
+services:
+  prometheus: { container_name: rehearse-prometheus }
+  alertmanager: { container_name: rehearse-alertmanager }
+  loki: { container_name: rehearse-loki }
+  snmp-exporter: { container_name: rehearse-snmp-exporter }
+  alloy: { container_name: rehearse-alloy }
+  renderer: { container_name: rehearse-renderer }
+  grafana:
+    container_name: rehearse-grafana
+    environment:
+      GF_INSTALL_PLUGINS: ""
+networks:
+  observability:
+    internal: true
+```
+
+`internal: true` is the safety argument, not a detail. Without it the rehearsal
+Alertmanager sends to the real notification channels and pings the real
+dead-man's-switch heartbeat, and the rehearsal snmp-exporter polls production
+devices. It also means published ports do not route, so reach the services with
+`docker exec` rather than from the host — and it is why `GF_INSTALL_PLUGINS`
+has to be emptied above.
+
+```bash
+export COMPOSE_PROJECT_NAME=rehearse BIND_ADDR=127.0.0.1 \
+  PROMETHEUS_PORT=19090 ALERTMANAGER_PORT=19093 LOKI_PORT=13100 \
+  GRAFANA_PORT=13000 ALLOY_PORT=12346 SYSLOG_PORT=11514 \
+  ALLOY_HOSTNAME=rehearse-alloy
+
+./scripts/restore-volumes.sh --from <STAMP>
+docker compose -f stacks/observability/compose.yaml -f rehearse.yaml up -d
+# ... run section 4 against it with docker exec ...
+docker compose -f stacks/observability/compose.yaml -f rehearse.yaml down --volumes
+```
+
+Set `ALLOY_HOSTNAME` to something distinct. It is what lets you tell restored
+log lines from ones the rehearsal stack produced, which is the whole of check 6b.
 
 The cheap check, worth running whenever a set is written somewhere new:
 
@@ -256,19 +365,5 @@ make restore ARGS="--dry-run --from latest"
 That proves the key on this host decrypts every file in the set, that each
 stream survives its gzip CRC end to end, that each unpacks to a complete tar
 holding the volume its filename claims, and that the set contains all five
-volumes rather than the four somebody noticed were missing later.
-
-It does not prove the thing this runbook actually asks you to do. **No
-whole-stack restore has ever been performed** — five volumes replaced in the
-live project at once, followed by `make up` and §4 against the result. The
-per-volume evidence above says each part works in isolation; it says nothing
-about the five together, about `make up` starting a stack whose volumes all
-moved at once, or about any of the negative assertions in §6.
-
-The experiment that closes the gap: bring a set up as a second, scratch stack
-and run §4 against it — `COMPOSE_PROJECT_NAME=restoretest`,
-`BIND_ADDR=127.0.0.1`, and the Alloy syslog port left unbound, so the scratch
-stack cannot take `morpheus`'s syslog stream or double-write into the live
-remote-write receiver. Two of these must never be listening at once, for the
-same reason two firewalls must never serve DHCP on one segment. Until that has
-been done once, §3 of this runbook is a hypothesis.
+volumes rather than the four somebody noticed were missing later. It proves
+nothing about whether the stack runs on the result — for that, rehearse.

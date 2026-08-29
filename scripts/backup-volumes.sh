@@ -76,6 +76,7 @@
 #
 # Environment:
 #   STACK              default observability   selects stacks/<STACK>/compose.yaml
+#   COMPOSE_PROJECT_NAME   overrides the volume prefix, as it does for compose
 #   KEEP               default 7               complete sets to retain
 #   STOP_TIMEOUT       default 60              seconds before SIGKILL on stop
 #   SOPS_AGE_KEY_FILE  default ~/.config/sops/age/keys.txt
@@ -218,6 +219,14 @@ load_inventory() {
   # The project name is what prefixes the volumes, and it is NOT $STACK. STACK
   # is a directory name; this host still carries orphan prometheus_grafana-data
   # and prometheus_loki-data volumes from when the two diverged.
+  #
+  # COMPOSE_PROJECT_NAME wins over the file's name: key, because that is the
+  # order docker compose itself resolves them in. Getting this backwards would
+  # archive one project's volumes while compose ran another's — and the restore
+  # would then overwrite the wrong ones. It is also what makes a rehearsal
+  # possible: COMPOSE_PROJECT_NAME=restoretest restores a set into a scratch
+  # stack instead of over the live one. See docs/runbooks/restore-the-stack.md.
+  PROJECT="${COMPOSE_PROJECT_NAME:-${PROJECT}}"
   [[ -n ${PROJECT} ]] || die "no top-level name: in ${COMPOSE_FILE} — cannot derive the volume prefix"
   ((${#declared[@]} > 0)) || die "no named volumes declared in ${COMPOSE_FILE}"
 

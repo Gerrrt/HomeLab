@@ -95,9 +95,9 @@ what left this one unfireable for months.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) stays a
   hypothesis until it has been restored onto a spare once. The volume sets
   `make backup` writes have exactly the same defect: they sit on the host they
-  protect. Individually they are now proven restorable — see the last section
-  of [`restore-the-stack.md`](runbooks/restore-the-stack.md) — but a
-  whole-stack restore has still never been performed.
+  protect. Unlike the firewall, they have now been restored — the whole stack
+  was brought up on a restored set on 2026-08-29 and verified. Getting a copy
+  off this host is the part that is still missing.
 - **[#93](https://github.com/Gerrrt/HomeLab/issues/93) Replace the UPS battery.**
   An APCRBC115 went into `mjolnir` on 2026-08-28 and passed its self-test the
   same day: `upsTestResultsSummary` `4` → `1`, `upsBatteryVoltage` off its
