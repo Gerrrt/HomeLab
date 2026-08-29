@@ -180,7 +180,28 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
-      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel
+      # No plugins are installed here, deliberately. This was
+      # GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel and both
+      # were dead weight — no dashboard under grafana/dashboards/ uses either
+      # panel type, and grafana-piechart-panel is an Angular plugin, which this
+      # Grafana refuses to initialise: it was downloaded and then rejected on
+      # every single start.
+      #
+      # It was also an availability bug, which is the reason it is gone rather
+      # than merely tidied. The background installer contacts grafana.com on
+      # every start, and a failure there is FATAL to the process — Grafana
+      # crash-looped on a host with no uplink, even though both plugins were
+      # already present in grafana-data. That turns an ordinary outage into a
+      # failed disaster recovery, and it was found by doing one: see the last
+      # section of docs/runbooks/restore-the-stack.md.
+      #
+      # Grafana still preinstalls its own bundled apps (pyroscope, exploretraces,
+      # metricsdrilldown, lokiexplore, elasticsearch). Those ship inside the
+      # image and need no network, which is what makes an offline start work.
+      #
+      # If a plugin is ever genuinely needed, add GF_PLUGINS_PREINSTALL —
+      # GF_INSTALL_PLUGINS is deprecated — and re-test the offline start before
+      # committing it.
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
       PROMETHEUS_URL: http://prometheus:9090
       LOKI_URL: http://loki:3100
@@ -344,6 +365,42 @@ services:
     # through a large dashboard, which presents as a truncated PNG rather than
     # an error.
     shm_size: "1gb"
+
+  # ---------------------------------------------------------------------------
+  # tar and gzip for scripts/backup-volumes.sh. NOT part of the running stack:
+  # it sits behind the `backup` profile, so `make up` neither starts it nor
+  # pulls it, and `docker compose ps` shows six services as before.
+  #
+  # This service is never actually started. It exists so that the image the
+  # backup script runs is pinned in the one place this repository pins images.
+  # `make backup` used to run a bare `alpine` — no tag at all, so it resolved to
+  # :latest and slipped past both the floating-tag check (which looks for a
+  # literal :latest) and the digest check (which reads image: lines out of this
+  # file). Writing `alpine:3.22` into the script instead would only move the
+  # problem: Dependabot watches this file, `make pin-digests` reads this file,
+  # and a pin anywhere else is one nothing bumps and nothing digests — which is
+  # the whole argument in the header of scripts/image-for.sh. So the image lives
+  # here and the script asks for it with `image-for.sh archiver`.
+  #
+  # Debian rather than Alpine, and this is not incidental. Alpine's tar is
+  # BusyBox tar, which does not notice a file that changed while it was being
+  # read; GNU tar reports it and exits 1, and that exit status is the only
+  # mechanical evidence a `--hot` run has that it just wrote a torn archive.
+  # BusyBox exits 0 on the identical archive and it verifies clean. BusyBox tar
+  # also has no --numeric-owner, which the restore path needs to put back uids
+  # 65534, 10001 and 472 on volumes whose names it does not have.
+  #
+  # Run with `docker run`, not `docker compose run`: the tar stream IS the
+  # container's stdout and compose writes its own progress lines into it.
+  #
+  # It mounts nothing, deliberately. backup-volumes.sh derives the
+  # volume -> service map by finding the one service that mounts each named
+  # volume, and a second claimant would make that ambiguous.
+  # ---------------------------------------------------------------------------
+  archiver:
+    profiles: ["backup"]
+    image: debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
+    command: ["true"]
 
 networks:
   observability:

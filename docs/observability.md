@@ -236,9 +236,11 @@ make ps                    # container status
 make logs SERVICE=grafana  # tail one service
 make reload                # hot-reload Prometheus, Alertmanager, snmp-exporter
 make validate              # everything CI runs
-make backup                # tar the data volumes into ./backups/
+make backup                # quiesce, archive, encrypt and verify the data volumes
+make restore ARGS=--list   # the backup sets that exist
 make down                  # stop, keep data
-make nuke                  # stop, destroy data (prompts)
+make nuke                  # stop, destroy data (prompts) — recoverable, see
+                           #   docs/runbooks/restore-the-stack.md
 ```
 
 Prometheus and Alertmanager are started with lifecycle endpoints enabled, so
