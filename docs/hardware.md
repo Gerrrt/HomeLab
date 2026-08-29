@@ -12,13 +12,19 @@ landfill.
 | U3 | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox hypervisor (`Saruman`, BMC `shiva`) |
 | U5 | HP ProDesk 600 G4 Mini[^ProDesk] | pfSense firewall (`morpheus`) |
 | U6 | MT-VIKI 8-port KVM[^KVM] | Console access |
-| U7 | Jadol 24-port patch panel[^Panel] | Cabling |
-| U8 | 10-outlet PDU[^PDU] | Power distribution |
+| U7 | 10-outlet PDU[^PDU] | Power distribution |
+| U8 | Jadol 24-port patch panel[^Panel] | Cabling |
 | U9 | MokerLink 26-port managed switch[^MokerLink] | Core switching (`neo`) |
 
 Off-rack: two Ubuntu Server laptops on a shelf (`prometheus`, `oracle`), an
 8-port unmanaged TP-Link switch feeding them, and eero Pro 6E units distributed
 through the house.
+
+The patch panel and the PDU were listed the other way round here until
+2026-08-29. U8 is the panel and U7 is the PDU, confirmed against the rack.
+Nothing in this repository depended on the order, but the wiki's rack page had
+it right and this table did not, so the correction is recorded rather than
+quietly swapped.
 
 ## Compute
 
