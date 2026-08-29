@@ -19,8 +19,9 @@ env:
   # Image versions are NOT duplicated here. They are resolved from compose.yaml
   # at run time by scripts/image-for.sh, because Dependabot only updates
   # compose.yaml — hardcoded copies went stale silently and CI ended up
-  # validating v3.1.0 configs against a stack running v3.13.2.
-  GITLEAKS_IMAGE: zricethezav/gitleaks:v8.24.0
+  # validating v3.1.0 configs against a stack running v3.13.2. gitleaks was the
+  # last exception to that and is now a profile-gated service in compose.yaml
+  # like every other image (#65).
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -238,6 +239,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      # Same single source of truth as the validate job: whatever compose.yaml
+      # pins is what runs. Repeated here rather than shared because jobs do not
+      # share $GITHUB_ENV — it is the resolution that is duplicated, not the
+      # version.
+      - name: Resolve the pinned gitleaks image from compose.yaml
+        run: |
+          echo "GITLEAKS_IMAGE=$(./scripts/image-for.sh gitleaks)" >> "$GITHUB_ENV"
+          ./scripts/image-for.sh gitleaks
 
       # Two scans, because they answer different questions.
       #
