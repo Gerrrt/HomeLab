@@ -3,21 +3,28 @@
 **One rack visit, in an order that matters — and one alert that has to be
 un-silenced by hand at the right moment.**
 
-> **Status — 2026-08-28: the pack is in, and nothing else is done.**
+> **Status — 2026-08-28: the pack is in and proven. The shelf is not.**
 >
-> The APCRBC115 was fitted. **Steps 3 to 6 are all outstanding**, and step 3 is
-> the urgent one: `UpsSelfTestFailed` is still silenced until 2026-09-20, so
-> right now the only alert that could report a faulty or badly seated new pack
-> is suppressed — on a pack nobody has tested yet.
+> The APCRBC115 was fitted, the silence was deleted, and a self-test passed:
+> `upsTestResultsSummary` went `4` (aborted) to `1` (donePass) at 22:45 UTC.
+> Step 5's comparison holds — `upsBatteryVoltage` left its fabricated `480` for
+> a float reading that varies, and the runtime estimate no longer sits on
+> exactly `63`. Charge still reads exactly `100`, which is what a pack at float
+> voltage looks like rather than a card that cannot see one.
 >
-> The shelf and the switch move (step 2, items 1–4) were not done either, so
+> **Step 6 is outstanding.** Scheduled self-tests are not enabled on the NMC, so
+> `1` is a last-known result with nothing refreshing it, and nothing in
+> `ups.rules.yaml` detects a card that has quietly stopped testing.
+>
+> The shelf and the switch move (step 2, items 1–4) were not done, so
 > [#110](https://github.com/Gerrrt/HomeLab/issues/110) is untouched and
 > `prometheus` and `oracle` still go deaf on a mains cut.
 >
-> Step 1's baseline was not captured before the fit. It does not have to be
-> re-derived: the pre-fit values are recorded in the table under step 1 and in
-> the header of `ups.rules.yaml`, and comparing against those is what step 5
-> needs.
+> **One thing to do differently next time.** The silence was deleted at 23:14
+> UTC — *after* the 22:45 self-test, not before it. It cost nothing here because
+> the test passed, but for those 29 minutes a faulty pack would have been
+> reported into a suppressed alert. That inversion is the single failure mode
+> step 3 exists to prevent.
 
 `mjolnir` ran with no battery pack for the whole life of this stack. A mains
 loss was an immediate hard shutdown of the entire rack. The management card
@@ -121,7 +128,10 @@ the cases that genuinely need the wire, and reads the credential from SOPS.
 
 ## 3. Delete the silence — immediately, not on expiry
 
-`UpsSelfTestFailed` is silenced in Alertmanager until **2026-09-20**
+> **Done 2026-08-28**, at 23:14 UTC. The procedure below is kept for the next
+> time a pack is changed and a silence is standing over it.
+
+`UpsSelfTestFailed` was silenced in Alertmanager until **2026-09-20**
 (`54f1715c-e57b-4322-8a6d-5435bc8e1bd8`). It routes on `category=power` to the
 `urgent` receiver with `group_wait: 0s` and `repeat_interval: 30m`, so leaving
 it firing meant paging every half hour about a condition already known — which
@@ -241,17 +251,27 @@ actually true — a pack is fitted and unproven, with the outstanding silence an
 self-test named. That is `ups-power.json`, `ups.rules.yaml`, `docs/security.md`,
 `docs/observability.md`, `README.md`, `docs/roadmap.md` and `docs/hardware.md`.
 
-**Still to do, only once step 5 passes** — a separate commit made after
-verification, not before:
+**Done on 2026-08-28**, once the self-test passed: the same files moved from
+*fitted and unproven* to *proven*, with the two things that outlast the fix
+named in each — that history before 2026-08-28 is fabricated rather than
+measured, and that scheduled self-tests are still off. That is `ups-power.json`,
+`ups.rules.yaml`, `docs/security.md`, `docs/observability.md`, `README.md` and
+`docs/roadmap.md`.
+
+Two deliberate departures from the plan above. The banner panel was **rewritten
+rather than deleted**, because there is still something true and non-obvious for
+it to say and keeping it holds the dashboard at 84 panels, so the
+`scripts/check_docs.py` panel-count coupling stays untriggered. And **#93 was
+not moved into Done**, because this roadmap entry defines it as *delete the
+silence, then self-test, then enable scheduled tests* — the third is step 6, and
+it is outstanding.
+
+**Still to do:**
 
 | File | What changes |
 | --- | --- |
-| `stacks/observability/grafana/dashboards/ups-power.json` | Delete the "Battery fitted — not yet proven" banner panel; strip "(unproven — self-test pending)" from the five panel titles and reset their descriptions |
-| `stacks/observability/prometheus/rules/ups.rules.yaml` | Cut the header back to a short note. The rules themselves do not change |
-| `docs/security.md` | The "Mains power loss" row, and the closing paragraphs of "The UPS reported a battery it did not have" |
-| `docs/observability.md` | The `ups.rules.yaml` row of the rule-file table |
-| `README.md` | The UPS screenshot and the note under it, and the "current top items" paragraph. Re-capture with `make screenshots` |
-| `docs/roadmap.md` | Move #93 into Done. Existing entries stay as written; the roadmap is a record |
+| `docs/images/ups-power.png` | Re-capture the set with `make screenshots`. The committed image is from 2026-08-22 and shows the original no-battery banner; it needs the decrypted Grafana password, so it is a human step |
+| `docs/roadmap.md` | Move #93 into Done — but only once step 6 is done and the card is testing on a schedule |
 
 And when the shelf is racked, which is a separate visit and separate issue:
 

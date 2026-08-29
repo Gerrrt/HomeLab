@@ -1,16 +1,17 @@
 ---
 # APC Smart-UPS (mjolnir, 10.0.99.10) via UPS-MIB.
 #
-# READ THIS BEFORE TRUSTING ANY ALERT BELOW.
+# These rules now read real hardware. An APCRBC115 pack was fitted on 2026-08-28
+# and passed its self-test the same day: upsTestResultsSummary went 4 (aborted)
+# to 1 (donePass) at 22:45 UTC, upsBatteryVoltage left its fabricated 480 for a
+# float reading that varies, and the runtime estimate moves rather than sitting
+# on exactly 63. Every rule here is deliberately loud and routed to the `urgent`
+# receiver by category=power in alertmanager.yaml.
 #
-# An APCRBC115 pack was fitted on 2026-08-28. Until then the UPS had none and a
-# mains loss was an immediate hard shutdown of the whole rack. Every rule here
-# is deliberately loud and routed to the `urgent` receiver by category=power in
-# alertmanager.yaml.
+# WHY THE PRE-FIT BASELINE IS STILL RECORDED HERE.
 #
-# A fitted pack is not yet a proven one, and here that distinction is not
-# pedantry. The management card never reported the missing pack; it fabricated
-# a healthy one. Observed on this UPS with no battery physically present:
+# Until 2026-08-28 this UPS had no pack, and the management card never reported
+# that. It fabricated a healthy one:
 #
 #   upsBatteryStatus              2     (batteryNormal)
 #   upsEstimatedChargeRemaining   100   (percent)
@@ -18,64 +19,48 @@
 #   upsBatteryVoltage             480   (48.0 V)
 #   upsAlarmsPresent              0     (no alarm raised)
 #
-# A card that cannot see a pack which *is* fitted — one badly seated, or dead on
-# arrival — reports those same five values. So the numbers looking healthy is
-# not evidence; only their having moved off that pre-fit baseline is. Step 5 of
-# docs/runbooks/fit-the-ups-battery.md is that comparison, and it has not been
-# made yet.
+# Those numbers stay for two reasons. Stored metrics older than 2026-08-28 *are*
+# these values rather than measurements, so any query or dashboard whose range
+# crosses that date is reading fiction on one side of it. And a card that cannot
+# see a pack which *is* fitted — badly seated, or dead on arrival — emits this
+# same set again, so it is the comparison to make the next time a pack changes.
 #
-# Until it has, UpsBatteryLow, UpsChargeLow, UpsRuntimeCritical and
-# UpsAlarmPresent sit comfortably inside their thresholds and still tell you
-# nothing. They are kept because they become correct the moment the card is
-# reading real hardware — not because they are protecting anything yet. A quiet
-# `ups` group is not evidence of runtime.
-#
-# UpsOnBattery, UpsOverloaded and UpsBatteryTemperatureHigh read mains-side or
-# load-side values and were unaffected throughout. UpsOnBattery in particular
-# would still fire on a transfer — it would just be reporting an outage already
-# in progress rather than warning of one.
+# upsEstimatedChargeRemaining still reads exactly 100. On its own that is the
+# fabrication signature; here it is consistent with a pack at float voltage,
+# because voltage and runtime both moved and the self-test passed. Charge alone
+# was never the evidence.
 #
 # THE ONE METRIC THAT DOES NOT LIE.
 #
-# upsTestResultsSummary is the exception to everything above. It reports the
-# result of the last diagnostics test, and the UPS will not fake one — without a
-# usable pack it cannot complete a test, so it reports the failure honestly
-# while charge, runtime, voltage and alarm count all read healthy.
+# upsTestResultsSummary reports the result of the last diagnostics test, and the
+# UPS will not fake one — without a usable pack it cannot complete a test, so it
+# reports the failure honestly while charge, runtime, voltage and alarm count
+# all read healthy.
 #
 #   1 donePass   2 doneWarning   3 doneError
 #   4 aborted    5 inProgress    6 noTestsInitiated
 #
-# Observed before the fit: 4 (aborted), which the management card's own
-# diagnostics page rendered as "Refused — internal fault". No self-test has been
-# run since the pack went in, so that remains the last stored result and this
-# metric has not yet had anything new to say.
-#
 # UpsSelfTestFailed and UpsBatteryUnproven below are keyed on it, and they are
 # the only two rules in this file that can tell a UPS which works from one that
-# merely looks like it does.
+# merely looks like it does. The silence that held UpsSelfTestFailed until
+# 2026-09-20 (54f1715c-e57b-4322-8a6d-5435bc8e1bd8) was deleted on 2026-08-28,
+# so both rules are live.
 #
-# WHAT IS STILL OUTSTANDING, AND WHY THIS HEADER IS NOT SHORTER YET.
+# WHAT IS STILL OUTSTANDING.
 #
-# UpsSelfTestFailed is silenced in Alertmanager until 2026-09-20
-# (54f1715c-e57b-4322-8a6d-5435bc8e1bd8). That silence was correct while nothing
-# could be done about a missing pack — it fired every 30 minutes about a known
-# condition, which is how an urgent receiver stops being read. It stopped being
-# correct the moment a pack was fitted, because it now suppresses the single
-# rule that could report that pack being faulty or badly seated. Delete it
-# before running the self-test, not after: run them in the other order and the
-# one result most worth seeing is the one that is hidden.
+# Scheduled self-tests are not enabled on the NMC. A value of 1 is the *last*
+# result, not a fresh one: if the card stops testing the metric simply stops
+# changing, and nothing here detects that. UpsBatteryUnproven cannot — it
+# matches 6 (noTestsInitiated), and this card now reads 1. upsTestStartTime is
+# sysUpTime-relative and does not survive an agent restart, so it is not a
+# usable staleness signal either. Scheduled tests on the device are the control
+# and this file cannot substitute for them; step 6 of
+# docs/runbooks/fit-the-ups-battery.md.
 #
-# Still do not run self-tests by hand to keep the metric warm. A test transfers
-# the load to battery, and on a pack that is weak that is the outage the alert
+# Do not run self-tests by hand to keep the metric warm. A test transfers the
+# load to battery, and on a pack that is weak that is the outage the alert
 # exists to warn about. The pre-fit refusals were safe only because no transfer
-# ever occurred. Enable the NMC's *scheduled* self-test instead, so this metric
-# stays live evidence rather than a stale last-known result.
-#
-# Known limit: a value of 1 (donePass) is the last result, not a fresh one. If
-# the NMC stops testing entirely the value simply stops changing, and nothing
-# here detects that. upsTestStartTime is sysUpTime-relative and does not survive
-# an agent restart, so it is not a usable staleness signal. Scheduled tests on
-# the device are the control; this file cannot substitute for them.
+# ever occurred.
 groups:
   - name: ups
     interval: 60s

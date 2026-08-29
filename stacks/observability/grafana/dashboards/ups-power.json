@@ -1,7 +1,7 @@
 {
   "uid": "homelab-ups",
   "title": "UPS & Power",
-  "description": "APC Smart-UPS (mjolnir) via UPS-MIB. A replacement pack was fitted on 2026-08-28 and has not yet passed a self-test, so runtime figures are not proven — see docs/runbooks/fit-the-ups-battery.md.",
+  "description": "APC Smart-UPS (mjolnir) via UPS-MIB. An APCRBC115 pack was fitted on 2026-08-28 and passed its self-test the same day, so the battery figures are measured — but anything before that date is fabricated, and scheduled self-tests are not yet enabled on the card. See docs/runbooks/fit-the-ups-battery.md.",
   "tags": [
     "homelab",
     "power",
@@ -258,7 +258,7 @@
     },
     {
       "type": "text",
-      "title": "Battery fitted 2026-08-28 — not yet proven",
+      "title": "Battery proven 2026-08-28 — the history before it is not",
       "gridPos": {
         "x": 0,
         "y": 6,
@@ -267,7 +267,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**A pack is fitted. Nothing has yet confirmed the UPS can carry load.** An APCRBC115 cartridge went into `mjolnir` on 2026-08-28. Until a self-test passes, every battery figure below is unproven rather than measured: a management card that cannot see a fitted pack reports `batteryNormal`, 100% charge, 48.0 V and a runtime estimate exactly as it did when the bay was empty.\n\nThe test is comparison, not appearance. Charge still reading exactly `100` and runtime still at exactly `63` is the signature of a card that is still fabricating — compare against the pre-fit baseline in step 5 of `docs/runbooks/fit-the-ups-battery.md`.\n\n**Two steps are outstanding.** The `UpsSelfTestFailed` silence `54f1715c` runs until 2026-09-20 and is suppressing the one alert that can report a faulty or badly seated new pack — delete it *before* running the self-test, not after. Then enable scheduled self-tests on the card, so `upsTestResultsSummary` stays live evidence rather than a stale last result."
+        "content": "**The pack is fitted and proven.** An APCRBC115 went into `mjolnir` on 2026-08-28 and `upsTestResultsSummary` moved `4` (aborted) → `1` (donePass) at 22:45 UTC. `upsBatteryVoltage` left its fabricated `480` for a float reading that varies, and the runtime estimate moves instead of sitting on exactly `63` — the step 5 comparison a card cannot fake. Charge still reads exactly `100`, which is what a pack at float voltage looks like.\n\n**Anything on these panels before 2026-08-28 is fabricated.** With an empty bay the card invented a flat 100%, 63 minutes and 48.0 V. The trend panels below cross that boundary — widen the time range with that in mind.\n\n**Scheduled self-tests are not enabled yet.** `1` is the *last* result, not a fresh one; if the NMC never tests again this stops changing and nothing notices. `UpsBatteryUnproven` cannot catch it — that rule matches `6` (noTestsInitiated), and this card now reads `1`. Step 6 of `docs/runbooks/fit-the-ups-battery.md`."
       }
     },
     {
@@ -361,8 +361,8 @@
     },
     {
       "type": "gauge",
-      "title": "Battery charge (unproven — self-test pending)",
-      "description": "A pack was fitted to mjolnir on 2026-08-28 and has not yet passed a self-test. The management card reports this value whether or not it can see the pack, so it is not yet evidence of anything — compare it against the pre-fit baseline in docs/runbooks/fit-the-ups-battery.md before trusting it. See the banner at the top of this dashboard.",
+      "title": "Battery charge",
+      "description": "Measured. The APCRBC115 pack was fitted to mjolnir on 2026-08-28 and passed its self-test at 22:45 UTC that day. Values before that date are fabricated — the management card reported them over an empty bay — so history either side of that boundary is two different things. See the note at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -497,8 +497,8 @@
     },
     {
       "type": "stat",
-      "title": "Runtime remaining (unproven — self-test pending)",
-      "description": "A pack was fitted to mjolnir on 2026-08-28 and has not yet passed a self-test. The management card reports this value whether or not it can see the pack, so it is not yet evidence of anything — compare it against the pre-fit baseline in docs/runbooks/fit-the-ups-battery.md before trusting it. See the banner at the top of this dashboard.",
+      "title": "Runtime remaining",
+      "description": "Measured. The APCRBC115 pack was fitted to mjolnir on 2026-08-28 and passed its self-test at 22:45 UTC that day. Values before that date are fabricated — the management card reported them over an empty bay — so history either side of that boundary is two different things. See the note at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -567,8 +567,8 @@
     },
     {
       "type": "stat",
-      "title": "Battery status (unproven — self-test pending)",
-      "description": "A pack was fitted to mjolnir on 2026-08-28 and has not yet passed a self-test. The management card reports this value whether or not it can see the pack, so it is not yet evidence of anything — compare it against the pre-fit baseline in docs/runbooks/fit-the-ups-battery.md before trusting it. See the banner at the top of this dashboard.",
+      "title": "Battery status",
+      "description": "Measured. The APCRBC115 pack was fitted to mjolnir on 2026-08-28 and passed its self-test at 22:45 UTC that day. Values before that date are fabricated — the management card reported them over an empty bay — so history either side of that boundary is two different things. See the note at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -791,8 +791,8 @@
     },
     {
       "type": "stat",
-      "title": "Battery temp (unproven — self-test pending)",
-      "description": "A pack was fitted to mjolnir on 2026-08-28 and has not yet passed a self-test. The management card reports this value whether or not it can see the pack, so it is not yet evidence of anything — compare it against the pre-fit baseline in docs/runbooks/fit-the-ups-battery.md before trusting it. See the banner at the top of this dashboard.",
+      "title": "Battery temp",
+      "description": "Measured. The APCRBC115 pack was fitted to mjolnir on 2026-08-28 and passed its self-test at 22:45 UTC that day. Values before that date are fabricated — the management card reported them over an empty bay — so history either side of that boundary is two different things. See the note at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -873,8 +873,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Battery charge and runtime (unproven — self-test pending)",
-      "description": "A pack was fitted to mjolnir on 2026-08-28 and has not yet passed a self-test. The management card reports this value whether or not it can see the pack, so it is not yet evidence of anything — compare it against the pre-fit baseline in docs/runbooks/fit-the-ups-battery.md before trusting it. See the banner at the top of this dashboard.",
+      "title": "Battery charge and runtime",
+      "description": "Measured. The APCRBC115 pack was fitted to mjolnir on 2026-08-28 and passed its self-test at 22:45 UTC that day. Values before that date are fabricated — the management card reported them over an empty bay — so history either side of that boundary is two different things. See the note at the top of this dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

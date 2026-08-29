@@ -15,7 +15,7 @@ What this network is actually built to survive:
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | Losing visibility of a failure | 35 alert rules, 30 days of metrics and logs |
-| Mains power loss | **Partly defended.** A pack was fitted to `mjolnir` on 2026-08-28 and has not yet proven it can carry the load — see below |
+| Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 
 What it explicitly does **not** defend against: a determined attacker with
 physical access to the rack, a supply-chain compromise in an upstream container
@@ -175,19 +175,25 @@ that file that can detect this condition.
 This is worth stating carefully: the monitoring did not fail, and neither did
 the rules. The device lied, and the rules trusted it.
 
-**A pack was fitted on 2026-08-28, and that has not yet closed this.** A card
-that cannot see a pack which *is* present — badly seated, or faulty out of the
-box — emits the same five fabricated values as one sitting over an empty bay. So
-a healthy-looking dashboard distinguishes nothing; only a passing self-test, and
-charge and runtime that have moved off the pre-fit baseline, do.
+**A pack was fitted on 2026-08-28, and that closed this.** A card that cannot
+see a pack which *is* present — badly seated, or faulty out of the box — emits
+the same five fabricated values as one sitting over an empty bay, so a
+healthy-looking dashboard distinguished nothing. Only a passing self-test and
+readings that have left the pre-fit baseline do, and both now hold:
+`upsTestResultsSummary` went `4` (aborted) to `1` (donePass), `upsBatteryVoltage`
+left `480` for a float reading that varies, and the runtime estimate no longer
+sits on exactly `63`. The silence on `UpsSelfTestFailed` was deleted the same day
+rather than left to expire in September, so that rule is live again.
 
-Neither has happened yet. No self-test has been run since the fit, so
-`upsTestResultsSummary` still holds its pre-fit `4`. And `UpsSelfTestFailed` is
-still silenced in Alertmanager until 2026-09-20 — a silence that was correct
-while nothing could be done about a missing pack, and which now suppresses the
-one rule that would report the new pack being bad. Deleting it is step 3 of
-[`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), it comes
-before the self-test rather than after, and it is outstanding.
+Two things outlast the fix. Stored metrics older than 2026-08-28 *are* the
+fabricated values rather than measurements, so a dashboard or query whose range
+crosses that date is reading fiction on one side of it. And scheduled self-tests
+are not yet enabled on the card, which makes `1` a last-known result with
+nothing refreshing it — `UpsBatteryUnproven` cannot catch a card that stops
+testing, because it matches `6` (noTestsInitiated) and this one now reads `1`.
+That is step 6 of
+[`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), and it is
+outstanding.
 
 ### Why SNMPv2c is still a weak point
 
