@@ -180,7 +180,28 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
-      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel
+      # No plugins are installed here, deliberately. This was
+      # GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel and both
+      # were dead weight — no dashboard under grafana/dashboards/ uses either
+      # panel type, and grafana-piechart-panel is an Angular plugin, which this
+      # Grafana refuses to initialise: it was downloaded and then rejected on
+      # every single start.
+      #
+      # It was also an availability bug, which is the reason it is gone rather
+      # than merely tidied. The background installer contacts grafana.com on
+      # every start, and a failure there is FATAL to the process — Grafana
+      # crash-looped on a host with no uplink, even though both plugins were
+      # already present in grafana-data. That turns an ordinary outage into a
+      # failed disaster recovery, and it was found by doing one: see the last
+      # section of docs/runbooks/restore-the-stack.md.
+      #
+      # Grafana still preinstalls its own bundled apps (pyroscope, exploretraces,
+      # metricsdrilldown, lokiexplore, elasticsearch). Those ship inside the
+      # image and need no network, which is what makes an offline start work.
+      #
+      # If a plugin is ever genuinely needed, add GF_PLUGINS_PREINSTALL —
+      # GF_INSTALL_PLUGINS is deprecated — and re-test the offline start before
+      # committing it.
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
       PROMETHEUS_URL: http://prometheus:9090
       LOKI_URL: http://loki:3100
