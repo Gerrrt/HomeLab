@@ -26,7 +26,7 @@ sudo docker run -d \
   -v /var/log:/var/log:ro \
   -v /:/rootfs:ro \
   -p 127.0.0.1:12345:12345 \
-  grafana/alloy:v1.18.1 \
+  "$(/path/to/HomeLab/scripts/image-for.sh alloy)" \
     run --server.http.listen-addr=0.0.0.0:12345 \
         --storage.path=/var/lib/alloy/data \
         /etc/alloy/config.alloy
@@ -34,6 +34,14 @@ sudo docker run -d \
 
 The two `*_URL` variables are the only difference from the monitoring host's own
 agent — inside the compose stack they default to service names.
+
+The image comes from `compose.yaml` rather than being written out here, so a new
+host starts on the same Alloy — tag *and* digest — that the monitoring host runs,
+and keeps doing so after Dependabot bumps it. A version copied into this runbook
+would be stale from the next bump onward, which is the whole argument in the
+header of `scripts/image-for.sh`. If the repository is not on the new host, run
+`./scripts/image-for.sh alloy` on the monitoring host and paste the reference it
+prints.
 
 `--hostname` is not optional. Alloy labels everything it produces with
 `constants.hostname`, which inside a container is the **container ID** unless one
