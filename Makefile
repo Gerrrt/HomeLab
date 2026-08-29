@@ -130,6 +130,10 @@ check-compose-health: ## Verify compose health dependencies can be satisfied
 check-loki-rules: ## Validate Loki (LogQL) alerting rules
 	./scripts/check_loki_rules.sh
 
+.PHONY: check-image-pins
+check-image-pins: ## Verify every docker image comes from compose.yaml
+	python3 scripts/check_image_pins.py
+
 .PHONY: pin-digests
 pin-digests: ## Re-resolve image digests in compose.yaml (--write applies)
 	./scripts/pin-digests.sh --write

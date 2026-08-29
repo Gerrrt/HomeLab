@@ -78,9 +78,14 @@ jobs:
 
       # Guard against the duplication coming back. Any image: pin outside
       # compose.yaml is drift waiting to happen, since Dependabot cannot see it.
+      #
+      # This matched only prom/ and grafana/ until #65, which is how
+      # zricethezav/gitleaks sat pinned in this file's own env: block. Any
+      # repo/name:version fails now. The illustrative version in the header of
+      # scripts/pin-digests.sh is a comment and is filtered out below.
       - name: Verify image versions are not duplicated outside compose.yaml
         run: |
-          if grep -rnE '(prom|grafana)/[a-z-]+:v?[0-9]+\.[0-9]+' \
+          if grep -rnE '(^|[^a-zA-Z0-9._/-])[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*:v?[0-9]+\.[0-9]+' \
                --include='*.sh' --include='*.yml' --include='Makefile' \
                scripts .github Makefile 2>/dev/null \
              | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' ; then
@@ -116,6 +121,19 @@ jobs:
             esac
           done < <(awk '$1 == "image:" { print $2 }' "$STACK/compose.yaml")
           exit "$missing"
+
+      # The three checks above are all pattern matches, and #65 walked past all
+      # three: `make backup` ran a bare `alpine` — no `:latest` literal, no
+      # prom/ or grafana/ prefix, and not an `image:` line in compose.yaml. A
+      # grep cannot match a pin that is simply absent. This parses every docker
+      # run/pull/create in the Makefile, the scripts, this workflow and the
+      # runbooks, and requires each one's image to resolve through
+      # scripts/image-for.sh — so an image that is not in compose.yaml cannot be
+      # run at all, whatever it is called. That is also what makes the digest
+      # check above complete: it reads compose.yaml alone, and compose.yaml is
+      # now the only place an image can come from.
+      - name: Verify every docker image comes from compose.yaml
+        run: python3 scripts/check_image_pins.py
 
       - name: promtool check config
         run: |

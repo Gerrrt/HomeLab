@@ -64,7 +64,10 @@ incident.
   the build.
 - **Supply chain pinned by digest.** Every image carries both a tag and a
   `sha256:` digest, so a moved tag cannot change what deploys. CI enforces it;
-  `make pin-digests` re-resolves them from the registry.
+  `make pin-digests` re-resolves them from the registry. Every `docker run` in
+  the Makefile, the scripts, the workflow and the runbooks resolves its image
+  from `compose.yaml` too, so an image that is not pinned there cannot be run
+  at all.
 - **Documented decisions and runbooks.** Eleven ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; twelve
   runbooks for the operations that are easy to get wrong at 1am.
@@ -250,6 +253,13 @@ what is known.
 Container images are pinned by **tag and digest**. A tag is a mutable pointer; a
 digest is the content hash, so a moved tag cannot change what gets deployed. CI
 enforces it, and `make pin-digests` re-resolves them.
+
+`compose.yaml` is the only place an image may be named, including images no
+service runs — the tar that takes backups and the scanner CI runs are both
+profile-gated entries there. CI parses every `docker run`, `pull` and `create`
+in the repository and requires each to resolve its image through
+`scripts/image-for.sh`, because the pin that caused this rule was not a wrong
+one but a missing one, and no amount of grepping finds those.
 
 ## Roadmap
 
