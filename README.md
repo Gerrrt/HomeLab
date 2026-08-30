@@ -165,7 +165,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 11 architecture decision records
+│   ├── adr/                  # 12 architecture decision records
 │   └── runbooks/             # deploy, add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, restore the stack,
 │                             #   ship firewall logs, verify the alert path,
@@ -195,7 +195,9 @@ Prometheus verifies it with the CA, so `make up` renders nothing until they
 exist. Details in
 [`docs/runbooks/generate-certificates.md`](docs/runbooks/generate-certificates.md).
 
-Grafana on `:3000` over https, Prometheus on `:9090`. Grafana's certificate is
+Grafana on `:3000` over https, Prometheus on `:9090`. Alertmanager binds to
+`127.0.0.1` and is reached through Grafana
+([#70](https://github.com/Gerrrt/HomeLab/issues/70)). Grafana's certificate is
 signed by the lab's own CA, so a browser warns and `curl` needs `-k` until you
 trust `certificates/ca.pem` — step 4 of that runbook. Full procedure,
 verification steps and troubleshooting in

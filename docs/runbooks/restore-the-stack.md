@@ -344,6 +344,10 @@ devices. It also means published ports do not route, so reach the services with
 `docker exec` rather than from the host — and it is why `GF_INSTALL_PLUGINS`
 has to be emptied above.
 
+`BIND_ADDR=127.0.0.1` in the export below is belt-and-braces on top of that. It
+covers the rehearsal Prometheus, Loki, Grafana and syslog receiver; Alertmanager
+is pinned to loopback in `compose.yaml` and ignores it (#70).
+
 ```bash
 export COMPOSE_PROJECT_NAME=rehearse BIND_ADDR=127.0.0.1 \
   PROMETHEUS_PORT=19090 ALERTMANAGER_PORT=19093 LOKI_PORT=13100 \

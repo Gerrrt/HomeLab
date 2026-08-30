@@ -54,6 +54,15 @@ curl -s localhost:9093/-/healthy            # Alertmanager
 curl -sk https://localhost:3000/api/health  # Grafana (-k: lab CA)
 ```
 
+The `curl`s pass wherever the services are bound, so confirm the binds
+themselves are what `docs/architecture.md` claims (#70):
+
+```bash
+ss -ltn | grep -E ':(9093|12345)'        # 127.0.0.1 — Alertmanager and Alloy
+ss -ltn | grep -E ':(9090|3100|3000)'    # BIND_ADDR — 0.0.0.0 by default
+ss -lun | grep ':1514'                   # BIND_ADDR
+```
+
 Then in the UI:
 
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets

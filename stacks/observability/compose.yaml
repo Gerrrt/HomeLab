@@ -46,6 +46,11 @@ services:
       - ./prometheus/targets:/etc/prometheus/targets:ro
       - prometheus-data:/prometheus
     ports:
+      # Published, and unauthenticated with it: anything that can reach this
+      # port can read every metric and inject more through the remote-write
+      # receiver. It stays published because `oracle` remote-writes here — that
+      # is a real client, not a hypothetical one (#70). Recorded as an accepted
+      # residual in SECURITY.md rather than left implicit.
       - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
@@ -70,6 +75,10 @@ services:
     command:
       - --config.file=/etc/alertmanager/alertmanager.yaml
       - --storage.path=/alertmanager
+      # Seeds the externalURL field in webhook payloads and nothing else — no
+      # receiver here renders it. Since #70 that link opens only on the
+      # monitoring host. Left pointing at the real address rather than
+      # 127.0.0.1, because that is still the host you would tunnel to.
       - --web.external-url=http://${MONITORING_HOST:-10.0.99.20}:${ALERTMANAGER_PORT:-9093}
     volumes:
       - ./alertmanager/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
@@ -79,7 +88,13 @@ services:
       - ./alertmanager/.rendered:/etc/alertmanager/secrets:ro
       - alertmanager-data:/alertmanager
     ports:
-      - "${BIND_ADDR:-0.0.0.0}:${ALERTMANAGER_PORT:-9093}:9093"
+      # Loopback only, and the only one of the four that can be (#70). Anyone
+      # who can reach an unauthenticated Alertmanager can create a silence,
+      # which switches off an alert using the same system that would otherwise
+      # have recorded the act. Unlike Prometheus and Loki above, nothing
+      # off-host talks to it: silences are reached through Grafana, which
+      # proxies this service over the compose network behind a login.
+      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
       interval: 30s
@@ -105,6 +120,9 @@ services:
       - ./loki/rules:/etc/loki/rules/fake:ro
       - loki-data:/loki
     ports:
+      # Published for the same reason as Prometheus above, and with the same
+      # residual: auth_enabled is false, so the push and delete APIs are open to
+      # whatever can reach the port. `oracle`'s Alloy pushes here (#70).
       - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
 
   # No healthcheck on loki, deliberately.
@@ -265,6 +283,9 @@ services:
     group_add:
       - "${RENDER_GID:?run make render}"
     ports:
+      # The only published port a human is meant to open, and the only one that
+      # authenticates: anonymous access and sign-up are both off, and the admin
+      # password comes from SOPS.
       - "${BIND_ADDR:-0.0.0.0}:${GRAFANA_PORT:-3000}:3000"
     depends_on:
       prometheus:

@@ -175,19 +175,35 @@ re-shard of everything. Reasoning in
 
 | Service | Port | Bound to | Notes |
 | --- | --- | --- | --- |
-| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human |
-| Prometheus | 9090 | `${BIND_ADDR}` | Also the remote-write receiver for agents |
-| Loki | 3100 | `${BIND_ADDR}` | Push endpoint for agents |
-| Alertmanager | 9093 | `${BIND_ADDR}` | |
+| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human, and the only published service that authenticates |
+| Prometheus | 9090 | `${BIND_ADDR}` | Remote-write receiver — `oracle`'s agent pushes here. Unauthenticated; see [`security.md`](security.md) |
+| Loki | 3100 | `${BIND_ADDR}` | Push endpoint — `oracle`'s agent pushes here. Unauthenticated; see [`security.md`](security.md) |
+| Alertmanager | 9093 | `127.0.0.1` | Nothing off-host uses it; silences are reached through Grafana |
 | Alloy | 12345 | `127.0.0.1` | Debug UI, deliberately not exposed |
 | Alloy syslog | 1514/udp | `${BIND_ADDR}` | Network syslog receiver — pfSense pushes here |
 | snmp-exporter | 9116 | *compose network only* | Never published to a host interface |
 | blackbox-exporter | 9115 | *compose network only* | Never published — an open prober is an SSRF primitive |
 
-`BIND_ADDR` defaults to `0.0.0.0` and is set in `.env`. Setting it to the host's
-VLAN 99 address confines the whole stack to the management segment; the
-published ports exist because agents on other hosts need to reach Prometheus and
-Loki.
+A port is published only when something off this host uses it
+([ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)). Grafana
+is opened in a browser from Hicks, the syslog receiver takes pushes from
+`morpheus`, and Prometheus and Loki take metrics and logs from `oracle`'s Alloy
+agent. Alertmanager has no such client, so it binds to `127.0.0.1`; silences are
+reached through Grafana, which proxies it over the compose network behind a
+login.
+
+`BIND_ADDR` governs the four that are published. It defaults to `0.0.0.0` and is
+set in `stacks/observability/.env.example` — `.env` is regenerated from that
+file on every `make up`, so the committed value is the deployed one. Setting it
+to the host's VLAN 99 address would confine them to the management segment,
+which today changes nothing: the host has one interface and it is already on
+VLAN 99.
+
+Prometheus and Loki are published and unauthenticated, which is a real residual
+rather than a solved problem — anything that can reach them can read every
+metric and log line, inject metrics, and delete log ranges. Default-deny between
+VLANs is the only control on that, and it is recorded as such in
+[`SECURITY.md`](../SECURITY.md).
 
 ## Reference diagrams
 
