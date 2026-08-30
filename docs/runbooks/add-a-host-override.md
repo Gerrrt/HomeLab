@@ -54,7 +54,14 @@ The KVM in the rack is that access.
 | `prometheus` | `matrix.elysium` | `10.0.99.20` | Monitoring host |
 | `grafana` | `matrix.elysium` | `10.0.99.20` | Dashboards — matches the certificate's CN |
 
-`morpheus` needs no entry. It already resolves.
+`morpheus` needs no entry. It already resolves — and note it answers with **two**
+addresses, `10.0.99.1` and `10.7.7.1`, because pfSense registers the firewall's
+own hostname on each interface. That is not a misconfiguration, and a `dig` that
+shows one or the other is round-robin rather than drift.
+
+> [!NOTE]
+> These four were applied on 2026-08-30 and verified. The procedure below is
+> what was run; it is kept for the next name, not because these are outstanding.
 
 **`oracle` and `lemmiwinks` share an address on purpose.** One machine, two
 names: the wiki is a container on Oracle. Either add two entries or add one for
@@ -103,10 +110,21 @@ a local cache looks like a wrong answer from Unbound.
 
 ## What this does not do
 
-**It does not create reverse DNS.** A host override answers name → address only.
-`dig -x 10.0.99.30` will still return nothing, and anything that logs by reverse
-lookup keeps showing bare addresses. Reverse entries are a separate mechanism and
-are not set up here for any host except `morpheus`.
+**It does not give every name a reverse entry — the first one wins.** pfSense
+writes a `local-data-ptr` alongside the forward record, but only for the *first*
+override that claims a given address. Adding `lemmiwinks` and then `oracle`, both
+on `10.0.99.30`, produces a PTR for `lemmiwinks` and none for `oracle`:
+
+```text
+local-data-ptr: "10.0.99.30 lemmiwinks.matrix.elysium"
+local-data: "lemmiwinks.matrix.elysium. A 10.0.99.30"
+local-data: "oracle.matrix.elysium. A 10.0.99.30"
+```
+
+So **the order you add two names for one machine decides which one shows up in
+reverse lookups**, and therefore in anything that logs by PTR. Add the name you
+want to read in logs first. Changing your mind later means deleting both and
+re-adding them in the other order — editing the second one does not promote it.
 
 **It does not make a service reachable.** A name resolving means only that the
 address is known. If the service behind it is down, the failure simply moves one
