@@ -27,6 +27,18 @@ BOOT_SECONDS="${BOOT_SECONDS:-45}"
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[0;34m--\033[0m %s\n' "$*"; }
 
+# --skips-file <path>: append a line if this check skips. scripts/validate.sh
+# passes an mktemp it removes on exit and adds the line count to its SKIPPED
+# total, so a skip here cannot be mistaken for a pass. The caller owns the path.
+SKIPS_FILE=""
+while (($#)); do
+  case "$1" in
+    --skips-file) SKIPS_FILE="${2:?--skips-file needs a path}"; shift ;;
+    *) die "unknown argument: $1" ;;
+  esac
+  shift
+done
+
 RULES_DIR="${STACK}/loki/rules"
 [[ -d "${RULES_DIR}" ]] || die "no rules directory at ${RULES_DIR}"
 
@@ -95,7 +107,14 @@ elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   RUN=(docker run --rm --user "$(id -u):$(id -g)" \
        -v "${WORK}:${WORK}" -w "${WORK}" --entrypoint loki "${LOKI_IMAGE}")
 else
-  printf '\033[0;33m  SKIP\033[0m no loki binary and no docker daemon\n'
+  # Recorded, not just printed. scripts/validate.sh counts the lines of this
+  # file into its SKIPPED total; without it this exit 0 read as a pass and the
+  # run could sign off with an unqualified "all checks passed" over rules that
+  # were never validated (#68). Same contract as scripts/lint.sh and
+  # scripts/seed-validation-env.sh: the caller owns the path and its lifetime.
+  msg="no loki binary and no docker daemon"
+  printf '\033[0;33m  SKIP\033[0m %s\n' "${msg}"
+  [[ -n "${SKIPS_FILE}" ]] && printf '%s\n' "${msg}" >> "${SKIPS_FILE}"
   exit 0
 fi
 

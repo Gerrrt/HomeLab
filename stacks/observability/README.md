@@ -68,6 +68,6 @@ make validate
 ```
 
 Runs `docker compose config`, `promtool check config`, `promtool check rules`,
-`promtool test rules`, `amtool check-config`, `alloy fmt --verify`, the
-dashboard checks, yamllint, markdownlint, shellcheck and gitleaks. Same set CI
-runs.
+`promtool test rules`, `amtool check-config`, `alloy fmt --test`, the dashboard
+and documentation checks, every linter in `scripts/lint.sh`, and gitleaks. Same
+set CI runs — both call the same scripts, so the two cannot drift (#68).

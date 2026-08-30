@@ -452,6 +452,38 @@ services:
     image: zricethezav/gitleaks:v8.24.0@sha256:2bcceac45179b3a91bff11a824d0fb952585b429e54fc928728b1d4d5c3e5176
     command: ["version"]
 
+  # ---------------------------------------------------------------------------
+  # actionlint and editorconfig-checker for scripts/lint.sh. NOT part of the
+  # running stack: both sit behind the `lint` profile, so `make up` neither
+  # starts nor pulls them, and `docker compose ps` shows six services as before.
+  #
+  # Here for the same reason `archiver` and `gitleaks` above are. These two were
+  # GitHub Actions — raven-actions/actionlint and
+  # editorconfig-checker/action-editorconfig-checker — so they ran only inside
+  # CI: unrunnable by `make validate`, and pinned by nothing in this repository
+  # at all. Two linters whose first and only feedback was a red build. That is
+  # half of #68.
+  #
+  # Docker Hub rather than ghcr.io on purpose: scripts/pin-digests.sh resolves
+  # through auth.docker.io and registry-1.docker.io only, so a ghcr.io reference
+  # could not be digest-pinned here and would then fail CI's digest assertion.
+  #
+  # The two `command:` lines differ because the images do. actionlint's
+  # entrypoint IS actionlint, so `-version` is the harmless no-op if it is ever
+  # started by accident. editorconfig-checker sets no entrypoint, only a Cmd, so
+  # a bare `--version` would be executed as a binary and the name has to be
+  # repeated — which is also why scripts/lint.sh names it after the image.
+  # ---------------------------------------------------------------------------
+  actionlint:
+    profiles: ["lint"]
+    image: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+    command: ["-version"]
+
+  editorconfig-checker:
+    profiles: ["lint"]
+    image: mstruebing/editorconfig-checker:v3.11.2@sha256:909028274c0a33509bebaa366f1538b4b728ba6cb7f4b958ee15f8bd9df59ffa
+    command: ["editorconfig-checker", "--version"]
+
 networks:
   observability:
     driver: bridge

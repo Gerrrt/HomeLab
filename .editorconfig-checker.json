@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "IndentSize is off because this checker cannot tell indentation from",
+    "alignment, and everything it flagged here was alignment. Two shapes, both",
+    "deliberate and both wanted: a continuation line aligned under the pipeline",
+    "it belongs to (scripts/seed-validation-env.sh:47, scripts/validate.sh:166),",
+    "and the three-space continuation of a numbered list item in Markdown",
+    "(docs/adr/*.md). The second is not a matter of taste — markdownlint",
+    "requires those three spaces, so .editorconfig's indent_size of 2 and",
+    "markdownlint-cli2 cannot both be satisfied, and markdownlint is the one",
+    "that is right about Markdown. 77 findings, no defects among them.",
+    "",
+    "Nothing else is disabled. Trailing whitespace, final newline, charset, line",
+    "endings and indent_style (tabs in the Makefile and *.alloy, spaces",
+    "elsewhere) are all still enforced, which is the part that catches real",
+    "damage. Verified: adding a trailing space to a script fails this checker.",
+    "",
+    "This file is new because the checker had never actually run. CI's",
+    "EditorConfig step was editorconfig-checker/action-editorconfig-checker@v2,",
+    "which downloads the binary and adds it to PATH and never invokes it — a",
+    "green step that checked nothing, for as long as it has been there. See #68."
+  ],
+  "Disable": {
+    "IndentSize": true
+  }
+}

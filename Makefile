@@ -107,10 +107,8 @@ validate: ## Run every check CI runs
 	./scripts/validate.sh
 
 .PHONY: lint
-lint: ## Lint YAML, Markdown and shell
-	yamllint .
-	markdownlint-cli2
-	shellcheck scripts/*.sh
+lint: ## Lint YAML, Markdown, shell, workflows and EditorConfig
+	./scripts/lint.sh
 
 .PHONY: check-dashboards
 check-dashboards: ## Validate dashboard JSON and datasource references
