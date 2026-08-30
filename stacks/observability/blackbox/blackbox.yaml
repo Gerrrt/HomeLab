@@ -37,8 +37,11 @@ modules:
       tls_config:
         insecure_skip_verify: true
 
-  # Same, for an endpoint served over plain HTTP.
-  http_2xx_insecure_scheme:
+  # An endpoint served over plain HTTP. This is what the wiki uses — see
+  # targets/blackbox.yaml. Named `plain` rather than `insecure` because nothing
+  # here is choosing to weaken anything: the endpoint simply does not offer TLS,
+  # and a probe that pretended otherwise would measure the wrong thing.
+  http_2xx_plain:
     prober: http
     timeout: 10s
     http:

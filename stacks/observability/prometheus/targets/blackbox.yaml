@@ -5,22 +5,28 @@
 # `module` selects a prober from blackbox/blackbox.yaml.
 # `name`   is what the alert says out loud, so write it for whoever is woken up.
 #
+# The wiki is served over PLAIN HTTP, not https, and these targets say so.
+# Verified against the running container on 2026-08-30: only port 3000 listens
+# inside it, nothing is on 3443, and TLS is off. The host maps 443 anyway, so an
+# https probe is refused instantly — which is exactly what the first deploy of
+# this file did, reporting the wiki down while it was serving fine.
+#
 # The wiki is probed twice on purpose: once by the name a person would type,
 # and once by its address. Both failing means the wiki is down. Only the name
 # failing means the wiki is up and DNS is not, which is a different repair and
 # would otherwise be indistinguishable.
 
-- targets: ["https://lemmiwinks.matrix.elysium"]
+- targets: ["http://lemmiwinks.matrix.elysium"]
   labels:
-    module: http_2xx
+    module: http_2xx_plain
     name: wiki
     role: documentation
     host: oracle
     via: dns
 
-- targets: ["https://10.0.99.30"]
+- targets: ["http://10.0.99.30"]
   labels:
-    module: http_2xx
+    module: http_2xx_plain
     name: wiki
     role: documentation
     host: oracle
