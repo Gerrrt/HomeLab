@@ -169,7 +169,8 @@ rack; a dashed border means egress only. Full topology and data flow in
 │   └── runbooks/             # deploy, add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, restore the stack,
 │                             #   ship firewall logs, verify the alert path,
-│                             #   enable suricata, fit the UPS battery
+│                             #   enable suricata, fit the UPS battery,
+│                             #   add a host override
 └── Makefile                  # make help
 ```
 

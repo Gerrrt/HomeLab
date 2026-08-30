@@ -1,0 +1,134 @@
+# Runbook: Add a host override
+
+Give an internal name an address, so that `lemmiwinks.matrix.elysium` resolves
+instead of returning NXDOMAIN.
+
+---
+
+## Why this exists
+
+Every internal name this estate documents was written down before any of them
+resolved. On 2026-08-30 a blackbox probe of the wiki failed at the resolver
+rather than at the connection, and a sweep found the same thing across the
+board:
+
+| Name | Answer |
+| --- | --- |
+| `morpheus.matrix.elysium` | `10.0.99.1` |
+| `lemmiwinks.matrix.elysium` | NXDOMAIN |
+| `oracle.matrix.elysium` | NXDOMAIN |
+| `prometheus.matrix.elysium` | NXDOMAIN |
+| `grafana.matrix.elysium` | NXDOMAIN |
+
+The resolver is healthy — it answers for external names, and `morpheus` resolves
+because it is the firewall's own hostname. What was missing is the overrides.
+
+This matters more than a convenience usually would. `lemmiwinks.matrix.elysium`
+is printed on the break-glass card on the fridge, which is the one copy of the
+documentation that cannot be corrected remotely. And this stack issues a TLS
+certificate for `grafana.matrix.elysium`, so Grafana presents a certificate for
+a name nothing can look up.
+
+---
+
+## Before you start
+
+**Take a configuration backup.** *Diagnostics → Backup & Restore → Download
+configuration as XML.* This is a small change to the machine every other machine
+depends on, and the restore procedure has never been rehearsed — see
+[`restore-the-firewall.md`](restore-the-firewall.md), which says so on its face.
+
+Have console access available if you are doing anything beyond the steps here.
+The KVM in the rack is that access.
+
+---
+
+## Add the override
+
+*Services → DNS Resolver → Host Overrides → Add.* One entry per name:
+
+| Host | Domain | IP Address | Description |
+| --- | --- | --- | --- |
+| `lemmiwinks` | `matrix.elysium` | `10.0.99.30` | Wiki — the name on the printed card |
+| `oracle` | `matrix.elysium` | `10.0.99.30` | The machine the wiki runs on |
+| `prometheus` | `matrix.elysium` | `10.0.99.20` | Monitoring host |
+| `grafana` | `matrix.elysium` | `10.0.99.20` | Dashboards — matches the certificate's CN |
+
+`morpheus` needs no entry. It already resolves.
+
+**`oracle` and `lemmiwinks` share an address on purpose.** One machine, two
+names: the wiki is a container on Oracle. Either add two entries or add one for
+`oracle` and put `lemmiwinks` in *Additional Names for this Host* — both work,
+and the alias form makes the shared identity visible to whoever reads the list
+next.
+
+Then **Save**, then **Apply Changes**. Unbound reloads on apply.
+
+> [!IMPORTANT]
+> **Host Overrides, not Domain Overrides.** They sit next to each other on the
+> same page and do opposite things. A host override answers a name locally; a
+> domain override forwards an entire zone to a different server. Putting
+> `matrix.elysium` in the wrong box sends every internal lookup somewhere that
+> has never heard of this estate, and the symptom is that everything stops
+> resolving rather than one thing.
+
+---
+
+## Verify
+
+From a machine that uses pfSense as its resolver:
+
+```bash
+dig +short @10.0.99.1 lemmiwinks.matrix.elysium
+dig +short @10.0.99.1 oracle.matrix.elysium
+dig +short @10.0.99.1 prometheus.matrix.elysium
+dig +short @10.0.99.1 grafana.matrix.elysium
+```
+
+Four addresses, matching the table above. Query `@10.0.99.1` explicitly rather
+than relying on the client's configured resolver — otherwise a wrong answer from
+a local cache looks like a wrong answer from Unbound.
+
+> [!IMPORTANT]
+> **A name that failed before may keep failing for a while after you fix it.**
+> Unbound caches negative answers, and so does every client that already asked.
+> If a name still returns nothing a minute after Apply, that is expected and not
+> a reason to start editing again.
+>
+> Clear it rather than waiting: `resolvectl flush-caches` on a systemd Linux
+> client, and *Diagnostics → DNS Lookup* on pfSense itself, which bypasses the
+> client entirely and is the honest test of whether the override took.
+
+---
+
+## What this does not do
+
+**It does not create reverse DNS.** A host override answers name → address only.
+`dig -x 10.0.99.30` will still return nothing, and anything that logs by reverse
+lookup keeps showing bare addresses. Reverse entries are a separate mechanism and
+are not set up here for any host except `morpheus`.
+
+**It does not make a service reachable.** A name resolving means only that the
+address is known. If the service behind it is down, the failure simply moves one
+step later — from "no such host" to "connection refused" — which is progress but
+is not the same as being fixed.
+
+---
+
+## Adding another name later
+
+The same steps. Two things worth doing at the same time:
+
+- Add it to the blackbox probe targets so the name is watched from the moment it
+  exists — `stacks/observability/prometheus/targets/blackbox.yaml`, hot-reloaded,
+  no restart. (That file arrives with
+  [#168](https://github.com/Gerrrt/HomeLab/pull/168); skip this step until it
+  has merged.)
+- Write it down in `docs/network.md` if it is a host that belongs in the
+  inventory. A name that only exists in the firewall's configuration is a name
+  nobody will find when it stops working.
+
+The open question of how to reach the MokerLink management interface by name
+rather than by address ([#97](https://github.com/Gerrrt/HomeLab/issues/97)) is
+this procedure plus a certificate, and is not solved by an override alone —
+`10.7.7.2` sits outside every documented subnet, which is the harder half.
