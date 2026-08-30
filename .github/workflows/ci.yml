@@ -31,20 +31,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: yamllint
-        run: pipx run yamllint --strict .
-
-      - name: markdownlint
-        run: npx --yes markdownlint-cli2
-
-      - name: shellcheck
-        run: shellcheck scripts/*.sh
-
-      - name: actionlint
-        uses: raven-actions/actionlint@v2
-
-      - name: EditorConfig
-        uses: editorconfig-checker/action-editorconfig-checker@v2
+      # The linter list lives in scripts/lint.sh, which `make lint` and
+      # scripts/validate.sh also run — so a linter cannot exist in one place and
+      # not the others, and --strict cannot be on here and off there. This job
+      # held its own copy until #68: yamllint ran --strict here and bare
+      # locally, so a warning passed `make validate` and failed the pull request
+      # that followed.
+      #
+      # The two steps that were Actions are now pinned images from compose.yaml.
+      # editorconfig-checker is why that mattered most: the action downloaded
+      # the binary, added it to PATH, and never invoked it. A green step that
+      # checked nothing, and nothing local to notice.
+      #
+      # --require-all turns "tool unreachable" from a counted skip into a
+      # failure. A local run may honestly skip; CI may not, because a linter
+      # skipped here is one nobody will ever run.
+      #
+      # lint.sh asserts that this job contains this step and a checkout and
+      # nothing else. Adding a linter here rather than there fails, by design.
+      - name: Lint
+        run: ./scripts/lint.sh --require-all
 
   # ---------------------------------------------------------------------------
   validate:
@@ -170,7 +176,7 @@ jobs:
       # check-config still reports SUCCESS. Verified: that mutation passes
       # check-config and fails the assertions below.
       #
-      # Same six assertions as scripts/validate.sh. Both places, one commit:
+      # Same seven assertions as scripts/validate.sh. Both places, one commit:
       # this pair has drifted before (#68).
       - name: amtool config routes test
         run: |
