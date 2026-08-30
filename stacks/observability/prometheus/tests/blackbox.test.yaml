@@ -1,0 +1,154 @@
+---
+# Unit tests for blackbox.rules.yaml.
+#
+# EndpointNameNotResolving is the rule these exist for. It carries an
+# `and on (name)` join between two series that differ in every label but one,
+# and a join that matches nothing is invisible to `promtool check rules` — it
+# parses, loads, reports healthy, and can never fire. That is #63 exactly, and
+# it is why the two cases below assert both that the rule fires when it should
+# and that it stays silent during a full outage, when the louder
+# EndpointUnreachable owns the page.
+rule_files:
+  - ../rules/blackbox.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- Full outage: nothing answers, by name or by address -----------------
+  # The real state of the estate when this rule was written. Both probes fail,
+  # so EndpointUnreachable fires twice — once per probe — and
+  # EndpointNameNotResolving must NOT fire, because the service is not up.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="https://lemmiwinks.matrix.elysium",
+                 name="wiki", role="documentation", host="oracle", via="dns"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox", instance="https://10.0.99.30",
+                 name="wiki", role="documentation", host="oracle", via="address"}'
+        values: "0+0x15"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: EndpointUnreachable
+        exp_alerts:
+          - exp_labels:
+              alertname: EndpointUnreachable
+              job: blackbox
+              instance: "https://10.0.99.30"
+              name: wiki
+              role: documentation
+              host: oracle
+              via: address
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "wiki is not reachable at https://10.0.99.30"
+              description: >-
+                Probed by address and got no successful response for five
+                minutes. Expected on oracle. If the `address` probe for this
+                endpoint is also firing, the service is down; if only the `dns`
+                one is, the service is up and its name is not resolving.
+          - exp_labels:
+              alertname: EndpointUnreachable
+              job: blackbox
+              instance: "https://lemmiwinks.matrix.elysium"
+              name: wiki
+              role: documentation
+              host: oracle
+              via: dns
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "wiki is not reachable at https://lemmiwinks.matrix.elysium"
+              description: >-
+                Probed by dns and got no successful response for five
+                minutes. Expected on oracle. If the `address` probe for this
+                endpoint is also firing, the service is down; if only the `dns`
+                one is, the service is up and its name is not resolving.
+
+      # Silent, and this is the assertion that matters. A full outage must not
+      # also raise the name-resolution warning — that would put two different
+      # repairs in front of whoever is woken up.
+      - eval_time: 11m
+        alertname: EndpointNameNotResolving
+        exp_alerts: []
+
+  # --- Name stops resolving, service stays up ------------------------------
+  # The join under test. If `and on (name)` ever stops matching, this case goes
+  # silent and nothing else in CI notices.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="https://lemmiwinks.matrix.elysium",
+                 name="wiki", role="documentation", host="oracle", via="dns"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox", instance="https://10.0.99.30",
+                 name="wiki", role="documentation", host="oracle", via="address"}'
+        values: "1+0x15"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: EndpointNameNotResolving
+        exp_alerts:
+          - exp_labels:
+              alertname: EndpointNameNotResolving
+              job: blackbox
+              instance: "https://lemmiwinks.matrix.elysium"
+              name: wiki
+              role: documentation
+              host: oracle
+              via: dns
+              component: blackbox
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "wiki answers on its address but not by name"
+              description: >-
+                The service is up. Its name is not resolving, so the URL written
+                in the documentation and on the printed card does not work while
+                the service behind it is fine. Check Unbound on morpheus and the
+                host override for this name.
+
+  # --- Everything healthy --------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="https://lemmiwinks.matrix.elysium",
+                 name="wiki", role="documentation", host="oracle", via="dns"}'
+        values: "1+0x15"
+      - series: 'probe_success{job="blackbox", instance="https://10.0.99.30",
+                 name="wiki", role="documentation", host="oracle", via="address"}'
+        values: "1+0x15"
+      - series: 'up{job="blackbox-exporter", instance="blackbox-exporter:9115"}'
+        values: "1+0x15"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: EndpointUnreachable
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: EndpointNameNotResolving
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: BlackboxExporterDown
+        exp_alerts: []
+
+  # --- The prober itself dies ----------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'up{job="blackbox-exporter", instance="blackbox-exporter:9115"}'
+        values: "0+0x15"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: BlackboxExporterDown
+        exp_alerts:
+          - exp_labels:
+              alertname: BlackboxExporterDown
+              job: blackbox-exporter
+              instance: "blackbox-exporter:9115"
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "blackbox-exporter is down — every probed endpoint will look reachable"
+              description: >-
+                No probe is running. This is the failure mode that matters most,
+                because a dead prober is silent rather than loud: the endpoint
+                alerts below stop being evaluated and nothing reports a problem.

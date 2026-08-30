@@ -1,0 +1,70 @@
+---
+# Synthetic probe alerts.
+#
+# These exist because of an outage nothing here detected. The wiki stopped
+# serving on `oracle` for a period nobody can now establish, and the stack was
+# blind to it in three separate ways at once: `oracle` is not a scrape target,
+# it runs no agent so it appears nowhere in Loki, and every other rule in this
+# directory measures a process from the inside rather than asking whether
+# anything can reach it.
+#
+# `when_the_wiki_is_down` in the Lemmiwinks repository predicted exactly this in
+# writing — "nobody would notice the day it stopped, and a stale copy read
+# confidently is worse than no copy". It was right, and this is the check that
+# would have caught it.
+groups:
+  - name: blackbox
+    interval: 60s
+    rules:
+      - alert: BlackboxExporterDown
+        expr: up{job="blackbox-exporter"} == 0
+        for: 5m
+        labels:
+          component: blackbox
+          severity: critical
+          category: availability
+        annotations:
+          summary: "blackbox-exporter is down — every probed endpoint will look reachable"
+          description: >-
+            No probe is running. This is the failure mode that matters most,
+            because a dead prober is silent rather than loud: the endpoint
+            alerts below stop being evaluated and nothing reports a problem.
+
+      # `via` distinguishes the two ways the same endpoint is probed. Both
+      # failing is an outage; only the `dns` one failing is a name-resolution
+      # problem with the service itself still up.
+      - alert: EndpointUnreachable
+        expr: probe_success{job="blackbox"} == 0
+        for: 5m
+        labels:
+          component: blackbox
+          severity: critical
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }} is not reachable at {{ $labels.instance }}"
+          description: >-
+            Probed by {{ $labels.via }} and got no successful response for five
+            minutes. Expected on {{ $labels.host }}. If the `address` probe for
+            this endpoint is also firing, the service is down; if only the `dns`
+            one is, the service is up and its name is not resolving.
+
+      # Deliberately warning, not critical, and deliberately separate from the
+      # rule above. A name that stops resolving while the service still answers
+      # on its address is a real fault and a small one — the wiki is reachable,
+      # just not by the URL written on the break-glass card.
+      - alert: EndpointNameNotResolving
+        expr: >-
+          probe_success{job="blackbox", via="dns"} == 0
+          and on (name) probe_success{job="blackbox", via="address"} == 1
+        for: 10m
+        labels:
+          component: blackbox
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }} answers on its address but not by name"
+          description: >-
+            The service is up. Its name is not resolving, so the URL written in
+            the documentation and on the printed card does not work while the
+            service behind it is fine. Check Unbound on morpheus and the host
+            override for this name.

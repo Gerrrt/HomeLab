@@ -1,0 +1,62 @@
+---
+# Blackbox probe modules.
+#
+# Everything else in this stack measures a service from the inside: an exporter
+# on the host, a scrape of the process, a log it wrote. That answers "is the
+# process healthy" and never "can anyone actually reach it". The wiki went
+# unreachable for an unknown period and nothing here noticed, because nothing
+# here was ever looking from the outside.
+#
+# Modules are referenced by name from targets/blackbox.yaml.
+
+modules:
+  # Reachability of an HTTPS endpoint, from this host, over the network.
+  #
+  # insecure_skip_verify is deliberate and is NOT a shortcut. The question this
+  # module answers is "did something answer HTTP at that address", and the
+  # estate's TLS posture for the wiki is genuinely unsettled — the Lemmiwinks
+  # page for it carries an open dispute about whether it terminates TLS at all,
+  # and there is no documented terminator on `oracle`. Verifying a certificate
+  # whose existence is disputed would produce a check that fails for a reason
+  # unrelated to the thing being measured, and this repository has already
+  # learned what a permanently-red check becomes: something the operator scrolls
+  # past.
+  #
+  # When the wiki's TLS is settled, tighten this the way the `grafana` scrape in
+  # prometheus.yaml is tightened — mount the lab CA and verify the name.
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: []  # any 2xx
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      method: GET
+      follow_redirects: true
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      tls_config:
+        insecure_skip_verify: true
+
+  # Same, for an endpoint served over plain HTTP.
+  http_2xx_insecure_scheme:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: []
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      method: GET
+      follow_redirects: true
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+
+  # Does anything hold the port open at all.
+  #
+  # Separating this from the HTTP probes is what makes a failure legible: a TCP
+  # connect that succeeds while the HTTP probe fails means the service is
+  # listening and broken, which is a different morning from nothing listening.
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
