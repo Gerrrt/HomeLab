@@ -27,8 +27,19 @@ and CI assert it.
 | --- | --- | --- |
 | `certificates/ca-key.pem` | 0600 | **yes** — never copy it off this host |
 | `certificates/ca.pem` | 0644 | no — this is what clients trust, distribute freely |
-| `certificates/<host>-key.pem` | 0600 | **yes** — belongs only to that service |
+| `certificates/<host>-key.pem` | 0640 | **yes** — belongs only to that service |
 | `certificates/<host>.pem` | 0644 | no |
+
+The leaf key is 0640 rather than 0600 on purpose, and `gen-certs.sh` is right
+where a stricter reading would say it is wrong. Grafana runs as `472:0` and the
+key is owned by whoever ran `make certs`, so compose gives the container that
+operator's gid as a supplementary group
+([`compose.yaml`](../../stacks/observability/compose.yaml)) and the group read
+bit is what lets it open its own key. The alternatives are worse: a
+world-readable private key, or running Grafana as the operator's uid and
+stranding it from its own 472-owned data volume. It also costs nothing —
+`certificates/` is itself 0700, so no other local user can traverse to the file
+whatever its own mode says. Tightening this to 0600 stops Grafana from starting.
 
 ## 1. Create the CA
 
@@ -115,7 +126,40 @@ out about from a browser warning.
 | `x509: certificate signed by unknown authority` | The client does not trust the CA | Install `ca.pem` — step 4 |
 | Browser rejects a certificate that `openssl verify` accepts | Leaf lifetime over 825 days, or an old cert | Reissue with the default lifetime |
 | `no CA yet` | No `certificates/ca.pem` | Step 1 |
-| `already exists` | Guard against clobbering a CA or leaf | `--force`, once you are sure |
+| `already exists`, and the path is a real certificate | Guard against clobbering a CA or leaf | `--force`, once you are sure |
+| `already exists`, but you never issued one | The path is a *directory*, not a certificate — see below | `rmdir` it, then reissue. `--force` will not help |
+
+### `already exists` for a certificate that does not exist
+
+`certificates/` is gitignored, so a clean clone has nothing in it. Docker does
+not fail on a missing bind-mount source — it creates a **directory** — so a
+`make up` that ran before the certificates were issued leaves
+`certificates/ca.pem` and the Grafana leaf behind as empty directories
+([#69](https://github.com/Gerrrt/HomeLab/issues/69)).
+
+`gen-certs.sh` then refuses to issue anything, because it tests for an existing
+certificate with `-s`, and `-s` is true of a directory:
+
+```console
+$ ls -ld certificates/grafana.matrix.elysium-key.pem
+drwxr-xr-x 2 you you 4096 ... certificates/grafana.matrix.elysium-key.pem
+$ make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20"
+error: certificates/grafana.matrix.elysium-key.pem already exists — pass --force to replace it
+```
+
+`--force` does not get you out of this, and it fails *worse*: it gets past the
+guard, `openssl` then cannot write its output to a directory, and because the
+script sends `openssl`'s stderr to `/dev/null` the run dies with no message at
+all — it prints `issuing …` and exits 1.
+
+Remove the directories first — `rmdir` rather than `rm -rf`, since it refuses
+anything non-empty and these should be empty:
+
+```bash
+rmdir certificates/*.pem
+```
+
+Then issue them from step 1.
 
 ## Also worth knowing
 
