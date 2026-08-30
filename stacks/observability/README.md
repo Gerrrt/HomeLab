@@ -18,13 +18,15 @@ make up        # from the repository root
 ## Layout
 
 ```text
-compose.yaml               all six services, one network, health-gated ordering
+compose.yaml               all seven services, one network, health-gated ordering
 .env.example               non-sensitive tunables (ports, retention, bind address)
 prometheus/
   prometheus.yaml          scrape config; SNMP via file_sd
   targets/snmp.yaml        SNMP targets — hot-reloaded, no restart needed
-  rules/*.rules.yaml       35 alert rules across host/network/ups/containers
+  targets/blackbox.yaml    probe targets — hot-reloaded, no restart needed
+  rules/*.rules.yaml       38 alert rules across host/network/ups/containers/blackbox
   tests/*.test.yaml        promtool unit tests — assert the rules can fire
+blackbox/blackbox.yaml     probe modules — reachability from outside the service
 alertmanager/
   alertmanager.yaml        severity + category routing, inhibition
 loki/loki-config.yaml      single-binary, filesystem, 30-day retention

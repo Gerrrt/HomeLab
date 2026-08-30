@@ -70,7 +70,7 @@ expression in every panel is syntactically valid.
 
 ## Alerting
 
-48 rules in total: 35 metric-based in `prometheus/rules/`, and 13 log-based in
+51 rules in total: 38 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -99,7 +99,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-35 rules across five files in `prometheus/rules/`:
+38 rules across six files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -108,6 +108,7 @@ boot check.
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling, and the stack watching itself |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
+| `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service |
 
 `promtool check rules` validates that these parse. It does not — and cannot —
 tell you whether a rule can ever be true: `ContainerHighMemory` passed it for

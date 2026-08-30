@@ -14,7 +14,7 @@ What this network is actually built to survive:
 | A smart TV's firmware phoning somewhere unexpected | VLAN 40 is terminal, egress only |
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
-| Losing visibility of a failure | 35 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 38 alert rules, 30 days of metrics and logs |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 
 What it explicitly does **not** defend against: a determined attacker with

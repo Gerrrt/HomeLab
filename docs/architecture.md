@@ -162,7 +162,7 @@ hole from the monitoring VLAN into the monitored one.
 
 | Host | VLAN | Stack | Contents |
 | --- | --- | --- | --- |
-| `prometheus` (10.0.99.20) | 🔴 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, Alloy |
+| `prometheus` (10.0.99.20) | 🔴 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, blackbox-exporter, Alloy |
 | `Saruman` (10.0.30.110) | 🟢 30 | *(none yet)* | Proxmox VE 9.2.11, no guests — see [roadmap](roadmap.md) |
 | `oracle` (10.0.99.30) | 🔴 99 | *(none yet)* | Undecided |
 
@@ -182,6 +182,7 @@ re-shard of everything. Reasoning in
 | Alloy | 12345 | `127.0.0.1` | Debug UI, deliberately not exposed |
 | Alloy syslog | 1514/udp | `${BIND_ADDR}` | Network syslog receiver — pfSense pushes here |
 | snmp-exporter | 9116 | *compose network only* | Never published to a host interface |
+| blackbox-exporter | 9115 | *compose network only* | Never published — an open prober is an SSRF primitive |
 
 `BIND_ADDR` defaults to `0.0.0.0` and is set in `.env`. Setting it to the host's
 VLAN 99 address confines the whole stack to the management segment; the

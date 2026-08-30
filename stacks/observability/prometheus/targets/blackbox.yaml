@@ -1,0 +1,27 @@
+---
+# Blackbox probe targets, consumed by the `blackbox` job via file_sd_configs.
+# Hot-reloaded every 5 minutes — no Prometheus restart required.
+#
+# `module` selects a prober from blackbox/blackbox.yaml.
+# `name`   is what the alert says out loud, so write it for whoever is woken up.
+#
+# The wiki is probed twice on purpose: once by the name a person would type,
+# and once by its address. Both failing means the wiki is down. Only the name
+# failing means the wiki is up and DNS is not, which is a different repair and
+# would otherwise be indistinguishable.
+
+- targets: ["https://lemmiwinks.matrix.elysium"]
+  labels:
+    module: http_2xx
+    name: wiki
+    role: documentation
+    host: oracle
+    via: dns
+
+- targets: ["https://10.0.99.30"]
+  labels:
+    module: http_2xx
+    name: wiki
+    role: documentation
+    host: oracle
+    via: address
