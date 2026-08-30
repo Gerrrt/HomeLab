@@ -195,8 +195,11 @@ Prometheus verifies it with the CA, so `make up` renders nothing until they
 exist. Details in
 [`docs/runbooks/generate-certificates.md`](docs/runbooks/generate-certificates.md).
 
-Grafana on `:3000`, Prometheus on `:9090`. Full procedure, verification steps and
-troubleshooting in [`docs/runbooks/deploy-stack.md`](docs/runbooks/deploy-stack.md).
+Grafana on `:3000` over https, Prometheus on `:9090`. Grafana's certificate is
+signed by the lab's own CA, so a browser warns and `curl` needs `-k` until you
+trust `certificates/ca.pem` — step 4 of that runbook. Full procedure,
+verification steps and troubleshooting in
+[`docs/runbooks/deploy-stack.md`](docs/runbooks/deploy-stack.md).
 
 ```console
 $ make help
