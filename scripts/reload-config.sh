@@ -21,6 +21,14 @@
 #   alertmanager  POST /-/reload. Its .rendered/webhook_url is read at notify
 #                 time so it does not need this, but alertmanager.yaml is a
 #                 bind mount with exactly the staleness problem above.
+#   blackbox-exporter
+#                 POST /-/reload. Its modules live in a mounted file, so it has
+#                 exactly the failure this script exists for — and it had it:
+#                 the file said http_2xx_plain, the running process still knew
+#                 only the module names it parsed at startup, and every probe
+#                 came back 400 "Unknown module" while `make up` reported
+#                 success. Adding a service with a mounted config means adding
+#                 it here, and nothing enforces that but this comment.
 #   snmp-exporter POST /-/reload. v0.30.1 serves this unconditionally — there
 #                 is no lifecycle flag to enable, unlike Prometheus. That is
 #                 what lets an SNMP community rotation be `make render && make
@@ -67,6 +75,7 @@ SERVICES=(
   prometheus:9090
   alertmanager:9093
   snmp-exporter:9116
+  blackbox-exporter:9115
 )
 
 # Whether compose considers the service up right now. Checked before the retry
