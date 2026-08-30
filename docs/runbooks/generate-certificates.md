@@ -9,12 +9,15 @@ to be removed by rewriting every commit — see
 [`purge-git-history.md`](purge-git-history.md). Treat anything issued before
 that rewrite as compromised, including the CA. What follows replaces it.
 
-> **Nothing in the stack terminates TLS yet.** Prometheus, Alertmanager, Loki
-> and Grafana all publish plain HTTP on the management VLAN. Putting Grafana
-> behind TLS is tracked separately in [`roadmap.md`](../roadmap.md), and it is
-> the first thing that will consume a certificate from here. The CA exists now
-> so that it is created deliberately, once, rather than improvised on the day
-> something needs it.
+> **The stack does not start without these.** Grafana serves https from the
+> leaf issued below, and Prometheus verifies that certificate with `ca.pem` when
+> it scrapes the `grafana` job — so both files are a prerequisite of
+> [`deploy-stack.md`](deploy-stack.md), not a someday step. `make render`
+> refuses to run until they exist, because before it did, `make up` bind-mounted
+> the absent files and Docker created directories in their place
+> ([#69](https://github.com/Gerrrt/HomeLab/issues/69)). Prometheus, Alertmanager
+> and Loki still publish plain HTTP on the management VLAN; putting the rest
+> behind TLS is tracked in [`roadmap.md`](../roadmap.md).
 
 ## Where things live
 

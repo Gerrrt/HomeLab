@@ -9,6 +9,7 @@
 docker --version          # 24+ with the compose plugin
 sops --version            # https://github.com/getsops/sops/releases
 age --version             # https://github.com/FiloSottile/age/releases
+openssl version           # issues the lab CA and Grafana's leaf
 ```
 
 ## First deployment
@@ -18,12 +19,26 @@ git clone <repo> HomeLab && cd HomeLab
 
 make secrets-init     # generates an age keypair, creates the encrypted file
 make secrets-edit     # replace every change-me value
+
+# TLS. Grafana serves https from this leaf and Prometheus verifies it with the
+# CA — see generate-certificates.md. Both are required before the stack starts.
+make certs ARGS=--ca
+make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20"
+
 make validate         # confirm the configs are sound before starting anything
 make up
 ```
 
 `make up` renders the decrypted config and starts all six services. Give it a
 minute — Grafana waits on Prometheus and Loki reporting healthy.
+
+`certificates/` is gitignored, so a clean clone has neither the CA nor the leaf
+and the `certs` steps above are not optional. Skipping them used to produce a
+stack that started and then failed obscurely: Docker creates a *directory* when
+a bind-mount source is missing, so Grafana got directories where its cert and
+key belong and Prometheus got one where its `ca_file` belongs. `make render`
+now refuses to run in that state and names the step that was missed
+([#69](https://github.com/Gerrrt/HomeLab/issues/69)).
 
 > **Back up `~/.config/sops/age/keys.txt` off this machine now.** Without it the
 > encrypted secrets in the repository cannot be decrypted by anything, including
@@ -95,6 +110,8 @@ it prompts, and it is recoverable from a backup set — see
 | --- | --- | --- |
 | `GRAFANA_ADMIN_PASSWORD: unset` | `.env` not rendered | `make render` |
 | `unsubstituted placeholders remain` | A `SNMP_COMMUNITY_*` key is missing from the secrets file | `make secrets-edit` |
+| `compose.yaml mounts these certificates, which are missing or empty` | `make certs` was never run | [`generate-certificates.md`](generate-certificates.md) |
+| `a previous run of the stack created these as directories` | A `make up` predating the guard bind-mounted the absent certificates and Docker created directories | `rmdir` the paths it lists, then issue the certificates |
 | SNMP targets `DOWN` | Community mismatch, or the device is not reachable from VLAN 99 | `make snmp-verify` (keeps the community out of your shell history) |
 | Grafana panels empty, no error | Datasource UID mismatch | `make check-dashboards` |
 | Loki `ready` returns 503 for a while | Normal on first start | Wait ~45s |

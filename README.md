@@ -176,17 +176,24 @@ rack; a dashed border means egress only. Full topology and data flow in
 
 ## Quick start
 
-Requires Docker with the compose plugin, plus [`sops`](https://github.com/getsops/sops)
-and [`age`](https://github.com/FiloSottile/age).
+Requires Docker with the compose plugin, plus [`sops`](https://github.com/getsops/sops),
+[`age`](https://github.com/FiloSottile/age) and `openssl`.
 
 ```bash
 git clone https://github.com/Gerrrt/HomeLab.git && cd HomeLab
 
 make secrets-init     # generate an age keypair, create the encrypted secrets file
 make secrets-edit     # fill in real values
+make certs ARGS=--ca  # create the lab CA
+make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20"    # Grafana's leaf
 make validate         # everything CI runs
 make up               # render config and start the stack
 ```
+
+The two `certs` steps are not optional: Grafana serves https from that leaf and
+Prometheus verifies it with the CA, so `make up` renders nothing until they
+exist. Details in
+[`docs/runbooks/generate-certificates.md`](docs/runbooks/generate-certificates.md).
 
 Grafana on `:3000`, Prometheus on `:9090`. Full procedure, verification steps and
 troubleshooting in [`docs/runbooks/deploy-stack.md`](docs/runbooks/deploy-stack.md).
