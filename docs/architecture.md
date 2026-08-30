@@ -175,19 +175,33 @@ re-shard of everything. Reasoning in
 
 | Service | Port | Bound to | Notes |
 | --- | --- | --- | --- |
-| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human |
-| Prometheus | 9090 | `${BIND_ADDR}` | Also the remote-write receiver for agents |
-| Loki | 3100 | `${BIND_ADDR}` | Push endpoint for agents |
-| Alertmanager | 9093 | `${BIND_ADDR}` | |
+| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human, and the only published service that authenticates |
+| Prometheus | 9090 | `127.0.0.1` | Unauthenticated, and a remote-write receiver — reachable off-host it is a metric-injection endpoint |
+| Loki | 3100 | `127.0.0.1` | Unauthenticated push and delete APIs (`auth_enabled: false`) |
+| Alertmanager | 9093 | `127.0.0.1` | Unauthenticated — anyone who can reach it can silence an alert |
 | Alloy | 12345 | `127.0.0.1` | Debug UI, deliberately not exposed |
 | Alloy syslog | 1514/udp | `${BIND_ADDR}` | Network syslog receiver — pfSense pushes here |
 | snmp-exporter | 9116 | *compose network only* | Never published to a host interface |
 | blackbox-exporter | 9115 | *compose network only* | Never published — an open prober is an SSRF primitive |
 
-`BIND_ADDR` defaults to `0.0.0.0` and is set in `.env`. Setting it to the host's
-VLAN 99 address confines the whole stack to the management segment; the
-published ports exist because agents on other hosts need to reach Prometheus and
-Loki.
+`BIND_ADDR` governs Grafana and the syslog receiver, and nothing else. It
+defaults to `0.0.0.0` and is set in `stacks/observability/.env.example` —
+`.env` is regenerated from that file on every `make up`, so the committed value
+is the deployed one. Setting it to the host's VLAN 99 address confines those two
+to the management segment.
+
+The other three bind to loopback deliberately
+([ADR-0012](adr/0012-bind-the-unauthenticated-ports-to-loopback.md)). None of
+them authenticates, and none has a consumer outside this host: Prometheus's
+scrape targets, Grafana's datasources and the local Alloy all address services
+by compose name on the internal network. Default-deny between VLANs is a real
+control, but it was the only one, and a compromised workstation on Hicks sits
+behind it.
+
+Widening one is a `compose.yaml` edit, not a setting. That is the point — an
+agent on another host pushing to Prometheus or Loki
+([#88](https://github.com/Gerrrt/HomeLab/issues/88)) grants a VLAN write access
+to the stores, which is a change that should arrive as a reviewed diff.
 
 ## Reference diagrams
 

@@ -6,8 +6,23 @@ Two paths, depending on whether the device can run an agent.
 
 ## A Linux host
 
-Nothing on the monitoring host changes. Alloy pushes; Prometheus does not need
-to be told the host exists.
+Alloy pushes, so Prometheus does not need to be told the host exists. But the
+monitoring host is not untouched, and this is the step that is easy to miss.
+
+**First, publish the ports.** Prometheus and Loki bind to `127.0.0.1`
+([ADR-0012](../adr/0012-bind-the-unauthenticated-ports-to-loopback.md)), so
+until you change that an agent anywhere else gets connection-refused from a host
+that answers ping — and Alloy retries a failed push with backoff, so the symptom
+is silence rather than an error you will notice. Change the two `ports:` lines
+in `stacks/observability/compose.yaml` from `127.0.0.1` to
+`${BIND_ADDR:-0.0.0.0}`, update the ports table in
+[`architecture.md`](../architecture.md) to match — CI checks that the two agree
+— then `make up` and confirm with `ss -ltn`.
+
+Neither service authenticates, so this hands write access to the metric and log
+stores to every host on whichever segment can now reach them. That is the trade
+the loopback bind exists to make you state out loud; keep `BIND_ADDR` at the
+management IP rather than `0.0.0.0` if VLAN 99 is all you need.
 
 On the new host. **These assume `sudo`** — if the account you have is in the
 `docker` group but has no sudo (which is the case for `atropos` on `oracle`),
@@ -141,9 +156,9 @@ up{instance=~".*<new-hostname>.*"}
 The host appears on the Host Overview and Logs dashboards automatically — both
 template their host variable from live label values.
 
-**Firewall:** the new host must be able to reach `10.0.99.20` on 9090 and 3100.
-If it is not on VLAN 99 or 50, that is a rule you have to add, and one worth
-thinking about before you do.
+**Firewall:** with the ports published, the new host must also be able to reach
+`10.0.99.20` on 9090 and 3100. If it is not on VLAN 99 or 50, that is a rule you
+have to add, and one worth thinking about before you do.
 
 ---
 

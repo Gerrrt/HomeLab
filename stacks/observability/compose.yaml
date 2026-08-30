@@ -23,8 +23,10 @@ x-service-defaults: &service-defaults
 
 services:
   # ---------------------------------------------------------------------------
-  # Metrics store. Also acts as the remote-write sink for Alloy agents running
-  # on other hosts, hence --web.enable-remote-write-receiver.
+  # Metrics store, and the remote-write sink for Alloy — today only this host's
+  # own agent, reaching `prometheus` over the compose network, which is why 9090
+  # is published to loopback only (#70). --web.enable-remote-write-receiver
+  # stays: the local agent uses it, and #88 will need it.
   # ---------------------------------------------------------------------------
   prometheus:
     <<: *service-defaults
@@ -46,7 +48,13 @@ services:
       - ./prometheus/targets:/etc/prometheus/targets:ro
       - prometheus-data:/prometheus
     ports:
-      - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
+      # Loopback only (#70). Prometheus has no authentication, and with
+      # --web.enable-remote-write-receiver above, anything that can reach this
+      # port can inject metrics. Nothing off this host consumes it today: the
+      # scrape targets, Grafana's datasource and the local Alloy all address
+      # `prometheus` on the compose network. Deploying an agent elsewhere
+      # (#88) means widening this line deliberately, not editing .env.
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
       interval: 30s
@@ -70,6 +78,10 @@ services:
     command:
       - --config.file=/etc/alertmanager/alertmanager.yaml
       - --storage.path=/alertmanager
+      # Seeds the externalURL field in webhook payloads and nothing else — no
+      # receiver here renders it. Since #70 that link opens only on the
+      # monitoring host. Left pointing at the real address rather than
+      # 127.0.0.1, because that is still the host you would tunnel to.
       - --web.external-url=http://${MONITORING_HOST:-10.0.99.20}:${ALERTMANAGER_PORT:-9093}
     volumes:
       - ./alertmanager/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
@@ -79,7 +91,12 @@ services:
       - ./alertmanager/.rendered:/etc/alertmanager/secrets:ro
       - alertmanager-data:/alertmanager
     ports:
-      - "${BIND_ADDR:-0.0.0.0}:${ALERTMANAGER_PORT:-9093}:9093"
+      # Loopback only (#70). Anyone who can reach an unauthenticated
+      # Alertmanager can create a silence, which switches off an alert using
+      # the same system that would otherwise have recorded the act. Silences
+      # remain reachable off-host through Grafana, which proxies this service
+      # over the compose network behind a login.
+      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
       interval: 30s
@@ -105,7 +122,12 @@ services:
       - ./loki/rules:/etc/loki/rules/fake:ro
       - loki-data:/loki
     ports:
-      - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
+      # Loopback only (#70). auth_enabled is false, so the push and delete
+      # APIs are open to anything that can reach the port. The firewall logs
+      # arrive via Alloy's syslog receiver rather than here, and the local
+      # Alloy pushes to `loki` on the compose network — so, as with Prometheus,
+      # nothing off this host needs it until #88.
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
 
   # No healthcheck on loki, deliberately.
   #
@@ -265,6 +287,9 @@ services:
     group_add:
       - "${RENDER_GID:?run make render}"
     ports:
+      # One of only two ports that bind wide (#70), and the only one a human is
+      # meant to open. It earns that by authenticating: anonymous access and
+      # sign-up are both off, and the admin password comes from SOPS.
       - "${BIND_ADDR:-0.0.0.0}:${GRAFANA_PORT:-3000}:3000"
     depends_on:
       prometheus:
@@ -335,6 +360,10 @@ services:
       # Unlike the debug UI above this must be reachable off-host, so it binds
       # to BIND_ADDR. 1514 rather than 514: the container does not run as root
       # and cannot take a privileged port. pfSense sends UDP by default.
+      #
+      # This and Grafana are now the only two ports BIND_ADDR governs (#70).
+      # Both have an off-host client that cannot be argued away — pfSense here,
+      # a browser on Hicks there. The rest bind to loopback.
       - "${BIND_ADDR:-0.0.0.0}:${SYSLOG_PORT:-1514}:1514/udp"
     depends_on:
       # service_started for loki, for the same reason as grafana above: the
