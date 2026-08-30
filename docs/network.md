@@ -188,7 +188,7 @@ Where things get broken on purpose.
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 15.0 | Rack U5 | Firewall |
 | shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
-| Saruman | `10.0.30.110` | — | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9.2.11 | Rack U3 | Hypervisor |
+| Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9.2.11 | Rack U3 | Hypervisor |
 
 ### Notes
 
@@ -198,6 +198,16 @@ Where things get broken on purpose.
   and separate names, and conflating them is a mistake this document previously
   made.
 - `Saruman` currently runs no guests.
+- **`Saruman` is the one fixed address that sits inside a DHCP pool.** Every
+  other static in the estate lives below `.100`; this one is at `.110`, and the
+  ImaginationLAN pool runs `.100–.200`. Until 2026-08-30 there was no
+  reservation for it either, so Kea could have leased the same address to
+  another device. There is one now, and it holds *because* the server is Kea:
+  `reservations-in-subnet` is true and `reservations-out-of-pool` is unset, so
+  reservations are consulted on every allocation. Under ISC dhcpd, whose
+  binaries are still on the box, the same reservation would not reliably
+  protect an in-pool address. Moving `Saruman` below `.100` is the fix that
+  does not depend on that.
 - A second server ("ifrit") is planned to carry the deliberately-vulnerable
   playground, isolated from everything here.
 
