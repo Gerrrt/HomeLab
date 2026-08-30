@@ -8,17 +8,18 @@ make up        # from the repository root
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
+| `prometheus` | `prom/prometheus` | 9090 | Metrics store, remote-write receiver, rule evaluation |
 | `alertmanager` | `prom/alertmanager` | 9093 (localhost) | Alert routing, grouping, inhibition |
-| `loki` | `grafana/loki` | 3100 (localhost) | Log store |
+| `loki` | `grafana/loki` | 3100 | Log store |
 | `grafana` | `grafana/grafana-oss` | 3000 | Dashboards — the only published UI, and the only one that authenticates |
 | `snmp-exporter` | `prom/snmp-exporter` | *internal* | SNMP polling proxy |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 
-"(localhost)" means bound to `127.0.0.1` on the monitoring host: reachable from
-the host itself and over the compose network, and from no VLAN at all (#70).
-Grafana and the Alloy syslog receiver (1514/udp, not in the table) are the two
-that bind to `BIND_ADDR`. Reasoning in
+"(localhost)" means bound to `127.0.0.1`: reachable from the monitoring host
+itself and over the compose network, and from no VLAN at all. A port is
+published only when something off-host uses it, and nothing off-host uses
+Alertmanager (#70). The rest, plus the Alloy syslog receiver on 1514/udp, bind
+to `BIND_ADDR`. Reasoning in
 [`docs/architecture.md`](../../docs/architecture.md#ports).
 
 ## Layout

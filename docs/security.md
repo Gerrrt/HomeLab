@@ -15,7 +15,7 @@ What this network is actually built to survive:
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | Losing visibility of a failure | 38 alert rules, 30 days of metrics and logs |
-| Someone on a reachable VLAN reading, poisoning or silencing the monitoring stack | Prometheus, Loki and Alertmanager bind to `127.0.0.1`; only Grafana, which authenticates, is published |
+| Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 
 What it explicitly does **not** defend against: a determined attacker with
@@ -68,13 +68,18 @@ one that admits the exception.
 
 Everything else — IoT, media, guest — gets internet and nothing more.
 
-Segmentation is a control, not the only one. Until 2026-08 it was the only thing
-standing between a workstation on Hicks and unauthenticated write access to the
-metric and log stores — which is exactly the failure ADR-0002 predicted when it
-recorded that "a compromised workstation reaches Winterfell". The stack's
-unauthenticated ports now bind to loopback, so reaching VLAN 99 no longer buys
-that; see
-[ADR-0012](adr/0012-bind-the-unauthenticated-ports-to-loopback.md).
+Segmentation is doing more work here than it should have to. A workstation on
+Hicks that can reach `10.0.99.20` can write to the metric and log stores without
+a credential, because Prometheus and Loki publish unauthenticated ingest ports
+for `oracle`'s agent to use — which is exactly the failure ADR-0002 predicted
+when it recorded that "a compromised workstation reaches Winterfell". That is an
+accepted residual, recorded in [`SECURITY.md`](../SECURITY.md), not a solved
+problem.
+
+What has been taken off the firewall's shoulders is Alertmanager. It had no
+off-host client, so it now binds to `127.0.0.1` and reaching VLAN 99 no longer
+lets anyone silence an alert; see
+[ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md).
 
 The IoT segment is the one that justifies the whole exercise. It holds cameras,
 a doorbell, an alarm hub, smart speakers, a baby monitor and a $20 Tuya
@@ -230,11 +235,12 @@ complete state table and interface topology. They are credentials.
   its own unprivileged UID.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
-- Prometheus, Alertmanager and Loki bind to `127.0.0.1` only. None of the three
-  authenticates, and each has a write surface — metric injection, silence
-  creation, log push and delete — so reaching VLAN 99 is no longer sufficient to
-  write to the stores. Nothing off the monitoring host consumed them; see
-  [ADR-0012](adr/0012-bind-the-unauthenticated-ports-to-loopback.md).
+- Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence
+  is how monitoring gets switched off — quietly, since the record lives in the
+  system being switched off. Nothing off-host used the port; silences are
+  reached through Grafana. Prometheus and Loki are *not* in this list: they stay
+  published for `oracle`'s agent and remain an accepted residual. See
+  [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md).
 - The Alloy debug UI binds to `127.0.0.1` only.
 - The Docker socket is mounted read-only into Alloy.
 - All images are pinned to explicit versions, so an upstream compromise cannot

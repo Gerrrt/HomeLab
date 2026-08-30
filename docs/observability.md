@@ -205,10 +205,9 @@ turned on itself.
 See [`runbooks/add-monitored-device.md`](runbooks/add-monitored-device.md). In
 short:
 
-- **A Linux host:** widen the Prometheus and Loki binds in `compose.yaml`
-  first — they are `127.0.0.1` by default (#70) — then run Alloy with
-  `LOKI_URL` and `PROMETHEUS_REMOTE_WRITE_URL` pointed at `10.0.99.20`. That
-  bind change is the only thing on the monitoring host that has to move.
+- **A Linux host:** run Alloy with `LOKI_URL` and
+  `PROMETHEUS_REMOTE_WRITE_URL` pointed at `10.0.99.20`. Nothing on the
+  monitoring host changes.
 - **An SNMP device:** append a target to
   `prometheus/targets/snmp.yaml` and a module plus auth to
   `snmp-exporter/generator.yaml`. file_sd picks the target up within five

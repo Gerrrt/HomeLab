@@ -195,9 +195,8 @@ Prometheus verifies it with the CA, so `make up` renders nothing until they
 exist. Details in
 [`docs/runbooks/generate-certificates.md`](docs/runbooks/generate-certificates.md).
 
-Grafana on `:3000` over https, from any workstation that can route to the host.
-Prometheus, Loki and Alertmanager bind to `127.0.0.1` and are reached from the
-host itself or through Grafana
+Grafana on `:3000` over https, Prometheus on `:9090`. Alertmanager binds to
+`127.0.0.1` and is reached through Grafana
 ([#70](https://github.com/Gerrrt/HomeLab/issues/70)). Grafana's certificate is
 signed by the lab's own CA, so a browser warns and `curl` needs `-k` until you
 trust `certificates/ca.pem` — step 4 of that runbook. Full procedure,

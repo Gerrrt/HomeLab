@@ -32,9 +32,10 @@ issues intact. Nothing was summarised away.
   seconds at gigabit. Now actionable — the switch has been polling since the
   faults in [#22](https://github.com/Gerrrt/HomeLab/issues/22) cleared. The walk
   has a trap in it; the issue carries the detail.
-- **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to `Saruman`
-  and `oracle`.** Only the monitoring host runs an agent; `morpheus` reaches Loki
-  by network syslog and has no host metrics.
+- **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to
+  `Saruman`.** `oracle` has had an agent since 2026-08-30 and is remote-writing
+  host metrics and pushing logs; `Saruman` is the one left. `morpheus` reaches
+  Loki by network syslog and has no host metrics.
 - **[#89](https://github.com/Gerrrt/HomeLab/issues/89) Extend Suricata to Degens
   (VLAN 10).** One interface at a time, once Skids has been quiet and understood
   for a few days. → [runbook](runbooks/enable-suricata.md)

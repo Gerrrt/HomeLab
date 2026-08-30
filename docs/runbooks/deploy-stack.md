@@ -54,14 +54,13 @@ curl -s localhost:9093/-/healthy            # Alertmanager
 curl -sk https://localhost:3000/api/health  # Grafana (-k: lab CA)
 ```
 
-The four above answer on `localhost` because that is where they are bound.
-Confirm the binds themselves are what `docs/architecture.md` claims (#70) —
-`ss` is the check, not the `curl`s, which pass either way:
+The `curl`s pass wherever the services are bound, so confirm the binds
+themselves are what `docs/architecture.md` claims (#70):
 
 ```bash
-ss -ltn | grep -E ':(9090|3100|9093|12345)'   # 127.0.0.1 on every line
-ss -ltn | grep ':3000'                        # BIND_ADDR — 0.0.0.0 by default
-ss -lun | grep ':1514'                        # BIND_ADDR
+ss -ltn | grep -E ':(9093|12345)'        # 127.0.0.1 — Alertmanager and Alloy
+ss -ltn | grep -E ':(9090|3100|3000)'    # BIND_ADDR — 0.0.0.0 by default
+ss -lun | grep ':1514'                   # BIND_ADDR
 ```
 
 Then in the UI:
