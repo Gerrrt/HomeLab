@@ -9,7 +9,10 @@ Two paths, depending on whether the device can run an agent.
 Nothing on the monitoring host changes. Alloy pushes; Prometheus does not need
 to be told the host exists.
 
-On the new host:
+On the new host. **These assume `sudo`** — if the account you have is in the
+`docker` group but has no sudo (which is the case for `atropos` on `oracle`),
+skip to *Placing the config without sudo* below, then come back for the
+`docker run`.
 
 ```bash
 sudo mkdir -p /opt/alloy
@@ -18,6 +21,7 @@ sudo cp /path/to/HomeLab/stacks/observability/alloy/config.alloy /opt/alloy/
 sudo docker run -d \
   --name alloy --restart unless-stopped --privileged \
   --hostname "$(hostname)" \
+  -e ALLOY_HOSTNAME="$(hostname)" \
   -e LOKI_URL=http://10.0.99.20:3100/loki/api/v1/push \
   -e PROMETHEUS_REMOTE_WRITE_URL=http://10.0.99.20:9090/api/v1/write \
   -v /opt/alloy/config.alloy:/etc/alloy/config.alloy:ro \
@@ -43,11 +47,22 @@ header of `scripts/image-for.sh`. If the repository is not on the new host, run
 `./scripts/image-for.sh alloy` on the monitoring host and paste the reference it
 prints.
 
-`--hostname` is not optional. Alloy labels everything it produces with
-`constants.hostname`, which inside a container is the **container ID** unless one
-is set — a hex string that identifies nothing and changes every time the
-container is recreated. Without it the new host appears in Loki and Prometheus
-under a name that is different tomorrow, and `sum by (host)` groups by noise.
+**Set both `--hostname` and `ALLOY_HOSTNAME`, and set them the same.** They are
+not redundant, and which one does the work depends on the config file.
+
+`config.alloy` labels everything with
+`coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname)`. The environment
+variable wins; `--hostname` is the fallback. Setting only `--hostname` works
+*today*, purely because the coalesce falls through to it — and that is a thin
+thing to rely on, since the day the config stops coalescing, every host deployed
+this way starts labelling itself wrong and nothing errors.
+
+`constants.hostname` inside a container is the **container ID** unless
+`--hostname` is set: a hex string that identifies nothing and changes every time
+the container is recreated. Set neither and the new host appears in Loki and
+Prometheus under a name that is different tomorrow, and `sum by (host)` groups
+by noise. The compose stack sets `ALLOY_HOSTNAME` via
+`scripts/render-config.sh`; this is the standalone equivalent.
 The compose stack does the same thing via `ALLOY_HOSTNAME`, written by
 `scripts/render-config.sh`.
 
@@ -75,6 +90,43 @@ start because a digest moved is worse than one running a slightly older tag.
 > On the monitoring host itself this is handled by `make up`, via
 > `scripts/reload-config.sh`. A standalone agent started with `docker run` has no
 > such wrapper, so it is on you.
+
+### Placing the config without sudo
+
+Membership of the `docker` group is already root-equivalent on the host, so
+there is nothing to escalate — but `/opt` is not writable and `cp` will fail.
+Use the image you are about to run anyway, so no second image is pulled and
+nothing unpinned enters the process:
+
+```bash
+# from the monitoring host, or wherever the repo is checked out
+ssh <user>@<newhost> 'cat > /tmp/config.alloy' < stacks/observability/alloy/config.alloy
+
+# on the new host
+IMG="$(ssh <user>@<monitoring-host> 'cd /path/to/HomeLab && ./scripts/image-for.sh alloy')"
+docker run --rm \
+  -v /opt:/hostopt \
+  -v /tmp/config.alloy:/src/config.alloy:ro \
+  --entrypoint sh "$IMG" \
+  -c 'mkdir -p /hostopt/alloy && cp /src/config.alloy /hostopt/alloy/config.alloy && chmod 0644 /hostopt/alloy/config.alloy'
+```
+
+Confirm the copy landed intact before starting anything — `md5sum` on both
+sides. A truncated config does not fail loudly; Alloy starts and collects less.
+
+**Expect errors on the first run, and check they stop.** Alloy reads container
+logs from the beginning, so a host with months of history will push entries
+older than Loki's retention window and Loki will reject them:
+
+```text
+status=400 ... has timestamp too old: 2025-12-08T09:33:33Z,
+oldest acceptable timestamp is: 2026-08-23T05:03:12Z
+```
+
+That is correct behaviour on both sides and it is not a misconfiguration. It
+stops once the agent reaches entries inside the window — on `oracle`, about
+forty seconds. What matters is that it *stops*: check `docker logs --since 60s
+alloy | grep -c level=error` is `0` before calling the deploy done.
 
 **Verify** (from the monitoring host, within a minute or two):
 
