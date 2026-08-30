@@ -402,6 +402,28 @@ services:
     image: debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
     command: ["true"]
 
+  # ---------------------------------------------------------------------------
+  # gitleaks for the secret-scan CI job. NOT part of the running stack: it sits
+  # behind the `scan` profile, so `make up` neither starts it nor pulls it, and
+  # `docker compose ps` shows six services as before.
+  #
+  # Here for the same reason `archiver` above is. This one was a version pinned
+  # in ci.yml's env: block — directly underneath the comment saying image
+  # versions are not duplicated there — carrying a tag and no digest. Dependabot
+  # watches this file, so it never saw it; `make pin-digests` reads this file,
+  # so it could not re-resolve it. And it survived all three of CI's image
+  # guards: it is not `:latest`, it was not a prom/ or grafana/ prefix, and it
+  # was not an `image:` line here. That is the second half of #65.
+  #
+  # `command: ["version"]` rather than ["true"]: this image's entrypoint IS
+  # gitleaks, so `true` would be read as a gitleaks subcommand. `version` is the
+  # harmless no-op if it is ever started by accident.
+  # ---------------------------------------------------------------------------
+  gitleaks:
+    profiles: ["scan"]
+    image: zricethezav/gitleaks:v8.24.0@sha256:2bcceac45179b3a91bff11a824d0fb952585b429e54fc928728b1d4d5c3e5176
+    command: ["version"]
+
 networks:
   observability:
     driver: bridge

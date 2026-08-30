@@ -227,6 +227,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "Image pins"
+# ---------------------------------------------------------------------------
+# Every docker run/pull/create in this repository must take its image from
+# compose.yaml via scripts/image-for.sh. `make backup` ran a bare `alpine` past
+# all three of CI's pattern-based image checks (#65), because the defect was a
+# pin that was absent rather than wrong. Kept in step with ci.yml — this pair
+# has drifted before (#68).
+if have python3; then
+  if python3 scripts/check_image_pins.py; then
+    pass "every docker image comes from compose.yaml"
+  else
+    fail "a docker image does not come from compose.yaml"
+  fi
+else
+  skip "python3 not installed"
+fi
+
+# ---------------------------------------------------------------------------
 head_ "Loki rules"
 # ---------------------------------------------------------------------------
 if ./scripts/check_loki_rules.sh; then

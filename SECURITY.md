@@ -121,6 +121,9 @@ Every push and pull request runs:
   `.purge-secrets.txt` — is ever a tracked file.
 - Verification that every container image is pinned by **tag *and* digest**, so a
   moved tag cannot silently change what is deployed.
+- Verification that every image any script, recipe, workflow step or runbook
+  runs is resolved from `compose.yaml`, so a container cannot be started from an
+  image the digest check never saw.
 
 See [`docs/security.md`](docs/security.md) for the threat model and segmentation
 rationale.
