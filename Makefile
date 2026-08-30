@@ -243,9 +243,13 @@ secrets-verify-backup: ## Check a backup age key decrypts the secrets (KEY=/path
 
 .PHONY: certs
 certs: ## Create the internal CA / issue a leaf (ARGS="--host x.matrix.elysium --ip 10.0.0.1")
-	@# certificates/ is gitignored. Nothing in the stack terminates TLS yet —
-	@# see docs/roadmap.md — so this exists so that the CA is created
-	@# deliberately rather than improvised the day something needs it.
+	@# certificates/ is gitignored, so a clean clone has neither the CA nor the
+	@# leaf and this is a required deployment step, not a someday one: Grafana
+	@# serves https from the leaf and Prometheus verifies it with the CA. It read
+	@# as optional for as long as this comment claimed nothing terminated TLS,
+	@# which is how #69 happened — `make up` bind-mounted the absent files and
+	@# Docker silently created directories in their place. render-config.sh now
+	@# refuses to render until they exist.
 	./scripts/gen-certs.sh $(ARGS)
 
 .PHONY: gen-secret

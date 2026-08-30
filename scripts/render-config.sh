@@ -26,6 +26,80 @@ info() { printf '\033[0;34m--\033[0m %s\n' "$*"; }
 [[ -d "${STACK_DIR}" ]] || die "no such stack: ${STACK_DIR}"
 
 # ---------------------------------------------------------------------------
+# Certificates must exist before anything mounts them
+#
+# compose.yaml bind-mounts files out of the gitignored certificates/ at
+# the repository root. Docker does not fail on a missing bind-mount source — it
+# creates a DIRECTORY. So a clean clone that skipped `make certs` starts a stack
+# where Prometheus has a directory where its ca_file should be and Grafana has
+# directories for its cert and key, and the first symptom is a TLS error inside
+# a container rather than "you skipped a step". The quick start omitted `make
+# certs` for long enough that this was the documented path (#69).
+#
+# Same reasoning as the ${RENDER_UID:?} guards in compose.yaml: the failure is
+# silent, retried forever by `restart: unless-stopped`, and reads as a fault in
+# something other than the step that was missed.
+#
+# The list is scraped from compose.yaml rather than repeated here so the two
+# cannot drift — the same trick seed-validation-env.sh uses for the ${VAR:?}
+# guards. Anchored on the mount-list item, not on the path fragment: two
+# comments in compose.yaml contain the string "certificates/" and a looser
+# pattern reports them as missing files. That exact mistake is recorded in the
+# alertmanager url_file cross-check below, where a bare `secrets/[a-z_]+`
+# matched this script's own header comment.
+# ---------------------------------------------------------------------------
+absent=()
+clobbered=()
+while read -r cert; do
+  [[ -n "${cert}" ]] || continue
+  [[ -f "${REPO_ROOT}/${cert}" && -s "${REPO_ROOT}/${cert}" ]] && continue
+  # Split by kind, because the two need different fixes. -f is what separates
+  # them: it is false for a directory where -e and -s are both true. gen-certs.sh
+  # guards on -s, so against a Docker-created directory it reports "already
+  # exists — pass --force" and --force does not help either. Telling someone to
+  # run `make certs` without saying to remove the directories first walks them
+  # straight into that.
+  if [[ -d "${REPO_ROOT}/${cert}" ]]; then
+    clobbered+=("${cert}")
+  else
+    absent+=("${cert}")
+  fi
+done < <(grep -oE '^[[:space:]]*-[[:space:]]*\.\./\.\./certificates/[^:]+:' \
+           "${STACK_DIR}/compose.yaml" 2>/dev/null \
+         | sed 's|^[^.]*\.\./\.\./||; s|:$||' | sort -u)
+# Reported with die's multi-line form rather than a heredoc: the repo's
+# .editorconfig rejects tabs, and <<- strips only tabs. gen-certs.sh already
+# reports its clobber guards this way.
+if ((${#clobbered[@]})); then
+  die "these are directories, not certificates:
+$(printf '  %s\n' "${clobbered[@]}")
+
+Docker creates a directory when a bind-mount source does not exist, so this is
+what \`make up\` leaves behind when the certificates were never generated. They
+have to be removed before the certificates can be issued: gen-certs.sh tests for
+an existing certificate with -s, which is true of a directory, so it would
+report \"already exists\" and refuse — and --force would not help either.
+
+  rmdir ${clobbered[*]}
+
+Then issue them — see docs/runbooks/generate-certificates.md."
+fi
+
+if ((${#absent[@]})); then
+  die "compose.yaml mounts these certificates, which are missing or empty:
+$(printf '  %s\n' "${absent[@]}")
+
+Grafana serves https from the leaf and Prometheus verifies it with the CA, so
+the stack cannot start without them. Generate them with:
+
+  make certs ARGS=--ca
+  make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20\"
+
+Full procedure in docs/runbooks/generate-certificates.md."
+fi
+unset absent clobbered cert
+
+# ---------------------------------------------------------------------------
 # Decrypt. Keep the plaintext in a variable, never in a file.
 #
 # The decrypt-and-parse lives in scripts/secrets-env.sh because snmp-verify.sh
