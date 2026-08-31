@@ -35,6 +35,13 @@ fix, and it existed because a CI job that is permanently red for a known reason
 gets ignored". So the scope is a fixed list of files rather than a suppression
 mechanism that grows.
 
+A count is matched whether it is written in digits or spelled out. The first
+version of this check only looked for the phrasings someone happened to think
+of, which left "13 LogQL rules" in README.md unguarded next to a checked "13
+log-based", and left "five dashboards" in docs/images/README.md unguarded in a
+file that was not in scope at all. Both were correct, and both would have gone
+stale silently — the exact failure #72 is about, surviving inside its own fix.
+
 Usage: scripts/check_docs.py
 """
 from __future__ import annotations
@@ -71,6 +78,7 @@ PROSE = (
     "SECURITY.md",
     "docs/architecture.md",
     "docs/hardware.md",
+    "docs/images/README.md",
     "docs/network.md",
     "docs/observability.md",
     "docs/security.md",
@@ -79,6 +87,25 @@ PROSE = (
         str(p.relative_to(REPO)) for p in (REPO / "docs/runbooks").glob("*.md")
     ),
 )
+
+# Prose spells small numbers out, and a spelled count goes stale exactly as
+# readily as a digit: "five dashboards" and "across six files" were both
+# unguarded while the digits beside them were checked. Twenty is comfortably
+# above any count here — the cap keeps the alternation short, it is not a
+# claim about the ceiling. Longest-first so "seven" cannot match inside
+# "seventeen" and leave the rest of the pattern to fail.
+NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+    "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+}
+COUNT = r"\b(\d+|" + "|".join(sorted(NUMBER_WORDS, key=len, reverse=True)) + r")"
+
+
+def number(token: str) -> int:
+    """A counted claim, written either as digits or as a word."""
+    return int(token) if token.isdigit() else NUMBER_WORDS[token.lower()]
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +219,7 @@ def facts() -> dict:
         "total_rules": prom + loki,
         "dashboards": len(dashboards),
         "panels": count_panels(dashboards),
+        "prometheus_rule_files": len(prom_rules),
     }
 
 
@@ -204,15 +232,23 @@ def check_counts(f: dict) -> list[str]:
     # legitimate prose, so both are accepted — the check still catches a number
     # that is neither, which is what stale looks like.
     claims = (
-        (r"(\d+)\s+alert rules", {f["prometheus_rules"], f["total_rules"]},
+        (rf"{COUNT}\s+alert rules", {f["prometheus_rules"], f["total_rules"]},
          "alert rules"),
-        (r"(\d+)\s+rules in total", {f["total_rules"]}, "total rules"),
-        (r"(\d+)\s+rules loaded", {f["prometheus_rules"]}, "rules loaded"),
-        (r"(\d+)\s+rules across", {f["prometheus_rules"]}, "Prometheus rules"),
-        (r"(\d+)\s+metric-based", {f["prometheus_rules"]}, "metric-based rules"),
-        (r"(\d+)\s+log-based", {f["loki_rules"]}, "log-based rules"),
-        (r"(\d+)\s+(?:provisioned\s+)?dashboards", {f["dashboards"]}, "dashboards"),
-        (r"(\d+)\s+panels", {f["panels"]}, "panels"),
+        (rf"{COUNT}\s+rules in total", {f["total_rules"]}, "total rules"),
+        (rf"{COUNT}\s+rules loaded", {f["prometheus_rules"]}, "rules loaded"),
+        (rf"{COUNT}\s+rules across", {f["prometheus_rules"]}, "Prometheus rules"),
+        (rf"{COUNT}\s+metric-based", {f["prometheus_rules"]}, "metric-based rules"),
+        (rf"{COUNT}\s+log-based", {f["loki_rules"]}, "log-based rules"),
+        # README says "13 LogQL rules" where observability.md says "log-based".
+        # Same number, different prose; the first phrasing matched nothing.
+        (rf"{COUNT}\s+LogQL rules", {f["loki_rules"]}, "LogQL rules"),
+        (rf"{COUNT}\s+(?:provisioned\s+)?dashboards", {f["dashboards"]},
+         "dashboards"),
+        (rf"{COUNT}\s+panels", {f["panels"]}, "panels"),
+        # "39 rules across six files" states two counts. The first was checked
+        # and the second was not, so splitting a rule file could not fail here.
+        (rf"rules across\s+{COUNT}\s+files", {f["prometheus_rule_files"]},
+         "Prometheus rule files"),
     )
     problems = []
     for rel in PROSE:
@@ -222,7 +258,7 @@ def check_counts(f: dict) -> list[str]:
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for pattern, expected, label in claims:
                 for match in re.finditer(pattern, line):
-                    if int(match.group(1)) not in expected:
+                    if number(match.group(1)) not in expected:
                         want = " or ".join(str(v) for v in sorted(expected))
                         problems.append(
                             f"{rel}:{n} claims {match.group(1)} {label}; "
