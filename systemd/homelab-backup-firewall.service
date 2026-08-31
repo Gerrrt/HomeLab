@@ -1,0 +1,41 @@
+# Daily export of morpheus's pfSense configuration.
+#
+# The single largest unmitigated failure in the estate is morpheus dying with no
+# config export. This needs only ssh and the PUBLIC age recipient, so it neither
+# stops the stack nor reads the private key.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+# WorkingDirectory= matters more here than anywhere else: backup-firewall.sh
+# resolves backups/firewall and .sops.yaml relative to the process's directory.
+[Unit]
+Description=HomeLab: export and encrypt the pfSense configuration
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+Environment=SOPS_AGE_KEY_FILE=/home/robo/.config/sops/age/keys.txt
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job backup-firewall --lock firewall --lock-wait 300 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab backup-firewall
+TimeoutStartSec=600
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+ProtectHome=false
+ProtectSystem=false
+# No Docker socket on this one, so the /tmp trap that applies to the backup
+# units does not apply here.
+PrivateTmp=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-backup-firewall

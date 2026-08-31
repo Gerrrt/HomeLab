@@ -1,0 +1,49 @@
+---
+name: Digest drift
+
+# A pinned digest is a claim about what the registry holds, and it goes stale on
+# the registry's schedule rather than on ours — so unlike the other four jobs in
+# #77 this one has nothing to do with the monitoring host. It needs no secret,
+# no docker daemon and no lab access: scripts/pin-digests.sh resolves each image
+# through the registry HTTP API with curl and python3.
+#
+# That makes CI the right home for it and a systemd timer the wrong one. It also
+# means this is the one scheduled check in the estate that is genuinely off-host,
+# which matters given that everything else in #77 runs on the machine it is
+# checking.
+#
+# A SEPARATE WORKFLOW, NOT A schedule: ON ci.yml
+#
+# Two reasons. ci.yml sets `concurrency: cancel-in-progress: true` keyed on
+# workflow and ref, so a scheduled run on main would race with pushes to main
+# and one would cancel the other. And a schedule there would drag the whole
+# lint/validate/secret-scan matrix along every week to answer one question.
+#
+# Note that GitHub disables scheduled workflows after 60 days with no repository
+# activity, and does so silently. If this stops reporting, check that first.
+on:
+  schedule:
+    # Mondays, early. Dependabot opens its compose PRs on Sundays, so this runs
+    # after them: drift that Dependabot has already fixed should not be reported
+    # as drift.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  digests:
+    name: Pinned digests still match the registry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Exits non-zero on drift, which is the point — the run failing IS the
+      # notification. It also exits non-zero on a hard error such as the
+      # registry being unreachable, and the two are not distinguishable from the
+      # exit status alone. Acceptable here, because both are things a human
+      # should look at; it would not be acceptable on a host timer, where a
+      # registry outage would read as drift and alert.
+      - name: Check digests
+        run: ./scripts/pin-digests.sh

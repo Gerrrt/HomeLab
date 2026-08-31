@@ -136,6 +136,15 @@ check-loki-rules: ## Validate Loki (LogQL) alerting rules
 check-image-pins: ## Verify every docker image comes from compose.yaml
 	python3 scripts/check_image_pins.py
 
+.PHONY: check-timers
+check-timers: ## Verify the schedule and its staleness thresholds agree
+	@# Under Validation rather than Maintenance, unlike `install-timers` below:
+	@# --check reads files, shells out to `systemd-analyze calendar`, and touches
+	@# neither the host nor a secret. It is what stops the cadence in a .timer
+	@# and the threshold in scripts/install-timers.sh drifting apart — the same
+	@# two-copies-of-one-fact problem the amtool route assertions exist for (#68).
+	./scripts/install-timers.sh --check
+
 .PHONY: pin-digests
 pin-digests: ## Re-resolve image digests in compose.yaml (--write applies)
 	./scripts/pin-digests.sh --write
@@ -243,7 +252,26 @@ secrets-verify-backup: ## Check a backup age key decrypts the secrets (KEY=/path
 	@# KEY rather than ARGS because there is exactly one argument and it is
 	@# required — an empty ARGS would reach the script as no argument at all
 	@# and print usage, which reads like the target is broken.
-	./scripts/verify-key-backup.sh "$(KEY)" $(STACK)
+	@#
+	@# Guarded here rather than left to the script so that a bare
+	@# `make secrets-verify-backup` does not reach run-scheduled.sh and get
+	@# recorded as a FAILED verification. A forgotten argument is a typo, not
+	@# evidence about the key backup, and it must not fire an alert.
+	@[[ -n "$(KEY)" ]] || { \
+		printf '\033[0;31merror:\033[0m KEY is required\n' >&2; \
+		printf 'Mount the offline copy, then:  make secrets-verify-backup KEY=/path/to/keys.txt\n' >&2; \
+		printf 'See docs/runbooks/back-up-the-age-key.md\n' >&2; \
+		exit 2; \
+	}
+	@# Wrapped, even though a human runs it, and that is the whole point of #77.
+	@# This is the one job that cannot be put on a timer — verify-key-backup.sh
+	@# refuses the live key by device:inode precisely so that what gets tested is
+	@# a copy on removable media, and no timer can mount that. So the schedule is
+	@# enforced from the other end: a successful run records its timestamp, and
+	@# SecretsKeyBackupUnproven fires when that proof passes ninety days old.
+	@# Nagging is not as good as running it, but it beats remembering.
+	./scripts/run-scheduled.sh --job verify-key-backup --lock keys \
+		-- ./scripts/verify-key-backup.sh "$(KEY)" $(STACK)
 
 .PHONY: certs
 certs: ## Create the internal CA / issue a leaf (ARGS="--host x.matrix.elysium --ip 10.0.0.1")
@@ -302,6 +330,19 @@ restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>"
 	@# reads `backup-volumes.sh --inventory`, the way every SNMP tool reads
 	@# scripts/snmp-targets.sh.
 	STACK=$(STACK) ./scripts/restore-volumes.sh $(ARGS)
+
+.PHONY: install-timers
+install-timers: ## Install and enable the systemd timers on this host (needs sudo)
+	@# Under Maintenance for the same reason as snmp-verify and
+	@# secrets-verify-backup: it changes the host. It must never be reachable
+	@# from `make validate` — `make check-timers` is the half that is.
+	@#
+	@# The units carry absolute paths, so the script refuses to install from
+	@# anywhere but the deployment checkout. Installing from a worktree would
+	@# point every timer at a directory that gets deleted, and the symptom would
+	@# be jobs that silently never run — the exact condition this exists to make
+	@# visible.
+	sudo ./scripts/install-timers.sh --install
 
 .PHONY: purge-history-dry-run
 purge-history-dry-run: ## Preview the git-history secret purge (safe)

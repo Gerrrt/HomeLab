@@ -79,7 +79,7 @@ expression in every panel is syntactically valid.
 
 ## Alerting
 
-52 rules in total: 39 metric-based in `prometheus/rules/`, and 13 log-based in
+57 rules in total: 44 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -108,7 +108,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-39 rules across six files in `prometheus/rules/`:
+44 rules across seven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -118,6 +118,7 @@ boot check.
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling, and the stack watching itself |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service |
+| `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, and never-ran |
 
 `promtool check rules` validates that these parse. It does not — and cannot —
 tell you whether a rule can ever be true: `ContainerHighMemory` passed it for
@@ -126,9 +127,10 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is six rules of 39 so far:
-`ContainerHighMemory` and `Watchdog`. The other 33 are still validated for
-syntax only, which is exactly the standing #63 had.
+against the broken rule too. Coverage is eleven rules of 44 so far: the two in
+`containers.test.yaml`, `Watchdog`, the three blackbox rules, and all five in
+`backup.test.yaml`. The other 33 are still validated for syntax only, which is
+exactly the standing #63 had.
 
 Disk alerting is predictive rather than a fixed threshold — `predict_linear` over
 a 6-hour window, firing when the extrapolation reaches zero within a day *and*
@@ -208,6 +210,57 @@ the firewall with `FirewallLogsStopped`, and the reason it gives for deliberatel
 from absence of the service, and detecting that needs a heartbeat rather than a
 threshold. The notification path was the one place that argument had not been
 turned on itself.
+
+### Scheduled jobs
+
+The same inversion, applied to maintenance. `make backup`,
+`make backup-firewall`, `make snmp-verify` and `make secrets-verify-backup` were
+all commands someone had to remember, and nothing ran any of them
+([#77](https://github.com/Gerrrt/HomeLab/issues/77)). A job that fails is loud;
+a job that stops being run is silent, and silence is also what a healthy week
+looks like.
+
+Four of them are now systemd timers on the monitoring host. Every run — timer or
+human — goes through `scripts/run-scheduled.sh`, which records four gauges into
+a textfile the node exporter already scrapes:
+
+| Metric | Says |
+| --- | --- |
+| `homelab_job_last_success_timestamp_seconds` | when this job last exited 0. A failed run carries the previous value forward rather than clobbering it |
+| `homelab_job_last_run_timestamp_seconds` | when it last finished, whatever the outcome |
+| `homelab_job_last_exit_code` | 0, or 75 for "never started, another job held the lock" |
+| `homelab_job_duration_seconds` | how long it took |
+
+The threshold each job is held to is a *fifth* series,
+`homelab_job_max_age_seconds`, written by `scripts/install-timers.sh` from the
+same table that decides the cadence. That is what lets the five rules in
+`prometheus/rules/backup.rules.yaml` cover every job without naming any of them,
+and what makes `make check-timers` able to assert that a threshold is at least
+twice its timer's real period.
+
+Two things are deliberate and easy to undo by accident:
+
+- **The label is `homelab_job`, not `job`.** `config.alloy`'s
+  `discovery.relabel "metrics"` sets `job` on every target from that exporter,
+  and scrapes default to `honor_labels: false` — so a `job` label in the file
+  would arrive as `exported_job` and every rule would match nothing while still
+  showing as loaded and healthy. `backup.test.yaml` has a case that pins this.
+- **The staleness rules compare against a stored timestamp rather than using a
+  long `for:`.** A long `for` measures continuous pending time in Prometheus's
+  own memory, and one of the jobs being measured is the one that stops
+  Prometheus. `UpsBatteryUnproven` records the same reasoning.
+
+**What this does not prove.** Every one of these jobs runs on the machine it is
+checking, with the key that is on that machine, against the disk that is in it.
+`verify-backups` proves an archive still decrypts; it says nothing about a dead
+disk or a fire. The only job that proves off-host recoverability is
+`secrets-verify-backup`, and it is precisely the one that cannot be automated —
+it needs a human to mount removable media, so `SecretsKeyBackupUnproven` nags at
+ninety days instead. Getting the sets off this machine is
+[#92](https://github.com/Gerrrt/HomeLab/issues/92).
+
+Installing, tuning and troubleshooting all of it:
+[`runbooks/schedule-maintenance.md`](runbooks/schedule-maintenance.md).
 
 ## Adding a monitored device
 

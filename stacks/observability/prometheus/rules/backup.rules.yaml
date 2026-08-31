@@ -1,0 +1,189 @@
+---
+# Whether the scheduled maintenance jobs are actually running.
+#
+# Five commands in this repository used to be things someone had to remember,
+# and nothing ran any of them — `backups/` did not even exist on the host, so
+# `make backup` had never been run at all (#77). systemd timers now run four of
+# them and scripts/run-scheduled.sh records the outcome of every run, scheduled
+# or human, as four gauges in a textfile the node exporter scrapes.
+#
+# THE POINT IS THE ABSENCE, NOT THE FAILURE
+#
+# A job that fails is loud: it exits non-zero and systemd says so. A job that
+# stops being run is silent, and silence is also what a healthy week looks like.
+# That is the same inversion watchdog.rules.yaml is built on, and the same one
+# security.rules.yaml explains at length when it says absence of alerts is
+# indistinguishable from absence of the service. So the rules below are mostly
+# not about failure at all — they are about a proof that has gone stale.
+#
+# WHY THE THRESHOLDS ARE A SERIES AND NOT LITERALS
+#
+# homelab_job_max_age_seconds is written by scripts/install-timers.sh from the
+# JOBS table that also decides the cadence, so a threshold and a schedule cannot
+# drift apart. It also means NO RULE HERE NAMES A JOB: adding a sixth timer is a
+# row in that table, not an edit to this file. That is deliberate — a rule file
+# listing job names is a list that silently stops growing.
+#
+# WHY THERE IS NO absent()
+#
+# absent() only synthesises labels from a selector's equality matchers, so
+# "declared but never ran" would need one rule per job with the name hardcoded —
+# exactly the list this file is avoiding — and it reacts to a single missed
+# scrape. `unless on(homelab_job)` against the declaration series says the same
+# thing generically. absent_over_time appears once, at the bottom, for the one
+# question that genuinely has no series to join against.
+groups:
+  - name: backup
+    interval: 60s
+    rules:
+      - alert: ScheduledJobStale
+        # A proof that has gone stale. Covers a job that stopped being run, and
+        # eventually a job that keeps failing too — run-scheduled.sh carries the
+        # last SUCCESS forward across a failure rather than clobbering it, so a
+        # job failing every night ages out of its threshold on schedule.
+        #
+        # Expressed as a comparison against the stored threshold rather than as
+        # a long `for:`, for the reason UpsBatteryUnproven states in
+        # ups.rules.yaml: a long `for` measures continuous pending time in
+        # Prometheus's own memory, so any restart inside the window resets it.
+        # That reasoning is sharper here than anywhere else in this repository,
+        # because one of the jobs being measured is the one that STOPS
+        # Prometheus. An alert with `for: 14d` on a backup that quiesces the
+        # stack every Sunday would never once reach 14 days pending.
+        #
+        # `on(homelab_job) group_left()` rather than a bare `>`. The join is
+        # needed because the threshold is a separate series; group_left() is
+        # needed because WITHOUT it the result carries only the labels named in
+        # on(), and `instance` is silently dropped. Measured, not assumed — the
+        # unit test asserted instance and promtool returned an alert without it.
+        # A second monitored host would then be indistinguishable from the
+        # first, and the two would collide into one alert.
+        #
+        # verify-key-backup is excluded because SecretsKeyBackupUnproven says
+        # something different about it and earns its own description.
+        expr: |
+          (time() - homelab_job_last_success_timestamp_seconds{homelab_job!="verify-key-backup"})
+            > on(homelab_job) group_left() homelab_job_max_age_seconds
+        for: 30m
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.homelab_job }} has not succeeded in {{ $value | humanizeDuration }}"
+          description: >-
+            The timer has stopped running this, or every run since has failed.
+            Check `systemctl list-timers 'homelab-*'` and
+            `journalctl -u homelab-{{ $labels.homelab_job }}.service` on the
+            monitoring host — docs/runbooks/schedule-maintenance.md.
+
+      - alert: ScheduledJobFailed
+        # Separate from staleness so a failure is visible within the hour rather
+        # than after the threshold expires. A backup failing every night for
+        # thirteen days should not look healthy for thirteen days.
+        #
+        # 75 is EX_TEMPFAIL, which run-scheduled.sh uses for "could not acquire
+        # the lock in time" — the job never started rather than ran and failed.
+        expr: homelab_job_last_exit_code != 0
+        for: 10m
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.homelab_job }} exited {{ $value }}"
+          description: >-
+            The last run failed. `journalctl -u homelab-{{ $labels.homelab_job }}.service -n 100`
+            has the output. Exit 75 means it never started because another job
+            held its lock — docs/runbooks/schedule-maintenance.md.
+
+      - alert: ScheduledJobNeverRan
+        # Declared in the JOBS table, with no success series to go with it: the
+        # job has never run, or its .prom file was deleted.
+        #
+        # This is also the state verify-key-backup starts in and stays in until
+        # someone actually verifies the key backup for the first time, which is
+        # the honest reading — before that first run, nothing has proven the
+        # secrets are recoverable from anywhere but this host.
+        expr: |
+          homelab_job_max_age_seconds
+            unless on(homelab_job) homelab_job_last_success_timestamp_seconds
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.homelab_job }} is scheduled but has never recorded a run"
+          description: >-
+            scripts/install-timers.sh declared this job and nothing has ever
+            reported a result for it. Either the timer was never enabled, or its
+            .prom file was removed from the textfile directory —
+            docs/runbooks/schedule-maintenance.md.
+
+      - alert: ScheduledJobMetricsAbsent
+        # The measuring apparatus itself. Every rule above reads the textfile
+        # directory, INCLUDING the declaration series ScheduledJobNeverRan joins
+        # against — so if that directory is wiped, the collector errors, or
+        # Alloy stops scraping, all three go quiet together and the schedule
+        # looks perfect. This is the one unconditional statement, and it is here
+        # for the same reason watchdog.rules.yaml exists at all.
+        #
+        # absent_over_time, not absent: a six-hour window survives a Prometheus
+        # restart and a single missed scrape, where absent() fires on both.
+        # loki/rules/security.rules.yaml already uses absent_over_time for this
+        # exact shape in FirewallLogsStopped.
+        #
+        # It fires with NO labels, which is accepted rather than worked around:
+        # there is one such series and the summary names it. Worth checking
+        # against the trap watchdog.rules.yaml documents — the second inhibit
+        # rule matches severity =~ "warning|critical" with equal: ["instance"],
+        # and Alertmanager treats absent == absent as equal, so a label-less
+        # warning could in principle be silenced by InstanceDown. It cannot be
+        # here: every InstanceDown carries a scrape-target instance
+        # (localhost:9090, alloy:12345, a device IP), and present-vs-absent is
+        # never equal.
+        expr: absent_over_time(homelab_job_max_age_seconds[6h])
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "No scheduled-job metrics have reached Prometheus for six hours"
+          description: >-
+            Nothing else in this file can fire while this is true. Check
+            node_textfile_scrape_error and node_textfile_mtime_seconds, then
+            /var/lib/node_exporter/textfile_collector on the monitoring host.
+            node_textfile_scrape_error going to 1 costs only the file that failed
+            to parse; this alert means the whole directory stopped arriving.
+            docs/runbooks/schedule-maintenance.md.
+
+      - alert: SecretsKeyBackupUnproven
+        # The one job with no timer, and the sharpest edge in #77.
+        #
+        # verify-key-backup.sh refuses the live key by device:inode and refuses
+        # a copy sitting inside a git tree, precisely so that what gets tested is
+        # a real off-host copy. That means a human has to mount removable media,
+        # and no timer can do it. What a timer CAN do is notice that nobody has.
+        #
+        # The threshold comes from the same declaration series as everything
+        # else, so the ninety days lives in scripts/install-timers.sh and nowhere
+        # else. Until the first verification there is no last_success series at
+        # all and ScheduledJobNeverRan is what speaks instead.
+        expr: |
+          (time() - homelab_job_last_success_timestamp_seconds{homelab_job="verify-key-backup"})
+            > on(homelab_job) group_left() homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The age key backup has not been verified in {{ $value | humanizeDuration }}"
+          description: >-
+            Nothing else here proves the secrets are recoverable from anywhere
+            but this host — every other job runs on the same machine, with the
+            same key, against the same disk. Get the offline copy out and run
+            `make secrets-verify-backup KEY=<path>`:
+            docs/runbooks/back-up-the-age-key.md.

@@ -1,0 +1,13 @@
+[Unit]
+Description=HomeLab: weekly SNMP credential check
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-snmp-verify.service
+OnCalendar=Wed *-*-* 06:30:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

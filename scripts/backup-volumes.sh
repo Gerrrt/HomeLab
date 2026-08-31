@@ -832,5 +832,5 @@ green "wrote ${SET_DIR#"${REPO_ROOT}"/} — ${#VOLUMES[@]} volumes, $(human "${s
 printf '\n'
 info "This is on the same host as everything it protects."
 info "Copy the set to the backup target and offsite — see docs/roadmap.md #92."
-info "Nothing runs this on a timer yet — docs/roadmap.md #77."
+info "On a timer: systemctl list-timers 'homelab-*' — docs/runbooks/schedule-maintenance.md."
 info "Restoring it: docs/runbooks/restore-the-stack.md"

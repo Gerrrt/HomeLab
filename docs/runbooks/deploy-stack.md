@@ -104,7 +104,7 @@ Then in the UI:
 
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
-2. **Prometheus → Status → Rules.** 39 rules loaded, none in error.
+2. **Prometheus → Status → Rules.** 44 rules loaded, none in error.
 3. **Grafana → Dashboards → HomeLab.** Five dashboards, populated.
 4. **Grafana → Explore → Loki**, run `{host=~".+"}`. Logs should be arriving.
 5. Confirm level normalisation is working — this has been silently broken
@@ -116,6 +116,25 @@ Then in the UI:
 
    More than one series means the regex is matching. Only `info` means it is not
    (see `docs/observability.md`).
+
+## Put the maintenance jobs on a timer
+
+A deployed stack that nothing backs up is one disk away from being a git
+repository and nothing else. This step is not optional, and until it is done
+`ScheduledJobNeverRan` is what says so.
+
+```bash
+make install-timers
+```
+
+Then confirm:
+
+```bash
+systemctl list-timers 'homelab-*'
+```
+
+Full detail, including the one job that has no timer and never will, is in
+[`schedule-maintenance.md`](schedule-maintenance.md).
 
 ## Updating
 

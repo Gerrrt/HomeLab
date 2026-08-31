@@ -85,6 +85,30 @@ prometheus.exporter.unix "metrics" {
 	enable_collectors  = ["meminfo"]
 	rootfs_path        = "/rootfs"
 
+	// Where scripts/run-scheduled.sh records whether each scheduled maintenance
+	// job actually ran (#77). Four gauges per job, read fresh on every scrape, so
+	// `time() - homelab_job_last_success_timestamp_seconds` keeps climbing while
+	// nothing is running it — which is the whole signal.
+	//
+	// The path is /rootfs-prefixed EVEN THOUGH rootfs_path is set above.
+	// rootfs_path applies to the procfs/sysfs/filesystem collectors and not to
+	// this argument, which is taken literally. Getting that wrong produces no
+	// error at all: the collector reports an empty directory and every
+	// homelab_job_* metric silently never exists.
+	//
+	// No compose change goes with this. compose.yaml already bind-mounts / at
+	// /rootfs:ro for the node metrics, so the directory is already visible. It
+	// must be 0755 with 0644 files, because this container is root with
+	// cap_drop: [ALL] and therefore obeys the mode like anyone else — the same
+	// measurement compose.yaml records against the age key.
+	//
+	// textfile is on by default, so enable_collectors needs no change. It brings
+	// node_textfile_mtime_seconds and node_textfile_scrape_error along with it,
+	// both of which the runbook uses for troubleshooting.
+	textfile {
+		directory = "/rootfs/var/lib/node_exporter/textfile_collector"
+	}
+
 	filesystem {
 		fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|tmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
 		mount_points_exclude = "^/(dev|proc|run/credentials/.+|sys|var/lib/docker/.+)($|/)"

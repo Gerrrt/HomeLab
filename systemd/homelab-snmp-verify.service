@@ -1,0 +1,38 @@
+# Weekly check that every SNMP device still answers to its own community.
+#
+# Needs the age key, because it decrypts the communities out of SOPS, and sends
+# packets to production devices — which is exactly why the Makefile keeps
+# `snmp-verify` under Maintenance and out of `make validate`. A timer is the
+# right home for it; CI is not.
+#
+# Plain mode only. snmp-verify.sh --old requires a terminal and would die here.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: verify every SNMP device answers to its community
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+Environment=SOPS_AGE_KEY_FILE=/home/robo/.config/sops/age/keys.txt
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job snmp-verify --lock snmp --lock-wait 300 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab snmp-verify
+TimeoutStartSec=600
+Restart=no
+Nice=10
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-snmp-verify
