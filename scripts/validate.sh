@@ -208,8 +208,20 @@ fi
 # ---------------------------------------------------------------------------
 head_ "Compose health dependencies"
 # ---------------------------------------------------------------------------
+# The static half needs python3 and nothing else, which is why this block is not
+# docker-gated as a whole. --probe is the half that needs a daemon: it execs each
+# healthcheck's binary inside that service's pinned image, which is the only way
+# to know an image has not moved to a distroless base under a Dependabot bump
+# (#79). Without it the static half still runs — it just proves less, and the
+# SKIP below is what says so. CI always passes --probe and may not skip it.
 if have python3; then
-  if python3 scripts/check_compose_health.py; then
+  HEALTH=(python3 scripts/check_compose_health.py)
+  if have_docker; then
+    HEALTH+=(--probe)
+  else
+    skip "no docker daemon — healthcheck binaries not probed inside their images"
+  fi
+  if "${HEALTH[@]}"; then
     pass "compose health dependencies"
   else
     fail "compose health dependencies"

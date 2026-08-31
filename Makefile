@@ -125,8 +125,14 @@ check-rules: ## Validate and unit-test Prometheus rules and config
 	promtool test rules $(STACK_DIR)/prometheus/tests/*.test.yaml
 
 .PHONY: check-compose-health
-check-compose-health: ## Verify compose health dependencies can be satisfied
-	python3 scripts/check_compose_health.py
+check-compose-health: ## Verify health deps are satisfiable, probe the images (needs docker)
+	@# --probe unconditionally, like check-rules above needs promtool. It execs
+	@# each healthcheck's binary inside that service's pinned image, which is
+	@# the only way to know an image has not moved to a distroless base under a
+	@# Dependabot bump (#79). Without a docker daemon this fails and says to
+	@# drop the flag, rather than handing back a green run it did not earn.
+	@# `make validate` is the graceful path — it skips the probe and says so.
+	python3 scripts/check_compose_health.py --probe
 
 .PHONY: check-loki-rules
 check-loki-rules: ## Validate Loki (LogQL) alerting rules
