@@ -182,6 +182,7 @@ it prompts, and it is recoverable from a backup set — see
 | Loki `ready` returns 503 for a while | Normal on first start | Wait ~45s |
 | Every log line labelled `info` | The level regex is not matching | See `docs/observability.md` |
 | `make up` fails: `did not accept a reload within 60s` | A service started but never bound its listener, so it may be serving a stale config | `make logs SERVICE=<name>`; raise `RELOAD_TIMEOUT` only if the box is genuinely that slow |
+| `make up` fails: `refused the reload` | The service is up and answering, and would not take the new config — it is still serving the one it last parsed | Read the `wget` output printed above it: a 500 names what will not parse; a 404 means that build serves no `/-/reload` (Prometheus needs `--web.enable-lifecycle`) |
 
 ## Backups
 
