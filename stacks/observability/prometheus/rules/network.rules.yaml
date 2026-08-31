@@ -107,12 +107,60 @@ groups:
 
       # --- Hypervisor BMC (HPE iLO / CPQ MIBs) ------------------------------
       # CPQ condition values: 1=other 2=ok 3=degraded 4=failed
+      #
+      # ONE FAULT, TWO SUBTREES. On a Gen9 the Smart Storage Battery is both a
+      # chassis part (cpqHeSysBattery*, 232.6.2.17) and the backup power for
+      # the Smart Array's flash-backed write cache (cpqDaAccel*, 232.3.2.2.2).
+      # When it dies the chassis table says WHICH pack and WHY and carries the
+      # spare part number; the array table says what it COST. #76 is the worked
+      # example: the alert that fired read neither, because it read
+      # cpqHeSysBackupBatteryCondition — one identity-free scalar for the whole
+      # battery sub-system, which can only ever say "something is wrong". It
+      # fired correctly for twelve days and still could not be acted on.
+      #
+      # WHAT IS DELIBERATELY NOT ALERTED. cpqDaCntlrCondition,
+      # cpqDaCntlrBoardCondition and cpqDaAccelCondition at 3 (degraded) are
+      # rollups that a flat cache battery degrades. Measured on shiva
+      # 2026-08-31, exactly those three read 3 and nothing else on the box did,
+      # so reading them at 3 would turn one battery into three critical pages.
+      # IloHardwareDegraded reads the first two at 4 instead, where they mean
+      # the controller itself. cpqDaAccelBadData = 3 (dirty cache lost) is also
+      # unalerted — it is named in IloWriteCacheDisabled's description, because
+      # a real occurrence would also degrade the logical drives that
+      # IloHardwareDegraded already watches.
+      #
+      # A RESIDUAL WORTH NAMING. IloBatteryCondition joins two columns of the
+      # same SNMP table, so a partial walk that dropped cpqHeSysBatterySparePartNum
+      # while leaving the device up would silence it. SnmpTargetUnreachable and
+      # SnmpScrapeSlow cover the whole-device case; this partial one is not
+      # covered. A fallback branch onto the old scalar was considered and
+      # rejected: the two branches carry different $value meanings (status code
+      # vs condition code), and an alert whose value means two things is less
+      # legible than one that occasionally goes missing.
+      #
+      # THE SILENCE. IloBatteryCondition and IloWriteCacheDisabled are silenced
+      # for device=shiva until 2026-10-01
+      # (bfdfff66-d9c3-4df4-9495-f1f38ebf93c1), because the pack is on order
+      # and a known condition should not notify every 12 hours until it
+      # arrives. The matcher is deliberately narrow — alertname and device — so
+      # a genuinely new fault on this box is not suppressed with it. Delete the
+      # silence the moment the pack is fitted rather than letting it expire: a
+      # silence standing over a freshly fitted part suppresses exactly the thing
+      # you most want to hear about. Procedure is step 4 of
+      # docs/runbooks/replace-the-smart-storage-battery.md.
       - alert: IloHardwareDegraded
+        # Temperature, supplies and drives are read at > 2 because degraded
+        # there means a redundancy has already been spent. The two Smart Array
+        # rollups are read at > 3: on this hardware 3 is what a dead cache
+        # battery looks like, IloBatteryCondition already names that part, and
+        # a critical page for it would be a severity lie. 4 is the controller.
         expr: |
           cpqHeTemperatureCondition > 2
           or cpqHeFltTolPowerSupplyCondition > 2
           or cpqDaLogDrvCondition > 2
           or cpqDaPhyDrvCondition > 2
+          or cpqDaCntlrCondition > 3
+          or cpqDaCntlrBoardCondition > 3
         for: 5m
         labels:
           component: network
@@ -122,14 +170,76 @@ groups:
           summary: "iLO on {{ $labels.device }} reports degraded or failed hardware"
           description: >-
             CPQ condition code {{ $value }} (3 = degraded, 4 = failed). Check
-            the iLO web UI for the specific component.
+            the iLO web UI for the specific component. The two Smart Array
+            rollups are read at 4 only, not 3 — a flat cache battery degrades
+            both, and IloBatteryCondition owns that.
 
       - alert: IloBatteryCondition
-        expr: cpqHeSysBackupBatteryCondition > 2
+        # cpqHeSysBackupBatteryCondition, which this replaced, is a single
+        # scalar with no index labels — it cannot say which pack, why, or what
+        # to order. The per-battery table one OID down can. cpqHeSysBatteryStatus
+        # is the value carried rather than the condition, because 13
+        # (shutdownPermanentFailure) and 4 (shutdownLowVoltage) call for
+        # different actions and the condition code cannot tell them apart.
+        #
+        # group_left copies the spare part number in as a LABEL: snmp_exporter
+        # renders a DisplayString as a gauge of 1 whose text lives in a label of
+        # the same name, so a join is the only way an annotation can print it.
+        # group_left is also what preserves device, role and vlan — a bare
+        # `* on(...)` strips every label not named in on().
+        #
+        # No gate on cpqHeSysBatteryPresent. ups.rules.yaml is the precedent: a
+        # rule a device can switch off by reporting "absent" is the fabrication
+        # failure again.
+        expr: |
+          (
+            cpqHeSysBatteryStatus
+            and on (instance, cpqHeSysBatteryChassis, cpqHeSysBatteryIndex)
+                (cpqHeSysBatteryCondition > 2)
+          )
+          * on (instance, cpqHeSysBatteryChassis, cpqHeSysBatteryIndex)
+            group_left (cpqHeSysBatterySparePartNum) cpqHeSysBatterySparePartNum
         for: 30m
         labels:
           component: network
           severity: warning
           category: hardware
         annotations:
-          summary: "RAID cache / system backup battery degraded on {{ $labels.device }}"
+          summary: "Backup battery {{ $labels.cpqHeSysBatteryIndex }} on {{ $labels.device }} is degraded or failed"
+          description: >-
+            cpqHeSysBatteryStatus = {{ $value }}, spare part
+            {{ $labels.cpqHeSysBatterySparePartNum }}. 13 is
+            shutdownPermanentFailure — the pack is dead and reseating it will
+            not clear the code; 15 is predictiveFailure; 1 is noError. On a Gen9
+            this pack also backs the Smart Array write cache, so expect
+            IloWriteCacheDisabled alongside it. Runbook:
+            docs/runbooks/replace-the-smart-storage-battery.md
+
+      - alert: IloWriteCacheDisabled
+        # The whole cpqDaAccel* family was scraped and read by nothing. This is
+        # the one series in it that states an operational consequence rather
+        # than a condition code: 5 (permDisabled) means the Smart Array has
+        # switched the flash-backed write cache off and the array is running
+        # write-through.
+        #
+        # > 3 rather than != 3, because 1 (other) and 2 (invalid) are what a
+        # controller with no cache module reports and are not a fault. 4
+        # (tmpDisabled) upward are.
+        expr: cpqDaAccelStatus > 3
+        # An hour, not 30m: a pack recharging after a power cut parks the
+        # controller in write-through legitimately, and nothing is lost by
+        # hearing about a slower array an hour late.
+        for: 1h
+        labels:
+          component: network
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "Smart Array cache on {{ $labels.device }} is not caching writes"
+          description: >-
+            cpqDaAccelStatus = {{ $value }} — 4 is tmpDisabled, 5 permDisabled,
+            6 to 9 are cache-module faults. The controller is running
+            write-through: slower, and not less durable. cpqDaAccelErrCode names
+            the cause (25 = noCapacitorAttached is a dead backup battery), and
+            cpqDaAccelBadData = 3 is the one that matters for the array — it
+            means dirty cache was lost.

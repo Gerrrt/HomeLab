@@ -45,7 +45,7 @@ incident.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 5 provisioned dashboards, 84 panels, and
-  57 alert rules — 44 metric-based in Prometheus, 13 log-based in Loki — sharing
+  58 alert rules — 45 metric-based in Prometheus, 13 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -153,7 +153,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 .
 ├── stacks/observability/     # the deployed stack — one compose file, six services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 44 alert rules
+│   ├── prometheus/           # config, file_sd targets, 45 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 13 LogQL rules
 │   ├── alloy/                # one agent config, used on every host

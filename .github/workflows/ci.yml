@@ -176,7 +176,7 @@ jobs:
       # check-config still reports SUCCESS. Verified: that mutation passes
       # check-config and fails the assertions below.
       #
-      # Same seven assertions as scripts/validate.sh. Both places, one commit:
+      # Same eight assertions as scripts/validate.sh. Both places, one commit:
       # this pair has drifted before (#68).
       - name: amtool config routes test
         run: |
@@ -197,6 +197,7 @@ jobs:
           security  severity=warning category=security
           urgent    severity=critical category=availability
           default   severity=warning category=capacity
+          default   severity=warning category=hardware
           null      severity=info category=correctness
           ROUTES
           exit $fail

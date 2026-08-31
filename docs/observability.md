@@ -79,7 +79,7 @@ expression in every panel is syntactically valid.
 
 ## Alerting
 
-57 rules in total: 44 metric-based in `prometheus/rules/`, and 13 log-based in
+58 rules in total: 45 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -108,12 +108,12 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-44 rules across seven files in `prometheus/rules/`:
+45 rules across seven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
 | `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew, reboots |
-| `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware |
+| `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware and Smart Array cache. `shiva`'s Smart Storage Battery has read failed since 2026-08-18 and the array has dropped to write-through as a result — `IloBatteryCondition` names the spare part to order, and the controller rollups are deliberately read at *failed* rather than *degraded* ([#76](https://github.com/Gerrrt/HomeLab/issues/76)) |
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling, and the stack watching itself |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
@@ -127,10 +127,16 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is eleven rules of 44 so far: the two in
-`containers.test.yaml`, `Watchdog`, the three blackbox rules, and all five in
-`backup.test.yaml`. The other 33 are still validated for syntax only, which is
-exactly the standing #63 had.
+against the broken rule too. Coverage is fourteen rules of 45 so far — the three
+in `blackbox.rules.yaml`, `ContainerHighMemory` and
+`PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
+[#76](https://github.com/Gerrrt/HomeLab/issues/76), and all five in
+`backup.test.yaml`.
+The other 31 are still validated for syntax only, which is exactly the
+standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
+sentence they replaced claimed six and named two, and had been wrong for
+weeks. Keep each count on one line: the checker reads prose line by line, so a
+phrase wrapped mid-claim is a claim it cannot see.
 
 Disk alerting is predictive rather than a fixed threshold — `predict_linear` over
 a 6-hour window, firing when the extrapolation reaches zero within a day *and*
