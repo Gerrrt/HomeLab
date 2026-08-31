@@ -352,6 +352,34 @@ if [[ -s "${TIMER_SKIPS}" ]]; then
   SKIPPED=$((SKIPPED + $(wc -l < "${TIMER_SKIPS}")))
 fi
 
+# ...and whether any of it reached this host.
+#
+# --check above compares two copies of the schedule that both live in git: the
+# cadence in systemd/*.timer against the threshold in install-timers.sh. It is
+# a good check and it is entirely repo-internal, which is why it passed every
+# run while this host had no homelab units installed at all, no textfile
+# directory, and had therefore never taken a scheduled backup (#215). The
+# repository agreed with itself and nothing ran.
+#
+# So this asks the other question. It is deliberately conditional on the stack
+# running here, because that is what distinguishes the deployment host from a
+# checkout: a laptop with the repository on it owes nothing, and a host serving
+# the stack while running none of its maintenance is exactly the condition #215
+# was. That is also why this is a fail and not a warning — the four rules in
+# backup.rules.yaml that would notice a missed job all join against a series
+# install-timers.sh writes, so none of them can fire until it has been run.
+if ! have systemctl; then
+  skip "systemctl absent — cannot tell whether the schedule is installed"
+elif ! have_docker; then
+  skip "docker unavailable — cannot tell whether this is the deployment host"
+elif ! docker compose -f "${STACK}/compose.yaml" ps --status running -q 2>/dev/null | grep -q .; then
+  skip "the stack is not running here — this is not the deployment host"
+elif systemctl list-unit-files 'homelab-*' --no-legend 2>/dev/null | grep -q .; then
+  pass "the schedule is installed on this host"
+else
+  fail "the stack runs here but no homelab-* units are installed — run 'make install-timers' (#215)"
+fi
+
 # ---------------------------------------------------------------------------
 head_ "Secrets"
 # ---------------------------------------------------------------------------

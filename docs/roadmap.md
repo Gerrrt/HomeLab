@@ -211,10 +211,17 @@ months.
 ## Done
 
 - [x] **[#77](https://github.com/Gerrrt/HomeLab/issues/77) Schedule something.**
-      Four systemd timers on the monitoring host run `make backup` weekly,
+      Four systemd timers *are written* to run `make backup` weekly,
       `make backup ARGS='--verify-only --all'` and `make backup-firewall` nightly,
       and `make snmp-verify` weekly; `make check-digests` runs weekly in GitHub
       Actions, which is the only one of the five that is genuinely off-host.
+      **Installing them on the monitoring host is a separate step
+      (`make install-timers`) and it was missed** — for the first days of this
+      entry's life the sentence above was in the present tense and simply untrue,
+      no unit was installed, and no scheduled job had ever run
+      ([#215](https://github.com/Gerrrt/HomeLab/issues/215)). `make validate`
+      passed throughout, because the check it ran compared two copies of the
+      schedule that both live in git. It now also asks the host.
       Every run records its outcome as a metric, so five rules in
       `backup.rules.yaml` alert on a job having *stopped being run* rather than
       only on one that failed — which was the actual ask.
