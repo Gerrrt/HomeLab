@@ -15,9 +15,11 @@ that rewrite as compromised, including the CA. What follows replaces it.
 > [`deploy-stack.md`](deploy-stack.md), not a someday step. `make render`
 > refuses to run until they exist, because before it did, `make up` bind-mounted
 > the absent files and Docker created directories in their place
-> ([#69](https://github.com/Gerrrt/HomeLab/issues/69)). Prometheus, Alertmanager
-> and Loki still publish plain HTTP on the management VLAN; putting the rest
-> behind TLS is tracked in [`roadmap.md`](../roadmap.md).
+> ([#69](https://github.com/Gerrrt/HomeLab/issues/69)). Grafana is the only
+> service that terminates TLS. Prometheus, Alertmanager and Loki publish plain
+> HTTP on the management VLAN, and that is an accepted residual with firewall
+> default-deny as the control — not work in progress; see
+> [`security.md`](../security.md).
 
 ## Where things live
 
@@ -59,13 +61,21 @@ trust store holding it, so that has to be deliberate (`--force`).
 ## 2. Issue a leaf
 
 ```bash
-make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20"
+make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"
 ```
 
 Include `--ip` for anything reached by address. `docs/roadmap.md` still lists
 internal DNS as unresolved, so in practice most services here are reached by IP,
 and a certificate without a matching IP SAN will be rejected at the point you
 most want it to work.
+
+`--dns grafana` is not decoration. Prometheus scrapes the `grafana` job over the
+compose network, where the service answers to its short name, so
+[`prometheus.yaml`](../../stacks/observability/prometheus/prometheus.yaml) sets
+`server_name: grafana` and verifies that name against the leaf. Issue this
+certificate with the FQDN alone and Grafana still serves fine in a browser while
+the scrape fails with `x509: certificate is valid for grafana.matrix.elysium,
+not grafana` — one target down, for a reason that reads like a trust problem.
 
 Two limits the script enforces rather than lets you discover later:
 
@@ -110,15 +120,17 @@ lab with one certificate is better served by a calendar reminder than by a
 renewal daemon nobody maintains.
 
 ```bash
-make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --force"
+make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana --force"
 ```
 
 Then restart whatever serves it. The CA does not change, so nothing needs
 re-trusting.
 
-Adding blackbox-exporter for TLS-expiry checks is on
-[`roadmap.md`](../roadmap.md); until that exists, expiry is something you find
-out about from a browser warning.
+blackbox-exporter exists and could carry this, but does not yet: it probes only
+the wiki, over plain HTTP, and nothing reads `probe_ssl_earliest_cert_expiry`.
+Grafana is not a target, so nothing watches the one certificate this runbook
+issues — expiry is still something you find out about from a browser warning.
+Tracked in [#91](https://github.com/Gerrrt/HomeLab/issues/91).
 
 ## If something goes wrong
 
@@ -146,7 +158,7 @@ certificate with `-s`, and `-s` is true of a directory:
 ```console
 $ ls -ld certificates/grafana.matrix.elysium-key.pem
 drwxr-xr-x 2 you you 4096 ... certificates/grafana.matrix.elysium-key.pem
-$ make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20"
+$ make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"
 error: certificates/grafana.matrix.elysium-key.pem already exists — pass --force to replace it
 ```
 

@@ -93,7 +93,7 @@ Grafana serves https from the leaf and Prometheus verifies it with the CA, so
 the stack cannot start without them. Generate them with:
 
   make certs ARGS=--ca
-  make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20\"
+  make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\"
 
 Full procedure in docs/runbooks/generate-certificates.md."
 fi

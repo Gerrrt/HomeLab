@@ -185,7 +185,7 @@ git clone https://github.com/Gerrrt/HomeLab.git && cd HomeLab
 make secrets-init     # generate an age keypair, create the encrypted secrets file
 make secrets-edit     # fill in real values
 make certs ARGS=--ca  # create the lab CA
-make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20"    # Grafana's leaf
+make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"    # Grafana's leaf
 make validate         # everything CI runs
 make up               # render config and start the stack
 ```

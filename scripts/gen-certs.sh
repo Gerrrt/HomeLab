@@ -8,10 +8,12 @@
 # The control that matters is not the file mode, it is that these never become
 # tracked files. `make validate` asserts that; so does CI.
 #
-# Nothing in this repository terminates TLS yet. This exists so that when
-# something does — Grafana is the first candidate, see docs/roadmap.md — issuing
-# a certificate is one command rather than a research project, and so the CA is
-# created deliberately rather than improvised at the point of need.
+# Grafana terminates TLS with a leaf issued here, and Prometheus verifies that
+# certificate against this CA when it scrapes the grafana job — so both are a
+# prerequisite of `make up` rather than groundwork for a someday service. What
+# this script buys is that issuing one stays a single command rather than a
+# research project, and that the CA is created deliberately rather than
+# improvised at the point of need.
 #
 # Usage:
 #   scripts/gen-certs.sh --ca                     create the CA (refuses if it exists)
@@ -66,7 +68,11 @@ while (($#)); do
     --dns)   DNS+=("${2:?--dns needs a name}"); shift 2 ;;
     --days)  LEAF_DAYS="${2:?--days needs a number}"; shift 2 ;;
     --force) FORCE=1; shift ;;
-    -h|--help) sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    # Printed straight from the comment block above rather than kept as a
+    # second copy that drifts. Bounded by where the comments stop, not by a
+    # line number: the literal 2,32p this replaced had already slipped and was
+    # truncating the last paragraph mid-sentence.
+    -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -127,7 +133,7 @@ that holds it. Pass --force only if that is what you mean."
   ok "CA created"
   printf '  key  %s  (never commit, never copy off this host)\n' "${CA_KEY#"${REPO_ROOT}"/}"
   printf '  cert %s  (safe to distribute — this is what clients trust)\n' "${CA_CRT#"${REPO_ROOT}"/}"
-  printf '\nIssue a leaf with:\n  scripts/gen-certs.sh --host grafana.matrix.elysium --ip 10.0.99.20\n\n'
+  printf '\nIssue a leaf with:\n  scripts/gen-certs.sh --host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\n\n'
   exit 0
 fi
 
