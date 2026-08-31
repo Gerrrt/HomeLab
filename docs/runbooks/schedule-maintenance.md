@@ -211,8 +211,10 @@ expected rather than a second fault.
 | `homelab_job_last_exit_code` is 75 | The job never started — another job held its lock for the full wait | Expected if a `--verify-only` run collided with a long backup. Persistent means a job is hanging: check `systemctl list-units 'homelab-*'` |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |
+| `ScheduledJobMetricsAbsent` fires and nothing else in `backup.rules.yaml` ever has | This step was never run at all | `systemctl list-unit-files 'homelab*'` reports *0 unit files* and `/var/lib/node_exporter/textfile_collector` does not exist. The four other rules here join against a series `--install` writes, so none of them can fire — that alert is the only one that can, and it is doing its job ([#215](https://github.com/Gerrrt/HomeLab/issues/215)). Run `make install-timers` |
 | `refusing to install from …` | You are in a worktree or a second clone | The units hardcode the deployment path. Install from `/home/robo/code/Gerrrt/HomeLab` |
 | `make validate` fails on the schedule | A cadence and its threshold disagree | `make check-timers` names the job and both numbers. Fix the `JOBS` table or the `.timer`, not the alert |
+| `make validate` fails with *no `homelab-*` units are installed* | The stack is running on this host but the schedule was never installed | Exactly the condition above, caught before an alert has to. Only a host running the stack is asked; a laptop with the repository checked out skips it |
 
 ## Removing it
 
