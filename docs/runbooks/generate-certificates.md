@@ -126,9 +126,11 @@ make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana --f
 Then restart whatever serves it. The CA does not change, so nothing needs
 re-trusting.
 
-Adding blackbox-exporter for TLS-expiry checks is on
-[`roadmap.md`](../roadmap.md); until that exists, expiry is something you find
-out about from a browser warning.
+blackbox-exporter exists and could carry this, but does not yet: it probes only
+the wiki, over plain HTTP, and nothing reads `probe_ssl_earliest_cert_expiry`.
+Grafana is not a target, so nothing watches the one certificate this runbook
+issues — expiry is still something you find out about from a browser warning.
+Tracked in [#91](https://github.com/Gerrrt/HomeLab/issues/91).
 
 ## If something goes wrong
 
