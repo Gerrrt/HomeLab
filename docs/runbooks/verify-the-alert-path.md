@@ -69,6 +69,15 @@ every `repeat_interval`. The heartbeat route uses `group_wait: 0s` and
 - **External grace ≥ 2 × `repeat_interval`.** One missed ping is a hiccup — a
   reload, a restart, a slow scrape. Two consecutive misses is a fault. A grace
   under 10m turns every `make reload` into a page.
+- **External grace > the weekly backup's downtime.** `homelab-backup-volumes`
+  quiesces the stack every Sunday at 03:30, which stops Prometheus evaluating
+  and therefore stops this heartbeat for the length of the archive. A backup
+  that outruns the grace pages you at 03:31 for a backup that worked. The run is
+  normally about ninety seconds against a 15m grace — check yours with
+  `grep downtime backups/volumes/*/MANIFEST | tail -1` rather than assuming.
+  This is why that timer is the only one with `RandomizedDelaySec=0`: a
+  randomised start would make the expected gap unstateable. See
+  [`schedule-maintenance.md`](schedule-maintenance.md).
 
 Change `repeat_interval` in `alertmanager/alertmanager.yaml` and the external
 check's period and grace move with it. Nothing enforces that from here, which is

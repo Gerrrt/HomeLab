@@ -1,0 +1,24 @@
+[Unit]
+Description=HomeLab: weekly volume backup
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-backup-volumes.service
+OnCalendar=Sun *-*-* 03:30:00
+# Zero, and this is the only timer here without jitter. This job stops
+# Prometheus, Alertmanager, Loki, Grafana and Alloy for the length of the
+# archive, which stops the Watchdog heartbeat — and the external cron-monitor in
+# docs/runbooks/verify-the-alert-path.md has to be told when that gap is
+# expected. A randomised start makes "expected gap" unstateable. Jitter exists
+# to spread load across many hosts; there is one host.
+RandomizedDelaySec=0
+# False, and this is the only timer here where it is. Persistent=true replays a
+# missed run at the next boot, and for THIS unit "replay" means quiescing the
+# monitoring stack at whatever hour the machine happened to come up. A missed
+# Sunday is picked up the next Sunday, comfortably inside the 14d threshold that
+# scripts/install-timers.sh declares for it.
+Persistent=false
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

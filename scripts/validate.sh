@@ -42,10 +42,12 @@ have_docker() { have docker && docker info >/dev/null 2>&1; }
 TMP_ENV=""
 LINT_SKIPS=""
 LOKI_SKIPS=""
+TIMER_SKIPS=""
 cleanup() {
   [[ -n "${TMP_ENV}" ]] && rm -f "${TMP_ENV}"
   [[ -n "${LINT_SKIPS}" ]] && rm -f "${LINT_SKIPS}"
   [[ -n "${LOKI_SKIPS}" ]] && rm -f "${LOKI_SKIPS}"
+  [[ -n "${TIMER_SKIPS}" ]] && rm -f "${TIMER_SKIPS}"
   return 0
 }
 trap cleanup EXIT
@@ -308,6 +310,34 @@ if ./scripts/snmp-targets.sh --check >/dev/null 2>&1; then
 else
   ./scripts/snmp-targets.sh --check
   fail "snmp inventory is inconsistent"
+fi
+
+# ---------------------------------------------------------------------------
+head_ "Scheduled jobs"
+# ---------------------------------------------------------------------------
+# The cadence lives in systemd/*.timer and the staleness threshold lives in the
+# JOBS table in install-timers.sh, and an alert that fires a week after every
+# normal run is the failure mode when they disagree. --check derives each
+# timer's real period from `systemd-analyze calendar` and asserts the threshold
+# is at least twice it, so the two cannot drift the way the amtool route
+# assertions did (#68).
+#
+# It also asserts every ExecStart= goes through run-scheduled.sh. That is the
+# one guard standing between a unit file and an unpinned `docker run`:
+# check_image_pins.py scans the Makefile, scripts, workflows and Markdown, but
+# not systemd units.
+#
+# Offline and unprivileged, which is why it is here and not under Maintenance
+# with `make install-timers`. It owns its own skips file so a host without
+# systemd-analyze does not silently claim the schedule was checked.
+TIMER_SKIPS="$(mktemp)"
+if ./scripts/install-timers.sh --check --skips-file "${TIMER_SKIPS}"; then
+  pass "scheduled job cadences, thresholds and units agree"
+else
+  fail "the schedule and its thresholds disagree"
+fi
+if [[ -s "${TIMER_SKIPS}" ]]; then
+  SKIPPED=$((SKIPPED + $(wc -l < "${TIMER_SKIPS}")))
 fi
 
 # ---------------------------------------------------------------------------

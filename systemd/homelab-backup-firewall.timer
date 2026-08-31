@@ -1,0 +1,13 @@
+[Unit]
+Description=HomeLab: nightly pfSense config export
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-backup-firewall.service
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

@@ -45,7 +45,7 @@ incident.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 5 provisioned dashboards, 84 panels, and
-  53 alert rules — 40 metric-based in Prometheus, 13 log-based in Loki — sharing
+  58 alert rules — 45 metric-based in Prometheus, 13 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -153,7 +153,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 .
 ├── stacks/observability/     # the deployed stack — one compose file, six services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 40 alert rules
+│   ├── prometheus/           # config, file_sd targets, 45 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 13 LogQL rules
 │   ├── alloy/                # one agent config, used on every host
@@ -214,8 +214,17 @@ $ make help
   validate         Run every check CI runs
   backup           Quiesce the stack, archive its volumes to ./backups/ and verify
   restore          Restore the stack's volumes from a backup set
+  install-timers   Install and enable the systemd timers on this host
   ...
 ```
+
+The timers are what stop `backup`, `backup-firewall` and `snmp-verify` being
+things someone has to remember, and the alert rules that come with them fire on a
+job having *stopped being run* rather than only on one that failed
+([#77](https://github.com/Gerrrt/HomeLab/issues/77)). One job deliberately has no
+timer: `secrets-verify-backup` needs a human to mount removable media, so it gets
+a ninety-day deadline and an alert instead. See
+[`docs/runbooks/schedule-maintenance.md`](docs/runbooks/schedule-maintenance.md).
 
 ## Dashboards
 

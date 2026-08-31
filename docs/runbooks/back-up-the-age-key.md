@@ -193,6 +193,27 @@ the damage is recoverable — but the error it produces afterwards
 (`sops metadata not found`, or a failed decrypt) sends you looking in the wrong
 place. Restore is a file copy, nothing more.
 
+## The ninety-day deadline
+
+Verifying the backup is the only thing in this repository that proves the secrets
+are recoverable from anywhere but the monitoring host — every other scheduled
+job runs on that machine, with the key that is on it, against its disk. It is
+also the only one that cannot be put on a timer, because the check above refuses
+the live key by device and inode on purpose: what gets tested has to be a copy on
+removable media, and no timer can mount that.
+
+So it is enforced from the other end. `make secrets-verify-backup` records the
+timestamp of a successful run, and `SecretsKeyBackupUnproven` fires when that
+proof passes ninety days old — routed to the normal alert channel like any other
+warning. Until the first verification there is no timestamp at all and
+`ScheduledJobNeverRan` says so instead, which is the honest reading of a key
+backup nobody has ever tested.
+
+Nagging is not as good as running it. It is a great deal better than remembering.
+The threshold lives in the `JOBS` table in
+[`install-timers.sh`](../../scripts/install-timers.sh); the mechanism is in
+[`schedule-maintenance.md`](schedule-maintenance.md).
+
 ## What this still does not solve
 
 One key, one person, one copy plus the original. If the answer to "who else can

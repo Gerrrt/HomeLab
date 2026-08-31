@@ -1,0 +1,15 @@
+[Unit]
+Description=HomeLab: nightly backup verification
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-verify-backups.service
+# Two hours after the weekly backup's slot, so on a Sunday the verification
+# reads a set that has already been written rather than queueing on its lock.
+OnCalendar=*-*-* 05:30:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

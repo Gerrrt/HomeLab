@@ -1,0 +1,44 @@
+# Daily read-only verification of the existing backup sets.
+#
+# roadmap.md #77 names this as the cheap job to put on a timer: it is what
+# catches bit-rot in a set nobody has touched for a week. It decrypts and reads
+# the archives and never stops the stack, so unlike the weekly backup it is safe
+# to run every night.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: verify every stored backup set still decrypts
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+SupplementaryGroups=docker
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+Environment=SOPS_AGE_KEY_FILE=/home/robo/.config/sops/age/keys.txt
+EnvironmentFile=-/etc/default/homelab-timers
+# Shares the `backups` lock with homelab-backup-volumes, and that sharing is
+# the point. backup-volumes.sh's own flock is taken only on its main path — the
+# case block handling --verify-only returns before reaching it — so without this
+# a verify run and a real backup can overlap, and the backup's prune can delete
+# a set this is mid-read on.
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job verify-backups --lock backups --lock-wait 900 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab backup "ARGS=--verify-only --all"
+TimeoutStartSec=1800
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=false
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-verify-backups

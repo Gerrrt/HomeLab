@@ -189,13 +189,6 @@ what left this one unfireable for months.
 - **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
   dashboard export step** — the current loop is manual and therefore skipped
   under pressure.
-- **[#77](https://github.com/Gerrrt/HomeLab/issues/77) Schedule something.**
-  Nothing runs `make backup`, `make backup-firewall`, `make check-digests` or
-  `make secrets-verify-backup` on a timer. The last of those is the only proof
-  the secrets are recoverable, and `make restore ARGS=--dry-run` is now the
-  only proof the volumes are — `make backup ARGS='--verify-only --all'` is the
-  cheap version to put on the timer, because it is what catches bit-rot in a
-  set nobody has touched for a week.
 
 ## Decided but not built
 
@@ -217,6 +210,19 @@ months.
 
 ## Done
 
+- [x] **[#77](https://github.com/Gerrrt/HomeLab/issues/77) Schedule something.**
+      Four systemd timers on the monitoring host run `make backup` weekly,
+      `make backup ARGS='--verify-only --all'` and `make backup-firewall` nightly,
+      and `make snmp-verify` weekly; `make check-digests` runs weekly in GitHub
+      Actions, which is the only one of the five that is genuinely off-host.
+      Every run records its outcome as a metric, so five rules in
+      `backup.rules.yaml` alert on a job having *stopped being run* rather than
+      only on one that failed — which was the actual ask.
+      `make secrets-verify-backup` deliberately has no timer: it needs a human to
+      mount removable media, so it gets a ninety-day deadline and an alert
+      instead. What this does **not** solve is that the host still verifies its
+      own backups — that is #92 and #99, both still open.
+      → [runbook](runbooks/schedule-maintenance.md)
 - [x] **Enable Suricata on `morpheus`.** Running on Skids (VLAN 20) alert-only
       since 2026-08-21; alerts reach Loki with classification and priority parsed
       into labels, verified against real traffic. First tuning decision made from

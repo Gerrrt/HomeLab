@@ -14,7 +14,7 @@ What this network is actually built to survive:
 | A smart TV's firmware phoning somewhere unexpected | VLAN 40 is terminal, egress only |
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
-| Losing visibility of a failure | 40 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 45 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 
@@ -279,6 +279,27 @@ every process on the host *except* a compromised Alloy. Putting the socket
 behind a proxy that permits only the handful of GETs cAdvisor and the log
 discovery actually use is tracked separately; the privilege reduction above is
 defence in depth, not a closed door.
+
+### A writable directory inside Alloy's read scope
+
+Scheduling the maintenance jobs ([#77](https://github.com/Gerrrt/HomeLab/issues/77))
+put `/var/lib/node_exporter/textfile_collector` on the host, owned by the
+deploying user and read by Alloy's textfile collector through the `/rootfs`
+mount that already existed. It is `0755` with `0644` files, and it has to be:
+Alloy runs as root with every capability dropped, so it obeys the mode like
+anyone else and a `0600` file would simply be invisible to it.
+
+The contents are four numeric gauges per job — timestamps, a duration and an
+exit code. Nothing secret is written there, and nothing decrypted passes through
+it. What it does create is a path from *write access as that user* to *arbitrary
+metric names and label values in Prometheus*, since the collector will parse
+whatever it finds. Two things bound that: only the deploying user can write, and
+`scripts/run-scheduled.sh` constrains the one operator-supplied field to
+`^[a-z][a-z0-9-]{0,30}$` before it becomes either a filename or a label value.
+
+Anyone who can write there can already run the jobs themselves, so this adds no
+privilege — but it is a new file-backed input to the metrics pipeline, and that
+is worth stating rather than discovering.
 
 ## What this repository deliberately does not publish
 

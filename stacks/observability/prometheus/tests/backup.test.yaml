@@ -1,0 +1,241 @@
+---
+# Unit tests for backup.rules.yaml.
+#
+# Every firing case is paired with a silent one, per containers.test.yaml: a
+# test that only ever expects silence would have passed against the unfireable
+# rule in #63, and a test that only ever expects firing would pass against a
+# rule that fires unconditionally.
+#
+# Two of these cases exist to catch specific ways this file could break without
+# promtool check rules noticing:
+#
+#   1. THE JOIN. Two jobs with DIFFERENT thresholds appear in the same series
+#      set, one over and one under. A rule that ignored `on(homelab_job)` and
+#      compared against a constant, or that matched the wrong pair, would fire
+#      for both or neither.
+#
+#   2. THE LABEL CLOBBER. config.alloy's discovery.relabel sets `job` on every
+#      target from the unix exporter, and prometheus.scrape defaults to
+#      honor_labels: false — so a .prom file carrying `job=` instead of
+#      `homelab_job=` arrives as `exported_job` and every join here collapses.
+#      That is the #63 failure shape: loaded, healthy, and unable to fire. The
+#      last case feeds exactly that malformed input and pins what happens.
+#
+# time() in these tests is seconds since the start of the test, not wall clock,
+# which is why the thresholds below are minutes rather than days.
+rule_files:
+  - ../rules/backup.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- ScheduledJobStale: the join is real ---------------------------------
+  #
+  # Both jobs last succeeded at t=0. job-stale allows 1h and job-fresh allows
+  # ~28h, so at t=2h exactly one of them is a finding.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="job-stale", instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="job-fresh", instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="job-stale", instance="prometheus"}'
+        values: "3600+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="job-fresh", instance="prometheus"}'
+        values: "100000+0x180"
+    alert_rule_test:
+      # Not yet: at t=30m the age is 1800s, inside job-stale's 3600s budget.
+      - eval_time: 30m
+        alertname: ScheduledJobStale
+        exp_alerts: []
+
+      # Age passes 3600s at t=1h, `for: 30m` lands it at t=1h30m. Still only
+      # pending at 1h20m — this is what asserts the `for` is actually there.
+      - eval_time: 1h20m
+        alertname: ScheduledJobStale
+        exp_alerts: []
+
+      - eval_time: 2h
+        alertname: ScheduledJobStale
+        exp_alerts:
+          - exp_labels:
+              alertname: ScheduledJobStale
+              homelab_job: job-stale
+              instance: prometheus
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "job-stale has not succeeded in 2h 0m 0s"
+              description: >-
+                The timer has stopped running this, or every run since has
+                failed. Check `systemctl list-timers 'homelab-*'` and
+                `journalctl -u homelab-job-stale.service` on the monitoring
+                host — docs/runbooks/schedule-maintenance.md.
+
+  # --- ScheduledJobStale: verify-key-backup is not its business ------------
+  #
+  # The human-only job is excluded from ScheduledJobStale and handled by
+  # SecretsKeyBackupUnproven instead, so the operator is told to fetch the
+  # offline copy rather than to go and read a journal that has nothing in it.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="verify-key-backup", instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="verify-key-backup", instance="prometheus"}'
+        values: "3600+0x180"
+    alert_rule_test:
+      - eval_time: 2h30m
+        alertname: ScheduledJobStale
+        exp_alerts: []
+
+      - eval_time: 2h30m
+        alertname: SecretsKeyBackupUnproven
+        exp_alerts:
+          - exp_labels:
+              alertname: SecretsKeyBackupUnproven
+              homelab_job: verify-key-backup
+              instance: prometheus
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The age key backup has not been verified in 2h 30m 0s"
+              description: >-
+                Nothing else here proves the secrets are recoverable from
+                anywhere but this host — every other job runs on the same
+                machine, with the same key, against the same disk. Get the
+                offline copy out and run `make secrets-verify-backup
+                KEY=<path>`: docs/runbooks/back-up-the-age-key.md.
+
+  # --- ScheduledJobFailed: fires on non-zero, silent on zero ---------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_exit_code{homelab_job="job-ok", instance="prometheus"}'
+        values: "0+0x60"
+      - series: 'homelab_job_last_exit_code{homelab_job="job-broken", instance="prometheus"}'
+        values: "1+0x60"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ScheduledJobFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: ScheduledJobFailed
+              homelab_job: job-broken
+              instance: prometheus
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "job-broken exited 1"
+              description: >-
+                The last run failed. `journalctl -u homelab-job-broken.service
+                -n 100` has the output. Exit 75 means it never started because
+                another job held its lock —
+                docs/runbooks/schedule-maintenance.md.
+
+  # --- ScheduledJobNeverRan: declared, with nothing to show for it ---------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_max_age_seconds{homelab_job="job-ran", instance="prometheus"}'
+        values: "100000+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="job-never", instance="prometheus"}'
+        values: "100000+0x180"
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="job-ran", instance="prometheus"}'
+        values: "0+0x180"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: ScheduledJobNeverRan
+        exp_alerts:
+          - exp_labels:
+              alertname: ScheduledJobNeverRan
+              homelab_job: job-never
+              instance: prometheus
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "job-never is scheduled but has never recorded a run"
+              description: >-
+                scripts/install-timers.sh declared this job and nothing has ever
+                reported a result for it. Either the timer was never enabled, or
+                its .prom file was removed from the textfile directory —
+                docs/runbooks/schedule-maintenance.md.
+
+  # --- THE LABEL CLOBBER ---------------------------------------------------
+  #
+  # What a .prom file carrying `job=` instead of `homelab_job=` looks like once
+  # Prometheus has renamed the colliding label: a last_success series that
+  # exists but has no homelab_job label to join on.
+  #
+  # The join therefore finds no partner, `unless` removes nothing, and
+  # ScheduledJobNeverRan fires forever for a job that is in fact running fine.
+  # Loud and wrong beats silent and wrong — but it is still wrong, so if this
+  # case ever starts failing, read the label names in run-scheduled.sh before
+  # touching this file.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_max_age_seconds{homelab_job="job-clobbered", instance="prometheus"}'
+        values: "100000+0x180"
+      - series: 'homelab_job_last_success_timestamp_seconds{exported_job="job-clobbered", instance="prometheus"}'
+        values: "0+0x180"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: ScheduledJobNeverRan
+        exp_alerts:
+          - exp_labels:
+              alertname: ScheduledJobNeverRan
+              homelab_job: job-clobbered
+              instance: prometheus
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "job-clobbered is scheduled but has never recorded a run"
+              description: >-
+                scripts/install-timers.sh declared this job and nothing has ever
+                reported a result for it. Either the timer was never enabled, or
+                its .prom file was removed from the textfile directory —
+                docs/runbooks/schedule-maintenance.md.
+
+  # --- ScheduledJobMetricsAbsent: silent while the series arrives ----------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_max_age_seconds{homelab_job="job-ran", instance="prometheus"}'
+        values: "100000+0x600"
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: ScheduledJobMetricsAbsent
+        exp_alerts: []
+
+  # --- ScheduledJobMetricsAbsent: the directory is gone --------------------
+  #
+  # No input_series at all, the way watchdog.test.yaml does it. This is the one
+  # rule here that must work with nothing to read, because it is the rule that
+  # speaks when there is nothing to read.
+  - interval: 1m
+    input_series: []
+    alert_rule_test:
+      # absent_over_time is true from the first evaluation; `for: 1h` is what
+      # keeps a Prometheus restart from firing it.
+      - eval_time: 30m
+        alertname: ScheduledJobMetricsAbsent
+        exp_alerts: []
+
+      - eval_time: 2h
+        alertname: ScheduledJobMetricsAbsent
+        exp_alerts:
+          - exp_labels:
+              alertname: ScheduledJobMetricsAbsent
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "No scheduled-job metrics have reached Prometheus for six hours"
+              description: >-
+                Nothing else in this file can fire while this is true. Check
+                node_textfile_scrape_error and node_textfile_mtime_seconds, then
+                /var/lib/node_exporter/textfile_collector on the monitoring host.
+                node_textfile_scrape_error going to 1 costs only the file that
+                failed to parse; this alert means the whole directory stopped
+                arriving. docs/runbooks/schedule-maintenance.md.
