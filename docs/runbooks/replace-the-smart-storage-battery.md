@@ -15,7 +15,7 @@ lid comes off — not after.**
 > reseating it does not clear the code. There is nothing to try before ordering.
 >
 > `IloBatteryCondition` and `IloWriteCacheDisabled` are silenced for `shiva`
-> until 2026-10-01 (`3ffc313f-7154-459c-9f62-7c9a432bc97e`). **Delete that
+> until 2026-10-01 (`bfdfff66-d9c3-4df4-9495-f1f38ebf93c1`). **Delete that
 > silence when the pack goes in, not when it expires** — see step 4.
 
 `shiva` is the iLO, not the hypervisor. The host behind it is `Saruman` at
@@ -97,7 +97,7 @@ reused and is not duplicated here. Two things carry over unchanged:
 - Delete it rather than letting it expire. A silence left standing over a
   freshly fitted part suppresses exactly the thing you most want to hear about.
 
-The silence to remove is `3ffc313f-7154-459c-9f62-7c9a432bc97e`, matching
+The silence to remove is `bfdfff66-d9c3-4df4-9495-f1f38ebf93c1`, matching
 `alertname=~"IloBatteryCondition|IloWriteCacheDisabled"` and `device="shiva"`.
 
 Then update [`../roadmap.md`](../roadmap.md) and the section header comment in

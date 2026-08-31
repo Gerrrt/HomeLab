@@ -138,9 +138,12 @@ what left this one unfireable for months.
   less durable. `cpqDaAccelBadData` reads `2` (none), so nothing dirty was lost
   when it dropped. **Accepted with an expiry, not a fix in progress:**
   `IloBatteryCondition` and `IloWriteCacheDisabled` are silenced for `shiva`
-  until 2026-10-01 (`3ffc313f-7154-459c-9f62-7c9a432bc97e`) so a known
+  until 2026-10-01 (`bfdfff66-d9c3-4df4-9495-f1f38ebf93c1`) so a known
   condition does not notify every 12 hours, and the silence is to be deleted
-  when the pack goes in rather than left to run out. The alert was wrong
+  when the pack goes in rather than left to run out. Both alerts were watched
+  through pending into firing on 2026-08-31 and reached the `default` receiver
+  with zero webhook failures before the silence was placed, so what is
+  suppressed is known-working rather than assumed-working. The alert was wrong
   independently of the hardware: it read only the scalar
   `cpqHeSysBackupBatteryCondition` while claiming to cover the RAID cache, so it
   could not name the pack, the reason, or the consequence. That is fixed; the
