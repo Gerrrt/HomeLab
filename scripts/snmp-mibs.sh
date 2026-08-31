@@ -16,7 +16,8 @@
 # so a normal deploy never needs any of this.
 #
 # Sources mirror prometheus/snmp_exporter's own generator Makefile, so this
-# tracks whatever upstream considers canonical.
+# tracks whatever upstream considers canonical — with one deliberate exception,
+# written out at UPS_MIB_URL below.
 #
 # Usage:
 #   scripts/snmp-mibs.sh            download anything missing
@@ -37,11 +38,30 @@ command -v curl >/dev/null 2>&1 || die "curl not found"
 command -v tar  >/dev/null 2>&1 || die "tar not found"
 
 # Pinned refs. net-snmp and FreeBSD are tags; the HPE URL embeds its own
-# version. UPS-MIB comes from the same mirror upstream uses — it is a branch
-# ref there, which is why it is the one source that can move under us.
+# version; UPS-MIB is a commit.
+#
+# The UPS-MIB pin is the one place this deliberately diverges from upstream.
+# snmp_exporter's generator Makefile fetches it from this mirror's master
+# branch, and copying that verbatim is what this line used to do — which made
+# it the single source in this file that could move under us. The generator
+# resolves OIDs through whatever is on disk, so a changed MIB does not fail: it
+# renders a different snmp.yaml, and the diff arrives looking like it came from
+# nowhere. The `DEFINITIONS` sniff in fetch() below would not catch it either,
+# because a moved MIB is still a MIB.
+#
+# 9064fa3 is the last commit to touch mibs/UPS-MIB there, in 2015. Pinning it
+# changes the URL and not the bytes — verify with `make snmp-mibs ARGS=--force`
+# followed by `make snmp-generate`, which must leave snmp.yaml untouched. Do not
+# revert this to refs/heads/master when syncing the other sources against
+# upstream; upstream not pinning it is not a reason for us not to.
+#
+# The other three are pinned by tag and by vendor build path, which is weaker
+# than a commit — a tag can be moved too. Left as they are: they are first-party
+# refs on projects that do not move release tags, which is a different risk from
+# a branch on a third-party mirror. Nothing here is pinned by content.
 NET_SNMP_URL='https://raw.githubusercontent.com/net-snmp/net-snmp/v5.9/mibs'
 FREEBSD_URL='https://raw.githubusercontent.com/freebsd/freebsd-src/release/14.2.0'
-UPS_MIB_URL='https://raw.githubusercontent.com/pgmillon/observium/refs/heads/master/mibs/UPS-MIB'
+UPS_MIB_URL='https://raw.githubusercontent.com/pgmillon/observium/9064fa3ae1ae634709198decf99aca7380693351/mibs/UPS-MIB'
 HPE_URL='https://downloads.hpe.com/pub/softlib2/software1/pubsw-linux/p1580676047/v229101/upd11.85mib.tar.gz'
 
 CURL_OPTS=(-L -sS --retry 3 --retry-delay 3 --fail --max-time 180)

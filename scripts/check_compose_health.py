@@ -23,6 +23,15 @@ Two layers, because they need different things:
     no-userland images, which could only ever be right about the images
     somebody had thought to check (#79).
 
+One more thing rides on these healthchecks, so it is checked here too.
+scripts/reload-config.sh classifies a failed reload by asking the service
+whether it is listening — `wget --spider -q http://localhost:<port>/-/healthy`,
+which is the same probe each of those services already declares here. That made
+the endpoint and the ports in that script's SERVICES array a copy of what is in
+this file, with nothing holding the two together, so the last section of main()
+reads the array back out and requires each entry to match the healthcheck it is
+standing on (#80).
+
 Usage: scripts/check_compose_health.py [--probe] [compose.yaml]
 """
 from __future__ import annotations
@@ -96,6 +105,23 @@ NOT_FOUND = re.compile(
 PROBE_COUNTER = itertools.count()
 NUMERIC_USER = re.compile(r"\d+(:\d+)?")
 
+# scripts/reload-config.sh reloads these services by name and port, and decides
+# whether a failed reload was a refusal or a not-listening-yet by probing
+# http://localhost:<port>/-/healthy. That URL is hardcoded there rather than
+# carried alongside each entry, because it would be the same string four times
+# and a list with four chances to disagree is worse than a constant with none —
+# but it leaves the port, and the endpoint, duplicated across two files.
+#
+# So read the array back and check it, in the spirit of the rest of this script:
+# a claim one file makes about another is asserted, not trusted. Scraping a bash
+# array with a regex is what check_docs.py already does to keep prose honest
+# (#73). It catches a port changing here and not there, a service being added to
+# the reload list without a healthcheck to probe, and /-/healthy moving.
+RELOAD_SCRIPT = REPO / "scripts/reload-config.sh"
+RELOAD_SERVICES = re.compile(r"^SERVICES=\((.*?)^\)", re.M | re.S)
+RELOAD_ENTRY = re.compile(r"^\s*([A-Za-z0-9_.-]+):(\d+)\s*$")
+RELOAD_PROBE_PATH = "/-/healthy"
+
 
 def note(message: str) -> None:
     """Progress, to stderr. A probe pass is slow enough to look hung."""
@@ -134,6 +160,78 @@ def healthcheck_binary(test: object) -> tuple[str | None, str | None]:
         f"healthcheck test is a list starting {test[0]!r}; it must start with "
         f"CMD, CMD-SHELL or NONE, so docker cannot run it as written"
     )
+
+
+def reload_probe_problems(services: dict, compose_name: str) -> list[str]:
+    """Where reload-config.sh's SERVICES array disagrees with the healthchecks.
+
+    Returns the problems, or a single problem if the array itself could not be
+    read — a scraper that has silently stopped matching must fail rather than
+    report nothing to check, which is the shape of bug this whole file is about.
+    """
+    if not RELOAD_SCRIPT.exists():
+        return [f"{RELOAD_SCRIPT.name} is missing; nothing reloads these services"]
+
+    source = RELOAD_SCRIPT.read_text(encoding="utf-8")
+    block = RELOAD_SERVICES.search(source)
+    if not block:
+        return [
+            f"could not find the SERVICES=( ... ) array in {RELOAD_SCRIPT.name} — "
+            f"it was reshaped, and this check has been reading nothing ever since"
+        ]
+
+    problems: list[str] = []
+    entries: list[tuple[str, str]] = []
+    for line in block.group(1).splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        entry = RELOAD_ENTRY.match(line)
+        if not entry:
+            problems.append(
+                f"{RELOAD_SCRIPT.name} SERVICES contains {line.strip()!r}, which is "
+                f"not the service:port this check knows how to verify"
+            )
+            continue
+        entries.append((entry.group(1), entry.group(2)))
+
+    if not entries and not problems:
+        return [f"{RELOAD_SCRIPT.name} SERVICES is empty"]
+
+    for name, port in entries:
+        svc = services.get(name)
+        if svc is None:
+            problems.append(
+                f"{RELOAD_SCRIPT.name} reloads {name}, which is not defined in "
+                f"{compose_name}"
+            )
+            continue
+
+        expected = f"http://localhost:{port}{RELOAD_PROBE_PATH}"
+        check = (svc or {}).get("healthcheck")
+        if not isinstance(check, dict) or check.get("disable"):
+            problems.append(
+                f"{RELOAD_SCRIPT.name} probes {expected} to tell a refused reload "
+                f"from a service that is not listening yet, but {name} declares no "
+                f"healthcheck here — so nothing proves that URL answers, and a "
+                f"refused reload would be reported as a timeout instead"
+            )
+            continue
+
+        test = check.get("test")
+        urls = [
+            str(part)
+            for part in (test if isinstance(test, list) else [test])
+            if isinstance(part, str) and part.startswith(("http://", "https://"))
+        ]
+        if expected not in urls:
+            problems.append(
+                f"{RELOAD_SCRIPT.name} probes {expected} for {name}, but its "
+                f"healthcheck in {compose_name} uses {urls or ['no URL at all']} — "
+                f"the port or the endpoint has drifted between the two files, and "
+                f"the reload would misreport a bad config as a timeout"
+            )
+
+    return problems
 
 
 def docker_unavailable() -> str | None:
@@ -284,6 +382,13 @@ def main() -> int:
                     f"declares no healthcheck — it can never report healthy, so "
                     f"{name} will hang forever"
                 )
+
+    # The reload script's copy of these ports, checked against the originals.
+    # Only meaningful against the file it actually reloads, so it is skipped for
+    # an explicitly-passed compose file that is not the default one.
+    reload_checked = path.resolve() == DEFAULT.resolve()
+    if reload_checked:
+        problems += reload_probe_problems(services, path.name)
 
     # Every healthcheck the compose file declares, decoded to the one binary the
     # image has to contain for it to run at all. Profiles are deliberately not
@@ -454,6 +559,8 @@ def main() -> int:
         f"{path.name} OK — {checks} healthcheck(s), "
         f"{healthy_deps} service_healthy dependency/dependencies, all satisfiable"
     )
+    if reload_checked:
+        summary += f"; {RELOAD_SCRIPT.name} probes agree with them"
     if probe:
         # The count is the point. A probe loop that silently stopped matching
         # anything would otherwise print this same green line having done
