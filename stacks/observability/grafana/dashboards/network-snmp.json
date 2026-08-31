@@ -1682,7 +1682,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "cpqHeTemperatureCondition or cpqHeFltTolPowerSupplyCondition or cpqDaLogDrvCondition or cpqDaPhyDrvCondition",
+          "expr": "cpqHeTemperatureCondition or cpqHeFltTolPowerSupplyCondition or cpqDaLogDrvCondition or cpqDaPhyDrvCondition or cpqDaCntlrCondition or cpqDaCntlrBoardCondition or cpqDaAccelCondition or cpqHeSysBatteryCondition",
           "legendFormat": "__auto",
           "range": false,
           "instant": true,

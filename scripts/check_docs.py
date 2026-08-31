@@ -19,7 +19,7 @@ check it. This does that for `docs/`, following the pattern
 
 Six assertions, each comparing prose against something machine-readable:
 
-  1. Counted claims        rules, dashboards and panels quoted in prose
+  1. Counted claims        rules, unit-test coverage, dashboards, panels
   2. SNMP targets          snmp.yaml <-> docs/network.md
   3. Host and stack table  docs/architecture.md <-> docs/network.md, stacks/
   4. Ports table           docs/architecture.md <-> compose.yaml
@@ -172,6 +172,28 @@ def count_alerts(paths) -> int:
     )
 
 
+def tested_alertnames(paths) -> set[str]:
+    """Every alert named by a promtool unit test.
+
+    `alertname:` appears twice per case — once selecting the rule, once inside
+    exp_labels — so this is a set, not a count. A case asserting
+    `exp_alerts: []` still counts the rule as covered: it was fed an input and
+    its silence was asserted, which is the half of the pairing #63 was missing.
+
+    This counts what the tests NAME, not what they prove. A test file naming a
+    rule that no longer exists would inflate it — but `promtool test rules`
+    fails on that first, so the two checks bracket each other.
+    """
+    names: set[str] = set()
+    for path in paths:
+        names.update(
+            re.findall(
+                r"^\s*alertname:\s*(\S+)", path.read_text(encoding="utf-8"), re.M
+            )
+        )
+    return names
+
+
 def count_panels(paths) -> int:
     """Every panel object, rows included.
 
@@ -213,6 +235,9 @@ def facts() -> dict:
     dashboards = sorted((STACK / "grafana/dashboards").glob("*.json"))
     prom = count_alerts(prom_rules)
     loki = count_alerts(loki_rules)
+    tested = tested_alertnames(
+        sorted((STACK / "prometheus/tests").glob("*.test.yaml"))
+    )
     return {
         "prometheus_rules": prom,
         "loki_rules": loki,
@@ -220,6 +245,8 @@ def facts() -> dict:
         "dashboards": len(dashboards),
         "panels": count_panels(dashboards),
         "prometheus_rule_files": len(prom_rules),
+        "tested_rules": len(tested),
+        "untested_rules": prom - len(tested),
     }
 
 
@@ -249,6 +276,15 @@ def check_counts(f: dict) -> list[str]:
         # and the second was not, so splitting a rule file could not fail here.
         (rf"rules across\s+{COUNT}\s+files", {f["prometheus_rule_files"]},
          "Prometheus rule files"),
+        # How many rules have a unit test, and how many do not. Both were
+        # unguarded and both were already stale: the sentence read "Coverage is
+        # six rules of 39 ... ContainerHighMemory and Watchdog" while
+        # blackbox.test.yaml had covered three more for weeks. This is the
+        # figure most likely to drift, because it moves whenever a test lands.
+        (rf"[Cc]overage is\s+{COUNT}\s+rules", {f["tested_rules"]},
+         "unit-tested rules"),
+        (rf"[Oo]ther\s+{COUNT}\s+are still validated", {f["untested_rules"]},
+         "rules without a unit test"),
     )
     problems = []
     for rel in PROSE:

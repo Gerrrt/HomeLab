@@ -166,11 +166,12 @@ security  severity=critical category=security
 security  severity=warning category=security
 urgent    severity=critical category=availability
 default   severity=warning category=capacity
+default   severity=warning category=hardware
 null      severity=info category=correctness
 ROUTES
 
   if ((routes_ok)); then
-    pass "amtool config routes test (7 assertions)"
+    pass "amtool config routes test (8 assertions)"
   else
     fail "amtool config routes test"
   fi

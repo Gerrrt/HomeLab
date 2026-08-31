@@ -62,6 +62,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 - Sliding rails for the ProLiant[^Sliderail]
 - 1U universal rack mount for the APC[^Rail]
 - APCRBC115 replacement battery cartridge for the APC, fitted 2026-08-28
+- HP Smart Storage Battery 96W (`727258-B21`) in the ProLiant — **failed**,
+  spare part `815983-001`. The Smart Array has disabled its write cache in
+  response and runs write-through until it is replaced
+  ([#76](https://github.com/Gerrrt/HomeLab/issues/76))
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]
