@@ -260,7 +260,7 @@ measured, and that scheduled self-tests are still off. That is `ups-power.json`,
 
 Two deliberate departures from the plan above. The banner panel was **rewritten
 rather than deleted**, because there is still something true and non-obvious for
-it to say and keeping it holds the dashboard at 84 panels, so the
+it to say and keeping it holds the dashboard at 117 panels, so the
 `scripts/check_docs.py` panel-count coupling stays untriggered. And **#93 was
 not moved into Done**, because this roadmap entry defines it as *delete the
 silence, then self-test, then enable scheduled tests* — the third is step 6, and

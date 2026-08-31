@@ -47,7 +47,7 @@ make screenshots
 ```
 
 `scripts/capture-screenshots.sh` starts the `capture` profile's renderer, shoots
-four of the five dashboards over a 24-hour window, and stops the renderer again.
+four of the six dashboards over a 24-hour window, and stops the renderer again.
 Nothing is left running and `docker compose ps` shows the same six services
 afterwards.
 
@@ -79,10 +79,27 @@ what the screenshot is for.
 `make screenshots` is cheap and repeatable. Re-running it tomorrow is the
 correct fix for a bad window, not cropping.
 
-## The Logs dashboard is not captured
+## What is not captured, and why
 
-There are five dashboards and four screenshots. `homelab-logs` is excluded on
-purpose.
+There are six dashboards and four screenshots, and the two missing ones are
+missing for different reasons. `homelab-logs` is excluded on purpose and always
+will be. `homelab-stack` simply has not been shot yet.
+
+### `homelab-stack` is safe to capture and is only unshot
+
+It arrived with [#81](https://github.com/Gerrrt/HomeLab/issues/81) and carries
+no log lines, no usernames and no addresses beyond the container names and
+service ports already published throughout this repository. Nothing about it
+needs redaction — it wants a run of `make screenshots` with the dashboard added
+to `DASHBOARDS` in `scripts/capture-screenshots.sh`, and a full day of history
+behind it so the panels are not half empty.
+
+It is left out of this set rather than shot in a hurry because the window
+matters more for this dashboard than for any other: it draws the collection path
+itself, so a capture taken shortly after a deploy publishes the deploy's own gap
+as though it were the steady state.
+
+### `homelab-logs` is excluded on purpose
 
 Its Authentication log panel renders `auth.log` verbatim — real usernames, real
 source addresses, real session IDs — and so do the other two stream panels. That

@@ -1,5 +1,11 @@
 ---
 # Container metrics arrive via the cAdvisor exporter embedded in Alloy.
+#
+# The five rules watching the observability stack's own components used to
+# live here and carry `component: containers` with the rest. They are in
+# stack.rules.yaml under `component: stack` since #81 — a Prometheus that
+# cannot reload its config is not a container problem, and filing it under
+# one sent you to the wrong dashboard.
 groups:
   - name: containers
     interval: 60s
@@ -67,77 +73,3 @@ groups:
           category: saturation
         annotations:
           summary: "Container {{ $labels.name }} throttled {{ $value | humanizePercentage }} of CPU periods"
-
-      # --- The observability stack watching itself --------------------------
-      - alert: PrometheusConfigReloadFailed
-        expr: prometheus_config_last_reload_successful == 0
-        for: 5m
-        labels:
-          component: containers
-          severity: critical
-          category: correctness
-        annotations:
-          summary: "Prometheus rejected its own config reload on {{ $labels.instance }}"
-
-      - alert: PrometheusRuleEvaluationFailures
-        expr: increase(prometheus_rule_evaluation_failures_total[15m]) > 0
-        for: 5m
-        labels:
-          component: containers
-          severity: warning
-          category: correctness
-        annotations:
-          summary: "{{ $value }} rule evaluation failures in the last 15 minutes"
-
-      - alert: PrometheusSizeRetentionActive
-        # --storage.tsdb.retention.size is a ceiling that, when it engages,
-        # silently shortens retention from the 30 days everything else in this
-        # repository claims to whatever fits in 4 GiB. Nothing else would say
-        # so: the store keeps working, the dashboards keep drawing, and you find
-        # out when a query over last month comes back short. Prometheus counts
-        # size-based eviction separately from time-based eviction, which is the
-        # only thing that distinguishes "the ceiling bound" from "old data aged
-        # out normally" — do not substitute prometheus_tsdb_time_retentions_total
-        # here, it increments constantly and by design.
-        #
-        # Firing means one of two things and both want a human: the series
-        # budget grew past what 4 GiB holds for 30 days, or something is pushing
-        # volume into the open remote-write receiver. Either way the documented
-        # retention is no longer true.
-        expr: increase(prometheus_tsdb_size_retentions_total[1h]) > 0
-        labels:
-          component: containers
-          severity: warning
-          category: capacity
-        annotations:
-          summary: "Prometheus is evicting blocks to stay under its size ceiling"
-          description: >-
-            Retention is now bounded by PROMETHEUS_RETENTION_SIZE rather than
-            PROMETHEUS_RETENTION, so history is shorter than 30 days.
-
-      - alert: AlertmanagerNotificationsFailing
-        expr: increase(alertmanager_notifications_failed_total[15m]) > 0
-        for: 5m
-        labels:
-          component: containers
-          severity: critical
-          category: correctness
-        annotations:
-          summary: "Alertmanager cannot deliver notifications via {{ $labels.integration }}"
-          description: >-
-            Alerts are firing but not reaching anyone — this makes every other
-            rule in this repository silently useless.
-
-      - alert: LokiIngestionStalled
-        expr: |
-          sum(rate(loki_distributor_lines_received_total[30m])) == 0
-        for: 30m
-        labels:
-          component: containers
-          severity: warning
-          category: availability
-        annotations:
-          summary: "Loki has received no log lines for 30 minutes"
-          description: >-
-            Either every Alloy agent is down or the push endpoint is
-            unreachable. Logs are being lost, not queued indefinitely.

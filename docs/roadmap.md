@@ -210,6 +210,47 @@ months.
 
 ## Done
 
+- [x] **[#81](https://github.com/Gerrrt/HomeLab/issues/81) A dashboard for the
+      observability stack itself.** `homelab-stack`, 33 panels, all from metrics
+      already collected. The argument in the issue was that two of the three
+      faults found while verifying #12 would have been visible on it
+      immediately, and the panels that would have shown them are the two the
+      dashboard is really built around: *Samples returned per scrape*, where
+      cAdvisor collapsing from hundreds of series to one is a step change while
+      `up` stays 1, and the Alloy remote-write lag, where a stale address shows
+      as a climbing line rather than as nothing at all.
+      Three things came with it because the dashboard could not be honest
+      without them. The five rules watching the stack's own components were
+      carrying `component: containers` and so were filed under *Container
+      alerts* on the Docker dashboard; they are now `stack.rules.yaml` on
+      `component: stack`, a relabel with the expressions untouched. Each Alloy
+      agent now scrapes itself and remote-writes the result, because
+      `prometheus.yaml` could only ever reach the agent on this host —
+      `oracle` publishes Alloy's port on loopback and there is no address to
+      point at. And `check_docs.py` was matching spelled counts in lowercase
+      only, so "Five dashboards are provisioned" was unguarded while "There are
+      five dashboards" two files away was checked; both were stale together.
+      One thing the dashboard made obvious was that **`up` is not a liveness
+      signal for the jobs that arrive by remote_write**: a pushing agent that
+      dies stops pushing, so its series ages out rather than falling to 0, and
+      `InstanceDown` is `up == 0`. `RemoteWriteJobStale` closes that, and is
+      worth reading for how it is written rather than what it covers. The
+      obvious form, a threshold on the staleness the dashboard graphs, is
+      unfireable for the same reason #63 was — an instant selector stops
+      returning a sample after the lookback delta, so the difference never
+      reaches the threshold. Both that form and the version with the guard
+      dropped were run against the tests and both fail them. What ships asks
+      which jobs were reporting in the last 24 hours and are not reporting now.
+      It was then watched working rather than argued: the agent on the
+      monitoring host was stopped for six minutes with the rule silenced, and
+      the alert went pending at t+282s having returned nothing at all for the
+      four and a half minutes before that — the lookback delta, and the real
+      blind window on any remote-written target.
+      The residual is in the 24-hour window: an agent away longer than a day
+      resolves the alert falsely, having notified at least twice first. That is the price
+      of matching on the job-name convention instead of a list, and the list is
+      what would silently miss `Saruman` when it arrives (#88).
+
 - [x] **[#77](https://github.com/Gerrrt/HomeLab/issues/77) Schedule something.**
       Four systemd timers on the monitoring host run `make backup` weekly,
       `make backup ARGS='--verify-only --all'` and `make backup-firewall` nightly,

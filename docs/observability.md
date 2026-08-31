@@ -17,6 +17,7 @@ What is collected, where it goes, and how to change it.
 | APC UPS | snmp-exporter | 60s | Charge, runtime, load, voltage, alarms |
 | ProLiant iLO | snmp-exporter | 60s | Temperature, PSU, drive and battery health |
 | The stack itself | Prometheus | 15s | Every component scrapes itself |
+| Each Alloy agent | Alloy → itself | 60s | Remote-write throughput and lag, component health, lines forwarded |
 
 Retention is 30 days for both metrics (`PROMETHEUS_RETENTION` in `.env`) and
 logs (`retention_period` in `loki/loki-config.yaml`). Change both together or
@@ -59,7 +60,7 @@ Ubuntu host and a Go container at the same time.
 
 ## Dashboards
 
-Five dashboards are provisioned from `grafana/dashboards/` into a **HomeLab**
+Six dashboards are provisioned from `grafana/dashboards/` into a **HomeLab**
 folder:
 
 | Dashboard | UID | Covers |
@@ -69,6 +70,7 @@ folder:
 | Network & Firewall | `homelab-network` | pf state table, switch interfaces, iLO health |
 | UPS & Power | `homelab-ups` | Battery, runtime, load, input voltage |
 | Logs | `homelab-logs` | Volume by level and source, error and auth streams |
+| Observability Stack | `homelab-stack` | Scrape health for every target, and Prometheus, Loki, Alertmanager and Alloy watching themselves |
 
 `allowUiUpdates` is `false`, so edits made in the Grafana UI are discarded on
 restart. That is deliberate — the JSON in git is the source of truth. To change
@@ -77,9 +79,61 @@ commit it over the file. CI checks the result parses, that every datasource UID
 resolves, that panels fit the grid and do not overlap, and that every PromQL
 expression in every panel is syntactically valid.
 
+### Watching the collection path
+
+`homelab-stack` exists because the stack watched four devices and two hosts
+attentively and did not watch itself at all
+([#81](https://github.com/Gerrrt/HomeLab/issues/81)). Two of the three faults
+found while verifying #12 would have been visible on it within a minute:
+remote_write failing to a stale address, and cAdvisor reporting one series where
+it should report hundreds. Both were invisible for hours because the only view
+of the collection path was `up{job="alloy"}`, which stayed `1` throughout.
+
+`up` is a poor liveness signal for half of what this stack collects, and the
+dashboard says so rather than papering over it. Prometheus scrapes nine jobs
+directly; four more arrive by remote_write from an Alloy agent. **A directly
+scraped target that dies sets `up` to 0. A remote-writing agent that dies just
+stops pushing, so its `up` goes stale and ages out instead of falling** — and
+`InstanceDown` is `up == 0`, so it cannot see that at all. The *Sample staleness
+by job* panel is what covers those four on the dashboard, and the *Every target*
+table puts `Staleness` next to `Up` for the same reason.
+
+`RemoteWriteJobStale` in `stack.rules.yaml` is the alert for it, and it is
+deliberately not written as a threshold on that staleness panel. `time() -
+timestamp(up) > 300` reads correctly and cannot fire for any input: an instant
+selector stops returning a sample once the lookback delta passes, so the
+difference is bounded below any threshold worth alerting on. Measured over 24
+hours of real data the largest value any job reached was 79 seconds. The rule
+therefore asks the question the other way round — which jobs were reporting in
+the last 24 hours and are not reporting now — because `count_over_time` reads a
+range and sees through staleness where an instant selector cannot.
+
+Two consequences worth knowing. It matches on the job-name convention
+`config.alloy` builds (`<hostname>-metrics`, `<hostname>-alloy`,
+`integrations/cadvisor`) rather than a list, so a new agent is covered the day
+it is deployed and `Saruman` ([#88](https://github.com/Gerrrt/HomeLab/issues/88))
+will need nothing added. And the 24-hour window is a real bound: an agent that
+comes back inside a day resolves the alert truthfully, one that stays away
+longer resolves it falsely once the window no longer remembers it, having
+notified at least twice by then.
+
+Alongside it, **samples returned per scrape** is the panel that catches a
+collector which is still answering but has stopped exporting most of what it
+used to. That is precisely the cAdvisor fault: `up` at 1, scrape succeeding,
+one series where there should be hundreds.
+
+Since #81 each Alloy agent also scrapes itself and remote-writes the result
+under `<hostname>-alloy`, so `prometheus_remote_storage_*` and
+`alloy_component_*` exist for every agent rather than only the one on this host.
+`oracle` publishes Alloy's port on loopback (ADR-0012) and there is no address
+Prometheus could be pointed at; pushing down the pipe that is already open costs
+nothing and needs no new exposure. The monitoring host's agent is consequently
+collected twice — `job="alloy"` by direct scrape and `job="prometheus-alloy"` by
+push — which is deliberate: the first is the only one whose `up` can reach 0.
+
 ## Alerting
 
-58 rules in total: 45 metric-based in `prometheus/rules/`, and 13 log-based in
+59 rules in total: 46 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -108,14 +162,15 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-45 rules across seven files in `prometheus/rules/`:
+46 rules across eight files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
 | `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew, reboots |
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware and Smart Array cache. `shiva`'s Smart Storage Battery has read failed since 2026-08-18 and the array has dropped to write-through as a result — `IloBatteryCondition` names the spare part to order, and the controller rollups are deliberately read at *failed* rather than *degraded* ([#76](https://github.com/Gerrrt/HomeLab/issues/76)) |
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
-| `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling, and the stack watching itself |
+| `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
+| `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion, and remote-writing agents that stop pushing — the case `up == 0` structurally cannot see. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, and never-ran |
@@ -127,11 +182,11 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is fourteen rules of 45 so far — the three
+against the broken rule too. Coverage is fifteen rules of 46 so far — the three
 in `blackbox.rules.yaml`, `ContainerHighMemory` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
-[#76](https://github.com/Gerrrt/HomeLab/issues/76), and all five in
-`backup.test.yaml`.
+[#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
+`backup.test.yaml`, and `RemoteWriteJobStale`.
 The other 31 are still validated for syntax only, which is exactly the
 standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
 sentence they replaced claimed six and named two, and had been wrong for

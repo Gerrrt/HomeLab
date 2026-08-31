@@ -44,8 +44,8 @@ incident.
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
-- **Dashboards and alerting as code.** 5 provisioned dashboards, 84 panels, and
-  58 alert rules — 45 metric-based in Prometheus, 13 log-based in Loki — sharing
+- **Dashboards and alerting as code.** 6 provisioned dashboards, 117 panels, and
+  59 alert rules — 46 metric-based in Prometheus, 13 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -143,7 +143,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 | Collection | [Grafana Alloy](stacks/observability/alloy) | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
 | Network polling | [snmp_exporter](stacks/observability/snmp-exporter) | pfSense, switch, UPS, iLO |
 | Alerting | [Alertmanager](stacks/observability/alertmanager) | Severity routing, inhibition |
-| Visualisation | [Grafana](stacks/observability/grafana) | 5 provisioned dashboards |
+| Visualisation | [Grafana](stacks/observability/grafana) | 6 provisioned dashboards |
 | Secrets | [SOPS + age](secrets) | Encrypted in-repo |
 | CI | [GitHub Actions](.github/workflows/ci.yml) | Lint, config validation, secret scanning, digest pinning |
 
@@ -153,12 +153,12 @@ rack; a dashed border means egress only. Full topology and data flow in
 .
 ├── stacks/observability/     # the deployed stack — one compose file, six services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 45 alert rules
+│   ├── prometheus/           # config, file_sd targets, 46 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 13 LogQL rules
 │   ├── alloy/                # one agent config, used on every host
 │   ├── snmp-exporter/        # generator.yaml is the source of truth
-│   └── grafana/              # provisioning + 5 dashboards
+│   └── grafana/              # provisioning + 6 dashboards
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
 ├── scripts/                  # bootstrap, render, validate, pin-digests, purge
 ├── SECURITY.md               # disclosure policy and known exposure
@@ -229,7 +229,7 @@ a ninety-day deadline and an alert instead. See
 ## Dashboards
 
 Rendered from the running stack by `make screenshots`, over a 24-hour window.
-Four of the five provisioned dashboards are here; `docs/images/README.md`
+Four of the six provisioned dashboards are here; `docs/images/README.md`
 explains why the Logs dashboard is deliberately not among them.
 
 ![Host Overview dashboard: CPU, memory, load, storage and network for every host

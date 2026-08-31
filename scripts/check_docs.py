@@ -94,13 +94,25 @@ PROSE = (
 # above any count here — the cap keeps the alternation short, it is not a
 # claim about the ceiling. Longest-first so "seven" cannot match inside
 # "seventeen" and leave the rest of the pattern to fail.
+#
+# The word branch is case-insensitive because prose capitalises a number that
+# starts a sentence, and a capital is not a different claim. It was matching
+# lowercase only, so "There are five dashboards" was guarded while "Five
+# dashboards are provisioned" two files away was not — and both were stale
+# together (#81). `number()` already lowercased, so only the pattern was wrong.
+#
+# The cost of widening it: a heading like "Two dashboards are not captured" is a
+# claim about a subset, and this reads it as a claim about the total and fails.
+# That is the right way round — a false positive is a reword, a false negative is
+# a document that lies. Phrase a subset so it does not put a bare count in front
+# of the noun.
 NUMBER_WORDS = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
     "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
     "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
     "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
 }
-COUNT = r"\b(\d+|" + "|".join(sorted(NUMBER_WORDS, key=len, reverse=True)) + r")"
+COUNT = r"\b(\d+|(?i:" + "|".join(sorted(NUMBER_WORDS, key=len, reverse=True)) + r"))"
 
 
 def number(token: str) -> int:
@@ -285,6 +297,12 @@ def check_counts(f: dict) -> list[str]:
          "unit-tested rules"),
         (rf"[Oo]ther\s+{COUNT}\s+are still validated", {f["untested_rules"]},
          "rules without a unit test"),
+        # "Coverage is fifteen rules of 45" states two counts and only the
+        # first was checked, so the denominator could go stale on its own —
+        # the same shape as "39 rules across six files" above, and it did go
+        # stale the same way the moment a rule was added (#81).
+        (rf"rules of\s+{COUNT}\s+so far", {f["prometheus_rules"]},
+         "rules in the coverage denominator"),
     )
     problems = []
     for rel in PROSE:
