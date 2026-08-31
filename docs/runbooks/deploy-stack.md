@@ -63,11 +63,48 @@ ss -ltn | grep -E ':(9090|3100|3000)'    # BIND_ADDR — 0.0.0.0 by default
 ss -lun | grep ':1514'                   # BIND_ADDR
 ```
 
+Confirm the per-container limits applied too. A limit that silently failed to
+take is the thing they exist to defend against, and nothing in the stack would
+report it (#71):
+
+```bash
+for c in prometheus alertmanager loki grafana snmp-exporter blackbox-exporter alloy; do
+  docker inspect "$c" --format '{{.Name}} init={{.HostConfig.Init}} pids={{.HostConfig.PidsLimit}}'
+done
+```
+
+Every service should read `init=true`, and `pids=512` except `alloy`, which is
+`1024`. That reads back what Docker was *asked* for, so confirm the kernel
+agrees — a stale cgroup directory will happily show you the old ceiling:
+
+```bash
+p=$(docker inspect -f '{{.State.Pid}}' prometheus)
+cat "/sys/fs/cgroup$(cut -d: -f3 /proc/$p/cgroup | head -1)/pids.max"    # 512
+```
+
+`init=false` on grafana means the zombie leak is back:
+
+```bash
+docker exec grafana sh -c 'ls -d /proc/[0-9]* | wc -l'
+```
+
+which should be single digits and stay there, not climb by two every 30 seconds.
+
+Confirm the size ceiling is armed, too. `PrometheusSizeRetentionActive` only
+fires once the ceiling *bites*, so if the flag were ever dropped this would
+silently read `0` and the rule would stay quiet forever — the #63 shape:
+
+```bash
+curl -s 'http://localhost:9090/api/v1/query?query=prometheus_tsdb_retention_limit_bytes'
+```
+
+`12884901888` is 12 GiB. `0` means there is no size bound in force.
+
 Then in the UI:
 
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
-2. **Prometheus → Status → Rules.** 38 rules loaded, none in error.
+2. **Prometheus → Status → Rules.** 39 rules loaded, none in error.
 3. **Grafana → Dashboards → HomeLab.** Five dashboards, populated.
 4. **Grafana → Explore → Loki**, run `{host=~".+"}`. Logs should be arriving.
 5. Confirm level normalisation is working — this has been silently broken

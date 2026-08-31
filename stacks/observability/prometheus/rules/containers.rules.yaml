@@ -89,6 +89,32 @@ groups:
         annotations:
           summary: "{{ $value }} rule evaluation failures in the last 15 minutes"
 
+      - alert: PrometheusSizeRetentionActive
+        # --storage.tsdb.retention.size is a ceiling that, when it engages,
+        # silently shortens retention from the 30 days everything else in this
+        # repository claims to whatever fits in 4 GiB. Nothing else would say
+        # so: the store keeps working, the dashboards keep drawing, and you find
+        # out when a query over last month comes back short. Prometheus counts
+        # size-based eviction separately from time-based eviction, which is the
+        # only thing that distinguishes "the ceiling bound" from "old data aged
+        # out normally" — do not substitute prometheus_tsdb_time_retentions_total
+        # here, it increments constantly and by design.
+        #
+        # Firing means one of two things and both want a human: the series
+        # budget grew past what 4 GiB holds for 30 days, or something is pushing
+        # volume into the open remote-write receiver. Either way the documented
+        # retention is no longer true.
+        expr: increase(prometheus_tsdb_size_retentions_total[1h]) > 0
+        labels:
+          component: containers
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Prometheus is evicting blocks to stay under its size ceiling"
+          description: >-
+            Retention is now bounded by PROMETHEUS_RETENTION_SIZE rather than
+            PROMETHEUS_RETENTION, so history is shorter than 30 days.
+
       - alert: AlertmanagerNotificationsFailing
         expr: increase(alertmanager_notifications_failed_total[15m]) > 0
         for: 5m

@@ -20,6 +20,44 @@ x-service-defaults: &service-defaults
   restart: unless-stopped
   logging: *default-logging
   networks: [observability]
+  # A real init as PID 1, so orphaned children are reaped. Not hygiene: on
+  # 2026-08-31 grafana was holding 2437 defunct `ssl_client` processes and
+  # gaining two more every 30 seconds. Busybox wget forks a TLS helper for the
+  # https healthcheck further down, the helper is reparented to PID 1 when wget
+  # exits, and PID 1 in that container is `grafana server` — which never calls
+  # wait(). The default pids.max is 9056, so it ran out of tasks about three
+  # days after each start, and was only ever saved by being redeployed sooner
+  # than that. Every other healthcheck here is plain HTTP and forks nothing,
+  # which is why grafana was the only one that showed it (#71).
+  init: true
+  # Bounds a task leak of the kind the paragraph above describes. Steady state
+  # is 9-17 tasks per service and the highest go_threads seen over nine days is
+  # 21, so 512 is ~25x normal and still well under the Go runtime's own
+  # 10,000-thread abort. The number is loose on purpose: what makes a PID limit
+  # safe to set — and a memory limit not, which is why there is no mem_limit in
+  # this file and #114 owns that question — is that the gap between "certainly
+  # enough" and "certainly protective" spans two orders of magnitude here. A
+  # container that hits this dies on EAGAIN, restart: unless-stopped recovers
+  # it, and ContainerRestartLoop fires. The quieter case is the one that
+  # actually happened: the app was fine and the *healthcheck* could not fork,
+  # which shows as `unhealthy` and is not something Docker restarts — the same
+  # gap this file notes on loki. There is no rule watching PID counts directly
+  # because cAdvisor is not exporting container_processes; Alloy's exporter
+  # disables the "process" metric kind, and turning it on means restating the
+  # whole disabled list, since enabled_metrics overrides it rather than adding
+  # to it. Getting that wrong drops every other container metric, which is the
+  # #62 shape exactly. Worth its own issue, not a line here.
+  #
+  # `ulimits` is absent, and deliberately. nofile would throttle the mmap'd
+  # chunk files prometheus and loki depend on, to defend against an exhaustion
+  # never observed here. nproc is worse than useless: RLIMIT_NPROC is enforced
+  # per real UID across the whole kernel, not per container, and alertmanager
+  # and snmp-exporter both run as ${RENDER_UID} — the operator's own uid, set
+  # from `id -u` by scripts/render-config.sh. An nproc there would count the
+  # operator's host processes against the container, and could refuse the
+  # operator a login shell. pids_limit is a cgroup control and is scoped
+  # correctly; ulimits: nproc is a uid control in a container costume.
+  pids_limit: 512
 
 services:
   # ---------------------------------------------------------------------------
@@ -35,6 +73,43 @@ services:
       - --config.file=/etc/prometheus/prometheus.yaml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
+      # A ceiling on the TSDB, not a tidy-up. It bounds *sustained* growth —
+      # the series count creeping up as hosts and exporters are added — so that
+      # the disk cannot be consumed a few MiB at a time by a change nobody
+      # thought of as a storage decision.
+      #
+      # Do not size it from the store's current size. On 2026-08-31 that was
+      # 1021 MiB, and prometheus_tsdb_time_retentions_total was 0 — nothing had
+      # ever been evicted, so the store was still filling and that number was
+      # not a steady state. Per-block rates over the retained window: 16.1
+      # MiB/day up to 08-17, then 72.9 MiB/day after, because #62 fixed cAdvisor
+      # and the series count went 3,514 -> 24,005. Steady state at the current
+      # rate is 30 x 72.9 + ~150 MiB of WAL and head chunks = 2.28 GiB, and
+      # ~2.73 GiB once Saruman gets an agent (#88). So 12GB — powers-of-2, i.e.
+      # 12 GiB — is 5.3x today and 4.4x with #88, and 12% of the 98 GiB volume.
+      # 4 GiB looked generous against 1021 MiB and would have been 1.5x against
+      # the estate that is already planned.
+      #
+      # That headroom is the point: this repository promises 30 days in four
+      # places, and a ceiling reached in normal operation is a second retention
+      # policy wearing a ceiling's clothes. If it ever does evict,
+      # PrometheusSizeRetentionActive in containers.rules.yaml says so.
+      #
+      # What it does NOT do is win a race against a flood through the
+      # remote-write receiver enabled below, which anything that can route here
+      # may push to (ADR-0012, #182). The budget counts the WAL and the m-mapped
+      # head chunks but only ever evicts persistent blocks, and a flood lands in
+      # the WAL: at a few MB/s the head alone passes 12 GiB long before any
+      # block does, at which point every block is deleted and the WAL keeps
+      # growing regardless. Bounding that is authentication's job, not this
+      # flag's.
+      #
+      # Both retention flags are marked [DEPRECATED] by this version in favour
+      # of a storage.tsdb.retention block in prometheus.yaml. They still work,
+      # and they stay here because prometheus.yaml is mounted rather than
+      # rendered — moving retention into it would drop these two tunables out of
+      # .env.example, which is where this repository deliberately keeps them.
+      - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-12GB}
       - --web.enable-remote-write-receiver
       - --web.enable-lifecycle
     volumes:
@@ -321,6 +396,10 @@ services:
     # from the environment instead; the header of that file has the whole story.
     image: grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839
     container_name: alloy
+    # 1024 rather than the shared 512: this is the one service that walks
+    # cgroups, tails the journal and talks to the Docker socket, so it has more
+    # reason than the others to fan out. Observed peak is 20 threads either way.
+    pids_limit: 1024
     privileged: true
     # Without this the cAdvisor exporter reports exactly one series, id="/",
     # and every per-container metric is missing — which is what the Docker
@@ -414,6 +493,13 @@ services:
     # through a large dashboard, which presents as a truncated PNG rather than
     # an error.
     shm_size: "1gb"
+    # Overrides the shared 512, which is a number measured from Go services and
+    # means nothing here — a headless Chromium is a process tree, not one
+    # binary. This value is not measured either: the `capture` profile is off on
+    # every normal deploy, so there was nothing running to count. It is set
+    # rather than inherited so that the shared default cannot quietly break a
+    # `make screenshots` run, and it is high enough that it should not bind.
+    pids_limit: 4096
 
   # ---------------------------------------------------------------------------
   # tar and gzip for scripts/backup-volumes.sh. NOT part of the running stack:

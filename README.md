@@ -45,7 +45,7 @@ incident.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 5 provisioned dashboards, 84 panels, and
-  51 alert rules — 38 metric-based in Prometheus, 13 log-based in Loki — sharing
+  52 alert rules — 39 metric-based in Prometheus, 13 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -138,7 +138,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 | --- | --- | --- |
 | Firewall / routing | [pfSense on FreeBSD 15](docs/network.md) | VLANs, DHCP, default-deny |
 | Virtualisation | Proxmox VE | Lab hypervisor |
-| Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention, remote-write receiver |
+| Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention capped at 12 GiB, remote-write receiver |
 | Logs | [Loki](stacks/observability/loki) | Single-binary, filesystem storage |
 | Collection | [Grafana Alloy](stacks/observability/alloy) | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
 | Network polling | [snmp_exporter](stacks/observability/snmp-exporter) | pfSense, switch, UPS, iLO |
@@ -153,7 +153,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 .
 ├── stacks/observability/     # the deployed stack — one compose file, six services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 38 alert rules
+│   ├── prometheus/           # config, file_sd targets, 39 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 13 LogQL rules
 │   ├── alloy/                # one agent config, used on every host

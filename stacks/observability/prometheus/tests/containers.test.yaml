@@ -148,3 +148,45 @@ tests:
               category: capacity
             exp_annotations:
               summary: "Container alloy is using 50% of host memory"
+
+  # --- PrometheusSizeRetentionActive: fires when the ceiling engages --------
+  # The counter is flat until the size ceiling starts evicting blocks, then it
+  # increments once per eviction. One step inside the hour is the whole signal.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_tsdb_size_retentions_total{instance="localhost:9090",job="prometheus"}'
+        values: "0+0x40 1+0x30"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: PrometheusSizeRetentionActive
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusSizeRetentionActive
+              instance: localhost:9090
+              job: prometheus
+              component: containers
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Prometheus is evicting blocks to stay under its size ceiling"
+              description: >-
+                Retention is now bounded by PROMETHEUS_RETENTION_SIZE rather
+                than PROMETHEUS_RETENTION, so history is shorter than 30 days.
+
+  # --- PrometheusSizeRetentionActive: quiet while the ceiling is not bound --
+  # This is the production state and the one the rule must not alert on: the
+  # counter exists and reads 0 forever. Without this case the rule would pass
+  # its test while being wired to a metric that is always absent.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_tsdb_size_retentions_total{instance="localhost:9090",job="prometheus"}'
+        values: "0x70"
+      # Time-based eviction runs constantly and by design. If the expression is
+      # ever "simplified" onto this counter instead, the rule fires every hour
+      # forever, and this case is what catches that.
+      - series: 'prometheus_tsdb_time_retentions_total{instance="localhost:9090",job="prometheus"}'
+        values: "0+1x70"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: PrometheusSizeRetentionActive
+        exp_alerts: []

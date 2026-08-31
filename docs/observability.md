@@ -22,6 +22,15 @@ Retention is 30 days for both metrics (`PROMETHEUS_RETENTION` in `.env`) and
 logs (`retention_period` in `loki/loki-config.yaml`). Change both together or
 dashboards will show metrics with no matching logs at the far end of the range.
 
+Metrics carry a second bound: `PROMETHEUS_RETENTION_SIZE` caps the store at
+12 GiB, and whichever limit is reached first wins. It is sized from the write
+rate rather than the store's current size — 72.9 MiB/day gives 2.28 GiB over
+30 days, 2.73 GiB once `Saruman` gets an agent — so it is roughly 4.4x the
+planned estate and should never bind. In normal operation the 30 days above is
+the limit that applies; if the size cap ever binds, that 30 days stops being
+true and `PrometheusSizeRetentionActive` is what says so. Loki has no
+equivalent size bound.
+
 ## Log level normalisation
 
 Logs arrive spelling severity about twenty different ways — `ERROR`, `err`,
@@ -70,7 +79,7 @@ expression in every panel is syntactically valid.
 
 ## Alerting
 
-51 rules in total: 38 metric-based in `prometheus/rules/`, and 13 log-based in
+52 rules in total: 39 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -99,7 +108,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-38 rules across six files in `prometheus/rules/`:
+39 rules across six files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -117,7 +126,7 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is two rules of 35 so far:
+against the broken rule too. Coverage is six rules of 39 so far:
 `ContainerHighMemory` and `Watchdog`. The other 33 are still validated for
 syntax only, which is exactly the standing #63 had.
 
