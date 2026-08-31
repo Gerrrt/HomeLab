@@ -22,6 +22,13 @@ issues intact. Nothing was summarised away.
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv.**
   Three of four devices can. The MokerLink switch cannot, which is the blocker
   for doing it uniformly.
+- **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
+  Prometheus and Loki ingest ports.** Both are published and unauthenticated, so
+  anything that can route to `10.0.99.20` can read every metric and log line,
+  inject metrics and delete log ranges. They stay published because `oracle`'s
+  agent pushes to them and has no other path, which is why #70 could close
+  Alertmanager and not these. Firewall default-deny is the whole control.
+  Accepted residual, recorded in `SECURITY.md`.
 - **[#86](https://github.com/Gerrrt/HomeLab/issues/86) Decide whether the lab
   VLAN needs egress filtering** — before the playground exists, not after.
 
