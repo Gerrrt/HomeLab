@@ -126,6 +126,26 @@ what left this one unfireable for months.
   cannot detect a card that has quietly stopped testing — it matches `6`
   (noTestsInitiated), and this one reads `1`.
   → [runbook](runbooks/fit-the-ups-battery.md)
+- **[#76](https://github.com/Gerrrt/HomeLab/issues/76) Replace `shiva`'s Smart
+  Storage Battery.** Chassis 0 battery 1 reads `cpqHeSysBatteryStatus` `13`
+  (shutdownPermanentFailure) and `cpqHeSysBatteryCondition` `4` (failed), and has
+  since at least 2026-08-18 — the whole of the retained window, unbroken. **HPE
+  spare `815983-001`** (option 727258-B21, "HP Smart Storage Batt 96"). `13` is
+  terminal: a reseat does not clear it, so there is nothing to try before
+  ordering. The cost is already being paid — the Smart Array has permanently
+  disabled its flash-backed write cache (`cpqDaAccelStatus` `5`, read and write
+  cache percent both `0`) and the array runs write-through: slower, and *not*
+  less durable. `cpqDaAccelBadData` reads `2` (none), so nothing dirty was lost
+  when it dropped. **Accepted with an expiry, not a fix in progress:**
+  `IloBatteryCondition` and `IloWriteCacheDisabled` are silenced for `shiva`
+  until 2026-10-01 (`3ffc313f-7154-459c-9f62-7c9a432bc97e`) so a known
+  condition does not notify every 12 hours, and the silence is to be deleted
+  when the pack goes in rather than left to run out. The alert was wrong
+  independently of the hardware: it read only the scalar
+  `cpqHeSysBackupBatteryCondition` while claiming to cover the RAID cache, so it
+  could not name the pack, the reason, or the consequence. That is fixed; the
+  pack is not.
+  → [runbook](runbooks/replace-the-smart-storage-battery.md)
 - **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
   A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
   `oracle` hang off. **Buy it with the UPS pack above, not after** — both shelf

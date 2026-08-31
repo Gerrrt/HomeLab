@@ -1,0 +1,320 @@
+---
+# Unit tests for the iLO rules in network.rules.yaml.
+#
+# These exist because of #76. IloBatteryCondition fired continuously for the
+# entire retention window and was correct to, and it still could not be acted
+# on: it read cpqHeSysBackupBatteryCondition, a scalar with no index labels, so
+# it said "the battery sub-system is degraded" and stopped. Which pack, why, and
+# what to order were all in a table the rule did not touch. `promtool check
+# rules` had nothing to say about that — the expression was valid and the rule
+# was firing. This is the #63 lesson one turn on: a rule that fires and cannot
+# be acted on is its own failure mode.
+#
+# So the assertions that matter here are about the JOIN and the THRESHOLDS. The
+# join is what carries the spare part number into the annotation, and a join
+# that matches nothing is invisible to `check rules`. The thresholds are what
+# keep one hardware fault from becoming four notifications.
+#
+# Every firing case is paired with a quiet one, per containers.test.yaml. The
+# fixtures are shiva as it actually read on 2026-08-31, so a green run means
+# these fire against production data rather than against a fixture shaped to
+# suit them.
+#
+# Scope: IloBatteryCondition, IloWriteCacheDisabled and IloHardwareDegraded.
+# The pf, switch and snmp rules in the same file are still syntax-only, which
+# is the standing they had before this file existed.
+#
+# What these do NOT prove: nothing here notices if the iLO stops exporting
+# these OIDs or if snmp-exporter renames a label. They guard the expressions,
+# not the data feeding them.
+rule_files:
+  - ../rules/network.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- IloBatteryCondition: fires, and names the part -----------------------
+  # The asserted value is 13 and not 4: the status is the diagnosis, the
+  # condition only says something is wrong, and that is the defect being fixed.
+  #
+  # cpqHeSysBackupBatteryCondition is in the fixture at 3 on purpose. That is
+  # the series the OLD expression read and it is still scraped, so a silent
+  # revert to it would still pass a test that left it out.
+  - interval: 1m
+    input_series:
+      - series: 'cpqHeSysBatteryCondition{cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "4x40"
+      - series: 'cpqHeSysBatteryStatus{cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "13x40"
+      - series: 'cpqHeSysBatterySparePartNum{cpqHeSysBatterySparePartNum="815983-001",cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "1x40"
+      - series: 'cpqHeSysBackupBatteryCondition{device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "3x40"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: IloBatteryCondition
+        exp_alerts:
+          - exp_labels:
+              alertname: IloBatteryCondition
+              cpqHeSysBatteryChassis: "0"
+              cpqHeSysBatteryIndex: "1"
+              cpqHeSysBatterySparePartNum: "815983-001"
+              device: shiva
+              instance: 10.0.30.10
+              job: snmp
+              role: hypervisor-bmc
+              vlan: "30"
+              component: network
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "Backup battery 1 on shiva is degraded or failed"
+              description: >-
+                cpqHeSysBatteryStatus = 13, spare part 815983-001. 13 is
+                shutdownPermanentFailure — the pack is dead and reseating it
+                will not clear the code; 15 is predictiveFailure; 1 is noError.
+                On a Gen9 this pack also backs the Smart Array write cache, so
+                expect IloWriteCacheDisabled alongside it. Runbook:
+                docs/runbooks/replace-the-smart-storage-battery.md
+
+      # Not held long enough — for: 30m has not elapsed at 20m.
+      - eval_time: 20m
+        alertname: IloBatteryCondition
+        exp_alerts: []
+
+  # --- IloBatteryCondition: quiet on a healthy pack -------------------------
+  # Condition 2 (ok), status 1 (noError), everything else identical including
+  # the spare part string. The only thing that changed is the condition.
+  - interval: 1m
+    input_series:
+      - series: 'cpqHeSysBatteryCondition{cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "2x40"
+      - series: 'cpqHeSysBatteryStatus{cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "1x40"
+      - series: 'cpqHeSysBatterySparePartNum{cpqHeSysBatterySparePartNum="815983-001",cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "1x40"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: IloBatteryCondition
+        exp_alerts: []
+
+  # --- IloBatteryCondition: two packs, one bad ------------------------------
+  # This is the case that makes the join real. With one battery the match is
+  # 1:1 and a join keyed on instance alone would pass; with two it is
+  # many-to-one on the right and Prometheus refuses to evaluate it. It also
+  # proves the alert names battery 1 rather than the chassis.
+  - interval: 1m
+    input_series:
+      - series: 'cpqHeSysBatteryCondition{cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "4x40"
+      - series: 'cpqHeSysBatteryStatus{cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "13x40"
+      - series: 'cpqHeSysBatterySparePartNum{cpqHeSysBatterySparePartNum="815983-001",cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "1x40"
+      - series: 'cpqHeSysBatteryCondition{cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="2",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "2x40"
+      - series: 'cpqHeSysBatteryStatus{cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="2",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "1x40"
+      - series: 'cpqHeSysBatterySparePartNum{cpqHeSysBatterySparePartNum="815983-001",cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="2",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "1x40"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: IloBatteryCondition
+        exp_alerts:
+          - exp_labels:
+              alertname: IloBatteryCondition
+              cpqHeSysBatteryChassis: "0"
+              cpqHeSysBatteryIndex: "1"
+              cpqHeSysBatterySparePartNum: "815983-001"
+              device: shiva
+              instance: 10.0.30.10
+              job: snmp
+              role: hypervisor-bmc
+              vlan: "30"
+              component: network
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "Backup battery 1 on shiva is degraded or failed"
+              description: >-
+                cpqHeSysBatteryStatus = 13, spare part 815983-001. 13 is
+                shutdownPermanentFailure — the pack is dead and reseating it
+                will not clear the code; 15 is predictiveFailure; 1 is noError.
+                On a Gen9 this pack also backs the Smart Array write cache, so
+                expect IloWriteCacheDisabled alongside it. Runbook:
+                docs/runbooks/replace-the-smart-storage-battery.md
+
+  # --- IloWriteCacheDisabled: fires at 5, and at 4 --------------------------
+  # Controller 0 is shiva as it stands: permDisabled, running write-through.
+  # Controller 1 at 4 (tmpDisabled) brackets the bottom of the firing range
+  # against the quiet case below, and proves the rule is per-controller.
+  #
+  # cpqDaAccelBadData is in the fixture at 2 (none) because that is what shiva
+  # really reports — no dirty cache was lost, and a rule keyed on that instead
+  # would be silent on a fault that is real.
+  - interval: 1m
+    input_series:
+      - series: 'cpqDaAccelStatus{cpqDaAccelCntlrIndex="0",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "5x70"
+      - series: 'cpqDaAccelBadData{cpqDaAccelCntlrIndex="0",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "2x70"
+      - series: 'cpqDaAccelStatus{cpqDaAccelCntlrIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "4x70"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: IloWriteCacheDisabled
+        exp_alerts:
+          - exp_labels:
+              alertname: IloWriteCacheDisabled
+              cpqDaAccelCntlrIndex: "0"
+              device: shiva
+              instance: 10.0.30.10
+              job: snmp
+              role: hypervisor-bmc
+              vlan: "30"
+              component: network
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "Smart Array cache on shiva is not caching writes"
+              description: >-
+                cpqDaAccelStatus = 5 — 4 is tmpDisabled, 5 permDisabled, 6 to 9
+                are cache-module faults. The controller is running
+                write-through: slower, and not less durable. cpqDaAccelErrCode
+                names the cause (25 = noCapacitorAttached is a dead backup
+                battery), and cpqDaAccelBadData = 3 is the one that matters for
+                the array — it means dirty cache was lost.
+          - exp_labels:
+              alertname: IloWriteCacheDisabled
+              cpqDaAccelCntlrIndex: "1"
+              device: shiva
+              instance: 10.0.30.10
+              job: snmp
+              role: hypervisor-bmc
+              vlan: "30"
+              component: network
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "Smart Array cache on shiva is not caching writes"
+              description: >-
+                cpqDaAccelStatus = 4 — 4 is tmpDisabled, 5 permDisabled, 6 to 9
+                are cache-module faults. The controller is running
+                write-through: slower, and not less durable. cpqDaAccelErrCode
+                names the cause (25 = noCapacitorAttached is a dead backup
+                battery), and cpqDaAccelBadData = 3 is the one that matters for
+                the array — it means dirty cache was lost.
+
+      # A pack recharging after a power cut sits in write-through legitimately.
+      # for: 1h is what makes that a non-event, and this is the assertion.
+      - eval_time: 45m
+        alertname: IloWriteCacheDisabled
+        exp_alerts: []
+
+  # --- IloWriteCacheDisabled: quiet at 3, and quiet at 2 --------------------
+  # 3 (enabled) is a healthy array. 2 (invalid) is what a controller with no
+  # cache module reports, and is why the expression is > 3 rather than != 3 —
+  # a controller must not page about a cache it does not have.
+  - interval: 1m
+    input_series:
+      - series: 'cpqDaAccelStatus{cpqDaAccelCntlrIndex="0",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "3x70"
+      - series: 'cpqDaAccelStatus{cpqDaAccelCntlrIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "2x70"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: IloWriteCacheDisabled
+        exp_alerts: []
+
+  # --- IloHardwareDegraded: quiet on the array rollups at 3 -----------------
+  # THE case. This is shiva exactly as it stood on 2026-08-31 with the battery
+  # dead: three array rollups at 3 (degraded), everything else at 2 (ok).
+  # Reading those three at > 2 — the obvious edit — puts THREE critical alerts
+  # on the urgent receiver for a fault two warnings already describe. This
+  # asserts the box in its known-bad state stays off the pager.
+  - interval: 1m
+    input_series:
+      - series: 'cpqDaCntlrCondition{cpqDaCntlrIndex="0",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "3x15"
+      - series: 'cpqDaCntlrBoardCondition{cpqDaCntlrIndex="0",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "3x15"
+      - series: 'cpqDaAccelCondition{cpqDaAccelCntlrIndex="0",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "3x15"
+      - series: 'cpqHeTemperatureCondition{cpqHeTemperatureChassis="0",cpqHeTemperatureIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "2x15"
+      - series: 'cpqHeFltTolPowerSupplyCondition{cpqHeFltTolPowerSupplyBay="1",cpqHeFltTolPowerSupplyChassis="0",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "2x15"
+      - series: 'cpqDaLogDrvCondition{cpqDaLogDrvCntlrIndex="0",cpqDaLogDrvIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "2x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: IloHardwareDegraded
+        exp_alerts: []
+
+  # --- IloHardwareDegraded: fires when the controller itself fails ----------
+  # 4 on cpqDaCntlrCondition is the controller, not its battery, and that is
+  # what > 3 exists to catch. Without this case both new branches could be
+  # deleted and every other assertion here would still pass.
+  - interval: 1m
+    input_series:
+      - series: 'cpqDaCntlrCondition{cpqDaCntlrIndex="0",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "4x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: IloHardwareDegraded
+        exp_alerts:
+          - exp_labels:
+              alertname: IloHardwareDegraded
+              cpqDaCntlrIndex: "0"
+              device: shiva
+              instance: 10.0.30.10
+              job: snmp
+              role: hypervisor-bmc
+              vlan: "30"
+              component: network
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "iLO on shiva reports degraded or failed hardware"
+              description: >-
+                CPQ condition code 4 (3 = degraded, 4 = failed). Check the iLO
+                web UI for the specific component. The two Smart Array rollups
+                are read at 4 only, not 3 — a flat cache battery degrades both,
+                and IloBatteryCondition owns that.
+
+      # for: 5m has not elapsed at 3m.
+      - eval_time: 3m
+        alertname: IloHardwareDegraded
+        exp_alerts: []
+
+  # --- IloHardwareDegraded: the original branches are still > 2 -------------
+  # A degraded temperature sensor means a fan has already been lost. If a
+  # future edit raised every branch to > 3 for consistency, this is the only
+  # case that would notice.
+  - interval: 1m
+    input_series:
+      - series: 'cpqHeTemperatureCondition{cpqHeTemperatureChassis="0",cpqHeTemperatureIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
+        values: "3x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: IloHardwareDegraded
+        exp_alerts:
+          - exp_labels:
+              alertname: IloHardwareDegraded
+              cpqHeTemperatureChassis: "0"
+              cpqHeTemperatureIndex: "1"
+              device: shiva
+              instance: 10.0.30.10
+              job: snmp
+              role: hypervisor-bmc
+              vlan: "30"
+              component: network
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "iLO on shiva reports degraded or failed hardware"
+              description: >-
+                CPQ condition code 3 (3 = degraded, 4 = failed). Check the iLO
+                web UI for the specific component. The two Smart Array rollups
+                are read at 4 only, not 3 — a flat cache battery degrades both,
+                and IloBatteryCondition owns that.
