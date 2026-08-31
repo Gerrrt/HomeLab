@@ -215,6 +215,11 @@ services:
   #   curl -s localhost:3100/ready
   # and continuously by Prometheus, which scrapes loki:3100 as the `loki` job —
   # `InstanceDown{job="loki"}` and `LokiIngestionStalled` both cover it.
+  #
+  # That "no shell, no wget" claim is asserted rather than assumed: it is an
+  # entry in ABSENT_BINARIES in scripts/check_compose_health.py, which execs
+  # both inside this pinned image on every CI run. If either ever turns up, the
+  # paragraph above is out of date and loki can have a healthcheck (#79).
 
   # ---------------------------------------------------------------------------
   # SNMP polling proxy for pfSense, the MokerLink switch, the APC UPS and iLO.
@@ -270,8 +275,10 @@ services:
       - "9115"
     healthcheck:
       # /-/healthy, as with snmp-exporter. prom/blackbox-exporter is busybox
-      # based, so wget exists — see the image list in
-      # scripts/check_compose_health.py.
+      # based, so wget exists — and that is checked rather than assumed:
+      # `scripts/check_compose_health.py --probe` execs this binary inside this
+      # pinned image on every CI run, so a base change under a Dependabot bump
+      # cannot make this healthcheck unrunnable without failing first (#79).
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9115/-/healthy"]
       interval: 60s
       timeout: 10s
