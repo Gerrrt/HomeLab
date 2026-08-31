@@ -86,6 +86,13 @@ So `~/.config/sops/age/keys.txt` and the rendered artefacts under
 `snmp-exporter/.rendered/`, `alertmanager/.rendered/` and
 `stacks/observability/.env` — which hold plaintext by design — are all mode 600
 and owned by `robo`, and file permissions are the only thing protecting them.
+
+Which makes anything that can ignore file permissions worth naming. Until
+2026-08-31 the Alloy container was one: uid 0, every capability, and `/` mounted
+read-only, so it could read the age key outright. It now holds no capabilities
+and cannot ([#188](https://github.com/Gerrrt/HomeLab/issues/188)). The Docker
+socket it still mounts is the remaining path — that API can start a container
+with `/` mounted read-write — and closing it is tracked, not done.
 Permissions mean nothing to someone holding the disk.
 
 This is accepted rather than tracked as work. The threat model in

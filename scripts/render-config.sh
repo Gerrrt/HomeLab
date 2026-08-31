@@ -273,6 +273,20 @@ info "writing $(basename "${STACK_DIR}")/.env"
   # the compose file stay identical on every monitored host, which is the
   # property ADR-0003 leans on.
   printf 'ALLOY_HOSTNAME=%s\n' "$(hostname)"
+
+  # Alloy holds no capabilities since #188, so root inside it is subject to file
+  # permissions like anyone else — and /var/log/auth.log and /var/log/syslog are
+  # syslog:adm 0640, owned by neither. Joining the group that owns them is what
+  # keeps the auth and syslog file sources in config.alloy readable; without it
+  # they fail and most of security.rules.yaml goes quiet, which is the kind of
+  # silence #62 and #63 were both about.
+  #
+  # Derived from the file rather than hardcoded to adm's 4, because compose.yaml
+  # and config.alloy are deployed identically to every monitored host and the
+  # owning group is a property of the host's distribution, not of this
+  # repository. Falls back to 4 only if the file is absent, which on a host with
+  # no syslog is the case where the source has nothing to read anyway.
+  printf 'LOG_READ_GID=%s\n' "$(stat -c '%g' /var/log/syslog 2>/dev/null || echo 4)"
   for var in "${COMPOSE_VARS[@]}"; do
     [[ -n "${!var:-}" ]] && printf '%s=%s\n' "${var}" "${!var}"
   done

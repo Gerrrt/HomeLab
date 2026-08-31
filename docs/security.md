@@ -242,7 +242,15 @@ complete state table and interface topology. They are credentials.
   published for `oracle`'s agent and remain an accepted residual. See
   [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md).
 - The Alloy debug UI binds to `127.0.0.1` only.
-- The Docker socket is mounted read-only into Alloy.
+- The Docker socket is mounted into Alloy. It is marked `:ro`, which is worth
+  less than it looks: read-only applies to the socket *file*, not to the API
+  behind it, and anything that can talk to that API can start a container with
+  the host filesystem mounted read-write. This is the one remaining path from a
+  compromised Alloy to root on the host — see the paragraph below the list.
+- Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
+  `no-new-privileges`, so root inside it is subject to file permissions like any
+  other user, and joins only the group that owns `/var/log/syslog` so the auth
+  and syslog sources stay readable (#188).
 - Every service runs under a real init (`init: true`) and a chosen task ceiling
   (`pids_limit`, 512; 1024 for Alloy) rather than the inherited systemd default
   of 9056. This was not theoretical: Grafana's https healthcheck was leaking two
@@ -255,8 +263,22 @@ complete state table and interface topology. They are credentials.
   them.
 - Grafana telemetry and update checks disabled.
 
-Alloy still runs `privileged: true`, which it needs for host-level metric
-collection. That is a real tradeoff and is noted rather than hidden.
+Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is
+what makes cAdvisor see the host's cgroups, and dropping every capability
+changed no container metric and cost six unused series —
+`node_rapl_*_joules_total` and `node_cpu_{core,package}_throttles_total`, which
+read root-only sysfs and which nothing here references. Before that change Alloy
+ran as uid 0 with the full capability set, a read-only mount of `/`, and could
+therefore read `~/.config/sops/age/keys.txt` directly. It can no longer.
+
+What remains is the Docker socket, and it is the larger half. Read access to
+that API is enough to create a container with `/` mounted read-write, which is
+root on the host and the age key with it — so the paragraph in `SECURITY.md`
+saying file permissions are all that protect the plaintext artefacts is true of
+every process on the host *except* a compromised Alloy. Putting the socket
+behind a proxy that permits only the handful of GETs cAdvisor and the log
+discovery actually use is tracked separately; the privilege reduction above is
+defence in depth, not a closed door.
 
 ## What this repository deliberately does not publish
 

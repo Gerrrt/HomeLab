@@ -33,6 +33,8 @@ cat "${STACK}/.env.example" > "${OUT}"
   # user, so they are host-specific and deliberately absent from .env.example.
   echo "RENDER_UID=65534"
   echo "RENDER_GID=65534"
+  # Likewise host-specific: render-config.sh reads it off /var/log/syslog.
+  echo "LOG_READ_GID=4"
 } >> "${OUT}"
 
 # Sharing this script stops the two callers drifting from each other. This check
