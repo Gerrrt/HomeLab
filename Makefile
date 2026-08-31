@@ -110,6 +110,10 @@ validate: ## Run every check CI runs
 lint: ## Lint YAML, Markdown, shell, workflows and EditorConfig
 	./scripts/lint.sh
 
+.PHONY: check-docs
+check-docs: ## Verify the documents agree with the configs
+	python3 scripts/check_docs.py
+
 .PHONY: check-dashboards
 check-dashboards: ## Validate dashboard JSON and datasource references
 	python3 scripts/check_dashboards.py
