@@ -400,14 +400,67 @@ services:
     # cgroups, tails the journal and talks to the Docker socket, so it has more
     # reason than the others to fan out. Observed peak is 20 threads either way.
     pids_limit: 1024
-    privileged: true
+    # `privileged: true` used to be here, and it was never what made cAdvisor
+    # work — cgroup: host below is. What it did do was hand every capability to
+    # the one container holding the Docker socket and a read-only mount of the
+    # whole host filesystem. Measured on 2026-08-31: uid 0, CapEff
+    # 000001ffffffffff, and /rootfs/home/robo/.config/sops/age/keys.txt
+    # readable — the key every secret in this repository decrypts with, which
+    # SECURITY.md says file permissions alone protect. Dropping the capability
+    # set closes that read, because root without DAC_OVERRIDE is subject to the
+    # 0600 like anyone else (#188).
+    #
+    # Cost, measured rather than assumed: six series. node_rapl_*_joules_total
+    # (3) and node_cpu_{core,package}_throttles_total (3) read sysfs files that
+    # are root-only, and node_exporter drops them silently — no collector
+    # failure, no log line. Nothing in this repository references any of the
+    # six. Everything else is identical: 895 cAdvisor series, seven container
+    # names, the same node_filesystem mountpoints.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Root without DAC_OVERRIDE also cannot read /var/log/auth.log or
+    # /var/log/syslog — they are syslog:adm 0640 and root owns neither — which
+    # would take out the two file sources in config.alloy and, with them, most
+    # of security.rules.yaml. Joining the group that owns them restores exactly
+    # that and nothing else.
+    #
+    # The tempting alternative is cap_add: [DAC_READ_SEARCH]. Do not: it grants
+    # read of *every* file on the mounted rootfs, which puts the age key back
+    # within reach and undoes the whole point. Both were tested; the group
+    # leaves the key denied and the capability does not.
+    #
+    # Rendered rather than hardcoded to 4 because config.alloy and this file are
+    # deployed identically to every monitored host, and the group that owns the
+    # syslog files is a property of the host, not of this repository.
+    group_add:
+      - "${LOG_READ_GID:?run make render}"
+      # 473 is the image's own `alloy` group, and alloy-data is 0770 473:473 —
+      # so without this the agent cannot write its own WAL and positions files
+      # and dies on `mkdir /var/lib/alloy/data: permission denied` before it
+      # reads a line of config. Under `privileged: true` DAC_OVERRIDE hid that,
+      # which is a fair summary of what that setting was doing here generally.
+      #
+      # A property of the pinned image rather than of the host, hence the
+      # literal. Re-derive after an image bump with:
+      #   docker run --rm --entrypoint sh <image> -c 'stat -c %g /var/lib/alloy'
+      # Getting it wrong is at least loud: the container crash-loops from the
+      # first second and ContainerRestartLoop fires, rather than coming up and
+      # collecting nothing.
+      - "473"
     # Without this the cAdvisor exporter reports exactly one series, id="/",
     # and every per-container metric is missing — which is what the Docker
-    # Containers dashboard and four of the eight rules in containers.rules.yaml
-    # are built on. `privileged: true` is not enough: on cgroup v2 Docker's
-    # default namespace mode is `private`, so the container's own cgroup IS the
-    # root it can see, and cAdvisor faithfully reports the one cgroup it finds.
-    # Nothing errors. The exporter stays healthy and the dashboard stays empty.
+    # Containers dashboard and four of the nine rules in containers.rules.yaml
+    # are built on. On cgroup v2 Docker's default namespace mode is `private`,
+    # so the container's own cgroup IS the root it can see, and cAdvisor
+    # faithfully reports the one cgroup it finds. Nothing errors. The exporter
+    # stays healthy and the dashboard stays empty.
+    #
+    # This is the setting that matters, and it is not a privilege: the
+    # `privileged: true` that sat above was neither necessary nor sufficient for
+    # it. Sufficiency is what #62 found — privileged alone still gave one
+    # series. Necessity is what #188 measured — dropping every capability
+    # changed no container metric at all.
     cgroup: host
     environment:
       LOKI_URL: http://loki:3100/loki/api/v1/push
@@ -425,16 +478,32 @@ services:
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - alloy-data:/var/lib/alloy/data
+      # The API, not the log files: cAdvisor takes container names and labels
+      # from it, and discovery.docker + loki.source.docker stream stdout through
+      # it. `:ro` is close to decorative — it applies to the socket file, not to
+      # the API behind it, and that API can create a container with / mounted
+      # read-write. It is the one path left from a compromised Alloy to root on
+      # this host, and it is why the capability drop above is defence in depth
+      # rather than a closed door. Tracked separately; see docs/security.md.
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # /var/lib/docker/containers is NOT mounted, though it was until #188.
+      # Nothing read it: loki.source.docker streams over the socket above rather
+      # than tailing the json-file driver's output, config.alloy names the path
+      # only to *exclude* it from the filesystem collector, and cAdvisor was
+      # measured producing identical series without it. It is root-only and
+      # holds every container's logs, so an unread mount of it is pure reach.
       - /var/log:/var/log:ro
       - /:/rootfs:ro
     ports:
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
       # Network syslog for devices that cannot run an agent — morpheus today.
       # Unlike the debug UI above this must be reachable off-host, so it binds
-      # to BIND_ADDR. 1514 rather than 514: the container does not run as root
-      # and cannot take a privileged port. pfSense sends UDP by default.
+      # to BIND_ADDR. 1514 rather than 514: the container cannot take a
+      # privileged port. That claim used to read "does not run as root", which
+      # was simply false — it runs as uid 0 and, until #188, held every
+      # capability including NET_BIND_SERVICE. It is true now, and true for the
+      # stated reason, because cap_drop above removes that capability.
+      # pfSense sends UDP by default.
       - "${BIND_ADDR:-0.0.0.0}:${SYSLOG_PORT:-1514}:1514/udp"
     depends_on:
       # service_started for loki, for the same reason as grafana above: the
