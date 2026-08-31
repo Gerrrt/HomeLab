@@ -130,6 +130,51 @@ prometheus.scrape "metrics" {
 	forward_to      = [prometheus.remote_write.metrics_service.receiver]
 }
 
+// Alloy scraping itself, so that every agent's own internals reach Prometheus.
+//
+// prometheus.yaml scrapes alloy:12345 over the compose network, which reaches
+// exactly one agent: the one on the monitoring host. `oracle` publishes 12345
+// on loopback only (ADR-0012), so there is no address Prometheus could be
+// pointed at, and opening one is the wrong trade — #182 already tracks
+// authenticating the ingest ports that are published. Scraping ourselves and
+// pushing the result down the pipe that is already open costs nothing and
+// generalises to every future agent without touching the monitoring host.
+//
+// This is what makes `prometheus_remote_storage_*` and `alloy_component_*`
+// exist for an agent other than the local one. Without it the remote_write
+// fault in #12 — samples failing to a stale address for hours — is invisible on
+// every host except this one. That is the case #81 was filed on.
+//
+// THE LOCAL AGENT IS NOW COLLECTED TWICE, and that is deliberate rather than an
+// oversight to tidy up. The direct scrape gives `up{job="alloy"}`, which goes
+// to 0 when the agent dies. What arrives here by remote_write cannot: a dead
+// agent stops pushing, so its `up` goes stale and disappears rather than
+// falling, and `InstanceDown` is `up == 0`. Keeping both means the local agent
+// has a liveness signal a rule can match, and every agent has the internals.
+// The cost is ~600 duplicated series at 60s against a 16k head.
+//
+// The job label follows the `<hostname>-metrics` convention set above rather
+// than a constant, so two agents never collide on one job name.
+discovery.relabel "selfmetrics" {
+	targets = [{__address__ = "127.0.0.1:12345"}]
+
+	rule {
+		target_label = "job"
+		replacement  = string.format("%s-alloy", coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname))
+	}
+
+	rule {
+		target_label = "instance"
+		replacement  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname)
+	}
+}
+
+prometheus.scrape "selfmetrics" {
+	scrape_interval = "60s"
+	targets         = discovery.relabel.selfmetrics.output
+	forward_to      = [prometheus.remote_write.metrics_service.receiver]
+}
+
 // ============================================================================
 // DOCKER LOG COLLECTION
 // ============================================================================

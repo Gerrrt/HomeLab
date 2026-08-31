@@ -1,0 +1,97 @@
+---
+# The observability stack watching itself.
+#
+# These five rules were in containers.rules.yaml until #81, where they carried
+# `component: containers` alongside the cAdvisor rules. That label is what the
+# dashboards filter on, so a Prometheus config-reload failure appeared under
+# "Container alerts" on the Docker dashboard — a true alert filed under a
+# heading that sends you looking at the wrong thing.
+#
+# They are the same rules with `component: stack`. Nothing else changed:
+# expressions, `for:`, severities, categories and annotations are byte-for-byte
+# what they were, so the split is a relabel and not a rewrite. `homelab-stack`
+# is the dashboard behind them.
+#
+# WHAT THESE COVER AND WHAT THEY DO NOT. Every rule here reads a metric the
+# component publishes about its own working — a reload that was rejected, an
+# evaluation that failed, a notification that could not be delivered. None of
+# them can see a component that has stopped publishing altogether; `up == 0` in
+# host.rules.yaml is what does that for anything Prometheus scrapes directly,
+# and for anything arriving by remote_write nothing does. See the note on the
+# Observability Stack dashboard, which draws that gap rather than hiding it.
+groups:
+  - name: stack
+    interval: 60s
+    rules:
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          component: stack
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "Prometheus rejected its own config reload on {{ $labels.instance }}"
+
+      - alert: PrometheusRuleEvaluationFailures
+        expr: increase(prometheus_rule_evaluation_failures_total[15m]) > 0
+        for: 5m
+        labels:
+          component: stack
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $value }} rule evaluation failures in the last 15 minutes"
+
+      - alert: PrometheusSizeRetentionActive
+        # --storage.tsdb.retention.size is a ceiling that, when it engages,
+        # silently shortens retention from the 30 days everything else in this
+        # repository claims to whatever fits in 4 GiB. Nothing else would say
+        # so: the store keeps working, the dashboards keep drawing, and you find
+        # out when a query over last month comes back short. Prometheus counts
+        # size-based eviction separately from time-based eviction, which is the
+        # only thing that distinguishes "the ceiling bound" from "old data aged
+        # out normally" — do not substitute prometheus_tsdb_time_retentions_total
+        # here, it increments constantly and by design.
+        #
+        # Firing means one of two things and both want a human: the series
+        # budget grew past what 4 GiB holds for 30 days, or something is pushing
+        # volume into the open remote-write receiver. Either way the documented
+        # retention is no longer true.
+        expr: increase(prometheus_tsdb_size_retentions_total[1h]) > 0
+        labels:
+          component: stack
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Prometheus is evicting blocks to stay under its size ceiling"
+          description: >-
+            Retention is now bounded by PROMETHEUS_RETENTION_SIZE rather than
+            PROMETHEUS_RETENTION, so history is shorter than 30 days.
+
+      - alert: AlertmanagerNotificationsFailing
+        expr: increase(alertmanager_notifications_failed_total[15m]) > 0
+        for: 5m
+        labels:
+          component: stack
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "Alertmanager cannot deliver notifications via {{ $labels.integration }}"
+          description: >-
+            Alerts are firing but not reaching anyone — this makes every other
+            rule in this repository silently useless.
+
+      - alert: LokiIngestionStalled
+        expr: |
+          sum(rate(loki_distributor_lines_received_total[30m])) == 0
+        for: 30m
+        labels:
+          component: stack
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Loki has received no log lines for 30 minutes"
+          description: >-
+            Either every Alloy agent is down or the push endpoint is
+            unreachable. Logs are being lost, not queued indefinitely.

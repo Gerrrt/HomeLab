@@ -44,7 +44,8 @@ snmp-exporter/
   snmp.yaml                generated, 14k lines, ${PLACEHOLDER} communities
 grafana/
   provisioning/            datasources + dashboard provider
-  dashboards/*.json        5 dashboards, 84 panels
+  dashboards/*.json        6 dashboards, 117 panels
+  dashboards/README.md     conventions that hold across all of them
 ```
 
 ## Things worth knowing before editing
@@ -55,7 +56,9 @@ grafana/
   `.rendered/` directory at deploy time.
 - **Grafana UI edits are discarded on restart** (`allowUiUpdates: false`). Export
   the JSON model and commit it — see
-  [`docs/observability.md`](../../docs/observability.md#dashboards).
+  [`docs/observability.md`](../../docs/observability.md#dashboards) and
+  [`grafana/dashboards/README.md`](grafana/dashboards/README.md), which is where
+  the constraints CI imposes on panel queries are written down.
 - **Rules and routes hot-reload** with `make reload`. No restart, no TSDB head
   block dropped.
 - **Adding an SNMP target needs no restart** — file_sd re-reads every 5 minutes.

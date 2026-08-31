@@ -17,6 +17,7 @@ What is collected, where it goes, and how to change it.
 | APC UPS | snmp-exporter | 60s | Charge, runtime, load, voltage, alarms |
 | ProLiant iLO | snmp-exporter | 60s | Temperature, PSU, drive and battery health |
 | The stack itself | Prometheus | 15s | Every component scrapes itself |
+| Each Alloy agent | Alloy → itself | 60s | Remote-write throughput and lag, component health, lines forwarded |
 
 Retention is 30 days for both metrics (`PROMETHEUS_RETENTION` in `.env`) and
 logs (`retention_period` in `loki/loki-config.yaml`). Change both together or
@@ -59,7 +60,7 @@ Ubuntu host and a Go container at the same time.
 
 ## Dashboards
 
-Five dashboards are provisioned from `grafana/dashboards/` into a **HomeLab**
+Six dashboards are provisioned from `grafana/dashboards/` into a **HomeLab**
 folder:
 
 | Dashboard | UID | Covers |
@@ -69,6 +70,7 @@ folder:
 | Network & Firewall | `homelab-network` | pf state table, switch interfaces, iLO health |
 | UPS & Power | `homelab-ups` | Battery, runtime, load, input voltage |
 | Logs | `homelab-logs` | Volume by level and source, error and auth streams |
+| Observability Stack | `homelab-stack` | Scrape health for every target, and Prometheus, Loki, Alertmanager and Alloy watching themselves |
 
 `allowUiUpdates` is `false`, so edits made in the Grafana UI are discarded on
 restart. That is deliberate — the JSON in git is the source of truth. To change
@@ -76,6 +78,39 @@ a dashboard: edit it in the UI, **Dashboard settings → JSON Model**, copy, and
 commit it over the file. CI checks the result parses, that every datasource UID
 resolves, that panels fit the grid and do not overlap, and that every PromQL
 expression in every panel is syntactically valid.
+
+### Watching the collection path
+
+`homelab-stack` exists because the stack watched four devices and two hosts
+attentively and did not watch itself at all
+([#81](https://github.com/Gerrrt/HomeLab/issues/81)). Two of the three faults
+found while verifying #12 would have been visible on it within a minute:
+remote_write failing to a stale address, and cAdvisor reporting one series where
+it should report hundreds. Both were invisible for hours because the only view
+of the collection path was `up{job="alloy"}`, which stayed `1` throughout.
+
+`up` is a poor liveness signal for half of what this stack collects, and the
+dashboard says so rather than papering over it. Prometheus scrapes nine jobs
+directly; four more arrive by remote_write from an Alloy agent. **A directly
+scraped target that dies sets `up` to 0. A remote-writing agent that dies just
+stops pushing, so its `up` goes stale and ages out instead of falling** — and
+`InstanceDown` is `up == 0`, so it cannot see that at all. The *Sample staleness
+by job* panel is what covers those four, and the *Every target* table puts
+`Staleness` next to `Up` for the same reason.
+
+Alongside it, **samples returned per scrape** is the panel that catches a
+collector which is still answering but has stopped exporting most of what it
+used to. That is precisely the cAdvisor fault: `up` at 1, scrape succeeding,
+one series where there should be hundreds.
+
+Since #81 each Alloy agent also scrapes itself and remote-writes the result
+under `<hostname>-alloy`, so `prometheus_remote_storage_*` and
+`alloy_component_*` exist for every agent rather than only the one on this host.
+`oracle` publishes Alloy's port on loopback (ADR-0012) and there is no address
+Prometheus could be pointed at; pushing down the pipe that is already open costs
+nothing and needs no new exposure. The monitoring host's agent is consequently
+collected twice — `job="alloy"` by direct scrape and `job="prometheus-alloy"` by
+push — which is deliberate: the first is the only one whose `up` can reach 0.
 
 ## Alerting
 
@@ -108,14 +143,15 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-45 rules across seven files in `prometheus/rules/`:
+45 rules across eight files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
 | `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew, reboots |
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware and Smart Array cache. `shiva`'s Smart Storage Battery has read failed since 2026-08-18 and the array has dropped to write-through as a result — `IloBatteryCondition` names the spare part to order, and the controller rollups are deliberately read at *failed* rather than *degraded* ([#76](https://github.com/Gerrrt/HomeLab/issues/76)) |
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
-| `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling, and the stack watching itself |
+| `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
+| `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, and never-ran |

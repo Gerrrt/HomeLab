@@ -210,6 +210,32 @@ months.
 
 ## Done
 
+- [x] **[#81](https://github.com/Gerrrt/HomeLab/issues/81) A dashboard for the
+      observability stack itself.** `homelab-stack`, 33 panels, all from metrics
+      already collected. The argument in the issue was that two of the three
+      faults found while verifying #12 would have been visible on it
+      immediately, and the panels that would have shown them are the two the
+      dashboard is really built around: *Samples returned per scrape*, where
+      cAdvisor collapsing from hundreds of series to one is a step change while
+      `up` stays 1, and the Alloy remote-write lag, where a stale address shows
+      as a climbing line rather than as nothing at all.
+      Three things came with it because the dashboard could not be honest
+      without them. The five rules watching the stack's own components were
+      carrying `component: containers` and so were filed under *Container
+      alerts* on the Docker dashboard; they are now `stack.rules.yaml` on
+      `component: stack`, a relabel with the expressions untouched. Each Alloy
+      agent now scrapes itself and remote-writes the result, because
+      `prometheus.yaml` could only ever reach the agent on this host —
+      `oracle` publishes Alloy's port on loopback and there is no address to
+      point at. And `check_docs.py` was matching spelled counts in lowercase
+      only, so "Five dashboards are provisioned" was unguarded while "There are
+      five dashboards" two files away was checked; both were stale together.
+      The residual worth naming: **`up` is not a liveness signal for the four
+      jobs that arrive by remote_write.** A pushing agent that dies stops
+      pushing, so its series ages out rather than falling to 0, and
+      `InstanceDown` is `up == 0`. The dashboard draws that gap — the staleness
+      panel is what covers those jobs — but nothing alerts on it yet.
+
 - [x] **[#77](https://github.com/Gerrrt/HomeLab/issues/77) Schedule something.**
       Four systemd timers on the monitoring host run `make backup` weekly,
       `make backup ARGS='--verify-only --all'` and `make backup-firewall` nightly,
