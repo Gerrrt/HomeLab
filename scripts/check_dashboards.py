@@ -9,7 +9,13 @@ rather than "misconfigured". This checks the things Grafana will not:
   * every datasource UID resolves to one declared in provisioning;
   * every dashboard UID is unique across the folder;
   * panels fit the 24-column grid and do not overlap;
-  * every panel that queries data has at least one target.
+  * every panel that queries data has at least one target;
+  * every query target names a datasource that resolves, so the query language
+    is known rather than guessed.
+
+Panels nested inside a collapsed row are walked too. Collapsing a row in the UI
+moves its panels from the top level into the row's own `panels` array, so a
+checker that reads only the top level stops seeing them — see #78.
 
 Additionally, every PromQL expression is emitted to stdout in Prometheus
 recording-rule form when --emit-promql is passed, so promtool can parse them.
@@ -19,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -38,17 +45,44 @@ BUILTIN_UIDS = {"-- Grafana --", "-- Mixed --", "-- Dashboard --", "grafana"}
 # around this script rather than trust it.
 TARGETLESS_PANEL_TYPES = {"row", "text", "alertlist"}
 
+# Entries in datasources.yaml start at `- name:`; the keys that belong to one
+# sit at the indent two columns to the right of the dash.
+ENTRY_START = re.compile(r"^(\s*)- name:")
+ENTRY_KEY = re.compile(r"^(\s*)([A-Za-z]\w*):\s*(.*)$")
 
-def declared_datasource_uids() -> set[str]:
-    """Read provisioned UIDs without requiring PyYAML."""
-    uids = set()
+
+def declared_datasources() -> dict[str, str]:
+    """Map provisioned uid -> type, without requiring PyYAML.
+
+    Only keys at the entry's own indent are read. Anything deeper belongs to a
+    nested block — `jsonData:`, or the `derivedFields` list whose entries carry
+    a `datasourceUid` — and reading those would put values in this map that are
+    not datasource declarations at all.
+    """
+    declared: dict[str, str] = {}
     if not DATASOURCES.exists():
-        return uids
+        return declared
+
+    entry: dict[str, str] = {}
+    key_indent = -1
+
+    def flush() -> None:
+        if "uid" in entry:
+            declared[entry["uid"]] = entry.get("type", "")
+
     for line in DATASOURCES.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped.startswith("uid:"):
-            uids.add(stripped.split(":", 1)[1].strip())
-    return uids
+        start = ENTRY_START.match(line)
+        if start:
+            flush()
+            entry = {}
+            # `- name:` — the dash and its space put the key two columns right.
+            key_indent = len(start.group(1)) + 2
+            continue
+        key = ENTRY_KEY.match(line)
+        if key and len(key.group(1)) == key_indent:
+            entry[key.group(2)] = key.group(3).strip()
+    flush()
+    return declared
 
 
 def walk_datasource_uids(node, found: set[str]) -> None:
@@ -60,6 +94,32 @@ def walk_datasource_uids(node, found: set[str]) -> None:
     elif isinstance(node, list):
         for value in node:
             walk_datasource_uids(value, found)
+
+
+def panel_groups(panels, prefix: str = ""):
+    """Yield each list of sibling panels, with the row path that locates it.
+
+    Siblings are yielded as a group rather than one flat stream because overlap
+    is only meaningful between panels that share a coordinate space. A collapsed
+    row's children keep the gridPos they had when the row was expanded, so
+    comparing them against the top-level panels would report overlaps that
+    nobody can see and that expanding the row would resolve.
+    """
+    panels = panels or []
+    yield prefix, panels
+    for panel in panels:
+        nested = panel.get("panels")
+        if nested:
+            title = panel.get("title") or "<untitled row>"
+            yield from panel_groups(nested, f"{prefix}{title} → ")
+
+
+def datasource_uid(node) -> str | None:
+    """The uid a panel or target names, if it names one by uid at all."""
+    datasource = (node or {}).get("datasource")
+    if isinstance(datasource, dict):
+        return datasource.get("uid")
+    return None
 
 
 def overlaps(a: dict, b: dict) -> bool:
@@ -77,10 +137,12 @@ def main() -> int:
                         help="print dashboard PromQL as a rules file for promtool")
     args = parser.parse_args()
 
-    known = declared_datasource_uids() | BUILTIN_UIDS
+    declared = declared_datasources()
+    known = set(declared) | BUILTIN_UIDS
     problems: list[str] = []
     seen_dashboard_uids: dict[str, str] = {}
     promql: list[str] = []
+    panel_count = 0
 
     files = sorted(DASHBOARDS.glob("*.json"))
     if not files:
@@ -114,36 +176,72 @@ def main() -> int:
                 f"panels using it will render empty"
             )
 
-        panels = dash.get("panels", [])
-        for i, panel in enumerate(panels):
-            title = panel.get("title") or f"<untitled #{i}>"
-            grid = panel.get("gridPos")
-            if not grid:
-                problems.append(f"{name}: panel '{title}' has no gridPos")
-                continue
-            if grid["x"] + grid["w"] > 24:
-                problems.append(
-                    f"{name}: panel '{title}' overflows the 24-column grid "
-                    f"(x={grid['x']} w={grid['w']})"
-                )
-            if panel.get("type") not in TARGETLESS_PANEL_TYPES and not panel.get("targets"):
-                problems.append(f"{name}: panel '{title}' has no targets")
-
-            for other in panels[i + 1:]:
-                og = other.get("gridPos")
-                if og and overlaps(grid, og):
+        for prefix, panels in panel_groups(dash.get("panels")):
+            panel_count += len(panels)
+            for i, panel in enumerate(panels):
+                title = f"{prefix}{panel.get('title') or f'<untitled #{i}>'}"
+                grid = panel.get("gridPos")
+                if not grid:
+                    problems.append(f"{name}: panel '{title}' has no gridPos")
+                    continue
+                if not {"x", "y", "w", "h"} <= set(grid):
                     problems.append(
-                        f"{name}: panels '{title}' and "
-                        f"'{other.get('title')}' overlap"
+                        f"{name}: panel '{title}' has an incomplete gridPos "
+                        f"({', '.join(sorted(grid))})"
                     )
+                    continue
+                if grid["x"] + grid["w"] > 24:
+                    problems.append(
+                        f"{name}: panel '{title}' overflows the 24-column grid "
+                        f"(x={grid['x']} w={grid['w']})"
+                    )
+                if panel.get("type") not in TARGETLESS_PANEL_TYPES and not panel.get("targets"):
+                    problems.append(f"{name}: panel '{title}' has no targets")
 
-            for target in panel.get("targets", []):
-                expr = target.get("expr")
-                ds_uid = (target.get("datasource") or {}).get("uid")
-                if expr and ds_uid != "loki":
-                    promql.append(expr)
+                for other in panels[i + 1:]:
+                    og = other.get("gridPos")
+                    if og and {"x", "y", "w", "h"} <= set(og) and overlaps(grid, og):
+                        problems.append(
+                            f"{name}: panels '{title}' and "
+                            f"'{prefix}{other.get('title')}' overlap"
+                        )
+
+                # Which query language an expression is written in is decided by
+                # the datasource it runs against, and a target that names none
+                # of its own inherits the panel's. Deciding by elimination —
+                # "not loki, therefore PromQL" — sent any target without a uid
+                # to promtool as PromQL and failed it with a parse error that
+                # named neither the panel nor the real problem (#78).
+                for target in panel.get("targets", []):
+                    expr = target.get("expr")
+                    if not expr:
+                        continue
+                    ds_uid = datasource_uid(target) or datasource_uid(panel)
+                    if ds_uid is None:
+                        problems.append(
+                            f"{name}: panel '{title}' has a target with an expression "
+                            f"but no datasource on the target or the panel — "
+                            f"the query language cannot be determined"
+                        )
+                    elif declared.get(ds_uid) == "prometheus":
+                        promql.append(expr)
+
+    for problem in problems:
+        print(f"  {problem}", file=sys.stderr)
+
+    if problems:
+        print(f"\n{len(problems)} problem(s) in {len(files)} dashboard(s)", file=sys.stderr)
+        return 1
 
     if args.emit_promql:
+        # Emission is gated on the datasource map resolving, so a run that finds
+        # no PromQL at all is a broken classifier rather than a dashboard folder
+        # with no metrics in it. Saying so here keeps promtool from being handed
+        # an empty rules file and reporting success over it.
+        if not promql:
+            print("no PromQL expressions found — refusing to emit an empty "
+                  "rules file", file=sys.stderr)
+            return 1
         print("groups:")
         print("  - name: dashboard-expressions")
         print("    rules:")
@@ -155,17 +253,9 @@ def main() -> int:
                 print(f"          {line}")
         return 0
 
-    for problem in problems:
-        print(f"  {problem}", file=sys.stderr)
-
-    if problems:
-        print(f"\n{len(problems)} problem(s) in {len(files)} dashboard(s)", file=sys.stderr)
-        return 1
-
     print(
         f"{len(files)} dashboards OK "
-        f"({sum(len(json.loads(p.read_text())['panels']) for p in files)} panels, "
-        f"{len(promql)} PromQL expressions)"
+        f"({panel_count} panels, {len(promql)} PromQL expressions)"
     )
     return 0
 
