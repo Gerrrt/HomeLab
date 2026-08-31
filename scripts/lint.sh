@@ -107,16 +107,15 @@ runner_for() {
       # Cmd and not Entrypoint: anything appended would replace the binary
       # rather than be passed to it.
       #
-      # No --user, deliberately. Given no file arguments the checker lists files
-      # with `git ls-files`, and this image exists to make that work — it
-      # installs git and marks /check a safe.directory for root. Running as
-      # another uid steps outside the path upstream tests. It writes nothing.
+      # No --user, deliberately: running as another uid steps outside the path
+      # upstream tests, and the checker writes nothing.
       #
-      # Listing through git is also what makes a local run equal a CI one: the
-      # gitignored backups/, certificates/, .venv/ and .rendered/ trees present
-      # on a workstation and absent from a CI checkout are untracked either way,
-      # so both runs see exactly the same files. Which rules apply comes from
-      # .editorconfig, and the one exemption from .editorconfig-checker.json.
+      # This image installs git and marks /check a safe.directory so that the
+      # checker can list files itself. That is no longer relied on — the list is
+      # built on the host and passed in at the call site below, for the reason
+      # recorded there. The mount is still the whole repository, because
+      # .editorconfig, .editorconfig-checker.json and every file being checked
+      # all have to be visible from inside it.
       if have_docker; then
         img="$(./scripts/image-for.sh editorconfig-checker)"
         RUNNER=(docker run --rm -v "${REPO_ROOT}:/check" -w /check "${img}" editorconfig-checker)
@@ -172,8 +171,40 @@ run_linter markdownlint-cli2
 run_linter shellcheck scripts/*.sh
 # No arguments: actionlint finds the workflows from the repository root.
 run_linter actionlint
-# No arguments: with none, the checker checks every file tracked by git.
-run_linter editorconfig-checker
+# The file list is built here rather than left to the checker, which is the one
+# linter in this list that decides for itself what to look at.
+#
+# Given no arguments it lists files with `git ls-files`, and inside the
+# container that call fails silently. A git worktree's .git is a *file* holding
+# a path to a gitdir outside the bind mount, so git answers "not a git
+# repository" and the checker falls back to walking the filesystem — picking up
+# the gitignored backups/, certificates/, .venv/ and .rendered/ trees that exist
+# on a workstation and not in a CI checkout. `make validate` then failed on the
+# deploy host, where `make up` had rendered the Alertmanager URLs, and passed in
+# CI, which never renders. Green where nothing runs and red where everything
+# does is the wrong way round, and a validate that is red for a reason the
+# operator learns to dismiss is worse than one that does not run.
+#
+# Listing on the host fixes every caller at once: the host's git resolves a
+# worktree, and the checker is handed the same tracked files whether it runs
+# from the image or from a local binary. Nothing can substitute a different set
+# without saying so. -z because a tracked path may contain a space, and the
+# existence test because a tracked file deleted from the working tree makes the
+# checker panic with a Go stack trace instead of reporting anything.
+ec_files=()
+if have git; then
+  while IFS= read -r -d '' f; do
+    [[ -e "${f}" ]] && ec_files+=("${f}")
+  done < <(git ls-files -z)
+fi
+if ((${#ec_files[@]})); then
+  run_linter editorconfig-checker "${ec_files[@]}"
+else
+  # Not a skip: a skip says the linter could not be reached. This says it could,
+  # and there is no trustworthy answer to what it should check — which is the
+  # state the checker used to paper over by walking the tree.
+  fail "editorconfig-checker: git listed no files to check"
+fi
 
 # ---------------------------------------------------------------------------
 # Self-check: the three callers must actually be callers
