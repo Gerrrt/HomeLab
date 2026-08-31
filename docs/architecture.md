@@ -116,7 +116,7 @@ graph LR
         PROM[("Prometheus<br/>:9090 · 30d")]
         LOKI[("Loki<br/>:3100 · 30d")]
         AM["Alertmanager<br/>:9093"]
-        GRAF["Grafana<br/>:3000"]
+        GRAF["Grafana<br/>:3000 · https"]
     end
 
     OUT([Webhook<br/>notification])
@@ -175,7 +175,7 @@ re-shard of everything. Reasoning in
 
 | Service | Port | Bound to | Notes |
 | --- | --- | --- | --- |
-| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human, and the only published service that authenticates |
+| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human, and the only service that terminates TLS or authenticates — `https://`, on a lab-CA certificate a browser will warn about until you trust `certificates/ca.pem` |
 | Prometheus | 9090 | `${BIND_ADDR}` | Remote-write receiver — `oracle`'s agent pushes here. Unauthenticated; see [`security.md`](security.md) |
 | Loki | 3100 | `${BIND_ADDR}` | Push endpoint — `oracle`'s agent pushes here. Unauthenticated; see [`security.md`](security.md) |
 | Alertmanager | 9093 | `127.0.0.1` | Nothing off-host uses it; silences are reached through Grafana |

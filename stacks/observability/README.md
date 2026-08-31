@@ -11,7 +11,7 @@ make up        # from the repository root
 | `prometheus` | `prom/prometheus` | 9090 | Metrics store, remote-write receiver, rule evaluation |
 | `alertmanager` | `prom/alertmanager` | 9093 (localhost) | Alert routing, grouping, inhibition |
 | `loki` | `grafana/loki` | 3100 | Log store |
-| `grafana` | `grafana/grafana-oss` | 3000 | Dashboards — the only published UI, and the only one that authenticates |
+| `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards — the only published UI, and the only service that terminates TLS or authenticates |
 | `snmp-exporter` | `prom/snmp-exporter` | *internal* | SNMP polling proxy |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 
