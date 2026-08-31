@@ -20,10 +20,10 @@ tests:
   # EndpointNameNotResolving must NOT fire, because the service is not up.
   - interval: 1m
     input_series:
-      - series: 'probe_success{job="blackbox", instance="https://lemmiwinks.matrix.elysium",
+      - series: 'probe_success{job="blackbox", instance="http://lemmiwinks.matrix.elysium",
                  name="wiki", role="documentation", host="oracle", via="dns"}'
         values: "0+0x15"
-      - series: 'probe_success{job="blackbox", instance="https://10.0.99.30",
+      - series: 'probe_success{job="blackbox", instance="http://10.0.99.30",
                  name="wiki", role="documentation", host="oracle", via="address"}'
         values: "0+0x15"
     alert_rule_test:
@@ -33,7 +33,7 @@ tests:
           - exp_labels:
               alertname: EndpointUnreachable
               job: blackbox
-              instance: "https://10.0.99.30"
+              instance: "http://10.0.99.30"
               name: wiki
               role: documentation
               host: oracle
@@ -42,7 +42,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
-              summary: "wiki is not reachable at https://10.0.99.30"
+              summary: "wiki is not reachable at http://10.0.99.30"
               description: >-
                 Probed by address and got no successful response for five
                 minutes. Expected on oracle. If the `address` probe for this
@@ -51,7 +51,7 @@ tests:
           - exp_labels:
               alertname: EndpointUnreachable
               job: blackbox
-              instance: "https://lemmiwinks.matrix.elysium"
+              instance: "http://lemmiwinks.matrix.elysium"
               name: wiki
               role: documentation
               host: oracle
@@ -60,7 +60,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
-              summary: "wiki is not reachable at https://lemmiwinks.matrix.elysium"
+              summary: "wiki is not reachable at http://lemmiwinks.matrix.elysium"
               description: >-
                 Probed by dns and got no successful response for five
                 minutes. Expected on oracle. If the `address` probe for this
@@ -79,10 +79,10 @@ tests:
   # silent and nothing else in CI notices.
   - interval: 1m
     input_series:
-      - series: 'probe_success{job="blackbox", instance="https://lemmiwinks.matrix.elysium",
+      - series: 'probe_success{job="blackbox", instance="http://lemmiwinks.matrix.elysium",
                  name="wiki", role="documentation", host="oracle", via="dns"}'
         values: "0+0x15"
-      - series: 'probe_success{job="blackbox", instance="https://10.0.99.30",
+      - series: 'probe_success{job="blackbox", instance="http://10.0.99.30",
                  name="wiki", role="documentation", host="oracle", via="address"}'
         values: "1+0x15"
     alert_rule_test:
@@ -92,7 +92,7 @@ tests:
           - exp_labels:
               alertname: EndpointNameNotResolving
               job: blackbox
-              instance: "https://lemmiwinks.matrix.elysium"
+              instance: "http://lemmiwinks.matrix.elysium"
               name: wiki
               role: documentation
               host: oracle
@@ -111,10 +111,10 @@ tests:
   # --- Everything healthy --------------------------------------------------
   - interval: 1m
     input_series:
-      - series: 'probe_success{job="blackbox", instance="https://lemmiwinks.matrix.elysium",
+      - series: 'probe_success{job="blackbox", instance="http://lemmiwinks.matrix.elysium",
                  name="wiki", role="documentation", host="oracle", via="dns"}'
         values: "1+0x15"
-      - series: 'probe_success{job="blackbox", instance="https://10.0.99.30",
+      - series: 'probe_success{job="blackbox", instance="http://10.0.99.30",
                  name="wiki", role="documentation", host="oracle", via="address"}'
         values: "1+0x15"
       - series: 'up{job="blackbox-exporter", instance="blackbox-exporter:9115"}'
