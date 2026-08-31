@@ -297,6 +297,12 @@ def check_counts(f: dict) -> list[str]:
          "unit-tested rules"),
         (rf"[Oo]ther\s+{COUNT}\s+are still validated", {f["untested_rules"]},
          "rules without a unit test"),
+        # "Coverage is fifteen rules of 45" states two counts and only the
+        # first was checked, so the denominator could go stale on its own —
+        # the same shape as "39 rules across six files" above, and it did go
+        # stale the same way the moment a rule was added (#81).
+        (rf"rules of\s+{COUNT}\s+so far", {f["prometheus_rules"]},
+         "rules in the coverage denominator"),
     )
     problems = []
     for rel in PROSE:

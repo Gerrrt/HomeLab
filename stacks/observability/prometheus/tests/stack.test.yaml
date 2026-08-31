@@ -13,10 +13,18 @@
 # alert for a real input; the quiet case proves it does not produce one for the
 # input production actually supplies.
 #
-# What these do NOT prove: the other four rules in stack.rules.yaml have no
-# unit test. PrometheusConfigReloadFailed, PrometheusRuleEvaluationFailures,
+# What these do NOT prove: four rules in stack.rules.yaml have no unit test.
+# PrometheusConfigReloadFailed, PrometheusRuleEvaluationFailures,
 # AlertmanagerNotificationsFailing and LokiIngestionStalled are validated for
 # syntax only, which is exactly the standing #63 had.
+#
+# RemoteWriteJobStale is tested below and needs to be, because the obvious way
+# to write it cannot fire for any input. `time() - timestamp(up) > 300` reads
+# correctly and is unfireable: an instant selector stops returning a sample
+# after the lookback delta, so the difference never reaches the threshold. The
+# firing case here is the proof that the form actually shipped does fire, and
+# the two quiet cases are the proof that it has not simply been made to fire
+# for everything.
 rule_files:
   - ../rules/stack.rules.yaml
 
@@ -63,4 +71,61 @@ tests:
     alert_rule_test:
       - eval_time: 60m
         alertname: PrometheusSizeRetentionActive
+        exp_alerts: []
+
+  # --- RemoteWriteJobStale: fires when a pushing agent goes silent -----------
+  # The series arrives every minute for half an hour and then stops, which is
+  # what a dead agent looks like from here — not a target reporting 0, just
+  # nothing. Five minutes after the last sample the instant selector stops
+  # resolving it while count_over_time still sees it in the range, and that
+  # difference is the alert. Held past for: 15m, it fires by 50m.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="oracle-metrics",instance="oracle"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: RemoteWriteJobStale
+        exp_alerts:
+          - exp_labels:
+              alertname: RemoteWriteJobStale
+              instance: oracle
+              job: oracle-metrics
+              component: stack
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "oracle-metrics on oracle has stopped reporting"
+              description: >-
+                This job arrives by remote_write, so nothing scrapes it and
+                InstanceDown cannot see it — it has simply stopped pushing.
+                Either the Alloy agent on oracle is down or it cannot reach this
+                host. Metrics from it are being lost, not queued.
+
+  # --- RemoteWriteJobStale: quiet while the agent is pushing ----------------
+  # The production state. Without this case the rule would pass its test while
+  # firing for every healthy agent in the estate.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="oracle-metrics",instance="oracle"}'
+        values: "1x70"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: RemoteWriteJobStale
+        exp_alerts: []
+
+  # --- RemoteWriteJobStale: quiet for a pushed target reporting 0 -----------
+  # An agent that is alive but whose own scrape of cAdvisor is failing pushes
+  # up=0. The series is present, so this rule must stay silent and InstanceDown
+  # (up == 0) must be the one that fires — the two rules partition the failure,
+  # they do not overlap. Written as a 0 held for the whole range rather than a
+  # gap, because it is the presence of the series and not its value that this
+  # rule keys on, and a test that used a gap here would pass either way.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="integrations/cadvisor",instance="oracle"}'
+        values: "0x70"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: RemoteWriteJobStale
         exp_alerts: []

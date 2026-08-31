@@ -15,10 +15,12 @@
 # WHAT THESE COVER AND WHAT THEY DO NOT. Every rule here reads a metric the
 # component publishes about its own working — a reload that was rejected, an
 # evaluation that failed, a notification that could not be delivered. None of
-# them can see a component that has stopped publishing altogether; `up == 0` in
+# them can see a component that has stopped publishing altogether. `up == 0` in
 # host.rules.yaml is what does that for anything Prometheus scrapes directly,
-# and for anything arriving by remote_write nothing does. See the note on the
-# Observability Stack dashboard, which draws that gap rather than hiding it.
+# and RemoteWriteJobStale below is what does it for anything arriving by
+# remote_write, which `up == 0` structurally cannot see. Between them every
+# collected target is covered; the Observability Stack dashboard draws the same
+# split, because which of the two applies decides how you read the Up column.
 groups:
   - name: stack
     interval: 60s
@@ -95,3 +97,59 @@ groups:
           description: >-
             Either every Alloy agent is down or the push endpoint is
             unreachable. Logs are being lost, not queued indefinitely.
+
+      - alert: RemoteWriteJobStale
+        # THE RULE InstanceDown CANNOT BE.
+        #
+        # `up == 0` needs a target that is present and failing. An agent that
+        # remote-writes is neither: when it dies it simply stops pushing, its
+        # series goes stale, and five minutes later there is nothing left to
+        # compare against 0. InstanceDown has never been able to see `oracle`'s
+        # agent die, and would not have seen this host's either.
+        #
+        # WHY NOT `time() - timestamp(up)`. That is the obvious form and it
+        # cannot fire for any input — the #63 trap, in a new place. An instant
+        # selector only returns a sample within the lookback delta, so
+        # `timestamp(up)` goes absent at five minutes and the difference is
+        # bounded below the threshold you would want to alert on. Measured over
+        # 24h of real data the largest value any job reached was 79s, and
+        # evaluated at instants before a series existed the expression returns
+        # no series at all rather than a large number. The dashboard's staleness
+        # panel is honest because it is a graph — a threshold on it would not be.
+        #
+        # So the question has to be asked the other way round: which series were
+        # here and are not here now. `count_over_time` sees through staleness
+        # because it reads the range, not the instant.
+        #
+        # THE WINDOW IS THE BOUND. 24h is how long the rule can still remember a
+        # job existed. An agent that comes back inside a day resolves this
+        # truthfully. One that stays away longer resolves it *falsely* at 24h,
+        # having notified at least twice by then — that is the known cost of not
+        # enumerating the expected jobs, and enumerating them is what would make
+        # the rule silently miss `Saruman` when it arrives (#88).
+        #
+        # The selector matches the job names config.alloy builds —
+        # `<hostname>-metrics`, `<hostname>-alloy`, and cAdvisor's
+        # `integrations/cadvisor` — so a new agent is covered on the day it is
+        # deployed, with nothing to remember to add here. Every directly scraped
+        # job is deliberately excluded: those have `up == 0` and InstanceDown.
+        #
+        # Do not put {{ $value }} in the annotations. `count by` returns the
+        # number of samples in the window, which is a number like 1440 and means
+        # nothing to whoever is reading the notification.
+        expr: |
+          count by (job, instance) (count_over_time(up{job=~"integrations/.+|.+-metrics|.+-alloy"}[24h]))
+          unless
+          count by (job, instance) (up{job=~"integrations/.+|.+-metrics|.+-alloy"})
+        for: 15m
+        labels:
+          component: stack
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.job }} on {{ $labels.instance }} has stopped reporting"
+          description: >-
+            This job arrives by remote_write, so nothing scrapes it and
+            InstanceDown cannot see it — it has simply stopped pushing. Either
+            the Alloy agent on {{ $labels.instance }} is down or it cannot reach
+            this host. Metrics from it are being lost, not queued.

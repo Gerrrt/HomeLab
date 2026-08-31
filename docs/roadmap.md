@@ -230,11 +230,21 @@ months.
       point at. And `check_docs.py` was matching spelled counts in lowercase
       only, so "Five dashboards are provisioned" was unguarded while "There are
       five dashboards" two files away was checked; both were stale together.
-      The residual worth naming: **`up` is not a liveness signal for the four
-      jobs that arrive by remote_write.** A pushing agent that dies stops
-      pushing, so its series ages out rather than falling to 0, and
-      `InstanceDown` is `up == 0`. The dashboard draws that gap — the staleness
-      panel is what covers those jobs — but nothing alerts on it yet.
+      One thing the dashboard made obvious was that **`up` is not a liveness
+      signal for the jobs that arrive by remote_write**: a pushing agent that
+      dies stops pushing, so its series ages out rather than falling to 0, and
+      `InstanceDown` is `up == 0`. `RemoteWriteJobStale` closes that, and is
+      worth reading for how it is written rather than what it covers. The
+      obvious form, a threshold on the staleness the dashboard graphs, is
+      unfireable for the same reason #63 was — an instant selector stops
+      returning a sample after the lookback delta, so the difference never
+      reaches the threshold. Both that form and the version with the guard
+      dropped were run against the tests and both fail them. What ships asks
+      which jobs were reporting in the last 24 hours and are not reporting now.
+      The residual is in that window: an agent away longer than a day resolves
+      the alert falsely, having notified at least twice first. That is the price
+      of matching on the job-name convention instead of a list, and the list is
+      what would silently miss `Saruman` when it arrives (#88).
 
 - [x] **[#77](https://github.com/Gerrrt/HomeLab/issues/77) Schedule something.**
       Four systemd timers on the monitoring host run `make backup` weekly,
