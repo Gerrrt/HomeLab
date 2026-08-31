@@ -14,7 +14,7 @@ What this network is actually built to survive:
 | A smart TV's firmware phoning somewhere unexpected | VLAN 40 is terminal, egress only |
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
-| Losing visibility of a failure | 38 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 39 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 
@@ -243,6 +243,13 @@ complete state table and interface topology. They are credentials.
   [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md).
 - The Alloy debug UI binds to `127.0.0.1` only.
 - The Docker socket is mounted read-only into Alloy.
+- Every service runs under a real init (`init: true`) and a chosen task ceiling
+  (`pids_limit`, 512; 1024 for Alloy) rather than the inherited systemd default
+  of 9056. This was not theoretical: Grafana's https healthcheck was leaking two
+  unreaped `ssl_client` children every 30 seconds and would have exhausted the
+  inherited ceiling about three days after each start (#71).
+- Prometheus carries a byte ceiling as well as a time one, so a change that
+  quietly multiplies the series count cannot consume the disk unnoticed.
 - All images are pinned to explicit versions, so an upstream compromise cannot
   arrive silently via `:latest`. Dependabot proposes the bumps; CI validates
   them.

@@ -54,12 +54,21 @@ issues intact. Nothing was summarised away.
   something you find out about from a browser warning.
 - **[#114](https://github.com/Gerrrt/HomeLab/issues/114) Set memory limits on
   the six services.** Nothing in `compose.yaml` bounds a leak, so one container
-  can take the host down — and the host has 8 GB soldered. Blocked on data
-  rather than on agreement: cAdvisor has only reported correctly since
-  [#62](https://github.com/Gerrrt/HomeLab/pull/62), so there are hours of
-  history to size from, not the 30 days retention implies, and `grafana` alone
-  swings 3.7x inside that window. A limit picked from it would be a guess at an
-  OOM kill.
+  can take the host down — and the host has 8 GB soldered. It was blocked on
+  data: cAdvisor has only reported correctly since
+  [#62](https://github.com/Gerrrt/HomeLab/pull/62), and `grafana` swung 3.7x
+  inside the six hours available, so a limit picked from it would have been a
+  guess at an OOM kill. Nine more days did not settle it — they widened it.
+  `loki` now swings 8.6x (121 MiB median, 1039 MiB peak), and `loki`, `grafana`
+  and `alloy` all peaked in the *same hour* on 2026-08-29, which is an episodic
+  event rather than a distribution that converges with more sampling. The
+  method the issue proposed no longer fits the machine either: 3x every peak is
+  7536 MiB against 7816 MiB of RAM. So the gate has changed rather than moved —
+  waiting for more history is not what unblocks this, explaining that one hour
+  is. [#71](https://github.com/Gerrrt/HomeLab/issues/71) took the half that was
+  sizeable: `pids_limit`, because tens of threads against a 10,000-thread abort
+  is two orders of magnitude of daylight, and a byte ceiling on the TSDB, which
+  is at a measurable steady state at day 28 of 30.
 - **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
   screenshots.** `make screenshots` does four of the five; the Logs dashboard is
   deliberately excluded. → [`images/README.md`](images/README.md)
