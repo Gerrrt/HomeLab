@@ -49,9 +49,16 @@ issues intact. Nothing was summarised away.
 - **[#90](https://github.com/Gerrrt/HomeLab/issues/90) Detect Suricata being
   dead.** A quiet IDS and a stopped one produce identical output, so no log rule
   can tell them apart. Needs a heartbeat the SNMP module does not expose.
-- **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Add blackbox-exporter**
-  for uptime and TLS-expiry on internal services. Until it exists, expiry is
-  something you find out about from a browser warning.
+- **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Probe the services this
+  was filed for, and probe TLS expiry.** blackbox-exporter is deployed and
+  scraped, but it probes one thing the issue never named — the wiki, added after
+  it went unreachable unnoticed — and none of the seven it did: Grafana,
+  Prometheus, Alertmanager, Loki, the switch UI, the iLO, the pfSense UI. The
+  expiry half has nothing behind it at all. Both targets are plain HTTP, the
+  TLS-capable `http_2xx` module is defined and used by nothing, and no rule reads
+  `probe_ssl_earliest_cert_expiry`. Grafana is the only service in the estate
+  terminating TLS and it is not probed, so expiry is still something you find out
+  about from a browser warning.
 - **[#114](https://github.com/Gerrrt/HomeLab/issues/114) Set memory limits on
   the six services.** Nothing in `compose.yaml` bounds a leak, so one container
   can take the host down — and the host has 8 GB soldered. It was blocked on
