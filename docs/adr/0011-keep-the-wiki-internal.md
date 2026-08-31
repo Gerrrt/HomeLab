@@ -32,6 +32,33 @@ ADR-0008 makes external exposure look like the obvious fix. It already placed
 Caddy and step-ca on the Winterfell mini PC for the sensitive tier, so the
 machinery for publishing a service exists and reusing it would be cheap.
 
+> **Correction · 2026-08-31.** The paragraph above is wrong. It is kept rather
+> than rewritten because ADR-0001 makes accepted ADRs immutable, and the history
+> of what was believed and when is the point.
+>
+> ADR-0008 *specified* Caddy and step-ca for the sensitive tier. It did not place
+> them on a machine, and neither has ever run. `stacks/` holds one compose file,
+> `observability`; the sensitive tier is unbuilt, as Lemmiwinks'
+> `offboarding/how_to_retire_a_service` already recorded. So the machinery for
+> publishing a service does **not** exist, and reusing it would not be cheap —
+> it would have to be built first, and the documentation would then depend on
+> two components that do not exist today.
+>
+> The same wording recurs below, in the first rejected alternative: *"a reverse
+> proxy and a certificate authority that both run in this house."* Wrong there
+> too, for the same reason, and corrected by this note rather than by a second
+> one.
+>
+> **This strengthens the decision rather than disturbing it.** As written, the
+> ADR concedes that the option it rejects first would be cheap, and rejects it
+> anyway. It is not cheap. The rejection is the stronger for it, every
+> consequence still holds, and this ADR remains Accepted.
+>
+> Verified the same day, since the Decision below asserts it: `morpheus` carries
+> no `rdr` port forwards, and WAN (`em0`) has no inbound pass rules beyond DHCP
+> client replies. *"No port forward, no external hostname, no reverse-proxy
+> entry"* is the live state of the firewall, not only an intention.
+
 ## Decision
 
 **The wiki is not exposed outside the estate.** No port forward, no external
