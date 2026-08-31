@@ -137,6 +137,26 @@ groups:
         # Do not put {{ $value }} in the annotations. `count by` returns the
         # number of samples in the window, which is a number like 1440 and means
         # nothing to whoever is reading the notification.
+        #
+        # WATCHED WORKING, 2026-08-31. The agent on this host was stopped for six
+        # minutes with this rule and InstanceDown silenced, and the timings are
+        # worth knowing because they are the reason the rule exists:
+        #
+        #   t+20s   up{job="alloy"} reaches 0 — the direct scrape notices at once
+        #   t+0…262s  all five pushed series still resolve, this rule returns
+        #             nothing. FOUR AND A HALF MINUTES OF TOTAL BLINDNESS, which
+        #             is the lookback delta and cannot be shortened from here
+        #   t+282s  the first series ages out; the rule returns it, alert pending
+        #   t+342s  all three of this host's pushed jobs detected
+        #
+        # `oracle`'s two jobs stayed reporting throughout and were correctly not
+        # matched, including `integrations/cadvisor`, which exists on both hosts
+        # and is separated only by instance. Recovery was clean: the alert
+        # cleared on its own once the agent came back.
+        #
+        # The blind window is the honest limit of this rule. Detection is 5m of
+        # lookback plus `for: 15m`, so roughly twenty minutes, and nothing about
+        # remote_write allows better without the agent declaring its own absence.
         expr: |
           count by (job, instance) (count_over_time(up{job=~"integrations/.+|.+-metrics|.+-alloy"}[24h]))
           unless

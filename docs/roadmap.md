@@ -241,8 +241,13 @@ months.
       reaches the threshold. Both that form and the version with the guard
       dropped were run against the tests and both fail them. What ships asks
       which jobs were reporting in the last 24 hours and are not reporting now.
-      The residual is in that window: an agent away longer than a day resolves
-      the alert falsely, having notified at least twice first. That is the price
+      It was then watched working rather than argued: the agent on the
+      monitoring host was stopped for six minutes with the rule silenced, and
+      the alert went pending at t+282s having returned nothing at all for the
+      four and a half minutes before that — the lookback delta, and the real
+      blind window on any remote-written target.
+      The residual is in the 24-hour window: an agent away longer than a day
+      resolves the alert falsely, having notified at least twice first. That is the price
       of matching on the job-name convention instead of a list, and the list is
       what would silently miss `Saruman` when it arrives (#88).
 
