@@ -140,7 +140,7 @@ groups:
       #
       # THE SILENCE. IloBatteryCondition and IloWriteCacheDisabled are silenced
       # for device=shiva until 2026-10-01
-      # (3ffc313f-7154-459c-9f62-7c9a432bc97e), because the pack is on order
+      # (bfdfff66-d9c3-4df4-9495-f1f38ebf93c1), because the pack is on order
       # and a known condition should not notify every 12 hours until it
       # arrives. The matcher is deliberately narrow — alertname and device — so
       # a genuinely new fault on this box is not suppressed with it. Delete the
