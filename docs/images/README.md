@@ -9,9 +9,9 @@ out rather than illustrated.
 
 ## What is here now
 
-All four, captured in a single run on 2026-08-22 over a 24-hour window. One run
-rather than four afternoons: a set shot at the same moment is comparable, and a
-gap in one of them is visible against the others.
+Four images, captured in a single run on 2026-08-22 over a 24-hour window. One
+run rather than four afternoons: a set shot at the same moment is comparable,
+and a gap in one of them is visible against the others.
 
 Which file holds which dashboard is in the table under "Capturing them" below,
 because that pairing is defined in the capture script rather than here.
@@ -47,7 +47,7 @@ make screenshots
 ```
 
 `scripts/capture-screenshots.sh` starts the `capture` profile's renderer, shoots
-four of the six dashboards over a 24-hour window, and stops the renderer again.
+five of the six dashboards over a 24-hour window, and stops the renderer again.
 Nothing is left running and `docker compose ps` shows the same six services
 afterwards.
 
@@ -60,9 +60,14 @@ drift:
 | `docker-containers.png` | Docker Containers |
 | `network-snmp.png` | Network & Firewall |
 | `ups-power.png` | UPS & Power |
+| `observability-stack.png` | Observability Stack |
 
 Height is derived per dashboard from its own JSON, so adding a panel makes the
-screenshot taller instead of pushing the new panel out of frame.
+screenshot taller instead of pushing the new panel out of frame — up to
+`BROWSER_MAX_HEIGHT` on the renderer, above which the request is silently
+clamped and the crop comes back. `homelab-stack` is 4582px against a default of
+3000, which is why `compose.yaml` raises it and `MAX_HEIGHT` in the script
+matches. A dashboard that outgrows 5000 needs both moved again.
 
 Overwrite the existing files in place. The root `README.md` references them
 by name, so a re-shoot needs no edit there — but it does need the checklist
@@ -81,18 +86,18 @@ correct fix for a bad window, not cropping.
 
 ## What is not captured, and why
 
-There are six dashboards and four screenshots, and the two missing ones are
-missing for different reasons. `homelab-logs` is excluded on purpose and always
-will be. `homelab-stack` simply has not been shot yet.
+There are six dashboards and four screenshots. `homelab-logs` is excluded on
+purpose and always will be. `homelab-stack` is in the capture set and has simply
+not been shot yet.
 
-### `homelab-stack` is safe to capture and is only unshot
+### `homelab-stack` is wired for capture and is only unshot
 
 It arrived with [#81](https://github.com/Gerrrt/HomeLab/issues/81) and carries
 no log lines, no usernames and no addresses beyond the container names and
 service ports already published throughout this repository. Nothing about it
-needs redaction — it wants a run of `make screenshots` with the dashboard added
-to `DASHBOARDS` in `scripts/capture-screenshots.sh`, and a full day of history
-behind it so the panels are not half empty.
+needs redaction, and it is in `DASHBOARDS` in `scripts/capture-screenshots.sh` —
+it wants a run of `make screenshots` with a full day of history behind it so the
+panels are not half empty.
 
 It is left out of this set rather than shot in a hurry because the window
 matters more for this dashboard than for any other: it draws the collection path

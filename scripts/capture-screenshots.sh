@@ -35,11 +35,15 @@ WIDTH="${CAPTURE_WIDTH:-1600}"
 # and looked deliberate. It is derived per dashboard from the JSON instead, so
 # adding a panel grows the screenshot rather than pushing content off it.
 #
-# The renderer's own ceiling is BROWSER_MAX_HEIGHT, 3000 by default; a request
-# above it is silently clamped, which would truncate again.
-MAX_HEIGHT=3000
+# The renderer's own ceiling is BROWSER_MAX_HEIGHT; a request above it is
+# silently clamped, which would truncate again — the same crop, one layer down,
+# and just as quiet. compose.yaml sets it to 5000 because `homelab-stack` is
+# 4582px and the 3000 default cut its whole Alloy row off a capture that still
+# reported success. The two numbers only work in step: raising either alone
+# leaves the lower one deciding.
+MAX_HEIGHT=5000
 
-# How long to give one render. A full dashboard is 15-21 panels, each a
+# How long to give one render. A full dashboard is 15-35 panels, each a
 # separate query, and Chromium will not paint until they settle. Grafana's own
 # default is 60s and that is not enough for the network dashboard on this
 # hardware.
@@ -58,6 +62,7 @@ DASHBOARDS=(
   "homelab-docker:docker-containers.png"
   "homelab-network:network-snmp.png"
   "homelab-ups:ups-power.png"
+  "homelab-stack:observability-stack.png"
 )
 
 # shellcheck source=secrets-env.sh

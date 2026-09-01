@@ -66,7 +66,7 @@ a target that names none of its own is what #78 was about.
 
 ## Screenshots
 
-Four of the six are captured into `docs/images/` by `make screenshots`. Which
+Five of the six are captured into `docs/images/` by `make screenshots`. Which
 files hold which dashboard, why `homelab-logs` is deliberately never captured,
 and what to check before publishing an image are all in
 [`docs/images/README.md`](../../../../docs/images/README.md).

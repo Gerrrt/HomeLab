@@ -260,8 +260,8 @@ measured, and that scheduled self-tests are still off. That is `ups-power.json`,
 
 Two deliberate departures from the plan above. The banner panel was **rewritten
 rather than deleted**, because there is still something true and non-obvious for
-it to say and keeping it holds the dashboard at 117 panels, so the
-`scripts/check_docs.py` panel-count coupling stays untriggered. And **#93 was
+it to say and keeping it left the panel count where it was, so the
+`scripts/check_docs.py` panel-count coupling stayed untriggered. And **#93 was
 not moved into Done**, because this roadmap entry defines it as *delete the
 silence, then self-test, then enable scheduled tests* — the third is step 6, and
 it is outstanding.
@@ -285,7 +285,7 @@ One coupling to know about before you start editing: **deleting the banner panel
 changes the dashboard's panel count**, and `scripts/check_docs.py` asserts every
 panel count quoted in prose against the live JSON. The banner was retitled
 rather than removed on 2026-08-28 for exactly that reason — the count did not
-move. When you do delete it, 84 becomes 83 in both `README.md` and
+move. When you do delete it, 119 becomes 118 in both `README.md` and
 `stacks/observability/README.md`, in the same commit, or CI will fail. Run
 `make validate` before pushing.
 

@@ -77,7 +77,7 @@ issues intact. Nothing was summarised away.
   is two orders of magnitude of daylight, and a byte ceiling on the TSDB, which
   is at a measurable steady state at day 28 of 30.
 - **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
-  screenshots.** `make screenshots` does four of the five; the Logs dashboard is
+  screenshots.** `make screenshots` does five of the six; the Logs dashboard is
   deliberately excluded. → [`images/README.md`](images/README.md)
 
 ### The stack does not watch itself
@@ -85,10 +85,10 @@ issues intact. Nothing was summarised away.
 Found while verifying [#12](https://github.com/Gerrrt/HomeLab/issues/12), and
 new since this file was last honest:
 
-- **[#81](https://github.com/Gerrrt/HomeLab/issues/81)** No dashboard for the
-  observability stack itself, and **[#82](https://github.com/Gerrrt/HomeLab/issues/82)**
-  none for the Suricata and firewall-log labels `config.alloy` goes to trouble
-  to extract.
+- **[#82](https://github.com/Gerrrt/HomeLab/issues/82)** No dashboard for the
+  Suricata and firewall-log labels `config.alloy` goes to trouble to extract.
+  The stack's own dashboard landed as #81, below; this is the half of that
+  section still open.
 - **[#67](https://github.com/Gerrrt/HomeLab/issues/67)** No dead man's switch on
   the notification path — a 200 into a dead topic is a successful notification.
 
@@ -250,6 +250,20 @@ months.
       resolves the alert falsely, having notified at least twice first. That is the price
       of matching on the job-name convention instead of a list, and the list is
       what would silently miss `Saruman` when it arrives (#88).
+      Two panels were added afterwards, which is what closed the issue. The
+      Alloy row charted throughput, lag, component health and forwarded lines
+      but not the WAL, which the issue had asked for by name — *WAL size and
+      append rate* and *WAL replay and corruption* now do, and the replay one
+      earns its place by dating an agent restart to the minute, the context
+      that is missing when the lag panel jumps and nothing says why.
+      Adding them also found that the screenshot this dashboard has been
+      waiting for could never have worked. `homelab-stack` renders 4582px tall
+      against a `BROWSER_MAX_HEIGHT` of 3000, so a capture would have come back
+      cropped at the Alertmanager row — with the Alloy panels, the reason to
+      shoot it at all, off the bottom — and reported success. The ceiling is
+      raised in `compose.yaml` and in the script together, and the dashboard is
+      in `DASHBOARDS`; it is still unshot, because the window wants a clean day
+      behind it rather than the hour after a deploy.
 
 - [x] **[#77](https://github.com/Gerrrt/HomeLab/issues/77) Schedule something.**
       Four systemd timers *are written* to run `make backup` weekly,
