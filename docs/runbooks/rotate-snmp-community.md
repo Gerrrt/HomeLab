@@ -55,11 +55,16 @@ network interface on save, typically for 30-60 seconds.
 through.
 
 > Losing its management address does not drop traffic — layer 2 keeps forwarding
-> — but you cannot reconfigure it until you get back in. `docs/network.md` lists
-> `10.7.7.0/24` as reaching **Nothing**, so the monitoring host at `10.0.99.20`
-> polling `10.7.7.2` depends on a pfSense rule that is not documented anywhere in
-> this repository. **If exactly one device fails verification and it is this one,
-> suspect that rule before you suspect the community.**
+> — but you cannot reconfigure it until you get back in. The monitoring host at
+> `10.0.99.20` reaches `10.7.7.2` through a single pfSense rule permitting
+> `161-162/udp`, recorded in
+> [ADR-0013](../adr/0013-segment-access-as-implemented.md). **If exactly one
+> device fails verification and it is this one, suspect that rule before you
+> suspect the community.**
+>
+> Its SNMP community table also will not persist a deletion, and every attempt
+> drops the SNMP agent until the switch is rebooted. §2.5 has a separate route
+> for this device; read it before you open the UI.
 
 **pfSense** (`morpheus`, 10.0.99.1) — the low-risk one, but check what you are
 standing on.
@@ -107,6 +112,13 @@ Work through them in this order — cheapest recovery first, physical access las
 
 For each device, run the whole of §2.1 to §2.5 before starting the next one.
 
+The one exception is the MokerLink switch, whose §2.5 needs a reboot window and
+can legitimately be left for a later pass — §2.1 to §2.4 stand on their own, and
+the switch polls correctly on its new community in the meantime. That is exactly
+what happened on the rotation this runbook came out of; the leftover is
+[#84](https://github.com/Gerrrt/HomeLab/issues/84). Deferring it is a decision to
+record, not one to make silently.
+
 ### 2.1 Add the new community — do not remove the old one yet
 
 > **Add, do not replace.** Until the new community is proven end to end, the old
@@ -126,6 +138,14 @@ string. Confirm the daemon binds only to the VLAN 99 interface.
 **SNMP → Community.** Add the read-only community. Delete any default
 `public`/`private` entries while you are in there — those are not your rollback
 credential and should not survive this.
+
+> Expect those deletions not to stick. This firmware does not persist a removal
+> from the community table: the row can be deleted, applied and saved, and it is
+> still there after a restart — and each attempt drops the SNMP agent until the
+> switch is rebooted. Retiring an entry here means overwriting it, which is
+> [§2.5's MokerLink route](#the-mokerlink-switch-overwrite-the-row). Nothing in
+> this step depends on the deletion succeeding, so add the new community, try the
+> defaults once, and carry on.
 
 **HPE iLO** (`shiva`, 10.0.30.10) — **Administration → Management → SNMP
 Settings.** Set the read community.
@@ -198,10 +218,74 @@ back — `max_over_time(up{job="snmp",instance="<ip>"}[30d])`. `1` means it was
 working before you started and the rotation is the suspect; `0` means it never
 worked, the rotation is not the cause, and reverting will not bring it back.
 
-### 2.5 Remove the old community, then prove it is gone
+### 2.5 Retire the old community, then prove it is gone
 
-Only once §2.4 is green. Delete the old entry in the device's UI — some UIs
-require deleting the row rather than blanking the field — then:
+Only once §2.4 is green. How you retire it depends on the device.
+
+#### Most devices: delete the row
+
+pfSense, the APC NMC and iLO. Delete the old entry in the device's UI — some UIs
+require deleting the row rather than blanking the field. Then go to
+[**Prove it**](#prove-it).
+
+#### The MokerLink switch: overwrite the row
+
+`neo` is the exception, and the paragraph above does not work on it. Its
+firmware accepts the deletion, applies it and saves it, and the row is still
+there after a restart. Every attempt also drops the SNMP agent until the switch
+is rebooted, so retrying is not free — this is the residual recorded in
+[`SECURITY.md`](../../SECURITY.md) and tracked as
+[#84](https://github.com/Gerrrt/HomeLab/issues/84).
+
+**Do this only in a window where the switch can be rebooted**, ideally one it is
+already going down for. `neo` carries every VLAN: the reboot stops layer 2, not
+just SNMP. This is not a drive-by change at the end of a rotation.
+
+1. **Overwrite the row, do not delete it.** Web UI at `http://10.7.7.2`,
+   **SNMP → Community.** Edit the row holding the *old* community in place and
+   write the **current** community into it — the value already in
+   `SNMP_COMMUNITY_MOKERLINK`. If the firmware accepts the duplicate, the switch
+   ends up answering exactly one string, nothing in this repository changes, and
+   there is no `make render` or `make reload` to do.
+
+2. **If it rejects a duplicate entry**, write a fresh value instead:
+
+   ```bash
+   make gen-secret ARGS=--snmp
+   ```
+
+   Understand what that leaves you with: a second live read-only community on the
+   switch that is not in SOPS and is not polled by anything. That is a worse
+   record than step 1 and it must be written into `SECURITY.md` if you take it.
+   It is still a large improvement, because the value it displaces is the shared
+   string that was published to a public repository.
+
+3. **Reboot the switch.** This is the test, not housekeeping. The deletion that
+   started all this looked like it had worked until a restart, so an un-rebooted
+   result says nothing about what the switch has actually saved.
+
+4. **Check the current community still works**, before checking anything else:
+
+   ```bash
+   ./scripts/snmp-verify.sh --device neo
+   ```
+
+   This must be `PASS`. If it is not, the overwrite hit the wrong row and `neo`
+   is unmonitored — fix that first. It is also the precondition for the next
+   step: `--old` reports `SKIP` for a device that failed here, and a `SKIP` would
+   tell you nothing.
+
+5. **Then** go to [**Prove it**](#prove-it), answering for `neo` and pressing
+   Enter through the other three.
+
+If it still reports `STILL ACCEPTED` after a reboot, the overwrite did not
+persist either. **Stop — do not retry.** Each attempt costs another agent outage
+for a firmware behaviour you have now tested twice. Leave the switch polling on
+its current community and write what the overwrite actually did into
+`SECURITY.md`, replacing the "overwrite rather than delete" sentence, which will
+have been disproved.
+
+#### Prove it
 
 ```bash
 ./scripts/snmp-verify.sh --old
@@ -229,6 +313,11 @@ answered its current community, you do not know whether it still accepts the old
 one — and if the old one leaked, that device is still exposed. Do not record the
 rotation as complete while any device is `SKIP`. Fix the current-community check
 first; `--old` only becomes meaningful for that device at that point.
+
+Nothing re-runs this afterwards. The weekly `homelab-snmp-verify.timer` runs
+plain mode only — `--old` needs a terminal, so a timer cannot drive it. What it
+prints here is a point-in-time result and the only evidence you will have, which
+is why §3 has you paste it onto the issue.
 
 ## 3. Commit
 
@@ -300,10 +389,11 @@ care how many times you write it.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | All four `FAIL` | Not the devices — you are not on `10.0.99.0/24`, or sops decrypted a stale file | `ping 10.0.99.1`; re-run `make render` |
-| Only `neo` (`10.7.7.2`) fails | `10.7.7.0/24` is a separate segment reached through pfSense; the rule permitting `10.0.99.20 → 10.7.7.2` either does not exist, was reset, or does not cover UDP/161 | `ping 10.7.7.2` and `nc -vz 10.7.7.2 80` from the monitoring host. If both succeed while SNMP times out, the return path is fine and the fault is protocol-specific — check the *protocol and port* on the pfSense rule (**Firewall → Rules**) before you touch the switch |
+| Only `neo` (`10.7.7.2`) fails | `10.7.7.0/24` is a separate segment reached through pfSense; the rule permitting `10.0.99.20 → 10.7.7.2` either does not exist, was reset, or does not cover UDP/161 | `ping 10.7.7.2` and `nc -vz 10.7.7.2 80` from the monitoring host. If both succeed while SNMP times out, the return path is fine and the fault is protocol-specific — check the *protocol and port* on the pfSense rule (**Firewall → Rules**) before you touch the switch. The rule as it should be is in [ADR-0013](../adr/0013-segment-access-as-implemented.md) |
 | A device `FAIL`s and you cannot tell whether you broke it | An SNMPv2c timeout looks identical for a wrong community, a filtered path, and a device that never worked | Ask Prometheus before rolling anything back: `max_over_time(up{job="snmp",instance="<ip>"}[30d])`. `1` means it worked before you started, so the rotation is the suspect. `0` means it never worked, the rotation is not the cause, and rolling back will not help |
 | One device fails right after you changed it | The UI truncated the community, or you removed the wrong entry | Re-enter it; check the field's max length (the APC NMC truncates at 15 on several firmwares; the card in this lab does not — it is verified at 16) |
 | `--old` reports `STILL ACCEPTED` | The device added the new community alongside the old one | Delete the old entry explicitly — some UIs need the row deleted, not blanked |
+| `--old` reports `STILL ACCEPTED` on `neo`, after a delete | Expected. This firmware does not persist a removal from the community table, and the attempt has cost you the SNMP agent until reboot | Do not delete it again. Overwrite the row instead — [§2.5's MokerLink route](#the-mokerlink-switch-overwrite-the-row), which needs a window in which the switch can be rebooted |
 | `--old` reports `SKIP` | The current-community check failed for that device, so a timeout proves nothing | Fix the current check first |
 | `error: ... contains whitespace or '#'` | A community was typed with a space or `#` into SOPS | `make secrets-edit`; regenerate with `make gen-secret` |
 | `error: malformed line ... expected 'KEY: value'` | A key was written `KEY:value`, with no space after the colon | `make secrets-edit` |

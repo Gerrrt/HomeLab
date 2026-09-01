@@ -61,9 +61,11 @@ The residual risk is accepted rather than overlooked. The community is
 read-only, and reaching UDP/161 on `10.7.7.2` requires both a foothold on the
 management VLAN and the specific pfSense rule that permits `10.0.99.20` to
 reach it — it is not exposed beyond the management segment. The way to close it
-without fighting the firmware is to overwrite that row with a fresh value
-rather than delete it, on some future pass when the switch is already being
-taken down for something else.
+without fighting the firmware is to overwrite that row rather than delete it, on
+some future pass when the switch is already being taken down for something else.
+That is now written out as a procedure — [§2.5, *The MokerLink switch: overwrite
+the row*](docs/runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
+— including what to record here if the overwrite does not persist either.
 
 Remediation is tracked in [`docs/roadmap.md`](docs/roadmap.md), with procedures
 in [`docs/runbooks/rotate-snmp-community.md`](docs/runbooks/rotate-snmp-community.md)
