@@ -56,11 +56,12 @@ through.
 
 > Losing its management address does not drop traffic — layer 2 keeps forwarding
 > — but you cannot reconfigure it until you get back in. The monitoring host at
-> `10.0.99.20` reaches `10.7.7.2` through a single pfSense rule permitting
-> `161-162/udp`, recorded in
-> [ADR-0013](../adr/0013-segment-access-as-implemented.md). **If exactly one
-> device fails verification and it is this one, suspect that rule before you
-> suspect the community.**
+> `10.0.99.20` reaches `10.7.7.2` through two pfSense rules, both recorded in
+> [ADR-0013](../adr/0013-segment-access-as-implemented.md): the outbound
+> `10.0.99.20 → 10.7.7.2:161-162/udp` and the switch's return path
+> `10.7.7.2 → 10.0.99.20:161-162/udp`. Either one missing presents the same way,
+> as a timeout. **If exactly one device fails verification and it is this one,
+> suspect those rules before you suspect the community.**
 >
 > Its SNMP community table also will not persist a deletion, and every attempt
 > drops the SNMP agent until the switch is rebooted. §2.5 has a separate route
@@ -251,8 +252,13 @@ just SNMP. This is not a drive-by change at the end of a rotation.
 2. **If it rejects a duplicate entry**, write a fresh value instead:
 
    ```bash
-   make gen-secret ARGS=--snmp
+   make gen-secret
    ```
+
+   Plain, not `ARGS=--snmp`: that variant prints one `SNMP_COMMUNITY_*` line per
+   device, ready to paste into `make secrets-edit`, which is the opposite of what
+   this value is. You want one bare 24-character string, and it does not go into
+   SOPS.
 
    Understand what that leaves you with: a second live read-only community on the
    switch that is not in SOPS and is not polled by anything. That is a worse
@@ -392,7 +398,7 @@ care how many times you write it.
 | Only `neo` (`10.7.7.2`) fails | `10.7.7.0/24` is a separate segment reached through pfSense; the rule permitting `10.0.99.20 → 10.7.7.2` either does not exist, was reset, or does not cover UDP/161 | `ping 10.7.7.2` and `nc -vz 10.7.7.2 80` from the monitoring host. If both succeed while SNMP times out, the return path is fine and the fault is protocol-specific — check the *protocol and port* on the pfSense rule (**Firewall → Rules**) before you touch the switch. The rule as it should be is in [ADR-0013](../adr/0013-segment-access-as-implemented.md) |
 | A device `FAIL`s and you cannot tell whether you broke it | An SNMPv2c timeout looks identical for a wrong community, a filtered path, and a device that never worked | Ask Prometheus before rolling anything back: `max_over_time(up{job="snmp",instance="<ip>"}[30d])`. `1` means it worked before you started, so the rotation is the suspect. `0` means it never worked, the rotation is not the cause, and rolling back will not help |
 | One device fails right after you changed it | The UI truncated the community, or you removed the wrong entry | Re-enter it; check the field's max length (the APC NMC truncates at 15 on several firmwares; the card in this lab does not — it is verified at 16) |
-| `--old` reports `STILL ACCEPTED` | The device added the new community alongside the old one | Delete the old entry explicitly — some UIs need the row deleted, not blanked |
+| `--old` reports `STILL ACCEPTED` | The device added the new community alongside the old one | Delete the old entry explicitly — some UIs need the row deleted, not blanked. **Not `neo`** — see the next row |
 | `--old` reports `STILL ACCEPTED` on `neo`, after a delete | Expected. This firmware does not persist a removal from the community table, and the attempt has cost you the SNMP agent until reboot | Do not delete it again. Overwrite the row instead — [§2.5's MokerLink route](#the-mokerlink-switch-overwrite-the-row), which needs a window in which the switch can be rebooted |
 | `--old` reports `SKIP` | The current-community check failed for that device, so a timeout proves nothing | Fix the current check first |
 | `error: ... contains whitespace or '#'` | A community was typed with a space or `#` into SOPS | `make secrets-edit`; regenerate with `make gen-secret` |
