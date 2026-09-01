@@ -47,8 +47,14 @@ issues intact. Nothing was summarised away.
   agent pushes to them and has no other path, which is why #70 could close
   Alertmanager and not these. Firewall default-deny is the whole control.
   Accepted residual, recorded in `SECURITY.md`.
-- **[#86](https://github.com/Gerrrt/HomeLab/issues/86) Decide whether the lab
-  VLAN needs egress filtering** — before the playground exists, not after.
+- **[#235](https://github.com/Gerrrt/HomeLab/issues/235) Decide whether the
+  iLO stays on the lab segment.** ADR-0014 puts `ifrit`'s attack VM on
+  ImaginationLAN, so `shiva` — the BMC of the box being defended, on firmware
+  that will not get newer — is now layer-2 adjacent to a Kali VM. The only
+  explicit pass on that interface exists because the iLO is there; moving it to
+  Winterfell deletes two rules and the exception, and puts a BMC next to the
+  firewall's admin UI instead. Found writing ADR-0014; recorded there, not
+  decided.
 
 ## Monitoring
 
@@ -187,8 +193,12 @@ what left this one unfireable for months.
   VLAN 40.** Adds an inter-VLAN rule and changes what "terminal" means for that
   segment. ADR-0008.
 - **[#96](https://github.com/Gerrrt/HomeLab/issues/96) Procure `ifrit` and build
-  the playground** — only after the main network is finished. ADR-0007 defers the
-  isolation mechanism, and that deferral is the real work.
+  the playground** — only after the main network is finished. The isolation
+  mechanism ADR-0007 deferred is settled by ADR-0014: `ifrit` is single-homed on
+  ImaginationLAN, the targets sit on a bridge with no physical port on a subnet
+  the firewall does not route, the attack VM does not forward, and the
+  hypervisor management planes close at the host. What is left is the purchase
+  and a build runbook that checks each of those.
 - **[#97](https://github.com/Gerrrt/HomeLab/issues/97) Work out DNS for the
   MokerLink management UI** so it is not reached by IP, and can hold a
   certificate that verifies.
@@ -214,6 +224,10 @@ months.
 - **[#101](https://github.com/Gerrrt/HomeLab/issues/101)** ADR-0007's
   `stacks/lab/` on `Saruman` — Wazuh, Velociraptor, PBS, a Windows domain, and a
   second observability stack.
+- **[#234](https://github.com/Gerrrt/HomeLab/issues/234)** ADR-0014's tripwire
+  on ImaginationLAN — the fourth rule in #223's shape, a Loki rule whose source
+  is `10.0.30.0/24`, and the restore runbook expecting four where it expects
+  three. Log-only; a no-op until the segment holds attackers.
 - **[#102](https://github.com/Gerrrt/HomeLab/issues/102)** ADR-0008's sensitive
   tier and its two new firewall rules.
 - **[#103](https://github.com/Gerrrt/HomeLab/issues/103)** The SSO deferral
@@ -222,6 +236,22 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#86](https://github.com/Gerrrt/HomeLab/issues/86) Decide whether the
+      lab VLAN needs egress filtering.** No. ADR-0014. The question and #96's
+      deferred isolation mechanism were one decision, and the fact that
+      decided it is that the techniques the estate exists to detect are layer
+      2 — poisoning, spoofing, rogue DHCP — and do not cross a router. So the
+      attacker shares the segment with the Windows domain, and the vulnerable
+      targets get no route at all: a bridge inside `ifrit` with no physical
+      port, on a subnet the firewall does not know. A port allowlist would
+      have passed C2 on 443 and broken Kerberos by blocking NTP; a range VLAN
+      would have routed every scan through the box that runs the house and
+      hidden the layer-2 techniques from the estate.
+
+      Two things it found and did not decide: the iLO of the defended estate
+      is now on the attackers' segment (#235), and the segment gets a log-only
+      tripwire like the three terminal ones (#234).
 
 - [x] **[#104](https://github.com/Gerrrt/HomeLab/issues/104) A superseding ADR
       for 0002's rule count.** ADR-0013. The issue asked for the third rule and

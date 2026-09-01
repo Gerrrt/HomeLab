@@ -70,7 +70,7 @@ incident.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** Thirteen ADRs covering what was chosen
+- **Documented decisions and runbooks.** Fourteen ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; twelve
   runbooks for the operations that are easy to get wrong at 1am.
 
@@ -167,7 +167,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 13 architecture decision records
+│   ├── adr/                  # 14 architecture decision records
 │   └── runbooks/             # deploy, add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, restore the stack,
 │                             #   ship firewall logs, verify the alert path,

@@ -2,6 +2,12 @@
 
 **Status:** Accepted · 2026-08
 
+> [!NOTE]
+> The isolation mechanism this ADR defers in its Consequences — where `ifrit`
+> goes, and whether the lab's egress is filtered — is settled by
+> [ADR-0014](0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md).
+> The text here is left as written, per ADR-0001.
+
 ## Context
 
 This repository began as a place to practise security work. **ImaginationLAN
