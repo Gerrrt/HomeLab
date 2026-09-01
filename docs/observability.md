@@ -163,6 +163,20 @@ empty Suricata panels are not evidence of anything. That is the same gap
 a process metric. The dashboard says so in a text panel at the top rather than
 letting a flat line be read as calm.
 
+**And it found that this firewall logs blocks only.** Building the panels turned
+up something the alerts had not: across the full 30-day retention the `action`
+label has exactly one value, `block`, at roughly 85,000 lines a day and not one
+`pass`. `TerminalSegmentReachedInternalNetwork` matches `{app="filterlog",
+action="pass"}`, so **it cannot fire for any input** — the same shape of defect
+as [#63](https://github.com/Gerrrt/HomeLab/issues/63), where
+`ContainerHighMemory` divided by a limit no service set and showed as loaded and
+healthy throughout. Enabling logging on the inter-VLAN pass rules in pfSense is
+what would arm it.
+
+This is why the two pass-dependent stats read *not logged* rather than `0`.
+Zero would be a measurement, and none was taken; the distinction is the whole
+reason the panel says which it is.
+
 ## Alerting
 
 59 rules in total: 46 metric-based in `prometheus/rules/`, and 13 log-based in

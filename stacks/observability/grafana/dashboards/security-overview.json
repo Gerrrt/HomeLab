@@ -219,14 +219,14 @@
       "type": "text",
       "title": "What this dashboard cannot see",
       "gridPos": {
-        "h": 4,
+        "h": 7,
         "w": 24,
         "x": 0,
         "y": 6
       },
       "options": {
         "mode": "markdown",
-        "content": "- **Suricata watches the Skids (VLAN 20) interface only**, alert-only (`Block Offenders` is off). Guest/VLAN 10 is next — [#89](https://github.com/Gerrrt/HomeLab/issues/89) — the rest of the lab is unwatched and WAN deliberately always will be. Empty Suricata panels mean *nothing was seen on VLAN 20*, not that the lab is quiet.\n- **A quiet IDS and a stopped one produce identical output.** There is no `SuricataStopped` rule and no panel here can distinguish them; that needs a process metric, tracked in [#90](https://github.com/Gerrrt/HomeLab/issues/90).\n- **Addresses are parsed out of the line at query time, IPv4 only.** `src` and `dst` are not labels — ADR-0003 keeps them out of the index — so the address panels use `| regexp` and skip IPv6 lines.\n- **`Interface` is the pfSense device name**, not the VLAN name. On this firewall the VLAN sub-interfaces are `igc0.<vlan id>` — `igc0.20` is Skids — and `em0` is WAN. That mapping is a property of the current interface assignment, not a guarantee; group by the label rather than hardcoding a value."
+        "content": "- **Suricata watches the Skids (VLAN 20) interface only**, alert-only (`Block Offenders` is off). Guest/VLAN 10 is next — [#89](https://github.com/Gerrrt/HomeLab/issues/89) — the rest of the lab is unwatched and WAN deliberately always will be. Empty Suricata panels mean *nothing was seen on VLAN 20*, not that the lab is quiet.\n- **A quiet IDS and a stopped one produce identical output.** There is no `SuricataStopped` rule and no panel here can distinguish them; that needs a process metric, tracked in [#90](https://github.com/Gerrrt/HomeLab/issues/90).\n- **Addresses are parsed out of the line at query time, IPv4 only.** `src` and `dst` are not labels — ADR-0003 keeps them out of the index — so the address panels use `| regexp` and skip IPv6 lines.\n- **This firewall does not log passed packets.** Measured over the full 30-day retention, `action` has exactly one value: `block`. So every *passed* series here is structurally empty, and `TerminalSegmentReachedInternalNetwork` — which matches `action=\"pass\"` — cannot fire for any input. Enabling pass logging on the inter-VLAN rules is what would make that alert, and the red series below, capable of saying anything.\n- **`Interface` is the pfSense device name**, not the VLAN name. On this firewall the VLAN sub-interfaces are `igc0.<vlan id>` — `igc0.20` is Skids — and `em0` is WAN. That mapping is a property of the current interface assignment, not a guarantee; group by the label rather than hardcoding a value."
       }
     },
     {
@@ -241,7 +241,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 10
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -304,7 +304,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 10
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -358,7 +358,7 @@
     {
       "type": "stat",
       "title": "Passed (1h)",
-      "description": "Packets the firewall logged as passed in the last hour. Only rules with logging enabled appear here, so this is not total throughput.",
+      "description": "Packets the firewall logged as passed in the last hour. This firewall logs blocks only — `action` has exactly one value across the whole retention — so it reads *not logged* rather than 0, which would claim a measurement never taken.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -367,7 +367,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 10
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -385,7 +385,8 @@
             ]
           },
           "mappings": [],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not logged"
         },
         "overrides": []
       },
@@ -430,7 +431,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 10
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -448,7 +449,8 @@
             ]
           },
           "mappings": [],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -493,7 +495,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 10
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -515,7 +517,8 @@
             ]
           },
           "mappings": [],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -551,7 +554,7 @@
     {
       "type": "stat",
       "title": "Terminal→internal passes (24h)",
-      "description": "Packets PASSED from VLAN 10/20/40 toward VLAN 30/50/99. ADR-0002 says this path does not exist, so anything but zero is a segmentation failure — this is TerminalSegmentReachedInternalNetwork's own count.",
+      "description": "Packets PASSED from VLAN 10/20/40 toward VLAN 30/50/99. ADR-0002 says this path does not exist, so anything but zero is a segmentation failure — this is TerminalSegmentReachedInternalNetwork's own count. It reads *not logged* because pass logging is off: the alert cannot fire and this cannot count, and neither of those says the path is closed.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -560,7 +563,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 10
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -582,7 +585,8 @@
             ]
           },
           "mappings": [],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not logged"
         },
         "overrides": []
       },
@@ -623,7 +627,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 17
       },
       "panels": []
     },
@@ -636,10 +640,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 8,
+        "h": 10,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 18
       },
       "fieldConfig": {
         "defaults": {
@@ -675,14 +679,10 @@
       },
       "options": {
         "legend": {
-          "displayMode": "table",
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi",
@@ -713,10 +713,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 8,
+        "h": 10,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 18
       },
       "fieldConfig": {
         "defaults": {
@@ -821,10 +821,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 8,
+        "h": 10,
         "w": 12,
         "x": 0,
-        "y": 23
+        "y": 28
       },
       "fieldConfig": {
         "defaults": {
@@ -898,10 +898,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 8,
+        "h": 10,
         "w": 12,
         "x": 12,
-        "y": 23
+        "y": 28
       },
       "targets": [
         {
@@ -985,7 +985,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 38
       },
       "panels": []
     },
@@ -998,10 +998,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 8,
+        "h": 10,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 39
       },
       "fieldConfig": {
         "defaults": {
@@ -1038,14 +1038,10 @@
       },
       "options": {
         "legend": {
-          "displayMode": "table",
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi",
@@ -1076,10 +1072,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 8,
+        "h": 10,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 39
       },
       "fieldConfig": {
         "defaults": {
@@ -1218,7 +1214,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 49
       },
       "options": {
         "showTime": true,
@@ -1251,23 +1247,23 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 59
       },
       "panels": []
     },
     {
       "type": "timeseries",
       "title": "Terminal segment → internal network, by action",
-      "description": "Traffic from the egress-only VLANs (10 Degens, 20 Skids, 40 CasaBonita) aimed at an internal segment (30 ImaginationLAN, 50 Hicks, 99 Winterfell). Passed is the breach ADR-0002 says cannot happen, and is what TerminalSegmentReachedInternalNetwork fires on. Blocked is an attempt the firewall stopped.\n\n**Both series empty is the normal state here, and it is not a broken query.** Measured over 24h on 2026-09-01: terminal-VLAN sources appear in 63 blocked lines and internal destinations in 2058, but never in the same line — nothing on VLANs 10, 20 or 40 is currently aiming at an internal segment at all. If you need to confirm the regex still matches, drop either half of it and check the count is non-zero.",
+      "description": "Traffic from the egress-only VLANs (10 Degens, 20 Skids, 40 CasaBonita) aimed at an internal segment (30 ImaginationLAN, 50 Hicks, 99 Winterfell). Passed is the breach ADR-0002 says cannot happen, and is what TerminalSegmentReachedInternalNetwork fires on. Blocked is an attempt the firewall stopped.\n\n**Both series empty is the normal state here, and it is not a broken query.** Measured over 24h on 2026-09-01: terminal-VLAN sources appear in 63 blocked lines and internal destinations in 2058, but never in the same line — nothing on VLANs 10, 20 or 40 is currently aiming at an internal segment at all. If you need to confirm the regex still matches, drop either half of it and check the count is non-zero.\n\n**The passed series additionally cannot populate at all right now**, because this firewall logs blocks only. Until pass logging is enabled on the inter-VLAN rules, absence of a red line is not evidence of absence of a breach.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 60
       },
       "fieldConfig": {
         "defaults": {
@@ -1384,10 +1380,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 60
       },
       "fieldConfig": {
         "defaults": {
@@ -1471,7 +1467,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 69
       },
       "options": {
         "showTime": true,
