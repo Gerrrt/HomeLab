@@ -35,9 +35,8 @@ equivalent size bound.
 ## Log level normalisation
 
 Logs arrive spelling severity about twenty different ways — `ERROR`, `err`,
-`eror`, `crit`, `fatal`, `panic`, `dbug`. The `log_processor` stage in
-`config.alloy` maps all of them onto five canonical values before they reach
-Loki:
+`eror`, `crit`, `fatal`, `panic`, `dbug`. `config.alloy` maps all of them onto
+five canonical values before they reach Loki:
 
 ```text
 emerg, panic, corrupt, fatal, alert, crit, critical  →  critical
@@ -50,13 +49,58 @@ dbug, debug, dbg                                     →  debug
 This is what makes `{level="error"}` a useful query across a FreeBSD firewall, a
 Ubuntu host and a Go container at the same time.
 
-> **This was silently broken until recently.** The extracting regex used `\b`
+Three mechanisms do it, because the sources carry severity in three different
+places. They share the table above and must keep sharing it:
+
+| Source | Mechanism | Reads |
+| --- | --- | --- |
+| `/var/log` files, container stdout | `loki.process "log_processor"` | the line body, by regex |
+| pfSense and other network syslog | `loki.relabel "network_syslog"` | the syslog PRI severity |
+| the systemd journal | `discovery.relabel "journal"` | journald's priority keyword |
+
+Where the protocol carries a severity, it is mapped rather than guessed at —
+regex-sniffing a line whose PRI already says `err` is strictly worse. Where it
+does not, the body is all there is. Each mechanism defaults to `info` for
+anything it cannot classify, which is what keeps the vocabulary *closed*: a
+severity nobody anticipated lands inside the five values instead of becoming a
+sixth.
+
+`scripts/check_dashboards.py` asserts that the values `config.alloy` can emit
+and the values the Logs dashboard's Level picker offers are the same set, and
+that no relabel rule copies a severity into `level` unmapped. That check exists
+because both halves of #83 were invisible in a diff.
+
+> **This has been silently broken twice.** First the extracting regex used `\b`
 > inside a double-quoted Alloy string, where `\b` is a backspace escape rather
 > than a word boundary. The regex never matched, so the template's
 > `{{ else }}info{{ end }}` fallback labelled *every* line `info`. It is now a
-> backtick string. If you edit that stage, verify afterwards that
-> `sum by (level) (count_over_time({host=~".+"}[1h]))` returns more than one
-> series.
+> backtick string.
+>
+> Then (#83) the syslog and journal paths copied their severity to `level`
+> instead of mapping it, and the Docker path set no `level` at all — so pfSense
+> sat at `informational`, the journal at `notice` and `alert`, and containers
+> at nothing. All of it was outside a picker whose setting said "All", which
+> matched about a seventh of what was being ingested.
+>
+> If you edit any of the three mechanisms, verify afterwards that the vocabulary
+> is still closed and still complete:
+>
+> ```logql
+> sum by (level) (count_over_time({host=~".+"}[10m]))
+> ```
+>
+> At most five series, every name in the table above. Only `info` means a regex
+> is not matching. Then check that nothing escaped labelling entirely — these
+> two must return the same number:
+>
+> ```logql
+> sum(count_over_time({host=~".+"}[10m]))
+> sum(count_over_time({host=~".+", level=~".+"}[10m]))
+> ```
+>
+> A gap is a source reaching `loki.write` without passing through one of the
+> three. Queries spanning an edit will show the old and new spellings side by
+> side until retention ages the old ones out; that is not a regression.
 
 ## Dashboards
 

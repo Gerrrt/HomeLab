@@ -196,7 +196,7 @@ discovery.relabel "dockerlogs" {
 loki.source.docker "default" {
 	host          = "unix:///var/run/docker.sock"
 	targets       = discovery.docker.dockerlogs.targets
-	labels        = {"platform" = "docker"}
+	labels        = {"platform" = "docker", "log_type" = "docker"}
 	relabel_rules = discovery.relabel.dockerlogs.rules
 	forward_to    = [loki.process.dockerlogs_filter.receiver]
 }
@@ -214,7 +214,29 @@ loki.process "dockerlogs_filter" {
 		expression = "container=(grafana|alloy)"
 	}
 
-	forward_to = [loki.write.grafana_loki.receiver]
+	// Container stdout goes through log_processor rather than straight to the
+	// writer, so it arrives carrying a `level` like every other source. It did
+	// not before, and Loki drops empty labels, so every panel filtering on
+	// level excluded containers entirely — 6429 lines an hour, the largest
+	// single bucket in the estate, invisible on a dashboard whose level picker
+	// said "All" (#83).
+	//
+	// log_processor forwards to loki.write.grafana_loki itself, so the
+	// destination is unchanged; only the hop is new. Referring to a component
+	// declared further down the file is fine — Alloy resolves the component
+	// graph, not the file order.
+	//
+	// Two consequences, both accepted knowingly, and both behaviours varlogs
+	// has had all along:
+	//
+	//   - A line with no severity word in it hits log_processor's
+	//     `{{ else }}info{{ end }}` fallback and becomes `info`.
+	//   - A line that says "error" incidentally — `error_rate=0`, a URL path —
+	//     becomes level=error and shows up in "Errors and above".
+	//
+	// Cardinality goes from one stream per container to at most five. That is
+	// nothing against what ADR-0003 is actually worried about.
+	forward_to = [loki.process.log_processor.receiver]
 }
 
 // ============================================================================
@@ -230,6 +252,7 @@ loki.source.journal "journal" {
 		instance  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 		hostname  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 		job       = "/var/log/journal",
+		log_type  = "journal",
 	}
 	path = "/var/log/journal"
 }
@@ -252,9 +275,43 @@ discovery.relabel "journal" {
 		target_label  = "transport"
 	}
 
+	// The same five-value mapping as loki.relabel.network_syslog below, against
+	// journald's priority keyword instead of the syslog PRI. See that block for
+	// why it is written this way; journald's vocabulary is emerg, alert, crit,
+	// err, warning, notice, info and debug, all of which the alternations cover.
 	rule {
 		source_labels = ["__journal_priority_keyword"]
+		regex         = ".+"
 		target_label  = "level"
+		replacement   = "info"
+	}
+
+	rule {
+		source_labels = ["__journal_priority_keyword"]
+		regex         = "emergency|emerg|alert|critical|crit"
+		target_label  = "level"
+		replacement   = "critical"
+	}
+
+	rule {
+		source_labels = ["__journal_priority_keyword"]
+		regex         = "error|err"
+		target_label  = "level"
+		replacement   = "error"
+	}
+
+	rule {
+		source_labels = ["__journal_priority_keyword"]
+		regex         = "warning|warn"
+		target_label  = "level"
+		replacement   = "warning"
+	}
+
+	rule {
+		source_labels = ["__journal_priority_keyword"]
+		regex         = "debug|dbug|dbg"
+		target_label  = "level"
+		replacement   = "debug"
 	}
 }
 
@@ -457,9 +514,73 @@ loki.relabel "network_syslog" {
 	// Severity from the syslog PRI, rather than regex-sniffing the message the
 	// way log_processor has to for file sources. The protocol already carries
 	// it; there is no reason to guess.
+	//
+	// But the PRI is MAPPED onto the five canonical levels here, not copied.
+	// Copying it is what #83 was: the wire gives RFC5424 severity names, so
+	// pfSense's traffic landed at `informational` and `notice`, neither of which
+	// is a value the Logs dashboard's level picker offers. 3798 lines an hour
+	// sat outside a filter whose setting said "All". docs/observability.md has
+	// documented this five-value vocabulary all along; this path just never
+	// honoured it, because it never passes through log_processor.
+	//
+	// Three things about the shape below, each of which is a trap:
+	//
+	//   - ORDER MATTERS ONLY IN THAT THE FIRST RULE IS FIRST. It is the default,
+	//     and the four after it override it when they match. The overrides are
+	//     mutually exclusive — relabel regexes are fully anchored — so their
+	//     order relative to each other is free. This is the same idiom as the
+	//     `host` rules above.
+	//   - THE DEFAULT IS A LITERAL `info`, NOT A COPY OF THE SEVERITY. That is
+	//     what makes the vocabulary closed: a severity nobody anticipated lands
+	//     inside the five values instead of leaking a sixth one out to Loki,
+	//     which is exactly how #83 happened. It is the same decision as
+	//     log_processor's `{{ else }}info{{ end }}`.
+	//   - `.+` NOT `.*`, for the reason spelled out against `host` above. `.*`
+	//     matches the empty string, so a message with no severity at all would
+	//     be stamped `info` — inventing a value rather than leaving the label
+	//     unset. Absent is visibly absent; wrong is not.
+	//
+	// Both long and short spellings are in every alternation. What arrives today
+	// is the long RFC5424 names, but hard-coding that observation is precisely
+	// how this class of bug recurs, and a static regex costs nothing.
+	//
+	// One-way, and worth knowing during an incident: unlike the file sources,
+	// where the original word survives in the line body, the PRI is consumed by
+	// the parser and is not in the stored line. After this, `notice` and
+	// `informational` are `info` and the raw severity exists nowhere in Loki.
 	rule {
 		source_labels = ["__syslog_message_severity"]
+		regex         = ".+"
 		target_label  = "level"
+		replacement   = "info"
+	}
+
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		regex         = "emergency|emerg|alert|critical|crit"
+		target_label  = "level"
+		replacement   = "critical"
+	}
+
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		regex         = "error|err"
+		target_label  = "level"
+		replacement   = "error"
+	}
+
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		regex         = "warning|warn"
+		target_label  = "level"
+		replacement   = "warning"
+	}
+
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		regex         = "debug|dbug|dbg"
+		target_label  = "level"
+		replacement   = "debug"
 	}
 }
 

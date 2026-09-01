@@ -108,14 +108,26 @@ Then in the UI:
 3. **Grafana → Dashboards → HomeLab.** Seven dashboards, populated.
 4. **Grafana → Explore → Loki**, run `{host=~".+"}`. Logs should be arriving.
 5. Confirm level normalisation is working — this has been silently broken
-   before:
+   twice:
 
    ```logql
    sum by (level) (count_over_time({host=~".+"}[1h]))
    ```
 
-   More than one series means the regex is matching. Only `info` means it is not
-   (see `docs/observability.md`).
+   At most five series, every name one of `critical`, `error`, `warning`,
+   `info`, `debug`. Only `info` means the regex is not matching. A sixth name
+   means a path is reaching Loki without being normalised.
+
+   Then confirm nothing escaped labelling entirely — these two must return the
+   same number:
+
+   ```logql
+   sum(count_over_time({host=~".+"}[1h]))
+   sum(count_over_time({host=~".+", level=~".+"}[1h]))
+   ```
+
+   A gap is a source that bypasses all three normalising mechanisms; container
+   logs did exactly that until #83. See `docs/observability.md`.
 
 ## Put the maintenance jobs on a timer
 
