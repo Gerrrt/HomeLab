@@ -50,6 +50,8 @@ BUILTIN_UIDS = {"-- Grafana --", "-- Mixed --", "-- Dashboard --", "grafana"}
 # around this script rather than trust it.
 TARGETLESS_PANEL_TYPES = {"row", "text", "alertlist"}
 
+ALLOY = REPO / "stacks/observability/alloy/config.alloy"
+
 # Entries in datasources.yaml start at `- name:`; the keys that belong to one
 # sit at the indent two columns to the right of the dash.
 ENTRY_START = re.compile(r"^(\s*)- name:")
@@ -136,6 +138,133 @@ def overlaps(a: dict, b: dict) -> bool:
     )
 
 
+# ---------------------------------------------------------------------------
+# Level vocabulary
+# ---------------------------------------------------------------------------
+# Whatever writes the `level` label in config.alloy, and whatever the Logs
+# dashboard offers in its Level picker, have to be the same set of words.
+#
+# They were not, and nothing noticed. The picker offered `critical`, which no
+# path produced, so the "Critical (24h)" panel could only ever read "No data";
+# and three paths emitted `alert`, `informational` and `notice`, which the
+# picker did not list, so selecting "All" quietly returned about a seventh of
+# the logs (#83). Both halves are the same defect and neither is visible in a
+# diff — the dashboard and the agent config are different files in different
+# languages, and each was internally consistent.
+#
+# This is a text check on purpose. Reading it out of Loki would only be true of
+# whatever happened to have been logged in the query window, which is how
+# `critical` looked like a missing value rather than an impossible one.
+LEVEL_TEMPLATE_OUTPUT = re.compile(r"\}\}\s*([a-z]+)\s*\{\{")
+RULE_START = re.compile(r"^\s*rule\s*\{\s*$")
+RULE_FIELD = re.compile(r'^\s*(\w+)\s*=\s*"(.*)"\s*$')
+# `source_labels = ["__journal_priority_keyword"]` — a list rather than a bare
+# string, and the one field worth reading out of one, so that a rule reported
+# below can be named rather than described as "an unknown source".
+RULE_LIST_FIELD = re.compile(r'^\s*(\w+)\s*=\s*\[(.*)\]\s*$')
+# `$1`, `${1}`, `$name` — a replacement that interpolates the regex match
+# rather than naming a fixed value.
+CAPTURE_GROUP = re.compile(r"\$\{?\w")
+
+
+def alloy_level_values() -> tuple[set[str], list[str]]:
+    """Every value config.alloy can write to `level`, and anything unbounded.
+
+    Two mechanisms produce it and both are read. `log_processor`'s template
+    picks a word per branch, so the branch outputs are the alphabet. Relabel
+    rules targeting `level` write their `replacement`. A relabel rule that
+    targets `level` with NO replacement copies its source label through
+    untouched — the shape #83 was — so it is returned as a problem rather than
+    contributing values, because there is no way to know what it can emit.
+    """
+    values: set[str] = set()
+    problems: list[str] = []
+    if not ALLOY.exists():
+        return values, [f"{ALLOY.name} not found — cannot check the level vocabulary"]
+
+    text = ALLOY.read_text(encoding="utf-8")
+
+    # log_processor's template: `{{ if eq .level_lower "emerg" }}critical{{ ...`
+    # The outputs are what sits between a closing `}}` and the next `{{`, which
+    # includes the trailing `{{ else }}info{{ end }}` default.
+    for template in re.findall(r"template\s*=\s*`([^`]*)`", text):
+        if ".level_lower" not in template:
+            continue
+        values.update(LEVEL_TEMPLATE_OUTPUT.findall(template))
+
+    # Relabel rules. Flat `rule { ... }` blocks of `key = "value"` lines, so a
+    # line scan is enough and pulling in an HCL parser is not.
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if not RULE_START.match(line):
+            continue
+        fields: dict[str, str] = {}
+        for body in lines[i + 1:]:
+            if body.strip() == "}":
+                break
+            field = RULE_FIELD.match(body)
+            if field:
+                fields[field.group(1)] = field.group(2)
+                continue
+            field = RULE_LIST_FIELD.match(body)
+            if field:
+                fields[field.group(1)] = ", ".join(
+                    item.strip().strip('"') for item in field.group(2).split(",")
+                )
+        if fields.get("target_label") != "level":
+            continue
+        source = fields.get("source_labels", "an unknown source")
+        replacement = fields.get("replacement")
+        if replacement is None:
+            problems.append(
+                f"config.alloy: a relabel rule sets level from {source} with no "
+                f"replacement, so it emits whatever that source holds — map it "
+                f"onto the canonical values instead of copying it (#83)"
+            )
+        elif CAPTURE_GROUP.search(replacement):
+            # `replacement = "$1"` is a copy wearing a replacement's clothes,
+            # and the `host` rules in this same file use exactly that idiom, so
+            # it is a live spelling rather than a hypothetical one. Treating it
+            # as bounded would be worse than not checking: the literal `$1`
+            # would join the emitted set and get reported as a value the picker
+            # forgot to list, which sends the reader looking in the wrong file.
+            problems.append(
+                f"config.alloy: a relabel rule sets level from {source} with "
+                f"replacement '{replacement}', which substitutes a capture "
+                f"group and so still passes that source through — map it onto "
+                f"the canonical values instead of copying it (#83)"
+            )
+        else:
+            values.add(replacement)
+
+    return values, problems
+
+
+def check_level_vocabulary(dashboards: dict[str, dict]) -> list[str]:
+    emitted, problems = alloy_level_values()
+
+    for name, dash in dashboards.items():
+        for variable in dash.get("templating", {}).get("list", []):
+            if variable.get("name") != "level" or variable.get("type") != "custom":
+                continue
+            offered = {v.strip() for v in variable.get("query", "").split(",") if v.strip()}
+            if not emitted:
+                continue
+            for value in sorted(offered - emitted):
+                problems.append(
+                    f"{name}: the Level picker offers '{value}', which no path in "
+                    f"config.alloy can produce — the panels filtering on it can "
+                    f"only ever read 'No data'"
+                )
+            for value in sorted(emitted - offered):
+                problems.append(
+                    f"{name}: config.alloy emits level='{value}', which the Level "
+                    f"picker does not list — selecting 'All' silently excludes it"
+                )
+
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     emit = parser.add_mutually_exclusive_group()
@@ -151,6 +280,7 @@ def main() -> int:
     seen_dashboard_uids: dict[str, str] = {}
     promql: list[str] = []
     logql: list[str] = []
+    parsed: dict[str, dict] = {}
     panel_count = 0
 
     files = sorted(DASHBOARDS.glob("*.json"))
@@ -165,6 +295,8 @@ def main() -> int:
         except json.JSONDecodeError as exc:
             problems.append(f"{name}: invalid JSON — {exc}")
             continue
+
+        parsed[name] = dash
 
         uid = dash.get("uid")
         if not uid:
@@ -247,6 +379,8 @@ def main() -> int:
                         if panel.get("type") == "logs":
                             expr = f"count_over_time({expr} [5m])"
                         logql.append(expr)
+
+    problems.extend(check_level_vocabulary(parsed))
 
     for problem in problems:
         print(f"  {problem}", file=sys.stderr)

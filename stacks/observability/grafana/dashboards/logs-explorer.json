@@ -59,7 +59,8 @@
         "multi": true,
         "current": {},
         "options": [],
-        "hide": 0
+        "hide": 0,
+        "allValue": ".+"
       },
       {
         "name": "search",
@@ -228,7 +229,7 @@
     {
       "type": "stat",
       "title": "Critical (24h)",
-      "description": "",
+      "description": "Syslog alert/emerg/crit and journald alert/emerg/crit, normalised to level=critical. This read \"No data\" until #83, because nothing produced the value it queries. It has a known noise floor of roughly 50 a day: sudo logs a failed password prompt at severity alert, and the automation running on this host trips that regularly. The thresholds are set above that floor rather than at 1, so the panel is worth looking at.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -253,8 +254,12 @@
                 "value": null
               },
               {
+                "color": "yellow",
+                "value": 60
+              },
+              {
                 "color": "red",
-                "value": 1
+                "value": 200
               }
             ]
           },
@@ -376,7 +381,7 @@
     {
       "type": "timeseries",
       "title": "Log volume by level",
-      "description": "Levels are normalised by the log_processor stage in config.alloy, which maps ~20 spellings (err, eror, ERROR, crit, fatal...) onto five canonical values.",
+      "description": "Every source is normalised to the same five levels by config.alloy, but by three different mechanisms: log_processor regex-sniffs the line body for file and container logs, loki.relabel.network_syslog maps the syslog PRI severity, and discovery.relabel.journal maps journald's priority. Any sixth value appearing here means a path is bypassing all three (#83).",
       "datasource": {
         "type": "loki",
         "uid": "loki"
