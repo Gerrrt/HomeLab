@@ -226,7 +226,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "- **Suricata watches the Skids (VLAN 20) interface only**, alert-only (`Block Offenders` is off). Guest/VLAN 10 is next — [#89](https://github.com/Gerrrt/HomeLab/issues/89) — the rest of the lab is unwatched and WAN deliberately always will be. Empty Suricata panels mean *nothing was seen on VLAN 20*, not that the lab is quiet.\n- **A quiet IDS and a stopped one produce identical output.** There is no `SuricataStopped` rule and no panel here can distinguish them; that needs a process metric, tracked in [#90](https://github.com/Gerrrt/HomeLab/issues/90).\n- **Addresses are parsed out of the line at query time, IPv4 only.** `src` and `dst` are not labels — ADR-0003 keeps them out of the index — so the address panels use `| regexp` and skip IPv6 lines.\n- **This firewall does not log passed packets.** Measured over the full 30-day retention, `action` has exactly one value: `block`. So every *passed* series here is structurally empty, and `TerminalSegmentReachedInternalNetwork` — which matches `action=\"pass\"` — cannot fire for any input. That is tracked in [#223](https://github.com/Gerrrt/HomeLab/issues/223): enabling pass logging on the inter-VLAN rules is what would make that alert, and the red series below, capable of saying anything.\n- **`Interface` is the pfSense device name**, not the VLAN name. On this firewall the VLAN sub-interfaces are `igc0.<vlan id>` — `igc0.20` is Skids — and `em0` is WAN. That mapping is a property of the current interface assignment, not a guarantee; group by the label rather than hardcoding a value."
+        "content": "- **Suricata watches the Skids (VLAN 20) interface only**, alert-only (`Block Offenders` is off). Guest/VLAN 10 is next — [#89](https://github.com/Gerrrt/HomeLab/issues/89) — the rest of the lab is unwatched and WAN deliberately always will be. Empty Suricata panels mean *nothing was seen on VLAN 20*, not that the lab is quiet.\n- **A quiet IDS and a stopped one produce identical output.** There is no `SuricataStopped` rule and no panel here can distinguish them; that needs a process metric, tracked in [#90](https://github.com/Gerrrt/HomeLab/issues/90).\n- **Addresses are parsed out of the line at query time, IPv4 only.** `src` and `dst` are not labels — ADR-0003 keeps them out of the index — so the address panels use `| regexp` and skip IPv6 lines.\n- **Passed packets are logged only by the tripwire rules.** Three `pass`+`log` rules on `igc0.10`, `igc0.20` and `igc0.40` match terminal→internal traffic and sit *below* the block rules that stop it, so they log nothing while segmentation holds and add no volume. A line appearing there means the blocks were removed or reordered — ADR-0002 broken — and `TerminalSegmentReachedInternalNetwork` fires on it ([#223](https://github.com/Gerrrt/HomeLab/issues/223)). Ordinary egress is not logged, which is why *Passed (1h)* reads *not logged* rather than counting traffic.\n- **`Interface` is the pfSense device name**, not the VLAN name. On this firewall the VLAN sub-interfaces are `igc0.<vlan id>` — `igc0.20` is Skids — and `em0` is WAN. That mapping is a property of the current interface assignment, not a guarantee; group by the label rather than hardcoding a value."
       }
     },
     {
@@ -358,7 +358,7 @@
     {
       "type": "stat",
       "title": "Passed (1h)",
-      "description": "Packets the firewall logged as passed in the last hour. This firewall logs blocks only — `action` has exactly one value across the whole retention — so it reads *not logged* rather than 0, which would claim a measurement never taken.",
+      "description": "Packets the firewall logged as passed in the last hour. Only the three terminal→internal tripwire rules log passes; ordinary egress is not logged, so this reads *not logged* rather than 0, which would claim a measurement never taken.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -554,7 +554,7 @@
     {
       "type": "stat",
       "title": "Terminal→internal passes (24h)",
-      "description": "Packets PASSED from VLAN 10/20/40 toward VLAN 30/50/99. ADR-0002 says this path does not exist, so anything but zero is a segmentation failure — this is TerminalSegmentReachedInternalNetwork's own count. It reads *not logged* because pass logging is off: the alert cannot fire and this cannot count, and neither of those says the path is closed.",
+      "description": "Packets PASSED from VLAN 10/20/40 toward VLAN 30/50/99. ADR-0002 says this path does not exist, so anything but zero is a segmentation failure — this is TerminalSegmentReachedInternalNetwork's own count. Since the tripwire rules landed this path is instrumented, so 0 here is a measurement rather than a silence.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -586,7 +586,7 @@
           },
           "mappings": [],
           "decimals": 0,
-          "noValue": "not logged"
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -1254,7 +1254,7 @@
     {
       "type": "timeseries",
       "title": "Terminal segment → internal network, by action",
-      "description": "Traffic from the egress-only VLANs (10 Degens, 20 Skids, 40 CasaBonita) aimed at an internal segment (30 ImaginationLAN, 50 Hicks, 99 Winterfell). Passed is the breach ADR-0002 says cannot happen, and is what TerminalSegmentReachedInternalNetwork fires on. Blocked is an attempt the firewall stopped.\n\n**Both series empty is the normal state here, and it is not a broken query.** Measured over 24h on 2026-09-01: terminal-VLAN sources appear in 63 blocked lines and internal destinations in 2058, but never in the same line — nothing on VLANs 10, 20 or 40 is currently aiming at an internal segment at all. If you need to confirm the regex still matches, drop either half of it and check the count is non-zero.\n\n**The passed series additionally cannot populate at all right now**, because this firewall logs blocks only. Until pass logging is enabled on the inter-VLAN rules, absence of a red line is not evidence of absence of a breach.",
+      "description": "Traffic from the egress-only VLANs (10 Degens, 20 Skids, 40 CasaBonita) aimed at an internal segment (30 ImaginationLAN, 50 Hicks, 99 Winterfell). Passed is the breach ADR-0002 says cannot happen, and is what TerminalSegmentReachedInternalNetwork fires on. Blocked is an attempt the firewall stopped.\n\n**Both series empty is the normal state here, and it is not a broken query.** Measured over 24h on 2026-09-01: terminal-VLAN sources appear in 63 blocked lines and internal destinations in 2058, but never in the same line — nothing on VLANs 10, 20 or 40 is currently aiming at an internal segment at all. If you need to confirm the regex still matches, drop either half of it and check the count is non-zero.\n\n**The passed series is now instrumented.** Three tripwire rules sit below the blocks on the terminal interfaces and log any terminal→internal packet that gets past them, so an empty red line here is evidence rather than a blind spot — which it was not before [#223](https://github.com/Gerrrt/HomeLab/issues/223).",
       "datasource": {
         "type": "loki",
         "uid": "loki"

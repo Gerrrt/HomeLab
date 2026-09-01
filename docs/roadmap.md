@@ -15,13 +15,6 @@ issues intact. Nothing was summarised away.
 
 ## Security
 
-- **[#223](https://github.com/Gerrrt/HomeLab/issues/223)
-  `TerminalSegmentReachedInternalNetwork` cannot fire.** The firewall logs
-  blocks only — `action` has one value across the whole retention — and the rule
-  matches `action="pass"`. The segmentation design ADR-0002 describes currently
-  has no automated verification. Same shape as #63. Found while building the
-  security dashboard for #82, which draws the label rather than only alerting
-  on it.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
   switch's previous SNMP community.** `neo` still accepts its old one alongside
   the new; its firmware will not persist a deletion. Accepted residual, recorded
@@ -213,6 +206,25 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#223](https://github.com/Gerrrt/HomeLab/issues/223)
+      `TerminalSegmentReachedInternalNetwork` could not fire.** The firewall
+      logged blocks only, and the rule matches `action="pass"`, so the alert
+      the segmentation design depends on could not fire for any input — the
+      #63 shape, found while building #82's dashboard.
+
+      Armed with three tripwire rules rather than by logging passes broadly.
+      The obvious fix does not work: every inter-VLAN pass rule is sourced from
+      an internal segment, so none can carry a terminal-VLAN packet. Logging
+      the terminal `→ any` egress rules does work and costs ~12.6M lines a day,
+      about 142× current volume. The tripwires — `pass` + `log` for
+      `<terminal net> → Internal_Segments` on `igc0.10/20/40`, below the blocks
+      and above `→ any` — cost nothing while segmentation holds and match only
+      if the blocks are removed or reordered.
+
+      The logging path was proven rather than assumed: 49 of 49 pass lines put
+      the source where the alert's regex reads it, and the destination half
+      already matched 2058 block lines.
 
 - [x] **[#82](https://github.com/Gerrrt/HomeLab/issues/82) A dashboard for the
       Suricata and firewall-log labels.** `homelab-security`, 21 panels, all
