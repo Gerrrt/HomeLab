@@ -561,6 +561,13 @@ services:
       # render request that does not carry it, which is what stops anything else
       # on this network asking it to fetch an authenticated Grafana URL.
       AUTH_TOKEN: ${GRAFANA_RENDERER_TOKEN:?set in secrets/observability.sops.yaml}
+      # A render taller than this is silently clamped to it, and the dashboard
+      # is cropped rather than refused — the same truncation the height
+      # derivation in capture-screenshots.sh exists to avoid, reintroduced one
+      # layer down. The default is 3000 and `homelab-stack` is 4582px, so the
+      # whole Alloy row fell off the bottom of a capture that reported success.
+      # Keep this and MAX_HEIGHT in capture-screenshots.sh in step.
+      BROWSER_MAX_HEIGHT: 5000
       LOG_LEVEL: info
     # Deliberately not published. The only client is Grafana, on this network.
     expose:

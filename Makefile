@@ -301,7 +301,7 @@ screenshots: ## Render the dashboards to docs/images/ (stack must be up)
 	@# running stack, so it must never be reachable from `make validate`, where
 	@# it would either always skip or ask CI for a secret.
 	@#
-	@# It starts the `capture` profile's renderer, shoots four PNGs and stops it
+	@# It starts the `capture` profile's renderer, shoots five PNGs and stops it
 	@# again. Review every image before committing — docs/images/README.md says
 	@# what to look for.
 	./scripts/capture-screenshots.sh $(STACK)
