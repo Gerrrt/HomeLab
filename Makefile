@@ -248,6 +248,14 @@ snmp-verify: ## Check each SNMP device answers to its community (ARGS=--old)
 	@# it into `make validate`.
 	./scripts/snmp-verify.sh $(ARGS)
 
+.PHONY: snmp-walk
+snmp-walk: ## Walk one OID subtree on one SNMP device, exporter-shaped (ARGS="--device neo <oid>")
+	@# Maintenance for the same reason as snmp-verify: needs the age key and
+	@# sends packets to a production device. It exists so a new column is read
+	@# off the switch before it goes into generator.yaml — see the mokerlink
+	@# module's comment for why that order matters on this hardware.
+	./scripts/snmp-walk.sh $(ARGS)
+
 .PHONY: secrets-verify-backup
 secrets-verify-backup: ## Check a backup age key decrypts the secrets (KEY=/path/to/keys.txt)
 	@# Under Maintenance rather than Validation for the same reason as

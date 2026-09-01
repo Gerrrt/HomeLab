@@ -1289,7 +1289,7 @@
     {
       "type": "timeseries",
       "title": "Interface throughput",
-      "description": "From 32-bit IF-MIB counters, which wrap in roughly 34 seconds at gigabit line rate. Sustained high-throughput ports will under-report until ifXTable is added — see docs/roadmap.md.",
+      "description": "From the 64-bit IF-MIB ifXTable counters (ifHCInOctets/ifHCOutOctets), which do not wrap at any rate this switch can carry. Throughput before the 2026-09 cutover lives under the 32-bit ifInOctets/ifOutOctets series until retention ages it out.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1354,7 +1354,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(ifInOctets[5m]) * 8",
+          "expr": "rate(ifHCInOctets[5m]) * 8",
           "legendFormat": "{{ifDescr}} in",
           "range": true,
           "instant": false,
@@ -1366,7 +1366,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(ifOutOctets[5m]) * 8",
+          "expr": "rate(ifHCOutOctets[5m]) * 8",
           "legendFormat": "{{ifDescr}} out",
           "range": true,
           "instant": false,

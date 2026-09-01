@@ -58,11 +58,6 @@ issues intact. Nothing was summarised away.
 
 ## Monitoring
 
-- **[#87](https://github.com/Gerrrt/HomeLab/issues/87) Add `ifXTable` (64-bit
-  counters) to the `mokerlink` module.** The current 32-bit counters wrap in ~34
-  seconds at gigabit. Now actionable — the switch has been polling since the
-  faults in [#22](https://github.com/Gerrrt/HomeLab/issues/22) cleared. The walk
-  has a trap in it; the issue carries the detail.
 - **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to
   `Saruman`.** `oracle` has had an agent since 2026-08-30 and is remote-writing
   host metrics and pushing logs; `Saruman` is the one left. `morpheus` reaches
@@ -236,6 +231,21 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#87](https://github.com/Gerrrt/HomeLab/issues/87) Add `ifXTable` (64-bit
+      counters) to the `mokerlink` module.** Swapped in rather than added: the
+      64-bit `ifHCInOctets`/`ifHCOutOctets` replaced the 32-bit pair, so the walk
+      stayed at five columns and the load on a switch that has wedged under
+      polling stayed where it was. Each column was fetched first with the new
+      `scripts/snmp-walk.sh`, at the exporter's own request shape, and the low
+      32 bits matched the live counters on every busy port.
+
+      Two things found on the way went with it. `SwitchCounterWrapSuspected`
+      could never fire — `rate()` never goes negative — so it was deleted, not
+      re-pointed. And no switch metric had ever carried an `ifDescr` label: the
+      generator comment said "label lookup" but no lookup existed, so every
+      port name in the dashboard and the `SwitchInterfaceDown` summary rendered
+      blank. One `lookups` stanza fixed both.
 
 - [x] **[#86](https://github.com/Gerrrt/HomeLab/issues/86) Decide whether the
       lab VLAN needs egress filtering.** No. ADR-0014. The question and #96's

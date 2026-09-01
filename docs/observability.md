@@ -13,7 +13,7 @@ What is collected, where it goes, and how to change it.
 | `/var/log/auth.log` | Alloy | 60s poll | sshd, sudo, PAM |
 | syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
-| MokerLink switch | snmp-exporter | 60s | Interface status and octet counters |
+| MokerLink switch | snmp-exporter | 60s | Interface status and 64-bit octet counters |
 | APC UPS | snmp-exporter | 60s | Charge, runtime, load, voltage, alarms |
 | ProLiant iLO | snmp-exporter | 60s | Temperature, PSU, drive and battery health |
 | The stack itself | Prometheus | 15s | Every component scrapes itself |
@@ -250,7 +250,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-59 rules in total: 46 metric-based in `prometheus/rules/`, and 13 log-based in
+58 rules in total: 45 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -279,7 +279,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-46 rules across eight files in `prometheus/rules/`:
+45 rules across eight files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -299,12 +299,12 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is fifteen rules of 46 so far — the three
+against the broken rule too. Coverage is fifteen rules of 45 so far — the three
 in `blackbox.rules.yaml`, `ContainerHighMemory` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
 `backup.test.yaml`, and `RemoteWriteJobStale`.
-The other 31 are still validated for syntax only, which is exactly the
+The other 30 are still validated for syntax only, which is exactly the
 standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
 sentence they replaced claimed six and named two, and had been wrong for
 weeks. Keep each count on one line: the checker reads prose line by line, so a
