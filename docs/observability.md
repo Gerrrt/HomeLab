@@ -171,7 +171,8 @@ action="pass"}`, so **it cannot fire for any input** — the same shape of defec
 as [#63](https://github.com/Gerrrt/HomeLab/issues/63), where
 `ContainerHighMemory` divided by a limit no service set and showed as loaded and
 healthy throughout. Enabling logging on the inter-VLAN pass rules in pfSense is
-what would arm it.
+what would arm it, and that is
+[#223](https://github.com/Gerrrt/HomeLab/issues/223).
 
 This is why the two pass-dependent stats read *not logged* rather than `0`.
 Zero would be a measurement, and none was taken; the distinction is the whole

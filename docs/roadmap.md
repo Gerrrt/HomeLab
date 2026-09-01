@@ -15,6 +15,13 @@ issues intact. Nothing was summarised away.
 
 ## Security
 
+- **[#223](https://github.com/Gerrrt/HomeLab/issues/223)
+  `TerminalSegmentReachedInternalNetwork` cannot fire.** The firewall logs
+  blocks only — `action` has one value across the whole retention — and the rule
+  matches `action="pass"`. The segmentation design ADR-0002 describes currently
+  has no automated verification. Same shape as #63. Found while building the
+  security dashboard for #82, which draws the label rather than only alerting
+  on it.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
   switch's previous SNMP community.** `neo` still accepts its old one alongside
   the new; its firmware will not persist a deletion. Accepted residual, recorded
