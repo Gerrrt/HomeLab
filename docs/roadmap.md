@@ -31,7 +31,10 @@ issues intact. Nothing was summarised away.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
   switch's previous SNMP community.** `neo` still accepts its old one alongside
   the new; its firmware will not persist a deletion. Accepted residual, recorded
-  in `SECURITY.md`. → [runbook](runbooks/rotate-snmp-community.md)
+  in `SECURITY.md`. The procedure is written — overwrite the row instead of
+  deleting it, in a window where the switch can be rebooted — so what is left is
+  the window, not the method. →
+  [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv.**
   Three of four devices can. The MokerLink switch cannot, which is the blocker
   for doing it uniformly.
