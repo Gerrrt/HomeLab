@@ -60,7 +60,7 @@ Ubuntu host and a Go container at the same time.
 
 ## Dashboards
 
-Six dashboards are provisioned from `grafana/dashboards/` into a **HomeLab**
+Seven dashboards are provisioned from `grafana/dashboards/` into a **HomeLab**
 folder:
 
 | Dashboard | UID | Covers |
@@ -71,13 +71,15 @@ folder:
 | UPS & Power | `homelab-ups` | Battery, runtime, load, input voltage |
 | Logs | `homelab-logs` | Volume by level and source, error and auth streams |
 | Observability Stack | `homelab-stack` | Scrape health for every target, and Prometheus, Loki, Alertmanager and Alloy watching themselves |
+| Security | `homelab-security` | Firewall blocks by interface and direction, top blocked sources, Suricata classification and priority, terminal-segment violations |
 
 `allowUiUpdates` is `false`, so edits made in the Grafana UI are discarded on
 restart. That is deliberate — the JSON in git is the source of truth. To change
 a dashboard: edit it in the UI, **Dashboard settings → JSON Model**, copy, and
 commit it over the file. CI checks the result parses, that every datasource UID
-resolves, that panels fit the grid and do not overlap, and that every PromQL
-expression in every panel is syntactically valid.
+resolves, that panels fit the grid and do not overlap, and that every panel
+expression is syntactically valid — PromQL through `promtool`, LogQL through a
+real Loki, since nothing else parses it.
 
 ### Watching the collection path
 
@@ -130,6 +132,50 @@ Prometheus could be pointed at; pushing down the pipe that is already open costs
 nothing and needs no new exposure. The monitoring host's agent is consequently
 collected twice — `job="alloy"` by direct scrape and `job="prometheus-alloy"` by
 push — which is deliberate: the first is the only one whose `up` can reach 0.
+
+### Drawing the labels the parsing work exists to produce
+
+`homelab-security` exists because `config.alloy` went to real trouble to extract
+`interface`, `action` and `direction` from pfSense filterlog, and
+`classification` and `priority` from Suricata; five Loki rules fire on them; and
+nothing charted any of it ([#82](https://github.com/Gerrrt/HomeLab/issues/82)).
+"Network & Firewall" is SNMP — the pf state table and interface counters — and
+says nothing about what the firewall decided. "Logs" counts lines by level. The
+dimensions the parsing exists to produce had no view, so the only way to see a
+scan, a misconfigured device or a segmentation failure was as an alert that had
+already fired.
+
+Two things about it are worth stating here rather than only in a panel
+description.
+
+**Addresses are parsed at query time, not indexed.** *Top blocked source
+addresses* runs `| regexp` over the line body, because ADR-0003 keeps addresses
+out of the labels and a label per source address is the textbook way to detonate
+Loki's cardinality. The regex anchors on the adjacent `src,dst` pair rather than
+counting CSV fields, because pfSense's IPv6 filterlog layout puts `src` at a
+different index — v6 lines therefore do not appear in that table, which is a
+stated limit rather than an oversight.
+
+**It cannot tell you the IDS is alive.** Suricata watches the Skids (VLAN 20)
+interface only, and a quiet IDS and a stopped one produce identical output — so
+empty Suricata panels are not evidence of anything. That is the same gap
+`security.rules.yaml` declines to paper over with a log-based rule, and it needs
+a process metric. The dashboard says so in a text panel at the top rather than
+letting a flat line be read as calm.
+
+**And it found that this firewall logs blocks only.** Building the panels turned
+up something the alerts had not: across the full 30-day retention the `action`
+label has exactly one value, `block`, at roughly 85,000 lines a day and not one
+`pass`. `TerminalSegmentReachedInternalNetwork` matches `{app="filterlog",
+action="pass"}`, so **it cannot fire for any input** — the same shape of defect
+as [#63](https://github.com/Gerrrt/HomeLab/issues/63), where
+`ContainerHighMemory` divided by a limit no service set and showed as loaded and
+healthy throughout. Enabling logging on the inter-VLAN pass rules in pfSense is
+what would arm it.
+
+This is why the two pass-dependent stats read *not logged* rather than `0`.
+Zero would be a measurement, and none was taken; the distinction is the whole
+reason the panel says which it is.
 
 ## Alerting
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Validate the Loki alerting rules.
+# Validate the Loki alerting rules, and the LogQL in the Grafana dashboards.
 #
 # There is no `promtool check rules` equivalent for LogQL: promtool parses
 # PromQL and rejects every stream selector in these files. The only tool that
@@ -11,6 +11,12 @@
 # `-verify-config` alone is NOT sufficient — it validates the config file and
 # never looks at the rule files. Verified: a rule file containing
 # `count_over_time({{{BROKEN` passes -verify-config and is only caught here.
+#
+# The dashboards ride along because a panel query is as easy to typo as a rule
+# and fails more quietly: a broken one renders an empty panel, and "no data" is
+# indistinguishable from "this is broken". CI already hands the Prometheus half
+# of the panels to promtool for exactly that reason; LogQL had no equivalent,
+# so a typo in a Loki panel reached production unchallenged.
 #
 # Usage: scripts/check_loki_rules.sh
 
@@ -48,6 +54,19 @@ trap 'rm -rf "${WORK}" 2>/dev/null || true' EXIT
 # auth_enabled is false, so Loki's local ruler looks under <dir>/fake/.
 mkdir -p "${WORK}/rules/fake" "${WORK}/data"
 cp "${RULES_DIR}"/*.yaml "${WORK}/rules/fake/"
+
+# Dashboard LogQL, as an extra rule file so it takes precisely the same path
+# through the ruler as the committed rules — same parser, same failure output,
+# no second code path to keep honest. check_dashboards.py refuses to emit an
+# empty file, so a run that finds no panels fails here rather than passing over
+# nothing.
+DASH_RULES="${WORK}/rules/fake/dashboard-expressions.rules.yaml"
+if ! python3 "${REPO_ROOT}/scripts/check_dashboards.py" --emit-logql \
+     > "${DASH_RULES}" 2> "${WORK}/emit.err"; then
+  cat "${WORK}/emit.err" >&2
+  die "could not emit dashboard LogQL"
+fi
+n_dash="$(grep -c '^ *- alert:' "${DASH_RULES}" || true)"
 
 # The Loki image runs as uid 10001, while mktemp -d creates a 0700 directory
 # owned by the invoking user. Without this the container cannot read its own
@@ -97,7 +116,7 @@ for f in pathlib.Path(sys.argv[1]).glob("*.yaml"):
 SPEEDUP
 
 n_rules="$(grep -ch '^ *- alert:' "${RULES_DIR}"/*.yaml | paste -sd+ | bc || true)"
-info "checking ${n_rules} Loki rule(s)"
+info "checking ${n_rules} Loki rule(s) and ${n_dash} dashboard expression(s)"
 
 if command -v loki >/dev/null 2>&1; then
   RUN=(loki)
@@ -129,7 +148,9 @@ timeout "${BOOT_SECONDS}" "${RUN[@]}" \
   -server.http-listen-port=3197 > "${OUT}" 2>&1 || rc=$?
 
 if grep -qiE 'parse error|failed to parse|syntax error' "${OUT}"; then
-  printf '\033[0;31m  FAIL\033[0m LogQL parse error in the Loki rules\n'
+  printf '\033[0;31m  FAIL\033[0m LogQL parse error in the rules or a dashboard panel\n'
+  printf '        A DashboardExpr<n> name is a panel query; run\n'
+  printf '        scripts/check_dashboards.py --emit-logql to see which.\n'
   grep -iE 'parse error|failed to parse|syntax error' "${OUT}" | head -5
   exit 1
 fi
@@ -152,5 +173,5 @@ if ((evaluated == 0)); then
   exit 1
 fi
 
-printf '\033[0;32m  PASS\033[0m %s Loki rule(s) parsed, %s evaluated by the ruler\n' \
-  "${n_rules}" "${evaluated}"
+printf '\033[0;32m  PASS\033[0m %s Loki rule(s) and %s dashboard expression(s) parsed, %s evaluated by the ruler\n' \
+  "${n_rules}" "${n_dash}" "${evaluated}"

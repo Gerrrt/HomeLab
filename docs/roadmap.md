@@ -77,18 +77,15 @@ issues intact. Nothing was summarised away.
   is two orders of magnitude of daylight, and a byte ceiling on the TSDB, which
   is at a measurable steady state at day 28 of 30.
 - **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
-  screenshots.** `make screenshots` does five of the six; the Logs dashboard is
-  deliberately excluded. → [`images/README.md`](images/README.md)
+  screenshots.** `make screenshots` does five of the seven; the Logs and
+  Security dashboards are deliberately excluded.
+  → [`images/README.md`](images/README.md)
 
 ### The stack does not watch itself
 
 Found while verifying [#12](https://github.com/Gerrrt/HomeLab/issues/12), and
 new since this file was last honest:
 
-- **[#82](https://github.com/Gerrrt/HomeLab/issues/82)** No dashboard for the
-  Suricata and firewall-log labels `config.alloy` goes to trouble to extract.
-  The stack's own dashboard landed as #81, below; this is the half of that
-  section still open.
 - **[#67](https://github.com/Gerrrt/HomeLab/issues/67)** No dead man's switch on
   the notification path — a 200 into a dead topic is a successful notification.
 
@@ -209,6 +206,26 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#82](https://github.com/Gerrrt/HomeLab/issues/82) A dashboard for the
+      Suricata and firewall-log labels.** `homelab-security`, 21 panels, all
+      from labels `config.alloy` was already extracting and five Loki rules were
+      already firing on. It charts blocks per second by `interface` and
+      `direction`, top blocked sources — parsed out of the line at query time,
+      because ADR-0003 keeps addresses out of the index — Suricata by
+      `classification` and `priority`, and terminal-segment violations, which
+      is the rule the segmentation design exists to enforce and which had no
+      view but the alert.
+
+      It also closed a gap it walked into: dashboard PromQL had been parsed by
+      promtool since #78, and dashboard LogQL had been parsed by nothing, so a
+      typo in a Loki panel rendered an empty panel and read as quiet traffic.
+      `check_dashboards.py --emit-logql` now feeds every panel query to the
+      Loki that `check_loki_rules.sh` already boots — 28 expressions, including
+      the eleven in `homelab-logs` that had been unchecked since it landed.
+
+      Not captured by `make screenshots`, and never will be, for the reason
+      `homelab-logs` is not: three of its panels exist to show real addresses.
 
 - [x] **[#81](https://github.com/Gerrrt/HomeLab/issues/81) A dashboard for the
       observability stack itself.** `homelab-stack`, 33 panels, all from metrics

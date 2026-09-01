@@ -17,8 +17,13 @@ Panels nested inside a collapsed row are walked too. Collapsing a row in the UI
 moves its panels from the top level into the row's own `panels` array, so a
 checker that reads only the top level stops seeing them — see #78.
 
-Additionally, every PromQL expression is emitted to stdout in Prometheus
-recording-rule form when --emit-promql is passed, so promtool can parse them.
+Additionally, panel expressions are emitted to stdout as a rules file so a
+real parser can be pointed at them: --emit-promql writes Prometheus
+recording-rule form for promtool, and --emit-logql writes Loki alerting-rule
+form for scripts/check_loki_rules.sh. A query language nobody parses is one
+where a typo renders an empty panel instead of raising an error, and "no data"
+is indistinguishable from "this is broken" — which is the whole argument for
+the PromQL check and applies unchanged to LogQL.
 """
 from __future__ import annotations
 
@@ -133,8 +138,11 @@ def overlaps(a: dict, b: dict) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--emit-promql", action="store_true",
-                        help="print dashboard PromQL as a rules file for promtool")
+    emit = parser.add_mutually_exclusive_group()
+    emit.add_argument("--emit-promql", action="store_true",
+                      help="print dashboard PromQL as a rules file for promtool")
+    emit.add_argument("--emit-logql", action="store_true",
+                      help="print dashboard LogQL as a rules file for Loki's ruler")
     args = parser.parse_args()
 
     declared = declared_datasources()
@@ -142,6 +150,7 @@ def main() -> int:
     problems: list[str] = []
     seen_dashboard_uids: dict[str, str] = {}
     promql: list[str] = []
+    logql: list[str] = []
     panel_count = 0
 
     files = sorted(DASHBOARDS.glob("*.json"))
@@ -225,6 +234,19 @@ def main() -> int:
                         )
                     elif declared.get(ds_uid) == "prometheus":
                         promql.append(expr)
+                    elif declared.get(ds_uid) == "loki":
+                        # A logs panel's query is a bare stream selector, and
+                        # the ruler only accepts expressions that return
+                        # samples. Wrapping it is not a weaker check: the
+                        # selector and its pipeline are what a typo lands in,
+                        # and they are parsed either way. Panel type decides
+                        # rather than a guess at the expression's shape,
+                        # because Grafana already enforces the split — a Logs
+                        # panel renders streams, everything else needs a
+                        # number.
+                        if panel.get("type") == "logs":
+                            expr = f"count_over_time({expr} [5m])"
+                        logql.append(expr)
 
     for problem in problems:
         print(f"  {problem}", file=sys.stderr)
@@ -253,9 +275,32 @@ def main() -> int:
                 print(f"          {line}")
         return 0
 
+    if args.emit_logql:
+        # Same reasoning as the PromQL guard above: an empty rules file is a
+        # broken classifier, not a folder with no log panels in it.
+        if not logql:
+            print("no LogQL expressions found — refusing to emit an empty "
+                  "rules file", file=sys.stderr)
+            return 1
+        print("groups:")
+        print("  - name: dashboard-expressions")
+        print("    rules:")
+        for i, expr in enumerate(logql):
+            # Alerting rules rather than recording rules: Loki's ruler only
+            # writes recording-rule output to a remote_write target, and there
+            # is none in the throwaway config check_loki_rules.sh builds. An
+            # alert expression needs no comparison operator — FirewallLogsStopped
+            # is a bare absent_over_time() and evaluates fine.
+            print(f"      - alert: DashboardExpr{i}")
+            print("        expr: |")
+            for line in expr.splitlines():
+                print(f"          {line}")
+        return 0
+
     print(
         f"{len(files)} dashboards OK "
-        f"({panel_count} panels, {len(promql)} PromQL expressions)"
+        f"({panel_count} panels, {len(promql)} PromQL "
+        f"and {len(logql)} LogQL expressions)"
     )
     return 0
 

@@ -1,6 +1,6 @@
 # Dashboards
 
-Six dashboards, provisioned from this directory into a **HomeLab** folder. The
+Seven dashboards, provisioned from this directory into a **HomeLab** folder. The
 table of what each one covers is in
 [`docs/observability.md`](../../../../docs/observability.md#dashboards); this
 file holds the things that are true of all of them and that a panel description
@@ -13,9 +13,12 @@ file.
 
 ## The alert tables do not know about silences
 
-Five of the six carry an alert table at the top, querying `ALERTS` filtered to
-that dashboard's `component` label. **`ALERTS` is a series Prometheus exposes
-about its own rule evaluation. It knows nothing about Alertmanager.**
+Six of the seven carry an alert table at the top, querying `ALERTS`. Five filter
+on that dashboard's `component` label; the Security dashboard filters on
+`alertname` instead, because every Loki rule carries `component=logs` and most
+of them belong to the Logs dashboard rather than to it. **`ALERTS` is a series
+Prometheus exposes about its own rule evaluation. It knows nothing about
+Alertmanager.**
 
 So a silenced alert still appears in these tables as `firing`. That is not a
 bug to be worked around — the rule *is* firing, and the dashboard is showing the
@@ -43,13 +46,23 @@ every panel to `promtool check rules`. A typo in a panel query otherwise shows
 up as an empty panel rather than an error, which reads as "nothing is happening"
 instead of "this is broken".
 
-That check is why **no dashboard here uses `$__rate_interval`**. Grafana would
-substitute it at query time, but promtool sees the literal string and fails to
-parse it. Range windows are written as fixed durations — `[5m]` — so the same
-text is valid in both places.
+`scripts/check_dashboards.py --emit-logql` does the same for the Loki panels,
+handing them to `scripts/check_loki_rules.sh`, which boots the pinned Loki image
+because nothing else parses LogQL. A `logs` panel's query is a bare stream
+selector, which the ruler will not accept, so it is wrapped in
+`count_over_time(… [5m])` before being handed over — the selector and its
+pipeline are what a typo lands in, and those are parsed either way.
 
-Dashboard variables in *label matchers* are fine (`instance=~"$instance"`), because
-promtool parses that as an ordinary string.
+Those checks are why **no dashboard here uses `$__rate_interval`**. Grafana
+would substitute it at query time, but promtool sees the literal string and
+fails to parse it, and Loki fails the same way on `$__range` in a duration
+position. Range windows are written as fixed durations — `[5m]` — so the same
+text is valid in both places, and a stat panel names its window in its title
+rather than inheriting the time picker.
+
+Dashboard variables in *label matchers* are fine (`instance=~"$instance"`,
+`interface=~"$interface"`), because both parsers read that as an ordinary
+string.
 
 ## Datasource UIDs are hardcoded
 
@@ -66,7 +79,7 @@ a target that names none of its own is what #78 was about.
 
 ## Screenshots
 
-Five of the six are captured into `docs/images/` by `make screenshots`. Which
-files hold which dashboard, why `homelab-logs` is deliberately never captured,
-and what to check before publishing an image are all in
-[`docs/images/README.md`](../../../../docs/images/README.md).
+Five of the seven are captured into `docs/images/` by `make screenshots`. Which
+files hold which dashboard, why `homelab-logs` and `homelab-security` are
+deliberately never captured, and what to check before publishing an image are
+all in [`docs/images/README.md`](../../../../docs/images/README.md).

@@ -44,7 +44,7 @@ incident.
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
-- **Dashboards and alerting as code.** 6 provisioned dashboards, 119 panels, and
+- **Dashboards and alerting as code.** 7 provisioned dashboards, 140 panels, and
   59 alert rules — 46 metric-based in Prometheus, 13 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
@@ -143,7 +143,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 | Collection | [Grafana Alloy](stacks/observability/alloy) | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
 | Network polling | [snmp_exporter](stacks/observability/snmp-exporter) | pfSense, switch, UPS, iLO |
 | Alerting | [Alertmanager](stacks/observability/alertmanager) | Severity routing, inhibition |
-| Visualisation | [Grafana](stacks/observability/grafana) | 6 provisioned dashboards |
+| Visualisation | [Grafana](stacks/observability/grafana) | 7 provisioned dashboards |
 | Secrets | [SOPS + age](secrets) | Encrypted in-repo |
 | CI | [GitHub Actions](.github/workflows/ci.yml) | Lint, config validation, secret scanning, digest pinning |
 
@@ -158,7 +158,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 │   ├── loki/                 # single-binary config + 13 LogQL rules
 │   ├── alloy/                # one agent config, used on every host
 │   ├── snmp-exporter/        # generator.yaml is the source of truth
-│   └── grafana/              # provisioning + 6 dashboards
+│   └── grafana/              # provisioning + 7 dashboards
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
 ├── scripts/                  # bootstrap, render, validate, pin-digests, purge
 ├── SECURITY.md               # disclosure policy and known exposure
@@ -229,8 +229,8 @@ a ninety-day deadline and an alert instead. See
 ## Dashboards
 
 Rendered from the running stack by `make screenshots`, over a 24-hour window.
-Four of the six provisioned dashboards are here; `docs/images/README.md`
-explains why the Logs dashboard is deliberately not among them.
+Four of the seven provisioned dashboards are here; `docs/images/README.md`
+explains why the Logs and Security dashboards are deliberately not among them.
 
 ![Host Overview dashboard: CPU, memory, load, storage and network for every host
 running an Alloy agent, with a table of firing host alerts across the

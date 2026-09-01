@@ -135,7 +135,7 @@ check-compose-health: ## Verify health deps are satisfiable, probe the images (n
 	python3 scripts/check_compose_health.py --probe
 
 .PHONY: check-loki-rules
-check-loki-rules: ## Validate Loki (LogQL) alerting rules
+check-loki-rules: ## Validate Loki (LogQL) alerting rules and dashboard panel queries
 	./scripts/check_loki_rules.sh
 
 .PHONY: check-image-pins
