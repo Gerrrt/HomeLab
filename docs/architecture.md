@@ -2,8 +2,11 @@
 
 ## Network topology
 
-Every segment terminates on pfSense. There is no route between segments unless a
-rule creates one, and only two such rules exist.
+Every segment terminates on pfSense. Nothing crosses from one segment to another
+unless a rule on the firewall lets it, and what each segment can reach is
+recorded per segment — the *Reaches* column in [`network.md`](network.md) — not
+as a count of rules. [ADR-0013](adr/0013-segment-access-as-implemented.md)
+explains why the count was the wrong description.
 
 ```mermaid
 graph TB
@@ -47,8 +50,10 @@ graph TB
     SW --- V20
     SW --- V10
 
-    WS -.->|"management access<br/>(the only inbound path)"| V99
-    WS -.->|lab access| V30
+    WS -.->|"all of management<br/>every port"| V99
+    WS -.->|"all of the lab<br/>every port"| V30
+    MON -.->|"SNMP · shiva, the iLO"| HV
+    MON -.->|"SNMP · the switch"| SW
 
     %% Fill is the patch-cable colour in the rack — see network.md, ADR-0009.
     %% A dashed border marks a terminal segment: traffic goes out, nothing
@@ -82,10 +87,18 @@ graph TB
     style V10 fill:#161b22,stroke:#a371f7,stroke-width:2px,color:#a371f7,stroke-dasharray: 6 4
 ```
 
-Everything reaches the internet. Nothing reaches anything else, with two
-exceptions drawn as dotted lines above: trusted workstations may administer
-management, and may reach the lab. IoT, media and guest are terminal — traffic
-goes out, nothing comes back in.
+Everything reaches the internet. The dotted lines are the paths that cross a
+segment boundary. Trusted workstations reach all of management and all of the
+lab — wholesale, on every protocol and port, because the Hicks interface blocks
+the terminal segments and then passes to `any`; no rule grants that and none
+denies it ([#228](https://github.com/Gerrrt/HomeLab/issues/228)). The
+observability host polls the iLO and the switch over SNMP, and each has a
+return path. Everything else is default deny. IoT, media and guest are
+terminal — traffic goes out, nothing comes back in. One path the diagram cannot
+draw: the switch is plumbing here, not a segment, but its management address
+sits on the untagged LAN (`10.7.7.0/24`), and that interface still carries
+pfSense's stock *Default allow LAN to any* rule, so the switch reaches every
+segment ([#229](https://github.com/Gerrrt/HomeLab/issues/229)).
 
 Segment colour is the patch-cable colour in the rack, so the diagram and the
 hardware can be read against each other. A dashed border marks a terminal

@@ -14,6 +14,7 @@ What this network is actually built to survive:
 | A smart TV's firmware phoning somewhere unexpected | VLAN 40 is terminal, egress only |
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
+| A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on a subnet the firewall does not route ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)) |
 | Losing visibility of a failure | 45 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
@@ -21,7 +22,10 @@ What this network is actually built to survive:
 What it explicitly does **not** defend against: a determined attacker with
 physical access to the rack, a supply-chain compromise in an upstream container
 image, or a vulnerability in pfSense itself. There is no egress filtering by
-domain, and no MFA on the internal services.
+domain or by port
+([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)
+says why not for the lab, and the reason generalises), and no MFA on the
+internal services.
 
 **Intrusion detection is running as of 2026-08-21**, on the **Skids (VLAN 20)**
 interface only. Suricata sits on `morpheus` rather than the hypervisor because it
@@ -81,7 +85,9 @@ nothing while the design holds, and cost nothing; if one ever logs a line,
 matched `action="pass"` against a firewall that logged only blocks, so it could
 not fire for any input — the control was described here and not actually
 watched. Note that a firewall restore from a backup older than 2026-09-01 drops
-them silently; the restore runbook checks for them.
+them silently; the restore runbook checks for them. A fourth, on ImaginationLAN,
+is decided by ADR-0014 and lands with `ifrit`
+([#234](https://github.com/Gerrrt/HomeLab/issues/234)).
 
 Segmentation is doing more work here than it should have to. A workstation on
 Hicks that can reach `10.0.99.20` can write to the metric and log stores without
