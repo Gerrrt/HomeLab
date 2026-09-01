@@ -2,8 +2,8 @@
 
 **Target:** `morpheus` — the pfSense box every VLAN terminates on
 **Time:** 20 minutes with a prepared spare; considerably longer without one
-**You will need:** a recent backup, the age key, installation media, and physical
-access to the rack
+**You will need:** a recent backup, the age key, the pfSense installer on the USB
+stick kept in the rack beside the KVM, and physical access to the rack
 
 `morpheus` is the single point of failure in this lab. It routes all seven
 VLANs, serves DHCP on every tagged interface, and is the only path to the

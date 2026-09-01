@@ -61,11 +61,21 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 - 1U rackmount tray for the ProDesk Mini[^ProDeskRackmount]
 - Sliding rails for the ProLiant[^Sliderail]
 - 1U universal rack mount for the APC[^Rail]
-- APCRBC115 replacement battery cartridge for the APC, fitted 2026-08-28
+- APCRBC115 replacement battery cartridge for the APC, fitted 2026-08-28.
+  Scheduled self-tests on the card are still outstanding
+  ([#93](https://github.com/Gerrrt/HomeLab/issues/93))
+- 1U vented rack shelf, 4-post with square-hole mounting — on hand, for U4 and
+  the unmanaged switch that feeds `prometheus` and `oracle`. It is not in the
+  rack table above because it is not yet in the rack
+  ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
+- USB stick holding the pfSense installer — in transit. It lives in the rack
+  beside the KVM, because
+  [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) assumes it exists
+  and a restore is not the moment to go looking for one
 - HP Smart Storage Battery 96W (`727258-B21`) in the ProLiant — **failed**,
-  spare part `815983-001`. The Smart Array has disabled its write cache in
-  response and runs write-through until it is replaced
-  ([#76](https://github.com/Gerrrt/HomeLab/issues/76))
+  spare part `815983-001`, **replacement in transit**. The Smart Array has
+  disabled its write cache in response and runs write-through until it is
+  replaced ([#76](https://github.com/Gerrrt/HomeLab/issues/76))
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]

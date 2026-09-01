@@ -154,8 +154,8 @@ what left this one unfireable for months.
   (shutdownPermanentFailure) and `cpqHeSysBatteryCondition` `4` (failed), and has
   since at least 2026-08-18 — the whole of the retained window, unbroken. **HPE
   spare `815983-001`** (option 727258-B21, "HP Smart Storage Batt 96"). `13` is
-  terminal: a reseat does not clear it, so there is nothing to try before
-  ordering. The cost is already being paid — the Smart Array has permanently
+  terminal: a reseat does not clear it, so there was nothing to try before
+  ordering, and the spare is now in transit. The cost is already being paid — the Smart Array has permanently
   disabled its flash-backed write cache (`cpqDaAccelStatus` `5`, read and write
   cache percent both `0`) and the array runs write-through: slower, and *not*
   less durable. `cpqDaAccelBadData` reads `2` (none), so nothing dirty was lost
@@ -174,10 +174,12 @@ what left this one unfireable for months.
   → [runbook](runbooks/replace-the-smart-storage-battery.md)
 - **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
   A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
-  `oracle` hang off. **Buy it with the UPS pack above, not after** — both shelf
-  machines are laptops, so on a mains cut they stay running and go deaf while the
-  switch between them and the network has no battery at all. Spec settled at the
-  rack on 2026-08-21; the spare ProDesk from
+  `oracle` hang off. Both shelf machines are laptops, so on a mains cut they stay
+  running and go deaf while the switch between them and the network has no
+  battery at all — the pack in #93 protects the rack, not the monitoring path.
+  **The shelf is on hand; what is left is the rack visit**, to the spec measured
+  at the rack on 2026-08-21: 4-post, square holes, full 1U with rear support
+  rather than a cantilever. The spare ProDesk from
   [#92](https://github.com/Gerrrt/HomeLab/issues/92) racks here too, powered off.
   → [runbook](runbooks/fit-the-ups-battery.md)
 - **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle` is

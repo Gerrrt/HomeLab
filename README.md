@@ -129,10 +129,15 @@ graph TB
     style Terminal fill:#161b22,stroke:#8b949e,stroke-width:2px,color:#8b949e,stroke-dasharray: 6 4
 ```
 
-Dotted lines are the only two paths between segments. Everything else reaches
-the internet and nothing more. Segment colour matches the patch cable in the
-rack; a dashed border means egress only. Full topology and data flow in
-[`docs/architecture.md`](docs/architecture.md).
+Dotted lines are the paths this diagram draws, and they are not the whole story.
+Default deny holds for every segment except Hicks and the switch LAN, both of
+which reach further than any diagram of exceptions suggests — so what a segment
+can actually reach is recorded per segment in
+[`network.md`](docs/network.md)'s *Reaches* column, and the enforced rules as a
+list in [ADR-0013](docs/adr/0013-segment-access-as-implemented.md). A count was
+the wrong instrument and this README carried the wrong count for months. Segment
+colour matches the patch cable in the rack; a dashed border means egress only.
+Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 
 ## Stack
 
@@ -246,9 +251,9 @@ inventory.](docs/images/docker-containers.png)
 MokerLink switch interface throughput and link status, and HPE iLO chassis power
 draw and hardware health.](docs/images/network-snmp.png)
 
-![UPS & Power dashboard: APC power source, output load, input and output voltage
-and runtime, under a banner explaining that every battery figure is fabricated
-because no battery pack is fitted.](docs/images/ups-power.png)
+![UPS & Power dashboard as it read on 2026-08-22: APC power source, output load,
+input and output voltage and runtime, under the banner that stood before a
+battery pack was fitted, when every battery figure was fabricated.](docs/images/ups-power.png)
 
 That capture is from 2026-08-22, before a pack was fitted on 2026-08-28. The
 banner it shows has been rewritten twice since, and the self-test has now
