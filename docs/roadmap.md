@@ -15,6 +15,19 @@ issues intact. Nothing was summarised away.
 
 ## Security
 
+- **[#228](https://github.com/Gerrrt/HomeLab/issues/228) Decide whether Hicks
+  should reach all of Winterfell and ImaginationLAN.** It does, on every
+  protocol and port, because the Hicks interface blocks 40/20/10 and then passes
+  to `any`. No rule grants it and no rule denies it. `SECURITY.md` accepts a
+  narrower version — one host, two ports — and the real exposure is both
+  segments entire. Found writing ADR-0013; that ADR fixed the description, this
+  is the posture. Decide before #102 adds rules to the same segment.
+- **[#229](https://github.com/Gerrrt/HomeLab/issues/229) The switch LAN still
+  carries pfSense's stock *Default allow LAN to any*.** `10.7.7.0/24` reaches
+  every VLAN; `network.md` said "Nothing". Bounded by that segment holding only
+  the switch — which is also the device that still answers its previous SNMP
+  community (#84) and cannot do v3 (#85). Lower risk than #228: getting it wrong
+  costs SNMP polling of `neo`, which is monitored.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
   switch's previous SNMP community.** `neo` still accepts its old one alongside
   the new; its firmware will not persist a deletion. Accepted residual, recorded
