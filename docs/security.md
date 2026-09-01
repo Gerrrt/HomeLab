@@ -69,6 +69,17 @@ one that admits the exception.
 
 Everything else — IoT, media, guest — gets internet and nothing more.
 
+That last sentence is now checked rather than asserted. Three **tripwire** rules
+([#223](https://github.com/Gerrrt/HomeLab/issues/223)) sit on the terminal
+interfaces — `pass` + `log` for `<terminal net> → Internal_Segments`, below the
+block rules that stop that path and above the `→ any` egress rule. They log
+nothing while the design holds, and cost nothing; if one ever logs a line,
+`TerminalSegmentReachedInternalNetwork` fires on it. Before them that alert
+matched `action="pass"` against a firewall that logged only blocks, so it could
+not fire for any input — the control was described here and not actually
+watched. Note that a firewall restore from a backup older than 2026-09-01 drops
+them silently; the restore runbook checks for them.
+
 Segmentation is doing more work here than it should have to. A workstation on
 Hicks that can reach `10.0.99.20` can write to the metric and log stores without
 a credential, because Prometheus and Loki publish unauthenticated ingest ports

@@ -163,20 +163,46 @@ empty Suricata panels are not evidence of anything. That is the same gap
 a process metric. The dashboard says so in a text panel at the top rather than
 letting a flat line be read as calm.
 
-**And it found that this firewall logs blocks only.** Building the panels turned
-up something the alerts had not: across the full 30-day retention the `action`
-label has exactly one value, `block`, at roughly 85,000 lines a day and not one
-`pass`. `TerminalSegmentReachedInternalNetwork` matches `{app="filterlog",
-action="pass"}`, so **it cannot fire for any input** — the same shape of defect
-as [#63](https://github.com/Gerrrt/HomeLab/issues/63), where
-`ContainerHighMemory` divided by a limit no service set and showed as loaded and
-healthy throughout. Arming it means enabling logging on the inter-VLAN pass
-rules in pfSense, which is tracked in
-[#223](https://github.com/Gerrrt/HomeLab/issues/223).
+**And it found that the firewall logged blocks only.** Building the panels
+turned up something the alerts had not: across the full 30-day retention the
+`action` label had exactly one value, `block`, at roughly 85,000 lines a day and
+not one `pass`. `TerminalSegmentReachedInternalNetwork` matches
+`{app="filterlog", action="pass"}`, so **it could not fire for any input** — the
+same shape of defect as [#63](https://github.com/Gerrrt/HomeLab/issues/63),
+where `ContainerHighMemory` divided by a limit no service set and showed as
+loaded and healthy throughout.
 
-This is why the two pass-dependent stats read *not logged* rather than `0`.
-Zero would be a measurement, and none was taken; the distinction is the whole
-reason the panel says which it is.
+[#223](https://github.com/Gerrrt/HomeLab/issues/223) armed it, and the way it
+was armed is the point. Logging the *inter-VLAN* pass rules would not have
+worked: every one of them is sourced from an internal segment, so no packet they
+pass can have a terminal VLAN as its source. Logging the terminal VLANs' own
+`→ any` egress rules would have worked and would have cost about 12.6M lines a
+day — roughly 142× the existing volume, against a 30-day retention on one disk.
+
+Instead there are three **tripwire** rules, one per terminal interface
+(`igc0.10`, `igc0.20`, `igc0.40`), each a `pass` + `log` for
+`<terminal net> → Internal_Segments`, placed *below* the eight block rules that
+already stop that path and *above* the `→ any` egress rule. While segmentation
+holds, the blocks match first and the tripwire logs nothing, so it adds no
+volume. It can only match if those blocks are removed or reordered — the exact
+failure the alert exists for — and in that case the `→ any` rule would have
+passed the packet anyway, so nothing is weakened by it being there.
+
+A tripwire that never fires is indistinguishable from a broken one, which is
+this whole family of defect, so the logging path was proven rather than assumed:
+logging was briefly enabled on the lowest-volume terminal egress rule, and 49 of
+49 resulting `pass` lines carried the source address in exactly the position the
+alert's regex reads. The destination half of the same regex already matched 2058
+block lines. Both halves are therefore verified against real traffic; only the
+combination is absent, which is what "the segmentation is holding" looks like.
+
+*Passed (1h)* still reads *not logged*, because ordinary egress genuinely is
+not. *Terminal→internal passes* reads *none* when the query matches nothing —
+deliberately not `0`. Grafana's `noValue` fires on an empty result, not on a
+measured zero, so rendering a number there would claim a measurement in exactly
+the case where the stream is broken, absent or relabelled. None of these stats
+render a number they did not get; *Firewall log arrival rate* next door is what
+separates a quiet stream from a stopped one.
 
 ## Alerting
 

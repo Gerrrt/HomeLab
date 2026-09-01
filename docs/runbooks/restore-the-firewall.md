@@ -133,12 +133,42 @@ curl -s http://localhost:9090/api/v1/targets \
            | "\(.labels.device)\t\(.health)"'
 ```
 
+```bash
+# 5. Are the segmentation tripwires back? A config restored from a backup taken
+#    before 2026-09-01 does not have them, and their absence is silent.
+#    Match the whole shape, not just "a logged pass rule" — another rule may
+#    legitimately log one day, and a count alone would then pass while a
+#    tripwire was missing.
+ssh root@10.0.99.1 'pfctl -sr | grep -cE \
+  "^pass in log quick on igc0\.(10|20|40) inet from <OPT[0-9]+__NETWORK> to <Internal_Segments>"'
+# expect exactly 3 — one per terminal interface
+
+# And that all three interfaces are represented, not one of them three times:
+ssh root@10.0.99.1 'pfctl -sr \
+  | sed -nE "s/^pass in log quick on (igc0\.(10|20|40)) .* to <Internal_Segments>.*/\1/p" \
+  | sort -u'
+# expect igc0.10, igc0.20, igc0.40
+```
+
 > [!NOTE]
 > Step 4 matters more than it looks. A restore that brings back connectivity but
 > not the rule set leaves the house on a flat network that *appears* to work
 > perfectly. Nothing will alert you: every device has internet, and the failure
 > is invisible until something uses the access it should not have. Verify the
 > denials, not just the paths.
+
+And once the denials are verified, verify the thing that watches them.
+
+> [!IMPORTANT]
+> Step 5 is the same trap one layer down. The three tripwire rules
+> ([#223](https://github.com/Gerrrt/HomeLab/issues/223)) are what let
+> `TerminalSegmentReachedInternalNetwork` fire at all: they are `pass` + `log`
+> rules for `<terminal net> → Internal_Segments` on `igc0.10`, `igc0.20` and
+> `igc0.40`, sitting below the block rules and above the `→ any` egress rule.
+> They log nothing while segmentation holds, so a restore that drops them looks
+> exactly like a restore that kept them — and the alert goes quietly back to
+> being unable to fire for any input. Re-add them before calling the restore
+> done.
 
 ---
 
