@@ -65,7 +65,13 @@ newest() { list_backups | head -1; }
 verify() {
   local f="$1" plain
   [[ -f $f ]] || { red "no such backup: $f"; exit 1; }
-  plain="$(env -i "PATH=$PATH" "HOME=$HOME" sops --decrypt --input-type binary --output-type binary "$f" 2>/dev/null)" \
+  # --input-type yaml, matching the --output-type yaml these are written with.
+  # It said binary, which made sops parse a `data: ENC[...]` document as JSON
+  # and fail on the first character. Like the creation-rule bug above it had
+  # never run, because the encrypt half died before anything reached here.
+  # --output-type binary is right and stays: it emits the stored bytes, which
+  # are the config XML.
+  plain="$(env -i "PATH=$PATH" "HOME=$HOME" sops --decrypt --input-type yaml --output-type binary "$f" 2>/dev/null)" \
     || { red "FAILED to decrypt $f"; exit 1; }
   grep -q '<pfsense>' <<<"$plain" \
     || { red "decrypted $f but it does not look like a pfSense config"; exit 1; }
@@ -101,12 +107,26 @@ info "pulling $FW_PATH from $FW_USER@$FW_HOST"
 
 # Piped straight into sops — the plaintext config never touches this disk.
 # BatchMode so a missing key fails loudly instead of hanging on a prompt.
+#
+# --filename-override is load-bearing, not cosmetic. sops matches its
+# creation_rules against the path of the INPUT, and the input here is
+# /dev/stdin, which matches nothing in .sops.yaml — so every run of this script
+# since it was written died on `error loading config: no matching creation rules
+# found` before a byte reached the disk. Passing --age does not skip that check.
+# The override tells sops to match rules as though it were writing $DEST, which
+# .sops.yaml now has a rule for.
+#
+# shellcheck disable=SC2094  # --filename-override never opens $DEST; it is a
+# string sops matches creation_rules against. The only reader here is
+# /dev/stdin and the only writer is the redirect.
 if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$FW_USER@$FW_HOST" "cat $FW_PATH" \
-     | sops --encrypt --age "$AGE_RECIPIENT" --input-type binary --output-type yaml /dev/stdin \
+     | sops --encrypt --age "$AGE_RECIPIENT" --input-type binary --output-type yaml \
+            --filename-override "$DEST" /dev/stdin \
      > "$DEST"; then
   rm -f "$DEST"
   red "pull or encrypt failed — nothing written"
-  red "check: SSH enabled on pfSense, key authorised for $FW_USER, and sops on PATH"
+  red "check: SSH enabled on pfSense, key authorised for $FW_USER, sops on PATH,"
+  red "and a .sops.yaml creation rule matching $DEST"
   exit 1
 fi
 

@@ -6,6 +6,12 @@ ignore: |
   # SOPS output: machine-generated ciphertext, not hand-written YAML. It does
   # not follow comment/indent conventions and never will.
   secrets/*.sops.yaml
+  # The same thing, written by scripts/backup-firewall.sh. This entry is here
+  # because that script had never successfully produced a file: the first
+  # firewall backup it wrote turned `make validate` red on three indentation
+  # errors in ciphertext. backups/ is gitignored, so nothing here is reviewed
+  # and nothing here is hand-written.
+  backups/
   stacks/observability/snmp-exporter/.rendered/
   node_modules/
   .venv/

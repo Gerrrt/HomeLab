@@ -2,7 +2,15 @@
 # SOPS encryption policy.
 #
 # Everything under secrets/ matching *.sops.yaml is encrypted with the age
-# recipient below.
+# recipient below, and so is every firewall backup under backups/firewall/.
+#
+# Those two live in one rule rather than two so the recipient is written once.
+# A second rule would be a second copy of the key, and rotating one and not the
+# other is the kind of drift this repository keeps finding.
+#
+# backups/ is gitignored, so nothing matching that half is ever committed — the
+# rule is here because sops matches creation_rules to decide whether it may
+# encrypt at all, not because the output is tracked.
 #
 # SOPS encrypts values and leaves keys in plaintext by default, which is exactly
 # what we want: `git log -p secrets/observability.sops.yaml` shows *which*
@@ -16,6 +24,6 @@
 # public half into this file.
 
 creation_rules:
-  - path_regex: secrets/.*\.sops\.ya?ml$
+  - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
     age: >-
       age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x
