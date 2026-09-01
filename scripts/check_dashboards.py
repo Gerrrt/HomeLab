@@ -162,6 +162,9 @@ RULE_FIELD = re.compile(r'^\s*(\w+)\s*=\s*"(.*)"\s*$')
 # string, and the one field worth reading out of one, so that a rule reported
 # below can be named rather than described as "an unknown source".
 RULE_LIST_FIELD = re.compile(r'^\s*(\w+)\s*=\s*\[(.*)\]\s*$')
+# `$1`, `${1}`, `$name` — a replacement that interpolates the regex match
+# rather than naming a fixed value.
+CAPTURE_GROUP = re.compile(r"\$\{?\w")
 
 
 def alloy_level_values() -> tuple[set[str], list[str]]:
@@ -210,15 +213,29 @@ def alloy_level_values() -> tuple[set[str], list[str]]:
                 )
         if fields.get("target_label") != "level":
             continue
-        if "replacement" in fields:
-            values.add(fields["replacement"])
-        else:
+        source = fields.get("source_labels", "an unknown source")
+        replacement = fields.get("replacement")
+        if replacement is None:
             problems.append(
-                f"config.alloy: a relabel rule sets level from "
-                f"{fields.get('source_labels', 'an unknown source')} with no "
+                f"config.alloy: a relabel rule sets level from {source} with no "
                 f"replacement, so it emits whatever that source holds — map it "
                 f"onto the canonical values instead of copying it (#83)"
             )
+        elif CAPTURE_GROUP.search(replacement):
+            # `replacement = "$1"` is a copy wearing a replacement's clothes,
+            # and the `host` rules in this same file use exactly that idiom, so
+            # it is a live spelling rather than a hypothetical one. Treating it
+            # as bounded would be worse than not checking: the literal `$1`
+            # would join the emitted set and get reported as a value the picker
+            # forgot to list, which sends the reader looking in the wrong file.
+            problems.append(
+                f"config.alloy: a relabel rule sets level from {source} with "
+                f"replacement '{replacement}', which substitutes a capture "
+                f"group and so still passes that source through — map it onto "
+                f"the canonical values instead of copying it (#83)"
+            )
+        else:
+            values.add(replacement)
 
     return values, problems
 
