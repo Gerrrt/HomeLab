@@ -200,12 +200,27 @@ months.
   tier and its two new firewall rules.
 - **[#103](https://github.com/Gerrrt/HomeLab/issues/103)** The SSO deferral
   ADR-0008 takes knowingly — give it an expiry.
-- **[#104](https://github.com/Gerrrt/HomeLab/issues/104)** A superseding ADR:
-  0002 says two inter-VLAN rules exist and there are three.
 - **[#105](https://github.com/Gerrrt/HomeLab/issues/105)** Confirm the
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#104](https://github.com/Gerrrt/HomeLab/issues/104) A superseding ADR
+      for 0002's rule count.** ADR-0013. The issue asked for the third rule and
+      the current total; reading the enforced ruleset instead of recounting the
+      prose showed the total was the wrong thing to ask for.
+
+      Default deny holds for 99, 30, 40, 20 and 10. It does not hold for Hicks,
+      which blocks 40/20/10 and then passes to `any` — so it reaches all of
+      Winterfell and all of ImaginationLAN, wholesale, which no rule grants and
+      no rule denies. Nor for the switch LAN, which still carries pfSense's stock
+      *Default allow LAN to any* and reaches every segment while `network.md`
+      said "Nothing". One explicit rule — *Allow Hicks access to ImaginationLAN*
+      — sits on the ImaginationLAN interface, where Hicks traffic never arrives,
+      and matches nothing.
+
+      Four documents held four different counts. They now hold a list.
+      `network.md` had Hicks right the whole time.
 
 - [x] **[#223](https://github.com/Gerrrt/HomeLab/issues/223)
       `TerminalSegmentReachedInternalNetwork` could not fire.** The firewall

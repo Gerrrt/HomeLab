@@ -1,6 +1,14 @@
 # ADR-0002: Segment the network by trust, not by function
 
-**Status:** Accepted · 2025-06
+**Status:** Superseded · 2025-06 · by
+[ADR-0013](0013-segment-access-as-implemented.md)
+
+> [!NOTE]
+> Superseded only in its claim about the rule set — "Exactly two inter-VLAN rules
+> exist", below, has not been true since the monitoring stack landed. Segmenting
+> by trust rather than by function is unchanged and still the design.
+> [ADR-0013](0013-segment-access-as-implemented.md) records what is actually
+> enforced. The text here is left as written, per ADR-0001.
 
 ## Context
 
