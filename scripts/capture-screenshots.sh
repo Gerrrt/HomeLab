@@ -52,11 +52,18 @@ TIMEOUT="${CAPTURE_TIMEOUT:-180}"
 # uid:filename. The uid is the contract — the filename is only what
 # docs/images/README.md and the README's image block expect to find.
 #
-# homelab-logs is deliberately absent. Its Authentication log panel renders
-# auth.log verbatim, so a capture contains real usernames, real source addresses
-# and real session IDs — and there is no way to shoot it that does not, because
-# showing log lines is what the dashboard is for. Adding it back means solving
-# redaction first, not remembering to check afterwards.
+# homelab-logs and homelab-security are deliberately absent, for one reason.
+#
+# homelab-logs renders auth.log verbatim in its Authentication log panel, so a
+# capture contains real usernames, real source addresses and real session IDs.
+# homelab-security is the same shape: its Top blocked source addresses table,
+# its priority-1 Suricata stream and its terminal-segment violations stream all
+# publish real addresses, and Suricata alert bodies carry raw packet bytes
+# including MAC addresses that SECURITY.md requires truncated to an OUI.
+#
+# Neither is a bad window. Showing those lines is what both dashboards are for,
+# so there is no capture that does not publish them. Adding either back means
+# solving redaction first, not remembering to check afterwards.
 DASHBOARDS=(
   "homelab-host-overview:host-overview.png"
   "homelab-docker:docker-containers.png"

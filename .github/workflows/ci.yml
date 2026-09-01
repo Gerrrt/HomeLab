@@ -234,7 +234,13 @@ jobs:
       # promtool cannot check these — it parses PromQL and rejects every LogQL
       # stream selector. Loki itself is the only thing that understands them, so
       # the checker boots the pinned image with the rules mounted.
-      - name: Validate Loki rules
+      #
+      # It also feeds it the LogQL from every dashboard panel, which is the
+      # other half of the "Parse every dashboard PromQL expression" step below:
+      # the Prometheus panels went to promtool and the Loki panels went nowhere,
+      # so a typo in one rendered an empty panel and looked like quiet traffic
+      # rather than a broken query (#82).
+      - name: Validate Loki rules and dashboard LogQL
         run: ./scripts/check_loki_rules.sh
 
       # The device list is spread across snmp.yaml, generator.yaml,
@@ -276,7 +282,9 @@ jobs:
         run: python3 scripts/check_dashboards.py
 
       # Dashboard queries are as easy to typo as alert rules, and a broken one
-      # shows up as an empty panel rather than an error. Parse them all.
+      # shows up as an empty panel rather than an error. Parse them all — the
+      # LogQL half is done by the Loki step above, which is the only thing that
+      # can parse it.
       - name: Parse every dashboard PromQL expression
         run: |
           python3 scripts/check_dashboards.py --emit-promql > /tmp/dashboard-exprs.yaml

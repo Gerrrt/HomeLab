@@ -249,7 +249,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-head_ "Loki rules"
+head_ "Loki rules and dashboard LogQL"
 # ---------------------------------------------------------------------------
 # The skips file is why this is not a bare call: check_loki_rules.sh prints its
 # own SKIP and exits 0 when there is no loki binary and no docker, which read as

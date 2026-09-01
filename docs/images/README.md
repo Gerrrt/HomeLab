@@ -47,9 +47,9 @@ make screenshots
 ```
 
 `scripts/capture-screenshots.sh` starts the `capture` profile's renderer, shoots
-five of the six dashboards over a 24-hour window, and stops the renderer again.
-Nothing is left running and `docker compose ps` shows the same six services
-afterwards.
+five of the seven dashboards over a 24-hour window, and stops the renderer
+again. Nothing is left running and `docker compose ps` shows the same six
+services afterwards.
 
 Filenames and dashboards are paired in the script, not here, so they cannot
 drift:
@@ -86,9 +86,9 @@ correct fix for a bad window, not cropping.
 
 ## What is not captured, and why
 
-There are six dashboards and four screenshots. `homelab-logs` is excluded on
-purpose and always will be. `homelab-stack` is in the capture set and has simply
-not been shot yet.
+There are seven dashboards and four screenshots. `homelab-logs` and
+`homelab-security` are excluded on purpose and always will be. `homelab-stack`
+is in the capture set and has simply not been shot yet.
 
 ### `homelab-stack` is wired for capture and is only unshot
 
@@ -116,6 +116,23 @@ The check that catches this is the one that runs every time, not the one that
 depends on reading carefully at the end of a long afternoon.
 
 If it is ever wanted, the thing to build first is redaction — not a reminder.
+
+### `homelab-security` is excluded for the same reason
+
+It arrived with [#82](https://github.com/Gerrrt/HomeLab/issues/82) and it is the
+Logs dashboard's argument again, in a segment where the addresses matter more.
+Three of its panels exist to show them: *Top blocked source addresses* is a
+table of real source IPs, and the priority-1 Suricata stream and the
+terminal-segment violations stream both render log lines verbatim. A window with
+nothing in those panels is not a safe capture either — it is a picture of a
+dashboard with its point removed.
+
+Suricata makes it worse than `homelab-logs` rather than merely equal to it.
+Alert bodies carry raw packet bytes, MAC addresses among them, and
+[`SECURITY.md`](../../SECURITY.md) requires MACs truncated to an OUI anywhere
+they are published. That is a per-line edit on a stream panel, which is not a
+checklist item — it is redaction, and the same conclusion follows: build it
+first, or leave the dashboard out.
 
 ## Before publishing
 

@@ -28,9 +28,10 @@ interface only. Suricata sits on `morpheus` rather than the hypervisor because i
 is the only device that sees the IoT and guest segments, per
 [ADR-0006](adr/0006-detect-at-the-chokepoint.md). Alerts reach Loki through the
 firewall's syslog pipe, with `classification` and `priority` parsed into labels;
-`SuricataHighPriorityAlert` and `SuricataAlertStorm` are armed against them.
-[`runbooks/enable-suricata.md`](runbooks/enable-suricata.md) covers the setup and
-the tuning.
+`SuricataHighPriorityAlert` and `SuricataAlertStorm` are armed against them, and
+the `homelab-security` dashboard charts them next to the firewall's own block
+decisions. [`runbooks/enable-suricata.md`](runbooks/enable-suricata.md) covers
+the setup and the tuning.
 
 Three limits, stated rather than implied:
 
