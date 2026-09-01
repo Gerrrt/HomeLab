@@ -213,8 +213,13 @@ Where things get broken on purpose.
   binaries are still on the box, the same reservation would not reliably
   protect an in-pool address. Moving `Saruman` below `.100` is the fix that
   does not depend on that.
-- A second server ("ifrit") is planned to carry the deliberately-vulnerable
-  playground, isolated from everything here.
+- A second server (`ifrit`) will carry the attack tooling and the
+  deliberately-vulnerable targets. It joins this segment single-homed, on an
+  untagged access port, at a static address below `.100`; the targets live on
+  a bridge inside it with no physical port, on a subnet `morpheus` does not
+  route, so they have no path anywhere. Egress from this segment stays open by
+  decision, not omission —
+  [ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md).
 
 > [!NOTE]
 > `10.0.30.10` is the iLO BMC, not the hypervisor, and it is what
