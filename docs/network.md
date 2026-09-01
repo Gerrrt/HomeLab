@@ -20,13 +20,18 @@ above CasaBonita, which the spectrum does not. Reasoning in
 | Segment | VLAN | Rack | Subnet | Purpose | Reaches |
 | --- | --- | --- | --- | --- | --- |
 | WAN | — | — | ISP-assigned | Uplink | — |
-| LAN | — | — | `10.7.7.0/24` | Switch management only | Nothing |
+| LAN | — | — | `10.7.7.0/24` | Switch management only | Everything[^lan] |
 | [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet |
 | [Hicks](#hicks--vlan-50--trusted) | 50 | 🟠 Orange | `10.0.50.0/24` | Trusted workstations | Internet, 99, 30 |
 | [CasaBonita](#casabonita--vlan-40--media) | 40 | 🟡 Yellow | `10.0.40.0/24` | TVs and consoles | Internet |
 | [ImaginationLAN](#imaginationlan--vlan-30--lab) | 30 | 🟢 Green | `10.0.30.0/24` | Hypervisor / lab | Internet |
 | [Skids](#skids--vlan-20--iot) | 20 | 🔵 Blue | `10.0.20.0/24` | IoT and cameras | Internet |
 | [Degens](#degens--vlan-10--guest) | 10 | 🟣 Purple | `10.0.10.0/24` | Guest Wi-Fi | Internet |
+
+[^lan]: Not by design. That interface carries pfSense's stock *Default allow LAN
+    to any* rule and no blocks, so `10.7.7.0/24` reaches every segment. It held
+    one device and said "Nothing" here until
+    [ADR-0013](adr/0013-segment-access-as-implemented.md) read the ruleset.
 
 Hostnames are thematic rather than functional — `morpheus` is the firewall,
 `mjolnir` the UPS, `Saruman` the hypervisor. The Role column is the source of

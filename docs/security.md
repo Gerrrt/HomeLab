@@ -51,21 +51,24 @@ exists, a silent `ids` alert group is not evidence that anything is watching.
 
 ## Segmentation
 
-Default deny between every segment. Three exceptions:
+Default deny holds for **Winterfell (99)**, **ImaginationLAN (30)**,
+**CasaBonita (40)**, **Skids (20)** and **Degens (10)**. Each blocks every other
+segment explicitly before its egress rule, and the narrow exceptions that exist
+— SNMP to the iLO and to the switch, SSH to the firewall — are listed in
+[ADR-0013](adr/0013-segment-access-as-implemented.md).
 
-1. Specific hosts on **Hicks (50)** may reach **Winterfell (99)** on management
-   ports. Without this there is no way to administer anything.
-2. **Hicks (50)** may reach **ImaginationLAN (30)** so the lab is usable.
-3. **Winterfell (99)** may reach `10.0.30.10` on **ImaginationLAN (30)** for
-   SNMP. This is how `snmp-exporter` polls the ProLiant's iLO, and it has been
-   in place — and answering — for as long as that target has existed.
+**It does not hold for Hicks (50), and it does not hold for the switch LAN.**
+Hicks blocks CasaBonita, Skids and Degens and then passes to `any`, so it reaches
+all of Winterfell and all of ImaginationLAN on every protocol and port — not the
+management path this section used to describe. The switch LAN carries pfSense's
+stock *Default allow LAN to any* rule and reaches every segment.
 
-[ADR-0002](adr/0002-vlan-segmentation-strategy.md) records two rules, which was
-accurate when the decision was made. The third arrived with the monitoring
-stack and was never written down. It is the safe direction — management
-initiating into the lab, never the reverse — but an undocumented rule is still
-an undocumented rule, and a document that overstates a control is worse than
-one that admits the exception.
+This section previously said "three exceptions", ADR-0002 said two, and ADR-0008
+said five. All three were counts, and a count cannot express "reachable because
+a catch-all was reached". ADR-0013 supersedes ADR-0002 and replaces the count
+with a list; the audit behind it is recorded there. **A document that overstates
+a control is worse than one that admits the exception**, and this one overstated
+it for as long as it was a number.
 
 Everything else — IoT, media, guest — gets internet and nothing more.
 

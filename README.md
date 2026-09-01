@@ -37,9 +37,11 @@ incident.
 ## Highlights
 
 - **Network segmented by trust, not by function.** Seven VLANs; IoT, media and
-  guest segments are terminal — egress only, no path to anything else. Three
-  inter-VLAN rules exist, each directional and documented.
-  [Why](docs/adr/0002-vlan-segmentation-strategy.md)
+  guest segments are terminal — egress only, no path to anything else, and each
+  carries a tripwire that logs anything which gets past that. Default deny holds
+  everywhere except the trusted workstation segment and the switch LAN, both of
+  which are listed rather than counted.
+  [Why](docs/adr/0013-segment-access-as-implemented.md)
 - **Full observability pipeline for a mixed estate.** Grafana Alloy agents push
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
@@ -68,7 +70,7 @@ incident.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** Eleven ADRs covering what was chosen
+- **Documented decisions and runbooks.** Thirteen ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; twelve
   runbooks for the operations that are easy to get wrong at 1am.
 
@@ -165,7 +167,7 @@ rack; a dashed border means egress only. Full topology and data flow in
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 12 architecture decision records
+│   ├── adr/                  # 13 architecture decision records
 │   └── runbooks/             # deploy, add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, restore the stack,
 │                             #   ship firewall logs, verify the alert path,
