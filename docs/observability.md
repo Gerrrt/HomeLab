@@ -197,8 +197,12 @@ block lines. Both halves are therefore verified against real traffic; only the
 combination is absent, which is what "the segmentation is holding" looks like.
 
 *Passed (1h)* still reads *not logged*, because ordinary egress genuinely is
-not. *Terminal→internal passes* now reads `0`, because that path is instrumented
-and zero is a measurement.
+not. *Terminal→internal passes* reads *none* when the query matches nothing —
+deliberately not `0`. Grafana's `noValue` fires on an empty result, not on a
+measured zero, so rendering a number there would claim a measurement in exactly
+the case where the stream is broken, absent or relabelled. None of these stats
+render a number they did not get; *Firewall log arrival rate* next door is what
+separates a quiet stream from a stopped one.
 
 ## Alerting
 

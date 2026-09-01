@@ -136,8 +136,18 @@ curl -s http://localhost:9090/api/v1/targets \
 ```bash
 # 5. Are the segmentation tripwires back? A config restored from a backup taken
 #    before 2026-09-01 does not have them, and their absence is silent.
-ssh root@10.0.99.1 'pfctl -sr | grep "^pass" | grep -c " log "'   # expect 3
-ssh root@10.0.99.1 'pfctl -sr | grep Internal_Segments'           # igc0.10/20/40
+#    Match the whole shape, not just "a logged pass rule" — another rule may
+#    legitimately log one day, and a count alone would then pass while a
+#    tripwire was missing.
+ssh root@10.0.99.1 'pfctl -sr | grep -cE \
+  "^pass in log quick on igc0\.(10|20|40) inet from <OPT[0-9]+__NETWORK> to <Internal_Segments>"'
+# expect exactly 3 — one per terminal interface
+
+# And that all three interfaces are represented, not one of them three times:
+ssh root@10.0.99.1 'pfctl -sr \
+  | sed -nE "s/^pass in log quick on (igc0\.(10|20|40)) .* to <Internal_Segments>.*/\1/p" \
+  | sort -u'
+# expect igc0.10, igc0.20, igc0.40
 ```
 
 > [!NOTE]

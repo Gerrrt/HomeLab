@@ -422,7 +422,7 @@
     {
       "type": "stat",
       "title": "Suricata alerts (24h)",
-      "description": "Every priority, from the Skids (VLAN 20) interface. Zero is not evidence the IDS is running.",
+      "description": "Every priority, from the Skids (VLAN 20) interface. Reads *none* when nothing matched — which is not evidence the IDS is running, and is why it does not render as 0.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -450,7 +450,7 @@
           },
           "mappings": [],
           "decimals": 0,
-          "noValue": "0"
+          "noValue": "none"
         },
         "overrides": []
       },
@@ -518,7 +518,7 @@
           },
           "mappings": [],
           "decimals": 0,
-          "noValue": "0"
+          "noValue": "none"
         },
         "overrides": []
       },
@@ -554,7 +554,7 @@
     {
       "type": "stat",
       "title": "Terminal→internal passes (24h)",
-      "description": "Packets PASSED from VLAN 10/20/40 toward VLAN 30/50/99. ADR-0002 says this path does not exist, so anything but zero is a segmentation failure — this is TerminalSegmentReachedInternalNetwork's own count. Since the tripwire rules landed this path is instrumented, so 0 here is a measurement rather than a silence.",
+      "description": "Packets PASSED from VLAN 10/20/40 toward VLAN 30/50/99. ADR-0002 says this path does not exist, so anything but zero is a segmentation failure — this is TerminalSegmentReachedInternalNetwork's own count. The tripwire rules instrument this path, so a number here is real. *none* means the query matched nothing, which is the good state — but check *Firewall log arrival rate* before reading it as one, because a stopped stream looks the same.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -586,7 +586,7 @@
           },
           "mappings": [],
           "decimals": 0,
-          "noValue": "0"
+          "noValue": "none"
         },
         "overrides": []
       },
