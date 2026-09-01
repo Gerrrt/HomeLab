@@ -52,7 +52,7 @@ graph TB
 
     WS -.->|"all of management<br/>every port"| V99
     WS -.->|"all of the lab<br/>every port"| V30
-    MON -.->|"SNMP · the iLO"| HV
+    MON -.->|"SNMP · shiva, the iLO"| HV
     MON -.->|"SNMP · the switch"| SW
 
     %% Fill is the patch-cable colour in the rack — see network.md, ADR-0009.
@@ -94,10 +94,11 @@ the terminal segments and then passes to `any`; no rule grants that and none
 denies it ([#228](https://github.com/Gerrrt/HomeLab/issues/228)). The
 observability host polls the iLO and the switch over SNMP, and each has a
 return path. Everything else is default deny. IoT, media and guest are
-terminal — traffic goes out, nothing comes back in. The switch's own management
-LAN is the path the diagram cannot draw: it is grey, carries every VLAN, and
-still holds pfSense's stock allow-to-any
-([#229](https://github.com/Gerrrt/HomeLab/issues/229)).
+terminal — traffic goes out, nothing comes back in. One path the diagram cannot
+draw: the switch is plumbing here, not a segment, but its management address
+sits on the untagged LAN (`10.7.7.0/24`), and that interface still carries
+pfSense's stock *Default allow LAN to any* rule, so the switch reaches every
+segment ([#229](https://github.com/Gerrrt/HomeLab/issues/229)).
 
 Segment colour is the patch-cable colour in the rack, so the diagram and the
 hardware can be read against each other. A dashed border marks a terminal
