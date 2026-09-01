@@ -48,6 +48,34 @@ done
 RULES_DIR="${STACK}/loki/rules"
 [[ -d "${RULES_DIR}" ]] || die "no rules directory at ${RULES_DIR}"
 
+# Whether this run can happen at all is decided FIRST, before anything with a
+# side effect or a failure mode of its own.
+#
+# Everything below needs a scratch directory, may pip install PyYAML, and
+# shells out to check_dashboards.py to emit the panel queries. Doing any of
+# that before knowing there is a Loki to run it against turned an intended SKIP
+# into a hard failure on a host with no python3 — and recorded no skip while
+# failing, which is the precise confusion #68 was about: a check that did not
+# run must say so. It must not fail, and it must not pass.
+#
+# Only availability is settled here. The docker command line needs ${WORK},
+# which does not exist yet, so the runner is named now and built below.
+if command -v loki >/dev/null 2>&1; then
+  RUNNER=loki
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  RUNNER=docker
+else
+  # Recorded, not just printed. scripts/validate.sh counts the lines of this
+  # file into its SKIPPED total; without it this exit 0 read as a pass and the
+  # run could sign off with an unqualified "all checks passed" over rules that
+  # were never validated (#68). Same contract as scripts/lint.sh and
+  # scripts/seed-validation-env.sh: the caller owns the path and its lifetime.
+  msg="no loki binary and no docker daemon"
+  printf '\033[0;33m  SKIP\033[0m %s\n' "${msg}"
+  [[ -n "${SKIPS_FILE}" ]] && printf '%s\n' "${msg}" >> "${SKIPS_FILE}"
+  exit 0
+fi
+
 WORK="$(mktemp -d)"
 # Loki writes as its own uid; never let cleanup failure mask the result.
 trap 'rm -rf "${WORK}" 2>/dev/null || true' EXIT
@@ -118,23 +146,13 @@ SPEEDUP
 n_rules="$(grep -ch '^ *- alert:' "${RULES_DIR}"/*.yaml | paste -sd+ | bc || true)"
 info "checking ${n_rules} Loki rule(s) and ${n_dash} dashboard expression(s)"
 
-if command -v loki >/dev/null 2>&1; then
+if [[ "${RUNNER}" == "loki" ]]; then
   RUN=(loki)
-elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+else
   # --user: without it Loki writes as uid 10001 and the runner cannot delete
   # the scratch directory afterwards, filling the log with rm errors.
   RUN=(docker run --rm --user "$(id -u):$(id -g)" \
        -v "${WORK}:${WORK}" -w "${WORK}" --entrypoint loki "${LOKI_IMAGE}")
-else
-  # Recorded, not just printed. scripts/validate.sh counts the lines of this
-  # file into its SKIPPED total; without it this exit 0 read as a pass and the
-  # run could sign off with an unqualified "all checks passed" over rules that
-  # were never validated (#68). Same contract as scripts/lint.sh and
-  # scripts/seed-validation-env.sh: the caller owns the path and its lifetime.
-  msg="no loki binary and no docker daemon"
-  printf '\033[0;33m  SKIP\033[0m %s\n' "${msg}"
-  [[ -n "${SKIPS_FILE}" ]] && printf '%s\n' "${msg}" >> "${SKIPS_FILE}"
-  exit 0
 fi
 
 OUT="${WORK}/loki.log"
