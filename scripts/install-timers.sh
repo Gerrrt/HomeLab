@@ -15,6 +15,17 @@
 # `max_age unless on(homelab_job) last_success` — a statement about the table,
 # not about a hardcoded list of names that would silently stop growing.
 #
+# WHY --require-all EXISTS
+#
+# A local run may honestly skip a check it cannot reach. CI may not: a check
+# skipped there is one nobody will ever run. Same contract, same flag name and
+# the same reasoning as scripts/lint.sh, which is where this came from.
+#
+# One skip deliberately survives it. `systemd-analyze verify` resolves
+# ExecStart= against the real filesystem, so from a runner or a worktree every
+# unit reports a missing wrapper — escalating that would fail CI for being CI.
+# It goes through skip_offhost() and every other skip goes through skip().
+#
 # WHY --check EXISTS AND WHAT IT ASSERTS
 #
 # The table and the .timer files are two copies of the same schedule, and this
@@ -40,6 +51,7 @@
 #
 # Usage:
 #   scripts/install-timers.sh --check [--skips-file <path>]   assert the schedule is coherent (offline, no privilege)
+#   scripts/install-timers.sh --check --require-all           the same, with a skip counted as a failure (CI)
 #   scripts/install-timers.sh --install [--no-run]            install and enable the timers (needs root)
 #   scripts/install-timers.sh --uninstall                     stop, disable and remove them (needs root)
 #   scripts/install-timers.sh --list                          print the table
@@ -93,6 +105,21 @@ fail() { printf '\033[0;31m  FAIL\033[0m %s\n' "$*"; FAILED=1; }
 skip() {
   printf '\033[0;33m  SKIP\033[0m %s\n' "$*"
   [[ -n "${SKIPS_FILE}" ]] && printf '%s\n' "$*" >> "${SKIPS_FILE}"
+  # Under --require-all a skip is a failure, because a check skipped in CI is
+  # one nobody will ever run. Same contract as scripts/lint.sh.
+  ((REQUIRE_ALL)) && { printf '\033[0;31m  FAIL\033[0m %s (skipped under --require-all)\n' "$*"; FAILED=1; }
+  return 0
+}
+# A skip that is CORRECT everywhere except the deployment host, and so must not
+# become a failure under --require-all.
+#
+# There is exactly one: systemd-analyze verify resolves ExecStart against the
+# real filesystem, so from a CI runner or a worktree every unit reports a
+# missing wrapper. Escalating that would make CI fail for being CI. Every other
+# skip here means a tool was unreachable, which in CI is a check nobody runs.
+skip_offhost() {
+  printf '\033[0;33m  SKIP\033[0m %s\n' "$*"
+  [[ -n "${SKIPS_FILE}" ]] && printf '%s\n' "$*" >> "${SKIPS_FILE}"
   return 0
 }
 
@@ -101,6 +128,7 @@ usage() { sed -n '/^# Usage:/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//';
 MODE=""
 SKIPS_FILE=""
 RUN_ONCE=1
+REQUIRE_ALL=0
 while (($#)); do
   case "$1" in
     --check)      MODE=check ;;
@@ -109,6 +137,7 @@ while (($#)); do
     --list)       MODE=list ;;
     --no-run)     RUN_ONCE=0 ;;
     --skips-file) SKIPS_FILE="${2:-}"; shift ;;
+    --require-all) REQUIRE_ALL=1 ;;
     -h|--help)    usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
   esac
@@ -223,11 +252,33 @@ if [[ "${MODE}" == check ]]; then
   if ! command -v systemd-analyze >/dev/null 2>&1; then
     skip "systemd-analyze not installed — unit syntax unchecked"
   elif [[ "${REPO_ROOT}" != "${DEPLOY_ROOT}" ]]; then
-    skip "not the deployment checkout — unit syntax unchecked (ExecStart would not resolve)"
+    skip_offhost "not the deployment checkout — unit syntax unchecked (ExecStart would not resolve)"
   elif systemd-analyze verify "${UNIT_DIR}"/*.service "${UNIT_DIR}"/*.timer 2>&1; then
     pass "systemd-analyze verify"
   else
     fail "systemd-analyze verify"
+  fi
+
+  # 6. That CI calls this at all.
+  #
+  #    Everything above ran in scripts/validate.sh and in no CI job, so it
+  #    guarded a `make validate` a contributor might not run and guarded the
+  #    pull request not at all. That is the #68 asymmetry, and #68 is the reason
+  #    this check knows to look for two copies of one fact — it simply had a
+  #    third copy nobody was comparing.
+  #
+  #    scripts/lint.sh asserts its own caller for the same reason and in the
+  #    same direction: the check names the job that must run it, so deleting
+  #    the step fails the check rather than silently narrowing coverage.
+  WORKFLOW=".github/workflows/ci.yml"
+  if [[ ! -f "${WORKFLOW}" ]]; then
+    fail "no ${WORKFLOW} — nothing is running this in CI"
+  elif grep -qE '^[[:space:]]*run:[[:space:]]*\./scripts/install-timers\.sh --check --require-all[[:space:]]*$' "${WORKFLOW}"; then
+    pass "ci.yml runs this check too"
+  else
+    fail "${WORKFLOW} does not run './scripts/install-timers.sh --check --require-all'"
+    printf '        Without it the schedule is guarded by make validate only,\n'
+    printf '        which is the asymmetry #68 was about.\n'
   fi
 
   ((FAILED)) && exit 1

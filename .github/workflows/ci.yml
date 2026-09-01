@@ -257,6 +257,21 @@ jobs:
       - name: Verify the documents agree with the configs
         run: python3 scripts/check_docs.py
 
+      # The schedule's cadence lives in systemd/*.timer and its staleness
+      # threshold lives in the JOBS table in install-timers.sh — two copies of
+      # one fact, which is what #68 was about. The check that compares them ran
+      # in scripts/validate.sh and in no job here, so it guarded a `make
+      # validate` a contributor may not run and guarded a pull request not at
+      # all. --check now asserts this step exists, so deleting it fails rather
+      # than quietly narrowing coverage back.
+      #
+      # --require-all because a skip in CI is a check nobody runs. The one skip
+      # that survives it is `systemd-analyze verify`, which resolves ExecStart
+      # against the real filesystem and is meaningless anywhere but the
+      # deployment host — escalating that would fail CI for being CI.
+      - name: Verify the schedule and its staleness thresholds agree
+        run: ./scripts/install-timers.sh --check --require-all
+
       - name: Validate Grafana dashboards
         run: python3 scripts/check_dashboards.py
 
