@@ -68,10 +68,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the unmanaged switch that feeds `prometheus` and `oracle`. It is not in the
   rack table above because it is not yet in the rack
   ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
-- USB stick holding the pfSense installer — in transit. It lives in the rack
-  beside the KVM, because
-  [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) assumes it exists
-  and a restore is not the moment to go looking for one
+- USB stick holding the pfSense installer — **in transit; it belongs in the rack
+  beside the KVM once it arrives**, and is not there yet.
+  [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
+  something you will need, so a restore attempted before it lands is a restore
+  that stops to go looking for one
 - HP Smart Storage Battery 96W (`727258-B21`) in the ProLiant — **failed**,
   spare part `815983-001`, **replacement in transit**. The Smart Array has
   disabled its write cache in response and runs write-through until it is

@@ -155,8 +155,9 @@ what left this one unfireable for months.
   since at least 2026-08-18 — the whole of the retained window, unbroken. **HPE
   spare `815983-001`** (option 727258-B21, "HP Smart Storage Batt 96"). `13` is
   terminal: a reseat does not clear it, so there was nothing to try before
-  ordering, and the spare is now in transit. The cost is already being paid — the Smart Array has permanently
-  disabled its flash-backed write cache (`cpqDaAccelStatus` `5`, read and write
+  ordering, and the spare is now in transit. The cost is already being paid —
+  the Smart Array has permanently disabled its flash-backed write cache
+  (`cpqDaAccelStatus` `5`, read and write
   cache percent both `0`) and the array runs write-through: slower, and *not*
   less durable. `cpqDaAccelBadData` reads `2` (none), so nothing dirty was lost
   when it dropped. **Accepted with an expiry, not a fix in progress:**
