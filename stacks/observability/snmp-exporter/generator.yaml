@@ -79,10 +79,7 @@ modules:
       - 1.3.6.1.4.1.12325.1.200.1.10  # pfLabels
       - 1.3.6.1.4.1.12325.1.200.1.11  # pfLabels (detail)
 
-  # MokerLink 26-port managed switch (neo, 10.7.7.2) — IF-MIB ifTable.
-  # NOTE: 32-bit counters only. Adding ifXTable (64-bit) is tracked in
-  # docs/roadmap.md — on gigabit links ifInOctets wraps in ~34 seconds at
-  # line rate, which the 60s scrape interval cannot detect.
+  # MokerLink 26-port managed switch (neo, 10.7.7.2) — IF-MIB, five columns.
   #
   # The tuning below is not cargo cult. This switch's management CPU has locked
   # up under exporter polling before, taking its SNMP agent down while layer 2
@@ -98,10 +95,27 @@ modules:
   # Only the five columns anything actually consumes are walked. This switch was
   # bricked once by a full walk and has wedged since, so scrape volume is a
   # safety property here, not an efficiency one. Five columns x 26 ports is ~130
-  # varbinds, about a quarter of what walking the whole ifTable costs.
+  # varbinds, about a quarter of what walking the whole ifTable costs. Measured
+  # cost is 30 packets, 130 PDUs and ~1.4s per scrape.
   #
-  # Column 22 (ifSpecific) must never be fetched. This switch returns it with a
-  # zero-length value, seen on the wire as
+  # The octet counters come from ifXTable (1.3.6.1.2.1.31.1.1.1), not ifTable.
+  # ifTable's ifInOctets/ifOutOctets are 32-bit and wrap at 4.29 GB — ~34s at
+  # gigabit line rate — so at a 60s scrape any port above ~570 Mbit/s sustained
+  # silently under-reports, and nothing can detect it afterwards: rate() treats
+  # a decrease as a counter reset, never as a wrap. ifHCInOctets/ifHCOutOctets
+  # are Counter64 and do not wrap in practice. They replaced the 32-bit pair
+  # rather than joining it, so the walk stayed at five columns (#87). Probed
+  # 2026-09-01 with scripts/snmp-walk.sh at this module's request shape: 26 rows
+  # per column in 6 requests and ~0.5s, the low 32 bits matching ifInOctets on
+  # every busy port, and incrementing between walks.
+  #
+  # ifDescr is walked twice over: once as its own metric and once as the lookup
+  # below, which stamps an ifDescr label onto every metric indexed by ifIndex so
+  # dashboards and alert summaries can name a port. The lookup is resolved from
+  # the varbinds already fetched — it adds nothing to the walk.
+  #
+  # Column 22 of ifTable (ifSpecific) must never be fetched. This switch returns
+  # it with a zero-length value, seen on the wire as
   #
   #   .1.3.6.1.2.1.2.2.1.22.26=
   #
@@ -119,15 +133,28 @@ modules:
   # max_repetitions cannot reach it. `overrides: ifSpecific: ignore` does not
   # help either — that only drops the metric, the reply must still be decoded.
   #
-  # Adding a column is cheap; adding .21 or .22 is not. Anything past .16 needs
-  # to be checked against this.
+  # With 26 rows at max_repetitions 5 each column's final request overshoots by
+  # four varbinds into the next column: ifTable .1 -> .2, .2 -> .3, .8 -> .9;
+  # ifXTable .6 -> .7, .10 -> .11. All of those decode. ifXTable has no
+  # OBJECT IDENTIFIER column at all (its last is .19, a TimeStamp), so the
+  # ifSpecific failure cannot recur inside it. The highest ifTable column
+  # walked is now .8, further from .22 than before.
+  #
+  # Adding a column is cheap; adding ifTable .21 or .22 is not. Any new ifTable
+  # column past .8 needs to be checked against the overshoot first — and any
+  # new column anywhere gets walked with scripts/snmp-walk.sh before it is
+  # added here, because the exporter's first contact with a bad varbind is a
+  # scrape that returns nothing.
   mokerlink:
     walk:
-      - 1.3.6.1.2.1.2.2.1.1  # ifIndex
-      - 1.3.6.1.2.1.2.2.1.2  # ifDescr       (label lookup)
-      - 1.3.6.1.2.1.2.2.1.8  # ifOperStatus  (SwitchPortDown)
-      - 1.3.6.1.2.1.2.2.1.10 # ifInOctets
-      - 1.3.6.1.2.1.2.2.1.16 # ifOutOctets
+      - 1.3.6.1.2.1.2.2.1.1     # ifIndex
+      - 1.3.6.1.2.1.2.2.1.2     # ifDescr       (metric, and the lookup below)
+      - 1.3.6.1.2.1.2.2.1.8     # ifOperStatus  (SwitchInterfaceDown)
+      - 1.3.6.1.2.1.31.1.1.1.6  # ifHCInOctets  (64-bit)
+      - 1.3.6.1.2.1.31.1.1.1.10 # ifHCOutOctets (64-bit)
+    lookups:
+      - source_indexes: [ifIndex]
+        lookup: ifDescr
     max_repetitions: 5
     retries: 2
     timeout: 7s

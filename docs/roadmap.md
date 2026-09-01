@@ -52,11 +52,6 @@ issues intact. Nothing was summarised away.
 
 ## Monitoring
 
-- **[#87](https://github.com/Gerrrt/HomeLab/issues/87) Add `ifXTable` (64-bit
-  counters) to the `mokerlink` module.** The current 32-bit counters wrap in ~34
-  seconds at gigabit. Now actionable — the switch has been polling since the
-  faults in [#22](https://github.com/Gerrrt/HomeLab/issues/22) cleared. The walk
-  has a trap in it; the issue carries the detail.
 - **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to
   `Saruman`.** `oracle` has had an agent since 2026-08-30 and is remote-writing
   host metrics and pushing logs; `Saruman` is the one left. `morpheus` reaches
@@ -223,6 +218,20 @@ months.
 
 ## Done
 
+- [x] **[#87](https://github.com/Gerrrt/HomeLab/issues/87) Add `ifXTable` (64-bit
+      counters) to the `mokerlink` module.** Swapped in rather than added: the
+      64-bit `ifHCInOctets`/`ifHCOutOctets` replaced the 32-bit pair, so the walk
+      stayed at five columns and the load on a switch that has wedged under
+      polling stayed where it was. Each column was fetched first with the new
+      `scripts/snmp-walk.sh`, at the exporter's own request shape, and the low
+      32 bits matched the live counters on every busy port.
+
+      Two things found on the way went with it. `SwitchCounterWrapSuspected`
+      could never fire — `rate()` never goes negative — so it was deleted, not
+      re-pointed. And no switch metric had ever carried an `ifDescr` label: the
+      generator comment said "label lookup" but no lookup existed, so every
+      port name in the dashboard and the `SwitchInterfaceDown` summary rendered
+      blank. One `lookups` stanza fixed both.
 - [x] **[#104](https://github.com/Gerrrt/HomeLab/issues/104) A superseding ADR
       for 0002's rule count.** ADR-0013. The issue asked for the third rule and
       the current total; reading the enforced ruleset instead of recounting the

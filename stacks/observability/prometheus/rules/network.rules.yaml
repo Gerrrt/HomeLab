@@ -91,19 +91,11 @@ groups:
         annotations:
           summary: "Interface {{ $labels.ifDescr }} on {{ $labels.device }} went down"
 
-      - alert: SwitchCounterWrapSuspected
-        # ifInOctets/ifOutOctets are 32-bit and wrap in ~34s at gigabit line
-        # rate. A negative delta at a 60s scrape means the counter wrapped and
-        # the throughput figure for that window is wrong.
-        # Fix is ifXTable (64-bit) — tracked in docs/roadmap.md.
-        expr: rate(ifInOctets[5m]) < 0 or rate(ifOutOctets[5m]) < 0
-        for: 10m
-        labels:
-          component: network
-          severity: info
-          category: correctness
-        annotations:
-          summary: "32-bit interface counter wrapped on {{ $labels.device }}:{{ $labels.ifDescr }}"
+      # No counter-wrap rule. One stood here reading rate(ifInOctets[5m]) < 0,
+      # and it could never fire: rate() treats a decrease as a counter reset,
+      # never as a wrap, so it is never negative (#63 again — loaded, healthy,
+      # unfireable). The mokerlink module now reads the 64-bit ifXTable
+      # counters, which do not wrap at any rate this switch can carry (#87).
 
       # --- Hypervisor BMC (HPE iLO / CPQ MIBs) ------------------------------
       # CPQ condition values: 1=other 2=ok 3=degraded 4=failed

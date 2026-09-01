@@ -260,6 +260,10 @@ new module.
 # taking it on the command line, where ps would expose it)
 ./scripts/snmp-verify.sh --device <hostname>
 
+# Does the device answer the walk you are about to configure? One subtree at a
+# time, GETBULK at the exporter's request shape, community never in argv.
+./scripts/snmp-walk.sh --device <hostname> 1.3.6.1.2.1.1
+
 # Does the exporter understand it?
 curl -s 'http://localhost:9116/snmp?target=10.0.99.40&module=newdevice&auth=auth_newdevice' | head
 ```
