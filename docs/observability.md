@@ -170,8 +170,8 @@ label has exactly one value, `block`, at roughly 85,000 lines a day and not one
 action="pass"}`, so **it cannot fire for any input** — the same shape of defect
 as [#63](https://github.com/Gerrrt/HomeLab/issues/63), where
 `ContainerHighMemory` divided by a limit no service set and showed as loaded and
-healthy throughout. Enabling logging on the inter-VLAN pass rules in pfSense is
-what would arm it, and that is
+healthy throughout. Arming it means enabling logging on the inter-VLAN pass
+rules in pfSense, which is tracked in
 [#223](https://github.com/Gerrrt/HomeLab/issues/223).
 
 This is why the two pass-dependent stats read *not logged* rather than `0`.
