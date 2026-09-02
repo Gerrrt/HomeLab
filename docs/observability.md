@@ -181,7 +181,7 @@ push — which is deliberate: the first is the only one whose `up` can reach 0.
 
 ### Drawing the labels the parsing work exists to produce
 
-`homelab-security` exists because `config.alloy` went to real trouble to extract
+`homelab-security` exists because `syslog.alloy` went to real trouble to extract
 `interface`, `action` and `direction` from pfSense filterlog, and
 `classification` and `priority` from Suricata; five Loki rules fire on them; and
 nothing charted any of it ([#82](https://github.com/Gerrrt/HomeLab/issues/82)).

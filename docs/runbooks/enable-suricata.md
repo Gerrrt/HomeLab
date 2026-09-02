@@ -3,7 +3,8 @@
 **Target:** `morpheus` (pfSense CE 2.8.1)
 **Time:** thirty minutes to install, then **several days of watching**
 **You will need:** the pfSense web UI, and the syslog pipeline from
-[`ship-firewall-logs.md`](ship-firewall-logs.md) already working
+[`ship-firewall-logs.md`](ship-firewall-logs.md) already working. For §6, the
+`interface` label from `syslog.alloy` live on the monitoring host first
 
 [`security.md`](../security.md) has said "There is no IDS/IPS" since this
 repository began. This closes that — on the firewall rather than the
@@ -83,18 +84,34 @@ output, flow and stream timeouts — this stack consumes none of it, and changin
 things here to look thorough is how you end up debugging Suricata instead of
 using it.
 
-> [!NOTE]
-> Two fields in *Logging Settings* are worth recognising and **not** changing.
-> `Log Facility` and `Log Priority` decide how these alerts appear on the syslog
-> wire. pfSense's `filterlog` arrives as `<134>` — facility `local0`, severity
-> `info` — and Suricata may well default to `local1`. That difference is
-> harmless: `config.alloy` keys on the syslog **tag**, not the facility, so
-> alerts are labelled `app="suricata"` either way. It looks like a discrepancy in
-> a raw `tcpdump` and is not one.
+> [!IMPORTANT]
+> **Two fields in *Logging Settings* are load-bearing, and one of them is how
+> Loki tells the interfaces apart.** `Log Facility` and `Log Priority` decide
+> how these alerts appear on the syslog wire.
+>
+> The alert line does not say which interface saw it, and pfSense sends every
+> interface's alerts with the same syslog tag, `suricata`. The facility is the
+> only per-interface setting that reaches the wire, so `syslog.alloy` turns it
+> into the `interface` label: `local1` is `igc0.20`, `local2` is `igc0.10`.
+> **Leave Skids at the package default, `local1`.** An earlier revision of this
+> note called the facility harmless; it stopped being harmless the moment a
+> second interface was planned.
+>
+> Not every facility arrives. pfSense's remote *System Events* selector drops
+> `local0`, `local3`, `local4` and `local7` on the box (they are filterlog, VPN,
+> portal and DHCP, shipped by their own switches), so an interface set to one of
+> those alerts locally and sends **nothing** — indistinguishable from a quiet
+> interface. `local2` is safe; so are `local5` and `local6`.
+>
+> `Log Priority` stays at its default, `notice`. That is the severity the
+> alerts measurably cross the selector at; `info` is not guaranteed to. The PRI
+> looks like a discrepancy against `filterlog`'s `<134>` in a raw `tcpdump` and
+> is not one — the tag still decides `app`, the facility now decides
+> `interface`.
 
-Add **Degens (VLAN 10)** the same way once VLAN 20 has been quiet for a few
-days. Do not add all interfaces at once — you cannot tell which one is
-producing noise if they all start together.
+**Degens (VLAN 10) is §6**, and it waits until VLAN 20 has been quiet for a few
+days. Do not add all interfaces at once — you cannot tell which one is producing
+noise if they all start together.
 
 > [!NOTE]
 > Do **not** enable Suricata on the WAN interface. It sees the entire internet's
@@ -298,7 +315,7 @@ phone is using DoH. Whichever one fires proves the path.
 the host here rather than `example.com`.
 
 `classtype:not-suspicious` renders as `[Classification: Not Suspicious Traffic]
-[Priority: 3]`. That exercises the parsing regex in `config.alloy` **without**
+[Priority: 3]`. That exercises the parsing regex in `syslog.alloy` **without**
 tripping `SuricataHighPriorityAlert`, which wants priority 1 — a pipeline test
 should not page anyone.
 
@@ -375,6 +392,40 @@ Loki nothing. The cost is that it was **100% of the alerts** — real findings w
 be buried in it, and "are there any Suricata alerts?" stops being a question
 worth asking. That is the reason to tune, not disk.
 
+### The second one, measured on this network — and left alone
+
+With `2200121` gone, fourteen days of Skids look like this: 2,949 alerts,
+190–357 a day, every one of them priority 3, none priority 1 or 2. And 2,337 of
+them — **79%** — are again a single signature:
+
+```text
+[1:2210044:2] SURICATA STREAM Packet with invalid timestamp [Classification: Generic Protocol Command Decode] [Priority: 3]
+```
+
+It lives in `stream-events.rules`, the other pre-enabled Suricata category §3
+named as a likely source of volume. 2,251 of the 2,337 are to port 443, from
+eight or so devices rather than one: the Ring alarm hub leads, then an eero
+mesh node, the VTech baby monitor, and two addresses `network.md` does not list.
+The working reading — a hypothesis, not a finding — is the stream engine's TCP
+timestamp check tripping on retransmitted or reordered segments, which cheap
+wireless firmware produces constantly. The query that says who, if it changes:
+
+```bash
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=topk(8, sum by (src) (count_over_time({app="suricata"} |= `[1:2210044:` | regexp `\} (?P<src>[\d.]+):\d+ ->` [7d])))' \
+  | jq -r '.data.result[] | "\(.metric.src)\t\(.value[1])"'
+```
+
+**Not suppressed, deliberately, and this is the difference from `2200121`.**
+That one was 100% of alerts at a rate that buried everything; this one is two
+alerts every ten minutes, which buries nothing — a priority-1 line is as
+findable at 79% as it would be at 0%. And it is the one signature the second
+interface can say something about: if Degens shows it at a similar share, it is
+the stream engine's view of Wi-Fi in general; if Degens does not, it is these
+devices. Suppressing it before that measurement exists would be tuning on
+prediction, which is the thing this section is for not doing. Revisit after §6
+has run for a fortnight.
+
 > [!CAUTION]
 > **Alert bodies contain raw packet bytes, including MAC addresses.**
 > `security.md` requires MACs truncated to their OUI anywhere in this repository,
@@ -390,10 +441,163 @@ monitor is the same category of mistake.
 
 ---
 
+## 6. The second interface: Degens (VLAN 10)
+
+Guest Wi-Fi and a small unmanaged switch of wired guests. Internet only, client
+isolation on, no route to any other segment
+([ADR-0013](../adr/0013-segment-access-as-implemented.md)). Its firewall
+interface is `igc0.10`.
+
+### Before touching pfSense
+
+Three things have to be true, in this order, and the first two are why this is
+a section rather than the one paragraph it used to be.
+
+1. **Skids is quiet and its noise is written down.** Not "seems fine" — the
+   numbers in §5, recorded, so that whatever Degens adds is a difference against
+   a baseline rather than a feeling. Skids at the time this section was written:
+   190–357 alerts a day for fourteen days, every one priority 3, none priority
+   1 or 2, 79% of them one signature (§5).
+2. **The `interface` label is live and proven on Skids.** `syslog.alloy` maps
+   the syslog facility to `interface`, and that change reaches the running
+   agent only when the main checkout has it and Alloy has been restarted — see
+   §1 of [`ship-firewall-logs.md`](ship-firewall-logs.md) for the "the file is
+   newer than the process" trap. Then, ten minutes later:
+
+   ```bash
+   curl -sG http://localhost:3100/loki/api/v1/query \
+     --data-urlencode 'query=sum by (interface) (count_over_time({app="suricata"}[10m]))' \
+     | jq -r '.data.result[] | "\(.metric.interface // "<none>")\t\(.value[1])"'
+   ```
+
+   Expect exactly one row, `igc0.20`. A `<none>` row that persists past the
+   ten-minute window means Skids is not on `local1` after all — read its *Log
+   Facility* field before going further, because the same mistake on Degens
+   would be invisible. **Do not add the second interface until the first one is
+   labelled.** Two unlabelled interfaces is the situation this whole section
+   exists to avoid.
+3. **filterlog is still flowing.** The §4 syslog check. Nothing in this section
+   touches *Remote Syslog Contents*, so nothing should have changed — verify
+   anyway, it is one line.
+
+### Add it
+
+**Services → Suricata → Interfaces → Add**, exactly as §2, with one deliberate
+difference:
+
+| Section | Setting | Value | Why |
+| --- | --- | --- | --- |
+| General Settings | Enable | ✔ | |
+| General Settings | Interface | Degens / VLAN 10 | |
+| Logging Settings | **Send Alerts to System Log** | ✔ | Same as Skids: the only setting the pipeline depends on |
+| Logging Settings | **Log Facility** | **`local2`** | **The one non-default.** This is what becomes `interface="igc0.10"` in Loki. `local1` would merge it with Skids; `local3` would never arrive (§2) |
+| Logging Settings | Log Priority | `notice` (default) | §2 |
+| Block Settings | **Block Offenders** | **unticked** | Still non-negotiable. §5 applies to every interface |
+
+Leave **Send Suricata Log Messages to System Log** — a separate checkbox for
+the engine's own messages, not alerts — **unticked**. Those lines would arrive
+as `app="suricata"` with no `[Classification: …]` to parse and whatever facility
+that field holds, which is either noise under the right label or noise under
+the wrong one.
+
+Save. The tab row appears, as in §2.
+
+### Suppress list, categories, restart
+
+**Attach the existing suppress list** before enabling any category. Suppress
+lists are attached per interface, so the one carrying `sig_id 2200121` from §5
+does nothing for Degens until it is. The LLDP it suppresses comes from `neo`,
+which is upstream of both segments; the frames are the same.
+
+**Categories:** the five from §3, plus `emerging-coinminer` if Skids has it.
+The argument for a narrow set is stronger here, not weaker — guest devices are
+an arbitrary rotating set of phones and laptops, and every category adds
+matches against traffic you cannot go and look at.
+
+Save, then **restart Suricata on the interface**. A saved category list is not a
+running one (§3).
+
+### Verify the pipeline, per interface
+
+Same two `custom.rules` as §4, added to **Interfaces → Degens → Rules**, then
+restart the interface. Trigger from a phone on the **guest** SSID:
+
+```text
+http://homelab-ids-test.neverssl.com/homelab-ids-test
+```
+
+Client isolation does not affect this: it stops guests reaching each other, and
+the test is egress. Expect the **DNS** rule to be the one that fires — unless
+the phone uses DoH or a private DNS setting, which guest devices commonly do,
+in which case the DNS lookup is invisible and only the **HTTP** rule can fire.
+Either proves the path.
+
+```bash
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (interface,classification,priority) (count_over_time({app="suricata"} |= `HOMELAB IDS PIPELINE TEST` [10m]))' \
+  | jq -r '.data.result[] | "\(.metric.interface // "<none>")\t\(.metric.priority)\t\(.metric.classification)\t\(.value[1])"'
+```
+
+Expect `igc0.10  3  Not Suspicious Traffic  1`. Three distinct failures look
+alike without the `interface` column: `<none>` means the alert arrived on a
+facility `syslog.alloy` does not map (check the *Log Facility* field);
+`igc0.20` means you added the rules to the wrong interface; an empty result
+with `filterlog` still climbing means Suricata on Degens is not sending at all.
+
+**Delete both test rules once this passes**, as in §4.
+
+### Watch it, by interface
+
+The §5 query with one more dimension. This is the query that justifies doing
+the interfaces one at a time:
+
+```bash
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=topk(10, sum by (interface, classification) (count_over_time({app="suricata"}[24h])))' \
+  | jq -r '.data.result[] | "\(.metric.interface)\t\(.metric.classification)\t\(.value[1])"'
+```
+
+Guest noise will not look like IoT noise, and three differences are worth
+expecting rather than discovering:
+
+- **No east–west.** Client isolation means guests cannot reach each other and
+  the firewall blocks everything inward, so the lateral-movement signal that
+  matters on Skids barely exists here. What Degens can show is egress: DNS,
+  plaintext HTTP, a beacon to a known-bad address.
+- **Sources do not persist.** A Skids address is a device you can walk over to.
+  A Degens address is whoever was on the couch, and next week it is someone
+  else. Tune by signature, as always; do not tune by source.
+- **The one signature to compare.** §5's `2210044` is 79% of Skids. If Degens
+  shows it at a similar share, it is the stream engine's view of Wi-Fi in
+  general; if Degens does not, it is something about the Skids devices. That
+  is a question the second interface answers and the first could not.
+
+One measurement to take once, because the interfaces share a firewall: a packet
+crossing from one monitored segment to another could in principle be seen by
+both processes. In practice `pf` drops it before the second interface sees it,
+and nothing between these two segments is permitted. Confirm rather than assume:
+
+```bash
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum(count_over_time({app="suricata", interface="igc0.10"} |~ `10\.0\.20\.` [24h]))' \
+  | jq -r '.data.result[]?.value[1] // "0"'
+```
+
+Expect `0`. Anything else is either a permitted inter-segment flow that ADR-0013
+says should not exist, or double counting — and both are worth knowing.
+
+**Blocking stays off.** The domestic-incident argument in §5 is weaker on a
+guest segment than on the one with the baby monitor, and the other argument is
+stronger: an auto-block on Degens hits a device whose owner cannot be told why.
+Alert-only, on every interface, until a fortnight of understood alerts on each.
+
+---
+
 ## Rollback
 
-**Services → Suricata → Interfaces**, untick Enable. Alerts stop immediately;
-nothing else in the stack is affected.
+**Services → Suricata → Interfaces**, untick Enable on the interface in
+question. Alerts stop immediately for that interface and only that one; nothing
+else in the stack is affected.
 
 The `ids` rule group stays loaded and simply has nothing to match, which is
 harmless — and is exactly why there is **no `SuricataStopped` alert**. A quiet
