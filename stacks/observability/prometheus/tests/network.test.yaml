@@ -18,7 +18,9 @@
 # Every firing case is paired with a quiet one, per containers.test.yaml. The
 # fixtures are shiva as it actually read on 2026-08-31, so a green run means
 # these fire against production data rather than against a fixture shaped to
-# suit them.
+# suit them. The healthy-pack quiet case is shiva again, as it read on
+# 2026-09-02 after the pack was replaced — so both sides of that pair are
+# measured.
 #
 # Scope: IloBatteryCondition, IloWriteCacheDisabled and IloHardwareDegraded.
 # The pf, switch and snmp rules in the same file are still syntax-only, which
@@ -84,7 +86,9 @@ tests:
 
   # --- IloBatteryCondition: quiet on a healthy pack -------------------------
   # Condition 2 (ok), status 1 (noError), everything else identical including
-  # the spare part string. The only thing that changed is the condition.
+  # the spare part string. The only thing that changed is the condition. This
+  # is what shiva read from 2026-09-02 23:02 UTC, the first scrape after the
+  # replacement pack went in.
   - interval: 1m
     input_series:
       - series: 'cpqHeSysBatteryCondition{cpqHeSysBatteryChassis="0",cpqHeSysBatteryIndex="1",device="shiva",instance="10.0.30.10",job="snmp",role="hypervisor-bmc",vlan="30"}'
