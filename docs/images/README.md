@@ -17,13 +17,16 @@ Which file holds which dashboard is in the table under "Capturing them" below,
 because that pairing is defined in the capture script rather than here.
 
 Two things in them are real and should not be tidied away on the next capture.
-`network-snmp.png` shows `IloBatteryCondition` firing on `shiva` — that is a
+`network-snmp.png` shows `IloBatteryCondition` firing on `shiva` — that was a
 genuine hardware fault, tracked in
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), and a screenshot of a stack
-with nothing wrong would be the less honest picture. `docker-containers.png`
-carries a `renderer` series in two legends: that is the `capture` profile
-container taking the screenshot, which exists only for the duration of a
-capture, which is why the inventory below it lists six containers and not seven.
+with nothing wrong would have been the less honest picture. The pack was
+replaced on 2026-09-02, so the next capture will legitimately show it quiet.
+
+`docker-containers.png` carries a `renderer` series in two legends: that is the
+`capture` profile container taking the screenshot, which exists only for the
+duration of a capture, which is why the inventory below it lists six containers
+and not seven.
 
 `ups-power.png` is out of date in one specific way, and knowingly so. It was
 shot before a battery pack was fitted to `mjolnir` on 2026-08-28, so it still
