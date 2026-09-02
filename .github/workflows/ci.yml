@@ -207,10 +207,14 @@ jobs:
       # are configured correctly — Alloy has no `validate` subcommand, so that is
       # only caught at load time on the host.
       - name: alloy fmt --test
+        # Every file in the directory: the agent loads the directory, and the
+        # deploy script ships a subset of it, so each file must stand alone.
         run: |
-          docker run --rm --entrypoint alloy \
-            -v "$PWD:/repo" -w /repo "$ALLOY_IMAGE" \
-            fmt --test "$STACK/alloy/config.alloy"
+          for f in "$STACK"/alloy/*.alloy; do
+            docker run --rm --entrypoint alloy \
+              -v "$PWD:/repo" -w /repo "$ALLOY_IMAGE" \
+              fmt --test "$f"
+          done
 
       # `docker compose config` happily accepts a service_healthy dependency on
       # a service that can never report healthy — the stack then hangs at deploy

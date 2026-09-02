@@ -9,141 +9,149 @@ Two paths, depending on whether the device can run an agent.
 Nothing on the monitoring host changes. Alloy pushes; Prometheus does not need
 to be told the host exists.
 
-On the new host. **These assume `sudo`** — if the account you have is in the
-`docker` group but has no sudo (which is the case for `atropos` on `oracle`),
-skip to *Placing the config without sudo* below, then come back for the
-`docker run`.
+One command, from any checkout of this repository that can ssh to the host —
+the monitoring host for anything on VLAN 99, your workstation for anything
+else:
 
 ```bash
-sudo mkdir -p /opt/alloy
-sudo cp /path/to/HomeLab/stacks/observability/alloy/config.alloy /opt/alloy/
-
-sudo docker run -d \
-  --name alloy --restart unless-stopped --privileged \
-  --hostname "$(hostname)" \
-  -e ALLOY_HOSTNAME="$(hostname)" \
-  -e LOKI_URL=http://10.0.99.20:3100/loki/api/v1/push \
-  -e PROMETHEUS_REMOTE_WRITE_URL=http://10.0.99.20:9090/api/v1/write \
-  -v /opt/alloy/config.alloy:/etc/alloy/config.alloy:ro \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v /var/lib/docker/containers:/var/lib/docker/containers:ro \
-  -v /var/log:/var/log:ro \
-  -v /:/rootfs:ro \
-  -p 127.0.0.1:12345:12345 \
-  "$(/path/to/HomeLab/scripts/image-for.sh alloy)" \
-    run --server.http.listen-addr=0.0.0.0:12345 \
-        --storage.path=/var/lib/alloy/data \
-        /etc/alloy/config.alloy
+./scripts/deploy-agent.sh <user>@<host>
 ```
 
-The two `*_URL` variables are the only difference from the monitoring host's own
-agent — inside the compose stack they default to service names.
+`make deploy-agent ARGS="<user>@<host>"` is the same thing. Run it again to
+update: after a change under `stacks/observability/alloy/`, after Dependabot
+bumps the Alloy image, or because you are not sure what a host is running. It
+converges the host on this checkout every time, and nothing on the host is
+edited by hand.
 
-The image comes from `compose.yaml` rather than being written out here, so a new
-host starts on the same Alloy — tag *and* digest — that the monitoring host runs,
-and keeps doing so after Dependabot bumps it. A version copied into this runbook
-would be stale from the next bump onward, which is the whole argument in the
-header of `scripts/image-for.sh`. If the repository is not on the new host, run
-`./scripts/image-for.sh alloy` on the monitoring host and paste the reference it
-prints.
+What it does, in order: reads the image and version out of `compose.yaml` via
+`scripts/image-for.sh` (the one place a version lives); copies the agent
+config to the host and checks the copy byte for byte; installs or recreates
+the agent with the hardening `compose.yaml` applies to the monitoring host's
+own; waits for the process to stay up for ten seconds and then for a full
+minute of its log with no `level=error`; and asks Prometheus and Loki whether
+the host has arrived. It picks the runtime from what the host has — a `docker`
+binary means the Docker runtime, otherwise the native package — and
+`--runtime docker|native` forces it.
 
-**Set both `--hostname` and `ALLOY_HOSTNAME`, and set them the same.** They are
-not redundant, and which one does the work depends on the config file.
+### On a Docker host
 
-`config.alloy` labels everything with
-`coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname)`. The environment
-variable wins; `--hostname` is the fallback. Setting only `--hostname` works
-*today*, purely because the coalesce falls through to it — and that is a thin
-thing to rely on, since the day the config stops coalescing, every host deployed
-this way starts labelling itself wrong and nothing errors.
+The account needs to be in the `docker` group and nothing else — no sudo, and
+nothing lands on the host's filesystem. The config goes in a named volume,
+`alloy-config`, and the agent's WAL and positions in another, `alloy-data`, so
+a recreate keeps its place. The container is `compose.yaml`'s `alloy` service
+written out flag for flag: no capabilities, `no-new-privileges`, `cgroupns
+host`, the syslog-owning group and the image's own group added, the Docker
+socket and `/var/log` and `/` read-only, the debug port on loopback. What it
+does not have is `--privileged` and a mount of `/var/lib/docker/containers`,
+both of which the first version of this page told you to add and #188 later
+measured as unnecessary.
 
-`constants.hostname` inside a container is the **container ID** unless
-`--hostname` is set: a hex string that identifies nothing and changes every time
-the container is recreated. Set neither and the new host appears in Loki and
-Prometheus under a name that is different tomorrow, and `sum by (host)` groups
-by noise. The compose stack sets `ALLOY_HOSTNAME` via
-`scripts/render-config.sh`; this is the standalone equivalent.
-The compose stack does the same thing via `ALLOY_HOSTNAME`, written by
-`scripts/render-config.sh`.
+To see what a host is running: `docker exec alloy cat /etc/alloy/config.alloy`.
+To change it: change the repository and run the script again. Editing a file
+on the host is not a thing that can be done any more, which is the point — the
+previous shape was a bind mount that Alloy read once at startup, so a copied-in
+change silently did nothing until someone remembered to restart.
 
-Keep the image tag in step with `stacks/observability/compose.yaml`. The version
-above is the one the stack currently runs; the compose file pins it by digest as
-well, which this command deliberately does not — a remote agent that will not
-start because a digest moved is worse than one running a slightly older tag.
+### On a host without Docker — the native package
 
-> [!IMPORTANT]
-> **Editing `/opt/alloy/config.alloy` later does nothing on its own.** It is a
-> bind mount, and Alloy reads it once at startup. Copying a new one over it
-> leaves the running process on the old config with no indication anything is
-> wrong — no error, no restart, no change in behaviour except that your edit is
-> not in effect.
->
-> After any change to that file: `sudo docker restart alloy`. Confirm it took by
-> checking the process is newer than the file, which is the one measurement that
-> cannot be fooled:
->
-> ```bash
-> docker inspect -f '{{.State.StartedAt}}' alloy
-> stat -c '%y  %n' /opt/alloy/config.alloy
-> ```
->
-> On the monitoring host itself this is handled by `make up`, via
-> `scripts/reload-config.sh`. A standalone agent started with `docker run` has no
-> such wrapper, so it is on you.
+`Saruman` is a Proxmox hypervisor, and Docker does not belong on one: Proxmox
+says run it in a guest, and Docker rewrites the host's iptables, which the
+Proxmox firewall ADR-0014 relies on shares. So the agent there is the `alloy`
+`.deb` from the GitHub release matching the compose tag, installed with
+`apt-get` from a downloaded file rather than from a repository, so that the
+version still lives in exactly one place.
 
-### Placing the config without sudo
+The account needs to be root or have passwordless sudo. The script writes
+`/etc/alloy/` (only `config.alloy` — there is no Docker socket, so
+`docker.alloy` would just log errors) and `/etc/default/alloy`, which the
+packaged unit reads as its environment: the two endpoint URLs,
+`ALLOY_HOSTNAME`, and `ALLOY_ROOTFS=/` because there is no `/rootfs` bind
+mount. The service runs as the package's `alloy` user, added to
+`systemd-journal` and `adm` so the journal and `/var/log` are readable, the
+same job `group_add` does in the container. Debian 13 has no rsyslog, so the
+`auth.log` and `syslog` file sources find nothing there and the journal carries
+everything. Logs are `journalctl -u alloy`.
 
-Membership of the `docker` group is already root-equivalent on the host, so
-there is nothing to escalate — but `/opt` is not writable and `cp` will fail.
-Use the image you are about to run anyway, so no second image is pulled and
-nothing unpinned enters the process:
+### The host label
 
-```bash
-# from the monitoring host, or wherever the repo is checked out
-ssh <user>@<newhost> 'cat > /tmp/config.alloy' < stacks/observability/alloy/config.alloy
+Everything the agent sends is labelled with `ALLOY_HOSTNAME`, which the script
+sets from the host's own `hostname`. That is the value `instance` and `host`
+carry, the prefix of the `<hostname>-metrics` and `<hostname>-alloy` job names,
+and what the dashboards' host pickers list — so it is case-sensitive and it is
+worth looking at what the script prints. `config.alloy` falls back to
+`constants.hostname` if the variable is unset, which inside a container is the
+container ID: a name that is different tomorrow. The script never leaves it
+unset.
 
-# on the new host
-IMG="$(ssh <user>@<monitoring-host> 'cd /path/to/HomeLab && ./scripts/image-for.sh alloy')"
-docker run --rm \
-  -v /opt:/hostopt \
-  -v /tmp/config.alloy:/src/config.alloy:ro \
-  --entrypoint sh "$IMG" \
-  -c 'mkdir -p /hostopt/alloy && cp /src/config.alloy /hostopt/alloy/config.alloy && chmod 0644 /hostopt/alloy/config.alloy'
-```
+### Expect errors on the first run, and check they stop
 
-Confirm the copy landed intact before starting anything — `md5sum` on both
-sides. A truncated config does not fail loudly; Alloy starts and collects less.
-
-**Expect errors on the first run, and check they stop.** Alloy reads container
-logs from the beginning, so a host with months of history will push entries
-older than Loki's retention window and Loki will reject them:
+On a Docker host Alloy reads container logs from the beginning, and a host with
+months of history will push entries older than Loki's retention window, which
+Loki rejects:
 
 ```text
 status=400 ... has timestamp too old: 2025-12-08T09:33:33Z,
 oldest acceptable timestamp is: 2026-08-23T05:03:12Z
 ```
 
-That is correct behaviour on both sides and it is not a misconfiguration. It
-stops once the agent reaches entries inside the window — on `oracle`, about
-forty seconds. What matters is that it *stops*: check `docker logs --since 60s
-alloy | grep -c level=error` is `0` before calling the deploy done.
+That is correct behaviour on both sides. It stops once the agent reaches
+entries inside the window — on `oracle`, about forty seconds — and the script
+waits for a sixty-second window with none before it reports success. If you
+check by hand, read stderr: Alloy logs there, and
+`docker logs alloy | grep -c level=error` is always `0` because the pipe only
+carries stdout. `docker logs --since 60s alloy 2>&1 | grep -c level=error` is
+the count. The first version of this page had the former, and it passed every
+time for the wrong reason. Two lines are noise and the script ignores exactly
+those: cAdvisor's `rootDiskErr` while sizing overlay layers, which a container
+without `DAC_READ_SEARCH` cannot always do — partial, and the one filesystem
+series the Docker Containers dashboard charts is a blkio counter that does not
+depend on it — and node_exporter's one-time `udev` line at startup.
 
-**Verify** (from the monitoring host, within a minute or two):
+### Verify
+
+The script does this itself when it can reach the monitoring host; from
+anywhere else, within a minute or two:
 
 ```promql
-up{instance=~".*<new-hostname>.*"}
+up{instance="<hostname>"}
 ```
 
+Three jobs on a Docker host — `<hostname>-metrics`, `<hostname>-alloy`,
+`integrations/cadvisor` — and two on a native one.
+
 ```logql
-{host="<new-hostname>"}
+{host="<hostname>"}
 ```
 
 The host appears on the Host Overview and Logs dashboards automatically — both
-template their host variable from live label values.
+template their host variable from live label values — and `RemoteWriteJobStale`
+covers it from the first push, because it matches the job-name convention
+rather than a list.
 
-**Firewall:** the new host must be able to reach `10.0.99.20` on 9090 and 3100.
-If it is not on VLAN 99 or 50, that is a rule you have to add, and one worth
-thinking about before you do.
+### Firewall
+
+The host must reach `10.0.99.20` on 9090 and 3100. From VLAN 99 or 50 that is
+already true. From anywhere else it is a rule you have to add, and one worth
+thinking about before you do — `security.md` names "a lab VM escaping into the
+house" as a threat, and the control is that VLAN 30 is reachable only *from*
+trusted, never *to* it.
+
+`Saruman` is the worked example. It sits on VLAN 30 with an attack VM planned
+for the same segment (ADR-0014), and the decision — recorded against ADR-0007,
+which had said the opposite — is that the hypervisor's *own* telemetry crosses
+into Winterfell over one narrow pass, while the lab guests' does not. The rule,
+on the **ImaginationLAN** interface:
+
+| Action | Source | Destination | Ports | Log |
+| --- | --- | --- | --- | --- |
+| pass, TCP | `10.0.30.110` | `10.0.99.20` | 9090, 3100 | **off** |
+
+Place it **above** the ADR-0014 tripwire (`vlan30 net → Internal_Segments`,
+pass + log). Below it, every push from `Saruman` is a logged pass on the
+tripwire, and the Loki rule #234 builds on that will fire on the agent doing its
+job. Not logged, for the same reason. The script cannot check any of this; what
+it can do is tell you the host is up and Prometheus has not heard from it,
+which is what a missing rule looks like.
 
 ---
 

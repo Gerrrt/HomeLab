@@ -1,0 +1,259 @@
+// =============================================================================
+// Grafana Alloy — the network syslog receiver.
+//
+// One of three files in this directory; Alloy is started on the DIRECTORY and
+// merges every *.alloy in it into a single configuration. The header of
+// config.alloy says which file goes where.
+//
+// This file exists ONLY on the monitoring host. It opens a UDP listener on
+// every interface the process can see, which inside the compose stack is the
+// container's own namespace, published to the host by compose.yaml as
+// ${BIND_ADDR}:1514/udp for morpheus to send to. On a remote agent the same
+// listener would be an unused open port — and on a host running the native
+// package, an unused open port on the host's real interface, on a segment
+// ADR-0014 puts an attack VM on. scripts/deploy-agent.sh never ships it.
+// =============================================================================
+
+// ============================================================================
+// NETWORK SYSLOG — devices that cannot run an agent
+// ============================================================================
+//
+// morpheus terminates every VLAN in this lab, which makes it the only device
+// that sees inter-VLAN and egress traffic for the whole house. It is also a
+// FreeBSD appliance that cannot run Alloy. Until this listener existed, Loki
+// held auth.log from two Linux hosts and nothing from the firewall.
+//
+// pfSense reaches this on the management VLAN, where it already has an
+// interface (10.0.99.1), so no firewall rule is required.
+//
+// UDP and RFC3164 because that is what pfSense sends by default.
+//
+// use_incoming_timestamp is DELIBERATELY false. RFC3164 carries neither a year
+// nor a timezone, and trusting a timestamp with neither is how the first
+// deployment of this listener failed. Measured on the wire:
+//
+//   <134>Aug 20 20:25:28 filterlog[97178]: 4,,,1000000103,em0,match,block,in,...
+//
+// captured at 03:25:28 UTC. morpheus runs on local time, seven hours behind, and
+// says nothing about it — so an incoming timestamp is wrong by the UTC offset
+// even in the best case, and the best case is not what happened. Loki accepted
+// every push with a 204, discarded nothing (loki_discarded_samples_total never
+// incremented), and no query over any range returned a single line. The entries
+// were stored at a timestamp no sane query window covers.
+//
+// A year-zero time.Time is the likely culprit and it does not fail loudly:
+// Go documents UnixNano as undefined outside 1678-2262, so it overflows int64
+// and wraps rather than reading as obviously ancient. Nothing rejects it.
+//
+// rfc3164_default_to_current_year stays on — it is still correct about the year,
+// and it costs nothing — but it is no longer load-bearing. Alloy now stamps
+// receive time instead. morpheus is one hop away on the same VLAN, so that is
+// accurate to milliseconds, and it is a value this stack can reason about.
+loki.source.syslog "network" {
+	listener {
+		address                         = "0.0.0.0:1514"
+		protocol                        = "udp"
+		syslog_format                   = "rfc3164"
+		rfc3164_default_to_current_year = true
+		use_incoming_timestamp          = false
+
+		labels = {
+			log_type = "syslog",
+			source   = "network",
+		}
+	}
+
+	relabel_rules = loki.relabel.network_syslog.rules
+	forward_to    = [loki.process.network_syslog.receiver]
+}
+
+// forward_to is empty on purpose: this component exists only to supply .rules
+// to the listener above.
+loki.relabel "network_syslog" {
+	forward_to = []
+
+	// The SENDING device's hostname becomes `host`. This is the reason
+	// loki.write.network_syslog below exists — see the comment there.
+	//
+	// pfSense does not send one. RFC3164 is <PRI>TIMESTAMP HOSTNAME TAG:, and
+	// what arrives on the wire is:
+	//
+	//   <134>Aug 20 20:25:28 filterlog[97178]: 4,,,1000000103,em0,match,block,...
+	//
+	// Timestamp straight to tag, no hostname field. So __syslog_message_hostname
+	// is empty, Loki drops empty labels, and the streams carried no `host` at
+	// all — which is why {host="morpheus"} returned nothing and looked for all
+	// the world like the logs were not arriving.
+	//
+	// The connection address supplies it instead. Order matters: this rule sets
+	// the default, and the rule below overrides it only when the message
+	// actually carries a hostname. One value per sender, so no cardinality cost.
+	rule {
+		source_labels = ["__syslog_connection_ip_address"]
+		regex         = "10\\.0\\.99\\.1"
+		target_label  = "host"
+		replacement   = "morpheus"
+	}
+
+	// `(.+)` is load-bearing, not decoration. A relabel rule whose regex does
+	// not match is a no-op, so an empty message hostname leaves the name derived
+	// above intact. With the default regex of `(.*)` this would match the empty
+	// string and blank the label back out.
+	rule {
+		source_labels = ["__syslog_message_hostname"]
+		regex         = "(.+)"
+		target_label  = "host"
+		replacement   = "$1"
+	}
+
+	// pfSense tags filterlog, dhcpd, unbound, sshd and so on. Low cardinality,
+	// and it is how you separate firewall decisions from everything else.
+	rule {
+		source_labels = ["__syslog_message_app_name"]
+		target_label  = "app"
+	}
+
+	// Severity from the syslog PRI, rather than regex-sniffing the message the
+	// way log_processor has to for file sources. The protocol already carries
+	// it; there is no reason to guess.
+	//
+	// But the PRI is MAPPED onto the five canonical levels here, not copied.
+	// Copying it is what #83 was: the wire gives RFC5424 severity names, so
+	// pfSense's traffic landed at `informational` and `notice`, neither of which
+	// is a value the Logs dashboard's level picker offers. 3798 lines an hour
+	// sat outside a filter whose setting said "All". docs/observability.md has
+	// documented this five-value vocabulary all along; this path just never
+	// honoured it, because it never passes through log_processor.
+	//
+	// Three things about the shape below, each of which is a trap:
+	//
+	//   - ORDER MATTERS ONLY IN THAT THE FIRST RULE IS FIRST. It is the default,
+	//     and the four after it override it when they match. The overrides are
+	//     mutually exclusive — relabel regexes are fully anchored — so their
+	//     order relative to each other is free. This is the same idiom as the
+	//     `host` rules above.
+	//   - THE DEFAULT IS A LITERAL `info`, NOT A COPY OF THE SEVERITY. That is
+	//     what makes the vocabulary closed: a severity nobody anticipated lands
+	//     inside the five values instead of leaking a sixth one out to Loki,
+	//     which is exactly how #83 happened. It is the same decision as
+	//     log_processor's `{{ else }}info{{ end }}`.
+	//   - `.+` NOT `.*`, for the reason spelled out against `host` above. `.*`
+	//     matches the empty string, so a message with no severity at all would
+	//     be stamped `info` — inventing a value rather than leaving the label
+	//     unset. Absent is visibly absent; wrong is not.
+	//
+	// Both long and short spellings are in every alternation. What arrives today
+	// is the long RFC5424 names, but hard-coding that observation is precisely
+	// how this class of bug recurs, and a static regex costs nothing.
+	//
+	// One-way, and worth knowing during an incident: unlike the file sources,
+	// where the original word survives in the line body, the PRI is consumed by
+	// the parser and is not in the stored line. After this, `notice` and
+	// `informational` are `info` and the raw severity exists nowhere in Loki.
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		regex         = ".+"
+		target_label  = "level"
+		replacement   = "info"
+	}
+
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		regex         = "emergency|emerg|alert|critical|crit"
+		target_label  = "level"
+		replacement   = "critical"
+	}
+
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		regex         = "error|err"
+		target_label  = "level"
+		replacement   = "error"
+	}
+
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		regex         = "warning|warn"
+		target_label  = "level"
+		replacement   = "warning"
+	}
+
+	rule {
+		source_labels = ["__syslog_message_severity"]
+		regex         = "debug|dbug|dbg"
+		target_label  = "level"
+		replacement   = "debug"
+	}
+}
+
+loki.process "network_syslog" {
+	forward_to = [loki.write.network_syslog.receiver]
+
+	// pfSense filterlog is CSV inside the syslog message:
+	//
+	//   rulenr,subrulenr,anchor,tracker,interface,reason,action,direction,
+	//   ipversion,tos,ecn,ttl,id,offset,flags,protoid,proto,length,
+	//   src,dst,srcport,dstport,...
+	//
+	// Only the first eight fields are captured. src, dst and the ports are
+	// deliberately NOT promoted to labels — ADR-0003 records label cardinality
+	// as this stack's live constraint, and a label per source address is the
+	// textbook way to detonate it. They stay in the line, where LogQL can
+	// filter them at query time without indexing them.
+	// Suricata writes alerts to pfSense's system log, so they arrive on this same
+	// listener once "System Events" is enabled in Remote Syslog Contents. Format:
+	//
+	//   [1:2013028:7] ET POLICY curl User-Agent Outbound
+	//   [Classification: Attempted Information Leak] [Priority: 2]
+	//   {TCP} 10.0.20.5:443 -> 203.0.113.9:80
+	//
+	// priority and classification become labels — 4 and ~40 values respectively.
+	// The signature ID does not: there are tens of thousands of rules in ET Open,
+	// and one label value per firing signature is the same cardinality mistake
+	// as one per source address. It stays in the line.
+	stage.match {
+		selector = `{app="suricata"}`
+
+		stage.regex {
+			expression = `\[Classification: (?P<classification>[^\]]+)\] \[Priority: (?P<priority>\d+)\]`
+		}
+
+		stage.labels {
+			values = {
+				classification = "classification",
+				priority       = "priority",
+			}
+		}
+	}
+
+	stage.match {
+		selector = `{app="filterlog"}`
+
+		stage.regex {
+			expression = `^\d+,\d*,[^,]*,\d+,(?P<interface>[^,]+),(?P<reason>[^,]+),(?P<action>pass|block),(?P<direction>in|out),`
+		}
+
+		stage.labels {
+			values = {
+				interface = "interface",
+				action    = "action",
+				direction = "direction",
+			}
+		}
+	}
+}
+
+// Network syslog is written through its own client, deliberately.
+//
+// loki.write.grafana_loki stamps the agent host label on everything it
+// sends, which is correct for logs this machine produces and wrong for logs it
+// merely relays. Reusing it would relabel every pfSense line as though it came
+// from prometheus, and {host="morpheus"} would return nothing at all.
+//
+// No external_labels here, so the `host` set from the sender's own hostname in
+// loki.relabel.network_syslog survives to Loki.
+loki.write "network_syslog" {
+	endpoint {
+		url = coalesce(sys.env("LOKI_URL"), "http://loki:3100/loki/api/v1/push")
+	}
+}

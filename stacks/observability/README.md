@@ -38,7 +38,10 @@ blackbox/blackbox.yaml     probe modules — reachability from outside the servi
 alertmanager/
   alertmanager.yaml        severity + category routing, inhibition
 loki/loki-config.yaml      single-binary, filesystem, 30-day retention
-alloy/config.alloy         the agent config, identical on every monitored host
+alloy/                     the agent config — Alloy loads the directory
+  config.alloy             every monitored host
+  docker.alloy             hosts with a Docker socket
+  syslog.alloy             this host only: the listener morpheus sends to
 snmp-exporter/
   generator.yaml           source of truth — edit this
   snmp.yaml                generated, 14k lines, ${PLACEHOLDER} communities

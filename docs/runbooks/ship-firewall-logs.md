@@ -21,11 +21,17 @@ The listener has to exist before pfSense starts sending, or the first packets
 are silently dropped.
 
 > [!CAUTION]
-> `config.alloy` is the single agent config used on **every** monitored host. A
-> syntax or schema error takes down all log collection, not just the new
-> listener. CI runs `alloy fmt --test`, which parses the file but does **not**
+> The listener lives in `alloy/syslog.alloy`, which only the monitoring host
+> loads — but Alloy loads the whole directory as one config, so a syntax or
+> schema error in it takes down all of this host's collection, not just the new
+> listener. CI runs `alloy fmt --test`, which parses the files but does **not**
 > validate component arguments. Bring Alloy up on its own and read its logs
-> before assuming this worked.
+> before assuming this worked — **with `LOKI_URL` and
+> `PROMETHEUS_REMOTE_WRITE_URL` pointed at `http://127.0.0.1:1/`**. A
+> throwaway container on the default bridge resolves `prometheus` through the
+> host's DNS, which is this very host, and pushes a `host="<container id>"`
+> series into the live stores; #88 found that out by tripping
+> `RemoteWriteJobStale` on itself.
 
 The two commands run from **different directories**. `make render` needs the
 repository root, where the only Makefile lives; `docker compose` needs
@@ -67,7 +73,7 @@ ss -ulnp | grep 1514
 >
 > ```bash
 > docker inspect -f '{{.State.StartedAt}}' alloy
-> stat -c '%y  %n' alloy/config.alloy
+> stat -c '%y  %n' alloy/syslog.alloy
 > ```
 >
 > **If the file is newer than the process, the running agent has never seen it.**

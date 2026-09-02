@@ -203,6 +203,10 @@ Where things get broken on purpose.
   and separate names, and conflating them is a mistake this document previously
   made.
 - `Saruman` currently runs no guests.
+- `Saruman` runs an Alloy agent and is the one host on this segment with a path
+  into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
+  TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
+  only; guests get no such rule (ADR-0007, as amended by #88).
 - **`Saruman` is the one fixed address that sits inside a DHCP pool.** Every
   other static in the estate lives below `.100`; this one is at `.110`, and the
   ImaginationLAN pool runs `.100–.200`. Until 2026-08-30 there was no

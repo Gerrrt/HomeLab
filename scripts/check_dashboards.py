@@ -50,7 +50,10 @@ BUILTIN_UIDS = {"-- Grafana --", "-- Mixed --", "-- Dashboard --", "grafana"}
 # around this script rather than trust it.
 TARGETLESS_PANEL_TYPES = {"row", "text", "alertlist"}
 
-ALLOY = REPO / "stacks/observability/alloy/config.alloy"
+# The directory, not one file: the agent loads every *.alloy in it as one
+# configuration, and the syslog PRI mapping — one of the two mechanisms that
+# write `level` — lives in syslog.alloy rather than config.alloy since #88.
+ALLOY_DIR = REPO / "stacks/observability/alloy"
 
 # Entries in datasources.yaml start at `- name:`; the keys that belong to one
 # sit at the indent two columns to the right of the dash.
@@ -141,7 +144,7 @@ def overlaps(a: dict, b: dict) -> bool:
 # ---------------------------------------------------------------------------
 # Level vocabulary
 # ---------------------------------------------------------------------------
-# Whatever writes the `level` label in config.alloy, and whatever the Logs
+# Whatever writes the `level` label in alloy/*.alloy, and whatever the Logs
 # dashboard offers in its Level picker, have to be the same set of words.
 #
 # They were not, and nothing noticed. The picker offered `critical`, which no
@@ -168,7 +171,7 @@ CAPTURE_GROUP = re.compile(r"\$\{?\w")
 
 
 def alloy_level_values() -> tuple[set[str], list[str]]:
-    """Every value config.alloy can write to `level`, and anything unbounded.
+    """Every value the agent config can write to `level`, and anything unbounded.
 
     Two mechanisms produce it and both are read. `log_processor`'s template
     picks a word per branch, so the branch outputs are the alphabet. Relabel
@@ -179,10 +182,11 @@ def alloy_level_values() -> tuple[set[str], list[str]]:
     """
     values: set[str] = set()
     problems: list[str] = []
-    if not ALLOY.exists():
-        return values, [f"{ALLOY.name} not found — cannot check the level vocabulary"]
+    files = sorted(ALLOY_DIR.glob("*.alloy"))
+    if not files:
+        return values, [f"no *.alloy under {ALLOY_DIR.name}/ — cannot check the level vocabulary"]
 
-    text = ALLOY.read_text(encoding="utf-8")
+    text = "\n".join(p.read_text(encoding="utf-8") for p in files)
 
     # log_processor's template: `{{ if eq .level_lower "emerg" }}critical{{ ...`
     # The outputs are what sits between a closing `}}` and the next `{{`, which
@@ -217,7 +221,7 @@ def alloy_level_values() -> tuple[set[str], list[str]]:
         replacement = fields.get("replacement")
         if replacement is None:
             problems.append(
-                f"config.alloy: a relabel rule sets level from {source} with no "
+                f"alloy/*.alloy: a relabel rule sets level from {source} with no "
                 f"replacement, so it emits whatever that source holds — map it "
                 f"onto the canonical values instead of copying it (#83)"
             )
@@ -229,7 +233,7 @@ def alloy_level_values() -> tuple[set[str], list[str]]:
             # would join the emitted set and get reported as a value the picker
             # forgot to list, which sends the reader looking in the wrong file.
             problems.append(
-                f"config.alloy: a relabel rule sets level from {source} with "
+                f"alloy/*.alloy: a relabel rule sets level from {source} with "
                 f"replacement '{replacement}', which substitutes a capture "
                 f"group and so still passes that source through — map it onto "
                 f"the canonical values instead of copying it (#83)"
@@ -253,12 +257,12 @@ def check_level_vocabulary(dashboards: dict[str, dict]) -> list[str]:
             for value in sorted(offered - emitted):
                 problems.append(
                     f"{name}: the Level picker offers '{value}', which no path in "
-                    f"config.alloy can produce — the panels filtering on it can "
+                    f"alloy/*.alloy can produce — the panels filtering on it can "
                     f"only ever read 'No data'"
                 )
             for value in sorted(emitted - offered):
                 problems.append(
-                    f"{name}: config.alloy emits level='{value}', which the Level "
+                    f"{name}: alloy/*.alloy emits level='{value}', which the Level "
                     f"picker does not list — selecting 'All' silently excludes it"
                 )
 

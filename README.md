@@ -163,7 +163,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │   ├── prometheus/           # config, file_sd targets, 45 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 13 LogQL rules
-│   ├── alloy/                # one agent config, used on every host
+│   ├── alloy/                # the agent config directory, shipped to every host
 │   ├── snmp-exporter/        # generator.yaml is the source of truth
 │   └── grafana/              # provisioning + 7 dashboards
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md

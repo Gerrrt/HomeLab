@@ -19,7 +19,8 @@ check it. This does that for `docs/`, following the pattern
 
 Six assertions, each comparing prose against something machine-readable:
 
-  1. Counted claims        rules, unit-test coverage, dashboards, panels
+  1. Counted claims        rules, unit-test coverage, dashboards, panels,
+                           Alloy agents
   2. SNMP targets          snmp.yaml <-> docs/network.md
   3. Host and stack table  docs/architecture.md <-> docs/network.md, stacks/
   4. Ports table           docs/architecture.md <-> compose.yaml
@@ -241,6 +242,27 @@ def compose_services() -> dict:
     }
 
 
+def count_alloy_agents() -> int:
+    """Hosts the architecture table says run an Alloy agent.
+
+    The agents are not in this repository — deploy-agent.sh puts them on
+    hosts, and nothing here lists the hosts — so the Host and stack mapping
+    is the machine-readable side. A row whose Contents cell names Alloy is an
+    agent; "two Alloy agents" in hardware.md was unguarded and stale for as
+    long as it took to deploy a third (#88).
+    """
+    tables = tables_under(
+        ARCH_MD.read_text(encoding="utf-8"),
+        re.compile(r"^##\s+Host and stack mapping"),
+    )
+    if not tables:
+        return 0
+    return sum(
+        1 for row in tables[0][1:]
+        if len(row) > 3 and "alloy" in strip_md(row[3]).lower()
+    )
+
+
 def facts() -> dict:
     prom_rules = sorted((STACK / "prometheus/rules").glob("*.rules.yaml"))
     loki_rules = sorted((STACK / "loki/rules").glob("*.rules.yaml"))
@@ -259,6 +281,7 @@ def facts() -> dict:
         "prometheus_rule_files": len(prom_rules),
         "tested_rules": len(tested),
         "untested_rules": prom - len(tested),
+        "alloy_agents": count_alloy_agents(),
     }
 
 
@@ -303,6 +326,10 @@ def check_counts(f: dict) -> list[str]:
         # stale the same way the moment a rule was added (#81).
         (rf"rules of\s+{COUNT}\s+so far", {f["prometheus_rules"]},
          "rules in the coverage denominator"),
+        # Where the agents run is documented, not deployed from here, so the
+        # architecture table is the source and hardware.md's sentence is the
+        # claim. See count_alloy_agents.
+        (rf"{COUNT}\s+Alloy agents", {f["alloy_agents"]}, "Alloy agents"),
     )
     problems = []
     for rel in PROSE:

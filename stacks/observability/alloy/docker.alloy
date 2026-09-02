@@ -1,0 +1,115 @@
+// =============================================================================
+// Grafana Alloy — the Docker half of the agent config.
+//
+// One of three files in this directory; Alloy is started on the DIRECTORY and
+// merges every *.alloy in it into a single configuration, so the components
+// here refer to log_processor and metrics_service in config.alloy as though
+// they were declared in the same file. The header of config.alloy says which
+// file goes where.
+//
+// Everything in this file needs /var/run/docker.sock. It is shipped only to
+// hosts that have one — the monitoring host by the compose bind mount, and a
+// Docker host by scripts/deploy-agent.sh when it detects the socket. A host
+// without Docker (Saruman, a Proxmox hypervisor running the native package)
+// never sees this file, because both components below log an error on every
+// refresh interval when the socket is absent, and "level=error is zero" is the
+// gate the deploy script uses to call a host done.
+// =============================================================================
+
+// ============================================================================
+// CONTAINER METRICS
+// ============================================================================
+prometheus.exporter.cadvisor "dockermetrics" {
+	docker_host      = "unix:///var/run/docker.sock"
+	storage_duration = "5m"
+
+	// Once the container can see the host's cgroups (compose sets cgroup: host,
+	// see the comment there) cAdvisor reports every systemd slice on the machine
+	// as well as the containers — 3365 series where 450 are Docker's. Every
+	// dashboard and rule here filters on name!="", so the rest is retention spent
+	// on nothing.
+	docker_only = true
+}
+
+prometheus.scrape "dockermetrics" {
+	targets         = discovery.relabel.dockermetrics.output
+	forward_to      = [prometheus.remote_write.metrics_service.receiver]
+	scrape_interval = "60s"
+}
+
+// cAdvisor defaults `instance` to constants.hostname, which is the container
+// ID now that the container no longer carries a hostname. Overwrite it from the
+// environment for the same reason every other label here is set that way — see
+// the header of config.alloy.
+discovery.relabel "dockermetrics" {
+	targets = prometheus.exporter.cadvisor.dockermetrics.targets
+
+	rule {
+		target_label = "instance"
+		replacement  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname)
+	}
+}
+
+// ============================================================================
+// DOCKER LOG COLLECTION
+// ============================================================================
+
+discovery.docker "dockerlogs" {
+	host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "dockerlogs" {
+	targets = []
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "service_name"
+	}
+}
+
+loki.source.docker "default" {
+	host          = "unix:///var/run/docker.sock"
+	targets       = discovery.docker.dockerlogs.targets
+	labels        = {"platform" = "docker", "log_type" = "docker"}
+	relabel_rules = discovery.relabel.dockerlogs.rules
+	forward_to    = [loki.process.dockerlogs_filter.receiver]
+}
+
+loki.process "dockerlogs_filter" {
+	stage.drop {
+		expression = "GET /metrics"
+	}
+
+	stage.drop {
+		expression = "healthcheck"
+	}
+
+	stage.drop {
+		expression = "container=(grafana|alloy)"
+	}
+
+	// Container stdout goes through log_processor rather than straight to the
+	// writer, so it arrives carrying a `level` like every other source. It did
+	// not before, and Loki drops empty labels, so every panel filtering on
+	// level excluded containers entirely — 6429 lines an hour, the largest
+	// single bucket in the estate, invisible on a dashboard whose level picker
+	// said "All" (#83).
+	//
+	// log_processor forwards to loki.write.grafana_loki itself, so the
+	// destination is unchanged; only the hop is new. Referring to a component
+	// declared in config.alloy is fine — the directory is one configuration,
+	// and Alloy resolves the component graph, not the file order.
+	//
+	// Two consequences, both accepted knowingly, and both behaviours varlogs
+	// has had all along:
+	//
+	//   - A line with no severity word in it hits log_processor's
+	//     `{{ else }}info{{ end }}` fallback and becomes `info`.
+	//   - A line that says "error" incidentally — `error_rate=0`, a URL path —
+	//     becomes level=error and shows up in "Errors and above".
+	//
+	// Cardinality goes from one stream per container to at most five. That is
+	// nothing against what ADR-0003 is actually worried about.
+	forward_to = [loki.process.log_processor.receiver]
+}

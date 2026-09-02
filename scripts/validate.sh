@@ -194,13 +194,20 @@ fi
 
 # `fmt --test` fails on a syntax error and on non-canonical formatting. It does
 # not check component configuration — Alloy has no `validate` subcommand.
+#
+# Every file in the directory, because that is what the agent loads: the
+# monitoring host mounts all of them, and deploy-agent.sh ships a subset. One
+# unformatted file used to be impossible to have; now it is one `fmt -w` away
+# from being missed, and this is the check that misses nothing.
 if ((${#ALLOY[@]})); then
-  if "${ALLOY[@]}" fmt --test "${STACK}/alloy/config.alloy" >/dev/null 2>&1; then
-    pass "alloy fmt --test"
-  else
-    "${ALLOY[@]}" fmt --test "${STACK}/alloy/config.alloy"
-    fail "alloy fmt --test"
-  fi
+  for alloy_file in "${STACK}"/alloy/*.alloy; do
+    if "${ALLOY[@]}" fmt --test "${alloy_file}" >/dev/null 2>&1; then
+      pass "alloy fmt --test ${alloy_file##*/}"
+    else
+      "${ALLOY[@]}" fmt --test "${alloy_file}"
+      fail "alloy fmt --test ${alloy_file##*/}"
+    fi
+  done
 else
   skip "no alloy binary and no docker daemon"
 fi

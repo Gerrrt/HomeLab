@@ -26,7 +26,7 @@ dashboards will show metrics with no matching logs at the far end of the range.
 Metrics carry a second bound: `PROMETHEUS_RETENTION_SIZE` caps the store at
 12 GiB, and whichever limit is reached first wins. It is sized from the write
 rate rather than the store's current size — 72.9 MiB/day gives 2.28 GiB over
-30 days, 2.73 GiB once `Saruman` gets an agent — so it is roughly 4.4x the
+30 days, 2.73 GiB with `Saruman` reporting — so it is roughly 4.4x the
 planned estate and should never bind. In normal operation the 30 days above is
 the limit that applies; if the size cap ever binds, that 30 days stops being
 true and `PrometheusSizeRetentionActive` is what says so. Loki has no
@@ -137,12 +137,14 @@ of the collection path was `up{job="alloy"}`, which stayed `1` throughout.
 
 `up` is a poor liveness signal for half of what this stack collects, and the
 dashboard says so rather than papering over it. Prometheus scrapes nine jobs
-directly; four more arrive by remote_write from an Alloy agent. **A directly
-scraped target that dies sets `up` to 0. A remote-writing agent that dies just
-stops pushing, so its `up` goes stale and ages out instead of falling** — and
-`InstanceDown` is `up == 0`, so it cannot see that at all. The *Sample staleness
-by job* panel is what covers those four on the dashboard, and the *Every target*
-table puts `Staleness` next to `Up` for the same reason.
+directly; the rest arrive by remote_write — one `<host>-metrics` and one
+`<host>-alloy` per agent, plus `integrations/cadvisor` wherever there is
+Docker. **A directly scraped target that dies sets `up` to 0. A remote-writing
+agent that dies just stops pushing, so its `up` goes stale and ages out instead
+of falling** — and `InstanceDown` is `up == 0`, so it cannot see that at all.
+The *Sample staleness by job* panel is what covers the pushed jobs on the
+dashboard, and the *Every target* table puts `Staleness` next to `Up` for the
+same reason.
 
 `RemoteWriteJobStale` in `stack.rules.yaml` is the alert for it, and it is
 deliberately not written as a threshold on that staleness panel. `time() -
@@ -157,8 +159,8 @@ range and sees through staleness where an instant selector cannot.
 Two consequences worth knowing. It matches on the job-name convention
 `config.alloy` builds (`<hostname>-metrics`, `<hostname>-alloy`,
 `integrations/cadvisor`) rather than a list, so a new agent is covered the day
-it is deployed and `Saruman` ([#88](https://github.com/Gerrrt/HomeLab/issues/88))
-will need nothing added. And the 24-hour window is a real bound: an agent that
+it is deployed — `Saruman` ([#88](https://github.com/Gerrrt/HomeLab/issues/88))
+needed nothing added. And the 24-hour window is a real bound: an agent that
 comes back inside a day resolves the alert truthfully, one that stays away
 longer resolves it falsely once the window no longer remembers it, having
 notified at least twice by then.

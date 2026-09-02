@@ -3,6 +3,12 @@
 **Status:** Accepted · 2026-09 · supersedes
 [ADR-0002](0002-vlan-segmentation-strategy.md)
 
+> [!NOTE]
+> The table of explicit cross-segment passes below gained one row after this
+> was written: `30 | 10.0.30.110 → 10.0.99.20:9090,3100/tcp | Saruman's Alloy
+> agent`, added for [#88](https://github.com/Gerrrt/HomeLab/issues/88) and
+> recorded in `network.md`. The text here is left as written, per ADR-0001.
+
 ## Context
 
 [ADR-0002](0002-vlan-segmentation-strategy.md) says:
