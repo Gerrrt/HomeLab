@@ -129,12 +129,13 @@ info "connecting to ${TARGET}"
 # answer could have been an unknown host key, a password-only root, or a route
 # that does not exist. BatchMode turns every one of those into a fast failure
 # with a distinct message, so show it.
-if ! HOST="$("${SSH[@]}" hostname 2>"${TMPDIR:-/tmp}/deploy-agent.ssh.$$")"; then
-  sed 's/^/    ssh: /' "${TMPDIR:-/tmp}/deploy-agent.ssh.$$" >&2
-  rm -f "${TMPDIR:-/tmp}/deploy-agent.ssh.$$"
+ssh_err="$(mktemp "${TMPDIR:-/tmp}/deploy-agent.XXXXXX")"
+if ! HOST="$("${SSH[@]}" hostname 2>"${ssh_err}")"; then
+  sed 's/^/    /' "${ssh_err}" >&2
+  rm -f "${ssh_err}"
   die "cannot reach ${TARGET} non-interactively. Unknown host key: connect once by hand and accept it. Permission denied: authorise your key (ssh-copy-id). Timed out: no route from here."
 fi
-rm -f "${TMPDIR:-/tmp}/deploy-agent.ssh.$$"
+rm -f "${ssh_err}"
 [[ -n "$HOST" ]] || die "${TARGET} returned an empty hostname"
 
 if [[ -z "$RUNTIME" ]]; then
