@@ -202,8 +202,9 @@ counting CSV fields, because pfSense's IPv6 filterlog layout puts `src` at a
 different index — v6 lines therefore do not appear in that table, which is a
 stated limit rather than an oversight.
 
-**It cannot tell you the IDS is alive.** Suricata watches the Skids (VLAN 20)
-interface only, and a quiet IDS and a stopped one produce identical output — so
+**It cannot tell you the IDS is alive.** Suricata watches Skids (VLAN 20) and
+Degens (VLAN 10), one process each, and a quiet IDS and a stopped one produce
+identical output — so
 empty Suricata panels are not evidence of anything. That is the same gap
 `security.rules.yaml` declines to paper over with a log-based rule, and it needs
 a process metric. The dashboard says so in a text panel at the top rather than

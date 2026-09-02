@@ -58,9 +58,6 @@ issues intact. Nothing was summarised away.
 
 ## Monitoring
 
-- **[#89](https://github.com/Gerrrt/HomeLab/issues/89) Extend Suricata to Degens
-  (VLAN 10).** One interface at a time, once Skids has been quiet and understood
-  for a few days. → [runbook](runbooks/enable-suricata.md)
 - **[#90](https://github.com/Gerrrt/HomeLab/issues/90) Detect Suricata being
   dead.** A quiet IDS and a stopped one produce identical output, so no log rule
   can tell them apart. Needs a heartbeat the SNMP module does not expose.
@@ -231,6 +228,24 @@ months.
 
 ## Done
 
+- [x] **[#89](https://github.com/Gerrrt/HomeLab/issues/89) Extend Suricata to
+      Degens (VLAN 10).** 2026-09-02. Second interface, twelve days after the
+      first, alert-only on both. Its alerts are told apart from Skids' by the
+      syslog facility — the one per-interface setting pfSense puts on the wire
+      — which `syslog.alloy` maps to `interface`; both Loki rules and the
+      dashboard split on it. Proven per interface with the §4 test rules: the
+      first real alert arrived two seconds after the engine started, labelled,
+      and was the same stream-timestamp signature that is 79% of Skids.
+
+      Two things the pipeline test found on the way. *Restart* on the
+      interface left the process stopped until started by hand, and loading
+      the ruleset then took 35 seconds — a test visited in that window fires
+      nothing and looks like a broken pipeline. And a guest iPhone with
+      iCloud Private Relay produced no plaintext DNS or HTTP at all, so neither
+      test rule could fire from it; the engine's own `alerts.log` on the box is
+      what separates "never fired" from "fired and lost". Both are in the
+      runbook now. The fortnight comparison of that shared signature is dated
+      2026-09-16 there. → [runbook](runbooks/enable-suricata.md)
 - [x] **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to
       `Saruman` and `oracle`.** 2026-09-02. One script,
       `scripts/deploy-agent.sh`, for both: the compose service written out as
