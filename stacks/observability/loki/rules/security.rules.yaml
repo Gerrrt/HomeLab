@@ -234,9 +234,15 @@ groups:
 
   # ---------------------------------------------------------------------------
   # Intrusion detection. Suricata runs on morpheus in IDS mode — alert only, no
-  # blocking — on the IoT and guest interfaces. See
-  # docs/runbooks/enable-suricata.md and ADR-0006 for why the sensor lives on
-  # the firewall rather than on the hypervisor.
+  # blocking — one process per interface, with `interface` on every alert
+  # (derived from the syslog facility in alloy/syslog.alloy; which interfaces
+  # are watched is recorded in docs/runbooks/enable-suricata.md, not here).
+  # ADR-0006 is why the sensor lives on the firewall rather than the
+  # hypervisor.
+  #
+  # Both rules below aggregate BY INTERFACE. The interfaces were added one at a
+  # time precisely so that noise is attributable, and an alert that summed them
+  # would throw that away at the moment it matters.
   #
   # NO "SuricataStopped" RULE, DELIBERATELY.
   #
@@ -262,7 +268,7 @@ groups:
         # trojan activity, known-bad command and control. On the IoT segment
         # this warrants looking at the same evening, not the same quarter.
         expr: |
-          sum by (classification) (
+          sum by (interface, classification) (
             count_over_time({app="suricata", priority="1"} [10m])
           ) > 0
         for: 0s
@@ -271,27 +277,38 @@ groups:
           severity: critical
           category: security
         annotations:
-          summary: "Suricata priority-1: {{ $labels.classification }} ({{ $value }} in 10m)"
+          summary: "Suricata priority-1 on {{ $labels.interface }}: {{ $labels.classification }} ({{ $value }} in 10m)"
           description: >-
             Highest-severity signature class. Identify the source address from
-            the log line. If it is a device on VLAN 20, treat it as compromised
-            until shown otherwise rather than as a false positive — that segment
-            exists on the assumption that its devices already are.
+            the log line. On igc0.20 (Skids) treat the device as compromised
+            until shown otherwise rather than as a false positive — that
+            segment exists on the assumption that its devices already are. On
+            igc0.10 (Degens) it is a guest's device: the segment has no route
+            inward (ADR-0013), so the response is to drop it from the guest
+            SSID, not to hunt for what it reached.
 
       - alert: SuricataAlertStorm
         # Deliberately a volume rule rather than a severity one. A sudden flood
         # is either a scan in progress or a ruleset that has started matching
         # normal traffic after an update. Both need a human; neither shows up in
         # a per-signature rule.
+        #
+        # Per interface, same threshold. Skids ran at roughly two alerts per ten
+        # minutes for its first fortnight, so 200 was never derived from the
+        # baseline and splitting it does not move it. What the split gives up: a
+        # ruleset update that starts matching ordinary traffic on both segments
+        # at, say, 101 each fires nothing where a global sum would have. What it
+        # buys: the summary names the segment, which is the whole reason the
+        # interfaces were enabled one at a time.
         expr: |
-          sum(count_over_time({app="suricata"} [10m])) > 200
+          sum by (interface) (count_over_time({app="suricata"} [10m])) > 200
         for: 5m
         labels:
           component: logs
           severity: warning
           category: security
         annotations:
-          summary: "{{ $value }} Suricata alerts in 10 minutes"
+          summary: "{{ $value }} Suricata alerts on {{ $labels.interface }} in 10 minutes"
           description: >-
             Either something is scanning, or a rule update started matching
             ordinary traffic. Check which signature dominates before tuning —

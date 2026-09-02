@@ -113,6 +113,49 @@ loki.relabel "network_syslog" {
 		target_label  = "app"
 	}
 
+	// Which interface a Suricata alert came from. pfSense runs one Suricata
+	// process per interface, and the alert line itself does not say which:
+	//
+	//   [1:2210044:2] SURICATA STREAM Packet with invalid timestamp
+	//   [Classification: Generic Protocol Command Decode] [Priority: 3]
+	//   {TCP} 10.0.20.145:52427 -> 143.204.161.225:443
+	//
+	// The package's suricata.yaml template hardcodes the syslog identity to
+	// `suricata` for every interface, so the tag cannot tell them apart either.
+	// The ONE per-interface setting that reaches the wire is the interface's
+	// "Log Facility" field, so that is what carries it. This is ASSERTED from a
+	// UI setting, not parsed from the line the way filterlog's `interface` is:
+	// the mapping below is a property of what each interface's Log Facility is
+	// set to on morpheus, and docs/runbooks/enable-suricata.md is where that is
+	// recorded. Skids is the package default, local1. Degens is local2.
+	//
+	// local0, local3, local4 and local7 can never appear here: pfSense's remote
+	// "System Events" selector is `*.emerg;*.<level>;...;local0.none;local3.none;
+	// local4.none;local7.none;...`, so an interface set to one of those alerts on
+	// the box and sends nothing — which looks exactly like a quiet interface.
+	//
+	// Both labels are sourced, joined with the default `;`, so a facility
+	// collision with some other pfSense daemon cannot mislabel its lines. And an
+	// unmapped facility gets NO interface label rather than a guessed one, for
+	// the reason `.+` not `.*` is spelled out below: absent is visibly absent.
+	// `sum by (interface)` shows it as an empty series; a wrong value would not.
+	//
+	// Two values, one per interface, alongside filterlog's igc0.<vlan> vocabulary
+	// so the same picker drives both.
+	rule {
+		source_labels = ["__syslog_message_app_name", "__syslog_message_facility"]
+		regex         = "suricata;local1"
+		target_label  = "interface"
+		replacement   = "igc0.20"
+	}
+
+	rule {
+		source_labels = ["__syslog_message_app_name", "__syslog_message_facility"]
+		regex         = "suricata;local2"
+		target_label  = "interface"
+		replacement   = "igc0.10"
+	}
+
 	// Severity from the syslog PRI, rather than regex-sniffing the message the
 	// way log_processor has to for file sources. The protocol already carries
 	// it; there is no reason to guess.
@@ -210,7 +253,9 @@ loki.process "network_syslog" {
 	// priority and classification become labels — 4 and ~40 values respectively.
 	// The signature ID does not: there are tens of thousands of rules in ET Open,
 	// and one label value per firing signature is the same cardinality mistake
-	// as one per source address. It stays in the line.
+	// as one per source address. It stays in the line. `interface` is not set
+	// here: the line does not carry it, so loki.relabel.network_syslog above
+	// derives it from the syslog facility before the message gets this far.
 	stage.match {
 		selector = `{app="suricata"}`
 
