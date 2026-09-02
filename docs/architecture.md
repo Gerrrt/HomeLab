@@ -119,13 +119,13 @@ graph LR
         UPSD["mjolnir<br/>APC UPS"]
         SWD["neo<br/>switch"]
         ILO["shiva<br/>iLO"]
-        HOSTS["Linux hosts<br/>+ Docker"]
+        AGENTS["oracle · Saruman<br/>Alloy agents"]
     end
 
     subgraph Stack["prometheus · 10.0.99.20 · one compose stack"]
         direction TB
         SNMP["snmp-exporter<br/>:9116"]
-        ALLOY["Alloy<br/>cAdvisor · node · logs"]
+        ALLOY["Alloy<br/>this host · syslog in"]
         PROM[("Prometheus<br/>:9090 · 30d")]
         LOKI[("Loki<br/>:3100 · 30d")]
         AM["Alertmanager<br/>:9093"]
@@ -138,7 +138,9 @@ graph LR
     UPSD -->|SNMP v2c| SNMP
     SWD -->|SNMP v2c| SNMP
     ILO -->|SNMP v2c| SNMP
-    HOSTS -->|metrics + logs| ALLOY
+    PF -->|syslog 1514/udp| ALLOY
+    AGENTS -->|remote_write| PROM
+    AGENTS -->|push| LOKI
 
     SNMP -->|scrape /snmp| PROM
     ALLOY -->|remote_write| PROM
@@ -155,7 +157,7 @@ graph LR
     classDef store fill:#1b3a3f,stroke:#39c5cf,color:#e6edf3,stroke-width:2px
     classDef agent fill:#30363d,stroke:#8b949e,color:#e6edf3,stroke-width:2px
     class PROM,LOKI store
-    class SNMP,ALLOY agent
+    class SNMP,ALLOY,AGENTS agent
 ```
 
 Two collection paths, because the estate has two kinds of device:
@@ -163,7 +165,10 @@ Two collection paths, because the estate has two kinds of device:
 - **Things that run an agent.** Linux hosts get a Grafana Alloy agent, which
   gathers node metrics, cAdvisor container metrics, the systemd journal, syslog
   and `auth.log`, then pushes to Loki and remote-writes to Prometheus. The same
-  `config.alloy` runs everywhere; only two environment variables differ.
+  `alloy/` directory runs everywhere — `config.alloy` on every host,
+  `docker.alloy` where there is a Docker socket, `syslog.alloy` only here — and
+  `scripts/deploy-agent.sh` ships the right subset, in a container or as the
+  native package; only the endpoint variables differ.
 - **Things that cannot.** The firewall, switch, UPS and BMC are polled over SNMP
   through `snmp-exporter`, which Prometheus scrapes as a proxy.
 
@@ -176,8 +181,8 @@ hole from the monitoring VLAN into the monitored one.
 | Host | VLAN | Stack | Contents |
 | --- | --- | --- | --- |
 | `prometheus` (10.0.99.20) | 🔴 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, blackbox-exporter, Alloy |
-| `Saruman` (10.0.30.110) | 🟢 30 | *(none yet)* | Proxmox VE 9.2.11, no guests — see [roadmap](roadmap.md) |
-| `oracle` (10.0.99.30) | 🔴 99 | *(none yet)* | Undecided |
+| `Saruman` (10.0.30.110) | 🟢 30 | *(none yet)* | Proxmox VE 9.2.11, no guests — see [roadmap](roadmap.md); Alloy agent (native package) |
+| `oracle` (10.0.99.30) | 🔴 99 | *(none yet)* | Alloy agent (Docker, `scripts/deploy-agent.sh`); role otherwise undecided |
 
 One directory per stack, not one per service. A stack is the unit that gets
 deployed together; a second host means a second directory under `stacks/`, not a

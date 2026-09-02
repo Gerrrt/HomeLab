@@ -125,8 +125,8 @@ groups:
         # job existed. An agent that comes back inside a day resolves this
         # truthfully. One that stays away longer resolves it *falsely* at 24h,
         # having notified at least twice by then — that is the known cost of not
-        # enumerating the expected jobs, and enumerating them is what would make
-        # the rule silently miss `Saruman` when it arrives (#88).
+        # enumerating the expected jobs, and enumerating them is what would have
+        # made the rule silently miss `Saruman` when it arrived (#88).
         #
         # The selector matches the job names config.alloy builds —
         # `<hostname>-metrics`, `<hostname>-alloy`, and cAdvisor's
@@ -151,7 +151,9 @@ groups:
         #
         # `oracle`'s two jobs stayed reporting throughout and were correctly not
         # matched, including `integrations/cadvisor`, which exists on both hosts
-        # and is separated only by instance. Recovery was clean: the alert
+        # and is separated only by instance. (Two, not three: oracle's config at
+        # the time predated the self-scrape, which #88 found and fixed. Every
+        # Docker host pushes three now.) Recovery was clean: the alert
         # cleared on its own once the agent came back.
         #
         # The blind window is the honest limit of this rule. Detection is 5m of

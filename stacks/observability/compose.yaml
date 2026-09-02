@@ -390,8 +390,12 @@ services:
 
   # ---------------------------------------------------------------------------
   # Collection agent for this host: cAdvisor + node metrics, Docker/journal/
-  # syslog/auth logs. The same config.alloy runs on every other monitored host
-  # with LOKI_URL / PROMETHEUS_REMOTE_WRITE_URL pointed back here.
+  # syslog/auth logs. The config is the ./alloy DIRECTORY, not one file, and
+  # Alloy merges every *.alloy in it: config.alloy goes to every monitored host,
+  # docker.alloy to the ones with a Docker socket, syslog.alloy stays here
+  # because it is the listener morpheus sends to. scripts/deploy-agent.sh ships
+  # the right subset to a remote host with LOKI_URL / PROMETHEUS_REMOTE_WRITE_URL
+  # pointed back here; the header of alloy/config.alloy has the reasoning.
   # ---------------------------------------------------------------------------
   alloy:
     <<: *service-defaults
@@ -481,9 +485,11 @@ services:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
       - --storage.path=/var/lib/alloy/data
-      - /etc/alloy/config.alloy
+      # The directory, so all three files load. Mounting one file here is how a
+      # host would silently lose its Docker or syslog collection.
+      - /etc/alloy
     volumes:
-      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ./alloy:/etc/alloy:ro
       - alloy-data:/var/lib/alloy/data
       # The API, not the log files: cAdvisor takes container names and labels
       # from it, and discovery.docker + loki.source.docker stream stdout through
@@ -495,8 +501,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # /var/lib/docker/containers is NOT mounted, though it was until #188.
       # Nothing read it: loki.source.docker streams over the socket above rather
-      # than tailing the json-file driver's output, config.alloy names the path
-      # only to *exclude* it from the filesystem collector, and cAdvisor was
+      # than tailing the json-file driver's output, the node exporter names the
+      # path only to *exclude* it from the filesystem collector, and cAdvisor was
       # measured producing identical series without it. It is root-only and
       # holds every container's logs, so an unread mount of it is pure reach.
       - /var/log:/var/log:ro

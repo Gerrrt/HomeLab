@@ -7,6 +7,17 @@
 > goes, and whether the lab's egress is filtered — is settled by
 > [ADR-0014](0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md).
 > The text here is left as written, per ADR-0001.
+>
+> "Lab telemetry stays in the lab" (Decision, below) is amended by
+> [#88](https://github.com/Gerrrt/HomeLab/issues/88), 2026-09: the
+> hypervisor's *own* host agent on `Saruman` remote-writes to `10.0.99.20`
+> over one unlogged pass, `10.0.30.110 → 10.0.99.20:9090,3100/tcp`, placed
+> above the ADR-0014 tripwire. A DL360 with a mirrored pair of ageing disks
+> is estate hardware whose health belongs with the rest of the estate's;
+> what this ADR was protecting against is guest telemetry, and guests still
+> get no such rule. `stacks/lab/` and its own stack are unchanged
+> ([#101](https://github.com/Gerrrt/HomeLab/issues/101)). The text here is
+> left as written, per ADR-0001.
 
 ## Context
 

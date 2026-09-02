@@ -358,6 +358,15 @@ install-timers: ## Install and enable the systemd timers on this host (needs sud
 	@# visible.
 	sudo ./scripts/install-timers.sh --install
 
+.PHONY: deploy-agent
+deploy-agent: ## Deploy or redeploy the Alloy agent on a host (ARGS="[--runtime native] user@host")
+	@# Under Maintenance because it changes a host — a remote one — and must
+	@# never be reachable from `make validate`. The image and the config come
+	@# from this checkout, so run it from the checkout whose state you want the
+	@# host to have; the script ships files over ssh and needs no render, so a
+	@# worktree is fine here, unlike `make up`.
+	./scripts/deploy-agent.sh $(ARGS)
+
 .PHONY: purge-history-dry-run
 purge-history-dry-run: ## Preview the git-history secret purge (safe)
 	./scripts/purge-history.sh --dry-run

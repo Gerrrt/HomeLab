@@ -271,7 +271,10 @@ complete state table and interface topology. They are credentials.
 - Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
   `no-new-privileges`, so root inside it is subject to file permissions like any
   other user, and joins only the group that owns `/var/log/syslog` so the auth
-  and syslog sources stay readable (#188).
+  and syslog sources stay readable (#188). `scripts/deploy-agent.sh` applies
+  the same flags to every Docker host it deploys to, so `oracle`'s agent is
+  no longer the privileged copy it was until #88; on `Saruman` the native
+  package runs as its own unprivileged `alloy` user.
 - Every service runs under a real init (`init: true`) and a chosen task ceiling
   (`pids_limit`, 512; 1024 for Alloy) rather than the inherited systemd default
   of 9056. This was not theoretical: Grafana's https healthcheck was leaking two

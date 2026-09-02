@@ -58,10 +58,6 @@ issues intact. Nothing was summarised away.
 
 ## Monitoring
 
-- **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to
-  `Saruman`.** `oracle` has had an agent since 2026-08-30 and is remote-writing
-  host metrics and pushing logs; `Saruman` is the one left. `morpheus` reaches
-  Loki by network syslog and has no host metrics.
 - **[#89](https://github.com/Gerrrt/HomeLab/issues/89) Extend Suricata to Degens
   (VLAN 10).** One interface at a time, once Skids has been quiet and understood
   for a few days. → [runbook](runbooks/enable-suricata.md)
@@ -231,6 +227,37 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to
+      `Saruman` and `oracle`.** 2026-09-02. One script,
+      `scripts/deploy-agent.sh`, for both: the compose service written out as
+      `docker run` for a Docker host, and the `.deb` matching the compose tag
+      for a host that should not run Docker, which a Proxmox hypervisor is. The
+      agent config became a directory of three files so the native package
+      loads no Docker components and opens no syslog port on the hypervisor's
+      real interface.
+
+      `oracle` turned out to have been the actual gap. It was deployed by hand
+      on 2026-08-30 and by 2026-09-01 was running a version behind compose, as
+      `--privileged`, with the config it was copied with — no self-scrape, so
+      `oracle-alloy` never existed and nothing said so — and no volume for its
+      WAL. The runbook's verification could not fail: Alloy logs to stderr and
+      the grep read stdout. Redeployed with the script; three jobs now.
+
+      `Saruman` needed a decision, not a deploy: ADR-0007 said it does not
+      remote-write to Winterfell and ADR-0012 assumed it does. Resolved for the
+      hypervisor's own telemetry only, over one unlogged pass above the
+      ADR-0014 tripwire; both ADRs carry a note. The rule and the run are the
+      operator's, from Hicks, since 99 → 30 is closed.
+
+      Two more things found on the way, neither fixed here. Since #188 every
+      Docker-host agent logs cAdvisor's `rootDiskErr` every few minutes —
+      root without `DAC_READ_SEARCH` cannot always size overlay layers —
+      partial, nothing charted depends on it, and nobody wrote it down; the
+      deploy gate ignores exactly that line. And a throwaway `alloy run` on the monitoring host resolves
+      `prometheus` through the host's DNS and pushes into the live stores:
+      four `instance="smoke"` series and a silenced `RemoteWriteJobStale`,
+      because there is no admin API to delete them.
 
 - [x] **[#87](https://github.com/Gerrrt/HomeLab/issues/87) Add `ifXTable` (64-bit
       counters) to the `mokerlink` module.** Swapped in rather than added: the
