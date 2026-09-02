@@ -3,7 +3,7 @@
 **One part, one power-down, and a comparison that has to be recorded before the
 lid comes off — not after.**
 
-> **Status — 2026-08-31: the fault is confirmed and the part is on order.**
+> **Status — 2026-09-01: the fault is confirmed and the spare is in transit.**
 >
 > Chassis 0, battery 1: `cpqHeSysBatteryStatus` `13`
 > (`shutdownPermanentFailure`), `cpqHeSysBatteryCondition` `4` (failed),
