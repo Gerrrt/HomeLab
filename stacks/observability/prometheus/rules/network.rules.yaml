@@ -139,8 +139,8 @@ groups:
       # and the silence deleted the same evening rather than left to run to
       # its 2026-10-01 expiry: a silence standing over a freshly fitted part
       # suppresses exactly the thing you most want to hear about. Both rules
-      # are live again over the new part, and nothing in this file changed
-      # for that — they were written to become correct when the hardware did.
+      # are live again over the new part, and no rule expression changed for
+      # that — they were written to become correct when the hardware did.
       # History and the two readings that did not move are in
       # docs/runbooks/replace-the-smart-storage-battery.md.
       - alert: IloHardwareDegraded
