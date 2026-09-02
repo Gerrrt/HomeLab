@@ -277,7 +277,10 @@ groups:
           severity: critical
           category: security
         annotations:
-          summary: "Suricata priority-1 on {{ $labels.interface }}: {{ $labels.classification }} ({{ $value }} in 10m)"
+          # `interface` is derived from the syslog facility in syslog.alloy, and an
+          # unmapped facility leaves it unset on purpose. An empty summary would
+          # hide exactly that fault, so say so instead.
+          summary: "Suricata priority-1 on {{ if $labels.interface }}{{ $labels.interface }}{{ else }}an unlabelled interface{{ end }}: {{ $labels.classification }} ({{ $value }} in 10m)"
           description: >-
             Highest-severity signature class. Identify the source address from
             the log line. On igc0.20 (Skids) treat the device as compromised
@@ -308,7 +311,8 @@ groups:
           severity: warning
           category: security
         annotations:
-          summary: "{{ $value }} Suricata alerts on {{ $labels.interface }} in 10 minutes"
+          # Same placeholder as above: unset means an unmapped facility.
+          summary: "{{ $value }} Suricata alerts on {{ if $labels.interface }}{{ $labels.interface }}{{ else }}an unlabelled interface{{ end }} in 10 minutes"
           description: >-
             Either something is scanning, or a rule update started matching
             ordinary traffic. Check which signature dominates before tuning —
