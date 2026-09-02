@@ -124,8 +124,17 @@ SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$TARGET")
 # Preflight
 # ---------------------------------------------------------------------------
 info "connecting to ${TARGET}"
-HOST="$("${SSH[@]}" hostname 2>/dev/null)" \
-  || die "cannot reach ${TARGET} (BatchMode: the key must already be authorised)"
+# ssh's own words, not a guess: the first run against Saruman said "the key
+# must already be authorised" over a stderr it had thrown away, when the actual
+# answer could have been an unknown host key, a password-only root, or a route
+# that does not exist. BatchMode turns every one of those into a fast failure
+# with a distinct message, so show it.
+if ! HOST="$("${SSH[@]}" hostname 2>"${TMPDIR:-/tmp}/deploy-agent.ssh.$$")"; then
+  sed 's/^/    ssh: /' "${TMPDIR:-/tmp}/deploy-agent.ssh.$$" >&2
+  rm -f "${TMPDIR:-/tmp}/deploy-agent.ssh.$$"
+  die "cannot reach ${TARGET} non-interactively. Unknown host key: connect once by hand and accept it. Permission denied: authorise your key (ssh-copy-id). Timed out: no route from here."
+fi
+rm -f "${TMPDIR:-/tmp}/deploy-agent.ssh.$$"
 [[ -n "$HOST" ]] || die "${TARGET} returned an empty hostname"
 
 if [[ -z "$RUNTIME" ]]; then
