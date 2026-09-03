@@ -196,6 +196,14 @@ groups:
         # which a UPS has never demonstrated it can do its job, and it is
         # indistinguishable from a healthy one on every other metric.
         #
+        # The 7d window is shorter than this card's 14d test interval, so a
+        # card reset to 6 can trip this while its schedule is working. That is
+        # deliberate — the alert says "unproven for a week", which is worth
+        # knowing whatever the cause — but it is why the description sends you
+        # to the schedule rather than asserting it has failed. Widening the
+        # window to clear the interval would trade a week of blindness for a
+        # quieter alert, and this rule exists because quiet was the problem.
+        #
         # Expressed over a range rather than as `for: 7d`, deliberately. A long
         # `for` measures continuous pending time in Prometheus's own memory, so
         # any restart inside the window resets it — on a stack that gets
@@ -214,7 +222,13 @@ groups:
         annotations:
           summary: "UPS {{ $labels.device }} has not completed a self-test in 7 days"
           description: >-
-            The UPS has never proven it can carry the load. The card is set to
-            biweeklySinceLastTest, so seven days of 6 means the schedule is not
-            running whatever the setting says — check it with
-            scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2.
+            upsTestResultsSummary has read 6 (noTestsInitiated) for seven days,
+            so the UPS has not proven it can carry the load inside that window.
+            That is what this rule detects and all it detects. It is not proof
+            the schedule has failed: this card is set to biweeklySinceLastTest,
+            a fourteen-day interval, so a card whose counters have just been
+            reset can sit at 6 for a fortnight while the schedule is working.
+            Read the schedule and the last-test date before concluding either
+            way — scripts/snmp-walk.sh --device mjolnir
+            1.3.6.1.4.1.318.1.1.1.7.2 — and if the schedule is off, turn it on
+            rather than running tests by hand.

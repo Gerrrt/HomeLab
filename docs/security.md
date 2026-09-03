@@ -233,7 +233,8 @@ fabricated values rather than measurements, so a dashboard or query whose range
 crosses that date is reading fiction on one side of it. And the card's test
 schedule is on but unwatched. Read off the NMC on 2026-09-03,
 `upsAdvTestDiagnosticSchedule` is `8` (biweeklySinceLastTest), which is what
-stops `1` from being a frozen last-known result — but that OID is PowerNet, and
+*should* keep `1` from being a frozen last-known result — should, because
+nothing here can confirm it still does. That OID is PowerNet, and
 the `apc_ups` module walks the standard UPS-MIB only. Nothing here would notice
 the card reverting to `never`: `upsTestResultsSummary` would hold `1` and every
 rule would stay quiet. `UpsBatteryUnproven` cannot catch it either, because it

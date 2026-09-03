@@ -283,10 +283,13 @@ the date, come back after it, and read it again.
 Nothing watches any of this on your behalf: these OIDs are not scraped, so a
 card that silently drops back to `never` produces no alert and no changed
 metric. That gap is named in the header of `ups.rules.yaml` and filed as
-[#249](https://github.com/Gerrrt/HomeLab/issues/249) — closing it means adding
-PowerNet to `snmp-exporter/generator.yaml`, a new vendor MIB source with its own
-pinning decision, which is why it is an issue rather than a step in this
-runbook. When it lands, this section becomes a PromQL query.
+[#249](https://github.com/Gerrrt/HomeLab/issues/249) — closing it takes two
+files, not one: `scripts/snmp-mibs.sh` has to fetch APC's MIB before
+`make snmp-generate` can resolve the new OIDs, and that is where the pinning
+decision lives, alongside the walk added to `snmp-exporter/generator.yaml`. A
+new vendor source with no first-party git ref to point at is why it is an issue
+rather than a step in this runbook. When it lands, this section becomes a
+PromQL query.
 
 ## 7. What becomes true afterwards
 
