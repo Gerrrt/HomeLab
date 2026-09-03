@@ -324,6 +324,12 @@ backup-firewall: ## Pull morpheus's pfSense config, encrypt it to ./backups/, co
 	@# copy fails exits non-zero even though the local file was written, so the
 	@# nightly timer's metric says "stopped leaving this host" rather than
 	@# "fine" (#92). ARGS=--local-only skips it, for a bench.
+	@#
+	@# Retention is part of the same run: FW_KEEP exports survive on each side
+	@# and the rest are removed, so a nightly job cannot grow without bound.
+	@# ARGS=--list is its dry run and ARGS=--prune applies it on its own. Note
+	@# FW_KEEP and not KEEP — every unit shares /etc/default/homelab-timers and
+	@# backup-volumes.sh already owns KEEP there.
 	./scripts/backup-firewall.sh $(ARGS)
 
 .PHONY: backup
@@ -344,8 +350,9 @@ backup: ## Quiesce the stack, archive its volumes to ./backups/ and verify
 restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>")
 	@# Deliberately a separate script from `backup`. One script that both writes
 	@# archives and overwrites live volumes is one mistyped flag from an outage,
-	@# and scripts/backup-firewall.sh — the model for both — is non-destructive
-	@# throughout. The volume inventory is not duplicated: restore-volumes.sh
+	@# and scripts/backup-firewall.sh — the model for both — never writes to the
+	@# thing it backs up and never deletes outside its own retention window
+	@# (#92). The volume inventory is not duplicated: restore-volumes.sh
 	@# reads `backup-volumes.sh --inventory`, the way every SNMP tool reads
 	@# scripts/snmp-targets.sh.
 	STACK=$(STACK) ./scripts/restore-volumes.sh $(ARGS)
