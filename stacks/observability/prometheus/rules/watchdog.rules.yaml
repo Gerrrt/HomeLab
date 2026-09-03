@@ -14,10 +14,11 @@
 # This repository already applies exactly this reasoning elsewhere.
 # security.rules.yaml has FirewallLogsStopped because a firewall passing traffic
 # for the whole house is never silent for thirty minutes, and it explains at
-# length why there is deliberately NO SuricataStopped rule: "absence of alerts is
-# indistinguishable from absence of the service", and detecting that needs a
-# heartbeat, not a log rule. The notification path was the one place the
-# reasoning was never turned on itself. Tracked in #67.
+# length why there is deliberately NO log-based SuricataStopped rule: "absence
+# of alerts is indistinguishable from absence of the service", and detecting
+# that needs a heartbeat, not a log rule — which ids.rules.yaml now reads from
+# the firewall's process table (#90). The notification path was the one place
+# the reasoning was never turned on itself. Tracked in #67.
 #
 # THE INVERSION THAT MAKES THIS RULE MAKE SENSE: its firing carries no
 # information whatsoever. Its ABSENCE is the entire signal. Nothing inside this

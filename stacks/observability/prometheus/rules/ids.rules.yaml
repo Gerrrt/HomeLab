@@ -1,0 +1,109 @@
+---
+# Whether Suricata is actually running on the interfaces it is declared for.
+#
+# loki/rules/security.rules.yaml explains why there is no log-based
+# SuricataStopped, and the explanation still holds: a quiet IDS and a dead one
+# produce identical log output, so no rule over the alerts can tell them apart.
+# This file is the process metric that comment asks for (#90). bsnmpd on
+# morpheus serves HOST-RESOURCES-MIB hrSWRunTable, and the pfsense module in
+# snmp-exporter/generator.yaml fetches the rows named "suricata" with their
+# arguments carried in hrSWRunParameters — "-i igc0.20 ..." — because pfSense
+# runs one process per interface and the process name cannot tell them apart.
+#
+# THE DECLARATION LIVES HERE
+#
+# backup.rules.yaml's argument applies unchanged: an alert built on absent()
+# needs one rule per interface with the name hardcoded, absent() only
+# synthesises labels from equality matchers so a regex on the arguments would
+# yield no `interface` label at all, and it reacts to a single missed scrape.
+# `count(...) < 2` was the other candidate, and it is worse: it carries no
+# interface, and an alert with no labels is the one the InstanceDown inhibit
+# rule can silence, per watchdog.rules.yaml.
+#
+# So homelab_suricata_expected_interface says which interfaces are meant to be
+# watched, and SuricataStopped is "declared but not running", keyed on
+# `interface` so the summary names the segment. This is the second copy of that
+# list — alloy/syslog.alloy carries the facility -> interface map that labels
+# the alerts — and docs/runbooks/enable-suricata.md §6 says to update both.
+#
+# WHAT IT PROVES AND WHAT IT DOES NOT
+#
+# hrSWRunStatus < 3 says the process exists and is schedulable. A Suricata that
+# is running and inspecting nothing — bound to the wrong interface, a capture
+# thread that has hung — reads exactly the same as a healthy one. The plaintext
+# test alert in the runbook is still the only proof of detection; this is the
+# proof that the thing which would detect is at least alive.
+groups:
+  - name: ids
+    interval: 60s
+    rules:
+      - record: homelab_suricata_expected_interface
+        # One series per watched interface, value 1. label_replace on vector(1)
+        # is how a constant grows a label. Adding an interface is one more `or`
+        # line here, a fixture set in tests/ids.test.yaml, a facility rule in
+        # alloy/syslog.alloy, and the runbook's table — in that order, because
+        # a declared interface with no process fires within ten minutes.
+        expr: |
+          label_replace(vector(1), "interface", "igc0.20", "", "")
+            or label_replace(vector(1), "interface", "igc0.10", "", "")
+        labels:
+          device: morpheus
+
+      - alert: SuricataStopped
+        # `unless on (device, interface)`: declared, with no running row for
+        # that interface. label_replace anchors its regex, so it must match the
+        # whole string; the interface is the first argument, which is what
+        # survives bsnmpd truncating the parameter string at about 100
+        # characters. A row whose arguments do not match — hex, because the
+        # DisplayString override stopped reaching the label — gets no
+        # `interface`, cancels nothing, and every declared interface fires at
+        # once. That is the apparatus failing loudly, which is the right way
+        # for it to fail.
+        #
+        # The parentheses are load-bearing: `*` binds tighter than `unless`,
+        # so without them this reads `expected unless (running * up)`.
+        #
+        # `* on (device) group_left (instance, role, vlan) (up == 1)` does two
+        # things. It keeps the alert silent while the whole SNMP scrape is
+        # failing — a walk that times out on any column is up == 0, and
+        # SnmpTargetUnreachable owns that — and group_left is what carries
+        # instance, role and vlan onto the alert, which backup.rules.yaml
+        # learned the hard way a bare `on()` strips.
+        #
+        # < 3: hrSWRunStatus 1 is running, 2 runnable (idle, the normal reading
+        # for a sensor between packets), 3 notRunnable (SIGSTOP) and 4 invalid
+        # (a zombie). The last two are dead for every purpose this rule has.
+        expr: |
+          (
+            homelab_suricata_expected_interface
+            unless on (device, interface)
+              label_replace(
+                hrSWRunStatus{job="snmp", hrSWRunName="suricata"} < 3,
+                "interface", "$1", "hrSWRunParameters", "-i ([^ ]+) .*"
+              )
+          )
+          * on (device) group_left (instance, role, vlan)
+            (up{job="snmp"} == 1)
+        # Ten minutes, not two. pfSense restarts every Suricata process on each
+        # rule update, roughly daily, and the gap is about thirty seconds; after
+        # a reboot bsnmpd answers before the package has finished loading its
+        # rules. At a 60s scrape either shows as one or two evaluations with
+        # the row missing, and ten minutes is comfortably past both. An
+        # alert-only IDS found dead ten minutes late has cost nothing.
+        for: 10m
+        labels:
+          component: ids
+          severity: warning
+          category: security
+        annotations:
+          summary: "Suricata is not running on {{ $labels.interface }} ({{ $labels.device }})"
+          description: >-
+            No suricata process with "-i {{ $labels.interface }}" in
+            hrSWRunTable for ten minutes, while SNMP on {{ $labels.instance }}
+            answers. Services → Suricata → Interfaces on pfSense: start it, or
+            remove the interface from homelab_suricata_expected_interface in
+            ids.rules.yaml if it was retired. Every interface at once, with
+            Suricata visibly running, means bsnmpd stopped serving the table or
+            the arguments label came back as hex — look at
+            hrSWRunStatus{hrSWRunName="suricata"} before touching the firewall.
+            docs/runbooks/enable-suricata.md.

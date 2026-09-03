@@ -61,9 +61,6 @@ issues intact. Nothing was summarised away.
 - **[#89](https://github.com/Gerrrt/HomeLab/issues/89) Extend Suricata to Degens
   (VLAN 10).** One interface at a time, once Skids has been quiet and understood
   for a few days. → [runbook](runbooks/enable-suricata.md)
-- **[#90](https://github.com/Gerrrt/HomeLab/issues/90) Detect Suricata being
-  dead.** A quiet IDS and a stopped one produce identical output, so no log rule
-  can tell them apart. Needs a heartbeat the SNMP module does not expose.
 - **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Probe the services this
   was filed for, and probe TLS expiry.** blackbox-exporter is deployed and
   scraped, but it probes one thing the issue never named — the wiki, added after
@@ -206,6 +203,21 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#90](https://github.com/Gerrrt/HomeLab/issues/90) Detect Suricata
+      being dead.** 2026-09-03. The roadmap line said the SNMP module does not
+      expose a heartbeat; the firewall's agent already did. `bsnmpd` on
+      `morpheus` loads `snmp_hostres.so`, so HOST-RESOURCES-MIB `hrSWRunTable`
+      is served — 94 rows, 0.04s for a full walk — with one `suricata` row per
+      interface and the interface in `hrSWRunParameters` (`-i igc0.20 …`),
+      indexed by pid+1 and renewed on every rule update. The `pfsense` module
+      now fetches those rows and nothing else from the table, through a
+      dynamic filter on `hrSWRunName`, with a `DisplayString` override because
+      both string columns are `InternationalDisplayString` and would otherwise
+      arrive as hex. `SuricataStopped` in `prometheus/rules/ids.rules.yaml` is
+      "declared but not running" per interface, gated on the scrape being up,
+      unit-tested against the rows as morpheus read them. It proves the process
+      is alive, not that it detects; the runbook's test alert still owns that.
 
 - [x] **[#76](https://github.com/Gerrrt/HomeLab/issues/76) Replace `shiva`'s
       Smart Storage Battery.** 2026-09-02. Spare `815983-001` fitted;

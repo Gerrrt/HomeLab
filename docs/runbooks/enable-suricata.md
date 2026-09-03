@@ -269,8 +269,8 @@ curl -s http://localhost:3100/loki/api/v1/rules | grep -o 'name: ids' || echo "i
 
 Now generate a harmless alert to prove the path end to end. **Do not skip this.**
 An IDS that has never been shown to report anything is indistinguishable from one
-that is not running, and this stack deliberately has no `SuricataStopped` rule to
-tell you otherwise (see *Rollback*).
+that is not running. `SuricataStopped` (`prometheus/rules/ids.rules.yaml`) proves
+the process exists; only this proves it detects (see *Rollback*).
 
 It has to originate **on VLAN 20** and travel in **plaintext**. Suricata sits on
 the firewall and cannot see inside TLS, so an HTTPS request proves nothing about
@@ -502,6 +502,26 @@ the wrong one.
 
 Save. The tab row appears, as in §2.
 
+### Declare it to Prometheus
+
+`SuricataStopped` fires for every interface named in
+`homelab_suricata_expected_interface` (`prometheus/rules/ids.rules.yaml`) that
+has no running `suricata -i <interface>` process in the firewall's SNMP process
+table. A new interface is invisible to it until it is declared, and a declared
+interface with no process fires within ten minutes — so declare it *after* the
+process is running, not before. Degens is already declared; a third interface
+repeats these steps:
+
+1. Add an `or label_replace(vector(1), "interface", "<interface>", "", "")` line
+   to the recording rule.
+2. Add a fixture set for it to `prometheus/tests/ids.test.yaml`, so the join is
+   proved rather than assumed.
+3. `make validate`, deploy, and confirm `hrSWRunStatus{hrSWRunName="suricata"}`
+   in Prometheus shows a row whose `hrSWRunParameters` starts `-i <interface>`.
+
+The facility map in `syslog.alloy` and this declaration are the two copies of
+the interface list, and neither checks the other.
+
 ### Suppress list, categories, restart
 
 **Attach the existing suppress list** before enabling any category. Suppress
@@ -597,10 +617,14 @@ Alert-only, on every interface, until a fortnight of understood alerts on each.
 
 **Services → Suricata → Interfaces**, untick Enable on the interface in
 question. Alerts stop immediately for that interface and only that one; nothing
-else in the stack is affected.
+else in the stack is affected — except that `SuricataStopped` fires for it ten
+minutes later, because the interface is still declared in
+`prometheus/rules/ids.rules.yaml`. Remove its line from
+`homelab_suricata_expected_interface` (and its fixtures in
+`prometheus/tests/ids.test.yaml`) in the same change if the retirement is meant
+to last; leave it if the stop is temporary and the alert is the reminder.
 
-The `ids` rule group stays loaded and simply has nothing to match, which is
-harmless — and is exactly why there is **no `SuricataStopped` alert**. A quiet
-IDS and a dead IDS produce identical log output. Detecting the difference needs
-a process metric, not a log rule; it is tracked in
-[`roadmap.md`](../roadmap.md).
+The `ids` rule group in Loki stays loaded and simply has nothing to match, which
+is harmless. A quiet IDS and a dead IDS produce identical log output, which is
+why the stopped-process rule reads the firewall's process table over SNMP
+rather than these logs ([#90](https://github.com/Gerrrt/HomeLab/issues/90)).

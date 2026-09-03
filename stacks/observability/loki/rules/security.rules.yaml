@@ -235,30 +235,35 @@ groups:
   # ---------------------------------------------------------------------------
   # Intrusion detection. Suricata runs on morpheus in IDS mode — alert only, no
   # blocking — one process per interface, with `interface` on every alert
-  # (derived from the syslog facility in alloy/syslog.alloy; which interfaces
-  # are watched is recorded in docs/runbooks/enable-suricata.md, not here).
-  # ADR-0006 is why the sensor lives on the firewall rather than the
+  # (derived from the syslog facility in alloy/syslog.alloy). Which interfaces
+  # are watched is declared in prometheus/rules/ids.rules.yaml, which is also
+  # where SuricataStopped lives; docs/runbooks/enable-suricata.md is the
+  # procedure. ADR-0006 is why the sensor lives on the firewall rather than the
   # hypervisor.
   #
   # Both rules below aggregate BY INTERFACE. The interfaces were added one at a
   # time precisely so that noise is attributable, and an alert that summed them
   # would throw that away at the moment it matters.
   #
-  # NO "SuricataStopped" RULE, DELIBERATELY.
+  # NO LOG-BASED "SuricataStopped" RULE, DELIBERATELY.
   #
   # The firewall group above has FirewallLogsStopped because morpheus passes
   # traffic for the whole house and is never silent for thirty minutes — so
   # silence there means the pipeline broke. Suricata is the opposite: a quiet
   # IDS is the expected state on a healthy network, and absence of alerts is
-  # indistinguishable from absence of the service. Detecting that Suricata
-  # died needs a heartbeat or a process metric, not a log rule, and inventing
-  # a threshold here would produce exactly the sort of alert that cannot fire
-  # while looking like one that can. Tracked in docs/roadmap.md.
+  # indistinguishable from absence of the service. No threshold over this
+  # stream can tell them apart, and inventing one would produce exactly the
+  # sort of alert that cannot fire while looking like one that can.
   #
-  # prometheus/rules/watchdog.rules.yaml is the worked example of the heartbeat
-  # this comment is describing, built for the notification path (#67). Suricata
-  # would need the same shape: something that reports in when healthy, and an
-  # observer that acts on the silence.
+  # The SuricataStopped that exists is a process metric, not a log rule (#90):
+  # bsnmpd on morpheus serves HOST-RESOURCES-MIB hrSWRunTable, the pfsense SNMP
+  # module fetches the rows named "suricata", and ids.rules.yaml fires when a
+  # declared interface has no running process behind it. That is the shape
+  # prometheus/rules/watchdog.rules.yaml uses for the notification path (#67):
+  # something that reports in when healthy, and an observer that acts on the
+  # silence. What it cannot see is a process that is running and inspecting
+  # nothing; the plaintext test alert in the runbook is still the only proof
+  # of detection.
   # ---------------------------------------------------------------------------
   - name: ids
     interval: 1m
