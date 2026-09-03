@@ -3,10 +3,13 @@
 #
 # These rules now read real hardware. An APCRBC115 pack was fitted on 2026-08-28
 # and passed its self-test the same day: upsTestResultsSummary went 4 (aborted)
-# to 1 (donePass) at 22:45 UTC, upsBatteryVoltage left its fabricated 480 for a
-# float reading that varies, and the runtime estimate moves rather than sitting
-# on exactly 63. Every rule here is deliberately loud and routed to the `urgent`
-# receiver by category=power in alertmanager.yaml.
+# to 1 (donePass) at 22:45 UTC, and upsBatteryVoltage left its fabricated 480
+# for a float reading that moves across 540-549. Runtime is the weaker half of
+# that comparison and should not be leaned on: measured over the six days after
+# the fit it sat on exactly 63 — the fabricated value — for 744 of 764 samples,
+# leaving it only for excursions to 45, 60 and 137 under changing load. Every
+# rule here is deliberately loud and routed to the `urgent` receiver by
+# category=power in alertmanager.yaml.
 #
 # WHY THE PRE-FIT BASELINE IS STILL RECORDED HERE.
 #
@@ -27,8 +30,8 @@
 #
 # upsEstimatedChargeRemaining still reads exactly 100. On its own that is the
 # fabrication signature; here it is consistent with a pack at float voltage,
-# because voltage and runtime both moved and the self-test passed. Charge alone
-# was never the evidence.
+# because voltage moved and the self-test passed. Charge alone was never the
+# evidence, and neither, on this UPS, is runtime.
 #
 # THE ONE METRIC THAT DOES NOT LIE.
 #
@@ -46,15 +49,38 @@
 # 2026-09-20 (54f1715c-e57b-4322-8a6d-5435bc8e1bd8) was deleted on 2026-08-28,
 # so both rules are live.
 #
-# WHAT IS STILL OUTSTANDING.
+# WHAT THIS FILE STILL CANNOT SEE.
 #
-# Scheduled self-tests are not enabled on the NMC. A value of 1 is the *last*
-# result, not a fresh one: if the card stops testing the metric simply stops
-# changing, and nothing here detects that. UpsBatteryUnproven cannot — it
-# matches 6 (noTestsInitiated), and this card now reads 1. upsTestStartTime is
+# Scheduled self-tests ARE enabled on the NMC. Read off the card on 2026-09-03:
+#
+#   upsAdvTestDiagnosticSchedule   8    (biweeklySinceLastTest)
+#   upsAdvTestDiagnosticsResults   1    (ok)
+#   upsAdvTestLastDiagnosticsDate  "08/28/2026"
+#
+# All three are PowerNet (1.3.6.1.4.1.318.1.1.1.7.2.x), and the apc_ups module
+# in snmp-exporter/generator.yaml walks 1.3.6.1.2.1.33.1 — the standard UPS-MIB
+# — and nothing else. So none of it reaches Prometheus, and no rule below can
+# be written against it.
+#
+# That leaves one hole open. A value of 1 is the *last* result, not a fresh one:
+# if the card stops testing, upsTestResultsSummary simply stops changing, and
+# nothing here detects that. UpsBatteryUnproven cannot — it matches 6
+# (noTestsInitiated), and this card reads 1. upsTestStartTime is
 # sysUpTime-relative and does not survive an agent restart, so it is not a
-# usable staleness signal either. Scheduled tests on the device are the control
-# and this file cannot substitute for them; step 6 of
+# usable staleness signal either. A card that quietly reverts to never(5) — a
+# config reset, a firmware update, a restored configuration file — is
+# indistinguishable, from inside this file, from one testing every fortnight.
+#
+# The fix is to walk those three OIDs and alert on the schedule leaving the
+# recurring values and on the last-test date going stale, which needs APC's
+# PowerNet MIB added to scripts/snmp-mibs.sh and a pinning decision for it. Not
+# done here. Until it is, the check is by hand:
+#
+#   scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2
+#
+# and the thing that proves the schedule runs, rather than merely being set, is
+# upsAdvTestLastDiagnosticsDate advancing with nobody at the card — due around
+# 2026-09-11 for a biweekly schedule last tested on 2026-08-28. Step 6 of
 # docs/runbooks/fit-the-ups-battery.md.
 #
 # Do not run self-tests by hand to keep the metric warm. A test transfers the
@@ -188,6 +214,7 @@ groups:
         annotations:
           summary: "UPS {{ $labels.device }} has not completed a self-test in 7 days"
           description: >-
-            The UPS has never proven it can carry the load. Enable scheduled
-            self-tests on the management card so this becomes live evidence
-            rather than an absence of it.
+            The UPS has never proven it can carry the load. The card is set to
+            biweeklySinceLastTest, so seven days of 6 means the schedule is not
+            running whatever the setting says — check it with
+            scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2.

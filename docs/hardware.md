@@ -61,9 +61,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 - 1U rackmount tray for the ProDesk Mini[^ProDeskRackmount]
 - Sliding rails for the ProLiant[^Sliderail]
 - 1U universal rack mount for the APC[^Rail]
-- APCRBC115 replacement battery cartridge for the APC, fitted 2026-08-28.
-  Scheduled self-tests on the card are still outstanding
-  ([#93](https://github.com/Gerrrt/HomeLab/issues/93))
+- APCRBC115 replacement battery cartridge for the APC, fitted 2026-08-28,
+  proven by a passing self-test the same day and under a biweekly schedule on
+  the card ([#93](https://github.com/Gerrrt/HomeLab/issues/93)). The card's
+  `upsBasicBatteryLastReplaceDate` still reads `08/15/2026` and wants resetting
+  to the fit date — it is the only record of the pack's age
 - 1U vented rack shelf, 4-post with square-hole mounting — on hand, for U4 and
   the unmanaged switch that feeds `prometheus` and `oracle`. It is not in the
   rack table above because it is not yet in the rack

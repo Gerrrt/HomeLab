@@ -128,17 +128,6 @@ what left this one unfireable for months.
   protect. Unlike the firewall, they have now been restored — the whole stack
   was brought up on a restored set on 2026-08-29 and verified. Getting a copy
   off this host is the part that is still missing.
-- **[#93](https://github.com/Gerrrt/HomeLab/issues/93) Replace the UPS battery.**
-  An APCRBC115 went into `mjolnir` on 2026-08-28 and passed its self-test the
-  same day: `upsTestResultsSummary` `4` → `1`, `upsBatteryVoltage` off its
-  fabricated `480`, runtime no longer pinned to exactly `63`. The
-  `UpsSelfTestFailed` silence was deleted rather than left to expire in
-  September, so the rule that would report a bad pack is live again. **What is
-  left is the last step: scheduled self-tests on the card.** Until they are on,
-  `1` is a last-known result with nothing refreshing it, and `UpsBatteryUnproven`
-  cannot detect a card that has quietly stopped testing — it matches `6`
-  (noTestsInitiated), and this one reads `1`.
-  → [runbook](runbooks/fit-the-ups-battery.md)
 - **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
   A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
   `oracle` hang off. Both shelf machines are laptops, so on a mains cut they stay
@@ -200,6 +189,43 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#93](https://github.com/Gerrrt/HomeLab/issues/93) Replace the UPS
+      battery, delete the silence, put the card under scheduled test.**
+      2026-09-03. The first two steps were done on 2026-08-28: an APCRBC115 into
+      `mjolnir`, `upsTestResultsSummary` `4` (aborted) → `1` (donePass) at
+      22:45 UTC, and the `UpsSelfTestFailed` silence
+      `54f1715c-e57b-4322-8a6d-5435bc8e1bd8` deleted at 23:14 rather than left
+      to lapse on 2026-09-20 — nine minutes after the proving reading instead
+      of before it, which is the inversion the runbook exists to prevent and
+      which cost nothing only because the test passed.
+
+      The third step turned out to need checking rather than doing. The card
+      reads `upsAdvTestDiagnosticSchedule` `8` (biweeklySinceLastTest), with
+      `upsAdvTestDiagnosticsResults` `1` (ok) and
+      `upsAdvTestLastDiagnosticsDate` `08/28/2026`. Six files had been asserting
+      the opposite since the fit; they now say what the device says. Whether the
+      schedule was set at the rack or has been the default all along, the NMC
+      will not say after the fact.
+
+      **Nothing watches it.** All three are PowerNet OIDs and the `apc_ups`
+      module walks the standard UPS-MIB only, so a card that reverts to
+      `never(5)` produces no alert and no changed metric — `upsTestResultsSummary`
+      would simply hold `1` forever. Closing that means adding APC's MIB to
+      `scripts/snmp-mibs.sh`, which is a new vendor source with its own pinning
+      decision, and it is not done. Until it is, the check is
+      `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2`, and
+      what proves the schedule *runs* rather than merely being set is that date
+      advancing unattended, due around 2026-09-11.
+
+      Two smaller findings. `upsBasicBatteryLastReplaceDate` still reads
+      `08/15/2026` for a pack fitted on the 28th, so the card's battery-age
+      accounting is keyed to a date on which its own self-test was still
+      aborting over an empty bay. And runtime is a poor proof of a real pack on
+      this UPS: since the fit it has sat on exactly `63` — the fabricated
+      value — for 744 of 764 samples. Voltage moving across `540`-`549` is the
+      comparison that actually discriminates.
+      → [runbook](runbooks/fit-the-ups-battery.md)
 
 - [x] **[#90](https://github.com/Gerrrt/HomeLab/issues/90) Detect Suricata
       being dead.** 2026-09-03. The roadmap line said the SNMP module does not

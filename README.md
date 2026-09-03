@@ -256,7 +256,7 @@ input and output voltage and runtime, under the banner that stood before a
 battery pack was fitted, when every battery figure was fabricated.](docs/images/ups-power.png)
 
 That capture is from 2026-08-22, before a pack was fitted on 2026-08-28. The
-banner it shows has been rewritten twice since, and the self-test has now
+banner it shows has been rewritten three times since, and the self-test has now
 passed, so the panels read measured values rather than invented ones — re-shoot
 the set with `make screenshots`.
 
@@ -297,15 +297,14 @@ Open work is tracked in
 [`docs/roadmap.md`](docs/roadmap.md) is the narrative — what is outstanding and
 why it is in that order.
 
-The current top items: put the UPS battery under scheduled test and rack the
-shelf switch. The pack went in on 2026-08-28 and passed its self-test, so the
-rack itself is protected — but the card is not testing on a schedule, which
-leaves that pass a last-known result rather than a live one
-([#93](https://github.com/Gerrrt/HomeLab/issues/93)); the switch between the
-monitoring host and the network still has no battery at all, so both laptops
-stay running and go deaf on a mains cut
-([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and get the firewall
-backup off the machine it protects, and buy the spare that turns its restore
+The current top items: rack the shelf switch, and get the firewall backup off
+the machine it protects. The UPS is finished — a pack went into `mjolnir` on
+2026-08-28, passed its self-test, and the card is set to test itself every
+fortnight ([#93](https://github.com/Gerrrt/HomeLab/issues/93)) — but the switch
+between the monitoring host and the network still has no battery at all, so both
+laptops stay running and go deaf on a mains cut
+([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the backup still
+sits on the machine it protects, without the spare that turns its restore
 runbook from a hypothesis into something rehearsed
 ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
 
