@@ -120,14 +120,25 @@ what left this one unfireable for months.
 ## Infrastructure
 
 - **[#92](https://github.com/Gerrrt/HomeLab/issues/92) Get the firewall backup
-  off `prometheus`, and buy a spare ProDesk.** A backup on the same shelf as the
-  thing it protects is not a backup, and
-  [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) stays a
-  hypothesis until it has been restored onto a spare once. The volume sets
-  `make backup` writes have exactly the same defect: they sit on the host they
-  protect. Unlike the firewall, they have now been restored — the whole stack
-  was brought up on a restored set on 2026-08-29 and verified. Getting a copy
-  off this host is the part that is still missing.
+  off `prometheus`, and buy a spare ProDesk.** Half done. Since 2026-09-03
+  `make backup-firewall` copies every export to `oracle` — ciphertext only, the
+  key stays here — and exits non-zero if it cannot, so the nightly job's metric
+  says "stopped leaving this host" rather than "fine". Off-host, not offsite:
+  both laptops share a shelf and a roof, and nothing copies anywhere a fire
+  would not reach. The copy needs a one-time key exchange between the two
+  laptops before its first run can succeed, and fails on purpose until then.
+  What remains is the spare — the same ProDesk model, racked on the #110
+  shelf, powered off — and the rehearsal, which is what turns
+  [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) from a
+  hypothesis into a runbook; it now carries the bench procedure to follow and
+  what to record. Writing that procedure found the runbook's own decrypt
+  command had never been run: it passed `--input-type binary`, which sops
+  rejects on the first byte of a real export, so a restore following the
+  runbook would have stopped at step one. Fixed, and it is the kind of thing
+  the rehearsal exists to find. The volume sets `make backup` writes still sit
+  on the host they protect. Unlike the firewall, they have been restored — the
+  whole stack was brought up on a restored set on 2026-08-29 and verified — but
+  nothing copies them anywhere.
 - **[#93](https://github.com/Gerrrt/HomeLab/issues/93) Replace the UPS battery.**
   An APCRBC115 went into `mjolnir` on 2026-08-28 and passed its self-test the
   same day: `upsTestResultsSummary` `4` → `1`, `upsBatteryVoltage` off its
@@ -152,7 +163,10 @@ what left this one unfireable for months.
 - **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle` is
   for.** A dual-core A6-9200 with 4 GB and a 5400 rpm disk — too little for
   anything demanding, and a candidate for the jobs that need a machine that is
-  *not* the monitoring host.
+  *not* the monitoring host. It has the first of those since 2026-09-03: it
+  holds the off-host copy of the firewall export (#92), as ciphertext, with no
+  key. A directory and sshd, which is about the size of job it is good for.
+  Whether it does anything else is still open.
 - **[#95](https://github.com/Gerrrt/HomeLab/issues/95) Plan and build the NAS on
   VLAN 40.** Adds an inter-VLAN rule and changes what "terminal" means for that
   segment. ADR-0008.

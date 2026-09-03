@@ -304,9 +304,10 @@ leaves that pass a last-known result rather than a live one
 ([#93](https://github.com/Gerrrt/HomeLab/issues/93)); the switch between the
 monitoring host and the network still has no battery at all, so both laptops
 stay running and go deaf on a mains cut
-([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and get the firewall
-backup off the machine it protects, and buy the spare that turns its restore
-runbook from a hypothesis into something rehearsed
+([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and buy the spare
+ProDesk that turns the firewall's restore runbook from a hypothesis into
+something rehearsed — the config export itself now leaves the monitoring host
+nightly, so the spare is what is left
 ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
 
 ## License

@@ -182,7 +182,7 @@ hole from the monitoring VLAN into the monitored one.
 | --- | --- | --- | --- |
 | `prometheus` (10.0.99.20) | 🔴 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, blackbox-exporter, Alloy |
 | `Saruman` (10.0.30.110) | 🟢 30 | *(none yet)* | Proxmox VE 9.2.11, no guests — see [roadmap](roadmap.md); Alloy agent (native package) |
-| `oracle` (10.0.99.30) | 🔴 99 | *(none yet)* | Alloy agent (Docker, `scripts/deploy-agent.sh`); role otherwise undecided |
+| `oracle` (10.0.99.30) | 🔴 99 | *(none yet)* | Alloy agent (Docker, `scripts/deploy-agent.sh`); holds the off-host copy of the firewall export (`make backup-firewall`); otherwise undecided |
 
 One directory per stack, not one per service. A stack is the unit that gets
 deployed together; a second host means a second directory under `stacks/`, not a

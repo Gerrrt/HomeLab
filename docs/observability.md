@@ -442,7 +442,9 @@ checking, with the key that is on that machine, against the disk that is in it.
 disk or a fire. The only job that proves off-host recoverability is
 `secrets-verify-backup`, and it is precisely the one that cannot be automated —
 it needs a human to mount removable media, so `SecretsKeyBackupUnproven` nags at
-ninety days instead. Getting the sets off this machine is
+ninety days instead. One output does leave: `backup-firewall` copies each export
+to `oracle` and fails if it cannot, so its failure alert doubles as "the config
+has stopped leaving this host". The volume sets do not leave; that is
 [#92](https://github.com/Gerrrt/HomeLab/issues/92).
 
 Installing, tuning and troubleshooting all of it:
