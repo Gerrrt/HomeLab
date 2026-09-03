@@ -130,15 +130,18 @@ groups:
       # vs condition code), and an alert whose value means two things is less
       # legible than one that occasionally goes missing.
       #
-      # THE SILENCE. IloBatteryCondition and IloWriteCacheDisabled are silenced
-      # for device=shiva until 2026-10-01
-      # (bfdfff66-d9c3-4df4-9495-f1f38ebf93c1), because the pack is on order
-      # and a known condition should not notify every 12 hours until it
-      # arrives. The matcher is deliberately narrow — alertname and device — so
-      # a genuinely new fault on this box is not suppressed with it. Delete the
-      # silence the moment the pack is fitted rather than letting it expire: a
-      # silence standing over a freshly fitted part suppresses exactly the thing
-      # you most want to hear about. Procedure is step 4 of
+      # THE SILENCE, NOW LIFTED. IloBatteryCondition and IloWriteCacheDisabled
+      # were silenced for device=shiva from 2026-08-31
+      # (bfdfff66-d9c3-4df4-9495-f1f38ebf93c1) while the pack was on order, so
+      # a known condition did not notify every 12 hours. The matcher was
+      # deliberately narrow — alertname and device — so a genuinely new fault
+      # on the box was not suppressed with it. The pack was fitted 2026-09-02
+      # and the silence deleted the same evening rather than left to run to
+      # its 2026-10-01 expiry: a silence standing over a freshly fitted part
+      # suppresses exactly the thing you most want to hear about. Both rules
+      # are live again over the new part, and no rule expression changed for
+      # that — they were written to become correct when the hardware did.
+      # History and the two readings that did not move are in
       # docs/runbooks/replace-the-smart-storage-battery.md.
       - alert: IloHardwareDegraded
         # Temperature, supplies and drives are read at > 2 because degraded

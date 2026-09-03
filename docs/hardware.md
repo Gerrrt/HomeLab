@@ -73,10 +73,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
   something you will need, so a restore attempted before it lands is a restore
   that stops to go looking for one
-- HP Smart Storage Battery 96W (`727258-B21`) in the ProLiant — **failed**,
-  spare part `815983-001`, **replacement in transit**. The Smart Array has
-  disabled its write cache in response and runs write-through until it is
-  replaced ([#76](https://github.com/Gerrrt/HomeLab/issues/76))
+- HP Smart Storage Battery 96W (`727258-B21`, spare part `815983-001`) in the
+  ProLiant, fitted 2026-09-02 to replace the pack that had failed. The Smart
+  Array re-enabled its write cache on the first scrape after the fit; the
+  cache ratio it reports is still open
+  ([#76](https://github.com/Gerrrt/HomeLab/issues/76))
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]

@@ -142,30 +142,6 @@ what left this one unfireable for months.
   cannot detect a card that has quietly stopped testing — it matches `6`
   (noTestsInitiated), and this one reads `1`.
   → [runbook](runbooks/fit-the-ups-battery.md)
-- **[#76](https://github.com/Gerrrt/HomeLab/issues/76) Replace `shiva`'s Smart
-  Storage Battery.** Chassis 0 battery 1 reads `cpqHeSysBatteryStatus` `13`
-  (shutdownPermanentFailure) and `cpqHeSysBatteryCondition` `4` (failed), and has
-  since at least 2026-08-18 — the whole of the retained window, unbroken. **HPE
-  spare `815983-001`** (option 727258-B21, "HP Smart Storage Batt 96"). `13` is
-  terminal: a reseat does not clear it, so there was nothing to try before
-  ordering, and the spare is now in transit. The cost is already being paid —
-  the Smart Array has permanently disabled its flash-backed write cache
-  (`cpqDaAccelStatus` `5`, read and write
-  cache percent both `0`) and the array runs write-through: slower, and *not*
-  less durable. `cpqDaAccelBadData` reads `2` (none), so nothing dirty was lost
-  when it dropped. **Accepted with an expiry, not a fix in progress:**
-  `IloBatteryCondition` and `IloWriteCacheDisabled` are silenced for `shiva`
-  until 2026-10-01 (`bfdfff66-d9c3-4df4-9495-f1f38ebf93c1`) so a known
-  condition does not notify every 12 hours, and the silence is to be deleted
-  when the pack goes in rather than left to run out. Both alerts were watched
-  through pending into firing on 2026-08-31 and reached the `default` receiver
-  with zero webhook failures before the silence was placed, so what is
-  suppressed is known-working rather than assumed-working. The alert was wrong
-  independently of the hardware: it read only the scalar
-  `cpqHeSysBackupBatteryCondition` while claiming to cover the RAID cache, so it
-  could not name the pack, the reason, or the consequence. That is fixed; the
-  pack is not.
-  → [runbook](runbooks/replace-the-smart-storage-battery.md)
 - **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
   A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
   `oracle` hang off. Both shelf machines are laptops, so on a mains cut they stay
@@ -246,6 +222,39 @@ months.
       what separates "never fired" from "fired and lost". Both are in the
       runbook now. The fortnight comparison of that shared signature is dated
       2026-09-16 there. → [runbook](runbooks/enable-suricata.md)
+
+- [x] **[#76](https://github.com/Gerrrt/HomeLab/issues/76) Replace `shiva`'s
+      Smart Storage Battery.** 2026-09-02. Spare `815983-001` fitted;
+      `Saruman` was off 22:30–22:58 UTC. The first scrape after it came back
+      read chassis 0 battery 1 at `cpqHeSysBatteryCondition` `2` (ok) and
+      `cpqHeSysBatteryStatus` `1` (noError), down from `4` and `13`, with serial
+      `6EZBN0FB2431YM` where the failed pack was `6EZBN0CB29N3YZ` — a different
+      part being read, not the old one reading differently. The Smart Array
+      re-enabled its cache on the same scrape: `cpqDaAccelStatus` `5` → `3`
+      (enabled), `cpqDaAccelBackupPowerSource` `1` → `4` (smartbattery),
+      `cpqDaAccelBattery` `6` → `2`, and the three controller rollups that had
+      read `3` (degraded) since 2026-08-18 back to `2`. `cpqDaAccelBadData`
+      stayed `2`: nothing dirty was lost at either end.
+
+      The silence `bfdfff66-d9c3-4df4-9495-f1f38ebf93c1` was deleted at 23:11
+      UTC rather than left to expire on 2026-10-01, so `IloBatteryCondition`
+      and `IloWriteCacheDisabled` are live again over the new part. Deleted
+      nine minutes *after* the proving reading, not before — the UPS
+      inversion again. It cost nothing because both rules carry a `for:`
+      longer than nine minutes, which is the rule shape being kind, not the
+      procedure working.
+
+      **Two readings did not move, and neither is alerted on.**
+      `cpqDaAccelWriteCachePercent` / `ReadCachePercent` still read `0` / `0`
+      ten minutes in, where a P440ar normally reports a ratio; the controller
+      says the cache is enabled and reports no split. And
+      `cpqDaAccelFailedBatteries` still reads `1`, unchanged from the failed
+      pack. Both are named in the runbook with the `ssacli` check on `Saruman`
+      that resolves the first; the metrics before 2026-09-02 show the failed
+      pack and a write-through array, which any range crossing that date will
+      include.
+      → [runbook](runbooks/replace-the-smart-storage-battery.md)
+
 - [x] **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to
       `Saruman` and `oracle`.** 2026-09-02. One script,
       `scripts/deploy-agent.sh`, for both: the compose service written out as
