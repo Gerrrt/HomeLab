@@ -202,13 +202,16 @@ counting CSV fields, because pfSense's IPv6 filterlog layout puts `src` at a
 different index — v6 lines therefore do not appear in that table, which is a
 stated limit rather than an oversight.
 
-**It cannot tell you the IDS is alive.** Suricata watches Skids (VLAN 20) and
-Degens (VLAN 10), one process each, and a quiet IDS and a stopped one produce
-identical output — so
-empty Suricata panels are not evidence of anything. That is the same gap
-`security.rules.yaml` declines to paper over with a log-based rule, and it needs
-a process metric. The dashboard says so in a text panel at the top rather than
-letting a flat line be read as calm.
+**Its panels cannot tell you the IDS is alive.** Suricata watches Skids (VLAN
+20) and Degens (VLAN 10), one process each, and a quiet IDS and a stopped one
+produce identical log output, so empty Suricata panels are not evidence of
+anything, and `security.rules.yaml` still declines to paper over that with a
+log-based rule. What can is `SuricataStopped` in
+`prometheus/rules/ids.rules.yaml`, which reads the firewall's process table over
+SNMP and fires per declared interface
+([#90](https://github.com/Gerrrt/HomeLab/issues/90)); the dashboard's alert
+table lists it alongside the five Loki rules. The text panel at the top still
+says so, rather than letting a flat line be read as calm.
 
 **And it found that the firewall logged blocks only.** Building the panels
 turned up something the alerts had not: across the full 30-day retention the
@@ -253,7 +256,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-58 rules in total: 45 metric-based in `prometheus/rules/`, and 13 log-based in
+59 rules in total: 46 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -282,7 +285,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-45 rules across eight files in `prometheus/rules/`:
+46 rules across nine files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -294,6 +297,7 @@ boot check.
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, and never-ran |
+| `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the process metric `security.rules.yaml` says a log rule cannot be ([#90](https://github.com/Gerrrt/HomeLab/issues/90)) |
 
 `promtool check rules` validates that these parse. It does not — and cannot —
 tell you whether a rule can ever be true: `ContainerHighMemory` passed it for
@@ -302,11 +306,11 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is fifteen rules of 45 so far — the three
+against the broken rule too. Coverage is sixteen rules of 46 so far — the three
 in `blackbox.rules.yaml`, `ContainerHighMemory` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
-`backup.test.yaml`, and `RemoteWriteJobStale`.
+`backup.test.yaml`, `RemoteWriteJobStale`, and `SuricataStopped`.
 The other 30 are still validated for syntax only, which is exactly the
 standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
 sentence they replaced claimed six and named two, and had been wrong for
@@ -337,9 +341,9 @@ per-topic sound and do-not-disturb settings live on the receiving end.
 | `warning` (anything else) | `default` | 30s | 12h |
 | `info` | `null` | never | — |
 
-Security has its own destination at both severities because ten rules carry
+Security has its own destination at both severities because eleven rules carry
 `category: security` — SSH brute force, a terminal segment reaching the internal
-network, IoT lateral movement, priority-1 Suricata — and routed on `severity`
+network, IoT lateral movement, priority-1 Suricata, Suricata not running — and routed on `severity`
 alone, the warning-severity half of that list arrived in the default channel on
 a 12-hour repeat, indistinguishable from a disk filling up. `category=power`
 was the precedent.
@@ -387,10 +391,11 @@ which half went quiet are in
 
 This is the same reasoning `loki/rules/security.rules.yaml` already applies to
 the firewall with `FirewallLogsStopped`, and the reason it gives for deliberately
-*not* writing a `SuricataStopped` rule: absence of alerts is indistinguishable
-from absence of the service, and detecting that needs a heartbeat rather than a
-threshold. The notification path was the one place that argument had not been
-turned on itself.
+*not* writing a log-based `SuricataStopped` rule: absence of alerts is
+indistinguishable from absence of the service, and detecting that needs a
+heartbeat rather than a threshold — which `prometheus/rules/ids.rules.yaml` now
+reads from the firewall's process table. The notification path was the one
+place that argument had not been turned on itself.
 
 ### Scheduled jobs
 

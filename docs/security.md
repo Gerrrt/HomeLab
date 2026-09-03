@@ -15,7 +15,7 @@ What this network is actually built to survive:
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on a subnet the firewall does not route ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)) |
-| Losing visibility of a failure | 45 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 46 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 
@@ -52,10 +52,14 @@ Three limits, stated rather than implied:
   signal is DNS, SNI, JA3 and the diminishing share of traffic still in the
   clear.
 
-There is still **no way to detect Suricata itself dying** — a quiet IDS and a
-stopped one produce identical log output, so no log rule can separate them. That
-needs a process metric and is tracked in [`roadmap.md`](roadmap.md). Until it
-exists, a silent `ids` alert group is not evidence that anything is watching.
+**Suricata dying is detected as of 2026-09-03.** A quiet IDS and a stopped
+one produce identical log output, so no log rule can separate them;
+`SuricataStopped` in `prometheus/rules/ids.rules.yaml` reads the firewall's
+process table over SNMP instead, and fires per declared interface
+([#90](https://github.com/Gerrrt/HomeLab/issues/90)). It proves the process is
+alive, not that it is inspecting anything: a silent `ids` alert group is now
+evidence that the sensor is running, and the runbook's test alert is still the
+only proof that it detects.
 
 ## Segmentation
 

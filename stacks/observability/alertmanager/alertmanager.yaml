@@ -78,10 +78,11 @@ route:
       group_wait: 0s
       repeat_interval: 30m
 
-    # Security gets its own destination at both severities. There are ten rules
-    # labelled category=security across security.rules.yaml and
-    # network.rules.yaml — SSH brute force, a terminal segment reaching the
-    # internal network, IoT lateral movement, priority-1 Suricata. Routed on
+    # Security gets its own destination at both severities. There are eleven
+    # rules labelled category=security across security.rules.yaml,
+    # network.rules.yaml and ids.rules.yaml — SSH brute force, a terminal
+    # segment reaching the internal network, IoT lateral movement, priority-1
+    # Suricata, Suricata not running. Routed on
     # severity alone, the warning-severity half of that list arrived in the
     # default channel on a 12-hour repeat, indistinguishable from a disk
     # filling up. `category = "power"` above is the precedent.

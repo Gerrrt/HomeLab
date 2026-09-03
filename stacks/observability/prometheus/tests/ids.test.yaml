@@ -1,0 +1,328 @@
+---
+# Unit tests for ids.rules.yaml.
+#
+# SuricataStopped is a join in three parts — a declaration, an `unless` against
+# rows whose interface is parsed out of a label by regex, and a `* on (device)`
+# gate on the scrape — and every one of them can stop matching without
+# `promtool check rules` noticing, which is #63 three times over. The cases
+# below assert each part separately: the declaration exists, the rule fires
+# for the missing interface and only that one, the gate keeps it quiet when
+# the whole scrape is down, a restart's gap is shorter than `for`, and the
+# regex failing is loud rather than silent.
+#
+# Fixtures are morpheus as it read on 2026-09-03: two rows, indexes 58291 and
+# 59082 (pid+1), the parameter strings exactly as bsnmpd truncates them. A
+# green run therefore means the rule fires against production data rather than
+# against a fixture shaped to suit it.
+#
+# What these do NOT prove: nothing here notices if bsnmpd stops serving the
+# table or if the generator's DisplayString override stops reaching the label.
+# The last case is what that failure would look like, and it asserts the
+# failure is visible — which is the most a test of the rule can do about the
+# data feeding it.
+rule_files:
+  - ../rules/ids.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- The declaration -------------------------------------------------------
+  # Two series, value 1, one per interface, before anything else is proved.
+  # If the recording rule ever evaluates to nothing, every case below goes
+  # quiet — including the ones that expect silence.
+  - interval: 1m
+    promql_expr_test:
+      - expr: homelab_suricata_expected_interface
+        eval_time: 1m
+        exp_samples:
+          - labels: '{__name__="homelab_suricata_expected_interface", device="morpheus", interface="igc0.10"}'
+            value: 1
+          - labels: '{__name__="homelab_suricata_expected_interface", device="morpheus", interface="igc0.20"}'
+            value: 1
+
+  # --- Both running: quiet ---------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="58291", hrSWRunName="suricata",
+                 hrSWRunParameters="-i igc0.20 -D -c
+                 /usr/local/etc/suricata/suricata_1823_igc0.20/suricata.yaml --pidfile /var/run/suricat",
+                 instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "2x30"
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="59082", hrSWRunName="suricata",
+                 hrSWRunParameters="-i igc0.10 -D -c
+                 /usr/local/etc/suricata/suricata_20434_igc0.10/suricata.yaml --pidfile /var/run/surica",
+                 instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "2x30"
+      - series: 'up{device="morpheus", instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SuricataStopped
+        exp_alerts: []
+
+  # --- One interface dead: fires for that one, names it, and only after `for` --
+  # Degens (igc0.10) has no row at all. Skids keeps its row, so the `unless`
+  # has to cancel one declared interface and leave the other — which is the
+  # join under test. The 8m evaluation is inside `for: 10m`, and must be quiet.
+  - interval: 1m
+    input_series:
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="58291", hrSWRunName="suricata",
+                 hrSWRunParameters="-i igc0.20 -D -c
+                 /usr/local/etc/suricata/suricata_1823_igc0.20/suricata.yaml --pidfile /var/run/suricat",
+                 instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "2x30"
+      - series: 'up{device="morpheus", instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: SuricataStopped
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: SuricataStopped
+        exp_alerts:
+          - exp_labels:
+              alertname: SuricataStopped
+              device: morpheus
+              interface: igc0.10
+              instance: 10.0.99.1
+              role: firewall
+              vlan: "99"
+              component: ids
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Suricata is not running on igc0.10 (morpheus)"
+              description: >-
+                No suricata process with "-i igc0.10" in
+                hrSWRunTable for ten minutes, while SNMP on 10.0.99.1
+                answers. Services → Suricata → Interfaces on pfSense: start it, or
+                remove the interface from homelab_suricata_expected_interface in
+                ids.rules.yaml if it was retired. Every interface at once, with
+                Suricata visibly running, means bsnmpd stopped serving the table or
+                the arguments label came back as hex — look at
+                hrSWRunStatus{hrSWRunName="suricata"} before touching the firewall.
+                docs/runbooks/enable-suricata.md.
+
+  # --- Row present but dead: hrSWRunStatus 4 (invalid) ------------------------
+  # Guards the `< 3`. Without this case the comparison could be deleted and
+  # every other case would still pass.
+  - interval: 1m
+    input_series:
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="58291", hrSWRunName="suricata",
+                 hrSWRunParameters="-i igc0.20 -D -c
+                 /usr/local/etc/suricata/suricata_1823_igc0.20/suricata.yaml --pidfile /var/run/suricat",
+                 instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "2x30"
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="59082", hrSWRunName="suricata",
+                 hrSWRunParameters="-i igc0.10 -D -c
+                 /usr/local/etc/suricata/suricata_20434_igc0.10/suricata.yaml --pidfile /var/run/surica",
+                 instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "4x30"
+      - series: 'up{device="morpheus", instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SuricataStopped
+        exp_alerts:
+          - exp_labels:
+              alertname: SuricataStopped
+              device: morpheus
+              interface: igc0.10
+              instance: 10.0.99.1
+              role: firewall
+              vlan: "99"
+              component: ids
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Suricata is not running on igc0.10 (morpheus)"
+              description: >-
+                No suricata process with "-i igc0.10" in
+                hrSWRunTable for ten minutes, while SNMP on 10.0.99.1
+                answers. Services → Suricata → Interfaces on pfSense: start it, or
+                remove the interface from homelab_suricata_expected_interface in
+                ids.rules.yaml if it was retired. Every interface at once, with
+                Suricata visibly running, means bsnmpd stopped serving the table or
+                the arguments label came back as hex — look at
+                hrSWRunStatus{hrSWRunName="suricata"} before touching the firewall.
+                docs/runbooks/enable-suricata.md.
+
+  # --- Both dead, scrape healthy: two alerts ---------------------------------
+  # The whole package stopped, or bsnmpd dropped the table. Either way both
+  # declared interfaces fire, each carrying its own name.
+  - interval: 1m
+    input_series:
+      - series: 'up{device="morpheus", instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SuricataStopped
+        exp_alerts:
+          - exp_labels:
+              alertname: SuricataStopped
+              device: morpheus
+              interface: igc0.10
+              instance: 10.0.99.1
+              role: firewall
+              vlan: "99"
+              component: ids
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Suricata is not running on igc0.10 (morpheus)"
+              description: >-
+                No suricata process with "-i igc0.10" in
+                hrSWRunTable for ten minutes, while SNMP on 10.0.99.1
+                answers. Services → Suricata → Interfaces on pfSense: start it, or
+                remove the interface from homelab_suricata_expected_interface in
+                ids.rules.yaml if it was retired. Every interface at once, with
+                Suricata visibly running, means bsnmpd stopped serving the table or
+                the arguments label came back as hex — look at
+                hrSWRunStatus{hrSWRunName="suricata"} before touching the firewall.
+                docs/runbooks/enable-suricata.md.
+          - exp_labels:
+              alertname: SuricataStopped
+              device: morpheus
+              interface: igc0.20
+              instance: 10.0.99.1
+              role: firewall
+              vlan: "99"
+              component: ids
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Suricata is not running on igc0.20 (morpheus)"
+              description: >-
+                No suricata process with "-i igc0.20" in
+                hrSWRunTable for ten minutes, while SNMP on 10.0.99.1
+                answers. Services → Suricata → Interfaces on pfSense: start it, or
+                remove the interface from homelab_suricata_expected_interface in
+                ids.rules.yaml if it was retired. Every interface at once, with
+                Suricata visibly running, means bsnmpd stopped serving the table or
+                the arguments label came back as hex — look at
+                hrSWRunStatus{hrSWRunName="suricata"} before touching the firewall.
+                docs/runbooks/enable-suricata.md.
+
+  # --- The whole SNMP scrape is down: quiet ----------------------------------
+  # No rows because nothing was scraped, not because Suricata died.
+  # SnmpTargetUnreachable owns this; two repairs in front of one person is the
+  # thing blackbox.test.yaml exists to prevent. This is the case that makes
+  # the `* on (device)` gate real — delete the gate and this fires twice.
+  - interval: 1m
+    input_series:
+      - series: 'up{device="morpheus", instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SuricataStopped
+        exp_alerts: []
+
+  # And with no `up` series for the device at all — the target removed from
+  # snmp.yaml, or Prometheus freshly started. Still quiet: nothing to join.
+  - interval: 1m
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SuricataStopped
+        exp_alerts: []
+
+  # --- A rule-update restart: quiet ------------------------------------------
+  # pfSense stops and restarts each process on every rule update, so the old
+  # row goes stale and a new one appears under a new index a few scrapes
+  # later. `stale` is the marker Prometheus writes when a series vanishes from
+  # a scrape; a bare `_` would be hidden by the five-minute lookback and prove
+  # nothing. The gap here is four minutes, well inside `for: 10m`, and the
+  # 30m evaluation proves the new index was accepted as the same interface.
+  - interval: 1m
+    input_series:
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="58291", hrSWRunName="suricata",
+                 hrSWRunParameters="-i igc0.20 -D -c
+                 /usr/local/etc/suricata/suricata_1823_igc0.20/suricata.yaml --pidfile /var/run/suricat",
+                 instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "2x4 stale"
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="60001", hrSWRunName="suricata",
+                 hrSWRunParameters="-i igc0.20 -D -c
+                 /usr/local/etc/suricata/suricata_1823_igc0.20/suricata.yaml --pidfile /var/run/suricat",
+                 instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "_x9 2x20"
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="59082", hrSWRunName="suricata",
+                 hrSWRunParameters="-i igc0.10 -D -c
+                 /usr/local/etc/suricata/suricata_20434_igc0.10/suricata.yaml --pidfile /var/run/surica",
+                 instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "2x30"
+      - series: 'up{device="morpheus", instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: SuricataStopped
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: SuricataStopped
+        exp_alerts: []
+
+  # --- The label came back as hex: loud --------------------------------------
+  # What a lost DisplayString override looks like: both rows present and
+  # running, but hrSWRunParameters is the OctetString rendering and the regex
+  # matches nothing. Both interfaces fire, which is the intended failure mode —
+  # the description tells the reader to look at the series before the firewall.
+  # A version of this rule that went quiet here would be the fabrication
+  # failure network.rules.yaml names.
+  - interval: 1m
+    input_series:
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="58291", hrSWRunName="suricata",
+                 hrSWRunParameters="0x2D69206967633020", instance="10.0.99.1", job="snmp",
+                 role="firewall", vlan="99"}'
+        values: "2x30"
+      - series: 'hrSWRunStatus{device="morpheus", hrSWRunIndex="59082", hrSWRunName="suricata",
+                 hrSWRunParameters="0x2D69206967633120", instance="10.0.99.1", job="snmp",
+                 role="firewall", vlan="99"}'
+        values: "2x30"
+      - series: 'up{device="morpheus", instance="10.0.99.1", job="snmp", role="firewall", vlan="99"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SuricataStopped
+        exp_alerts:
+          - exp_labels:
+              alertname: SuricataStopped
+              device: morpheus
+              interface: igc0.10
+              instance: 10.0.99.1
+              role: firewall
+              vlan: "99"
+              component: ids
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Suricata is not running on igc0.10 (morpheus)"
+              description: >-
+                No suricata process with "-i igc0.10" in
+                hrSWRunTable for ten minutes, while SNMP on 10.0.99.1
+                answers. Services → Suricata → Interfaces on pfSense: start it, or
+                remove the interface from homelab_suricata_expected_interface in
+                ids.rules.yaml if it was retired. Every interface at once, with
+                Suricata visibly running, means bsnmpd stopped serving the table or
+                the arguments label came back as hex — look at
+                hrSWRunStatus{hrSWRunName="suricata"} before touching the firewall.
+                docs/runbooks/enable-suricata.md.
+          - exp_labels:
+              alertname: SuricataStopped
+              device: morpheus
+              interface: igc0.20
+              instance: 10.0.99.1
+              role: firewall
+              vlan: "99"
+              component: ids
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Suricata is not running on igc0.20 (morpheus)"
+              description: >-
+                No suricata process with "-i igc0.20" in
+                hrSWRunTable for ten minutes, while SNMP on 10.0.99.1
+                answers. Services → Suricata → Interfaces on pfSense: start it, or
+                remove the interface from homelab_suricata_expected_interface in
+                ids.rules.yaml if it was retired. Every interface at once, with
+                Suricata visibly running, means bsnmpd stopped serving the table or
+                the arguments label came back as hex — look at
+                hrSWRunStatus{hrSWRunName="suricata"} before touching the firewall.
+                docs/runbooks/enable-suricata.md.

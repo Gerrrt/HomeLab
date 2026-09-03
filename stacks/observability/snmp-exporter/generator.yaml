@@ -49,8 +49,9 @@ modules:
     walk:
       - 1.3.6.1.2.1.33.1  # UPS-MIB::upsObjects
 
-  # pfSense (morpheus, 10.0.99.1) — BEGEMOT-PF-MIB.
-  # Packet filter counters, state table usage, per-interface pf statistics.
+  # pfSense (morpheus, 10.0.99.1) — BEGEMOT-PF-MIB, plus one HOST-RESOURCES
+  # table. Packet filter counters, state table usage, per-interface pf
+  # statistics, and the rows of the process table that belong to Suricata.
   pfsense:
     walk:
       # begemotPf is 12325.1.200, not 12325.1 — the old value swept in all of
@@ -78,6 +79,58 @@ modules:
       # blocklist added, and nothing queries the pfTablesAddr* metrics.
       - 1.3.6.1.4.1.12325.1.200.1.10  # pfLabels
       - 1.3.6.1.4.1.12325.1.200.1.11  # pfLabels (detail)
+      # HOST-RESOURCES-MIB hrSWRunTable, three columns, for SuricataStopped
+      # (#90). bsnmpd on morpheus loads snmp_hostres.so, so the table is served:
+      # 94 rows, 0.04s for a full walk of every column, measured 2026-09-03 from
+      # the firewall itself. Suricata is one process per watched interface and
+      # the process name cannot tell them apart; hrSWRunParameters can, because
+      # pfSense starts each one as `-i <interface> ...`.
+      #
+      # bsnmpd indexes this table by pid+1, and pfSense restarts every Suricata
+      # process on each rule update — roughly daily — so the index is new every
+      # day. The dynamic filter below turns these three walks into GETs for the
+      # rows whose hrSWRunName is "suricata", so the pid-keyed table does not
+      # become 94 churning series for the sake of two.
+      #
+      # hrSWRunName and hrSWRunParameters are InternationalDisplayString: OCTET
+      # STRING with no DISPLAY-HINT, which the generator types as OctetString and
+      # the exporter would render as hex. The type override below makes them
+      # text, and it reaches the lookup labels because the generator retypes the
+      # MIB node before it resolves lookups. Neither is emitted as a metric of
+      # its own — `ignore` drops the metric and leaves the lookup working — so
+      # what comes out is one hrSWRunStatus series per Suricata process, labelled
+      # with its name, its arguments and its index.
+      - 1.3.6.1.2.1.25.4.2.1.2   # hrSWRunName        filter + lookup label; not a metric
+      - 1.3.6.1.2.1.25.4.2.1.5   # hrSWRunParameters  lookup label ("-i igc0.20 ..."); not a metric
+      - 1.3.6.1.2.1.25.4.2.1.7   # hrSWRunStatus      1 running 2 runnable 3 notRunnable 4 invalid
+    lookups:
+      - source_indexes: [hrSWRunIndex]
+        lookup: hrSWRunName
+      - source_indexes: [hrSWRunIndex]
+        lookup: hrSWRunParameters
+    # No drop_source_indexes: during a restart the old and the new pid can both
+    # be in the table for one scrape, and hrSWRunIndex is what keeps them
+    # distinct series rather than one series with two values.
+    overrides:
+      hrSWRunName:
+        ignore: true
+        type: DisplayString
+      hrSWRunParameters:
+        ignore: true
+        type: DisplayString
+    filters:
+      dynamic:
+        # Numeric OIDs, not names: the generator copies this block into
+        # snmp.yaml verbatim, and the exporter matches `targets` against the
+        # walk list by string equality. A name here would never match, and the
+        # whole table would be walked and emitted with no error to say so.
+        # `values` are unanchored regexes, hence the anchors.
+        - oid: 1.3.6.1.2.1.25.4.2.1.2
+          targets:
+            - 1.3.6.1.2.1.25.4.2.1.2
+            - 1.3.6.1.2.1.25.4.2.1.5
+            - 1.3.6.1.2.1.25.4.2.1.7
+          values: ["^suricata$"]
 
   # MokerLink 26-port managed switch (neo, 10.7.7.2) — IF-MIB, five columns.
   #
