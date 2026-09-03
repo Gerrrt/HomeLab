@@ -125,8 +125,9 @@ what left this one unfireable for months.
   key stays here — and exits non-zero if it cannot, so the nightly job's metric
   says "stopped leaving this host" rather than "fine". Off-host, not offsite:
   both laptops share a shelf and a roof, and nothing copies anywhere a fire
-  would not reach. The copy needs a one-time key exchange between the two
-  laptops before its first run can succeed, and fails on purpose until then.
+  would not reach. The first real copy landed the same day, after the one-time
+  key exchange between the two laptops: version 24.6, 88 rules, byte-identical
+  on `oracle`, which has neither sops nor age installed and cannot read it.
   What remains is the spare — the same ProDesk model, racked on the #110
   shelf, powered off — and the rehearsal, which is what turns
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) from a

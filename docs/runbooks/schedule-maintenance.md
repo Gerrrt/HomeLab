@@ -30,8 +30,8 @@ One job's output leaves this host: `backup-firewall` copies every export to
 `oracle` and **fails if it cannot**, so its `ScheduledJobFailed` also means "the
 config has stopped leaving `prometheus`" — a file that never left is a failed
 run, not a partial success. The copy needs a one-time key exchange between the
-two laptops, in [`restore-the-firewall.md`](restore-the-firewall.md) §0, and
-fails on purpose until that is done. The volume sets still do not leave
+two laptops, in [`restore-the-firewall.md`](restore-the-firewall.md) §0 — done
+on 2026-09-03 — and fails on purpose if that is ever undone. The volume sets still do not leave
 ([#92](https://github.com/Gerrrt/HomeLab/issues/92)), and moving deployment to
 something pull-based is [#99](https://github.com/Gerrrt/HomeLab/issues/99).
 Until then the honest summary is that this host watches its own chores, and the

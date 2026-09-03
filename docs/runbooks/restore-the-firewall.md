@@ -78,9 +78,10 @@ ssh-copy-id atropos@10.0.99.30
 
 The next `make backup-firewall` seeds `oracle` with every export already on
 disk, not just the new one, and every later run copies whatever `oracle` is
-missing — a night it was switched off is caught up the night after. Until both
-steps are done every nightly run fails on its copy step, which is the correct
-reading of the situation. If the user or path on `oracle` differ, set
+missing — a night it was switched off is caught up the night after. Both steps
+were done on 2026-09-03 and the first copy verified; if either is ever undone,
+every nightly run fails on its copy step, which is the correct reading of the
+situation. If the user or path on `oracle` differ, set
 `FW_OFFHOST=user@host:dir` in `/etc/default/homelab-timers`, which the unit
 reads.
 
