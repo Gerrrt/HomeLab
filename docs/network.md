@@ -90,8 +90,8 @@ only one Hicks is permitted to reach for management.
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.99.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 15.0 | Rack U5 | Firewall |
 | mjolnir | `10.0.99.10` | `28:29:86:xx:xx:xx` | APC Smart-UPS[^UPS] | — | Rack U1–U2 | UPS |
-| prometheus | `10.0.99.20` | `00:05:1b:xx:xx:xx` | Apple MacBook Pro (2012)[^MacBookPro] | Ubuntu 24.04.3 | Shelf | **Observability stack** |
-| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 24.04.3 | Shelf | Off-host copy of the firewall export; otherwise undecided |
+| prometheus | `10.0.99.20` | `00:05:1b:xx:xx:xx` | Apple MacBook Pro (2012)[^MacBookPro] | Ubuntu 24.04 LTS | Shelf | **Observability stack** |
+| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 24.04 LTS | Shelf | Off-host copy of the firewall export; otherwise undecided |
 
 ### Notes
 
@@ -195,7 +195,7 @@ Where things get broken on purpose.
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 15.0 | Rack U5 | Firewall |
 | shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
-| Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9.2.11 | Rack U3 | Hypervisor |
+| Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
 
 ### Notes
 

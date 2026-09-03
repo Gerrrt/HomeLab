@@ -24,7 +24,8 @@ Six assertions, each comparing prose against something machine-readable:
   2. SNMP targets          snmp.yaml <-> docs/network.md
   3. Host and stack table  docs/architecture.md <-> docs/network.md, stacks/
   4. Ports table           docs/architecture.md <-> compose.yaml
-  5. Compute table         docs/hardware.md <-> docs/network.md
+  5. Compute table         docs/hardware.md <-> docs/network.md, and
+                           neither pinning a point release
   6. Image versions        no version pins in prose; compose.yaml owns them
 
 Only present-tense documents are checked. `docs/roadmap.md` and `docs/adr/`
@@ -535,12 +536,12 @@ def check_ports() -> list[str]:
 # 5. Compute table
 # ---------------------------------------------------------------------------
 def os_key(text: str) -> tuple[str, str]:
-    """('ubuntu', '24.04.3') from 'Ubuntu Server 24.04.3'.
+    """('ubuntu', '24.04') from 'Ubuntu Server 24.04 LTS'.
 
     The two documents word the same OS differently on purpose — network.md
-    says 'Ubuntu 24.04.3' where hardware.md says 'Ubuntu Server 24.04.3', and
-    'FreeBSD 15.0' where the other says 'FreeBSD 15.0 (pfSense)'. Comparing the
-    family and the version rather than the string is what keeps this an
+    says 'Ubuntu 24.04 LTS' where hardware.md says 'Ubuntu Server 24.04 LTS',
+    and 'FreeBSD 15.0' where the other says 'FreeBSD 15.0 (pfSense)'. Comparing
+    the family and the version rather than the string is what keeps this an
     agreement check instead of a house-style check.
     """
     plain = strip_md(text)
@@ -549,6 +550,33 @@ def os_key(text: str) -> tuple[str, str]:
     return (
         family.group(1).lower() if family else "",
         version.group(1) if version else "",
+    )
+
+
+# A third component is a point release — 24.04.3, 9.2.11 — and a point release
+# changes when the host takes an update, which is not an edit to this
+# repository. Both laptops were recorded as 24.04.3 while running 24.04.4, and
+# the two documents agreed with each other throughout, so the assertion below
+# could not see it: it compares the copies, and both copies were stale.
+#
+# So the tables record the release line, which changes only on a decision to
+# rebuild, and the running version stays where it is already collected —
+# `node_os_info{pretty_name="Ubuntu 24.04.4 LTS"}` on every Linux host, from
+# the same Alloy agents that produce everything else here.
+#
+# An assertion rather than a house rule in prose, because the rule is invisible
+# to whoever adds the next host, and reading it off the existing rows is
+# exactly what nobody does.
+POINT_RELEASE = re.compile(r"\d+(?:\.\d+){2,}")
+
+
+def point_release_problem(doc: str, host: str, cell: str) -> str | None:
+    if not POINT_RELEASE.search(cell):
+        return None
+    return (
+        f"{doc} gives {host} the OS {cell!r} — that column records the release "
+        f"line, not the point release, which goes stale the next time the host "
+        f"takes an update. node_os_info carries the running one"
     )
 
 
@@ -561,16 +589,34 @@ def check_compute_table() -> list[str]:
 
     sections = network_sections(NETWORK_MD.read_text(encoding="utf-8"))
     hosts: dict[str, tuple[str, str]] = {}
+    # `hosts` keeps the first row per host, because the cross-document
+    # comparison below needs one OS per host and every table agrees today.
+    # `pinned` must not: `morpheus` has a row in all seven segment tables, so a
+    # point release written into the sixth would be invisible to a check that
+    # only ever reads the first. Every row is scanned; identical (host, cell)
+    # pairs collapse so one mistake is reported once rather than seven times.
+    pinned: set[tuple[str, str]] = set()
     for rows in sections.values():
         for row in rows[1:]:
             if len(row) >= 5:
-                hosts.setdefault(strip_md(row[0]).lower(), os_key(row[4]))
+                host, cell = strip_md(row[0]).lower(), strip_md(row[4])
+                hosts.setdefault(host, os_key(row[4]))
+                if POINT_RELEASE.search(cell):
+                    pinned.add((host, cell))
 
     problems = []
+    for host, cell in sorted(pinned):
+        problem = point_release_problem("docs/network.md", host, cell)
+        if problem:
+            problems.append(problem)
+
     for row in tables[0][1:]:
         host = strip_md(row[0])
         want = os_key(row[5])
         have = hosts.get(host.lower())
+        problem = point_release_problem("docs/hardware.md", host, strip_md(row[5]))
+        if problem:
+            problems.append(problem)
         if have is None:
             problems.append(
                 f"docs/hardware.md lists {host}, which appears nowhere in "
