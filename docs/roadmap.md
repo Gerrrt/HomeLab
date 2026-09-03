@@ -98,6 +98,11 @@ new since this file was last honest:
 
 - **[#67](https://github.com/Gerrrt/HomeLab/issues/67)** No dead man's switch on
   the notification path — a 200 into a dead topic is a successful notification.
+  The awkward half of it — the watcher has to be somewhere other than this
+  host — is answered: [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md)
+  puts it on `oracle`. What that buys is bounded, and the ADR says so: it
+  catches a silently dead notification path, and it cannot report a mains cut,
+  because the switch between the two laptops has no battery (#110).
 
 Two collection faults of the same kind were fixed in
 [#62](https://github.com/Gerrrt/HomeLab/pull/62): the agent was answering to the
@@ -153,7 +158,10 @@ what left this one unfireable for months.
   the rehearsal exists to find. The volume sets `make backup` writes still sit
   on the host they protect. Unlike the firewall, they have been restored — the
   whole stack was brought up on a restored set on 2026-08-29 and verified — but
-  nothing copies them anywhere.
+  nothing copies them anywhere. Where they go is no longer open:
+  [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md) sends them to `oracle`
+  alongside the firewall exports, which fits — a set is 867 MB of `age`
+  ciphertext against 67 GB free — and leaves only the copying to build.
 - **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
   A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
   `oracle` hang off. Both shelf machines are laptops, so on a mains cut they stay
@@ -164,13 +172,13 @@ what left this one unfireable for months.
   rather than a cantilever. The spare ProDesk from
   [#92](https://github.com/Gerrrt/HomeLab/issues/92) racks here too, powered off.
   → [runbook](runbooks/fit-the-ups-battery.md)
-- **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle` is
-  for.** A dual-core A6-9200 with 4 GB and a 5400 rpm disk — too little for
-  anything demanding, and a candidate for the jobs that need a machine that is
-  *not* the monitoring host. It has the first of those since 2026-09-03: it
-  holds the off-host copy of the firewall export (#92), as ciphertext, with no
-  key. A directory and sshd, which is about the size of job it is good for.
-  Whether it does anything else is still open.
+- **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put the wiki on
+  `oracle` into the repository, and back up its database.** ADR-0015 ratified a
+  host whose main service is not described anywhere here: `wiki` and its
+  Postgres were created by hand in November, the content volume is anonymous,
+  nothing copies either volume anywhere, and `/etc/wiki/.db-secret` is mode
+  664. The pages survive a disk failure because Wiki.js syncs from the
+  Lemmiwinks repository; the accounts, history and configuration do not.
 - **[#95](https://github.com/Gerrrt/HomeLab/issues/95) Plan and build the NAS on
   VLAN 40.** Adds an inter-VLAN rule and changes what "terminal" means for that
   segment. ADR-0008.
@@ -218,6 +226,41 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle`
+      is for.** 2026-09-03,
+      [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md). The issue's four
+      options were answered by first checking the machine, which made one of
+      them impossible: `oracle` has run the Lemmiwinks wiki and its Postgres
+      since 2025-11-12, ADR-0011 depends on it, and blackbox has been probing
+      it twice on `host: oracle` all along. Three places in the repository said
+      it had no role at the same time — the host table in `architecture.md`,
+      the VLAN 99 notes in `network.md`, and `backup-firewall.sh`'s header
+      ("It has no role (#94)"). `check_docs.py` reads that architecture row for
+      the word "Alloy" and for a `stacks/` path and never for what it claims
+      the host does, which is how the wrong sentence sat next to a checked one.
+
+      **Decided:** it stays powered, and its role is the small off-host jobs —
+      work whose value is that it is not on the monitoring host. The wiki and
+      the firewall export copy it already has; the volume backup sets (#92) and
+      the dead man's switch watcher (#67) are added, decided here and built
+      under their own issues. **Rejected:** a second age recipient, because
+      `back-up-the-age-key.md` already answers that gap with an *offline* key
+      and a second person, and because a private key on `oracle` would put the
+      backups and the means to open them on one disk and retire the property
+      the off-host copy exists to have. Also rejected: the ADR-0007 stack, the
+      ADR-0008 tier, bringing `wlp22s0` up to give the watcher an independent
+      path — that dual-homes a VLAN 99 host onto an untrusted segment — and
+      switching the machine off, which was never really on offer: the wiki had
+      been running there for nine months when the issue was filed.
+
+      Measured rather than quoted, 2026-09-03: 3785 MiB of RAM with 2549
+      available under the wiki, its database and Alloy; a 465.8 GB 5400 rpm
+      disk carrying one 100 GB LV with 67 GB free and 362 GB unallocated; and a
+      NIC that advertises 10/100 only, so the link is 100 Mb/s and no cable
+      will change that. A 867 MB backup set is 75 seconds of wire time there;
+      seven of them are 6.1 GB, and they are already `age` ciphertext before
+      they leave this host.
 
 - [x] **[#93](https://github.com/Gerrrt/HomeLab/issues/93) Replace the UPS
       battery, delete the silence, put the card under scheduled test.**

@@ -39,9 +39,10 @@
 #
 # WHERE IT GOES, AND WHAT THE FAR END CAN DO WITH IT
 #
-# `oracle` (10.0.99.30), the other laptop on the shelf. It has no role (#94),
-# it is on the management segment already, and this is the smallest job that
-# needs a machine that is not the monitoring host: a directory and sshd. The
+# `oracle` (10.0.99.30), the other laptop on the shelf. It is on the management
+# segment already, and this is the smallest job that needs a machine that is not
+# the monitoring host: a directory and sshd. That is now its declared role
+# rather than a convenience — ADR-0015 gives it the off-host jobs (#94). The
 # age private key is NOT copied there and must never be. What lands on oracle
 # is sops ciphertext, which is what makes a second copy of the most sensitive
 # artefact in the estate acceptable — a compromise of oracle yields nothing,
