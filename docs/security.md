@@ -239,8 +239,10 @@ the card reverting to `never`: `upsTestResultsSummary` would hold `1` and every
 rule would stay quiet. `UpsBatteryUnproven` cannot catch it either, because it
 matches `6` (noTestsInitiated) and this card reads `1`. Note the shape of that —
 the missing pack was visible in a MIB already walked, and the missing *schedule*
-would not be. The manual check, and what closing the gap would cost, are in
-[`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md).
+would not be. The manual check is in
+[`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), and
+closing the gap is
+[#249](https://github.com/Gerrrt/HomeLab/issues/249).
 
 ### Why SNMPv2c is still a weak point
 

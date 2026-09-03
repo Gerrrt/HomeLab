@@ -28,8 +28,9 @@ un-silenced by hand at the right moment.**
 > **Nothing in the stack can see any of that.** All three are PowerNet OIDs
 > under `1.3.6.1.4.1.318`, and the `apc_ups` module walks the standard UPS-MIB
 > only, so no rule in `ups.rules.yaml` can detect a card that has quietly
-> stopped testing. Until those OIDs are scraped, step 6 is verified by hand with
-> `scripts/snmp-walk.sh` and by nothing else.
+> stopped testing. That is
+> [#249](https://github.com/Gerrrt/HomeLab/issues/249); until it lands, step 6
+> is verified by hand with `scripts/snmp-walk.sh` and by nothing else.
 >
 > **One reading that was not reset.** `upsBasicBatteryLastReplaceDate` is
 > `08/15/2026` — thirteen days before the pack went in, on a date when this
@@ -281,10 +282,11 @@ the date, come back after it, and read it again.
 
 Nothing watches any of this on your behalf: these OIDs are not scraped, so a
 card that silently drops back to `never` produces no alert and no changed
-metric. That gap is named in the header of `ups.rules.yaml`, and closing it
-means adding PowerNet to `snmp-exporter/generator.yaml` — a new vendor MIB
-source with its own pinning decision, which is why it is not folded into this
-runbook.
+metric. That gap is named in the header of `ups.rules.yaml` and filed as
+[#249](https://github.com/Gerrrt/HomeLab/issues/249) — closing it means adding
+PowerNet to `snmp-exporter/generator.yaml`, a new vendor MIB source with its own
+pinning decision, which is why it is an issue rather than a step in this
+runbook. When it lands, this section becomes a PromQL query.
 
 ## 7. What becomes true afterwards
 

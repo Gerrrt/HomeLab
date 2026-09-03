@@ -73,8 +73,8 @@
 #
 # The fix is to walk those three OIDs and alert on the schedule leaving the
 # recurring values and on the last-test date going stale, which needs APC's
-# PowerNet MIB added to scripts/snmp-mibs.sh and a pinning decision for it. Not
-# done here. Until it is, the check is by hand:
+# PowerNet MIB added to scripts/snmp-mibs.sh and a pinning decision for it. That
+# is issue #249, not this file. Until it lands, the check is by hand:
 #
 #   scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2
 #
