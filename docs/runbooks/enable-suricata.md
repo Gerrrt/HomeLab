@@ -520,17 +520,39 @@ running one (§3).
 ### Verify the pipeline, per interface
 
 Same two `custom.rules` as §4, added to **Interfaces → Degens → Rules**, then
-restart the interface. Trigger from a phone on the **guest** SSID:
+restart the interface.
+
+> [!IMPORTANT]
+> **Wait for the engine before triggering, and check it is actually running.**
+> On this box *Restart* stopped the Degens instance and left it stopped — the
+> log said `START` and no process appeared — until *Start* was clicked by
+> hand, and then loading 22,000 rules took **35 seconds** between "Starting"
+> and "Engine started". A test URL visited in that window fires nothing, and
+> nothing is exactly what a broken pipeline looks like. The Interfaces page
+> shows a running/stopped icon per interface; believe it over the log.
+
+Trigger from a device on the **guest** segment:
 
 ```text
 http://homelab-ids-test.neverssl.com/homelab-ids-test
 ```
 
 Client isolation does not affect this: it stops guests reaching each other, and
-the test is egress. Expect the **DNS** rule to be the one that fires — unless
-the phone uses DoH or a private DNS setting, which guest devices commonly do,
-in which case the DNS lookup is invisible and only the **HTTP** rule can fire.
-Either proves the path.
+the test is egress. Expect the **DNS** rule to be the one that fires.
+
+> [!WARNING]
+> **An iPhone with iCloud Private Relay fires neither rule.** Private Relay
+> tunnels DNS *and* HTTP, so the phone that seems the obvious guest client
+> produced no port-53 and no port-80 packet on `igc0.10` at all — measured with
+> `tcpdump -i igc0.10 -n port 53 or port 80` on `morpheus`, which is the
+> command that settles "is this device's traffic even visible". §4's caveat about DoH
+> was half of this: it said only the HTTP rule could fire, and Private Relay
+> takes that one too. Use a device whose DNS goes to `10.0.10.1` in the clear
+> (the same `tcpdump` shows which ones do), or on the phone turn off *Limit IP
+> Address Tracking* for that Wi-Fi network and retry. The `curl` from a laptop
+> fired the DNS rule three times in a millisecond (A, AAAA and HTTPS lookups)
+> and the HTTP rule not at all — unexplained, and not worth chasing while the
+> DNS rule proves the path.
 
 ```bash
 curl -sG http://localhost:3100/loki/api/v1/query \
@@ -543,6 +565,14 @@ alike without the `interface` column: `<none>` means the alert arrived on a
 facility `syslog.alloy` does not map (check the *Log Facility* field);
 `igc0.20` means you added the rules to the wrong interface; an empty result
 with `filterlog` still climbing means Suricata on Degens is not sending at all.
+
+That last one splits again, and the engine's own log is what splits it. On
+`morpheus`, `/var/log/suricata/suricata_igc0.10*/alerts.log` is written by the
+process before anything reaches syslog. **Empty there means the alert never
+fired** — the process was down, or the client's traffic was not visible (the
+two callouts above) — and the syslog path is not the suspect. A line there
+and nothing in Loki means the syslog path *is* the suspect, and §4's *Remote
+Syslog Contents* check is where to go.
 
 **Delete both test rules once this passes**, as in §4.
 
@@ -590,6 +620,26 @@ says should not exist, or double counting — and both are worth knowing.
 guest segment than on the one with the baby monitor, and the other argument is
 stronger: an auto-block on Degens hits a device whose owner cannot be told why.
 Alert-only, on every interface, until a fortnight of understood alerts on each.
+
+### Measured on this network
+
+Degens went live at 16:30 PDT on 2026-09-02, on `local2`. The first alert
+came **two seconds** after "Engine started", reached Loki as `igc0.10`, and
+was `2210044` — the same stream-timestamp signature that is 79% of Skids —
+from a guest phone to a Google address on `:443`. Every alert since has
+carried the label; the unlabelled count is zero. The cross-segment query
+above returned `0`, so the two processes do not double-count.
+
+The first ten minutes, for the record rather than as a baseline: three alerts
+on `igc0.10`, two of them `2210044` and one other `stream-events` signature
+(`2210027`), from two of the four devices holding VLAN 10 leases at the time —
+a phone and a laptop. Skids produced three in the same window. All priority 3.
+Ten minutes is a sample of nothing; the "watch it, by interface" query above
+is the one to run after a day, and its numbers belong here when they exist.
+
+**Revisit `2210044` on 2026-09-16**, a fortnight in: compare its share on
+`igc0.10` against Skids' 79% with the §5 query, and only then decide whether
+it is the stream engine's view of Wi-Fi or the Skids devices.
 
 ---
 
