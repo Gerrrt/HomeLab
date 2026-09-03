@@ -46,7 +46,7 @@ SOPS-encrypted with the same age recipient as everything else in
 
 **It lives somewhere other than the machine that made it.** A backup on
 `prometheus` protects against `morpheus` failing and nothing else, so the same
-run copies every export to `oracle` — `robo@10.0.99.30:backups/firewall` by
+run copies every export to `oracle` — `atropos@10.0.99.30:backups/firewall` by
 default, `FW_OFFHOST` to change it — and **fails if it cannot**. A local file
 with no copy is reported as a failed job, not a partial success, so the nightly
 timer's `ScheduledJobFailed` is also the alarm for "the config has stopped
@@ -66,14 +66,14 @@ The copy needs two things once, both done on `prometheus` as `robo`. Accept
 `oracle`'s host key, so `BatchMode` has something to check against:
 
 ```bash
-ssh robo@10.0.99.30 true
+ssh atropos@10.0.99.30 true
 ```
 
 Then authorise this host's key there — it prompts for `oracle`'s password one
 time:
 
 ```bash
-ssh-copy-id robo@10.0.99.30
+ssh-copy-id atropos@10.0.99.30
 ```
 
 The next `make backup-firewall` seeds `oracle` with every export already on
@@ -108,11 +108,11 @@ first. The age key is not there; bring it from its offline copy
 ([`back-up-the-age-key.md`](back-up-the-age-key.md)):
 
 ```bash
-ssh robo@10.0.99.30 ls -1t backups/firewall
+ssh atropos@10.0.99.30 ls -1t backups/firewall
 ```
 
 ```bash
-scp robo@10.0.99.30:backups/firewall/config-<STAMP>.sops.yaml backups/firewall/
+scp atropos@10.0.99.30:backups/firewall/config-<STAMP>.sops.yaml backups/firewall/
 ```
 
 Decrypt the backup somewhere that has the age key. `--input-type yaml`, not

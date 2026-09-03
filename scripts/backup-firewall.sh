@@ -68,7 +68,7 @@
 #   FW_HOST      default morpheus.matrix.elysium (falls back to 10.0.99.1)
 #   FW_USER      default root
 #   FW_PATH      default /cf/conf/config.xml
-#   FW_OFFHOST   default robo@10.0.99.30:backups/firewall — user@host:dir, the
+#   FW_OFFHOST   default atropos@10.0.99.30:backups/firewall — user@host:dir, the
 #                dir relative to that user's home unless absolute. The nightly
 #                unit can override it in /etc/default/homelab-timers.
 set -euo pipefail
@@ -76,7 +76,7 @@ set -euo pipefail
 FW_HOST="${FW_HOST:-10.0.99.1}"
 FW_USER="${FW_USER:-root}"
 FW_PATH="${FW_PATH:-/cf/conf/config.xml}"
-FW_OFFHOST="${FW_OFFHOST:-robo@10.0.99.30:backups/firewall}"
+FW_OFFHOST="${FW_OFFHOST:-atropos@10.0.99.30:backups/firewall}"
 OUT_DIR="backups/firewall"
 SOPS_POLICY=".sops.yaml"
 
