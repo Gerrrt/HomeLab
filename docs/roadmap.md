@@ -58,16 +58,6 @@ issues intact. Nothing was summarised away.
 
 ## Monitoring
 
-- **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Probe the services this
-  was filed for, and probe TLS expiry.** blackbox-exporter is deployed and
-  scraped, but it probes one thing the issue never named — the wiki, added after
-  it went unreachable unnoticed — and none of the seven it did: Grafana,
-  Prometheus, Alertmanager, Loki, the switch UI, the iLO, the pfSense UI. The
-  expiry half has nothing behind it at all. Both targets are plain HTTP, the
-  TLS-capable `http_2xx` module is defined and used by nothing, and no rule reads
-  `probe_ssl_earliest_cert_expiry`. Grafana is the only service in the estate
-  terminating TLS and it is not probed, so expiry is still something you find out
-  about from a browser warning.
 - **[#114](https://github.com/Gerrrt/HomeLab/issues/114) Set memory limits on
   the six services.** Nothing in `compose.yaml` bounds a leak, so one container
   can take the host down — and the host has 8 GB soldered. It was blocked on
@@ -200,6 +190,32 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Probe the services
+      this was filed for, and probe TLS expiry.** 2026-09-03. Seven named, five
+      probed, plus the one the sentence about "four devices" implied: Grafana
+      by name and by address through a new `http_2xx_lab_ca` module that
+      verifies the chain against `certificates/ca.pem` (now mounted into
+      blackbox-exporter, CA only); Prometheus and Loki at the address the
+      agents push to, so a mis-set `BIND_ADDR` fails the probe while every `up`
+      stays green; Alertmanager on the compose network, the only network it is
+      on; the switch UI, which is plain http and drops 443; and the APC card,
+      https-only with a self-signed certificate, through `http_2xx_self_signed`.
+      `TlsCertificateExpiringSoon` at 30 days and `TlsCertificateExpiryImminent`
+      at 7 read `probe_ssl_earliest_cert_expiry` off the handshake, aggregated
+      per certificate so Grafana's two URLs raise one alert, the critical
+      inhibiting the warning. Every enabled target was probed through the new
+      modules from a throwaway exporter on the compose network before landing,
+      and the lab-CA module was checked to *refuse* the APC card's certificate.
+
+      Two of the seven are written into `targets/blackbox.yaml` and disabled.
+      From `10.0.99.20` the iLO and the pfSense UI both time out, and neither
+      is a fault: VLAN 99 → 30 passes SNMP and nothing else, and "Block HTTPS to
+      pfSense" on igc0.99 is an explicit rule. Each needs one pass on the
+      Winterfell interface, written out beside the target, and each is a
+      segmentation decision to record in ADR-0013's table when made — the
+      pfSense one hands a host with two unauthenticated push ports a path to
+      the firewall's login page, and #235 may move the iLO first.
 
 - [x] **[#90](https://github.com/Gerrrt/HomeLab/issues/90) Detect Suricata
       being dead.** 2026-09-03. The roadmap line said the SNMP module does not

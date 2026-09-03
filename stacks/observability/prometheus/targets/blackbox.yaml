@@ -2,19 +2,26 @@
 # Blackbox probe targets, consumed by the `blackbox` job via file_sd_configs.
 # Hot-reloaded every 5 minutes — no Prometheus restart required.
 #
-# `module` selects a prober from blackbox/blackbox.yaml.
+# `module` selects a prober from blackbox/blackbox.yaml — by what the endpoint
+#          serves, see the table at the top of that file.
 # `name`   is what the alert says out loud, so write it for whoever is woken up.
+# `host`   is the machine the endpoint is expected on, as network.md names it.
+# `via`    is how the endpoint was addressed: `dns` by the name a person types,
+#          `address` by its IP, `compose` by its service name on the compose
+#          network. A `dns` probe should have an `address` twin, because both
+#          failing means the service is down while only the `dns` one failing
+#          means the service is up and the resolver is not — a different repair,
+#          and EndpointNameNotResolving joins the two on `name` to tell it.
 #
-# The wiki is served over PLAIN HTTP, not https, and these targets say so.
-# Verified against the running container on 2026-08-30: only port 3000 listens
-# inside it, nothing is on 3443, and TLS is off. The host maps 443 anyway, so an
-# https probe is refused instantly — which is exactly what the first deploy of
-# this file did, reporting the wiki down while it was serving fine.
-#
-# The wiki is probed twice on purpose: once by the name a person would type,
-# and once by its address. Both failing means the wiki is down. Only the name
-# failing means the wiki is up and DNS is not, which is a different repair and
-# would otherwise be indistinguishable.
+# Every target here was probed from the running exporter before it was added,
+# so the module matches what the endpoint actually does — because the first
+# deploy of this file did not check, probed the wiki over https, and reported
+# it down while it was serving fine over plain http (verified 2026-08-30: only
+# port 3000 listens inside the container, TLS off).
+
+# --- The wiki ----------------------------------------------------------------
+# Probed twice on purpose: once by the name on the printed card, once by its
+# address. See `via` above.
 
 - targets: ["http://lemmiwinks.matrix.elysium"]
   labels:
@@ -31,3 +38,140 @@
     role: documentation
     host: oracle
     via: address
+
+# --- The observability stack itself ----------------------------------------
+# These are probed at the address an off-host consumer uses, not at the compose
+# service name, wherever there is one. `up{job="grafana"}` already proves the
+# process answers on the compose network; what it cannot prove is that the port
+# is published to the right interface — a BIND_ADDR of 127.0.0.1 leaves every
+# `up` green while a browser on Hicks and the agent on `oracle` both get
+# nothing. Probing 10.0.99.20 hairpins through Docker's published port and
+# fails in exactly that case.
+#
+# Grafana is the only service terminating TLS, and the only lab-CA target: the
+# chain is verified against certificates/ca.pem and the name against the URL,
+# so the `address` probe is also what checks that the leaf carries its IP SAN.
+# `/api/health` because it answers without a session — `/` is a redirect to
+# the login page, which also works, but says less.
+
+- targets: ["https://grafana.matrix.elysium:3000/api/health"]
+  labels:
+    module: http_2xx_lab_ca
+    name: grafana
+    role: dashboards
+    host: prometheus
+    via: dns
+
+- targets: ["https://10.0.99.20:3000/api/health"]
+  labels:
+    module: http_2xx_lab_ca
+    name: grafana
+    role: dashboards
+    host: prometheus
+    via: address
+
+# Plain http on the management VLAN is an accepted residual with the firewall
+# as the control, not work in progress — docs/security.md. The paths are the
+# readiness endpoints the compose healthchecks use.
+
+- targets: ["http://10.0.99.20:9090/-/healthy"]
+  labels:
+    module: http_2xx_plain
+    name: prometheus
+    role: metrics
+    host: prometheus
+    via: address
+
+- targets: ["http://10.0.99.20:3100/ready"]
+  labels:
+    module: http_2xx_plain
+    name: loki
+    role: logs
+    host: prometheus
+    via: address
+
+# Alertmanager publishes to 127.0.0.1 only (ADR-0012: nothing off-host uses
+# it), so there is no published address to probe and the compose network is
+# the only network it is on. `via: compose` says so, and keeps it out of the
+# dns/address join.
+
+- targets: ["http://alertmanager:9093/-/healthy"]
+  labels:
+    module: http_2xx_plain
+    name: alertmanager
+    role: alerting
+    host: prometheus
+    via: compose
+
+# --- Devices that otherwise only have SNMP ---------------------------------
+# An SNMP agent answering says nothing about the management UI a person would
+# reach for during an incident. These are the four devices in targets/snmp.yaml;
+# two of them can be probed from here and two cannot, and the difference is the
+# firewall, not the device.
+
+# The switch's web UI is plain http, and http only — 443 is dropped, checked
+# from 10.0.99.20. Reachable because the switch LAN (10.7.7.0/24) is the one
+# segment Winterfell's egress rule does not block (ADR-0013).
+
+- targets: ["http://10.7.7.2/"]
+  labels:
+    module: http_2xx_plain
+    name: switch-ui
+    role: switch
+    host: neo
+    via: address
+
+# The APC card is https only — port 80 is closed — with a certificate it made
+# for itself (subject `CN=.`, expires 2035-12-16). `/` is a 303 to /home.htm,
+# which is the login page and answers 200.
+
+- targets: ["https://10.0.99.10/"]
+  labels:
+    module: http_2xx_self_signed
+    name: ups-ui
+    role: ups
+    host: mjolnir
+    via: address
+
+# The two below are written out and NOT ENABLED, because from 10.0.99.20 both
+# time out today and enabling them would page `urgent` from the moment this
+# file is loaded until someone changes the firewall. That is not a probe, it is
+# a nag, and it is the shape of check this repository has agreed not to ship.
+#
+# Each needs one pass rule on the Winterfell interface (igc0.99), above the
+# existing blocks, and each is a segmentation decision rather than a monitoring
+# one — so it is recorded in ADR-0013's table when made, not just here:
+#
+#   iLO      pass tcp from 10.0.99.20 to 10.0.30.10 port 443
+#            VLAN 99 → 30 passes SNMP and nothing else. #235 is deciding
+#            whether the iLO stays on that segment at all; if it moves to
+#            Winterfell this needs no rule and the address below changes.
+#   pfSense  pass tcp from 10.0.99.20 to 10.0.99.1 port 443
+#            "Block HTTPS to pfSense" on igc0.99 is an explicit rule, not a
+#            default: the GUI is reachable from Hicks only. Opening it to the
+#            monitoring host gives a machine with two unauthenticated push
+#            ports a path to the firewall's login page. Worth having — the
+#            default GUI certificate is 398 days and nothing else watches it —
+#            but not worth having by accident.
+#
+# Once the rule exists, verify from the running exporter before uncommenting:
+#
+#   docker exec blackbox-exporter wget -qO- \
+#     'http://localhost:9115/probe?target=https://10.0.30.10/&module=http_2xx_self_signed' \
+#     | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
+#
+# - targets: ["https://10.0.30.10/"]
+#   labels:
+#     module: http_2xx_self_signed
+#     name: ilo-ui
+#     role: hypervisor-bmc
+#     host: shiva
+#     via: address
+#
+# - targets: ["https://10.0.99.1/"]
+#   labels:
+#     module: http_2xx_self_signed
+#     name: pfsense-ui
+#     role: firewall
+#     host: morpheus
+#     via: address

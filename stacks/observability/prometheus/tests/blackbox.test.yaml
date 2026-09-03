@@ -8,6 +8,16 @@
 # it is why the two cases below assert both that the rule fires when it should
 # and that it stays silent during a full outage, when the louder
 # EndpointUnreachable owns the page.
+#
+# The expiry cases at the bottom pin two things a syntax check cannot see:
+# that `min by (name, role, host)` collapses Grafana's two probes into ONE
+# alert rather than two, and that $value is days — an expression that forgot
+# the /86400 would still parse, still load, and fire on every certificate in
+# the estate at once.
+#
+# time() in these tests is seconds since the start of the test, not wall
+# clock, so an expiry timestamp is written as (days × 86400) plus the eval
+# time at which the day count should come out whole.
 rule_files:
   - ../rules/blackbox.rules.yaml
 
@@ -47,7 +57,9 @@ tests:
                 Probed by address and got no successful response for five
                 minutes. Expected on oracle. If the `address` probe for this
                 endpoint is also firing, the service is down; if only the `dns`
-                one is, the service is up and its name is not resolving.
+                one is, the service is up and its name is not resolving. For an
+                https target, a certificate that no longer verifies looks exactly
+                like this — `make certs ARGS=--list` shows what is being served.
           - exp_labels:
               alertname: EndpointUnreachable
               job: blackbox
@@ -65,7 +77,9 @@ tests:
                 Probed by dns and got no successful response for five
                 minutes. Expected on oracle. If the `address` probe for this
                 endpoint is also firing, the service is down; if only the `dns`
-                one is, the service is up and its name is not resolving.
+                one is, the service is up and its name is not resolving. For an
+                https target, a certificate that no longer verifies looks exactly
+                like this — `make certs ARGS=--list` shows what is being served.
 
       # Silent, and this is the assertion that matters. A full outage must not
       # also raise the name-resolution warning — that would put two different
@@ -107,6 +121,70 @@ tests:
                 in the documentation and on the printed card does not work while
                 the service behind it is fine. Check Unbound on morpheus and the
                 host override for this name.
+
+  # --- An endpoint with no dns twin goes down ------------------------------
+  # Most of the targets added in #91 are probed by address alone, and one
+  # (Alertmanager) by its compose name. Each must raise EndpointUnreachable on
+  # its own, and the join must have nothing to say: EndpointNameNotResolving
+  # requires a `dns` probe of the same name, and there is none.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="http://10.7.7.2/",
+                 name="switch-ui", role="switch", host="neo", via="address"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox", instance="http://alertmanager:9093/-/healthy",
+                 name="alertmanager", role="alerting", host="prometheus", via="compose"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox", instance="https://10.0.99.10/",
+                 name="ups-ui", role="ups", host="mjolnir", via="address"}'
+        values: "1+0x15"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: EndpointUnreachable
+        exp_alerts:
+          - exp_labels:
+              alertname: EndpointUnreachable
+              job: blackbox
+              instance: "http://10.7.7.2/"
+              name: switch-ui
+              role: switch
+              host: neo
+              via: address
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "switch-ui is not reachable at http://10.7.7.2/"
+              description: >-
+                Probed by address and got no successful response for five
+                minutes. Expected on neo. If the `address` probe for this
+                endpoint is also firing, the service is down; if only the `dns`
+                one is, the service is up and its name is not resolving. For an
+                https target, a certificate that no longer verifies looks exactly
+                like this — `make certs ARGS=--list` shows what is being served.
+          - exp_labels:
+              alertname: EndpointUnreachable
+              job: blackbox
+              instance: "http://alertmanager:9093/-/healthy"
+              name: alertmanager
+              role: alerting
+              host: prometheus
+              via: compose
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "alertmanager is not reachable at http://alertmanager:9093/-/healthy"
+              description: >-
+                Probed by compose and got no successful response for five
+                minutes. Expected on prometheus. If the `address` probe for this
+                endpoint is also firing, the service is down; if only the `dns`
+                one is, the service is up and its name is not resolving. For an
+                https target, a certificate that no longer verifies looks exactly
+                like this — `make certs ARGS=--list` shows what is being served.
+      - eval_time: 11m
+        alertname: EndpointNameNotResolving
+        exp_alerts: []
 
   # --- Everything healthy --------------------------------------------------
   - interval: 1m
@@ -152,3 +230,174 @@ tests:
                 No probe is running. This is the failure mode that matters most,
                 because a dead prober is silent rather than loud: the endpoint
                 alerts below stop being evaluated and nothing reports a problem.
+
+  # --- Expiry: 20 days out, served on two URLs ----------------------------
+  # Grafana's leaf, probed by name and by address, with the APC card's
+  # self-signed certificate alongside at 400 days as the one that must stay
+  # quiet. 1735200 = 20 × 86400 + 7200, so at eval_time 2h the division comes
+  # out at exactly 20 and the summary is checkable to the character.
+  - interval: 1m
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox",
+                 instance="https://grafana.matrix.elysium:3000/api/health",
+                 name="grafana", role="dashboards", host="prometheus", via="dns"}'
+        values: "1735200+0x180"
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://10.0.99.20:3000/api/health",
+                 name="grafana", role="dashboards", host="prometheus", via="address"}'
+        values: "1735200+0x180"
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://10.0.99.10/",
+                 name="ups-ui", role="ups", host="mjolnir", via="address"}'
+        values: "34567200+0x180"
+    alert_rule_test:
+      # Under 30 days from t=0, but `for: 1h` — still pending at half an hour.
+      # This is what asserts the `for` is actually there.
+      - eval_time: 30m
+        alertname: TlsCertificateExpiringSoon
+        exp_alerts: []
+
+      # ONE alert, not two. Both of Grafana's probes see the same leaf, and
+      # `instance`/`via` are gone from the labels because `min by` dropped
+      # them. If the aggregation is ever removed this case fails with two
+      # alerts carrying URLs — the exact duplication it is here to prevent.
+      - eval_time: 2h
+        alertname: TlsCertificateExpiringSoon
+        exp_alerts:
+          - exp_labels:
+              alertname: TlsCertificateExpiringSoon
+              name: grafana
+              role: dashboards
+              host: prometheus
+              component: blackbox
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "grafana's certificate has 20 days left"
+              description: >-
+                Read from the handshake with the endpoint on prometheus, so
+                this is the certificate actually being served. Reissue it before it
+                runs out — docs/runbooks/generate-certificates.md for a lab-CA leaf,
+                the device's own management UI for a self-signed one — then restart
+                whatever serves it. The alert resolves on the next probe of the new
+                certificate.
+
+      # 20 days is not 7. The critical tier stays silent.
+      - eval_time: 2h
+        alertname: TlsCertificateExpiryImminent
+        exp_alerts: []
+
+  # --- Expiry: 3 days out, and one already expired -------------------------
+  # Both tiers fire at Prometheus for the 3-day one; alertmanager.yaml's
+  # inhibit rule is what keeps the warning off the phone, and that is asserted
+  # by amtool in scripts/validate.sh rather than here. The expired one has a
+  # negative day count, which the summary prints as-is: a self-signed device
+  # keeps serving after expiry, so the metric keeps arriving and the number
+  # keeps falling. 262800 = 3 × 86400 + 3600; -165600 = 7200 - 2 × 86400.
+  - interval: 1m
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://10.0.99.1/",
+                 name="pfsense-ui", role="firewall", host="morpheus", via="address"}'
+        values: "262800+0x180"
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://10.0.30.10/",
+                 name="ilo-ui", role="hypervisor-bmc", host="shiva", via="address"}'
+        values: "-165600+0x180"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TlsCertificateExpiryImminent
+        exp_alerts:
+          - exp_labels:
+              alertname: TlsCertificateExpiryImminent
+              name: ilo-ui
+              role: hypervisor-bmc
+              host: shiva
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "ilo-ui's certificate has -2 days left"
+              description: >-
+                Under a week, or already expired if the number is negative. A
+                lab-CA leaf that expires stops verifying, so Grafana's probe and
+                Prometheus's `grafana` scrape both go down with it; a self-signed
+                device certificate keeps answering and browsers start refusing it.
+                Reissue now — docs/runbooks/generate-certificates.md — and restart
+                whatever serves it.
+          - exp_labels:
+              alertname: TlsCertificateExpiryImminent
+              name: pfsense-ui
+              role: firewall
+              host: morpheus
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "pfsense-ui's certificate has 3 days left"
+              description: >-
+                Under a week, or already expired if the number is negative. A
+                lab-CA leaf that expires stops verifying, so Grafana's probe and
+                Prometheus's `grafana` scrape both go down with it; a self-signed
+                device certificate keeps answering and browsers start refusing it.
+                Reissue now — docs/runbooks/generate-certificates.md — and restart
+                whatever serves it.
+
+      # The warning fires too — inhibited downstream, not absent here. A
+      # warning expression that excluded the critical range would instead
+      # RESOLVE the moment the critical started, and a resolved notification
+      # for a certificate three days from expiry is a lie.
+      - eval_time: 2h
+        alertname: TlsCertificateExpiringSoon
+        exp_alerts:
+          - exp_labels:
+              alertname: TlsCertificateExpiringSoon
+              name: ilo-ui
+              role: hypervisor-bmc
+              host: shiva
+              component: blackbox
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "ilo-ui's certificate has -2 days left"
+              description: >-
+                Read from the handshake with the endpoint on shiva, so
+                this is the certificate actually being served. Reissue it before it
+                runs out — docs/runbooks/generate-certificates.md for a lab-CA leaf,
+                the device's own management UI for a self-signed one — then restart
+                whatever serves it. The alert resolves on the next probe of the new
+                certificate.
+          - exp_labels:
+              alertname: TlsCertificateExpiringSoon
+              name: pfsense-ui
+              role: firewall
+              host: morpheus
+              component: blackbox
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "pfsense-ui's certificate has 3 days left"
+              description: >-
+                Read from the handshake with the endpoint on morpheus, so
+                this is the certificate actually being served. Reissue it before it
+                runs out — docs/runbooks/generate-certificates.md for a lab-CA leaf,
+                the device's own management UI for a self-signed one — then restart
+                whatever serves it. The alert resolves on the next probe of the new
+                certificate.
+
+  # --- Expiry: the estate as it stands -------------------------------------
+  # Grafana at 823 days and the APC card at ~3390, the real numbers on
+  # 2026-09-03. Both tiers silent; a rule that forgot the /86400 would fire
+  # here on every certificate at once, because a timestamp in seconds is
+  # never under 30.
+  - interval: 1m
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://10.0.99.20:3000/api/health",
+                 name="grafana", role="dashboards", host="prometheus", via="address"}'
+        values: "71114400+0x180"
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://10.0.99.10/",
+                 name="ups-ui", role="ups", host="mjolnir", via="address"}'
+        values: "292903200+0x180"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TlsCertificateExpiringSoon
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: TlsCertificateExpiryImminent
+        exp_alerts: []
