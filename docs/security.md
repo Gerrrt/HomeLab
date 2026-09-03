@@ -27,8 +27,9 @@ domain or by port
 says why not for the lab, and the reason generalises), and no MFA on the
 internal services.
 
-**Intrusion detection is running** on **Skids (VLAN 20)** since 2026-08-21 and
-on **Degens (VLAN 10)** since 2026-09-02, one Suricata process per interface.
+**Intrusion detection has been running** on **Skids (VLAN 20)** since
+2026-08-21 and on **Degens (VLAN 10)** since 2026-09-02, one Suricata process
+per interface.
 Suricata sits on `morpheus` rather than the hypervisor because it is the only
 device that sees the IoT and guest segments, per
 [ADR-0006](adr/0006-detect-at-the-chokepoint.md). Alerts reach Loki through the

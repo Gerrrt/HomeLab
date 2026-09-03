@@ -544,8 +544,8 @@ the test is egress. Expect the **DNS** rule to be the one that fires.
 > **An iPhone with iCloud Private Relay fires neither rule.** Private Relay
 > tunnels DNS *and* HTTP, so the phone that seems the obvious guest client
 > produced no port-53 and no port-80 packet on `igc0.10` at all — measured with
-> `tcpdump -i igc0.10 -n port 53 or port 80` on `morpheus`, which is the query
-> that settles "is this device's traffic even visible". §4's caveat about DoH
+> `tcpdump -i igc0.10 -n port 53 or port 80` on `morpheus`, which is the
+> command that settles "is this device's traffic even visible". §4's caveat about DoH
 > was half of this: it said only the HTTP rule could fire, and Private Relay
 > takes that one too. Use a device whose DNS goes to `10.0.10.1` in the clear
 > (the same `tcpdump` shows which ones do), or on the phone turn off *Limit IP
@@ -571,8 +571,8 @@ That last one splits again, and the engine's own log is what splits it. On
 process before anything reaches syslog. **Empty there means the alert never
 fired** — the process was down, or the client's traffic was not visible (the
 two callouts above) — and the syslog path is not the suspect. A line there
-and nothing in Loki is the syslog path, and §4's *Remote Syslog Contents*
-check is where to go.
+and nothing in Loki means the syslog path *is* the suspect, and §4's *Remote
+Syslog Contents* check is where to go.
 
 **Delete both test rules once this passes**, as in §4.
 
