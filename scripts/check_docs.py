@@ -589,15 +589,23 @@ def check_compute_table() -> list[str]:
 
     sections = network_sections(NETWORK_MD.read_text(encoding="utf-8"))
     hosts: dict[str, tuple[str, str]] = {}
-    seen: dict[str, str] = {}
+    # `hosts` keeps the first row per host, because the cross-document
+    # comparison below needs one OS per host and every table agrees today.
+    # `pinned` must not: `morpheus` has a row in all seven segment tables, so a
+    # point release written into the sixth would be invisible to a check that
+    # only ever reads the first. Every row is scanned; identical (host, cell)
+    # pairs collapse so one mistake is reported once rather than seven times.
+    pinned: set[tuple[str, str]] = set()
     for rows in sections.values():
         for row in rows[1:]:
             if len(row) >= 5:
-                hosts.setdefault(strip_md(row[0]).lower(), os_key(row[4]))
-                seen.setdefault(strip_md(row[0]).lower(), strip_md(row[4]))
+                host, cell = strip_md(row[0]).lower(), strip_md(row[4])
+                hosts.setdefault(host, os_key(row[4]))
+                if POINT_RELEASE.search(cell):
+                    pinned.add((host, cell))
 
     problems = []
-    for host, cell in sorted(seen.items()):
+    for host, cell in sorted(pinned):
         problem = point_release_problem("docs/network.md", host, cell)
         if problem:
             problems.append(problem)
