@@ -219,6 +219,14 @@ months.
       unit-tested against the rows as morpheus read them. It proves the process
       is alive, not that it detects; the runbook's test alert still owns that.
 
+      Proved live the same day. The Degens instance was stopped at 04:49:59
+      UTC; `SuricataStopped` for `igc0.10` alone went firing at 05:00:49
+      (10m50s) and reached the `security` receiver, Skids stayed quiet. Started
+      again at 05:01:12, resolved at 05:03:00 with the row back under index
+      `90324` for pid `90323`. A full package restart at 05:03:23 — the shape
+      of the daily rule update — never reached firing. Scrape cost for the
+      module went from nothing measurable to 0.26s.
+
 - [x] **[#76](https://github.com/Gerrrt/HomeLab/issues/76) Replace `shiva`'s
       Smart Storage Battery.** 2026-09-02. Spare `815983-001` fitted;
       `Saruman` was off 22:30–22:58 UTC. The first scrape after it came back
