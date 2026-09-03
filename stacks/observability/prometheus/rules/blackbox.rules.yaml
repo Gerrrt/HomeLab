@@ -12,6 +12,11 @@
 # writing — "nobody would notice the day it stopped, and a stale copy read
 # confidently is worse than no copy". It was right, and this is the check that
 # would have caught it.
+#
+# The two expiry rules at the bottom are the other half of #91. Until they
+# existed, docs/runbooks/generate-certificates.md said in as many words that
+# expiry was something you found out about from a browser warning — and the
+# lab CA's leaves are capped at 825 days, which is long enough to forget.
 groups:
   - name: blackbox
     interval: 60s
@@ -30,9 +35,14 @@ groups:
             because a dead prober is silent rather than loud: the endpoint
             alerts below stop being evaluated and nothing reports a problem.
 
-      # `via` distinguishes the two ways the same endpoint is probed. Both
-      # failing is an outage; only the `dns` one failing is a name-resolution
-      # problem with the service itself still up.
+      # `via` distinguishes the ways the same endpoint is probed. Both `dns`
+      # and `address` failing is an outage; only the `dns` one failing is a
+      # name-resolution problem with the service itself still up.
+      #
+      # For an https target this is also where a certificate problem lands.
+      # The lab-CA module verifies the chain and the name, and a leaf that has
+      # expired or lost its IP SAN fails the probe outright — there is no
+      # separate TLS alert, and the description says where to look.
       - alert: EndpointUnreachable
         expr: probe_success{job="blackbox"} == 0
         for: 5m
@@ -46,7 +56,9 @@ groups:
             Probed by {{ $labels.via }} and got no successful response for five
             minutes. Expected on {{ $labels.host }}. If the `address` probe for
             this endpoint is also firing, the service is down; if only the `dns`
-            one is, the service is up and its name is not resolving.
+            one is, the service is up and its name is not resolving. For an
+            https target, a certificate that no longer verifies looks exactly
+            like this — `make certs ARGS=--list` shows what is being served.
 
       # Deliberately warning, not critical, and deliberately separate from the
       # rule above. A name that stops resolving while the service still answers
@@ -68,3 +80,59 @@ groups:
             the documentation and on the printed card does not work while the
             service behind it is fine. Check Unbound on morpheus and the host
             override for this name.
+
+      # Certificate expiry, read off the handshake by every https module —
+      # verified or not, blackbox reports the earliest expiry in the chain the
+      # endpoint actually served, so this is never a check of a file on disk.
+      #
+      # `min by (name, role, host)` rather than a bare comparison, because
+      # Grafana is probed twice — by name and by address — and serves the same
+      # leaf to both. One certificate is one alert, not one per URL; `instance`
+      # is dropped on purpose and the summary names the service instead.
+      #
+      # Two tiers, and the critical one inhibits the warning in
+      # alertmanager.yaml, so a certificate inside seven days pages once. The
+      # thresholds are days because $value is: 30 is enough notice to reissue
+      # from a runbook by hand, which is the only renewal this lab has, and 7
+      # is when a calendar reminder has clearly been missed. A `for` of an hour
+      # on the warning costs nothing — expiry does not flap — and keeps a
+      # single odd probe from paging.
+      - alert: TlsCertificateExpiringSoon
+        expr: >-
+          min by (name, role, host)
+            (probe_ssl_earliest_cert_expiry{job="blackbox"} - time())
+          / 86400 < 30
+        for: 1h
+        labels:
+          component: blackbox
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }}'s certificate has {{ $value | printf \"%.0f\" }} days left"
+          description: >-
+            Read from the handshake with the endpoint on {{ $labels.host }}, so
+            this is the certificate actually being served. Reissue it before it
+            runs out — docs/runbooks/generate-certificates.md for a lab-CA leaf,
+            the device's own management UI for a self-signed one — then restart
+            whatever serves it. The alert resolves on the next probe of the new
+            certificate.
+
+      - alert: TlsCertificateExpiryImminent
+        expr: >-
+          min by (name, role, host)
+            (probe_ssl_earliest_cert_expiry{job="blackbox"} - time())
+          / 86400 < 7
+        for: 10m
+        labels:
+          component: blackbox
+          severity: critical
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }}'s certificate has {{ $value | printf \"%.0f\" }} days left"
+          description: >-
+            Under a week, or already expired if the number is negative. A
+            lab-CA leaf that expires stops verifying, so Grafana's probe and
+            Prometheus's `grafana` scrape both go down with it; a self-signed
+            device certificate keeps answering and browsers start refusing it.
+            Reissue now — docs/runbooks/generate-certificates.md — and restart
+            whatever serves it.

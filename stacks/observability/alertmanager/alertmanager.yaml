@@ -131,6 +131,17 @@ inhibit_rules:
   - source_matchers: [alertname = "SnmpExporterDown"]
     target_matchers: [alertname = "SnmpTargetUnreachable"]
 
+  # A certificate inside seven days is still inside thirty. The first rule
+  # above does not cover this pair — it needs matching alertnames — and the
+  # warning is kept firing at Prometheus rather than written to exclude the
+  # critical range, so that it never sends a "resolved" for a certificate that
+  # is three days from expiry. `name`, not `instance`: the expiry rules
+  # aggregate Grafana's two probes into one alert per certificate and drop the
+  # URL (#91).
+  - source_matchers: [alertname = "TlsCertificateExpiryImminent"]
+    target_matchers: [alertname = "TlsCertificateExpiringSoon"]
+    equal: ["name"]
+
 receivers:
   - name: "null"
 
