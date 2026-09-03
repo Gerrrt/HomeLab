@@ -91,7 +91,7 @@ only one Hicks is permitted to reach for management.
 | morpheus | `10.0.99.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 15.0 | Rack U5 | Firewall |
 | mjolnir | `10.0.99.10` | `28:29:86:xx:xx:xx` | APC Smart-UPS[^UPS] | — | Rack U1–U2 | UPS |
 | prometheus | `10.0.99.20` | `00:05:1b:xx:xx:xx` | Apple MacBook Pro (2012)[^MacBookPro] | Ubuntu 24.04 LTS | Shelf | **Observability stack** |
-| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 24.04 LTS | Shelf | Off-host copy of the firewall export; otherwise undecided |
+| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 24.04 LTS | Shelf | **Wiki**, and the off-host jobs |
 
 ### Notes
 
@@ -103,9 +103,14 @@ only one Hicks is permitted to reach for management.
   that `prometheus` and `oracle` hang off.
 - pfSense's admin UI is reachable on this interface from Hicks only.
 - DHCP enabled, with static reservations for everything listed.
-- `oracle`'s one role is to hold the off-host copy of the firewall export that
-  `make backup-firewall` pushes to it, as ciphertext with no key. Anything else
-  is undecided — see [roadmap](roadmap.md).
+- `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
+  and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
+  the off-host copy of the firewall export that `make backup-firewall` pushes
+  to it, as ciphertext with no key. Its role is the estate's small off-host
+  jobs: [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md). Its NIC
+  supports 10/100 only, so that link runs at 100 Mb/s — measured 2026-09-03 —
+  and no cable will lift it. `prometheus` links at a gigabit through the same
+  switch.
 
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
