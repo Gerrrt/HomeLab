@@ -26,11 +26,16 @@ removable media. No timer can mount that. So it is enforced from the other end �
 a successful run records its timestamp, and `SecretsKeyBackupUnproven` fires when
 that proof passes ninety days old.
 
-Getting the backup sets off this machine is
-[#92](https://github.com/Gerrrt/HomeLab/issues/92), and moving deployment to
+One job's output leaves this host: `backup-firewall` copies every export to
+`oracle` and **fails if it cannot**, so its `ScheduledJobFailed` also means "the
+config has stopped leaving `prometheus`" — a file that never left is a failed
+run, not a partial success. The copy needs a one-time key exchange between the
+two laptops, in [`restore-the-firewall.md`](restore-the-firewall.md) §0, and
+fails on purpose until that is done. The volume sets still do not leave
+([#92](https://github.com/Gerrrt/HomeLab/issues/92)), and moving deployment to
 something pull-based is [#99](https://github.com/Gerrrt/HomeLab/issues/99).
-Neither is done. Until they are, the honest summary is that this host watches its
-own chores, and the *external* cron-monitor described in
+Until then the honest summary is that this host watches its own chores, and the
+*external* cron-monitor described in
 [`verify-the-alert-path.md`](verify-the-alert-path.md) is the only thing watching
 the host.
 
@@ -99,6 +104,12 @@ sudo systemctl start homelab-backup-firewall.service
 
 ```bash
 journalctl -u homelab-backup-firewall.service -n 50 --no-pager
+```
+
+And that the export reached `oracle` — the second half of the listing:
+
+```bash
+make backup-firewall ARGS=--list
 ```
 
 Then check the file it wrote. Every file must be `0644` and the directory
@@ -209,6 +220,7 @@ expected rather than a second fault.
 | Every `homelab_job_*` series missing, no scrape error | The `textfile` block in `config.alloy` is not reading the right path | It must carry the `ALLOY_ROOTFS` prefix (`/rootfs` in the container). `rootfs_path` does **not** apply to that argument, and a wrong path reports an empty directory rather than an error |
 | A metric exists but no alert can fire | `exported_job` in the query output | A `job` label got into a `.prom` file. Fix the label name in `run-scheduled.sh` |
 | `homelab_job_last_exit_code` is 75 | The job never started — another job held its lock for the full wait | Expected if a `--verify-only` run collided with a long backup. Persistent means a job is hanging: check `systemctl list-units 'homelab-*'` |
+| `backup-firewall` exits 1 with *off-host copy FAILED* | `oracle` is down, its host key is not in `robo`'s `known_hosts`, or this host's key is not authorised there | The export was written locally and is intact. Repair the path to `oracle` — [`restore-the-firewall.md`](restore-the-firewall.md) §0 — and the next run copies every file that never left |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |
 | `ScheduledJobMetricsAbsent` fires and nothing else in `backup.rules.yaml` ever has | This step was never run at all | `systemctl list-unit-files 'homelab*'` reports *0 unit files* and `/var/lib/node_exporter/textfile_collector` does not exist. The four other rules here join against a series `--install` writes, so none of them can fire — that alert is the only one that can, and it is doing its job ([#215](https://github.com/Gerrrt/HomeLab/issues/215)). Run `make install-timers` |

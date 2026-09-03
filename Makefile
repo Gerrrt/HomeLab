@@ -315,10 +315,15 @@ screenshots: ## Render the dashboards to docs/images/ (stack must be up)
 	./scripts/capture-screenshots.sh $(STACK)
 
 .PHONY: backup-firewall
-backup-firewall: ## Pull morpheus's pfSense config and encrypt it to ./backups/
+backup-firewall: ## Pull morpheus's pfSense config, encrypt it to ./backups/, copy it to oracle
 	@# The single largest unmitigated failure in the estate is morpheus dying
 	@# with no config export. Output is gitignored and never committed — see
 	@# the header of scripts/backup-firewall.sh for why.
+	@#
+	@# The copy to oracle is part of this target, not a second one: a run whose
+	@# copy fails exits non-zero even though the local file was written, so the
+	@# nightly timer's metric says "stopped leaving this host" rather than
+	@# "fine" (#92). ARGS=--local-only skips it, for a bench.
 	./scripts/backup-firewall.sh $(ARGS)
 
 .PHONY: backup
