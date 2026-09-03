@@ -25,8 +25,9 @@ recreated since, most recently the morning this was written. It is not an
 experiment somebody left running:
 [ADR-0011](0011-keep-the-wiki-internal.md) names the host — "a container on
 Oracle at `10.0.99.30`" — and makes it the middle of three documentation tiers.
-`prometheus/targets/blackbox.yaml` probes it twice, by name and by address,
-labelled `host: oracle`; both probes were green when this was written.
+[`stacks/observability/prometheus/targets/blackbox.yaml`](../../stacks/observability/prometheus/targets/blackbox.yaml)
+probes it twice, by name and by address, labelled `host: oracle`; both probes
+were green when this was written.
 
 So `oracle` has had a defined purpose for nine months, and three places in this
 repository said otherwise at the same time: the host table in
