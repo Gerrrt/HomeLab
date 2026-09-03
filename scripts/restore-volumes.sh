@@ -5,8 +5,9 @@
 # This is the destructive half of scripts/backup-volumes.sh, and it is a
 # separate script on purpose: one program that both writes archives and
 # overwrites live volumes is one mistyped flag away from an outage, and
-# scripts/backup-firewall.sh — the model for both — is non-destructive
-# throughout. The volume inventory is not duplicated either; it comes from
+# scripts/backup-firewall.sh — the model for both — never writes to the thing
+# it backs up and never deletes outside its own retention window (#92).
+# The volume inventory is not duplicated either; it comes from
 # `backup-volumes.sh --inventory`, the way every SNMP tool reads
 # scripts/snmp-targets.sh.
 #

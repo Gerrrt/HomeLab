@@ -128,6 +128,20 @@ what left this one unfireable for months.
   both laptops share a shelf and a roof, and nothing copies anywhere a fire
   would not reach. The copy needs a one-time key exchange between the two
   laptops before its first run can succeed, and fails on purpose until then.
+  That copy shipped defaulting to the wrong account — `robo@10.0.99.30`, where
+  the login is `atropos` — so every nightly run would have failed on
+  `Permission denied` from the first one, the local export written and verified
+  and the copy step dead. It was invisible for a day only because the checkout
+  the timer runs from was behind the commit that added it, which is its own
+  lesson: a default nobody has executed is a guess. Retention landed with the
+  fix, because until then both sides kept every export ever taken, nightly,
+  forever; `FW_KEEP` (default thirty, and deliberately not `KEEP`, which
+  `make backup` already owns in the shared environment file) bounds each side,
+  never evicts the newest, never touches a file the script did not write, and
+  clears the `.part` fragments a died copy leaves on `oracle`. Both sides
+  converge in one run from any divergence. The far side's login shell is zsh,
+  where an unmatched glob is fatal rather than literal, so the prune deletes by
+  explicit basename and sends no pattern over the wire at all.
   What remains is the spare — the same ProDesk model, racked on the #110
   shelf, powered off — and the rehearsal, which is what turns
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) from a

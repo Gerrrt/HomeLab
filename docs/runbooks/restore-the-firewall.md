@@ -46,7 +46,7 @@ SOPS-encrypted with the same age recipient as everything else in
 
 **It lives somewhere other than the machine that made it.** A backup on
 `prometheus` protects against `morpheus` failing and nothing else, so the same
-run copies every export to `oracle` — `robo@10.0.99.30:backups/firewall` by
+run copies every export to `oracle` — `atropos@10.0.99.30:backups/firewall` by
 default, `FW_OFFHOST` to change it — and **fails if it cannot**. A local file
 with no copy is reported as a failed job, not a partial success, so the nightly
 timer's `ScheduledJobFailed` is also the alarm for "the config has stopped
@@ -62,23 +62,44 @@ That is off-host, not offsite. Both laptops share a shelf, a mains circuit and
 a roof, and nothing yet copies anywhere a fire would not reach — see
 [`roadmap.md`](../roadmap.md).
 
+**How far back you can reach.** The same run applies retention: the newest
+`FW_KEEP` exports survive on each side and the rest are removed, so a nightly
+job cannot grow without bound. The default is thirty, which at one export a
+night is about a month — long enough to reach back past a bad firewall change
+nobody noticed for a fortnight, which is the window that actually matters here.
+Raise it with `FW_KEEP` in `/etc/default/homelab-timers` if you want longer; an
+export is a couple of hundred kilobytes, so this is cheap. `FW_KEEP` and not
+`KEEP`, because every unit reads that same file and `make backup` already uses
+`KEEP` for volume sets, which are measured in gigabytes.
+
+Retention never removes the newest export, never touches a file this script did
+not write, and on `oracle` also clears the `.part` fragments a copy that died
+mid-transfer leaves behind. `ARGS=--list` is its dry run — it marks exactly what
+the next run would remove — and `ARGS=--prune` applies it without taking a new
+export:
+
+```bash
+make backup-firewall ARGS=--list
+```
+
 The copy needs two things once, both done on `prometheus` as `robo`. Accept
 `oracle`'s host key, so `BatchMode` has something to check against:
 
 ```bash
-ssh robo@10.0.99.30 true
+ssh atropos@10.0.99.30 true
 ```
 
 Then authorise this host's key there — it prompts for `oracle`'s password one
 time:
 
 ```bash
-ssh-copy-id robo@10.0.99.30
+ssh-copy-id atropos@10.0.99.30
 ```
 
-The next `make backup-firewall` seeds `oracle` with every export already on
-disk, not just the new one, and every later run copies whatever `oracle` is
-missing — a night it was switched off is caught up the night after. Until both
+The next `make backup-firewall` seeds `oracle` with every retained export
+already on disk, not just the new one, and every later run copies whatever
+`oracle` is missing — a night it was switched off is caught up the night after,
+and a stretch longer than `FW_KEEP` converges in a single run. Until both
 steps are done every nightly run fails on its copy step, which is the correct
 reading of the situation. If the user or path on `oracle` differ, set
 `FW_OFFHOST=user@host:dir` in `/etc/default/homelab-timers`, which the unit
@@ -108,11 +129,11 @@ first. The age key is not there; bring it from its offline copy
 ([`back-up-the-age-key.md`](back-up-the-age-key.md)):
 
 ```bash
-ssh robo@10.0.99.30 ls -1t backups/firewall
+ssh atropos@10.0.99.30 ls -1r backups/firewall
 ```
 
 ```bash
-scp robo@10.0.99.30:backups/firewall/config-<STAMP>.sops.yaml backups/firewall/
+scp atropos@10.0.99.30:backups/firewall/config-<STAMP>.sops.yaml backups/firewall/
 ```
 
 Decrypt the backup somewhere that has the age key. `--input-type yaml`, not
