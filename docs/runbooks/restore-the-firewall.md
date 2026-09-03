@@ -2,7 +2,8 @@
 
 **Target:** `morpheus` — the pfSense box every VLAN terminates on
 **Time:** 20 minutes with a prepared spare; considerably longer without one
-**You will need:** a recent backup, the age key, the pfSense installer on
+**You will need:** a recent backup (on `prometheus`, or its copy on `oracle`),
+the age key (on `prometheus`, or its offline copy), the pfSense installer on
 bootable media, and physical access to the rack
 
 > [!NOTE]
@@ -27,12 +28,15 @@ network, because the network is the thing it provides.
 
 ## 0. Before anything breaks
 
-Two things must be true, and neither is automatic.
+Two things must be true. The nightly `homelab-backup-firewall` timer does both
+([`schedule-maintenance.md`](schedule-maintenance.md)); run it by hand **after
+every firewall change** as well, because a config that predates the change you
+are trying to recover from restores you into the problem.
 
 **A current backup exists.**
 
 ```bash
-make backup-firewall        # pull, encrypt, verify
+make backup-firewall        # pull, encrypt, verify, copy to oracle
 make backup-firewall ARGS=--list
 ```
 
@@ -41,13 +45,44 @@ SOPS-encrypted with the same age recipient as everything else in
 [`.sops.yaml`](../../.sops.yaml).
 
 **It lives somewhere other than the machine that made it.** A backup on
-`prometheus` protects against `morpheus` failing and nothing else. Copy it to
-the backup target and offsite. This is the step that gets skipped, and it is the
-step that matters — see [`roadmap.md`](../roadmap.md).
+`prometheus` protects against `morpheus` failing and nothing else, so the same
+run copies every export to `oracle` — `robo@10.0.99.30:backups/firewall` by
+default, `FW_OFFHOST` to change it — and **fails if it cannot**. A local file
+with no copy is reported as a failed job, not a partial success, so the nightly
+timer's `ScheduledJobFailed` is also the alarm for "the config has stopped
+leaving this host". `oracle` holds ciphertext only. The age key is not there and
+must never be put there; the copy is verified by pulling the bytes back and
+comparing them with the file that was just proven to decrypt.
 
-Re-run the backup **after every firewall change**, not on a schedule. A config
-that predates the change you are trying to recover from restores you into the
-problem.
+```bash
+make backup-firewall ARGS=--verify-only   # newest export decrypts here, and is byte-identical there
+```
+
+That is off-host, not offsite. Both laptops share a shelf, a mains circuit and
+a roof, and nothing yet copies anywhere a fire would not reach — see
+[`roadmap.md`](../roadmap.md).
+
+The copy needs two things once, both done on `prometheus` as `robo`. Accept
+`oracle`'s host key, so `BatchMode` has something to check against:
+
+```bash
+ssh robo@10.0.99.30 true
+```
+
+Then authorise this host's key there — it prompts for `oracle`'s password one
+time:
+
+```bash
+ssh-copy-id robo@10.0.99.30
+```
+
+The next `make backup-firewall` seeds `oracle` with every export already on
+disk, not just the new one, and every later run copies whatever `oracle` is
+missing — a night it was switched off is caught up the night after. Until both
+steps are done every nightly run fails on its copy step, which is the correct
+reading of the situation. If the user or path on `oracle` differ, set
+`FW_OFFHOST=user@host:dir` in `/etc/default/homelab-timers`, which the unit
+reads.
 
 ---
 
@@ -68,10 +103,26 @@ than §3.
 
 ## 2. Restore the configuration onto working hardware
 
-Decrypt the backup somewhere that has the age key:
+If `prometheus` is what died, or is unreachable, take the copy from `oracle`
+first. The age key is not there; bring it from its offline copy
+([`back-up-the-age-key.md`](back-up-the-age-key.md)):
 
 ```bash
-sops --decrypt --input-type binary --output-type binary \
+ssh robo@10.0.99.30 ls -1t backups/firewall
+```
+
+```bash
+scp robo@10.0.99.30:backups/firewall/config-<STAMP>.sops.yaml backups/firewall/
+```
+
+Decrypt the backup somewhere that has the age key. `--input-type yaml`, not
+`binary`: the file is a YAML document holding an encrypted blob, and the
+`binary` form this runbook carried until 2026-09-03 fails on the first byte
+with *Error unmarshalling input json*. `make backup-firewall` decrypts the same
+way on every run, which is how the runbook was found to disagree with it.
+
+```bash
+sops --decrypt --input-type yaml --output-type binary \
   backups/firewall/config-<STAMP>.sops.yaml > /tmp/config.xml
 ```
 
@@ -198,8 +249,43 @@ doing once when nothing is on fire:
 make backup-firewall ARGS=--verify-only
 ```
 
-That proves the file decrypts and parses. It does **not** prove it restores.
-For that, restore it onto the spare, boot it, and confirm §4 on a bench — with
-the WAN cable unplugged and the spare off the production switch, so two devices
-never serve DHCP on the same segment. Until that has been done once, this
-runbook is a hypothesis.
+That proves the newest export decrypts and parses here, and that `oracle` holds
+the same bytes. It does **not** prove it restores. For that, restore it onto
+the spare — and until that has been done once, this runbook is a hypothesis.
+
+## Rehearse the restore on the spare
+
+Nobody has done this yet. Its purpose is to find the questions §3 does not
+answer — what a fresh install assigns to the one onboard NIC, whether the USB
+NIC comes back under the same device name, how long the whole thing takes —
+and to write the answers back into §3.
+
+> [!CAUTION]
+> Bench, not rack. The spare must never be on the production switch or on the
+> WAN while it carries `morpheus`'s config. Two boxes serving DHCP on one
+> segment, or two boxes claiming the WAN address, is a worse outage than the
+> one being rehearsed.
+
+1. Take the copy from `oracle`, not from `prometheus`: the rehearsal should
+   exercise the copy that will matter on the day. Decrypt it per §2.
+2. Spare on the bench, a laptop cabled directly to its onboard NIC, nothing
+   else connected. Install pfSense from the USB stick, the same version as the
+   backup's `<version>`, defaults throughout.
+3. Restore per §2 — through the UI if the fresh install put a reachable LAN on
+   that NIC, otherwise by writing `/cf/conf/config.xml` from the console
+   shell. Record which one worked and what it asked.
+4. After the reboot, at the console and then in the UI: every interface
+   assigned with no assignment prompt, the rule count matching what
+   `make backup-firewall` printed for that export, the three tripwire rules
+   from §4 step 5, and every DHCP scope present. The segmentation checks in §4
+   need the rack and stay for the day.
+5. Write down the date, the pfSense version, the backup stamp, the time from
+   power-on to verified, and everything that asked a question. Put it in
+   [`roadmap.md`](../roadmap.md) under #92, fix §3, and delete the hypothesis
+   sentence above.
+6. Shred the plaintext, power the spare off, and rack it on the U4 shelf
+   ([#110](https://github.com/Gerrrt/HomeLab/issues/110)) beside the switch —
+   **off**. A restored spare on the shelf turns §3 into "move the cables and
+   power on", at the cost of carrying a config that ages from the day it was
+   restored; on the day, still restore the newest export from `oracle` over it
+   before trusting it.
