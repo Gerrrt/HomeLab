@@ -31,9 +31,9 @@ quietly swapped.
 | Host | Hardware | CPU | RAM | Storage | OS |
 | --- | --- | --- | --- | --- | --- |
 | `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB SSD | FreeBSD 15.0 (pfSense) |
-| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 | Proxmox VE 9.2.11 |
-| `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04.3 |
-| `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04.3 |
+| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 | Proxmox VE 9 |
+| `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
+| `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
 SNMP devices at a 60-second interval, three Alloy agents, and 30 days of metric
@@ -45,6 +45,16 @@ Ethernet, so it reaches the network over a USB NIC.
 It is not: it is a dual-core AMD A6-9200 with 4 GB and a 5400 rpm disk. The
 older entry described a machine that does not exist, which is worth stating
 plainly because it was load-bearing in planning.
+
+The OS column names the release line and not the point release. Both laptops
+were recorded here as 24.04.3 while both were running 24.04.4, and
+`check_docs.py` could not see it — it compares this table against
+[`network.md`](network.md), and the two copies were stale together. A point
+release changes when a host takes an update, which is not an edit to this
+repository, so it is the wrong kind of fact to write down at all: the running
+version is already collected on every Linux host as
+`node_os_info{pretty_name="Ubuntu 24.04.4 LTS"}`. The check now rejects a third
+version component in either table.
 
 ## Management
 
