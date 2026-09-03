@@ -256,7 +256,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-59 rules in total: 46 metric-based in `prometheus/rules/`, and 13 log-based in
+61 rules in total: 48 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -285,7 +285,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-46 rules across nine files in `prometheus/rules/`:
+48 rules across nine files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -295,7 +295,7 @@ boot check.
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
 | `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion, and remote-writing agents that stop pushing — the case `up == 0` structurally cannot see. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
-| `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service |
+| `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http. The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, and never-ran |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the process metric `security.rules.yaml` says a log rule cannot be ([#90](https://github.com/Gerrrt/HomeLab/issues/90)) |
 
@@ -306,7 +306,7 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is sixteen rules of 46 so far — the three
+against the broken rule too. Coverage is eighteen rules of 48 so far — the five
 in `blackbox.rules.yaml`, `ContainerHighMemory` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
@@ -354,9 +354,11 @@ stops matching, and `amtool check-config` still reports SUCCESS — that mutatio
 was tried. `scripts/validate.sh` and CI therefore assert the table itself with
 `amtool config routes test --verify.receivers`, one assertion per row.
 
-Inhibit rules stop cascades: a down host suppresses its own disk warnings, and a
+Inhibit rules stop cascades: a down host suppresses its own disk warnings, a
 dead `snmp-exporter` suppresses the "every device is unreachable" storm that
-would otherwise follow.
+would otherwise follow, and a certificate inside seven days of expiry suppresses
+its own thirty-day warning rather than resolving it — a "resolved" for a
+certificate three days from expiry would be a lie.
 
 ### The dead man's switch
 
@@ -442,7 +444,9 @@ checking, with the key that is on that machine, against the disk that is in it.
 disk or a fire. The only job that proves off-host recoverability is
 `secrets-verify-backup`, and it is precisely the one that cannot be automated —
 it needs a human to mount removable media, so `SecretsKeyBackupUnproven` nags at
-ninety days instead. Getting the sets off this machine is
+ninety days instead. One output does leave: `backup-firewall` copies each export
+to `oracle` and fails if it cannot, so its failure alert doubles as "the config
+has stopped leaving this host". The volume sets do not leave; that is
 [#92](https://github.com/Gerrrt/HomeLab/issues/92).
 
 Installing, tuning and troubleshooting all of it:

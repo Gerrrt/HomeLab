@@ -285,3 +285,56 @@ Add a row to [`docs/network.md`](../network.md) with the MAC truncated to its
 OUI, and consider whether it needs an alert rule in
 `prometheus/rules/network.rules.yaml`. A device nobody alerts on is a device
 nobody notices failing.
+
+## A web endpoint
+
+Anything with a URL — a service on this host, a device's management page —
+can be probed from the outside by blackbox-exporter, which is a different
+question from whether its process or its SNMP agent answers. One file, no
+restart, and one check first:
+
+```bash
+# Does the endpoint do what you are about to say it does? The module is chosen
+# by what it serves, and the first deploy of this file got that wrong.
+docker exec blackbox-exporter wget -qO- \
+  'http://localhost:9115/probe?target=https://10.0.99.40/&module=http_2xx_self_signed' \
+  | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
+```
+
+`probe_success 1` with the module you intend, then append to
+`prometheus/targets/blackbox.yaml`:
+
+```yaml
+- targets: ["https://10.0.99.40/"]
+  labels:
+    module: http_2xx_self_signed   # http_2xx_lab_ca | http_2xx_self_signed | http_2xx_plain
+    name: <what the alert says>
+    role: <what it does>
+    host: <hostname, as network.md has it>
+    via: address
+```
+
+The table at the top of `blackbox/blackbox.yaml` says which module fits. A
+certificate the lab CA issued gets `http_2xx_lab_ca` and is verified; one the
+device made for itself gets `http_2xx_self_signed`, which reads its expiry and
+trusts nothing. Both feed the 30-day and 7-day expiry alerts, so a self-signed
+management page is watched for the one thing about it that changes.
+
+If the endpoint has a name people type, add a second block with that URL and
+`via: dns`, same `name`. That pair is what lets `EndpointNameNotResolving` tell
+"the resolver is broken" from "the service is down" — see the wiki's two
+entries.
+
+Prometheus re-reads the file within five minutes. Then **Prometheus → Status →
+Targets**, job `blackbox`, and confirm the new instance is `UP` — an `UP` there
+means the exporter answered, so check `probe_success` in the panel, not the
+target state.
+
+If the probe from the exporter timed out, look at the firewall before the
+device: from `10.0.99.20` a segment is unreachable unless a rule on the
+Winterfell interface says otherwise ([ADR-0013](../adr/0013-segment-access-as-implemented.md)).
+The iLO and pfSense UI targets sit disabled in `targets/blackbox.yaml` for
+exactly that reason, with the rule each needs written beside them. Do not
+enable a target that fails today — it pages `urgent` until someone changes the
+firewall, and a permanently-red check is one the operator learns to scroll
+past.

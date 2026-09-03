@@ -11,7 +11,8 @@ that rewrite as compromised, including the CA. What follows replaces it.
 
 > **The stack does not start without these.** Grafana serves https from the
 > leaf issued below, and Prometheus verifies that certificate with `ca.pem` when
-> it scrapes the `grafana` job — so both files are a prerequisite of
+> it scrapes the `grafana` job, as does blackbox-exporter when it probes Grafana
+> from the outside — so both files are a prerequisite of
 > [`deploy-stack.md`](deploy-stack.md), not a someday step. `make render`
 > refuses to run until they exist, because before it did, `make up` bind-mounted
 > the absent files and Docker created directories in their place
@@ -116,21 +117,28 @@ Firefox keeps its own store and will not read the system one; import it under
 ## Renewal
 
 Leaves expire in 825 days. There is no automation and deliberately no cron: a
-lab with one certificate is better served by a calendar reminder than by a
-renewal daemon nobody maintains.
+lab with one certificate is better served by a reminder than by a renewal
+daemon nobody maintains. The reminder is an alert, not a calendar entry.
+blackbox-exporter probes Grafana by name and by address, verifies the chain
+against `ca.pem`, and reads the expiry off the handshake — so what is watched
+is the certificate actually being served, not a file on disk.
+`TlsCertificateExpiringSoon` fires at 30 days and `TlsCertificateExpiryImminent`
+at 7, one alert per certificate however many URLs serve it
+([#91](https://github.com/Gerrrt/HomeLab/issues/91)). The same two rules read
+the APC card's self-signed certificate, which is not trusted but does expire.
 
 ```bash
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana --force"
 ```
 
 Then restart whatever serves it. The CA does not change, so nothing needs
-re-trusting.
+re-trusting. The alert resolves on the next probe of the new leaf, within a
+couple of minutes of the restart.
 
-blackbox-exporter exists and could carry this, but does not yet: it probes only
-the wiki, over plain HTTP, and nothing reads `probe_ssl_earliest_cert_expiry`.
-Grafana is not a target, so nothing watches the one certificate this runbook
-issues — expiry is still something you find out about from a browser warning.
-Tracked in [#91](https://github.com/Gerrrt/HomeLab/issues/91).
+Let it lapse and the failure is loud rather than quiet: the lab-CA probe
+verifies, so an expired leaf fails it outright and `EndpointUnreachable` fires
+for Grafana — alongside `up{job="grafana"}` going to 0, since Prometheus
+verifies the same chain on its scrape.
 
 ## If something goes wrong
 

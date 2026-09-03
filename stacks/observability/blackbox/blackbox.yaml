@@ -7,24 +7,59 @@
 # unreachable for an unknown period and nothing here noticed, because nothing
 # here was ever looking from the outside.
 #
-# Modules are referenced by name from targets/blackbox.yaml.
+# Modules are referenced by name from targets/blackbox.yaml. Pick by what the
+# endpoint actually serves, not by what would be nice:
+#
+#   http_2xx_lab_ca       https, certificate issued by certificates/ca.pem
+#   http_2xx_self_signed  https, certificate the device made for itself
+#   http_2xx_plain        http, no TLS on offer
+#   tcp_connect           anything at all holding the port open
+#
+# Every https module exports probe_ssl_earliest_cert_expiry whether or not it
+# verifies the chain — blackbox reads it off the handshake, before deciding
+# whether to trust it — and blackbox.rules.yaml turns that into the 30-day and
+# 7-day expiry alerts. Verification is a separate question from expiry, and the
+# two https modules answer it differently on purpose.
 
 modules:
-  # Reachability of an HTTPS endpoint, from this host, over the network.
+  # An HTTPS endpoint whose certificate the lab's own CA issued — Grafana, and
+  # nothing else yet. The chain is verified against ca.pem, which compose.yaml
+  # mounts in, and the name is verified against whatever the target URL says:
+  # the FQDN for the `dns` probe, the address for the `address` one, which is
+  # why gen-certs.sh puts an IP SAN on the leaf. This is the probe a browser
+  # runs, minus the trust store: a leaf that expires, or is reissued without
+  # its IP SAN, fails here the way it will fail in the browser.
   #
-  # insecure_skip_verify is deliberate and is NOT a shortcut. The question this
-  # module answers is "did something answer HTTP at that address", and the
-  # estate's TLS posture for the wiki is genuinely unsettled — the Lemmiwinks
-  # page for it carries an open dispute about whether it terminates TLS at all,
-  # and there is no documented terminator on `oracle`. Verifying a certificate
-  # whose existence is disputed would produce a check that fails for a reason
-  # unrelated to the thing being measured, and this repository has already
-  # learned what a permanently-red check becomes: something the operator scrolls
-  # past.
+  # A verification failure surfaces as probe_success 0, so it fires
+  # EndpointUnreachable rather than a TLS-specific alert. That is deliberate
+  # for now: with one lab-CA target, "Grafana is not reachable" is the right
+  # page, and the description says to check the certificate.
+  http_2xx_lab_ca:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: []  # any 2xx
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      method: GET
+      follow_redirects: true
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      tls_config:
+        ca_file: /etc/blackbox_exporter/tls/ca.pem
+
+  # An HTTPS endpoint whose certificate nothing issued — the management
+  # interfaces on the APC card, the iLO and pfSense each present a certificate
+  # they generated for themselves. insecure_skip_verify is not a shortcut
+  # here: there is no chain to verify, and a module that demanded one would be
+  # permanently red for a reason unrelated to whether the device answers. This
+  # repository has already learned what a permanently-red check becomes —
+  # something the operator scrolls past.
   #
-  # When the wiki's TLS is settled, tighten this the way the `grafana` scrape in
-  # prometheus.yaml is tightened — mount the lab CA and verify the name.
-  http_2xx:
+  # Expiry is still measured. Self-signed does not mean immortal: the APC card
+  # expires in 2035, and pfSense's default GUI certificate is issued for 398
+  # days, which is exactly the kind of date a browser warning used to be the
+  # first notice of.
+  http_2xx_self_signed:
     prober: http
     timeout: 10s
     http:
@@ -37,10 +72,12 @@ modules:
       tls_config:
         insecure_skip_verify: true
 
-  # An endpoint served over plain HTTP. This is what the wiki uses — see
-  # targets/blackbox.yaml. Named `plain` rather than `insecure` because nothing
-  # here is choosing to weaken anything: the endpoint simply does not offer TLS,
-  # and a probe that pretended otherwise would measure the wrong thing.
+  # An endpoint served over plain HTTP. The wiki, the switch's web UI, and the
+  # Prometheus and Loki ports the agents push to — none of these offer TLS, and
+  # a probe that pretended otherwise would measure the wrong thing. Named
+  # `plain` rather than `insecure` because nothing here is choosing to weaken
+  # anything: the endpoint simply does not offer TLS. (The switch does not
+  # even answer on 443 — checked from 10.0.99.20, the connection is dropped.)
   http_2xx_plain:
     prober: http
     timeout: 10s

@@ -268,6 +268,11 @@ services:
       - --config.file=/etc/blackbox_exporter/config.yml
     volumes:
       - ./blackbox/blackbox.yaml:/etc/blackbox_exporter/config.yml:ro
+      # Only the CA certificate, never a key — the same mount Prometheus has,
+      # for the same reason: the http_2xx_lab_ca module verifies Grafana's
+      # chain against it (#91). Changing this recreates the container, which
+      # `make up` does; a config-only edit is a `make reload`.
+      - ../../certificates/ca.pem:/etc/blackbox_exporter/tls/ca.pem:ro
     # Never published to a host interface. Nothing outside the compose network
     # has any reason to ask this container to make a request on its behalf —
     # an open blackbox exporter is a server-side request forgery primitive.

@@ -58,16 +58,6 @@ issues intact. Nothing was summarised away.
 
 ## Monitoring
 
-- **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Probe the services this
-  was filed for, and probe TLS expiry.** blackbox-exporter is deployed and
-  scraped, but it probes one thing the issue never named — the wiki, added after
-  it went unreachable unnoticed — and none of the seven it did: Grafana,
-  Prometheus, Alertmanager, Loki, the switch UI, the iLO, the pfSense UI. The
-  expiry half has nothing behind it at all. Both targets are plain HTTP, the
-  TLS-capable `http_2xx` module is defined and used by nothing, and no rule reads
-  `probe_ssl_earliest_cert_expiry`. Grafana is the only service in the estate
-  terminating TLS and it is not probed, so expiry is still something you find out
-  about from a browser warning.
 - **[#114](https://github.com/Gerrrt/HomeLab/issues/114) Set memory limits on
   the six services.** Nothing in `compose.yaml` bounds a leak, so one container
   can take the host down — and the host has 8 GB soldered. It was blocked on
@@ -131,14 +121,25 @@ what left this one unfireable for months.
 ## Infrastructure
 
 - **[#92](https://github.com/Gerrrt/HomeLab/issues/92) Get the firewall backup
-  off `prometheus`, and buy a spare ProDesk.** A backup on the same shelf as the
-  thing it protects is not a backup, and
-  [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) stays a
-  hypothesis until it has been restored onto a spare once. The volume sets
-  `make backup` writes have exactly the same defect: they sit on the host they
-  protect. Unlike the firewall, they have now been restored — the whole stack
-  was brought up on a restored set on 2026-08-29 and verified. Getting a copy
-  off this host is the part that is still missing.
+  off `prometheus`, and buy a spare ProDesk.** Half done. Since 2026-09-03
+  `make backup-firewall` copies every export to `oracle` — ciphertext only, the
+  key stays here — and exits non-zero if it cannot, so the nightly job's metric
+  says "stopped leaving this host" rather than "fine". Off-host, not offsite:
+  both laptops share a shelf and a roof, and nothing copies anywhere a fire
+  would not reach. The copy needs a one-time key exchange between the two
+  laptops before its first run can succeed, and fails on purpose until then.
+  What remains is the spare — the same ProDesk model, racked on the #110
+  shelf, powered off — and the rehearsal, which is what turns
+  [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) from a
+  hypothesis into a runbook; it now carries the bench procedure to follow and
+  what to record. Writing that procedure found the runbook's own decrypt
+  command had never been run: it passed `--input-type binary`, which sops
+  rejects on the first byte of a real export, so a restore following the
+  runbook would have stopped at step one. Fixed, and it is the kind of thing
+  the rehearsal exists to find. The volume sets `make backup` writes still sit
+  on the host they protect. Unlike the firewall, they have been restored — the
+  whole stack was brought up on a restored set on 2026-08-29 and verified — but
+  nothing copies them anywhere.
 - **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
   A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
   `oracle` hang off. Both shelf machines are laptops, so on a mains cut they stay
@@ -152,7 +153,10 @@ what left this one unfireable for months.
 - **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle` is
   for.** A dual-core A6-9200 with 4 GB and a 5400 rpm disk — too little for
   anything demanding, and a candidate for the jobs that need a machine that is
-  *not* the monitoring host.
+  *not* the monitoring host. It has the first of those since 2026-09-03: it
+  holds the off-host copy of the firewall export (#92), as ciphertext, with no
+  key. A directory and sshd, which is about the size of job it is good for.
+  Whether it does anything else is still open.
 - **[#95](https://github.com/Gerrrt/HomeLab/issues/95) Plan and build the NAS on
   VLAN 40.** Adds an inter-VLAN rule and changes what "terminal" means for that
   segment. ADR-0008.
@@ -239,6 +243,32 @@ months.
       value — for 744 of 764 samples. Voltage moving across `540`-`549` is the
       comparison that actually discriminates.
       → [runbook](runbooks/fit-the-ups-battery.md)
+
+- [x] **[#91](https://github.com/Gerrrt/HomeLab/issues/91) Probe the services
+      this was filed for, and probe TLS expiry.** 2026-09-03. Seven named, five
+      probed, plus the one the sentence about "four devices" implied: Grafana
+      by name and by address through a new `http_2xx_lab_ca` module that
+      verifies the chain against `certificates/ca.pem` (now mounted into
+      blackbox-exporter, CA only); Prometheus and Loki at the address the
+      agents push to, so a mis-set `BIND_ADDR` fails the probe while every `up`
+      stays green; Alertmanager on the compose network, the only network it is
+      on; the switch UI, which is plain http and drops 443; and the APC card,
+      https-only with a self-signed certificate, through `http_2xx_self_signed`.
+      `TlsCertificateExpiringSoon` at 30 days and `TlsCertificateExpiryImminent`
+      at 7 read `probe_ssl_earliest_cert_expiry` off the handshake, aggregated
+      per certificate so Grafana's two URLs raise one alert, the critical
+      inhibiting the warning. Every enabled target was probed through the new
+      modules from a throwaway exporter on the compose network before landing,
+      and the lab-CA module was checked to *refuse* the APC card's certificate.
+
+      Two of the seven are written into `targets/blackbox.yaml` and disabled.
+      From `10.0.99.20` the iLO and the pfSense UI both time out, and neither
+      is a fault: VLAN 99 → 30 passes SNMP and nothing else, and "Block HTTPS to
+      pfSense" on igc0.99 is an explicit rule. Each needs one pass on the
+      Winterfell interface, written out beside the target, and each is a
+      segmentation decision to record in ADR-0013's table when made — the
+      pfSense one hands a host with two unauthenticated push ports a path to
+      the firewall's login page, and #235 may move the iLO first.
 
 - [x] **[#90](https://github.com/Gerrrt/HomeLab/issues/90) Detect Suricata
       being dead.** 2026-09-03. The roadmap line said the SNMP module does not

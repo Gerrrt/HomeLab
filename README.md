@@ -47,7 +47,7 @@ incident.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 7 provisioned dashboards, 140 panels, and
-  59 alert rules — 46 metric-based in Prometheus, 13 log-based in Loki — sharing
+  61 alert rules — 48 metric-based in Prometheus, 13 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -160,7 +160,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 .
 ├── stacks/observability/     # the deployed stack — one compose file, six services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 46 alert rules
+│   ├── prometheus/           # config, file_sd targets, 48 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 13 LogQL rules
 │   ├── alloy/                # the agent config directory, shipped to every host
@@ -297,15 +297,15 @@ Open work is tracked in
 [`docs/roadmap.md`](docs/roadmap.md) is the narrative — what is outstanding and
 why it is in that order.
 
-The current top items: rack the shelf switch, and get the firewall backup off
-the machine it protects. The UPS is finished — a pack went into `mjolnir` on
-2026-08-28, passed its self-test, and the card is set to test itself every
-fortnight ([#93](https://github.com/Gerrrt/HomeLab/issues/93)) — but the switch
-between the monitoring host and the network still has no battery at all, so both
-laptops stay running and go deaf on a mains cut
-([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the backup still
-sits on the machine it protects, without the spare that turns its restore
-runbook from a hypothesis into something rehearsed
+The current top items: rack the shelf switch, and buy the spare ProDesk that
+turns the firewall's restore runbook from a hypothesis into something rehearsed.
+The UPS is finished — a pack went into `mjolnir` on 2026-08-28, passed its
+self-test, and the card is set to test itself every fortnight
+([#93](https://github.com/Gerrrt/HomeLab/issues/93)) — but the switch between
+the monitoring host and the network still has no battery at all, so both laptops
+stay running and go deaf on a mains cut
+([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the config export
+itself now leaves the monitoring host nightly, so the spare is what is left
 ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
 
 ## License
