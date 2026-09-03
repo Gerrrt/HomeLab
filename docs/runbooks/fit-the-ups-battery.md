@@ -3,18 +3,42 @@
 **One rack visit, in an order that matters — and one alert that has to be
 un-silenced by hand at the right moment.**
 
-> **Status — 2026-08-28: the pack is in and proven. The shelf is not.**
+> **Status — 2026-09-03: the pack is in, proven, and testing on a schedule.
+> The shelf is not racked.**
 >
 > The APCRBC115 was fitted, the silence was deleted, and a self-test passed:
 > `upsTestResultsSummary` went `4` (aborted) to `1` (donePass) at 22:45 UTC.
-> Step 5's comparison holds — `upsBatteryVoltage` left its fabricated `480` for
-> a float reading that varies, and the runtime estimate no longer sits on
-> exactly `63`. Charge still reads exactly `100`, which is what a pack at float
-> voltage looks like rather than a card that cannot see one.
+> Step 5's comparison holds on one metric of the three — `upsBatteryVoltage`
+> left its fabricated `480` for a float reading that moves across `540`–`549`.
+> Runtime does not carry that weight: it has sat on exactly `63`, the fabricated
+> value, for 744 of 764 samples since the fit. Charge still reads exactly `100`,
+> which is what a pack at float voltage looks like rather than a card that
+> cannot see one.
 >
-> **Step 6 is outstanding.** Scheduled self-tests are not enabled on the NMC, so
-> `1` is a last-known result with nothing refreshing it, and nothing in
-> `ups.rules.yaml` detects a card that has quietly stopped testing.
+> **Step 6 is done — checked 2026-09-03, and it was already true when checked.**
+> The card reads `upsAdvTestDiagnosticSchedule` `8` (biweeklySinceLastTest),
+> `upsAdvTestLastDiagnosticsDate` `08/28/2026` and
+> `upsAdvTestDiagnosticsResults` `1` (ok). Whether the schedule was set during
+> the rack visit or has been the card's default all along is not something the
+> NMC will tell you after the fact; what is checkable is that it is on now. The
+> next unattended test falls due on or about **2026-09-11**, and it is that date
+> advancing on its own — not the setting reading `8` — that proves the schedule
+> actually runs.
+>
+> **Nothing in the stack can see any of that.** All three are PowerNet OIDs
+> under `1.3.6.1.4.1.318`, and the `apc_ups` module walks the standard UPS-MIB
+> only, so no rule in `ups.rules.yaml` can detect a card that has quietly
+> stopped testing. That is
+> [#249](https://github.com/Gerrrt/HomeLab/issues/249); until it lands, step 6
+> is verified by hand with `scripts/snmp-walk.sh` and by nothing else.
+>
+> **One reading that was not reset.** `upsBasicBatteryLastReplaceDate` is
+> `08/15/2026` — thirteen days before the pack went in, on a date when this
+> card's own self-test was still aborting over an empty bay. Step 2, item 5 asks
+> for that date to come back reset and it did not, so the card's battery-age
+> accounting, and the replacement date it projects from it, are keyed to
+> something that did not happen. Harmless today; wrong in four years, when it is
+> the only record of how old the pack is.
 >
 > The shelf and the switch move (step 2, items 1–4) were not done, so
 > [#110](https://github.com/Gerrrt/HomeLab/issues/110) is untouched and
@@ -200,6 +224,15 @@ fabricating. Treat that as "the pack is not seen", not as "the pack is fine and
 the numbers happen to match" — go back to seating and the battery-replacement
 date before believing anything else on the dashboard.
 
+**Read voltage first, and do not read too much into runtime.** Measured over the
+six days after this pack went in, `upsBatteryVoltage` moved across `540`–`549`
+and `upsEstimatedMinutesRemaining` sat on exactly `63` for 744 of 764 samples,
+leaving it only for excursions to `45`, `60` and `137` under changing load. `63`
+is also the number the card fabricated over an empty bay, so on any single
+reading runtime cannot tell the two apart — a float voltage that varies can, and
+charge cannot either, because it has read exactly `100` on every sample since
+the fit.
+
 ## 6. Enable scheduled self-tests
 
 A value of `1` is the *last* result, not a fresh one. If the NMC stops testing
@@ -216,6 +249,47 @@ header of `ups.rules.yaml`; this step is where it gets acted on.
 Do not go on running self-tests by hand to keep the metric warm. A test
 transfers the load to battery, and on a pack that is weak that is the outage the
 alert exists to warn about.
+
+### Check it rather than assume it — and the check is not in Prometheus
+
+The setting lives in PowerNet, not in the UPS-MIB the `apc_ups` module walks, so
+no Prometheus query can answer this. Read it off the card:
+
+```bash
+scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2
+```
+
+Three of those rows are the answer:
+
+| OID | Object | On `mjolnir`, 2026-09-03 |
+| --- | --- | --- |
+| `…7.2.1.0` | `upsAdvTestDiagnosticSchedule` | `8` — biweeklySinceLastTest |
+| `…7.2.3.0` | `upsAdvTestDiagnosticsResults` | `1` — ok |
+| `…7.2.4.0` | `upsAdvTestLastDiagnosticsDate` | `08/28/2026` |
+
+`upsAdvTestDiagnosticSchedule` reads `1` unknown, `2` biweekly, `3` weekly, `4`
+atTurnOn, `5` never, `6` fourWeeks, `7` twelveWeeks, `8` biweeklySinceLastTest,
+`9` weeklySinceLastTest — from APC's own PowerNet-MIB, not from the older
+enumeration that stops at `7`. Anything in `1`, `4` or `5` means the card is not
+testing on a schedule whatever the web UI last appeared to say. The two
+`SinceLastTest` values are the ones to prefer: they count from the last test
+rather than from power-on, so a reboot does not restart the clock.
+
+**The setting being on is not the same as the schedule running.** What proves it
+is `upsAdvTestLastDiagnosticsDate` advancing with nobody at the card — on a
+biweekly schedule, roughly fourteen days after the date it currently shows. Note
+the date, come back after it, and read it again.
+
+Nothing watches any of this on your behalf: these OIDs are not scraped, so a
+card that silently drops back to `never` produces no alert and no changed
+metric. That gap is named in the header of `ups.rules.yaml` and filed as
+[#249](https://github.com/Gerrrt/HomeLab/issues/249) — closing it takes two
+files, not one: `scripts/snmp-mibs.sh` has to fetch APC's MIB before
+`make snmp-generate` can resolve the new OIDs, and that is where the pinning
+decision lives, alongside the walk added to `snmp-exporter/generator.yaml`. A
+new vendor source with no first-party git ref to point at is why it is an issue
+rather than a step in this runbook. When it lands, this section becomes a
+PromQL query.
 
 ## 7. What becomes true afterwards
 
@@ -240,10 +314,11 @@ to settle before concluding anything.
 uplink to port 3 of the main switch, not the UPS. Nothing in this runbook
 touches VLAN configuration.
 
-## Flipping the documents — the first half is done, the second is not
+## Flipping the documents — all three passes are done
 
-This happens in two passes, because "a pack is fitted" and "the UPS works" are
-different claims and became true at different times.
+This happened in three passes, because "a pack is fitted", "the UPS works" and
+"the UPS keeps proving it works" are different claims and became true — or were
+found to be true — at different times.
 
 **Done on 2026-08-28**, when the pack went in: every file that asserted there is
 no battery said something false from that moment, so they were moved to what was
@@ -258,20 +333,26 @@ measured, and that scheduled self-tests are still off. That is `ups-power.json`,
 `ups.rules.yaml`, `docs/security.md`, `docs/observability.md`, `README.md` and
 `docs/roadmap.md`.
 
-Two deliberate departures from the plan above. The banner panel was **rewritten
+One deliberate departure from the plan above. The banner panel was **rewritten
 rather than deleted**, because there is still something true and non-obvious for
 it to say and keeping it left the panel count where it was, so the
-`scripts/check_docs.py` panel-count coupling stayed untriggered. And **#93 was
-not moved into Done**, because this roadmap entry defines it as *delete the
-silence, then self-test, then enable scheduled tests* — the third is step 6, and
-it is outstanding.
+`scripts/check_docs.py` panel-count coupling stayed untriggered.
+
+**Done on 2026-09-03**, when step 6 was checked rather than performed: the card
+was already set to `biweeklySinceLastTest`, so every file saying scheduled
+self-tests are off was asserting something the device contradicts. The same set
+moved again — `ups-power.json`, `ups.rules.yaml`, `docs/security.md`,
+`README.md`, `docs/hardware.md` and `docs/roadmap.md` — this time to *on, and
+unwatched*: the schedule is set, no rule can see it, and the proof is
+`upsAdvTestLastDiagnosticsDate` advancing on its own around 2026-09-11. #93
+moved into Done in the same pass, because its third step is now satisfied.
 
 **Still to do:**
 
 | File | What changes |
 | --- | --- |
 | `docs/images/ups-power.png` | Re-capture the set with `make screenshots`. The committed image is from 2026-08-22 and shows the original no-battery banner; it needs the decrypted Grafana password, so it is a human step |
-| `docs/roadmap.md` | Move #93 into Done — but only once step 6 is done and the card is testing on a schedule |
+| The NMC | Reset `upsBasicBatteryLastReplaceDate`, which still reads `08/15/2026` for a pack fitted on the 28th. A human step at the card's web UI: every SNMP path in this repository reads and none of them writes |
 
 And when the shelf is racked, which is a separate visit and separate issue:
 

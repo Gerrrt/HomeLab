@@ -1,7 +1,7 @@
 {
   "uid": "homelab-ups",
   "title": "UPS & Power",
-  "description": "APC Smart-UPS (mjolnir) via UPS-MIB. An APCRBC115 pack was fitted on 2026-08-28 and passed its self-test the same day, so the battery figures are measured — but anything before that date is fabricated, and scheduled self-tests are not yet enabled on the card. See docs/runbooks/fit-the-ups-battery.md.",
+  "description": "APC Smart-UPS (mjolnir) via UPS-MIB. An APCRBC115 pack was fitted on 2026-08-28 and passed its self-test the same day, so the battery figures are measured — but anything before that date is fabricated. The card tests itself every fortnight, which nothing on this dashboard can show you: the schedule is a PowerNet OID and this module walks the standard UPS-MIB only. See docs/runbooks/fit-the-ups-battery.md.",
   "tags": [
     "homelab",
     "power",
@@ -267,7 +267,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**The pack is fitted and proven.** An APCRBC115 went into `mjolnir` on 2026-08-28 and `upsTestResultsSummary` moved `4` (aborted) → `1` (donePass) at 22:45 UTC. `upsBatteryVoltage` left its fabricated `480` for a float reading that varies, and the runtime estimate moves instead of sitting on exactly `63` — the step 5 comparison a card cannot fake. Charge still reads exactly `100`, which is what a pack at float voltage looks like.\n\n**Anything on these panels before 2026-08-28 is fabricated.** With an empty bay the card invented a flat 100%, 63 minutes and 48.0 V. The trend panels below cross that boundary — widen the time range with that in mind.\n\n**Scheduled self-tests are not enabled yet.** `1` is the *last* result, not a fresh one; if the NMC never tests again this stops changing and nothing notices. `UpsBatteryUnproven` cannot catch it — that rule matches `6` (noTestsInitiated), and this card now reads `1`. Step 6 of `docs/runbooks/fit-the-ups-battery.md`."
+        "content": "**The pack is fitted and proven.** An APCRBC115 went into `mjolnir` on 2026-08-28 and `upsTestResultsSummary` moved `4` (aborted) → `1` (donePass) at 22:45 UTC. `upsBatteryVoltage` left its fabricated `480` for a float reading that moves across `540`–`549` — the step 5 comparison a card cannot fake. Runtime is *not* that comparison: it has sat on exactly `63`, the fabricated value, for 744 of 764 samples since the fit. Charge still reads exactly `100`, which is what a pack at float voltage looks like.\n\n**Anything on these panels before 2026-08-28 is fabricated.** With an empty bay the card invented a flat 100%, 63 minutes and 48.0 V. The trend panels below cross that boundary — widen the time range with that in mind.\n\n**The card tests itself every fortnight, and nothing here watches that.** Read off the NMC on 2026-09-03: `upsAdvTestDiagnosticSchedule` `8` (biweeklySinceLastTest), last test `08/28/2026`. Those are PowerNet OIDs and this module walks the standard UPS-MIB only, so if the card reverted to `never`, `upsTestResultsSummary` would hold `1` forever and no panel here would move. `UpsBatteryUnproven` cannot catch it either — it matches `6` (noTestsInitiated). Check by hand with `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2`; step 6 of `docs/runbooks/fit-the-ups-battery.md`."
       }
     },
     {

@@ -230,13 +230,20 @@ rather than left to expire in September, so that rule is live again.
 
 Two things outlast the fix. Stored metrics older than 2026-08-28 *are* the
 fabricated values rather than measurements, so a dashboard or query whose range
-crosses that date is reading fiction on one side of it. And scheduled self-tests
-are not yet enabled on the card, which makes `1` a last-known result with
-nothing refreshing it — `UpsBatteryUnproven` cannot catch a card that stops
-testing, because it matches `6` (noTestsInitiated) and this one now reads `1`.
-That is step 6 of
-[`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), and it is
-outstanding.
+crosses that date is reading fiction on one side of it. And the card's test
+schedule is on but unwatched. Read off the NMC on 2026-09-03,
+`upsAdvTestDiagnosticSchedule` is `8` (biweeklySinceLastTest), which is what
+*should* keep `1` from being a frozen last-known result — should, because
+nothing here can confirm it still does. That OID is PowerNet, and
+the `apc_ups` module walks the standard UPS-MIB only. Nothing here would notice
+the card reverting to `never`: `upsTestResultsSummary` would hold `1` and every
+rule would stay quiet. `UpsBatteryUnproven` cannot catch it either, because it
+matches `6` (noTestsInitiated) and this card reads `1`. Note the shape of that —
+the missing pack was visible in a MIB already walked, and the missing *schedule*
+would not be. The manual check is in
+[`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), and
+closing the gap is
+[#249](https://github.com/Gerrrt/HomeLab/issues/249).
 
 ### Why SNMPv2c is still a weak point
 
