@@ -27,23 +27,27 @@ domain or by port
 says why not for the lab, and the reason generalises), and no MFA on the
 internal services.
 
-**Intrusion detection is running as of 2026-08-21**, on the **Skids (VLAN 20)**
-interface only. Suricata sits on `morpheus` rather than the hypervisor because it
-is the only device that sees the IoT and guest segments, per
+**Intrusion detection has been running** on **Skids (VLAN 20)** since
+2026-08-21 and on **Degens (VLAN 10)** since 2026-09-02, one Suricata process
+per interface.
+Suricata sits on `morpheus` rather than the hypervisor because it is the only
+device that sees the IoT and guest segments, per
 [ADR-0006](adr/0006-detect-at-the-chokepoint.md). Alerts reach Loki through the
-firewall's syslog pipe, with `classification` and `priority` parsed into labels;
-`SuricataHighPriorityAlert` and `SuricataAlertStorm` are armed against them, and
-the `homelab-security` dashboard charts them next to the firewall's own block
-decisions. [`runbooks/enable-suricata.md`](runbooks/enable-suricata.md) covers
-the setup and the tuning.
+firewall's syslog pipe, with `classification`, `priority` and `interface`
+parsed into labels; `SuricataHighPriorityAlert` and `SuricataAlertStorm` are
+armed against them per interface, and the `homelab-security` dashboard charts
+them next to the firewall's own block decisions.
+[`runbooks/enable-suricata.md`](runbooks/enable-suricata.md) covers the setup
+and the tuning.
 
 Three limits, stated rather than implied:
 
-- **It is alert-only.** `Block Offenders` is off and stays off until a fortnight
-  of understood alerts, and probably not on VLAN 20 even then — an auto-block
-  there can take out a camera or the alarm hub.
-- **It watches one segment.** Guest (VLAN 10) is next; the rest are unwatched.
-  WAN deliberately never will be.
+- **It is alert-only.** `Block Offenders` is off on both interfaces and stays
+  off until a fortnight of understood alerts on each, and probably not on VLAN
+  20 even then — an auto-block there can take out a camera or the alarm hub.
+  On VLAN 10 it would hit a guest's device whose owner cannot be told why.
+- **It watches two segments.** Skids and Degens; the rest are unwatched. WAN
+  deliberately never will be.
 - **It sees plaintext only.** Suricata cannot inspect inside TLS, so the useful
   signal is DNS, SNI, JA3 and the diminishing share of traffic still in the
   clear.
