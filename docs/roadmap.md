@@ -28,9 +28,10 @@ issues intact. Nothing was summarised away.
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)'s
   aside about "a catch-all nobody wrote" both describe a ruleset one day out of
   date. It is enforcing rather than decorative: the Winterfell block has dropped
-  22 packets and every pass above it is matching. `network.md`'s segment table
-  still says Hicks reaches "Internet, 99, 30", and that row is now wrong in the
-  direction of too wide.
+  22 packets, and the passes above it carry the real traffic — 834,283 through
+  *Allow SSH to Winterfell* alone — with only *Allow NTP* and *Allow HTTP to
+  Mjolnir* still at zero. `network.md`'s segment table still says Hicks reaches
+  "Internet, 99, 30", and that row is now wrong in the direction of too wide.
 
   **ImaginationLAN is the half still open.** No rule blocks it, so the catch-all
   grants the segment entire, on every protocol and port. *Allow Hicks access to
