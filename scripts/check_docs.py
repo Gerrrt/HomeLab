@@ -618,7 +618,7 @@ def os_key(text: str) -> tuple[str, str]:
 
     The two documents word the same OS differently on purpose — network.md
     says 'Ubuntu 24.04 LTS' where hardware.md says 'Ubuntu Server 24.04 LTS',
-    and 'FreeBSD 15.0' where the other says 'FreeBSD 15.0 (pfSense)'. Comparing
+    and 'FreeBSD 16.0' where the other says 'FreeBSD 16.0 (pfSense)'. Comparing
     the family and the version rather than the string is what keeps this an
     agreement check instead of a house-style check.
     """
