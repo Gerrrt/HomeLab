@@ -183,7 +183,8 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │                             #   key backup, purge, restore the firewall,
 │                             #   restore the stack, ship firewall logs,
 │                             #   verify the alert path, enable suricata,
-│                             #   fit the UPS battery, add a host override
+│                             #   fit the UPS battery, add a host override,
+│                             #   build the lab guest
 └── Makefile                  # make help
 ```
 
