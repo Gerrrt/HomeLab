@@ -72,6 +72,12 @@ TOTP is proportionate, and an SSO layer is operational weight that has not yet
 earned its place. This leaves the "no MFA on the internal services" gap in
 `security.md` open, knowingly.
 
+> *The deferral above has an expiry as of
+> [ADR-0022](0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md),
+> which also finds that per-application TOTP is not available on two of the
+> services this paragraph assumes it for. The reasoning above is unchanged and
+> this ADR is not superseded.*
+
 ## Consequences
 
 - **Winterfell becomes busier and less special, and this is the real cost.**
