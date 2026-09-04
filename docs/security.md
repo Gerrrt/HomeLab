@@ -71,9 +71,20 @@ segment explicitly before its egress rule, and the narrow exceptions that exist
 
 **It does not hold for Hicks (50), and it does not hold for the switch LAN.**
 Hicks blocks CasaBonita, Skids and Degens and then passes to `any`, so it reaches
-all of Winterfell and all of ImaginationLAN on every protocol and port — not the
-management path this section used to describe. The switch LAN carries pfSense's
-stock *Default allow LAN to any* rule and reaches every segment.
+**all of ImaginationLAN** on every protocol and port, which no rule grants and no
+rule denies. [#228](https://github.com/Gerrrt/HomeLab/issues/228) is where that
+gets decided. The switch LAN carries pfSense's stock *Default allow LAN to any*
+rule and reaches every segment.
+
+**Winterfell is the half that has since been narrowed.** On 2026-09-02 the Hicks
+interface gained ten host- and port-scoped passes into 99 and a logged *Block
+access to Winterfell* under them, so Hicks now reaches management on an
+enumerated list — SSH and ping to the segment, the firewall's admin UI, resolver
+and NTP, the wiki, Grafana, and the UPS card — and nothing else.
+[`network.md`](network.md#hicks--vlan-50--trusted) holds the list and is the
+document to read for it. ADR-0013 read the ruleset the day before that landed
+and describes the wider state; it is left as written, per ADR-0001, and this
+section is where the current posture lives.
 
 This section previously said "three exceptions", ADR-0002 said two, and ADR-0008
 said five. All three were counts, and a count cannot express "reachable because
@@ -97,13 +108,23 @@ them silently; the restore runbook checks for them. A fourth, on ImaginationLAN,
 is decided by ADR-0014 and lands with `ifrit`
 ([#234](https://github.com/Gerrrt/HomeLab/issues/234)).
 
-Segmentation is doing more work here than it should have to. A workstation on
-Hicks that can reach `10.0.99.20` can write to the metric and log stores without
-a credential, because Prometheus and Loki publish unauthenticated ingest ports
-for `oracle`'s agent to use — which is exactly the failure ADR-0002 predicted
+Segmentation is doing more work here than it should have to. Prometheus and Loki
+publish unauthenticated ingest ports for `oracle`'s agent to use, so anything
+that can route to `10.0.99.20:9090` or `:3100` can write to the metric and log
+stores without a credential — which is exactly the failure ADR-0002 predicted
 when it recorded that "a compromised workstation reaches Winterfell". That is an
 accepted residual, recorded in [`SECURITY.md`](../SECURITY.md), not a solved
 problem.
+
+**What has changed is who "anything" is.** A workstation on Hicks was in that
+set for as long as the catch-all was the only rule in the way; since 2026-09-02
+it reaches `10.0.99.20` on `3000` only and *Block access to Winterfell* drops
+the ingest ports. What remains in the set is a host already on Winterfell, and
+`10.0.30.110` on ImaginationLAN, which has an explicit pass to both ports for
+`Saruman`'s Alloy agent. The residual narrowed by a firewall change nobody
+recorded; [#182](https://github.com/Gerrrt/HomeLab/issues/182) still owns
+closing it properly, because a control that depends on one un-reviewed rule
+ordering is not authentication.
 
 What has been taken off the firewall's shoulders is Alertmanager. It had no
 off-host client, so it now binds to `127.0.0.1` and reaching VLAN 99 no longer

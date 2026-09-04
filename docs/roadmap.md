@@ -30,8 +30,9 @@ issues intact. Nothing was summarised away.
   date. It is enforcing rather than decorative: the Winterfell block has dropped
   22 packets, and the passes above it carry the real traffic — 834,283 through
   *Allow SSH to Winterfell* alone — with only *Allow NTP* and *Allow HTTP to
-  Mjolnir* still at zero. `network.md`'s segment table still says Hicks reaches
-  "Internet, 99, 30", and that row is now wrong in the direction of too wide.
+  Mjolnir* still at zero. `network.md` and both security documents described the
+  wider state until they were corrected against this read; the description is no
+  longer the outstanding part, the posture is.
 
   **ImaginationLAN is the half still open.** No rule blocks it, so the catch-all
   grants the segment entire, on every protocol and port. *Allow Hicks access to
