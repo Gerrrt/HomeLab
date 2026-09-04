@@ -85,8 +85,15 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # SecretsKeyBackupUnproven can still nag. The one thing that proves the secrets
 # are recoverable now has a deadline even though it has no schedule.
 #
+# converge is the only hourly row, and the only one whose threshold is three
+# times its period rather than two. It shares the `backups` lock with the two
+# backup jobs, so a run that collides with the weekly archive can legitimately
+# spend its whole 900s lock wait and then be an hour late; twice the period
+# would alert on that, and being late for a reason is not the finding.
+#
 #     job                unit prefix                max_age  make target
 JOBS=(
+  "converge          homelab-converge             10800  converge"
   "backup-volumes    homelab-backup-volumes     1209600  backup"
   "verify-backups    homelab-verify-backups      259200  backup"
   "backup-firewall   homelab-backup-firewall     259200  backup-firewall"
@@ -359,7 +366,7 @@ for row in "${JOBS[@]}"; do
 done
 
 # Run each job once so the timers do not spend their first night looking like
-# four jobs that have never run — and so the plumbing is proven now rather than
+# jobs that have never run — and so the plumbing is proven now rather than
 # at 03:30. backup-volumes is excluded: it quiesces the monitoring stack, and
 # that is not something to do as a side effect of an install.
 if ((RUN_ONCE)); then

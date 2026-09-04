@@ -1,0 +1,164 @@
+---
+# Whether this host is running what the repository says (#99).
+#
+# Deployment used to be `make up` typed into an SSH session. Nothing recorded
+# what got deployed, so `make up` on an uncommitted tree and `make up` on `main`
+# were indistinguishable; and nothing compared the host to the repository, so a
+# config edited in place stayed edited until a deploy silently overwrote it.
+# scripts/converge.sh now runs hourly and writes five gauges into the same
+# textfile directory the maintenance jobs use.
+#
+# WHAT backup.rules.yaml ALREADY COVERS, AND IS NOT REPEATED HERE
+#
+# `converge` is a row in the JOBS table like any other, so ScheduledJobStale,
+# ScheduledJobFailed and ScheduledJobNeverRan already say "the convergence
+# stopped running" and "the convergence ran and failed". None of that is
+# restated below.
+#
+# What those rules cannot say is anything about the RESULT. A convergence that
+# correctly refuses to move — because the tree is dirty, or the tip did not
+# verify — exits non-zero and is fully described by ScheduledJobFailed, but the
+# interesting fact is WHICH refusal and how far behind the host now is. These
+# four rules read the record converge.sh writes rather than its exit code.
+#
+# WHY THERE IS NO ALERT ON THE REVISION ITSELF
+#
+# homelab_deploy_revision_info exists to be read, not to be alerted on. "Is this
+# the right commit" is a question with no threshold — the answer is a git log —
+# and a rule that tried would either hardcode a revision or fire on every
+# deploy. The alertable form of that question is DeployBehind, which asks the
+# same thing against a moving target instead of a fixed one.
+groups:
+  - name: deploy
+    interval: 60s
+    rules:
+      - alert: DeployDrifted
+        # Someone edited a file on the monitoring host.
+        #
+        # This is the alert #99 asked for by name. converge.sh refuses to
+        # fast-forward over an uncommitted change rather than overwriting it, so
+        # by the time this fires the edit is still there and still recoverable —
+        # which is the whole difference from the old model, where the edit was
+        # destroyed and the destruction was also invisible.
+        #
+        # 2h, not 30m. converge.sh rewrites this gauge once an hour, so a `for`
+        # shorter than the cadence asserts nothing beyond "one sample said so".
+        # Two hours means a second convergence looked and the edit was still
+        # uncommitted, which is the difference between someone mid-keystroke and
+        # a change nobody is going to commit.
+        expr: homelab_deploy_tree_dirty == 1
+        for: 2h
+        labels:
+          component: deploy
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The deployment checkout has uncommitted changes"
+          description: >-
+            Something was edited on the monitoring host instead of in the
+            repository, and convergence has stopped until it is resolved — the
+            host is frozen on whatever it was already running. The change is
+            still there: `git -C /home/robo/code/Gerrrt/HomeLab status` and
+            `git diff` show it. Commit it through a pull request or discard it —
+            docs/runbooks/converge-the-host.md.
+
+      - alert: DeployBehind
+        # The host knows about commits it has not applied.
+        #
+        # In steady state this is unfireable: converge.sh sets the gauge to 0
+        # immediately after a successful fast-forward, so a run that applies
+        # cleanly never leaves a positive value behind. It fires when
+        # convergence is refusing (an unverified tip, a rewritten history), or
+        # when HOMELAB_CONVERGE_APPLY=0 has deliberately put the timer in
+        # report-only mode — in which case this alert IS the report and is
+        # expected to fire.
+        #
+        # > 0 and not != 0 on purpose. A failed fetch records -1 rather than a
+        # stale count, precisely so it cannot masquerade as a known lag; the
+        # fetch failing is ScheduledJobFailed's to report, and this rule stays
+        # quiet about a number it does not have.
+        #
+        # 3h matches the 10800s staleness budget scripts/install-timers.sh
+        # declares for the job, so a convergence that queued behind the weekly
+        # backup and then missed its next slot does not alert twice for one
+        # cause.
+        expr: homelab_deploy_behind_commits > 0
+        for: 3h
+        labels:
+          component: deploy
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The host is {{ $value }} commit(s) behind main"
+          description: >-
+            Convergence has run and has not applied what it fetched. Either it
+            is refusing — check `journalctl -u homelab-converge.service -n 50`
+            for a dirty tree, a signature that did not verify, or a
+            non-fast-forward — or HOMELAB_CONVERGE_APPLY=0 is set in
+            /etc/default/homelab-timers and this is the report-only mode doing
+            its job. docs/runbooks/converge-the-host.md.
+
+      - alert: DeployUnverified
+        # The deployed revision does not carry a good signature from the pinned
+        # key.
+        #
+        # Two very different causes, and the description names both because the
+        # metric cannot tell them apart. The dull one is that GitHub's web-flow
+        # key was never imported into robo's keyring, so nothing on this host
+        # CAN verify and convergence has been refusing since it was installed —
+        # the expected state between installing the timer and doing the one-time
+        # import. The interesting one is that somebody committed directly on the
+        # deployment host, which produces an unsigned HEAD and would otherwise
+        # look exactly like a normal deploy.
+        #
+        # Deliberately NOT gated on behind_commits. An unverifiable HEAD is a
+        # finding whether or not there is anything newer to move to.
+        expr: homelab_deploy_verified == 0
+        for: 1h
+        labels:
+          component: deploy
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The deployed revision has no valid signature"
+          description: >-
+            Either GitHub's signing key is not in robo's keyring on this host —
+            the one-time setup step, and convergence is refusing to move until
+            it is done — or HEAD is a commit that did not come through a pull
+            request. `git -C /home/robo/code/Gerrrt/HomeLab log --show-signature -1`
+            distinguishes them. docs/runbooks/converge-the-host.md.
+
+      - alert: DeployMetricsAbsent
+        # The measuring apparatus, and not a duplicate of
+        # ScheduledJobMetricsAbsent.
+        #
+        # That rule watches homelab_job_max_age_seconds, which
+        # scripts/install-timers.sh writes into homelab-jobs.prom. These three
+        # rules read homelab-deploy.prom, which scripts/converge.sh writes. Two
+        # files, and node_exporter's textfile collector fails them
+        # independently: a malformed or deleted homelab-deploy.prom costs only
+        # this file's series, leaves node_textfile_scrape_error at 1 with every
+        # backup rule still green, and takes DeployDrifted, DeployBehind and
+        # DeployUnverified silently with it. Absence looking healthy is the one
+        # failure mode this repository keeps rebuilding the same guard against.
+        #
+        # revision_info is the series chosen because converge.sh writes it on
+        # every exit path that knows a revision at all, including the refusals.
+        # absent_over_time rather than absent, for the reason
+        # backup.rules.yaml's equivalent gives: six hours survives a Prometheus
+        # restart and a single missed scrape, where absent() fires on both.
+        expr: absent_over_time(homelab_deploy_revision_info[6h])
+        for: 1h
+        labels:
+          component: deploy
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "No deployment metrics have reached Prometheus for six hours"
+          description: >-
+            Nothing else in this file can fire while this is true — what is
+            deployed on this host is currently unknown. Check
+            node_textfile_scrape_error, then
+            /var/lib/node_exporter/textfile_collector/homelab-deploy.prom on the
+            monitoring host. If the timer was never installed, `make
+            install-timers` — docs/runbooks/converge-the-host.md.

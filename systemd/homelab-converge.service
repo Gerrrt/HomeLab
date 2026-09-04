@@ -1,0 +1,69 @@
+# Hourly convergence of this host onto what `main` says (#99).
+#
+# This is the one unit here that CHANGES the host rather than reading it, so
+# two directives below are load-bearing in a way they are not elsewhere.
+#
+# SupplementaryGroups=docker, because converge.sh ends in `make up` and that
+# talks to the daemon. Same reasoning as the backup units: a login shell picks
+# the group up from /etc/group and a unit does not, so without it the failure
+# appears only under systemd and never by hand.
+#
+# The `backups` lock, shared with homelab-backup-volumes and
+# homelab-verify-backups. Not tidiness — homelab-backup-volumes STOPS the whole
+# stack for the length of its archive, and a convergence that ran `make up` in
+# that window would restart Prometheus, Loki and Grafana underneath a backup
+# that is mid-read. The result would be an archive nothing had quiesced, which
+# is exactly the kind of backup that looks fine until it is restored.
+#
+# See homelab-backup-volumes.service for why each of the remaining directives is
+# set.
+[Unit]
+Description=HomeLab: converge this host onto the main branch
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/converge-the-host.md
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+SupplementaryGroups=docker
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+Environment=SOPS_AGE_KEY_FILE=/home/robo/.config/sops/age/keys.txt
+# HOMELAB_CONVERGE_APPLY=0 goes here to make the timer report-only — it fetches,
+# verifies and records how far behind the host is, and applies nothing. The
+# leading - means an absent file is not an error, so the default is to apply.
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job converge --lock backups --lock-wait 900 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab converge
+# 900s of that is the lock wait. The convergence itself is a fetch on almost
+# every run and a `make up` on the few that are not.
+TimeoutStartSec=1800
+# Deliberately not Restart=on-failure, and the reason is sharper here than on
+# the backup units. Every way this fails is a refusal — a dirty tree, an
+# unverified tip, a history that was rewritten — and a refusal is a decision,
+# not a transient error. Retrying a decision just makes it again. The timer
+# comes back in an hour, and the alert fires either way.
+Restart=no
+Nice=10
+# No IOSchedulingClass=idle. `make up` recreating a container is latency-bound
+# on the daemon, not throughput-bound on the disk, and deprioritising it only
+# lengthens the window in which the stack is half-restarted.
+ProtectHome=false
+ProtectSystem=false
+# Off, for the reason homelab-backup-volumes.service gives: the daemon resolves
+# -v source paths in the HOST mount namespace, so a private /tmp silently
+# bind-mounts the wrong directory into any container this starts.
+PrivateTmp=false
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-converge
+
+# No [Install] section, on purpose — the timer is what enables this. A oneshot
+# .service carrying WantedBy=multi-user.target would converge and restart the
+# stack at every boot, which is a deploy nobody asked for at the least
+# convenient moment.

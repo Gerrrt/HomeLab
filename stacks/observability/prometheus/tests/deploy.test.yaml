@@ -1,0 +1,186 @@
+---
+# Unit tests for deploy.rules.yaml.
+#
+# Every firing case is paired with a silent one, per containers.test.yaml: a
+# test that only ever expects silence would have passed against the unfireable
+# rule in #63, and a test that only ever expects firing would pass against a
+# rule that fires unconditionally.
+#
+# Two cases here exist to pin specific ways this file could break without
+# `promtool check rules` noticing:
+#
+#   1. THE -1 SENTINEL. scripts/converge.sh records behind_commits as -1 when
+#      the fetch did not complete, so that "we do not know" cannot be read as
+#      "we are behind". A rule written `!= 0` instead of `> 0` passes every
+#      other test here and turns every network blip into a DeployBehind. The
+#      second case feeds -1 and asserts silence.
+#
+#   2. THE instance LABEL. These metrics come from the same textfile collector
+#      as homelab_job_*, so they carry the scrape target's `instance`. The
+#      firing cases assert it survives into the alert — without it a second
+#      monitored host would be indistinguishable from this one, which is the
+#      trap backup.test.yaml documents for the joined rules.
+rule_files:
+  - ../rules/deploy.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- DeployDrifted: dirty, and clean ------------------------------------
+  #
+  # Two hosts in one series set, one with an edited tree and one without, so a
+  # rule that ignored the value and fired on the series existing would fail.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_tree_dirty{instance="prometheus"}'
+        values: "1+0x300"
+      - series: 'homelab_deploy_tree_dirty{instance="oracle"}'
+        values: "0+0x300"
+    alert_rule_test:
+      # `for: 2h`, so still only pending at 1h50m. This is what asserts the
+      # `for` is actually there — converge.sh rewrites the gauge hourly and a
+      # rule without it would alert on a single sample.
+      - eval_time: 1h50m
+        alertname: DeployDrifted
+        exp_alerts: []
+
+      - eval_time: 2h5m
+        alertname: DeployDrifted
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployDrifted
+              instance: prometheus
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The deployment checkout has uncommitted changes"
+              description: >-
+                Something was edited on the monitoring host instead of in the
+                repository, and convergence has stopped until it is resolved —
+                the host is frozen on whatever it was already running. The
+                change is still there: `git -C /home/robo/code/Gerrrt/HomeLab
+                status` and `git diff` show it. Commit it through a pull request
+                or discard it — docs/runbooks/converge-the-host.md.
+
+  # --- DeployBehind: behind, converged, and "we do not know" ---------------
+  #
+  # The -1 case is the point of this block. A fetch that fails records -1, and
+  # `> 0` must treat that as silence while `!= 0` would not.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_behind_commits{instance="prometheus"}'
+        values: "3+0x300"
+      - series: 'homelab_deploy_behind_commits{instance="oracle"}'
+        values: "0+0x300"
+      - series: 'homelab_deploy_behind_commits{instance="saruman"}'
+        values: "-1+0x300"
+    alert_rule_test:
+      - eval_time: 2h55m
+        alertname: DeployBehind
+        exp_alerts: []
+
+      # Only `prometheus` fires: `oracle` is converged and `saruman` could not
+      # fetch, which is ScheduledJobFailed's finding and not this rule's.
+      - eval_time: 3h5m
+        alertname: DeployBehind
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployBehind
+              instance: prometheus
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The host is 3 commit(s) behind main"
+              description: >-
+                Convergence has run and has not applied what it fetched. Either
+                it is refusing — check `journalctl -u homelab-converge.service
+                -n 50` for a dirty tree, a signature that did not verify, or a
+                non-fast-forward — or HOMELAB_CONVERGE_APPLY=0 is set in
+                /etc/default/homelab-timers and this is the report-only mode
+                doing its job. docs/runbooks/converge-the-host.md.
+
+  # --- DeployUnverified: unsigned, and signed -----------------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_verified{instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_deploy_verified{instance="oracle"}'
+        values: "1+0x180"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: DeployUnverified
+        exp_alerts: []
+
+      - eval_time: 1h5m
+        alertname: DeployUnverified
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployUnverified
+              instance: prometheus
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The deployed revision has no valid signature"
+              description: >-
+                Either GitHub's signing key is not in robo's keyring on this
+                host — the one-time setup step, and convergence is refusing to
+                move until it is done — or HEAD is a commit that did not come
+                through a pull request. `git -C /home/robo/code/Gerrrt/HomeLab
+                log --show-signature -1` distinguishes them.
+                docs/runbooks/converge-the-host.md.
+
+  # --- DeployMetricsAbsent: the series is there ---------------------------
+  #
+  # Paired with the block below, which is the same rule with nothing fed to it.
+  # Silence here is what proves the firing case is about absence and not about
+  # the rule being unconditional.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_revision_info{instance="prometheus", revision="09d618ede580"}'
+        values: "1+0x600"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: DeployMetricsAbsent
+        exp_alerts: []
+
+  # --- DeployMetricsAbsent: homelab-deploy.prom stopped arriving ----------
+  #
+  # No input_series at all. A backup metric IS supplied, to pin the thing this
+  # rule exists for: homelab-jobs.prom and homelab-deploy.prom are separate
+  # files that the textfile collector fails independently, so the schedule can
+  # look perfectly healthy while nothing knows what is deployed.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_max_age_seconds{homelab_job="converge", instance="prometheus"}'
+        values: "10800+0x600"
+    alert_rule_test:
+      # `for: 1h` is the only delay this case can assert, and that is worth
+      # saying plainly: the series never exists here, so the 6h lookback is
+      # empty from t=0 and absent_over_time is true immediately. The six hours
+      # only buys anything against real data, where it is the gap that has to
+      # exceed the window. Measured rather than assumed — this case was
+      # originally written expecting a 6h delay and promtool disagreed.
+      - eval_time: 55m
+        alertname: DeployMetricsAbsent
+        exp_alerts: []
+
+      - eval_time: 1h5m
+        alertname: DeployMetricsAbsent
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployMetricsAbsent
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "No deployment metrics have reached Prometheus for six hours"
+              description: >-
+                Nothing else in this file can fire while this is true — what is
+                deployed on this host is currently unknown. Check
+                node_textfile_scrape_error, then
+                /var/lib/node_exporter/textfile_collector/homelab-deploy.prom on
+                the monitoring host. If the timer was never installed, `make
+                install-timers` — docs/runbooks/converge-the-host.md.

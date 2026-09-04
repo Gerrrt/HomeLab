@@ -35,9 +35,13 @@ run, not a partial success. The same run bounds what accumulates on each side
 to change it. The copy needs a one-time key exchange between the
 two laptops, in [`restore-the-firewall.md`](restore-the-firewall.md) §0, and
 fails on purpose until that is done. The volume sets still do not leave
-([#92](https://github.com/Gerrrt/HomeLab/issues/92)), and moving deployment to
-something pull-based is [#99](https://github.com/Gerrrt/HomeLab/issues/99).
-Until then the honest summary is that this host watches its own chores, and the
+([#92](https://github.com/Gerrrt/HomeLab/issues/92)). Deployment itself is now
+one of these jobs rather than something a human remembers to do —
+[#99](https://github.com/Gerrrt/HomeLab/issues/99),
+[ADR-0019](../adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md), and
+[`converge-the-host.md`](converge-the-host.md) for the one setup step it needs
+beyond this runbook.
+The honest summary is still that this host watches its own chores, and the
 *external* cron-monitor described in
 [`verify-the-alert-path.md`](verify-the-alert-path.md) is the only thing watching
 the host.
@@ -48,15 +52,19 @@ the host.
 
 | Job | Command | When | Alerts if not seen in |
 | --- | --- | --- | --- |
+| `converge` | `make converge` | hourly, :25 | 3 hours |
 | `backup-volumes` | `make backup` | Sundays 03:30 | 14 days |
 | `verify-backups` | `make backup ARGS='--verify-only --all'` | daily 05:30 | 3 days |
 | `backup-firewall` | `make backup-firewall` | daily 04:30 | 3 days |
 | `snmp-verify` | `make snmp-verify` | Wednesdays 06:30 | 14 days |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
-Thresholds are roughly twice the period in every case, never once: a threshold
-equal to the period fires on every run that slips past its jitter window, whereas
-twice tolerates one missed run and not two.
+Thresholds are roughly twice the period, never once: a threshold equal to the
+period fires on every run that slips past its jitter window, whereas twice
+tolerates one missed run and not two. `converge` is the one exception at three
+times, because it shares the `backups` lock and a run that queues behind the
+weekly archive can legitimately spend its full 900-second wait and then be an
+hour late. Being late for a reason is not the finding.
 
 Both halves of that table live in one place. The cadence is in the `.timer`
 files, the threshold is in the `JOBS` table in
@@ -227,6 +235,7 @@ expected rather than a second fault.
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |
 | `ScheduledJobMetricsAbsent` fires and nothing else in `backup.rules.yaml` ever has | This step was never run at all | `systemctl list-unit-files 'homelab*'` reports *0 unit files* and `/var/lib/node_exporter/textfile_collector` does not exist. The four other rules here join against a series `--install` writes, so none of them can fire — that alert is the only one that can, and it is doing its job ([#215](https://github.com/Gerrrt/HomeLab/issues/215)). Run `make install-timers` |
+| `converge` fails every hour with a signature error | GitHub's signing key was never imported into `robo`'s keyring, so nothing on this host can verify | The one-time import in [`converge-the-host.md`](converge-the-host.md) §Set it up. Every other job here is unaffected |
 | `refusing to install from …` | You are in a worktree or a second clone | The units hardcode the deployment path. Install from `/home/robo/code/Gerrrt/HomeLab` |
 | `make validate` fails on the schedule | A cadence and its threshold disagree | `make check-timers` names the job and both numbers. Fix the `JOBS` table or the `.timer`, not the alert |
 | `make validate` fails with *no `homelab-*` units are installed* | The stack is running on this host but the schedule was never installed | Exactly the condition above, caught before an alert has to. Only a host running the stack is asked; a laptop with the repository checked out skips it |

@@ -238,7 +238,16 @@ what left this one unfireable for months.
   behind ADR-0008's sensitive tier.
 - **[#99](https://github.com/Gerrrt/HomeLab/issues/99) Move deployment from
   `make up` over SSH to something pull-based**, so the host converges on the repo
-  rather than being pushed to.
+  rather than being pushed to. Answered by
+  [ADR-0019](adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md): an
+  hourly timer running `scripts/converge.sh`, on #77's existing wrapper and
+  alert machinery. The issue's stated blocker — an age key on a host that pulls
+  from a public repository — turned out not to be one, because the key was
+  already on that host and *public* means readable. The real question was
+  unattended execution, and the answer is a pinned signing fingerprint plus a
+  record of every revision deployed. What is deliberately left out: `oracle` and
+  `saruman` are still pushed to with `deploy-agent.sh`, and nothing tracks
+  unifying that.
 - **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
   dashboard export step** — the current loop is manual and therefore skipped
   under pressure.

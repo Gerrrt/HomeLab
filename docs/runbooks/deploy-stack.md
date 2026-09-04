@@ -104,7 +104,7 @@ Then in the UI:
 
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
-2. **Prometheus → Status → Rules.** 48 rules loaded, none in error.
+2. **Prometheus → Status → Rules.** 52 rules loaded, none in error.
 3. **Grafana → Dashboards → HomeLab.** Seven dashboards, populated.
 4. **Grafana → Explore → Loki**, run `{host=~".+"}`. Logs should be arriving.
 5. Confirm level normalisation is working — this has been silently broken
@@ -148,13 +148,35 @@ systemctl list-timers 'homelab-*'
 Full detail, including the one job that has no timer and never will, is in
 [`schedule-maintenance.md`](schedule-maintenance.md).
 
+One of those timers deploys this host. `converge` runs hourly, fetches `main`,
+verifies its signature and runs `make up` — so after this runbook, the section
+below stops being something anybody has to do. It needs one setup step of its
+own, a single GPG import:
+[`converge-the-host.md`](converge-the-host.md).
+
 ## Updating
+
+**Normally you do not.** A merged pull request reaches this host within the hour
+on its own ([ADR-0019](../adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md)).
+What follows is how to deploy something *now* rather than waiting, and what the
+timer is doing on your behalf.
+
+```bash
+make converge    # fetch main, verify it, fast-forward, make up — the timer's job, now
+```
+
+Or by hand, which is the escape hatch when the change is not on `main` yet:
 
 ```bash
 git pull
 make validate
 make up          # recreates changed services, then reloads config on the rest
 ```
+
+Note that a hand-deploy of something uncommitted leaves the tree dirty, which
+**stops convergence** until it is committed or discarded — deliberately, because
+the alternative is the timer destroying your edit at :25. `DeployDrifted` says so
+within two hours.
 
 `make up` recreates a container only when its *service definition* changes — a
 changed bind-mounted config file is invisible to `docker compose up -d`. So
@@ -176,6 +198,12 @@ Images are pinned, so rolling back is a git operation:
 git revert <commit>
 make up
 ```
+
+Revert on a branch and merge it if you can: a revert committed straight to the
+deployment checkout is an unsigned local commit, which is both a non-fast-forward
+against `main` and an unverified `HEAD`, so convergence stops until `main`
+catches up. Fine as an emergency measure — that is what the escape hatch is for —
+but it is a state to leave, not to stay in.
 
 Data volumes survive `make down` and `make up`. Only `make nuke` destroys them,
 it prompts, and it is recoverable from a backup set — see

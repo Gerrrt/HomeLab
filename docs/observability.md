@@ -256,7 +256,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-61 rules in total: 48 metric-based in `prometheus/rules/`, and 13 log-based in
+65 rules in total: 52 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -285,7 +285,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-48 rules across nine files in `prometheus/rules/`:
+52 rules across ten files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -297,6 +297,7 @@ boot check.
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http. The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, and never-ran |
+| `deploy.rules.yaml` | Whether this host is running what the repository says — an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` the host is. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0019](adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the process metric `security.rules.yaml` says a log rule cannot be ([#90](https://github.com/Gerrrt/HomeLab/issues/90)) |
 
 `promtool check rules` validates that these parse. It does not — and cannot —
@@ -306,11 +307,12 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is eighteen rules of 48 so far — the five
+against the broken rule too. Coverage is twenty-two rules of 52 so far — the five
 in `blackbox.rules.yaml`, `ContainerHighMemory` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
-`backup.test.yaml`, `RemoteWriteJobStale`, and `SuricataStopped`.
+`backup.test.yaml`, all four in `deploy.test.yaml`, `RemoteWriteJobStale`,
+and `SuricataStopped`.
 The other 30 are still validated for syntax only, which is exactly the
 standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
 sentence they replaced claimed six and named two, and had been wrong for
