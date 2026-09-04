@@ -127,16 +127,23 @@ tests:
   # (Alertmanager) by its compose name. Each must raise EndpointUnreachable on
   # its own, and the join must have nothing to say: EndpointNameNotResolving
   # requires a `dns` probe of the same name, and there is none.
+  #
+  # The worked example here used to be switch-ui, which was the clearest case
+  # until ADR-0017 gave the switch a name and a `dns` twin. It is a bad example
+  # now for the one reason that matters — it would still pass, because these
+  # series are synthetic, and a reader checking the premise against
+  # targets/blackbox.yaml would find it false. ups-ui replaces it: the APC card
+  # is addressed by IP and has no name to be given.
   - interval: 1m
     input_series:
-      - series: 'probe_success{job="blackbox", instance="http://10.7.7.2/",
-                 name="switch-ui", role="switch", host="neo", via="address"}'
+      - series: 'probe_success{job="blackbox", instance="https://10.0.99.10/",
+                 name="ups-ui", role="ups", host="mjolnir", via="address"}'
         values: "0+0x15"
       - series: 'probe_success{job="blackbox", instance="http://alertmanager:9093/-/healthy",
                  name="alertmanager", role="alerting", host="prometheus", via="compose"}'
         values: "0+0x15"
-      - series: 'probe_success{job="blackbox", instance="https://10.0.99.10/",
-                 name="ups-ui", role="ups", host="mjolnir", via="address"}'
+      - series: 'probe_success{job="blackbox", instance="http://10.0.99.20:9090/-/healthy",
+                 name="prometheus", role="metrics", host="prometheus", via="address"}'
         values: "1+0x15"
     alert_rule_test:
       - eval_time: 11m
@@ -145,19 +152,19 @@ tests:
           - exp_labels:
               alertname: EndpointUnreachable
               job: blackbox
-              instance: "http://10.7.7.2/"
-              name: switch-ui
-              role: switch
-              host: neo
+              instance: "https://10.0.99.10/"
+              name: ups-ui
+              role: ups
+              host: mjolnir
               via: address
               component: blackbox
               severity: critical
               category: availability
             exp_annotations:
-              summary: "switch-ui is not reachable at http://10.7.7.2/"
+              summary: "ups-ui is not reachable at https://10.0.99.10/"
               description: >-
                 Probed by address and got no successful response for five
-                minutes. Expected on neo. If the `address` probe for this
+                minutes. Expected on mjolnir. If the `address` probe for this
                 endpoint is also firing, the service is down; if only the `dns`
                 one is, the service is up and its name is not resolving. For an
                 https target, a certificate that no longer verifies looks exactly

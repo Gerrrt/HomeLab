@@ -264,6 +264,29 @@ packet. Two mitigations are in place, one only partly, and one is not:
 These communities are read-only, but "read-only" on a firewall means the
 complete state table and interface topology. They are credentials.
 
+### The switch's management UI is HTTP, and stays that way
+
+`neo` serves its management UI on port 80 and nothing on 443 — no TLS listener,
+and no way to import a certificate. Checked against the device on 2026-09-04 and
+decided in
+[ADR-0017](adr/0017-name-the-switch-and-leave-its-ui-on-plain-http.md), which
+gave the switch a name (`neo.matrix.elysium`) and closed the certificate half of
+[#97](https://github.com/Gerrrt/HomeLab/issues/97) as unavailable rather than
+pending.
+
+So the switch admin password crosses the wire in cleartext, and it is worth
+being precise about where: **through `neo` itself**, which is the device the
+password protects. A mirrored port or a foothold on the switch sees the
+credential to the switch. This is the same shape as the SNMP argument above and
+a sharper version of it, because this credential is read-write.
+
+What holds it: the password is unique to the device, and only Hicks and
+Winterfell can reach `10.7.7.0/24` at all
+([ADR-0013](adr/0013-segment-access-as-implemented.md)). What does not hold it:
+anything on the device, which is now carrying its third firmware limit after the
+undeletable community row and the missing SNMPv3. A TLS management interface
+belongs in the selection criteria whenever this switch is replaced.
+
 ## Hardening applied to the stack
 
 - Anonymous Grafana access disabled; sign-up disabled; admin password from SOPS.

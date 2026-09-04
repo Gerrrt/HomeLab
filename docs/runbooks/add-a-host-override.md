@@ -53,6 +53,7 @@ The KVM in the rack is that access.
 | `oracle` | `matrix.elysium` | `10.0.99.30` | The machine the wiki runs on |
 | `prometheus` | `matrix.elysium` | `10.0.99.20` | Monitoring host |
 | `grafana` | `matrix.elysium` | `10.0.99.20` | Dashboards — matches the certificate's CN |
+| `neo` | `matrix.elysium` | `10.7.7.2` | The switch — ADR-0017. Note the subnet: this one is not `10.0.99.x` |
 
 `morpheus` needs no entry. It already resolves — and note it answers with **two**
 addresses, `10.0.99.1` and `10.7.7.1`, because pfSense registers the firewall's
@@ -60,8 +61,12 @@ own hostname on each interface. That is not a misconfiguration, and a `dig` that
 shows one or the other is round-robin rather than drift.
 
 > [!NOTE]
-> These four were applied on 2026-08-30 and verified. The procedure below is
-> what was run; it is kept for the next name, not because these are outstanding.
+> **The first four were applied on 2026-08-30 and verified.** The procedure below
+> is what was run; it is kept for the next name, not because those four are
+> outstanding. `neo` is the fifth and was added later, by
+> [ADR-0017](../adr/0017-name-the-switch-and-leave-its-ui-on-plain-http.md) —
+> check it with the `dig` below rather than assuming, since it is the one row
+> here that has not been true for as long as the others.
 
 **`oracle` and `lemmiwinks` share an address on purpose.** One machine, two
 names: the wiki is a container on Oracle. Either add two entries or add one for
@@ -90,11 +95,22 @@ dig +short @10.0.99.1 lemmiwinks.matrix.elysium
 dig +short @10.0.99.1 oracle.matrix.elysium
 dig +short @10.0.99.1 prometheus.matrix.elysium
 dig +short @10.0.99.1 grafana.matrix.elysium
+dig +short @10.0.99.1 neo.matrix.elysium
 ```
 
-Four addresses, matching the table above. Query `@10.0.99.1` explicitly rather
-than relying on the client's configured resolver — otherwise a wrong answer from
-a local cache looks like a wrong answer from Unbound.
+**Five answers, three distinct addresses** — match each against the table above
+rather than counting them. `oracle` and `lemmiwinks` both answer `10.0.99.30`,
+and `grafana` and `prometheus` both answer `10.0.99.20`, because each pair is
+two names for one machine. A duplicate here is the expected result, not a
+copy-paste error in the override table.
+
+Query `@10.0.99.1` explicitly rather than relying on the client's configured
+resolver — otherwise a wrong answer from a local cache looks like a wrong answer
+from Unbound.
+
+`neo` is the one worth reading carefully: it should answer `10.7.7.2`, and it is
+the only one of the five that does not land in `10.0.99.x`. An answer on the
+management subnet means the row was typed from muscle memory.
 
 > [!IMPORTANT]
 > **A name that failed before may keep failing for a while after you fix it.**
@@ -146,7 +162,18 @@ The same steps. Two things worth doing at the same time:
   inventory. A name that only exists in the firewall's configuration is a name
   nobody will find when it stops working.
 
-The open question of how to reach the MokerLink management interface by name
-rather than by address ([#97](https://github.com/Gerrrt/HomeLab/issues/97)) is
-this procedure plus a certificate, and is not solved by an override alone —
-`10.7.7.2` sits outside every documented subnet, which is the harder half.
+Reaching the MokerLink management interface by name
+([#97](https://github.com/Gerrrt/HomeLab/issues/97)) is this procedure and
+nothing more — `neo` is in the table above. This paragraph used to say the
+override was "not solved by an override alone" because `10.7.7.2` "sits outside
+every documented subnet". Both halves were wrong.
+
+The address is documented — [`network.md`](../network.md) has a LAN section for
+it — it is only outside the `10.0.x` convention, which is a memory problem and
+not a routing one. And the certificate that was supposed to be the harder half
+is not hard, it is unavailable: the switch has no TLS listener to point one at.
+[ADR-0017](../adr/0017-name-the-switch-and-leave-its-ui-on-plain-http.md)
+records the check and closes that half. The UI stays at
+`http://neo.matrix.elysium/`, and `10.7.7.2` stays written down beside it,
+because the name needs `morpheus` and the switch is what you reach for when
+`morpheus` is the suspect.

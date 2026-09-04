@@ -219,8 +219,17 @@ what left this one unfireable for months.
   left is the purchase itself and the build.
   → [runbook](runbooks/build-the-playground.md)
 - **[#97](https://github.com/Gerrrt/HomeLab/issues/97) Work out DNS for the
-  MokerLink management UI** so it is not reached by IP, and can hold a
-  certificate that verifies.
+  MokerLink management UI** so it is not reached by IP. Answered by
+  [ADR-0017](adr/0017-name-the-switch-and-leave-its-ui-on-plain-http.md), which
+  splits the issue in two and only grants one half. The name is a host override
+  like any other — `neo` → `10.7.7.2` — and was never blocked behind ADR-0008,
+  because ADR-0010 keeps the overrides on Unbound whatever AdGuard does. **The
+  certificate half is closed as unavailable rather than pending:** the switch
+  has no TLS listener and no way to import one, checked against the device on
+  2026-09-04. That is its third firmware limit after #84 and #85, and the
+  argument for replacing it — where TLS management belongs in the selection
+  criteria next to SNMPv3. What is left is applying the override and adding the
+  `via: dns` blackbox twin, in that order.
 
 ## Automation
 

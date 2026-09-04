@@ -110,8 +110,24 @@
 # firewall, not the device.
 
 # The switch's web UI is plain http, and http only — 443 is dropped, checked
-# from 10.0.99.20. Reachable because the switch LAN (10.7.7.0/24) is the one
-# segment Winterfell's egress rule does not block (ADR-0013).
+# from 10.0.99.20 and re-checked 2026-09-04. That is the device, not the
+# probe: no TLS listener and no certificate import, so `http_2xx_plain` is the
+# permanent module here rather than a placeholder until it gets a certificate
+# (ADR-0017). Reachable because the switch LAN (10.7.7.0/24) is the one segment
+# Winterfell's egress rule does not block (ADR-0013).
+#
+# Probed twice since ADR-0017 gave it a name. The dns twin matters more here
+# than elsewhere: this is the one endpoint whose address is on a different
+# subnet from every other management address, so "the name broke" and "someone
+# typed 10.0.99.2" are failures worth telling apart.
+
+- targets: ["http://neo.matrix.elysium/"]
+  labels:
+    module: http_2xx_plain
+    name: switch-ui
+    role: switch
+    host: neo
+    via: dns
 
 - targets: ["http://10.7.7.2/"]
   labels:
