@@ -75,12 +75,14 @@ LINT_SKIPS=""
 LOKI_SKIPS=""
 TIMER_SKIPS=""
 ROUNDTRIP_SKIPS=""
+DASH_EXPRS=""
 cleanup() {
   [[ -n "${TMP_ENV}" ]] && rm -f "${TMP_ENV}"
   [[ -n "${LINT_SKIPS}" ]] && rm -f "${LINT_SKIPS}"
   [[ -n "${LOKI_SKIPS}" ]] && rm -f "${LOKI_SKIPS}"
   [[ -n "${TIMER_SKIPS}" ]] && rm -f "${TIMER_SKIPS}"
   [[ -n "${ROUNDTRIP_SKIPS}" ]] && rm -f "${ROUNDTRIP_SKIPS}"
+  [[ -n "${DASH_EXPRS}" ]] && rm -f "${DASH_EXPRS}"
   return 0
 }
 trap cleanup EXIT
@@ -391,6 +393,42 @@ if have python3; then
       fail "${stack}: dashboard JSON and datasource references"
     fi
   done
+
+  # A panel query that does not parse shows as an empty panel, not an error, so
+  # nothing about a broken dashboard is loud. This was CI-only until #175.
+  #
+  # --emit-promql deliberately fails on a stack with no dashboards: its output
+  # is the proof the queries parse, so emitting an empty file would pass
+  # promtool over nothing (#68). "This stack ships none" is knowable here, so
+  # the guard is here, and it is reported rather than skipped — a skip means
+  # "could not check", and this checked and found nothing to check.
+  if ((${#PROMTOOL[@]})); then
+    for stack in "${STACKS[@]}"; do
+      if ! compgen -G "stacks/${stack}/grafana/dashboards/*.json" >/dev/null; then
+        pass "${stack}: no dashboards — no panel queries to parse"
+        continue
+      fi
+      # Inside the repository, not /tmp: PROMTOOL may be a docker run that
+      # bind-mounts REPO_ROOT and nothing else, so a path outside it does not
+      # exist on the other side of the container boundary.
+      DASH_EXPRS="$(mktemp "${REPO_ROOT}/.dashboard-exprs-XXXXXX.yaml")"
+      # mktemp makes it 0600. When PROMTOOL is the docker fallback the reader
+      # is the image's own unprivileged user, not this one, and an unreadable
+      # file fails as "permission denied" — which looks exactly like a broken
+      # query and is not one.
+      chmod 0644 "${DASH_EXPRS}"
+      if python3 scripts/check_dashboards.py --stack "${stack}" --emit-promql > "${DASH_EXPRS}" \
+         && "${PROMTOOL[@]}" check rules "${DASH_EXPRS#"${REPO_ROOT}/"}" >/dev/null 2>&1; then
+        pass "${stack}: dashboard panel queries parse as PromQL"
+      else
+        "${PROMTOOL[@]}" check rules "${DASH_EXPRS#"${REPO_ROOT}/"}" || true
+        fail "${stack}: dashboard panel queries parse as PromQL"
+      fi
+      rm -f "${DASH_EXPRS}"; DASH_EXPRS=""
+    done
+  else
+    skip "no promtool binary and no docker daemon — panel queries not parsed"
+  fi
 else
   skip "python3 not installed"
 fi
@@ -548,25 +586,26 @@ else
   skip "no gitleaks binary and no docker daemon"
 fi
 
-# Cheap belt-and-braces check that no rendered or decrypted artefact is staged.
-# gitleaks cannot cover .purge-secrets.txt — it is gitignored (so the filesystem
-# scan skips it) and holds bare literals with no keyword context to match. Being
-# untracked is the control.
-# certificates/ is in that list because its contents were committed once and
-# had to be removed by rewriting every commit in the repository. The cheapest
-# possible check is that it never becomes tracked again.
-# Every stack's, not one stack's: a second stack means a second .env holding a
-# decrypted Grafana password, and the check that it never becomes tracked has
-# to grow with it. `git ls-files 'stacks/*/.env'` rather than a loop, so a
-# stack added without touching this file is still covered.
-if git ls-files 'stacks/*/.env' | grep -q . \
-   || git ls-files 'stacks/*/.rendered' 'stacks/*/*/.rendered' | grep -q . \
-   || git ls-files | grep -q '\.purge-secrets\.txt' \
-   || git ls-files | grep -q '^certificates/' \
-   || git ls-files | grep -q '^backups/'; then
-  fail "a rendered, decrypted, purge-secrets, certificate or backup file is tracked by git"
+# Both of these were CI-only until #175, and CI is the one place you cannot
+# consult before pushing. The SOPS assert is the sharper of the two: a file that
+# is not encrypted is a committed plaintext secret, and a plaintext secret that
+# reaches the remote has to be purged from history rather than reverted.
+#
+# One implementation each, shared with the workflow. The tracked-artefact check
+# used to be written out twice — here and in ci.yml — and the two had already
+# drifted, this copy missing a second stack's .env, a nested .rendered/ and a
+# certificates/ anywhere but the repository root.
+if ./scripts/check-sops-encrypted.sh; then
+  pass "every SOPS file is encrypted"
 else
+  fail "every SOPS file is encrypted"
+fi
+
+if ./scripts/check-tracked-artefacts.sh >/dev/null; then
   pass "no rendered, decrypted, purge-secrets, certificate or backup files tracked"
+else
+  ./scripts/check-tracked-artefacts.sh || true
+  fail "no rendered, decrypted, purge-secrets, certificate or backup files tracked"
 fi
 
 printf '\n'

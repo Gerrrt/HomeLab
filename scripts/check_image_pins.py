@@ -471,8 +471,102 @@ def sources() -> list[tuple[str, list[Line]]]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# The three pattern checks, folded in from ci.yml (#175)
+# ---------------------------------------------------------------------------
+# These were inline shell in the workflow and unrunnable locally. They belong
+# here because this file already owns the argument: the docstring above explains
+# why a grep cannot see a *missing* pin, and these three are the greps it is
+# explaining. Keeping them beside the parser is what makes that paragraph
+# checkable rather than a note about code somewhere else.
+#
+# Scope is `git ls-files`, not a recursive walk of the working tree. The shell
+# versions walked `.`, which is fine in CI's clean checkout and wrong here: this
+# repository keeps git worktrees under .claude/worktrees/, so a local run would
+# have descended into full copies of itself and reported another branch's
+# findings as this one's. Tracked files are also the right question — an
+# untracked scratch file pinning :latest harms nobody.
+
+VERSION_PIN = re.compile(
+    r"(^|[^a-zA-Z0-9._/-])"
+    r"[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*:v?[0-9]+\.[0-9]+"
+)
+FLOATING = re.compile(r"(^|\s)[a-z0-9._/-]+:latest(\s|$)")
+COMMENT = re.compile(r"^\s*#")
+
+PIN_SCAN = ("scripts/", ".github/", "Makefile")
+FLOAT_SUFFIXES = (".yaml", ".yml", ".sh")
+
+
+def tracked_files() -> list[str]:
+    out = subprocess.run(
+        ["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True
+    )
+    return out.stdout.splitlines()
+
+
+def pattern_problems() -> list[str]:
+    problems: list[str] = []
+    files = tracked_files()
+
+    for rel in files:
+        path = REPO / rel
+        if not path.is_file():
+            continue
+        in_pin_scan = rel.startswith(PIN_SCAN) or rel == "Makefile"
+        is_float_scan = rel.endswith(FLOAT_SUFFIXES) or rel.endswith("Makefile")
+        if not (in_pin_scan or is_float_scan):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            if COMMENT.search(line):
+                continue
+            # compose.yaml is where a version is SUPPOSED to live.
+            if in_pin_scan and VERSION_PIN.search(line):
+                problems.append(
+                    f"{rel}:{n} pins an image version outside compose.yaml — "
+                    f"resolve it with scripts/image-for.sh"
+                )
+            if is_float_scan and FLOATING.search(line):
+                problems.append(
+                    f"{rel}:{n} uses a floating :latest tag — pin an explicit "
+                    f"version"
+                )
+    return problems
+
+
+def digest_problems() -> list[str]:
+    """Every service image in every stack carries a digest.
+
+    A tag is a mutable pointer and a digest is the content hash, so an image
+    with only a tag can change what gets deployed without anything in this
+    repository changing. Read off the parsed compose file rather than an awk
+    over `image:` lines, so a quoted or flow-style value is not a hole.
+    """
+    problems = []
+    composes = sorted(REPO.glob("stacks/*/compose.yaml"))
+    if not composes:
+        return ["no stacks/*/compose.yaml found — this check has stopped checking"]
+    for cf in composes:
+        doc = yaml.safe_load(cf.read_text(encoding="utf-8")) or {}
+        for name, svc in (doc.get("services") or {}).items():
+            image = (svc or {}).get("image")
+            if image and "@sha256:" not in image:
+                rel = cf.relative_to(REPO)
+                problems.append(
+                    f"{rel}: {name} image {image} is not pinned by digest — "
+                    f"run make pin-digests"
+                )
+    return problems
+
+
 def main() -> int:
     problems, sites, files = [], 0, 0
+    problems.extend(pattern_problems())
+    problems.extend(digest_problems())
     for rel, lines in sources():
         found, seen = check_file(rel, lines)
         problems.extend(found)
