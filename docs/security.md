@@ -19,6 +19,7 @@ What this network is actually built to survive:
 | Losing visibility of a failure | 69 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
+| The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
 
 What it explicitly does **not** defend against: a determined attacker with
 physical access to the rack, a supply-chain compromise in an upstream container
@@ -43,6 +44,26 @@ heavier alternative to one. **Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a
 pending piece of work — it closes when an identity provider exists and not
 before.
+
+**Availability of the data is a separate question from access to it, and it now
+has an answer too.** ADR-0008's tier will hold the household's credentials,
+photographs and documents on one mini PC behind a private CA, so if that box is
+down and the person who runs it is unreachable, the credentials for recovering
+everything else sit behind the thing that broke — and step-ca means the browser
+refuses the handshake rather than degrading.
+[ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
+declines to make any of it highly available and constrains the path instead:
+**nothing the household needs in an emergency may have the estate on its only
+route.** The household's own credentials are recoverable without Vaultwarden;
+Immich and Paperless-ngx get an encrypted copy outside the estate whose
+staleness is visible, off-*estate* rather than off-*host*, because `oracle`
+shares the rack and the power feed; nothing on the break-glass card depends on a
+certificate this estate issues; and nothing physical may be operable only
+through Home Assistant. Those fall due on ADR-0022's triggers — the first real
+credential, photo or document — and none of them is built. **The copy leaving
+the house is a new residual**: it is the first household data to sit in someone
+else's building, reduced to an availability problem by encryption at rest with a
+key that never leaves here, and accepted on that basis.
 
 **Intrusion detection has been running** on **Skids (VLAN 20)** since
 2026-08-21 and on **Degens (VLAN 10)** since 2026-09-02, one Suricata process
