@@ -15,6 +15,24 @@ ignore: |
   stacks/observability/snmp-exporter/.rendered/
   node_modules/
   .venv/
+  # Other Claude Code sessions' git worktrees. Each one is a whole second
+  # checkout, so without this yamllint lints another branch's copy of every
+  # file here — including the ciphertext the entries above exist to exempt.
+  # Those patterns contain a slash, which anchors them to the repository root
+  # the way .gitignore does, so `secrets/*.sops.yaml` does not match
+  # `.claude/worktrees/<branch>/secrets/observability.sops.yaml`. Measured: 23
+  # findings, none of them in this tree.
+  #
+  # It is a LOCAL false red and CI never reproduces it, which is the worst
+  # shape for a check to have: `make validate` fails on the deploy host for a
+  # clean change, and an operator who learns to dismiss that has stopped
+  # reading the one command that gates a deploy.
+  #
+  # This list has to be maintained by hand because yamllint does not read
+  # .gitignore. editorconfig-checker is immune to the same problem for a
+  # structural reason — scripts/lint.sh hands it a `git ls-files` list rather
+  # than letting it walk the tree. See the comment there.
+  .claude/worktrees/
 
 rules:
   line-length:

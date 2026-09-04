@@ -19,3 +19,10 @@ globs:
 ignores:
   - node_modules/**
   - .venv/**
+  # Other Claude Code sessions' git worktrees, for the reason spelled out in
+  # .yamllint.yaml. `**/*.md` matches dot directories here, so a second
+  # checkout doubles the file count — measured at 114 files against 57 tracked.
+  # It has passed so far only because a worktree holds a copy of this
+  # repository's own markdown; a branch under review with one lint error in it
+  # would fail `make validate` on main, pointing at a file main does not have.
+  - .claude/worktrees/**

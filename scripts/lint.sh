@@ -31,6 +31,32 @@
 # linter it cannot reach, CI may not, because a linter skipped there is one
 # nobody will ever run.
 #
+# WHAT EACH LINTER LOOKS AT, AND WHY THAT IS NOT OBVIOUS
+#
+# Three of these decide their own file list, and none of them reads .gitignore.
+# That only matters because a workstation has trees a CI checkout does not —
+# rendered config, certificates, backups, and another session's git worktree
+# under .claude/worktrees/, which is an entire second copy of this repository.
+# A linter that walks the tree finds all of it and fails locally for a change
+# that is clean, while CI stays green. Green where nothing runs and red where
+# everything does is the wrong way round, and it is how a check stops being
+# read.
+#
+# So, measured rather than assumed:
+#
+#   - yamllint walks `.`, so its exclusions live in .yamllint.yaml
+#   - markdownlint-cli2 globs `**/*.md`, which DOES match dot directories, so
+#     its exclusions live in .markdownlint-cli2.yaml
+#   - shellcheck is handed scripts/*.sh below — one literal glob, cannot wander
+#   - actionlint reads only <repo root>/.github/workflows. Verified with
+#     -verbose: it lints 2 files with a worktree present, not 4
+#   - editorconfig-checker is handed a `git ls-files` list built below, so it
+#     sees tracked files and nothing else
+#
+# The last of those is the shape to copy when this comes up again: a list built
+# from git cannot drift, whereas the first two carry a list of exclusions that
+# has to be extended by hand every time a new ignored directory appears.
+#
 # --skips-file follows seed-validation-env.sh's contract: the caller owns the
 # path and its lifetime. scripts/validate.sh passes an mktemp it removes on exit
 # and adds the line count to its SKIPPED counter. Without it a skip here would
