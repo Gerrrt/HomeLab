@@ -201,6 +201,39 @@ what left this one unfireable for months.
   stays terminal outbound, with #223's tripwire untouched. Capacity buys a
   four-bay chassis with two bays filled, because the bay count is the half that
   cannot be changed later and the library's size is a number nobody has.
+- **[#101](https://github.com/Gerrrt/HomeLab/issues/101) Build ADR-0007's
+  defended estate on `Saruman`** — a Windows domain, Wazuh, Velociraptor, PBS
+  and a second observability stack. The umbrella. Nothing of it is built, but
+  the shape is settled and the work is split seven ways, which is what moved it
+  out of *Decided but not built* below.
+  [ADR-0019](adr/0019-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
+  answered the two questions ADR-0007 left open, and both of them blocked the
+  first line of work. `stacks/lab/` runs in a **guest**, not on the hypervisor:
+  `Saruman` is the one host in the estate that must not run Docker, because
+  ADR-0014 leans on its own firewall and Docker rewrites iptables — which is
+  why #88 deployed the native `.deb` there rather than a container. And the
+  stack carries its own **Prometheus**: ADR-0007 named three services while
+  saying in the same sentence that `config.alloy` is reused with only the two
+  `*_URL` variables changed, and that file has two sinks, so a lab without a
+  Prometheus points the second one at `10.0.99.20` and inverts the isolation
+  the ADR exists for.
+  In order — [#262](https://github.com/Gerrrt/HomeLab/issues/262) the guest,
+  then [#263](https://github.com/Gerrrt/HomeLab/issues/263) the validators,
+  because `STACK ?=` reaches the lifecycle targets and stops there and every
+  checker in this repository is pinned to `stacks/observability`, so a second
+  stack today would be one CI has never seen; then
+  [#264](https://github.com/Gerrrt/HomeLab/issues/264) the stack itself.
+  [#265](https://github.com/Gerrrt/HomeLab/issues/265) the domain is what
+  everything else is pointed at, and blocks both
+  [#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh — the heaviest
+  component, and the one most likely to be what the spindles run out on — and
+  [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor.
+  [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS decides what it is
+  for before it is installed, since a hypervisor backing up its own guests to
+  itself is not a backup. Liveness stays where it already was, with
+  [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0019 decides only
+  that no Alertmanager goes *inside* the stack, and the lab is otherwise being
+  built to go quiet.
 - **[#96](https://github.com/Gerrrt/HomeLab/issues/96) Procure `ifrit` and build
   the playground** — only after the main network is finished. The isolation
   mechanism ADR-0007 deferred is settled by ADR-0014: `ifrit` is single-homed on
@@ -249,9 +282,6 @@ Accepted ADRs with no work behind them. Recorded here because an accepted ADR
 with nothing tracking it is indistinguishable from a rejected one after six
 months.
 
-- **[#101](https://github.com/Gerrrt/HomeLab/issues/101)** ADR-0007's
-  `stacks/lab/` on `Saruman` — Wazuh, Velociraptor, PBS, a Windows domain, and a
-  second observability stack.
 - **[#234](https://github.com/Gerrrt/HomeLab/issues/234)** ADR-0014's tripwire
   on ImaginationLAN — the fourth rule in #223's shape, a Loki rule whose source
   is `10.0.30.0/24`, and the restore runbook expecting four where it expects
