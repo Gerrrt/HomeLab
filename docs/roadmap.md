@@ -328,7 +328,8 @@ what left this one unfireable for months.
   `stacks/lab/` holds the compose file, both configs, four alert rules and
   their unit tests, and the secrets template. What is left of it is a deploy,
   which needs [#262](https://github.com/Gerrrt/HomeLab/issues/262) — the guest
-  on `Saruman` — to exist first. Building it made the tooling stack-aware
+  on `Saruman` — to exist first.
+  → [runbook](runbooks/build-the-lab-guest.md) Building it made the tooling stack-aware
   (`render-config.sh` derives its required keys per stack rather than demanding
   the estate's ten, `reload-config.sh` skips services a stack does not declare,
   `bootstrap.sh` refuses to give one age key both stacks) and gave `.sops.yaml`
