@@ -203,18 +203,40 @@ def documented_versions() -> dict[str, list[tuple[str, str]]]:
 RUNBOOK = "docs/runbooks/enable-suricata.md"
 RUNBOOK_CLAIM = re.compile(r"`morpheus`\s+now\s+runs\s+([0-9][^\s,]*)")
 
+# The claim is about one box, so the series is selected by device rather than by
+# being the first that parses. sysDescr is NOT morpheus-only: the ilo module
+# walks it too, and `shiva` answers "Integrated Lights-Out 4 2.82 Feb 06 2023" —
+# which sorts first in the query result today and is skipped only because 2.82
+# has two components rather than three. An iLO firmware numbered 2.82.1, or any
+# future device in a module that walks sysDescr, would otherwise have this
+# comparing the runbook's pfSense claim against the wrong machine, and reporting
+# it under morpheus's name.
+PFSENSE_DEVICE = "morpheus"
+PFSENSE_VERSION = re.compile(r"\b(\d+\.\d+\.\d+-\S+)")
+
 
 def check_runbook_pfsense_version(prom: str, failures: list[str]) -> None:
-    series = query(prom, "sysDescr")
-    running = None
-    for entry in series:
-        match = re.search(r"\b(\d+\.\d+\.\d+-\S+)", entry["metric"].get("sysDescr", ""))
-        if match:
-            running = match.group(1)
+    descr = None
+    for entry in query(prom, "sysDescr"):
+        metric = entry["metric"]
+        device = (metric.get("device") or metric.get("instance") or "").lower()
+        if device == PFSENSE_DEVICE:
+            descr = metric.get("sysDescr", "")
             break
-    if running is None:
-        skip("pfSense version — sysDescr carries no version-shaped token")
+
+    if descr is None:
+        skip(f"pfSense version — nothing reports sysDescr for {PFSENSE_DEVICE}")
         return
+
+    match = PFSENSE_VERSION.search(descr)
+    if match is None:
+        fail(
+            f"pfSense version — {PFSENSE_DEVICE} reports sysDescr {descr!r}, "
+            f"which carries no version this can read"
+        )
+        failures.append(f"sysDescr:{PFSENSE_DEVICE}")
+        return
+    running = match.group(1)
 
     path = HARDWARE_MD.parent.parent / RUNBOOK
     claim = RUNBOOK_CLAIM.search(path.read_text(encoding="utf-8"))
