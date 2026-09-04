@@ -18,14 +18,14 @@
 # of the panels to promtool for exactly that reason; LogQL had no equivalent,
 # so a typo in a Loki panel reached production unchallenged.
 #
-# Usage: scripts/check_loki_rules.sh
+# Usage: scripts/check_loki_rules.sh [--stack NAME] [--skips-file PATH]
 
 # -e is on: a failed cp or config rewrite must not produce a cheerful PASS.
 # The one command allowed to fail is the timeout below, which is guarded.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STACK="${REPO_ROOT}/stacks/observability"
+STACK_NAME="observability"
 # Resolved from compose.yaml — see scripts/image-for.sh.
 LOKI_IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" loki)"
 BOOT_SECONDS="${BOOT_SECONDS:-45}"
@@ -40,13 +40,42 @@ SKIPS_FILE=""
 while (($#)); do
   case "$1" in
     --skips-file) SKIPS_FILE="${2:?--skips-file needs a path}"; shift ;;
+    --stack) STACK_NAME="${2:?--stack needs a name}"; shift ;;
     *) die "unknown argument: $1" ;;
   esac
   shift
 done
 
+STACK="${REPO_ROOT}/stacks/${STACK_NAME}"
+[[ -f "${STACK}/compose.yaml" ]] || die "no such stack: ${STACK}"
 RULES_DIR="${STACK}/loki/rules"
-[[ -d "${RULES_DIR}" ]] || die "no rules directory at ${RULES_DIR}"
+
+# A stack may legitimately have neither Loki rules nor dashboards. `stacks/lab`
+# has both absences on purpose: its Loki carries no ruler, because a ruler needs
+# an Alertmanager to deliver to and that stack has none (ADR-0020), and it ships
+# no dashboards yet. With nothing to parse there is nothing this check can say,
+# and it exits 0 saying so.
+#
+# NOT a skip. A skip means "this could not run and therefore proved nothing",
+# and validate.sh counts skips precisely so a run cannot claim to have checked
+# what it did not (#68). This ran, and there was nothing to check — a different
+# statement, and mislabelling it would inflate the skip count on every run
+# forever until it stopped being read.
+n_committed=0
+if [[ -d "${RULES_DIR}" ]]; then
+  shopt -s nullglob
+  rule_files=("${RULES_DIR}"/*.yaml)
+  shopt -u nullglob
+  n_committed=${#rule_files[@]}
+fi
+shopt -s nullglob
+dash_files=("${STACK}/grafana/dashboards"/*.json)
+shopt -u nullglob
+if ((n_committed == 0 && ${#dash_files[@]} == 0)); then
+  printf '\033[0;32m  PASS\033[0m %s\n' \
+    "${STACK_NAME}: no Loki rules and no dashboards — nothing to parse"
+  exit 0
+fi
 
 # Whether this run can happen at all is decided FIRST, before anything with a
 # side effect or a failure mode of its own.
@@ -81,20 +110,34 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}" 2>/dev/null || true' EXIT
 # auth_enabled is false, so Loki's local ruler looks under <dir>/fake/.
 mkdir -p "${WORK}/rules/fake" "${WORK}/data"
-cp "${RULES_DIR}"/*.yaml "${WORK}/rules/fake/"
+# An `if` and not `((n_committed)) && cp ...`: under `set -e` that one-liner
+# exits the script when the count is zero, because the && chain's status
+# becomes the failed arithmetic. A stack with dashboards but no rules would
+# have died here reporting nothing.
+if ((n_committed)); then
+  cp "${RULES_DIR}"/*.yaml "${WORK}/rules/fake/"
+fi
 
 # Dashboard LogQL, as an extra rule file so it takes precisely the same path
 # through the ruler as the committed rules — same parser, same failure output,
-# no second code path to keep honest. check_dashboards.py refuses to emit an
-# empty file, so a run that finds no panels fails here rather than passing over
-# nothing.
+# no second code path to keep honest.
+#
+# Asked for only when the stack HAS dashboards. check_dashboards.py --emit-logql
+# still fails on an empty directory, deliberately: its output is the file that
+# proves the panel queries parse, so emitting nothing over a vanished dashboard
+# directory would pass this check over nothing (#68). The guard belongs here,
+# where "this stack ships no dashboards" is known, rather than in the emitter,
+# where it cannot be told apart from "the dashboards are gone".
 DASH_RULES="${WORK}/rules/fake/dashboard-expressions.rules.yaml"
-if ! python3 "${REPO_ROOT}/scripts/check_dashboards.py" --emit-logql \
-     > "${DASH_RULES}" 2> "${WORK}/emit.err"; then
-  cat "${WORK}/emit.err" >&2
-  die "could not emit dashboard LogQL"
+n_dash=0
+if ((${#dash_files[@]})); then
+  if ! python3 "${REPO_ROOT}/scripts/check_dashboards.py" --stack "${STACK_NAME}" --emit-logql \
+       > "${DASH_RULES}" 2> "${WORK}/emit.err"; then
+    cat "${WORK}/emit.err" >&2
+    die "could not emit dashboard LogQL"
+  fi
+  n_dash="$(grep -c '^ *- alert:' "${DASH_RULES}" || true)"
 fi
-n_dash="$(grep -c '^ *- alert:' "${DASH_RULES}" || true)"
 
 # The Loki image runs as uid 10001, while mktemp -d creates a 0700 directory
 # owned by the invoking user. Without this the container cannot read its own

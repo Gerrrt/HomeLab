@@ -86,7 +86,14 @@ PROSE = (
     "docs/network.md",
     "docs/observability.md",
     "docs/security.md",
-    "stacks/observability/README.md",
+    # Every stack's README, globbed rather than listed. This was the single
+    # literal "stacks/observability/README.md", so stacks/lab's README was
+    # prose nothing checked — its image table could have carried a version pin
+    # and gone stale silently, which is the #73 defect the whole PROSE list
+    # exists to prevent (#263).
+    *sorted(
+        str(p.relative_to(REPO)) for p in REPO.glob("stacks/*/README.md")
+    ),
     *sorted(
         str(p.relative_to(REPO)) for p in (REPO / "docs/runbooks").glob("*.md")
     ),

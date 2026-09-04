@@ -14,14 +14,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  STACK: stacks/observability
-  # Image versions are NOT duplicated here. They are resolved from compose.yaml
-  # at run time by scripts/image-for.sh, because Dependabot only updates
-  # compose.yaml — hardcoded copies went stale silently and CI ended up
-  # validating v3.1.0 configs against a stack running v3.13.2. gitleaks was the
-  # last exception to that and is now a profile-gated service in compose.yaml
-  # like every other image (#65).
+# There is no `env: STACK:` here any more. It pinned every step below to
+# stacks/observability, which is why stacks/lab landed as a stack CI had never
+# seen (#263, #264). Each step loops over ./scripts/stacks.sh instead — the one
+# place that defines what a stack is, and the thing that fails when a directory
+# under stacks/ has no compose.yaml.
+#
+# Image versions are NOT duplicated here either. They are resolved from
+# compose.yaml at run time by scripts/image-for.sh, because Dependabot only
+# updates compose.yaml — hardcoded copies went stale silently and CI ended up
+# validating v3.1.0 configs against a stack running v3.13.2. gitleaks was the
+# last exception to that and is now a profile-gated service in compose.yaml
+# like every other image (#65).
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -64,8 +68,14 @@ jobs:
       # needs a decryption key. The list of variables lives in the script, which
       # scripts/validate.sh also calls — inlining it here is what let CI and the
       # local run drift apart. The .env written here stays gitignored.
+      # Per stack, because the guard list is derived from each stack's own
+      # compose.yaml — seeding one from another's guards proves nothing about
+      # the file being validated.
       - name: Seed a validation-only .env
-        run: ./scripts/seed-validation-env.sh "$STACK/.env"
+        run: |
+          for stack in $(./scripts/stacks.sh); do
+            ./scripts/seed-validation-env.sh "stacks/$stack/.env" "$stack"
+          done
 
       # Single source of truth: whatever compose.yaml pins is what gets tested.
       - name: Resolve pinned images from compose.yaml
@@ -80,7 +90,11 @@ jobs:
           ./scripts/image-for.sh alloy
 
       - name: docker compose config
-        run: docker compose -f "$STACK/compose.yaml" config -q
+        run: |
+          for stack in $(./scripts/stacks.sh); do
+            echo "== $stack"
+            docker compose -f "stacks/$stack/compose.yaml" config -q
+          done
 
       # Guard against the duplication coming back. Any image: pin outside
       # compose.yaml is drift waiting to happen, since Dependabot cannot see it.
@@ -125,7 +139,9 @@ jobs:
               *@sha256:*) ;;
               *) echo "::error::$ref is not pinned by digest — run make pin-digests"; missing=1 ;;
             esac
-          done < <(awk '$1 == "image:" { print $2 }' "$STACK/compose.yaml")
+          done < <(./scripts/stacks.sh --paths | while read -r sd; do
+                     awk '$1 == "image:" { print $2 }' "$sd/compose.yaml"
+                   done)
           exit "$missing"
 
       # The three checks above are all pattern matches, and #65 walked past all
@@ -141,33 +157,57 @@ jobs:
       - name: Verify every docker image comes from compose.yaml
         run: python3 scripts/check_image_pins.py
 
-      - name: promtool check config
+      # Every stack that runs a Prometheus. A stack with rules and no unit
+      # tests fails, which is stricter than the single-stack version was: rules
+      # that cannot fire pass `check rules` (#63), so the moment to notice a
+      # stack has none is when its rules land.
+      - name: promtool check config, check rules, test rules
         run: |
-          docker run --rm --entrypoint promtool \
-            -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
-            check config "$STACK/prometheus/prometheus.yaml"
+          fail=0
+          for stack in $(./scripts/stacks.sh); do
+            sd="stacks/$stack"
+            [ -f "$sd/prometheus/prometheus.yaml" ] || { echo "== $stack: no prometheus.yaml"; continue; }
+            echo "== $stack"
+            docker run --rm --entrypoint promtool \
+              -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
+              check config "$sd/prometheus/prometheus.yaml" || fail=1
 
-      - name: promtool check rules
-        run: |
-          docker run --rm --entrypoint promtool \
-            -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
-            check rules "$STACK"/prometheus/rules/*.rules.yaml
-
-      # check rules only parses PromQL. It passed for months against a rule that
-      # could not fire for any input (#63); these are the tests that catch that.
-      - name: promtool test rules
-        run: |
-          docker run --rm --entrypoint promtool \
-            -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
-            test rules "$STACK"/prometheus/tests/*.test.yaml
+            rules=$(find "$sd/prometheus/rules" -name '*.rules.yaml' 2>/dev/null | sort)
+            tests=$(find "$sd/prometheus/tests" -name '*.test.yaml' 2>/dev/null | sort)
+            if [ -z "$rules" ]; then
+              echo "   no alert rules"
+              continue
+            fi
+            # shellcheck disable=SC2086
+            docker run --rm --entrypoint promtool \
+              -v "$PWD:/repo" -w /repo "$PROM_IMAGE" check rules $rules || fail=1
+            if [ -z "$tests" ]; then
+              echo "::error::$stack has alert rules and no promtool tests —"
+              echo "::error::a rule that cannot fire still passes check rules (#63)"
+              fail=1
+              continue
+            fi
+            # shellcheck disable=SC2086
+            docker run --rm --entrypoint promtool \
+              -v "$PWD:/repo" -w /repo "$PROM_IMAGE" test rules $tests || fail=1
+          done
+          exit $fail
 
       # No secret needed: the receiver URL comes from url_file, which
       # Alertmanager reads at notify time rather than at config load time.
+      # Only stacks that run one. stacks/lab has no Alertmanager by decision
+      # (ADR-0020), and the ROUTES table below describes the estate's tree
+      # specifically.
       - name: amtool check-config
         run: |
-          docker run --rm --entrypoint amtool \
-            -v "$PWD:/repo" -w /repo "$AM_IMAGE" \
-            check-config "$STACK/alertmanager/alertmanager.yaml"
+          fail=0
+          for f in $(./scripts/stacks.sh --paths | sed 's|$|/alertmanager/alertmanager.yaml|'); do
+            [ -f "$f" ] || continue
+            echo "== $f"
+            docker run --rm --entrypoint amtool \
+              -v "$PWD:/repo" -w /repo "$AM_IMAGE" check-config "$f" || fail=1
+          done
+          exit $fail
 
       # check-config proves the tree parses and that every route names a
       # receiver that exists. It does not say WHICH receiver an alert reaches,
@@ -181,13 +221,17 @@ jobs:
       - name: amtool config routes test
         run: |
           fail=0
+          # The estate's tree. Asserted against the one stack that has an
+          # Alertmanager rather than against every stack, because these eight
+          # rows are that tree's routing and not a property all stacks share.
+          cfg=stacks/observability/alertmanager/alertmanager.yaml
           while read -r expected labels; do
             [ -n "$expected" ] || continue
             # shellcheck disable=SC2086
             docker run --rm --entrypoint amtool \
               -v "$PWD:/repo" -w /repo "$AM_IMAGE" \
               config routes test \
-              --config.file="$STACK/alertmanager/alertmanager.yaml" \
+              --config.file="$cfg" \
               --verify.receivers="$expected" $labels \
               || { echo "::error::expected $expected for $labels"; fail=1; }
           done <<'ROUTES'
@@ -209,8 +253,14 @@ jobs:
       - name: alloy fmt --test
         # Every file in the directory: the agent loads the directory, and the
         # deploy script ships a subset of it, so each file must stand alone.
+        # Every *.alloy under stacks/, found rather than assumed to live under
+        # one of them. stacks/lab has no alloy/ directory — it mounts the
+        # estate's two files rather than copying them (ADR-0007) — so a `find`
+        # here covers both today and any stack that grows its own tomorrow.
         run: |
-          for f in "$STACK"/alloy/*.alloy; do
+          found=$(find stacks -path '*/alloy/*.alloy' | sort)
+          [ -n "$found" ] || { echo "::error::no *.alloy under stacks/"; exit 1; }
+          for f in $found; do
             docker run --rm --entrypoint alloy \
               -v "$PWD:/repo" -w /repo "$ALLOY_IMAGE" \
               fmt --test "$f"
@@ -233,7 +283,16 @@ jobs:
       # the static check. scripts/validate.sh may honestly skip it on a host
       # without docker; CI may not.
       - name: Verify health dependencies are satisfiable and probe the images
-        run: python3 scripts/check_compose_health.py --probe
+        run: |
+          fail=0
+          for f in $(./scripts/stacks.sh --paths | sed 's|$|/compose.yaml|'); do
+            echo "== $f"
+            python3 scripts/check_compose_health.py --probe "$f" || fail=1
+          done
+          # The half no single file can answer: a reloaded or claimed service
+          # that exists in no stack at all.
+          python3 scripts/check_compose_health.py --cross-stack || fail=1
+          exit $fail
 
       # promtool cannot check these — it parses PromQL and rejects every LogQL
       # stream selector. Loki itself is the only thing that understands them, so
@@ -245,7 +304,12 @@ jobs:
       # so a typo in one rendered an empty panel and looked like quiet traffic
       # rather than a broken query (#82).
       - name: Validate Loki rules and dashboard LogQL
-        run: ./scripts/check_loki_rules.sh
+        run: |
+          fail=0
+          for stack in $(./scripts/stacks.sh); do
+            ./scripts/check_loki_rules.sh --stack "$stack" || fail=1
+          done
+          exit $fail
 
       # The device list is spread across snmp.yaml, generator.yaml,
       # render-config.sh's REQUIRED array and the example secrets file. Drift
@@ -283,7 +347,12 @@ jobs:
         run: ./scripts/install-timers.sh --check --require-all
 
       - name: Validate Grafana dashboards
-        run: python3 scripts/check_dashboards.py
+        run: |
+          fail=0
+          for stack in $(./scripts/stacks.sh); do
+            python3 scripts/check_dashboards.py --stack "$stack" || fail=1
+          done
+          exit $fail
 
       # Dashboard queries are as easy to typo as alert rules, and a broken one
       # shows up as an empty panel rather than an error. Parse them all — the
@@ -291,9 +360,22 @@ jobs:
       # can parse it.
       - name: Parse every dashboard PromQL expression
         run: |
-          python3 scripts/check_dashboards.py --emit-promql > /tmp/dashboard-exprs.yaml
-          docker run --rm --entrypoint promtool \
-            -v /tmp:/tmp "$PROM_IMAGE" check rules /tmp/dashboard-exprs.yaml
+          fail=0
+          for stack in $(./scripts/stacks.sh); do
+            # --emit-promql fails on a stack with no dashboards, deliberately:
+            # its output is what proves the panel queries parse, so emitting an
+            # empty file would pass promtool over nothing (#68). The guard is
+            # here, where "this stack ships none" is knowable.
+            if [ -z "$(find "stacks/$stack/grafana/dashboards" -name '*.json' 2>/dev/null)" ]; then
+              echo "== $stack: no dashboards"
+              continue
+            fi
+            python3 scripts/check_dashboards.py --stack "$stack" --emit-promql \
+              > "/tmp/dashboard-exprs-$stack.yaml"
+            docker run --rm --entrypoint promtool \
+              -v /tmp:/tmp "$PROM_IMAGE" check rules "/tmp/dashboard-exprs-$stack.yaml" || fail=1
+          done
+          exit $fail
 
       # The step above reads the dashboard JSON; this one makes Grafana serve it
       # back. Grafana does not return what it was given — it sorts keys, HTML-

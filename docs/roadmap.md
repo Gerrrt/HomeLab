@@ -306,11 +306,17 @@ what left this one unfireable for months.
   (`render-config.sh` derives its required keys per stack rather than demanding
   the estate's ten, `reload-config.sh` skips services a stack does not declare,
   `bootstrap.sh` refuses to give one age key both stacks) and gave `.sops.yaml`
-  the lab rule ADR-0020 asked for. It did **not** touch
-  [#263](https://github.com/Gerrrt/HomeLab/issues/263): `STACK ?=` reaches the
-  lifecycle targets and stops there, every checker is still pinned to
-  `stacks/observability`, and so the new stack is one CI has never seen —
-  validated only by hand and by the checks that already follow `STACK`.
+  the lab rule ADR-0020 asked for. [#263](https://github.com/Gerrrt/HomeLab/issues/263)
+  followed it: `scripts/stacks.sh` is now the single definition of what a stack
+  is, and `validate.sh`, `ci.yml`, `pin-digests.sh` and the Python checkers all
+  read it instead of carrying `stacks/observability`. Both stacks are checked,
+  each line says which, and a directory under `stacks/` with no compose.yaml
+  fails rather than being skipped — a stack nothing checks being the defect the
+  list exists to prevent. Two guards got stronger on the way: rules without
+  `promtool` unit tests are now a failure rather than an absence nobody
+  measured (#63), and the reload/ABSENT_BINARIES cross-checks gained a
+  cross-stack mode, because "not in this compose file" stopped meaning "in no
+  stack at all" the moment there were two.
   [#265](https://github.com/Gerrrt/HomeLab/issues/265) the domain is what
   everything else is pointed at, and blocks both
   [#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh — the heaviest

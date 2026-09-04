@@ -13,19 +13,33 @@
 # Nothing written here is a secret and nothing here is ever deployed. The values
 # only need to exist.
 #
-# Usage: scripts/seed-validation-env.sh <output-path>
+# Usage: scripts/seed-validation-env.sh <output-path> [stack]   (default: observability)
 #
 # The caller owns the output path and its cleanup: CI writes the gitignored
-# stacks/observability/.env, validate.sh writes an mktemp file it removes on
-# exit. Keeping lifetime out here is what lets one script serve both.
+# stacks/<stack>/.env, validate.sh writes an mktemp file it removes on exit.
+# Keeping lifetime out here is what lets one script serve both.
+#
+# The stack argument matters because the guard list below is derived from that
+# stack's compose.yaml. Seeding `lab` from `observability`'s guards would prove
+# nothing about the file being validated — and a guard added to one stack and
+# not the other would pass here and fail in compose, which is the drift this
+# script was written to stop (#263).
 
 set -euo pipefail
 
-OUT="${1:?usage: seed-validation-env.sh <output-path>}"
+OUT="${1:?usage: seed-validation-env.sh <output-path> [stack]}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STACK="${REPO_ROOT}/stacks/observability"
+STACK="${REPO_ROOT}/stacks/${2:-observability}"
+[[ -f "${STACK}/compose.yaml" ]] || {
+  printf 'no such stack: %s\n' "${STACK}" >&2
+  exit 1
+}
 
-cat "${STACK}/.env.example" > "${OUT}"
+# A stack may legitimately have no .env.example — every tunable in its
+# compose.yaml can carry a default. The guards below are what must be satisfied,
+# and they are read from compose.yaml, not from here.
+: > "${OUT}"
+[[ -f "${STACK}/.env.example" ]] && cat "${STACK}/.env.example" > "${OUT}"
 {
   echo "GRAFANA_ADMIN_PASSWORD=validation-only"
   echo "GRAFANA_RENDERER_TOKEN=validation-only"

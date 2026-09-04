@@ -32,7 +32,25 @@ this file, with nothing holding the two together, so the last section of main()
 reads the array back out and requires each entry to match the healthcheck it is
 standing on (#80).
 
+That cross-check changed shape when a second stack arrived (#263, #264).
+SERVICES is the union across every stack, and reload-config.sh now skips
+entries the stack it is reloading does not declare — so "not defined in this
+compose file" stopped being a defect on its own. It is split in two instead,
+and the pair is strictly stronger than the single check it replaces:
+
+  * per file, an entry that stack DOES declare must carry the healthcheck the
+    probe stands on — unchanged, and now applied to every stack rather than
+    only to the estate's;
+  * across the complete set of stacks, every entry must be declared SOMEWHERE.
+    That is what still catches an array naming a service nothing has, which is
+    the case the old "not defined" message existed for.
+
+The completeness half is only claimed when this script discovered the stacks
+itself, which it does when given no paths. Explicit paths mean the caller chose
+the scope, and no claim about the whole repository can follow from a subset.
+
 Usage: scripts/check_compose_health.py [--probe] [compose.yaml]
+       scripts/check_compose_health.py --cross-stack
 """
 from __future__ import annotations
 
@@ -162,20 +180,21 @@ def healthcheck_binary(test: object) -> tuple[str | None, str | None]:
     )
 
 
-def reload_probe_problems(services: dict, compose_name: str) -> list[str]:
-    """Where reload-config.sh's SERVICES array disagrees with the healthchecks.
+def reload_entries() -> tuple[list[tuple[str, str]], list[str]]:
+    """The SERVICES array from reload-config.sh, as (name, port) pairs.
 
-    Returns the problems, or a single problem if the array itself could not be
-    read — a scraper that has silently stopped matching must fail rather than
-    report nothing to check, which is the shape of bug this whole file is about.
+    Split out of reload_probe_problems() so the completeness check across
+    stacks and the per-stack healthcheck check read the identical parse. Two
+    readers of one hand-rolled scraper is how they come to disagree about what
+    the array says.
     """
     if not RELOAD_SCRIPT.exists():
-        return [f"{RELOAD_SCRIPT.name} is missing; nothing reloads these services"]
+        return [], [f"{RELOAD_SCRIPT.name} is missing; nothing reloads these services"]
 
     source = RELOAD_SCRIPT.read_text(encoding="utf-8")
     block = RELOAD_SERVICES.search(source)
     if not block:
-        return [
+        return [], [
             f"could not find the SERVICES=( ... ) array in {RELOAD_SCRIPT.name} — "
             f"it was reshaped, and this check has been reading nothing ever since"
         ]
@@ -195,15 +214,27 @@ def reload_probe_problems(services: dict, compose_name: str) -> list[str]:
         entries.append((entry.group(1), entry.group(2)))
 
     if not entries and not problems:
-        return [f"{RELOAD_SCRIPT.name} SERVICES is empty"]
+        problems.append(f"{RELOAD_SCRIPT.name} SERVICES is empty")
+    return entries, problems
+
+
+def reload_probe_problems(services: dict, compose_name: str) -> list[str]:
+    """Where reload-config.sh's SERVICES array disagrees with the healthchecks.
+
+    Scoped to the entries THIS compose file declares. An entry it does not
+    declare is not a defect here: SERVICES is the union across stacks, and
+    reload-config.sh skips what a stack does not define, so `stacks/lab` having
+    no alertmanager is the arrangement rather than a fault. That an entry
+    exists in no stack at all is still caught — by the completeness check in
+    main(), which is the only place that knows it is looking at every stack.
+    """
+    entries, problems = reload_entries()
+    if not entries:
+        return problems
 
     for name, port in entries:
         svc = services.get(name)
         if svc is None:
-            problems.append(
-                f"{RELOAD_SCRIPT.name} reloads {name}, which is not defined in "
-                f"{compose_name}"
-            )
             continue
 
         expected = f"http://localhost:{port}{RELOAD_PROBE_PATH}"
@@ -342,10 +373,69 @@ def probe_binary(
     return "present", ""
 
 
+def cross_stack_problems() -> list[str]:
+    """Names this file asserts about, checked against every stack at once.
+
+    Both per-file checks had to stop treating "not in this compose file" as a
+    defect when a second stack arrived: reload-config.sh skips services a stack
+    does not declare, and a stack need not run everything ABSENT_BINARIES
+    describes. What must still be true is that each name exists SOMEWHERE — an
+    entry naming a service no stack has is a scraper that has silently stopped
+    matching, which is the failure this whole file was written for (#80).
+
+    Only answerable with the complete set of stacks, which is why it is its own
+    mode rather than something the per-file path could do.
+    """
+    try:
+        listed = subprocess.run(
+            [str(REPO / "scripts/stacks.sh"), "--paths"],
+            capture_output=True, text=True, check=True,
+        ).stdout.split()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        err = (getattr(exc, "stderr", "") or str(exc)).strip()
+        return [f"could not list stacks: {err}"]
+
+    declared: set[str] = set()
+    for entry in listed:
+        compose_path = REPO / entry / "compose.yaml"
+        compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+        declared |= set(compose.get("services") or {})
+
+    problems: list[str] = []
+    entries, problems_from_parse = reload_entries()
+    problems += problems_from_parse
+    for name, _port in entries:
+        if name not in declared:
+            problems.append(
+                f"{RELOAD_SCRIPT.name} reloads {name}, which no stack defines — "
+                f"it was renamed or removed, and nothing has reloaded it since"
+            )
+    for name in ABSENT_BINARIES:
+        if name not in declared:
+            problems.append(
+                f"ABSENT_BINARIES names {name}, which no stack defines — the "
+                f"claim it stands for has gone with the service"
+            )
+    return problems
+
+
 def main() -> int:
     argv = sys.argv[1:]
     probe = "--probe" in argv
     argv = [arg for arg in argv if arg != "--probe"]
+
+    if "--cross-stack" in argv:
+        argv = [arg for arg in argv if arg != "--cross-stack"]
+        if argv:
+            print("--cross-stack takes no compose file", file=sys.stderr)
+            return 1
+        problems = cross_stack_problems()
+        for problem in problems:
+            print(f"  {problem}", file=sys.stderr)
+        if problems:
+            return 1
+        print("cross-stack OK — every reloaded and claimed service exists in some stack")
+        return 0
     if argv and argv[0].startswith("-"):
         print(f"unknown option {argv[0]}", file=sys.stderr)
         print(__doc__.strip().splitlines()[-1], file=sys.stderr)
@@ -384,11 +474,11 @@ def main() -> int:
                 )
 
     # The reload script's copy of these ports, checked against the originals.
-    # Only meaningful against the file it actually reloads, so it is skipped for
-    # an explicitly-passed compose file that is not the default one.
-    reload_checked = path.resolve() == DEFAULT.resolve()
-    if reload_checked:
-        problems += reload_probe_problems(services, path.name)
+    # Runs for EVERY stack now, not just the default one: it is scoped to the
+    # entries this file declares, so it is meaningful against any of them. The
+    # matching "no stack declares this entry at all" half is --reload-completeness
+    # below, which is the only mode that looks at every stack at once.
+    problems += reload_probe_problems(services, path.name)
 
     # Every healthcheck the compose file declares, decoded to the one binary the
     # image has to contain for it to run at all. Profiles are deliberately not
@@ -440,11 +530,13 @@ def main() -> int:
     for name, binaries in ABSENT_BINARIES.items():
         svc = services.get(name)
         if svc is None:
-            problems.append(
-                f"ABSENT_BINARIES names {name}, which is not defined in "
-                f"{path.name} — it was renamed or removed, and the claim it "
-                f"stands for has gone with it"
-            )
+            # Not a defect for THIS file. ABSENT_BINARIES is a claim about
+            # images across the repository, and a stack is allowed not to run
+            # the service it names — `loki` happens to be in both stacks today,
+            # but nothing says the next one must be. The rename-or-removal
+            # catch this message existed for now lives in --cross-stack, which
+            # is the only mode that can tell "absent from this stack" from
+            # "absent from every stack".
             continue
         svc = svc or {}
         if svc.get("healthcheck"):
@@ -559,8 +651,7 @@ def main() -> int:
         f"{path.name} OK — {checks} healthcheck(s), "
         f"{healthy_deps} service_healthy dependency/dependencies, all satisfiable"
     )
-    if reload_checked:
-        summary += f"; {RELOAD_SCRIPT.name} probes agree with them"
+    summary += f"; {RELOAD_SCRIPT.name} probes agree with them"
     if probe:
         # The count is the point. A probe loop that silently stopped matching
         # anything would otherwise print this same green line having done
