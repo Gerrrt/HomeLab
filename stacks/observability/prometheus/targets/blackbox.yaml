@@ -113,10 +113,10 @@
 # from 10.0.99.20 and re-checked 2026-09-04. That is the device, not the
 # probe: no TLS listener and no certificate import, so `http_2xx_plain` is the
 # permanent module here rather than a placeholder until it gets a certificate
-# (ADR-0017). Reachable because the switch LAN (10.7.7.0/24) is the one segment
+# (ADR-0018). Reachable because the switch LAN (10.7.7.0/24) is the one segment
 # Winterfell's egress rule does not block (ADR-0013).
 #
-# Probed twice since ADR-0017 gave it a name. The dns twin matters more here
+# Probed twice since ADR-0018 gave it a name. The dns twin matters more here
 # than elsewhere: this is the one endpoint whose address is on a different
 # subnet from every other management address, so "the name broke" and "someone
 # typed 10.0.99.2" are failures worth telling apart.

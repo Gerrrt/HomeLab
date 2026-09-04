@@ -1,4 +1,4 @@
-# ADR-0017: Name the switch, and leave its UI on plain HTTP
+# ADR-0018: Name the switch, and leave its UI on plain HTTP
 
 **Status:** Accepted · 2026-09
 

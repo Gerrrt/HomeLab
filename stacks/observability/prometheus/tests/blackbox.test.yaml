@@ -129,7 +129,7 @@ tests:
   # requires a `dns` probe of the same name, and there is none.
   #
   # The worked example here used to be switch-ui, which was the clearest case
-  # until ADR-0017 gave the switch a name and a `dns` twin. It is a bad example
+  # until ADR-0018 gave the switch a name and a `dns` twin. It is a bad example
   # now for the one reason that matters — it would still pass, because these
   # series are synthetic, and a reader checking the premise against
   # targets/blackbox.yaml would find it false. ups-ui replaces it: the APC card

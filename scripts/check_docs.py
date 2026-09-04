@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Six assertions, each comparing prose against something machine-readable:
+Seven assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents
@@ -27,6 +27,8 @@ Six assertions, each comparing prose against something machine-readable:
   5. Compute table         docs/hardware.md <-> docs/network.md, and
                            neither pinning a point release
   6. Image versions        no version pins in prose; compose.yaml owns them
+  7. ADR numbering         one ADR per number, and each file's H1 agrees with
+                           the number in its filename
 
 Only present-tense documents are checked. `docs/roadmap.md` and `docs/adr/`
 record what was true when the work landed — `roadmap.md` still says "(34 rules)"
@@ -679,6 +681,51 @@ def check_image_versions() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+def check_adr_numbers() -> list[str]:
+    """One ADR per number, and the H1 inside each file agreeing with its name.
+
+    Two branches opened in the same afternoon both took 0017 — #96 for `ifrit`
+    and #97 for the switch — and git merged them without a murmur, because the
+    filenames differ and nothing downstream reads the number. The result is a
+    repository where "ADR-0017" in prose has two referents, which is the one
+    thing an ADR number exists to prevent. Nothing here caught it: every other
+    assertion in this file compares prose against a config, and an ADR number
+    is prose all the way down.
+
+    The H1 check is the same failure one step later: renumbering a file is a
+    `git mv` plus an edit, and the edit is the half that gets forgotten.
+    """
+    problems: list[str] = []
+    adr_dir = REPO / "docs" / "adr"
+
+    by_number: dict[str, list[str]] = {}
+    for path in sorted(adr_dir.glob("[0-9][0-9][0-9][0-9]-*.md")):
+        num = path.name[:4]
+        by_number.setdefault(num, []).append(path.name)
+
+        heading = ""
+        for line in path.read_text().splitlines():
+            if line.startswith("# "):
+                heading = line
+                break
+        if not heading:
+            problems.append(f"{path.name} has no H1 heading")
+        elif not heading.startswith(f"# ADR-{num}:"):
+            problems.append(
+                f"{path.name} is numbered {num} but its heading reads "
+                f"{heading[2:].split(':')[0]!r}"
+            )
+
+    for num, names in sorted(by_number.items()):
+        if len(names) > 1:
+            problems.append(
+                f"ADR-{num} is claimed by {len(names)} files: {', '.join(names)} "
+                f"— renumber the one that landed second"
+            )
+
+    return problems
+
+
 def main() -> int:
     f = facts()
     checks = (
@@ -688,6 +735,7 @@ def main() -> int:
         ("ports table against compose.yaml", check_ports),
         ("compute table against docs/network.md", check_compute_table),
         ("image versions in prose (compose.yaml owns them)", check_image_versions),
+        ("ADR numbering", check_adr_numbers),
     )
 
     total = 0
