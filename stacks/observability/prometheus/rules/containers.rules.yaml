@@ -11,9 +11,55 @@ groups:
     interval: 60s
     rules:
       - alert: ContainerRestartLoop
-        # container_start_time_seconds changes on every (re)start; more than
-        # three changes in 15 minutes is a crash loop rather than a deploy.
-        expr: changes(container_start_time_seconds{name!=""}[15m]) > 3
+        # Counts how many distinct container *generations* cAdvisor saw for one
+        # name, not how many times a number changed. That distinction is the
+        # whole rule, and it is the second #63 found in this file (#305).
+        #
+        # This was `changes(container_start_time_seconds{name!=""}[15m]) > 3`,
+        # above a comment asserting the metric "changes on every (re)start". It
+        # does not, and the expression could not fire for any real Docker
+        # restart. Two separate reasons, both measured on 2026-09-04 against a
+        # deliberately crash-looping throwaway container:
+        #
+        #  1. cAdvisor reports the container's CREATION time, not its last
+        #     start. The probe restarted 38 times under `restart:
+        #     unless-stopped` — `docker inspect` .RestartCount reached 38 and
+        #     .State.StartedAt advanced by minutes — while this metric never
+        #     left .Created. The same was visible on the real stack without any
+        #     probe: it was stopped and started on 2026-09-04 02:54 and the
+        #     metric still read the 2026-08-31 creation time.
+        #  2. Even where a start time WOULD differ — a recreated container, as
+        #     a redeploy makes — it is a different container id, so it is a
+        #     different series carrying a different constant. `changes()` is
+        #     per-series and a constant series has zero changes by definition.
+        #
+        # Measured together: `changes(...)` over the crash-looping container
+        # returned six series when it was checked, every one of them 0, against
+        # a threshold of 3. Not "rarely fires" — arithmetically unable to, like
+        # the memory rule below it was.
+        #
+        # What does move is the series identity. cAdvisor synthesises a
+        # `restartcount` label from Docker's RestartCount and emits it only
+        # while it is non-zero, so each restart in place retires one series and
+        # starts another; a recreate does the same thing via `id`. Counting the
+        # series therefore counts the restarts. Run against live data this
+        # expression returned 10 for the probe and exactly 1 for every settled
+        # container on the host, stack and throwaway alike.
+        #
+        # The count is bounded by the scrape interval (60s over 15m, so 15) and
+        # is a floor rather than a total: the probe had restarted 38 times when
+        # the expression read 10. That is the right way round for an alert — it
+        # cannot overcount — but it is why the annotation says "at least".
+        #
+        # `> 3` keeps the old threshold and its intent: an operator redeploying
+        # twice inside fifteen minutes yields 3 series and stays quiet, and a
+        # plain `docker stop && docker start` yields 1, because neither the id
+        # nor the restart count moves. Four generations in fifteen minutes is a
+        # loop.
+        expr: |
+          count by (name, instance, host, job) (
+            count_over_time(container_start_time_seconds{name!=""}[15m])
+          ) > 3
         for: 5m
         labels:
           component: containers
@@ -21,7 +67,7 @@ groups:
           category: availability
         annotations:
           summary: "Container {{ $labels.name }} on {{ $labels.host }} is restarting repeatedly"
-          description: "{{ $value }} restarts in the last 15 minutes."
+          description: "At least {{ $value }} starts in 15 minutes, scrape-limited."
 
       - alert: ContainerOomKilled
         expr: increase(container_oom_events_total{name!=""}[15m]) > 0

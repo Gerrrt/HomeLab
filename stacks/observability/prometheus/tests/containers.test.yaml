@@ -29,10 +29,19 @@
 # makes that safe rather than silent, and assert it against RSS specifically —
 # see the rule's own comment for why working set is the wrong numerator.
 #
+# ContainerRestartLoop was the same fault again, in the rule directly above
+# ContainerHighMemory, and it sat here uncovered while these tests were written
+# for its neighbour (#305). It counted `changes()` of a metric that reports a
+# container's creation time, so it could not fire for a crash loop either. Its
+# firing fixture below gives every generation the same start-time value for
+# that reason — restoring the old expression fails against it.
+#
 # What these do NOT prove: the fixtures are synthetic, so nothing here notices
 # if cAdvisor renames or drops a label. They guard the expression, not the data
 # feeding it. A green run means the rule is still able to fire, not that it is
-# still wired to anything.
+# still wired to anything. Two of the four rules in this file turned out to be
+# unfireable and both were found by accident rather than by these tests, which
+# is the argument for the other 29 in the repo getting cases of their own.
 rule_files:
   - ../rules/containers.rules.yaml
 
@@ -247,4 +256,94 @@ tests:
     alert_rule_test:
       - eval_time: 20m
         alertname: ContainerNearMemoryLimit
+  # --- ContainerRestartLoop: fires ------------------------------------------
+  # A crash loop as cAdvisor actually renders one. Docker restarts the same
+  # container in place, so `id` is constant and only the synthesised
+  # `restartcount` label moves — which retires one series and starts another
+  # every time. Eight generations, each caught by a single scrape, exactly as a
+  # 60s scrape interval samples a container restarting faster than it is looked
+  # at.
+  #
+  # Four of the eight fall inside the 15m window at eval_time 20m, so the rule
+  # sees 4 against a threshold of 3. That margin of one is deliberate: it pins
+  # `> 3` from above, the way the 39%/50% pair pins ContainerHighMemory's 0.40,
+  # so raising the threshold cannot land silently.
+  #
+  # Every generation carries the SAME start-time value, because that value is
+  # the container's creation time and an in-place restart does not change it.
+  # That is what makes this fixture a regression test as well as a coverage
+  # one: `changes()` over it is 0 on every series, so restoring the old
+  # expression fails this case rather than passing it quietly.
+  - interval: 1m
+    input_series:
+      - series: 'container_start_time_seconds{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-aaa.scope"}'
+        values: "1756000000 _x20"
+      - series: 'container_start_time_seconds{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-aaa.scope",container_label_restartcount="1"}'
+        values: "_x1 1756000000 _x18"
+      - series: 'container_start_time_seconds{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-aaa.scope",container_label_restartcount="2"}'
+        values: "_x3 1756000000 _x16"
+      - series: 'container_start_time_seconds{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-aaa.scope",container_label_restartcount="3"}'
+        values: "_x5 1756000000 _x14"
+      - series: 'container_start_time_seconds{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-aaa.scope",container_label_restartcount="4"}'
+        values: "_x7 1756000000 _x12"
+      - series: 'container_start_time_seconds{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-aaa.scope",container_label_restartcount="5"}'
+        values: "_x9 1756000000 _x10"
+      - series: 'container_start_time_seconds{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-aaa.scope",container_label_restartcount="6"}'
+        values: "_x11 1756000000 _x8"
+      - series: 'container_start_time_seconds{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-aaa.scope",container_label_restartcount="7"}'
+        values: "_x13 1756000000 _x6"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerRestartLoop
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerRestartLoop
+              name: alloy
+              instance: prometheus
+              host: prometheus
+              job: integrations/cadvisor
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Container alloy on prometheus is restarting repeatedly"
+              description: "At least 4 starts in 15 minutes, scrape-limited."
+
+      # Not yet held long enough — for: 5m has not elapsed at 8m.
+      - eval_time: 8m
+        alertname: ContainerRestartLoop
+        exp_alerts: []
+
+  # --- ContainerRestartLoop: a settled container stays quiet ----------------
+  # One generation, one series, constant for the whole window: count is 1.
+  # This is also every container on the host in normal operation — measured
+  # 2026-09-04, all seven stack services and the CI throwaways returned exactly
+  # 1 against the live expression.
+  - interval: 1m
+    input_series:
+      - series: 'container_start_time_seconds{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-bbb.scope"}'
+        values: "1756000000x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerRestartLoop
+        exp_alerts: []
+
+  # --- ContainerRestartLoop: a deploy is not a loop -------------------------
+  # `make up` recreates a container, which is a new id and therefore a new
+  # series carrying a genuinely different start time. Two redeploys inside the
+  # window is three generations, one under the threshold, which is the same
+  # tolerance the `> 3` in the old expression was reaching for and never
+  # achieved. Without this case the rule could be retuned to `> 0` and every
+  # deploy would page someone.
+  - interval: 1m
+    input_series:
+      - series: 'container_start_time_seconds{name="grafana",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-c11.scope"}'
+        values: "1756000000x6 _x18"
+      - series: 'container_start_time_seconds{name="grafana",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-c22.scope"}'
+        values: "_x7 1756000420x6 _x11"
+      - series: 'container_start_time_seconds{name="grafana",instance="prometheus",host="prometheus",job="integrations/cadvisor",id="/system.slice/docker-c33.scope"}'
+        values: "_x14 1756000840x10"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerRestartLoop
         exp_alerts: []
