@@ -11,8 +11,9 @@
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
 [![Loki](https://img.shields.io/badge/Loki-F5A800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/loki/)
-[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2015-212121?style=plastic)](https://www.pfsense.org)
+[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2016-212121?style=plastic)](https://www.pfsense.org)
 
+[Start here](docs/runbooks/successor-handover.md) ·
 [Architecture](docs/architecture.md) ·
 [Network](docs/network.md) ·
 [Observability](docs/observability.md) ·
@@ -33,6 +34,15 @@ It started as a place to practise security work and turned into the network the
 house actually depends on, which changed the requirements considerably — a
 broken experiment is a learning opportunity, a broken DHCP server is a domestic
 incident.
+
+**Arriving without the context?**
+[`docs/runbooks/successor-handover.md`](docs/runbooks/successor-handover.md) is
+the front door: what this estate is, what to check on day one and in what order,
+what fails soonest if nobody touches anything, where the secrets are and what is
+needed to decrypt them, and what can be switched off. **This repository is the
+operator-facing documentation** — the wiki on `oracle` is the household's, and
+[ADR-0011](docs/adr/0011-keep-the-wiki-internal.md) is why they are different
+documents for different readers.
 
 ## Highlights
 
@@ -70,9 +80,10 @@ incident.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** Fourteen ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; twelve
-  runbooks for the operations that are easy to get wrong at 1am.
+- **Documented decisions and runbooks.** 23 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 19
+  runbooks for the operations that are easy to get wrong at 1am, one of which
+  is the handover page a successor reads first.
 
 ## Architecture
 
@@ -146,7 +157,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 
 | Layer | Tool | Role |
 | --- | --- | --- |
-| Firewall / routing | [pfSense on FreeBSD 15](docs/network.md) | VLANs, DHCP, default-deny |
+| Firewall / routing | [pfSense on FreeBSD 16](docs/network.md) | VLANs, DHCP, default-deny |
 | Virtualisation | Proxmox VE | Lab hypervisor |
 | Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention capped at 12 GiB, remote-write receiver |
 | Logs | [Loki](stacks/observability/loki) | Single-binary, filesystem storage |
@@ -179,12 +190,12 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
 │   ├── adr/                  # 23 architecture decision records
-│   └── runbooks/             # deploy, converge, add device, rotate creds, certs,
-│                             #   key backup, purge, restore the firewall,
-│                             #   restore the stack, ship firewall logs,
-│                             #   verify the alert path, enable suricata,
-│                             #   fit the UPS battery, add a host override,
-│                             #   build the lab guest
+│   └── runbooks/             # successor handover (start here), deploy, converge,
+│                             #   add device, rotate creds, certs, key backup,
+│                             #   purge, restore the firewall, restore the stack,
+│                             #   ship firewall logs, verify the alert path,
+│                             #   enable suricata, fit the UPS battery,
+│                             #   add a host override, build the lab guest
 └── Makefile                  # make help
 ```
 

@@ -132,7 +132,13 @@ AM_CONFIG="${STACK_DIR}/alertmanager/alertmanager.yaml"
 # The Grafana half is read out of the stack's own compose.yaml: a ${VAR:?}
 # guard IS the declaration that the service cannot start without it, so a
 # second copy here could only ever drift from it. Same derivation
-# seed-validation-env.sh uses against the same guards, for the same reason.
+# seed-validation-env.sh uses against the same guards, for the same reason —
+# and now literally the same one, scripts/compose-guards.sh, because two copies
+# of a derivation described as "the same" is the drift this repository keeps
+# fixing. It was grepped from the raw file here too, which read comments as
+# YAML: a comment mentioning a guard sent this to SOPS for a key no stack has
+# (#107).
+#
 # The three excluded names are the ones THIS script writes into .env further
 # down — they are guarded in compose.yaml but they are not secrets, and asking
 # SOPS for them would fail every render.
@@ -141,13 +147,20 @@ AM_CONFIG="${STACK_DIR}/alertmanager/alertmanager.yaml"
 # array held, which is the property that makes the change safe: the two Grafana
 # keys come from its compose guards, and both conditionals below are true.
 # ---------------------------------------------------------------------------
+# Command substitution rather than a process substitution feeding the loop: a
+# process substitution's exit status is not the loop's, so compose-guards.sh
+# failing would read here as "this stack requires nothing" and render a config
+# missing every secret in it.
+if ! GUARDS="$("${REPO_ROOT}/scripts/compose-guards.sh" "${STACK_DIR}/compose.yaml")"; then
+  die "could not read the guards from ${STACK_DIR}/compose.yaml — see above"
+fi
+
 REQUIRED=()
 while read -r var; do
   [[ -n "${var}" ]] || continue
   case "${var}" in RENDER_UID | RENDER_GID | LOG_READ_GID) continue ;; esac
   REQUIRED+=("${var}")
-done < <(grep -oE '\$\{[A-Za-z_][A-Za-z0-9_]*:\?' "${STACK_DIR}/compose.yaml" \
-         | sed 's/^\${//; s/:?$//' | sort -u)
+done <<< "${GUARDS}"
 
 # The SNMP community names stay written out rather than derived from the
 # placeholders in snmp.yaml, and that is deliberate. scripts/snmp-targets.sh

@@ -1,10 +1,16 @@
 # Runbook: Enable Suricata on the firewall
 
-**Target:** `morpheus` (pfSense CE 2.8.1)
+**Target:** `morpheus`, the firewall (pfSense CE)
 **Time:** thirty minutes to install, then **several days of watching**
 **You will need:** the pfSense web UI, and the syslog pipeline from
 [`ship-firewall-logs.md`](ship-firewall-logs.md) already working. For §6, the
 `interface` label from `syslog.alloy` live on the monitoring host first
+**Written against:** pfSense CE 2.8.1. `morpheus` now runs 2.9.0-RELEASE and
+the steps below have not been re-walked on it — menu paths and field names are
+the parts most likely to have moved, and where the box disagrees with this page,
+the box is right. Recorded as what the page was written against rather than
+pinned in *Target*, where it read `2.8.1` for a whole release after that stopped
+being true
 
 [`security.md`](../security.md) has said "There is no IDS/IPS" since this
 repository began. This closes that — on the firewall rather than the
@@ -39,8 +45,6 @@ device.
   query — a bare `{app="filterlog"}` selector is rejected by the instant
   endpoint, and the rejection looks like an absence of data if you pipe it
   straight to `jq`.
-- The unconfigured Snort package removed. Two IDS packages installed, one
-  dormant, is how you end up debugging the wrong one.
 
 ---
 
