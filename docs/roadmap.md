@@ -127,22 +127,39 @@ issues intact. Nothing was summarised away.
 ## Monitoring
 
 - **[#114](https://github.com/Gerrrt/HomeLab/issues/114) Set memory limits on
-  the six services.** Nothing in `compose.yaml` bounds a leak, so one container
-  can take the host down — and the host has 8 GB soldered. It was blocked on
-  data: cAdvisor has only reported correctly since
-  [#62](https://github.com/Gerrrt/HomeLab/pull/62), and `grafana` swung 3.7x
-  inside the six hours available, so a limit picked from it would have been a
-  guess at an OOM kill. Nine more days did not settle it — they widened it.
-  `loki` now swings 8.6x (121 MiB median, 1039 MiB peak), and `loki`, `grafana`
-  and `alloy` all peaked in the *same hour* on 2026-08-29, which is an episodic
-  event rather than a distribution that converges with more sampling. The
-  method the issue proposed no longer fits the machine either: 3x every peak is
-  7536 MiB against 7816 MiB of RAM. So the gate has changed rather than moved —
-  waiting for more history is not what unblocks this, explaining that one hour
-  is. [#71](https://github.com/Gerrrt/HomeLab/issues/71) took the half that was
-  sizeable: `pids_limit`, because tens of threads against a 10,000-thread abort
-  is two orders of magnitude of daylight, and a byte ceiling on the TSDB, which
-  is at a measurable steady state at day 28 of 30.
+  the six services.** Done 2026-09-04, on seven — `blackbox-exporter` joined the
+  stack after the issue was written. The gate this entry named was explaining
+  the 2026-08-29 hour in which `loki` and `alloy` both peaked, and that is what
+  unblocked it: at 06:18:14 both processes tore down internal components at the
+  same second — Alloy logged 129 × "node exited without error" and re-registered
+  its collectors at 06:21, Loki's compactor stopped and then cycled five more
+  times through 06:34, returning 400s while Alloy dropped batches. Both were at
+  baseline by 06:40 and neither container restarted. Component churn, not a
+  leak, not a deploy, and not something to size a ceiling around.
+  The other half was the method. `3x every peak` did not fit the machine because
+  it was being read off the working set, which includes reclaimable page cache:
+  `alloy`'s 512 MiB peak is 221 MiB of anonymous memory and the rest cache from
+  walking `/rootfs`, and `mem_limit` bounds a cgroup the kernel reclaims cache
+  from before it kills anything. Sized from `container_memory_rss` instead, with
+  the multiplier chosen per service rather than flat, the seven limits sum to
+  5120 MiB against 7816 MiB of RAM. `loki` gets the loosest ratio and the
+  largest number for the reason above; the issue had listed it among the
+  low-risk services to start with, on a 152 MiB peak from a six-hour window.
+  `memswap_limit` equals `mem_limit` everywhere, so the stack cannot page into
+  the unencrypted `/swap.img` — left unset it defaults to twice `mem_limit`,
+  which would have made that exposure worse rather than better.
+  Enforcement and detection stay uncoupled, which is the whole reason
+  [#63](https://github.com/Gerrrt/HomeLab/issues/63) is a separate issue:
+  `ContainerHighMemory` still measures against `machine_memory_bytes`, and the
+  limit-relative `ContainerNearMemoryLimit` is a complement with its own
+  `promtool test rules` cases — including one that fails if the numerator is
+  ever "simplified" from RSS to working set, and one that fails if the
+  divide-by-zero guard is dropped.
+  [#71](https://github.com/Gerrrt/HomeLab/issues/71) had already taken the half
+  that was sizeable without any of this: `pids_limit`, because tens of threads
+  against a 10,000-thread abort is two orders of magnitude of daylight, and a
+  byte ceiling on the TSDB, which is at a measurable steady state at day 28
+  of 30.
 - **[#249](https://github.com/Gerrrt/HomeLab/issues/249) Scrape the UPS
   self-test schedule.** [#93](https://github.com/Gerrrt/HomeLab/issues/93) left
   `mjolnir` testing itself every fortnight and nothing able to see that it does.

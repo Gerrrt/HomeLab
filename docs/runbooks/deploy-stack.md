@@ -104,7 +104,7 @@ Then in the UI:
 
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
-2. **Prometheus → Status → Rules.** 53 rules loaded, none in error.
+2. **Prometheus → Status → Rules.** 54 rules loaded, none in error.
 3. **Grafana → Dashboards → HomeLab.** Seven dashboards, populated.
 4. **Grafana → Explore → Loki**, run `{host=~".+"}`. Logs should be arriving.
 5. Confirm level normalisation is working — this has been silently broken

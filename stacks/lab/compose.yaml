@@ -17,9 +17,9 @@
 # On the comments in this file
 # ---------------------------------------------------------------------------
 # The settings below are shared with `stacks/observability/compose.yaml`, and
-# the reasoning for them — why `init: true`, why `pids_limit` and not
-# `mem_limit`, why `cgroup: host` and not `privileged`, why loki has no
-# healthcheck — is written out at length there and is NOT repeated here. Two
+# the reasoning for them — why `init: true`, why `pids_limit`, why `cgroup:
+# host` and not `privileged`, why loki has no healthcheck — is written out at
+# length there and is NOT repeated here. Two
 # copies of an argument drift the same way two copies of a config do, and the
 # argument is the half nobody re-checks. What IS written out here is every
 # place this stack DIFFERS from that one, because those are the only lines a
@@ -39,6 +39,15 @@ x-service-defaults: &service-defaults
   networks: [lab]
   init: true
   pids_limit: 512
+
+# No mem_limit here, and that is a difference rather than an omission. #114 set
+# one per service on the sibling stack from fourteen days of that host's own
+# container_memory_rss. This stack runs on `alexander`, a guest with its own
+# memory, its own Prometheus and — being on ImaginationLAN — no series reaching
+# 10.0.99.20 to size from (ADR-0007, ADR-0020). Copying the sibling's numbers
+# would be a limit derived from a machine this one is not, which is the guess
+# the block above `services:` there exists to refuse. Its own numbers can be
+# read off its own Prometheus once it has run a fortnight.
 
 services:
   # ---------------------------------------------------------------------------

@@ -3,8 +3,8 @@
 #
 # These exist because of #63. ContainerHighMemory sat in the rule file for
 # months unable to fire for any input: it divided by
-# container_spec_memory_limit_bytes and guarded on that being > 0, and nothing
-# in compose.yaml sets a memory limit. `promtool check rules` passed the whole
+# container_spec_memory_limit_bytes and guarded on that being > 0, and at the
+# time nothing in compose.yaml set one. `promtool check rules` passed the whole
 # time — it parses PromQL, it does not ask whether an expression can ever be
 # true. The rule showed as loaded and healthy on the Prometheus status page,
 # which is the failure mode ups.rules.yaml warns about at length: a rule that
@@ -15,10 +15,19 @@
 # with a quiet case, because a test that only ever expects silence would have
 # passed against the broken rule too.
 #
-# The firing fixture carries container_spec_memory_limit_bytes at 0 on purpose.
-# That is what cAdvisor really reports for these containers, so the fixture is
-# faithful to production — and the old expression still cannot fire against it,
-# which is the whole finding rather than an artefact of a thin fixture.
+# The ContainerHighMemory firing fixture carries
+# container_spec_memory_limit_bytes at 0 on purpose. That used to be what
+# cAdvisor really reported for these containers; since #114 set mem_limit on all
+# seven it reports the real ceiling, so the 0 is now a deliberate regression
+# fixture rather than a copy of production. It is still the value cAdvisor
+# reports for any container without a limit, and it is still the input the #63
+# expression could not fire against — which is the reason to keep it.
+#
+# ContainerNearMemoryLimit, added with those limits, is the one rule here that
+# genuinely depends on compose.yaml: it goes unfireable for any service whose
+# mem_limit is removed. The cases at the foot of this file assert the guard that
+# makes that safe rather than silent, and assert it against RSS specifically —
+# see the rule's own comment for why working set is the wrong numerator.
 #
 # What these do NOT prove: the fixtures are synthetic, so nothing here notices
 # if cAdvisor renames or drops a label. They guard the expression, not the data
@@ -148,3 +157,91 @@ tests:
               category: capacity
             exp_annotations:
               summary: "Container alloy is using 50% of host memory"
+
+  # --- ContainerNearMemoryLimit: fires --------------------------------------
+  # 754974720 / 805306368 is exactly 0.9375 — alloy's real 768M limit with its
+  # anonymous memory at 15/16 of it, held past for: 15m. Nothing in the 14 days
+  # #114 sized from comes near this; the point is that the expression produces
+  # an alert for an input that can occur, which is the assertion #63 was missing.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_rss{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "754974720x25"
+      - series: 'container_spec_memory_limit_bytes{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "805306368x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerNearMemoryLimit
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerNearMemoryLimit
+              name: alloy
+              instance: prometheus
+              host: prometheus
+              job: integrations/cadvisor
+              component: containers
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Container alloy is at 93.75% of its own memory limit"
+              description: "Anonymous memory, so page cache is not inflating it. OOM-killed at 100%."
+
+      # Not yet held long enough — for: 15m has not elapsed at 10m.
+      - eval_time: 10m
+        alertname: ContainerNearMemoryLimit
+        exp_alerts: []
+
+  # --- ContainerNearMemoryLimit: quiet at the worst thing actually measured --
+  # loki's 1015 MiB peak against its 1536M limit is 66%, and that peak is the
+  # anomalous 2026-08-29 compactor-cycling hour rather than routine load. If
+  # this ever fires, the limits are wrong and not merely the workload.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_rss{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "1064304640x25"
+      - series: 'container_spec_memory_limit_bytes{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "1610612736x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerNearMemoryLimit
+        exp_alerts: []
+
+  # --- ContainerNearMemoryLimit: page cache must not trip it -----------------
+  # This is the case that pins the numerator. Same 768M limit, 200 MiB of
+  # anonymous memory and a 720 MiB working set — alloy's real shape, since it
+  # holds a read-only mount of the whole host filesystem and its cache is
+  # reclaimable rather than fatal. Against container_memory_working_set_bytes
+  # this input is 93.75% of the limit and the rule fires; against
+  # container_memory_rss it is 26% and the rule is silent. A "simplification"
+  # to working set therefore fails here rather than paging someone at 03:00
+  # because Alloy read some files.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_rss{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "209715200x25"
+      - series: 'container_memory_working_set_bytes{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "754974720x25"
+      - series: 'container_spec_memory_limit_bytes{name="alloy",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "805306368x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerNearMemoryLimit
+        exp_alerts: []
+
+  # --- ContainerNearMemoryLimit: an unlimited container is not divided by 0 --
+  # cAdvisor reports container_spec_memory_limit_bytes = 0 for a container with
+  # no mem_limit — every profile service in compose.yaml, and anything else
+  # running on this host. Without the `> 0` filter the division yields +Inf,
+  # which is > 0.90, and every unlimited container on the box alerts forever.
+  # This asserts silence for an input that is 4 GiB of RSS, so it is silence
+  # from the guard rather than from a small number.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_rss{name="renderer",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "4294967296x25"
+      - series: 'container_spec_memory_limit_bytes{name="renderer",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "0x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerNearMemoryLimit
+        exp_alerts: []

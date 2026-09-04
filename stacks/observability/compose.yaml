@@ -34,9 +34,10 @@ x-service-defaults: &service-defaults
   # is 9-17 tasks per service and the highest go_threads seen over nine days is
   # 21, so 512 is ~25x normal and still well under the Go runtime's own
   # 10,000-thread abort. The number is loose on purpose: what makes a PID limit
-  # safe to set — and a memory limit not, which is why there is no mem_limit in
-  # this file and #114 owns that question — is that the gap between "certainly
-  # enough" and "certainly protective" spans two orders of magnitude here. A
+  # safe to set is that the gap between "certainly enough" and "certainly
+  # protective" spans two orders of magnitude here. Memory has no such gap,
+  # which is why `mem_limit` is set per service from measurement rather than
+  # shared here as one round number — see the block above `services:`. A
   # container that hits this dies on EAGAIN, restart: unless-stopped recovers
   # it, and ContainerRestartLoop fires. The quieter case is the one that
   # actually happened: the app was fine and the *healthcheck* could not fork,
@@ -59,6 +60,93 @@ x-service-defaults: &service-defaults
   # correctly; ulimits: nproc is a uid control in a container costume.
   pids_limit: 512
 
+# ---------------------------------------------------------------------------
+# On the mem_limit / memswap_limit pairs below (#114)
+# ---------------------------------------------------------------------------
+# Every running service carries both. The per-service lines say what each
+# number is; this says how all of them were derived, because the derivation is
+# the part that does not survive being restated seven times.
+#
+# SIZED FROM RSS, NOT WORKING SET. `mem_limit` becomes cgroup v2 `memory.max`,
+# which bounds `memory.current` — anonymous pages *plus* page cache. Under
+# pressure the kernel reclaims the cache first and only OOM-kills when it
+# cannot free enough, so what a limit must actually clear is the anonymous
+# high-water mark (container_memory_rss), not the working set. The difference
+# is not cosmetic: alloy's 512 MiB working-set peak is 221 MiB of RSS and the
+# rest reclaimable cache from walking /rootfs. Sizing from working set inflates
+# every number by whatever the container happened to have cached.
+#
+# That is also what retires the method #114 proposed. "3x every peak", taken
+# from the working-set column below, comes to 7602 MiB against 7816 MiB of RAM:
+# the limits would sum to the whole machine and bound nothing in aggregate at
+# all, which is the one thing they exist to do. Read off RSS, with the
+# multiplier chosen per service instead of flat, the seven sum to 5120 MiB
+# (65% of RAM), which leaves the ~1.3 GiB the OS and the wiki containers
+# actually use plus room for page cache.
+#
+# MEASURED OVER 2026-08-21 -> 09-04, the full extent of container_memory_* in
+# the TSDB (14.2 days; cAdvisor has only reported per-container series since
+# #62). MiB, `host="prometheus"`:
+#
+#   service              median RSS   peak RSS   peak WS   limit   limit/peak RSS
+#   prometheus                  145        198       244   1024M         5.2x
+#   loki                        103       1015      1039   1536M         1.5x
+#   grafana                     154        540       630   1280M         2.4x
+#   alloy                       163        221       512    768M         3.5x
+#   alertmanager                 20         25        52    256M        10.2x
+#   snmp-exporter                15         20        31    128M         6.4x
+#   blackbox-exporter            15         18        26    128M         7.1x
+#
+# THE 2026-08-29 06:18-06:34 HOUR, which is the thing that had to be explained
+# before any of these could be chosen rather than guessed. loki peaked at 1015
+# MiB RSS (10x its median) and alloy at 502 MiB working set inside the same ten
+# minutes, and a peak two services share is either a real correlated load or an
+# artefact — and only one of those is worth sizing around. It is the second.
+# At 06:18:14-15 both processes tore down internal components simultaneously:
+# alloy logged 35 "node exited without error" lines in three minutes and
+# re-registered its cAdvisor and unix collectors at 06:21 (210 such lines across
+# the hour), and loki's compactor module stopped and then
+# cycled start/stop five more times through 06:34, logging "instance not found
+# in the ring" on each. While it cycled, loki returned 400s and alloy dropped
+# batches ("final error sending batch, no retries left"). Both were back at
+# baseline by 06:40. Neither container restarted — creation times either side
+# are unchanged — so this was in-process component churn, not a crash, not a
+# deploy, and not a leak. It has not recurred in the six days since.
+#
+# That matters for loki specifically, which is why its limit is the loosest
+# ratio here. Its routine spikes are ordinary index compaction and WAL
+# checkpointing (index_set.go / tables_manager.go / checkpoint.go dominate the
+# log during them) and reach ~410 MiB a few times a day. 1536M is set to
+# survive a recurrence of the 06:20 event rather than to clip it: a limit that
+# OOM-kills the log store during component churn turns a self-healing blip into
+# an outage, and takes the record of it with it. #114 listed loki among the
+# low-risk services to start with, on a 152 MiB peak from a six-hour window.
+# Fourteen days inverts that — it is the riskiest of the seven to bound.
+#
+# NO SWAP, DELIBERATELY. `memswap_limit` equals `mem_limit` on every service,
+# which sets `memory.swap.max` to 0. Left unset it defaults to 2x mem_limit,
+# i.e. a constrained container spills to swap instead of dying. /swap.img is
+# 4 GiB and unencrypted on a host with no LUKS anywhere (docs/security.md,
+# SECURITY.md), and this repository already carries that as a data-at-rest
+# exposure — so the default would push grafana's admin password, alertmanager's
+# receiver URLs and snmp-exporter's community string toward the one part of the
+# disk that argument is about. It also blunts the control: a container that
+# swaps instead of being killed breaches its limit silently, where an OOM kill
+# raises ContainerOomKilled. Measured cost of switching it off: peak
+# container_memory_swap over the window is 70 MiB (prometheus), 17 (alloy),
+# 12 (loki) and under 5 for the rest.
+#
+# These are enforcement. Detection stays separate and stays host-relative —
+# ContainerHighMemory still divides by machine_memory_bytes, because coupling
+# the two is what left it unfireable for months (#63). ContainerNearMemoryLimit
+# in containers.rules.yaml is the limit-relative complement these numbers make
+# possible, and it has its own promtool test for the same reason.
+#
+# Not set on renderer, archiver, gitleaks, actionlint or editorconfig-checker:
+# all five sit behind profiles, none runs in a normal deploy, and there is
+# nothing running to measure. An unmeasured ceiling on a headless Chromium is
+# the guess this block exists to avoid.
+
 services:
   # ---------------------------------------------------------------------------
   # Metrics store. Also acts as the remote-write sink for Alloy agents running
@@ -69,6 +157,17 @@ services:
     image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     container_name: prometheus
     user: "65534:65534"
+    # 5.2x the 198 MiB peak, the most generous multiplier of the seven, because
+    # this is both the service whose steady state is still moving and the worst
+    # one on the host to kill — it is what would otherwise record the kill.
+    # RSS tracks head series, which is 34,004 today and rose 156 -> 191 MiB
+    # across the window as blackbox and oracle were added; #88 adds Saruman.
+    # 1024M carries roughly a doubling of that. The TSDB itself is no longer an
+    # unknown the way #114 assumed: prometheus_tsdb_time_retentions_total is 1,
+    # so the store has reached 30-day steady state and is evicting, and this is
+    # no longer six hours of a mostly-empty database.
+    mem_limit: 1024m
+    memswap_limit: 1024m
     command:
       - --config.file=/etc/prometheus/prometheus.yaml
       - --storage.tsdb.path=/prometheus
@@ -147,6 +246,12 @@ services:
     # stale .env predating RENDER_UID would otherwise silently fall back to
     # 65534 and reintroduce the permission-denied crash loop this guards against.
     user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    # 10.2x the 25 MiB peak, and the widest ratio here because it costs almost
+    # nothing to be generous with a service this small — RSS sat between 20 and
+    # 24 MiB for all fourteen days without a single excursion. 256M is 5x even
+    # the working-set peak of 52 MiB.
+    mem_limit: 256m
+    memswap_limit: 256m
     command:
       - --config.file=/etc/alertmanager/alertmanager.yaml
       - --storage.path=/alertmanager
@@ -187,6 +292,14 @@ services:
     image: grafana/loki:3.7.7@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500
     container_name: loki
     user: "10001:10001"
+    # 1.5x the 1015 MiB peak — the tightest ratio and the largest number, which
+    # is the same fact twice: loki has by far the widest dynamic range here,
+    # 103 MiB median against a peak ten times that. The peak is the 2026-08-29
+    # compactor-cycling hour explained above; routine compaction and WAL
+    # checkpointing reach ~410 MiB a few times a day. Sized to survive that
+    # event rather than to clip it.
+    mem_limit: 1536m
+    memswap_limit: 1536m
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -234,6 +347,10 @@ services:
     # render-config.sh, so it must run as the UID that rendered it. Required,
     # not defaulted — see the note on alertmanager above.
     user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    # 6.4x the 20 MiB peak. Four SNMP devices at a 60-second interval is a
+    # fixed, tiny workload and it measures like one: RSS never left 15-17 MiB.
+    mem_limit: 128m
+    memswap_limit: 128m
     command:
       - --config.file=/etc/snmp_exporter/snmp.yaml
     volumes:
@@ -264,6 +381,13 @@ services:
     <<: *service-defaults
     image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
     container_name: blackbox-exporter
+    # 7.1x the 18 MiB peak. The shortest history of the seven — this service
+    # only exists since 2026-08-30, so it has six days rather than fourteen.
+    # It is also the flattest thing on the host (13-17 MiB throughout), and at
+    # 128M the limit is far enough above the measurement that the shorter
+    # window does not change the number.
+    mem_limit: 128m
+    memswap_limit: 128m
     command:
       - --config.file=/etc/blackbox_exporter/config.yml
     volumes:
@@ -298,6 +422,16 @@ services:
     <<: *service-defaults
     image: grafana/grafana-oss:13.0.2@sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2
     container_name: grafana
+    # 2.4x the 540 MiB peak. Grafana is the second-spikiest service here — 154
+    # MiB median, and three separate excursions past 350 MiB RSS in fourteen
+    # days — and unlike loki's, its spikes are query- and render-driven, so
+    # they are reachable by anyone opening a dashboard rather than only by an
+    # internal event. The `capture` profile drives it hardest: a `make
+    # screenshots` run asks it to serve a 4582px render. 1280M rather than
+    # 1024M for that path specifically, which is the one way an operator can
+    # provoke the peak on purpose.
+    mem_limit: 1280m
+    memswap_limit: 1280m
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in secrets/observability.sops.yaml}
@@ -416,6 +550,14 @@ services:
     # cgroups, tails the journal and talks to the Docker socket, so it has more
     # reason than the others to fan out. Observed peak is 20 threads either way.
     pids_limit: 1024
+    # 3.5x the 221 MiB peak. Alloy is the clearest case for sizing from RSS
+    # rather than working set: its working set reached 512 MiB, but 278 MiB of
+    # that is reclaimable page cache from the read-only /rootfs mount below,
+    # and cache above a limit is reclaimed rather than fatal. Sized from the
+    # working-set peak this would be 1536M for a process whose anonymous memory
+    # has never left 162-221 MiB in fourteen days.
+    mem_limit: 768m
+    memswap_limit: 768m
     # `privileged: true` used to be here, and it was never what made cAdvisor
     # work — cgroup: host below is. What it did do was hand every capability to
     # the one container holding the Docker socket and a read-only mount of the

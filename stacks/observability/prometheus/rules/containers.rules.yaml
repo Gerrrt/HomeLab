@@ -33,11 +33,19 @@ groups:
           summary: "Container {{ $labels.name }} was OOM-killed"
 
       - alert: ContainerHighMemory
-        # Measured against the host, not against a limit. The limit-based form
-        # this replaces could not fire: it divided by
-        # container_spec_memory_limit_bytes and guarded on that being > 0, but
-        # no service in compose.yaml sets a memory limit, so cAdvisor reports 0
-        # for all six and the guard excluded every one of them. See #63.
+        # Measured against the host, not against a limit, and it stays that way
+        # now that #114 has set mem_limit on all seven services. The limit-based
+        # form this replaces could not fire: it divided by
+        # container_spec_memory_limit_bytes and guarded on that being > 0, and
+        # at the time no service in compose.yaml set a memory limit, so cAdvisor
+        # reported 0 for every one of them and the guard excluded them all (#63).
+        #
+        # Making this one limit-relative again would reintroduce exactly that
+        # coupling: it would go unfireable the moment a limit is removed, and
+        # removing a limit is a compose edit nobody would think of as an
+        # alerting change. ContainerNearMemoryLimit below is the limit-relative
+        # rule, added as a complement rather than a replacement, so that the
+        # host-relative one keeps working whatever compose.yaml says.
         #
         # Do not "simplify" this to `/ machine_memory_bytes`. That form returns
         # no series at all: machine_memory_bytes carries boot_id, machine_id and
@@ -51,6 +59,10 @@ groups:
         # working set of ~790 MB. HostMemoryPressure in host.rules.yaml already
         # catches the host running out; this one fires earlier and, unlike that
         # rule, names which container is responsible.
+        #
+        # Still reachable with the limits in place: loki's is the largest at
+        # 1536M, which is 0.20 of the host, so no service can be OOM-killed by
+        # its own limit without this having had the chance to fire first.
         expr: |
           container_memory_working_set_bytes{name!=""}
           / on(instance) group_left machine_memory_bytes > 0.40
@@ -61,6 +73,46 @@ groups:
           category: capacity
         annotations:
           summary: "Container {{ $labels.name }} is using {{ $value | humanizePercentage }} of host memory"
+
+      - alert: ContainerNearMemoryLimit
+        # The complement #114 asked for: with mem_limit set,
+        # container_spec_memory_limit_bytes is non-zero and "approaching its own
+        # ceiling" is finally a question that can be asked. ContainerOomKilled
+        # says a container already died; this says one is about to.
+        #
+        # RSS, not working set, and for the same reason the limits themselves
+        # were sized from RSS (see the block above `services:` in compose.yaml).
+        # mem_limit bounds memory.current, which includes page cache, but the
+        # kernel reclaims cache before it kills anything — so a container can
+        # sit at 95% of its limit on reclaimable cache and be in no trouble at
+        # all. alloy is the live example: 221 MiB of anonymous memory and 278
+        # MiB of cache from walking /rootfs. Against working set this rule would
+        # page someone about alloy having read some files.
+        #
+        # The `> 0` filter on the denominator is what keeps this from dividing
+        # by the zero cAdvisor reports for an unlimited container. That is the
+        # #63 guard, and it has the same weakness it had then — remove a
+        # mem_limit and this rule silently stops covering that service. It is
+        # acceptable *here* only because ContainerHighMemory above is
+        # host-relative and keeps covering it regardless. Neither rule is a
+        # substitute for the other.
+        #
+        # 0.90 sits well clear of measured behaviour: the highest RSS-to-limit
+        # ratio anywhere in the 14 days the limits were derived from is loki at
+        # 66% (1015 MiB against 1536M), and that was the anomalous 2026-08-29
+        # compactor-cycling hour rather than routine load.
+        expr: |
+          container_memory_rss{name!=""}
+          / (container_spec_memory_limit_bytes{name!=""} > 0) > 0.90
+        for: 15m
+        labels:
+          component: containers
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Container {{ $labels.name }} is at {{ $value | humanizePercentage }} of its own memory limit"
+          description: "Anonymous memory, so page cache is not inflating it.
+            OOM-killed at 100%."
 
       - alert: ContainerCpuThrottled
         expr: |
