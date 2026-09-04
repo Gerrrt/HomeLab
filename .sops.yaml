@@ -24,6 +24,31 @@
 # public half into this file.
 
 creation_rules:
+  # The lab stack, FIRST — SOPS takes the first rule whose path_regex matches,
+  # so this has to sit above the catch-all below or it would never apply.
+  #
+  # It exists because the rule below matches all of secrets/, which means any
+  # recipient added to it can decrypt every file there. The lab guest needs to
+  # decrypt secrets/lab.sops.yaml on `make render STACK=lab`; adding its key to
+  # the general rule to achieve that would also hand it the estate's SNMP
+  # communities and Grafana admin password — a lab host holding the credentials
+  # of the estate it is supposed to be isolated from, which inverts the trust
+  # direction ADR-0007 exists to protect. So it gets a rule, and a key, of its
+  # own. See docs/adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md.
+  #
+  # This is NOT the "a second rule would be a second copy of the key" case the
+  # note above warns about: that argument is against two rules sharing one
+  # recipient. These two hold different recipients on purpose, which is the
+  # whole point.
+  #
+  # Placeholder until the lab guest exists. `make secrets-init STACK=lab`, run
+  # ON that guest, fills it in — and refuses if the key it would write is
+  # already a recipient below, because that would collapse the two rules back
+  # into one.
+  - path_regex: secrets/lab\..*\.sops\.ya?ml$
+    age: >-
+      REPLACE_WITH_LAB_AGE_PUBLIC_KEY
+
   - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
     age: >-
       age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x

@@ -51,9 +51,40 @@ info "public key: ${PUBLIC_KEY}"
 # ---------------------------------------------------------------------------
 # 2. register it in .sops.yaml
 # ---------------------------------------------------------------------------
-if grep -q "REPLACE_WITH_YOUR_AGE_PUBLIC_KEY" "${SOPS_CONFIG}"; then
-  info "writing public key into .sops.yaml"
-  sed -i.bak "s|REPLACE_WITH_YOUR_AGE_PUBLIC_KEY|${PUBLIC_KEY}|" "${SOPS_CONFIG}"
+# Which placeholder belongs to THIS stack.
+#
+# There is no longer one placeholder to fill. .sops.yaml carries a creation_rule
+# per stack that needs its own recipient — ADR-0020 gives `lab` one, because the
+# single rule that used to match all of secrets/ meant any recipient added to it
+# could decrypt every other stack's credentials too. Filling in "the first
+# placeholder found" would write the lab guest's key into the estate's rule, or
+# the estate's into the lab's, which is the failure that decision exists to
+# prevent.
+#
+# The generic name is kept as the fallback so a fresh clone bootstrapping
+# `observability` behaves exactly as it always has.
+PLACEHOLDER="REPLACE_WITH_${STACK^^}_AGE_PUBLIC_KEY"
+grep -q "${PLACEHOLDER}" "${SOPS_CONFIG}" 2>/dev/null \
+  || PLACEHOLDER="REPLACE_WITH_YOUR_AGE_PUBLIC_KEY"
+
+if grep -q "${PLACEHOLDER}" "${SOPS_CONFIG}"; then
+  # Refused rather than warned about. Reaching here means this host's key is
+  # already a recipient of some other rule in this file, and is now being asked
+  # to become ${STACK}'s as well — one key that decrypts both stacks, which is
+  # the exact collapse the separate rules exist to stop. It is also the easy
+  # mistake: `make secrets-init STACK=lab` typed on the monitoring host rather
+  # than on the lab guest does precisely this, and the result would look like a
+  # successful bootstrap.
+  if grep -q "${PUBLIC_KEY}" "${SOPS_CONFIG}"; then
+    die "this host's key is already a recipient in ${SOPS_CONFIG##*/}, and
+making it ${STACK}'s recipient as well would give one key both stacks.
+
+Run this on the host that will run ${STACK}, so that stack gets a key of its
+own. If one key for both is genuinely what you want, edit .sops.yaml by hand —
+it should be a decision, not a side effect of where you happened to type this."
+  fi
+  info "writing public key into .sops.yaml (${PLACEHOLDER})"
+  sed -i.bak "s|${PLACEHOLDER}|${PUBLIC_KEY}|" "${SOPS_CONFIG}"
   rm -f "${SOPS_CONFIG}.bak"
 elif grep -q "${PUBLIC_KEY}" "${SOPS_CONFIG}"; then
   info ".sops.yaml already lists this key"
@@ -61,6 +92,7 @@ else
   warn ".sops.yaml lists a different age recipient."
   warn "Add this key as an additional recipient by hand, then run:"
   warn "  sops updatekeys ${SECRETS_FILE}"
+  warn "Add it to the rule matching secrets/${STACK}. — NOT to another stack's."
 fi
 
 # ---------------------------------------------------------------------------
