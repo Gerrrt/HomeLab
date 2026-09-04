@@ -71,6 +71,7 @@ except ModuleNotFoundError:
 REPO = pathlib.Path(__file__).resolve().parent.parent
 STACK = REPO / "stacks/observability"
 COMPOSE = STACK / "compose.yaml"
+ALERTMANAGER = STACK / "alertmanager/alertmanager.yaml"
 NETWORK_MD = REPO / "docs/network.md"
 ARCH_MD = REPO / "docs/architecture.md"
 HARDWARE_MD = REPO / "docs/hardware.md"
@@ -262,6 +263,23 @@ def compose_services() -> dict:
     }
 
 
+def count_notifying_receivers() -> int:
+    """Receivers in alertmanager.yaml that actually send somewhere.
+
+    `null` is excluded. It exists to swallow `info` and has no *_configs at
+    all, so counting it would make the prose say five and be wrong in the
+    other direction. The test is "declares at least one delivery config"
+    rather than a name blocklist, so a second discard receiver would be
+    excluded on the same grounds without anyone remembering to add it here.
+    """
+    doc = yaml.safe_load(ALERTMANAGER.read_text(encoding="utf-8")) or {}
+    return sum(
+        1
+        for r in (doc.get("receivers") or [])
+        if any(k.endswith("_configs") and r[k] for k in r)
+    )
+
+
 def count_alloy_agents() -> int:
     """Hosts the architecture table says run an Alloy agent.
 
@@ -311,6 +329,7 @@ def facts() -> dict:
         "tested_rules": len(tested),
         "untested_rules": prom - len(tested),
         "alloy_agents": count_alloy_agents(),
+        "receivers": count_notifying_receivers(),
     }
 
 
@@ -359,6 +378,19 @@ def check_counts(f: dict) -> list[str]:
         # architecture table is the source and hardware.md's sentence is the
         # claim. See count_alloy_agents.
         (rf"{COUNT}\s+Alloy agents", {f["alloy_agents"]}, "Alloy agents"),
+        # The second time a number in observability.md drifted (#72, then #212):
+        # `security` was added and the sentence introducing the routing table
+        # still said three. Both halves of "N receivers, N separate
+        # destinations" are counted, because they went stale as a pair and
+        # guarding only the first would leave the second free to drift alone —
+        # the "39 rules across six files" shape above.
+        #
+        # Derived from alertmanager.yaml the way the rule counts are derived
+        # from the rule files, so adding a receiver fails here rather than
+        # waiting for someone to reread the paragraph.
+        (rf"{COUNT}\s+receivers", {f["receivers"]}, "notifying receivers"),
+        (rf"{COUNT}\s+separate destinations", {f["receivers"]},
+         "separate destinations"),
     )
     problems = []
     for rel in PROSE:
