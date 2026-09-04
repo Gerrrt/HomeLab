@@ -102,6 +102,29 @@ secrets-edit: ## Edit the encrypted secrets in $$EDITOR
 	@# unencrypted disk. scripts/secrets-edit.sh silences the editor first.
 	./scripts/secrets-edit.sh $(STACK)
 
+.PHONY: secrets-add-recipient
+secrets-add-recipient: ## Add a second age recipient and re-key (PUBKEY=age1...)
+	@# Under Secrets and not Maintenance because it is part of setting the
+	@# secrets up, but it is the one target here that rewrites a committed file
+	@# — .sops.yaml and secrets/$(STACK).sops.yaml both change and must be
+	@# committed together. ADR-0024 says why more than one recipient exists.
+	@#
+	@# PUBKEY rather than ARGS, for the reason secrets-verify-backup takes KEY:
+	@# exactly one argument, required, and an empty ARGS would reach the script
+	@# as no argument at all and print usage, which reads like a broken target.
+	@#
+	@# The PUBLIC half only. The private half of the key being added must never
+	@# be generated on, copied to, or pasted into this host — that is the whole
+	@# property the second recipient exists to have.
+	@[[ -n "$(PUBKEY)" ]] || { \
+		printf '\033[0;31merror:\033[0m PUBKEY is required\n' >&2; \
+		printf 'Generate the keypair where it will LIVE, then bring back its public half:\n' >&2; \
+		printf '  make secrets-add-recipient PUBKEY=age1...\n' >&2; \
+		printf 'See docs/runbooks/back-up-the-age-key.md\n' >&2; \
+		exit 2; \
+	}
+	./scripts/add-recipient.sh "$(PUBKEY)" $(STACK)
+
 .PHONY: secrets-show
 secrets-show: ## Print the decrypted secrets to stdout (careful)
 	sops --decrypt $(SECRETS)

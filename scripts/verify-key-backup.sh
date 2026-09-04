@@ -152,10 +152,21 @@ An age key file holds a line beginning AGE-SECRET-KEY-1. If you transcribed
 this from paper, check for a truncated or wrapped line."
 fi
 
+# Matched against the RECIPIENTS OF THE FILE, not against .sops.yaml.
+#
+# .sops.yaml is the policy for the next encryption; the `sops:` block inside the
+# encrypted file is the list of keys that can open the bytes on disk. They
+# diverge for exactly as long as it takes somebody to add a recipient and forget
+# `sops updatekeys` — and in that window this check used to pass on a key that
+# then failed at section 4 with "the secret half is damaged or truncated",
+# sending you to re-copy a backup that was never the problem.
+mapfile -t RECIPIENTS < <("${REPO_ROOT}/scripts/key-recipients.sh" --list --stack "${STACK}")
+((${#RECIPIENTS[@]})) || die "could not read the recipients of secrets/${STACK}.sops.yaml — see above"
+
 matched=""
 while IFS= read -r pub; do
   [[ -n "${pub}" ]] || continue
-  if grep -qF "${pub}" "${SOPS_CONFIG}"; then
+  if printf '%s\n' "${RECIPIENTS[@]}" | grep -qxF "${pub}"; then
     matched="${pub}"
     break
   fi
@@ -164,14 +175,18 @@ done <<< "${PUBLIC_KEYS}"
 if [[ -z "${matched}" ]]; then
   die "this is a valid age key, but not one the secrets are encrypted to.
 
-  backup holds:  $(printf '%s' "${PUBLIC_KEYS}" | tr '\n' ' ')
-  .sops.yaml wants: $(grep -oE 'age1[a-z0-9]+' "${SOPS_CONFIG}" | tr '\n' ' ')
+  backup holds:             $(printf '%s' "${PUBLIC_KEYS}" | tr '\n' ' ')
+  the file is encrypted to: $(printf '%s ' "${RECIPIENTS[@]}")
+  .sops.yaml lists:         $(grep -oE 'age1[a-z0-9]+' "${SOPS_CONFIG}" | tr '\n' ' ')
 
-A freshly generated keypair looks exactly like this. If you meant to add a new
-recipient rather than restore an old one, that is 'sops updatekeys' — see
-secrets/README.md."
+A freshly generated keypair looks exactly like this. If the first two lines
+agree and the third does not, .sops.yaml has drifted from the ciphertext.
+
+If you meant to ADD this key as a recipient rather than restore an old one:
+  make secrets-add-recipient PUBKEY=$(printf '%s' "${PUBLIC_KEYS}" | head -n1)"
 fi
-info "recipient matches .sops.yaml: ${matched}"
+info "recipient ${matched}"
+info "this file has ${#RECIPIENTS[@]} recipient(s); this run proves one of them"
 
 # ---------------------------------------------------------------------------
 # 4. The real test: decrypt with nothing but the backup available
@@ -253,8 +268,35 @@ if [[ -n "${mode}" && "${mode: -2}" != "00" ]]; then
   warn "mode ${mode} — group or other can read this copy:  chmod 600 $(printf '%q' "${BACKUP_ABS}")"
 fi
 
+# ---------------------------------------------------------------------------
+# 7. Record WHICH recipient was proved
+# ---------------------------------------------------------------------------
+# ADR-0024. run-scheduled.sh wraps this call and records one timestamp under
+# homelab_job="verify-key-backup" whichever key was mounted, so with more than
+# one recipient it answers "a key was proved" to the question "was THIS key
+# proved" — and proving one silences the ninety-day deadline for all of them.
+# key-recipients.sh keeps a series per recipient, which is what
+# SecretsKeyBackupUnproven actually reads.
+#
+# Before the ok line and allowed to be fatal, deliberately. An unrecorded proof
+# is the failure #77 is about: the job ran, nothing can see that it ran, and the
+# gap is invisible until the day it matters.
+"${REPO_ROOT}/scripts/key-recipients.sh" --record --stack "${STACK}" --proved "${matched}"
+
 printf '\033[0;32mok\033[0m — %s decrypts secrets/%s.sops.yaml (%d/%d keys)\n' \
   "$(basename "${BACKUP}")" "${STACK}" "${found}" "${#REQUIRED[@]}"
 printf '   Proven: this key, on its own, recovers every secret in the repo.\n'
+
+# The line the single-series metric could never say. Proving one recipient used
+# to read as proving the backup; with more than one it proves exactly one of
+# them, and the other copies are still only as good as the last time somebody
+# went and got them out.
+if ((${#RECIPIENTS[@]} > 1)); then
+  printf '   Not proven: the other %d recipient(s) of this file. Each needs its own\n' \
+    "$((${#RECIPIENTS[@]} - 1))"
+  printf '   run against its own copy — SecretsKeyBackupUnproven names any that go\n'
+  printf '   ninety days without one.\n'
+fi
+
 printf '   Not proven: that where you keep it will still exist after a fire,\n'
 printf '   a theft, or a forgotten password. That part is your judgement.\n'

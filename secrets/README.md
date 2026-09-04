@@ -17,10 +17,24 @@ decrypted only in memory at deploy time.
 >
 > On a host that holds none of those private keys, `make render` fails at
 > decryption rather than starting the stack with defaults. To bring a second
-> host in, run `make secrets-init` there to generate its keypair, add its public
-> half to `.sops.yaml` as an additional recipient, and re-key the file with
-> `sops updatekeys secrets/observability.sops.yaml` from a host that can already
-> decrypt it. `secrets-init` refuses to overwrite an existing encrypted file.
+> host in, run `make secrets-init` there to generate its keypair, bring back the
+> public half it prints, and add it here:
+>
+> ```bash
+> make secrets-add-recipient PUBKEY=age1...
+> ```
+>
+> That writes the key into the `creation_rule` this stack's file already uses —
+> resolved from the file's own recipients, so it cannot land in another stack's
+> rule — and re-keys in the same run. `secrets-init` refuses to overwrite an
+> existing encrypted file, and `secrets-add-recipient` refuses a key whose
+> private half is already on this host.
+>
+> A recipient that is a *backup* rather than a host follows the same procedure
+> and one extra rule: generate it where it will live, never here.
+> [ADR-0024](../docs/adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
+> and [`back-up-the-age-key.md`](../docs/runbooks/back-up-the-age-key.md) cover
+> why the estate keeps more than one and how each is proved separately.
 
 ## Why encrypted-in-git rather than a gitignored `.env`
 

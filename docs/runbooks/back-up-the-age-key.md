@@ -203,28 +203,96 @@ the live key by device and inode on purpose: what gets tested has to be a copy o
 removable media, and no timer can mount that.
 
 So it is enforced from the other end. `make secrets-verify-backup` records the
-timestamp of a successful run, and `SecretsKeyBackupUnproven` fires when that
-proof passes ninety days old — routed to the normal alert channel like any other
-warning. Until the first verification there is no timestamp at all and
-`ScheduledJobNeverRan` says so instead, which is the honest reading of a key
-backup nobody has ever tested.
+timestamp of a successful run **against the recipient it just proved**, and
+`SecretsKeyBackupUnproven` fires when any recipient's proof passes ninety days
+old — routed to the normal alert channel like any other warning. Until the first
+verification there is no timestamp at all and `ScheduledJobNeverRan` says so
+instead, which is the honest reading of a key backup nobody has ever tested.
+
+The per-recipient part is [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
+and it only starts to matter once there is more than one. With one recipient
+this is the same alert it always was. With two, one timestamp for both would
+mean that proving either copy vouched for the other — which is exactly backwards,
+because the point of the second copy is that it fails independently.
 
 Nagging is not as good as running it. It is a great deal better than remembering.
 The threshold lives in the `JOBS` table in
 [`install-timers.sh`](../../scripts/install-timers.sh); the mechanism is in
 [`schedule-maintenance.md`](schedule-maintenance.md).
 
+## Adding a second recipient
+
+The section this replaces said a second recipient was "worth doing on the day
+the lab stops being a one-person project, and not before".
+[#106](https://github.com/Gerrrt/HomeLab/issues/106) pointed out that this
+frames a loss problem as a headcount problem. Nobody joining is what makes a
+second *holder* worth having; it has nothing to do with whether the key survives
+a disk dying. [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
+decides the question on the loss grounds and explains why a second *recipient*
+beats a second *copy* — briefly: `.sops.yaml` records a recipient and nothing
+records a copy, so the tooling can name and separately nag about a recipient and
+cannot tell two copies of one key apart.
+
+Generate the keypair **on the machine or the medium that will keep it**. Not
+here. A key generated on the monitoring host and then added as a recipient is a
+second copy on the disk you are insuring, and `make secrets-add-recipient`
+refuses it for that reason.
+
+```bash
+# ...somewhere that is not this host:
+umask 077
+age-keygen -o /path/to/its/keys.txt
+age-keygen -y /path/to/its/keys.txt        # the PUBLIC half — this is what travels
+```
+
+Then, on the monitoring host, with only that public half:
+
+```bash
+make secrets-add-recipient PUBKEY=age1...
+```
+
+That writes the key into the `creation_rule` this stack's file already uses and
+re-keys the file in the same run. sops shows the group change and asks before
+committing to it; answering no rolls `.sops.yaml` back, so the two never
+disagree. Both files change and belong in one commit:
+
+```bash
+git add .sops.yaml secrets/observability.sops.yaml
+```
+
+The new recipient starts unproven, and says so: `SecretsKeyBackupUnproven` fires
+against it immediately and names it. Clear it the same way as the first —
+`make secrets-verify-backup KEY=/path/to/the/new/copy` — and note that this is
+the point of the whole exercise. **Proving one recipient does not clear another.**
+Each copy has to be mounted and tested on its own, which is four trips a year
+rather than two.
+
+The table in [Copy the key](#1-copy-the-key) and the disqualifiers in
+[Confirm the copy is not republishing itself](#3-confirm-the-copy-is-not-republishing-itself)
+apply to the second copy as much as the first, plus one rule that only exists
+once there are two: **it must not fail
+at the same time as the first.** Two USB sticks in the same drawer is one copy
+with extra steps, and so is a second recipient whose private half is in the same
+password-manager vault as the first — the failure mode of a vault is losing the
+master password, and that takes everything in it at once.
+
 ## What this still does not solve
 
-One key, one person, one copy plus the original. If the answer to "who else can
-recover this" needs to be more than one, the mechanism already exists: generate a
-second keypair that lives only offline, add its public half to `.sops.yaml` as an
-additional recipient, and re-key with
-`sops updatekeys secrets/observability.sops.yaml` from a host that can already
-decrypt. That is the same procedure as bringing a second host in, described in
-[`secrets/README.md`](../../secrets/README.md). It is worth doing on the day the
-lab stops being a one-person project, and not before — every extra recipient is
-another key that can leak.
+**One person.** ADR-0024 answers the copy and deliberately does not answer the
+holder: whether somebody else should be able to open the estate's secrets is a
+question about people, not about mechanism. What has changed is that the
+mechanism is now built and exercised — a second holder is the same
+`make secrets-add-recipient` with their public key, not a procedure to work out
+on the day it matters.
+
+**Revocation is still rotation.** Removing a recipient and re-keying protects
+values encrypted from then on. Every historical ciphertext in git stays readable
+by the removed key, because the commits are still there. A second recipient that
+leaks means rotating every credential — four SNMP communities on hardware, the
+Grafana password, the four notification URLs and the renderer token — exactly as
+a leaked first one does. That is why "every extra recipient is another key that
+can leak" is still the right thing to weigh; ADR-0024 weighs it and accepts it
+against an alternative that carries the same exposure unaudited.
 
 ## If something goes wrong
 

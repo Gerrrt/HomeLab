@@ -193,7 +193,7 @@ inherits without knowing.
 | --- | --- | --- |
 | **Alert delivery to a destination you do not own** | Immediately, and silently | You do not. This is step 2 above, and it is the reason it is step 2 |
 | **The external heartbeat watcher** — a free-tier cron-monitor on somebody else's account | Whenever that account lapses | Nothing here can tell you. A watcher on this host would fail with the thing it watches, which is why it is off-host and therefore outside anything this repository can check |
-| **The age key backup goes unproven** | 90 days after the last verification | `SecretsKeyBackupUnproven`, routed to the normal alert channel. Until the first verification there is no timestamp at all and `ScheduledJobNeverRan` says so instead |
+| **The age key backup goes unproven** | 90 days after the last verification, *per recipient* | `SecretsKeyBackupUnproven`, routed to the normal alert channel, naming the recipient — proving one copy does not clear another ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)). Until the first verification there is no timestamp at all and `ScheduledJobNeverRan` says so instead |
 | **Grafana's leaf certificate** | 825 days from issue; the APC card's own certificate expires on its own clock | `TlsCertificateExpiringSoon` at 30 days, `TlsCertificateExpiryImminent` at 7 — read off the served handshake by `blackbox-exporter`, not off a file. Let it lapse and `up{job="grafana"}` goes to 0 as well |
 | **The UPS battery pack** | A pack was fitted 2026-08-28 and passed its self-test; packs are consumables and this one is on a biweekly test schedule | `UpsSelfTestFailed` and `UpsBatteryUnproven` key on the self-test result, which is the single honest signal this card emits — every charge, runtime and alarm value it reports was fabricated while the bay was empty. Two things remain open: the card's test *schedule* is unwatched ([#249](https://github.com/Gerrrt/HomeLab/issues/249)), and `upsBasicBatteryLastReplaceDate` still reads a pre-fit date, so it is not a usable record of the pack's age |
 | **Mains power to the monitoring path** | Any cut | The rack is on the UPS; the switch carrying `prometheus` and `oracle` is not, so both laptops keep running and go deaf. Stated in [`security.md`](../security.md#threat-model) |
@@ -243,15 +243,36 @@ outgoing operator directly:
 ### If you do not have the age key
 
 Say so out loud before anything else. This is
-[#106](https://github.com/Gerrrt/HomeLab/issues/106) — one key, one holder, one
-copy plus the original — and it is open. Without it every encrypted value in
-this repository and its history is permanently undecryptable, and the recovery
-path is re-deriving each credential from the device it belongs to: four SNMP
-rotations on hardware, one of which cannot persist a community deletion and
-needs the switch rebooted to change. The mechanism for a second recipient costs
-nothing (`.sops.yaml` takes a list, and `sops updatekeys` re-keys the file from
-any host that can already decrypt); what it has always needed is somewhere to
-put the second key. A handover is that somewhere.
+[#106](https://github.com/Gerrrt/HomeLab/issues/106). Without the key every
+encrypted value in this repository and its history is permanently undecryptable,
+and the recovery path is re-deriving each credential from the device it belongs
+to: four SNMP rotations on hardware, one of which cannot persist a community
+deletion and needs the switch rebooted to change.
+
+Check first whether it is actually gone. `.sops.yaml` may list more than one
+recipient — [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
+made a second one the design, and a second *copy* may exist that is not the one
+you were handed:
+
+```bash
+grep -A3 creation_rules .sops.yaml     # every key that can open the secrets
+```
+
+If a recipient there is one somebody else holds, the secrets are recoverable and
+this is a phone call rather than a rotation.
+
+**A handover is the moment to add one.** ADR-0024 answers the copy and
+deliberately leaves the holder open, which is exactly the question a successor
+is. Generate the keypair where *they* will keep it, and add its public half from
+a host that can already decrypt:
+
+```bash
+make secrets-add-recipient PUBKEY=age1...
+```
+
+That is not free — every extra recipient is another key that can leak, and
+removing one later protects future values only, because the history stays
+readable by it. ADR-0024 weighs both.
 
 ### If you do have it
 

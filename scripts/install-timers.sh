@@ -85,6 +85,13 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # SecretsKeyBackupUnproven can still nag. The one thing that proves the secrets
 # are recoverable now has a deadline even though it has no schedule.
 #
+# The threshold is still declared once here, but since ADR-0024 it is applied
+# once PER RECIPIENT rather than once per job: scripts/key-recipients.sh emits a
+# series for each key the secrets are encrypted to, and the alert joins against
+# this row for all of them. Adding a recipient therefore adds a deadline without
+# touching this table, which is the same property every other rule in
+# backup.rules.yaml has and the reason none of them name a job.
+#
 # converge is the only hourly row, and the only one whose threshold is three
 # times its period rather than two. It shares the `backups` lock with the two
 # backup jobs, so a run that collides with the weekly archive can legitimately

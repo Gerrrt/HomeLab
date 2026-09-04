@@ -89,24 +89,55 @@ tests:
         alertname: ScheduledJobStale
         exp_alerts: []
 
+      # And SecretsKeyBackupUnproven does not fire off the JOB series either.
+      # It reads the per-recipient series and nothing else, so a host where
+      # verify-key-backup has run but key-recipients.sh has not written its file
+      # is covered by ScheduledJobNeverRan, not by a rule that would have to
+      # invent a recipient label it does not have.
+      - eval_time: 2h30m
+        alertname: SecretsKeyBackupUnproven
+        exp_alerts: []
+
+  # --- SecretsKeyBackupUnproven: one alert per recipient --------------------
+  #
+  # The assertion ADR-0024 turns on. Two recipients, one of them verified
+  # 30 minutes ago and one never — the shape the estate is in the moment a
+  # second key is added. Exactly one alert, naming the unproven key.
+  #
+  # Under the single-series rule this replaced, the fresh proof of `age1aaa`
+  # was the only series there was, so this state was silent. That is the whole
+  # defect: proving one copy vouched for every copy.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_key_recipient_last_proof_timestamp_seconds{stack="observability",
+                 recipient="age1aaa", instance="prometheus"}'
+        values: "9000+0x180"
+      - series: 'homelab_key_recipient_last_proof_timestamp_seconds{stack="observability",
+                 recipient="age1bbb", instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="verify-key-backup", instance="prometheus"}'
+        values: "3600+0x180"
+    alert_rule_test:
       - eval_time: 2h30m
         alertname: SecretsKeyBackupUnproven
         exp_alerts:
           - exp_labels:
               alertname: SecretsKeyBackupUnproven
-              homelab_job: verify-key-backup
+              stack: observability
+              recipient: age1bbb
               instance: prometheus
               component: backup
               severity: warning
               category: correctness
             exp_annotations:
-              summary: "The age key backup has not been verified in 2h 30m 0s"
+              summary: "No proven backup of age recipient age1bbb in 2h 30m 0s"
               description: >-
-                Nothing else here proves the secrets are recoverable from
-                anywhere but this host — every other job runs on the same
-                machine, with the same key, against the same disk. Get the
-                offline copy out and run `make secrets-verify-backup
-                KEY=<path>`: docs/runbooks/back-up-the-age-key.md.
+                Nothing else here proves the observability secrets are
+                recoverable from anywhere but this host — every other job runs
+                on the same machine, with the same key, against the same disk.
+                Proving a DIFFERENT recipient does not clear this one. Get that
+                copy out and run `make secrets-verify-backup KEY=<path>`:
+                docs/runbooks/back-up-the-age-key.md.
 
   # --- ScheduledJobFailed: fires on non-zero, silent on zero ---------------
   - interval: 1m

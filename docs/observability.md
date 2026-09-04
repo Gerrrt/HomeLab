@@ -504,7 +504,15 @@ checking, with the key that is on that machine, against the disk that is in it.
 disk or a fire. The only job that proves off-host recoverability is
 `secrets-verify-backup`, and it is precisely the one that cannot be automated —
 it needs a human to mount removable media, so `SecretsKeyBackupUnproven` nags at
-ninety days instead. One output does leave: `backup-firewall` copies each export
+ninety days instead. That alert is the one rule in `backup.rules.yaml` not keyed
+on `homelab_job`:
+[ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
+allows the secrets to be encrypted to more than one age recipient, so it fires
+per recipient off `homelab_key_recipient_last_proof_timestamp_seconds` rather
+than off the job. One timestamp for every copy would mean proving either one
+vouched for the other, which is backwards when the whole point of the second
+copy is that it fails independently. With a single recipient it behaves exactly
+as it always has. One output does leave: `backup-firewall` copies each export
 to `oracle` and fails if it cannot, so its failure alert doubles as "the config
 has stopped leaving this host". The volume sets do not leave; that is
 [#92](https://github.com/Gerrrt/HomeLab/issues/92).
