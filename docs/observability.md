@@ -289,7 +289,7 @@ errors.
 It also covers **a device taking its first DHCP lease on a segment** — one rule
 for Hicks and one for Winterfell, plus the `absent_over_time` rule that says the
 lease stream itself has stopped. That is
-[ADR-0020](adr/0019-read-device-joins-from-the-dhcp-server.md): device joins
+[ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md): device joins
 come from Kea on `morpheus` rather than from the eero cloud, because the
 firewall sees the join on the wire and the cloud sees it two minutes later over
 the WAN. "First" is expressed as the last ten minutes `unless` the seven days
@@ -326,7 +326,7 @@ boot check.
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http. The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, and never-ran |
-| `deploy.rules.yaml` | Whether this host is running what the repository says — an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` the host is. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0020](adr/0020-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
+| `deploy.rules.yaml` | Whether this host is running what the repository says — an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` the host is. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the process metric `security.rules.yaml` says a log rule cannot be ([#90](https://github.com/Gerrrt/HomeLab/issues/90)) |
 
 `promtool check rules` validates that these parse. It does not — and cannot —

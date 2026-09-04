@@ -38,7 +38,7 @@ fails on purpose until that is done. The volume sets still do not leave
 ([#92](https://github.com/Gerrrt/HomeLab/issues/92)). Deployment itself is now
 one of these jobs rather than something a human remembers to do —
 [#99](https://github.com/Gerrrt/HomeLab/issues/99),
-[ADR-0020](../adr/0020-converge-on-a-timer-instead-of-deploying-over-ssh.md), and
+[ADR-0021](../adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md), and
 [`converge-the-host.md`](converge-the-host.md) for the one setup step it needs
 beyond this runbook.
 The honest summary is still that this host watches its own chores, and the

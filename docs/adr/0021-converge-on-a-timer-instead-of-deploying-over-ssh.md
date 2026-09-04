@@ -1,4 +1,4 @@
-# ADR-0020: Converge on a timer instead of deploying over SSH
+# ADR-0021: Converge on a timer instead of deploying over SSH
 
 **Status:** Accepted · 2026-09
 

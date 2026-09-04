@@ -172,7 +172,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 19 architecture decision records
+│   ├── adr/                  # 21 architecture decision records
 │   └── runbooks/             # deploy, converge, add device, rotate creds, certs,
 │                             #   key backup, purge, restore the firewall,
 │                             #   restore the stack, ship firewall logs,
@@ -215,7 +215,7 @@ runs `scripts/converge.sh` hourly, which fetches `main`, refuses it unless the
 tip carries GitHub's signature, fast-forwards and runs the same `make up` —
 recording what it deployed and refusing to overwrite anything edited on the host
 ([#99](https://github.com/Gerrrt/HomeLab/issues/99),
-[ADR-0020](docs/adr/0020-converge-on-a-timer-instead-of-deploying-over-ssh.md),
+[ADR-0021](docs/adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md),
 [`docs/runbooks/converge-the-host.md`](docs/runbooks/converge-the-host.md)).
 
 ```console

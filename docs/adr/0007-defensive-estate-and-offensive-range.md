@@ -18,6 +18,16 @@
 > get no such rule. `stacks/lab/` and its own stack are unchanged
 > ([#101](https://github.com/Gerrrt/HomeLab/issues/101)). The text here is
 > left as written, per ADR-0001.
+>
+> The two things the `stacks/lab/` sentence in the Decision leaves open — where
+> a compose stack runs on a hypervisor that must not run Docker, and where
+> `config.alloy`'s second `*_URL` points when no Prometheus is named — are
+> settled by
+> [ADR-0020](0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md),
+> 2026-09: the stack runs in a guest on `Saruman`, single-homed on VLAN 30, and
+> carries its own Prometheus alongside Loki, Grafana and Alloy. Nothing here is
+> amended — "lab telemetry stays in the lab" is what makes both answers follow.
+> The text here is left as written, per ADR-0001.
 
 ## Context
 
