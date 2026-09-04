@@ -230,30 +230,38 @@ issues intact. Nothing was summarised away.
   in `runbooks/dns_is_broken` stops being true as written, and that page's
   source note deserves a line saying this was the one thing that did need
   writing. A note to whoever maintains those pages, not a tenth step in the walk.
-- **[#292](https://github.com/Gerrrt/HomeLab/issues/292) Detect pfSense version
-  drift from the box.** `morpheus` was recorded as pfSense CE 2.8.1 on FreeBSD
-  15 in eleven places while running **2.9.0-RELEASE on FreeBSD 16.0-CURRENT**;
-  [#283](https://github.com/Gerrrt/HomeLab/pull/283) corrected them by hand,
-  after a human noticed. `check_compute_table()` never saw it and could not
-  have: it asserts `hardware.md` and `network.md` agree with *each other*, and
-  both copies were stale together — the failure its own `POINT_RELEASE` comment
-  already describes from the Ubuntu laptops. That comment's answer, leave the
-  running version to `node_os_info`, does not reach `morpheus`. It runs no
-  agent — the FreeBSD appliance `ship-firewall-logs.md` opens by explaining
-  cannot run Alloy — so its release line has no live counterpart anywhere, and
-  the next upgrade drifts just as quietly. **pfSense already publishes both
-  versions in one string.** It sets `sysDescr` explicitly rather than taking
-  bsnmpd's default: `pfSense morpheus.matrix.elysium 2.9.0-RELEASE FreeBSD
-  16.0-CURRENT amd64`, served by the same daemon the stack scrapes every 60s and
-  absent from all 187 series on that instance only because `1.3.6.1.2.1.1.1` is
-  not in the `pfsense` module. Collection is therefore three lines in
-  `generator.yaml` and `make snmp-generate`, on the pattern
-  `upsIdentUPSSoftwareVersion` already sets. The check is the harder half, and
-  it does not belong in `check_docs.py` — that compares documents to repo files
-  and runs in CI with no route to the stack, so this wants a
-  `snmp-verify.sh`-shaped job that fails on the fact rather than on the two
-  copies agreeing. Same shape as everything under *The stack does not watch
-  itself* below: it passed the whole time, and passing was never evidence.
+- **[#309](https://github.com/Gerrrt/HomeLab/issues/309) Check `shiva`'s iLO
+  firmware version too.** [#292](https://github.com/Gerrrt/HomeLab/issues/292)
+  scoped `check_versions.py` to the Compute table in `hardware.md`, which is the
+  list of hosts rather than of devices. `shiva` is not in it — correctly, being
+  the BMC on the same physical box as `Saruman` — but since #292 it is the only
+  device outside that table with both halves of a checkable claim: `network.md`
+  gives it `iLO 2.82`, and its `sysDescr` is already scraped, answering
+  `Integrated Lights-Out 4 2.82 Feb 06 2023`. So the only thing keeping it
+  unchecked is a scoping line. **It is not a one-line change**, because the
+  generic parser misreads both sides — `os_key` takes the first word and the
+  first number, giving `('integrated', '4')` against the documented
+  `('ilo', '2.82')`, and that `4` is the iLO *generation*, not the firmware. It
+  needs a per-device extraction rule, the way `morpheus` already has one. Worth
+  doing because a BMC that can power-cycle the hypervisor and mount virtual
+  media, on the segment ADR-0014 exists to contain, is the first thing anyone
+  checks against an advisory.
+- **[#311](https://github.com/Gerrrt/HomeLab/issues/311) Collect the Proxmox VE
+  version from `Saruman`.** The other host #292 left uncovered, and a different
+  problem from #309: that one is parsing, this one is collection. Nothing on the
+  wire carries the number `hardware.md` claims. `node_os_info` reports `Debian
+  GNU/Linux 13 (trixie)` — the base PVE 9 is built on, unrelated numbering — and
+  `node_uname_info` reports `7.0.14-12-pve`, which confirms Proxmox and gives
+  the *kernel* version. So `Proxmox VE 9` is currently unfalsifiable, which is
+  the condition #292 existed to remove. The documents are not wrong: recording
+  `Debian 13` would not tell a reader what the box is. **The collection is the
+  easy half** — the textfile collector is already enabled in `config.alloy` and
+  `deploy-agent.sh` already creates its directory on agent hosts, so a `.prom`
+  file reaches Prometheus through the agent already there. The awkward half is
+  where the thing that writes it lives: the monitoring host cannot reach VLAN 30
+  — TCP/22 to `10.0.30.110` does not open — so this cannot be another entry in
+  the `JOBS` table, and wants a local timer on a host this repository can only
+  reach through a person.
 - **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
   screenshots.** `make screenshots` does five of the seven; the Logs and
   Security dashboards are deliberately excluded.
@@ -594,6 +602,46 @@ months.
   decision.
 
 ## Done
+
+- [x] **[#292](https://github.com/Gerrrt/HomeLab/issues/292) Detect pfSense
+      version drift from the box.** 2026-09-04. `sysDescr` joins the `pfsense`
+      SNMP module and `scripts/check_versions.py` compares what the documents
+      claim against what the hosts report, weekly. The drift that prompted it —
+      `morpheus` recorded as pfSense CE 2.8.1 on FreeBSD 15 in eleven places
+      while running 2.9.0-RELEASE on FreeBSD 16.0-CURRENT — was corrected by
+      hand in [#283](https://github.com/Gerrrt/HomeLab/pull/283) after a human
+      noticed, which is the standing this file says is not good enough.
+
+      **pfSense sets `sysDescr` explicitly**, so one string carries both
+      versions: `pfSense morpheus.matrix.elysium 2.9.0-RELEASE FreeBSD
+      16.0-CURRENT amd64`. It was absent only because the OID was not in the
+      module. Probed with `snmp-walk.sh` first, per the mokerlink note — 1 row,
+      1 request, 0.47s — and the generator resolves it to a GET of `.0`, so no
+      GETBULK is issued at scrape time. Regeneration added exactly one metric.
+
+      The check is deliberately out of `check_docs.py` and out of `make
+      validate`: that script compares documents to repo files and runs in CI,
+      which has no route to the stack. It compares release lines rather than
+      full strings, because the tables record `Ubuntu 24.04 LTS` where the hosts
+      report `24.04.4` and a check that fires the day after every update is one
+      that gets switched off. It also covers the single live version claim in
+      prose — `enable-suricata.md`'s "morpheus now runs 2.9.0-RELEASE" — which
+      #283 introduced while fixing this very drift.
+
+      **Deploying it found a bug that no stub could have.** `sysDescr` is not
+      `morpheus`-only: the `ilo` module walks it too, so the query returns two
+      series and `shiva` sorts first. The runbook check took the first series
+      carrying a three-part version, which is correct only because the iLO
+      firmware is `2.82` — two parts. An iLO numbered `2.82.1` and it would have
+      reported the BMC's firmware under the firewall's name: a confident,
+      specific, wrong finding, which is worse than no check.
+      [#306](https://github.com/Gerrrt/HomeLab/pull/306) selects by device
+      instead. Verified against the running stack after convergence: `morpheus`
+      moved from SKIP to PASS on both table rows and the prose claim.
+
+      What it does not cover is tracked rather than assumed:
+      [#309](https://github.com/Gerrrt/HomeLab/issues/309) for `shiva` and
+      [#311](https://github.com/Gerrrt/HomeLab/issues/311) for `Saruman`.
 
 - [x] **[#105](https://github.com/Gerrrt/HomeLab/issues/105) Confirm the
       unconfigured Snort package actually went.** 2026-09-04. It did.
