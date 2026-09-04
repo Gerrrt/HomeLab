@@ -127,22 +127,54 @@ issues intact. Nothing was summarised away.
 ## Monitoring
 
 - **[#114](https://github.com/Gerrrt/HomeLab/issues/114) Set memory limits on
-  the six services.** Nothing in `compose.yaml` bounds a leak, so one container
-  can take the host down — and the host has 8 GB soldered. It was blocked on
-  data: cAdvisor has only reported correctly since
-  [#62](https://github.com/Gerrrt/HomeLab/pull/62), and `grafana` swung 3.7x
-  inside the six hours available, so a limit picked from it would have been a
-  guess at an OOM kill. Nine more days did not settle it — they widened it.
-  `loki` now swings 8.6x (121 MiB median, 1039 MiB peak), and `loki`, `grafana`
-  and `alloy` all peaked in the *same hour* on 2026-08-29, which is an episodic
-  event rather than a distribution that converges with more sampling. The
-  method the issue proposed no longer fits the machine either: 3x every peak is
-  7536 MiB against 7816 MiB of RAM. So the gate has changed rather than moved —
-  waiting for more history is not what unblocks this, explaining that one hour
-  is. [#71](https://github.com/Gerrrt/HomeLab/issues/71) took the half that was
-  sizeable: `pids_limit`, because tens of threads against a 10,000-thread abort
-  is two orders of magnitude of daylight, and a byte ceiling on the TSDB, which
-  is at a measurable steady state at day 28 of 30.
+  the six services.** Done 2026-09-04, on seven — `blackbox-exporter` joined the
+  stack after the issue was written. The gate this entry named was explaining
+  the 2026-08-29 hour in which `loki` and `alloy` both peaked, and that is what
+  unblocked it: Loki's RSS tracks the ingest rate through it minute for minute
+  — ~100 MiB at 3 lines/s until 06:15, 461 MiB the minute 5,501 lines/s
+  arrived, 1,015 MiB at 06:29, and back to 107 MiB nine minutes after the flow
+  stopped. The source is [#286](https://github.com/Gerrrt/HomeLab/issues/286):
+  `make backup` pipes each volume's gzip stream to a container's stdout, and
+  Alloy tails every container on the socket, so the archives come back through
+  the log pipeline. The compactor cycling and the 400s in the logs are a Loki
+  shedding load, not the cause — which is the reading that has to be got right,
+  because it is the difference between a ceiling sized for a self-healing blip
+  and one sized for a recurring bug. It recurs: 577 MiB on 09-04.
+  The other half was the method. `3x every peak` did not fit the machine because
+  it was being read off the working set, which includes reclaimable page cache:
+  `alloy`'s 512 MiB peak is 221 MiB of anonymous memory and the rest cache from
+  walking `/rootfs`, and `mem_limit` bounds a cgroup the kernel reclaims cache
+  from before it kills anything. Sized from `container_memory_rss` instead, with
+  the multiplier chosen per service rather than flat, the seven limits sum to
+  5120 MiB against 7816 MiB of RAM. `loki` gets the loosest ratio and the
+  largest number for the reason above; the issue had listed it among the
+  low-risk services to start with, on a 152 MiB peak from a six-hour window.
+  `memswap_limit` equals `mem_limit` everywhere, so the stack cannot page into
+  the unencrypted `/swap.img` — left unset it defaults to twice `mem_limit`,
+  which would have made that exposure worse rather than better.
+  Enforcement and detection stay uncoupled, which is the whole reason
+  [#63](https://github.com/Gerrrt/HomeLab/issues/63) is a separate issue:
+  `ContainerHighMemory` still measures against `machine_memory_bytes`, and the
+  limit-relative `ContainerNearMemoryLimit` is a complement with its own
+  `promtool test rules` cases — including one that fails if the numerator is
+  ever "simplified" from RSS to working set, and one that fails if the
+  divide-by-zero guard is dropped.
+  [#71](https://github.com/Gerrrt/HomeLab/issues/71) had already taken the half
+  that was sizeable without any of this: `pids_limit`, because tens of threads
+  against a 10,000-thread abort is two orders of magnitude of daylight, and a
+  byte ceiling on the TSDB, which is at a measurable steady state at day 28
+  of 30.
+- **[#286](https://github.com/Gerrrt/HomeLab/issues/286) Alloy tails the backup
+  archiver's tar stream into Loki.** Found while sizing #114, and it is the
+  reason `loki`'s ceiling is 1536M rather than about 512M.
+  `discovery.docker` has no filter, so it tails every container on the socket
+  rather than this stack's seven — and `backup-volumes.sh` writes each volume's
+  gzip stream to a container's stdout. One `make backup` put 765 MB of binary
+  through the log pipeline in three minutes, roughly three days of the estate's
+  real logs, and `loki-data` is not encrypted where the archives deliberately
+  are. Filter on the compose project label; the archiver should also get
+  `logging: driver: none`. Until then #114's largest number is sized around
+  this rather than around Loki.
 - **[#249](https://github.com/Gerrrt/HomeLab/issues/249) Scrape the UPS
   self-test schedule.** [#93](https://github.com/Gerrrt/HomeLab/issues/93) left
   `mjolnir` testing itself every fortnight and nothing able to see that it does.
@@ -154,8 +186,8 @@ issues intact. Nothing was summarised away.
   The real cost is not the two rules but a pinning decision for APC's MIB in
   `scripts/snmp-mibs.sh`, which has no first-party git ref to point at.
   → [runbook](runbooks/fit-the-ups-battery.md)
-- **[#123](https://github.com/Gerrrt/HomeLab/issues/123) Make a dead AdGuard
-  visible.** The failure
+- **[#102](https://github.com/Gerrrt/HomeLab/issues/102) Turn on the AdGuard
+  probe once the machine exists.** The failure
   [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) chose on purpose:
   filtering fails open, so losing it costs advertisements rather than
   connectivity and nobody in the house reports it. That is
@@ -180,11 +212,24 @@ issues intact. Nothing was summarised away.
   has already agreed not to ship. Uncommenting it is two lines and a verify,
   and it belongs to #102.
 
-  The rest of #123 closed with ADR-0010 and the verification appended to it on
-  2026-09-04. What is left sits outside this repository: one line for the family
-  runbook in `Gerrrt/Lemmiwinks` covering *filtering is down and the internet is
-  fine*, which presents as advertisements returning rather than as an outage.
-  That is a note to whoever maintains that page, not a tenth step in the walk.
+  **This entry was headed #123 until 2026-09-04**, and is re-headed rather than
+  deleted because the work outlived the issue. #123 asked whether moving DNS off
+  the gateway adds a quiet way to lose the internet; ADR-0010 and the
+  verification appended to it answered that, and #123 closed. #126 was the same
+  detection filed separately and closed with it. What survived both is the
+  paragraph above, which is #102's to land — so it is filed under #102 here
+  rather than left pointing at a closed issue, which is the failure this file
+  keeps finding in itself.
+
+  What is left outside this repository: one line for the family runbook in
+  `Gerrrt/Lemmiwinks` covering *filtering is down and the internet is fine*,
+  which presents as advertisements returning rather than as an outage. Held
+  until the machine exists, for the same reason the target is — today there is
+  no filtering to lose, so it would describe a symptom that cannot occur. Two
+  edits there come due in the same sitting: the "there isn't a Pi-hole" bullet
+  in `runbooks/dns_is_broken` stops being true as written, and that page's
+  source note deserves a line saying this was the one thing that did need
+  writing. A note to whoever maintains those pages, not a tenth step in the walk.
 - **[#292](https://github.com/Gerrrt/HomeLab/issues/292) Detect pfSense version
   drift from the box.** `morpheus` was recorded as pfSense CE 2.8.1 on FreeBSD
   15 in eleven places while running **2.9.0-RELEASE on FreeBSD 16.0-CURRENT**;

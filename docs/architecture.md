@@ -20,7 +20,7 @@ graph TB
     subgraph V99["VLAN 99 · Winterfell · Management"]
         MON["prometheus · 10.0.99.20<br/><b>observability stack</b>"]
         UPS["mjolnir · APC Smart-UPS"]
-        SPARE["oracle · spare"]
+        WIKI["oracle · 10.0.99.30<br/><b>wiki</b> · off-host jobs"]
     end
 
     subgraph V50["VLAN 50 · Hicks · Trusted"]
@@ -68,7 +68,7 @@ graph TB
     classDef vlan20 fill:#1f4e79,stroke:#388bfd,color:#fff,stroke-dasharray: 6 4
     classDef vlan10 fill:#4a3f7a,stroke:#a371f7,color:#fff,stroke-dasharray: 6 4
 
-    class MON,UPS,SPARE vlan99
+    class MON,UPS,WIKI vlan99
     class WS vlan50
     class HV vlan30
     class TV vlan40
