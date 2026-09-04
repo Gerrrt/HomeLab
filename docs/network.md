@@ -231,11 +231,19 @@ Where things get broken on purpose.
   does not depend on that.
 - A second server (`ifrit`) will carry the attack tooling and the
   deliberately-vulnerable targets. It joins this segment single-homed, on an
-  untagged access port, at a static address below `.100`; the targets live on
-  a bridge inside it with no physical port, on a subnet `morpheus` does not
-  route, so they have no path anywhere. Egress from this segment stays open by
-  decision, not omission —
+  untagged access port, at `10.0.30.30` — a static below `.100`, with a
+  reservation; the targets live on a bridge inside it with no physical port, on
+  a subnet `morpheus` does not route, so they have no path anywhere. Egress
+  from this segment stays open by decision, not omission —
   [ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md).
+  That bridge is `172.30.30.0/24` and nothing on it has a default route, per
+  [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md); it
+  is the third private block in the house and the only one that is not routed
+  anywhere, which is what makes a `172.30.30.x` source in a firewall block a
+  leak reporting itself. The attack VM takes a lease from the pool like any
+  other guest. The build is
+  [`build-the-playground.md`](runbooks/build-the-playground.md), and `Saruman`
+  moves to `10.0.30.20` as part of it.
 
 > [!NOTE]
 > `10.0.30.10` is the iLO BMC, not the hypervisor, and it is what
