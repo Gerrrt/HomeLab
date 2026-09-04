@@ -133,10 +133,13 @@ Dotted lines are the paths this diagram draws, and they are not the whole story.
 Default deny holds for every segment except Hicks and the switch LAN, both of
 which reach further than any diagram of exceptions suggests — so what a segment
 can actually reach is recorded per segment in
-[`network.md`](docs/network.md)'s *Reaches* column, and the enforced rules as a
-list in [ADR-0013](docs/adr/0013-segment-access-as-implemented.md). A count was
-the wrong instrument and this README carried the wrong count for months. Segment
-colour matches the patch cable in the rack; a dashed border means egress only.
+[`network.md`](docs/network.md)'s *Reaches* column, which is the document to
+read for the current state.
+[ADR-0013](docs/adr/0013-segment-access-as-implemented.md) holds the method and
+the reasoning, and describes the ruleset as it stood on 2026-09-01; the Hicks
+interface was narrowed the day after. A count was the wrong instrument and this
+README carried the wrong count for months. Segment colour matches the patch
+cable in the rack; a dashed border means egress only.
 Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 
 ## Stack

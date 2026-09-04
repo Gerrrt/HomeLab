@@ -22,7 +22,7 @@ above CasaBonita, which the spectrum does not. Reasoning in
 | WAN | — | — | ISP-assigned | Uplink | — |
 | LAN | — | — | `10.7.7.0/24` | Switch management only | Everything[^lan] |
 | [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet |
-| [Hicks](#hicks--vlan-50--trusted) | 50 | 🟠 Orange | `10.0.50.0/24` | Trusted workstations | Internet, 99, 30 |
+| [Hicks](#hicks--vlan-50--trusted) | 50 | 🟠 Orange | `10.0.50.0/24` | Trusted workstations | Internet, 30, named ports on 99[^hicks] |
 | [CasaBonita](#casabonita--vlan-40--media) | 40 | 🟡 Yellow | `10.0.40.0/24` | TVs and consoles | Internet |
 | [ImaginationLAN](#imaginationlan--vlan-30--lab) | 30 | 🟢 Green | `10.0.30.0/24` | Hypervisor / lab | Internet |
 | [Skids](#skids--vlan-20--iot) | 20 | 🔵 Blue | `10.0.20.0/24` | IoT and cameras | Internet |
@@ -32,6 +32,20 @@ above CasaBonita, which the spectrum does not. Reasoning in
     to any* rule and no blocks, so `10.7.7.0/24` reaches every segment. It held
     one device and said "Nothing" here until
     [ADR-0013](adr/0013-segment-access-as-implemented.md) read the ruleset.
+
+[^hicks]: Hicks has the broadest path into management of any VLAN, and since
+    2026-09-02 that path is a list of destinations rather than the segment: ten
+    passes sit above a logged *Block access to Winterfell*, everything else from
+    50 to 99 is dropped, and the ten are enumerated in the Hicks notes below. It
+    is not the only way into 99 — the switch LAN reaches every segment, and two
+    host-scoped passes carry ImaginationLAN to `10.0.99.20`. Going the other
+    way, nothing blocks Hicks from ImaginationLAN, so the catch-all under those
+    rules still grants that segment entire —
+    [#228](https://github.com/Gerrrt/HomeLab/issues/228) owns that half.
+    [ADR-0013](adr/0013-segment-access-as-implemented.md) read the ruleset on
+    2026-09-01, the day before the narrowing landed, and describes the wider
+    state; it is left as written, per
+    [ADR-0001](adr/0001-record-architecture-decisions.md).
 
 Hostnames are thematic rather than functional — `morpheus` is the firewall,
 `mjolnir` the UPS, `Saruman` the hypervisor. The Role column is the source of
@@ -94,7 +108,8 @@ truth for what a box actually does.
 🔴 **Red** on the rack.
 
 Infrastructure. The only segment that can administer other segments, and the
-only one Hicks is permitted to reach for management.
+only one Hicks is permitted to reach for management — on the named ports
+listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -111,7 +126,9 @@ only one Hicks is permitted to reach for management.
   built from.
 - Port 3 of the main switch feeds an 8-port unmanaged switch[^tp-linkswitch]
   that `prometheus` and `oracle` hang off.
-- pfSense's admin UI is reachable on this interface from Hicks only.
+- pfSense's admin UI is reachable on this interface from Hicks only, by a
+  named pass to `10.0.99.1:443`. Winterfell itself is blocked from it: the 99
+  interface drops HTTP and HTTPS to `10.0.99.1` above its egress rule.
 - DHCP enabled, with static reservations for everything listed.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
@@ -133,7 +150,9 @@ only one Hicks is permitted to reach for management.
 
 🟠 **Orange** on the rack.
 
-Personal and work machines. The only segment with a path into management.
+Personal and work machines. The VLAN with the broadest path into management,
+though not the only one — the switch LAN reaches every segment, and
+ImaginationLAN has two host-scoped passes to `10.0.99.20`.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -154,10 +173,45 @@ Personal and work machines. The only segment with a path into management.
 ### Notes
 
 - Desktops are wired Cat6; one eero is wired as backhaul, the other two mesh.
-- Corporate laptops live here but have no management access. They are treated as
-  untrusted endpoints that happen to sit on a trusted segment.
-- Only specific hosts on this VLAN may reach Winterfell, and only on management
-  ports.
+- **What this segment reaches on Winterfell is a list of destinations, not the
+  segment.** Ten passes sit above a logged *Block access to Winterfell*, and
+  everything else from 50 to 99 is dropped:
+
+  | Destination | Ports |
+  | --- | --- |
+  | `10.0.99.0/24` — the segment | `22/tcp`, ICMP echo |
+  | `10.0.99.1` — `morpheus` | `443/tcp` admin UI, `53/tcp+udp` resolver, `123/udp` NTP |
+  | `10.0.99.10` — `mjolnir` | `80,443/tcp` UPS card |
+  | `10.0.99.20` — `prometheus` | `3000/tcp` Grafana |
+  | `10.0.99.30` — `oracle` | `80,443/tcp` the wiki |
+
+  **The source is the segment, not named hosts.** Every one of those passes is
+  `vlan50 → …`, so any device on Hicks may use any of them. This note used to
+  say the opposite — "only specific hosts, and only on management ports" — and
+  had the narrowing backwards in both halves: it is by destination and port, and
+  never by host.
+- **Corporate laptops are subject to exactly the same rules as everything else
+  here.** They are intended to be treated as untrusted endpoints that happen to
+  sit on a trusted segment, and nothing on the firewall enforces that: no alias
+  holds `10.0.50.69` or `10.0.50.70`, and no rule names them. It is a policy
+  about how they are used, and it is written here as one rather than as a
+  control.
+- **Prometheus' and Loki's ingest ports are not on the list above.** `9090` and
+  `3100` are published without authentication
+  ([#182](https://github.com/Gerrrt/HomeLab/issues/182)) and were reachable from
+  this segment for as long as the catch-all was the only rule between them;
+  *Block access to Winterfell* now drops them. Narrower, not gone:
+  `10.0.30.110` still has an explicit pass to both ports for `Saruman`'s Alloy
+  agent, and nothing stops a host already on Winterfell.
+- **ImaginationLAN is still reached entire**, on every protocol and port,
+  because no rule blocks it and the catch-all below is reached.
+  [#228](https://github.com/Gerrrt/HomeLab/issues/228) is where that gets
+  decided. *Allow Hicks access to ImaginationLAN* now sits on **this** interface
+  — ADR-0013 found it on the ImaginationLAN interface, where a rule can never
+  match traffic that enters on Hicks — and grants nothing the catch-all was not
+  already granting.
+- The switch LAN is blocked apart from `10.7.7.2:80`, the switch's own web UI;
+  the block below that pass is logged.
 
 [^Desktop1]: [Build 1](https://pcpartpicker.com/b/KXv323)
 [^Desktop2]: [Build 2](https://pcpartpicker.com/list/XgZpfd)
