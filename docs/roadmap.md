@@ -69,6 +69,28 @@ issues intact. Nothing was summarised away.
   agent pushes to them and has no other path, which is why #70 could close
   Alertmanager and not these. Firewall default-deny is the whole control.
   Accepted residual, recorded in `SECURITY.md`.
+- **[#103](https://github.com/Gerrrt/HomeLab/issues/103) Give ADR-0008's SSO
+  deferral an expiry.** Answered by
+  [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md):
+  the deferral ends on a state rather than a date — the first real secret, photo
+  or document in the sensitive tier, any reachability from outside the house, or
+  a third account holder, whichever comes first. At the first of those a
+  decision gets recorded. Re-accepting is allowed; arriving at the same place by
+  never looking is what the expiry removes.
+
+  **Writing it turned up that ADR-0008's substitute for SSO does not exist for
+  half the tier.** Per-application TOTP is available on Vaultwarden,
+  Paperless-ngx and Home Assistant, and on none of Grafana, Immich or AdGuard
+  Home — Grafana OSS has no MFA in any edition, Immich's upstream has declined
+  it and points at OAuth, and AdGuard has one password-only admin. Grafana is
+  the only one of the six deployed, so the thing ADR-0008 offered *in place of*
+  SSO has never been available here, and for those three an identity provider is
+  the only route to a second factor rather than a heavier alternative to one.
+  What is outstanding belongs to #102: TOTP enrolled at first login on the three
+  that can carry it, and the mini PC's disk encryption decided at build time
+  rather than inherited from `prometheus` — a vault behind one factor on an
+  unencrypted disk is not the bet `SECURITY.md` accepted for a metrics
+  dashboard.
 - **[#235](https://github.com/Gerrrt/HomeLab/issues/235) Decide whether the
   iLO stays on the lab segment.** ADR-0014 puts `ifrit`'s attack VM on
   ImaginationLAN, so `shiva` — the BMC of the box being defended, on firmware
@@ -259,7 +281,11 @@ what left this one unfireable for months.
   cannot host it — ADR-0015 measured 2549 MiB available behind a 5400 rpm disk
   and a 100 Mb/s NIC — and ADR-0007 keeps household services off the lab
   hypervisor. The SSO this box deliberately does not get is
-  [#103](https://github.com/Gerrrt/HomeLab/issues/103).
+  [#103](https://github.com/Gerrrt/HomeLab/issues/103), and as of
+  [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)
+  it does not get it *until this box holds real data* rather than indefinitely —
+  which puts two things on this build: TOTP enrolled on the three services that
+  can carry it, and a disk encryption decision made here rather than inherited.
 - **[#95](https://github.com/Gerrrt/HomeLab/issues/95) Plan and build the NAS on
   VLAN 40.** Planned;
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
@@ -400,7 +426,10 @@ months.
   **Infrastructure** above, because it has a shape now rather than only a
   decision.
 - **[#103](https://github.com/Gerrrt/HomeLab/issues/103)** The SSO deferral
-  ADR-0008 takes knowingly — give it an expiry.
+  ADR-0008 takes knowingly, given an expiry by
+  [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md).
+  Under **Security** above, because it has a condition now rather than only a
+  decision.
 - **[#105](https://github.com/Gerrrt/HomeLab/issues/105)** Confirm the
   unconfigured Snort package actually went.
 

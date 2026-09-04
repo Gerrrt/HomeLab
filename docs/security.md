@@ -28,6 +28,22 @@ domain or by port
 says why not for the lab, and the reason generalises), and no MFA on the
 internal services.
 
+**The MFA gap has an expiry now, and it is not one gap.**
+[ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)
+ends [ADR-0008](adr/0008-place-services-by-data-trust.md)'s SSO deferral on a
+state rather than leaving it open: the first real secret, photo or document in
+the sensitive tier, any reachability from outside the house, or a third account
+holder — whichever comes first. Until then the floor is per-application TOTP,
+and it does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
+can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
+Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
+points at OAuth, and AdGuard has one password-only admin account. For those
+three an identity provider is the only route to a second factor rather than a
+heavier alternative to one. **Grafana is the only one of the six deployed
+today**, which makes "no MFA" a standing property of the estate rather than a
+pending piece of work — it closes when an identity provider exists and not
+before.
+
 **Intrusion detection has been running** on **Skids (VLAN 20)** since
 2026-08-21 and on **Degens (VLAN 10)** since 2026-09-02, one Suricata process
 per interface.
