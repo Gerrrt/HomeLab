@@ -286,6 +286,23 @@ an expression can be true — so the fix came with the first `promtool test rule
 unit tests in the repo, which fail if the rule stops being able to fire. They
 cover that one rule. The other 33 are still syntax-checked only, so the same
 class of fault could be sitting in any of them and would look just as healthy.
+
+It was, in the rule directly above it.
+[#305](https://github.com/Gerrrt/HomeLab/issues/305) is `ContainerRestartLoop`,
+which counted `changes()` of `container_start_time_seconds` — a metric that
+reports the container's *creation* time and therefore does not move when Docker
+restarts one in place, which is what `restart: unless-stopped` does to every
+service here. Where a start time would genuinely differ, a recreate, it is a new
+container id and so a new series carrying a different constant, and `changes()`
+is per-series. Measured against a deliberately crash-looping container: 38
+restarts, and the expression returned six series every one of which was `0`,
+against a threshold of `3`. Nothing else cAdvisor exports moves either — the
+cgroup scope is reused across restarts, so the CPU counter does not reset. What
+moves is the series identity, because cAdvisor synthesises a `restartcount`
+label and emits it only while non-zero, so the fix counts generations rather
+than changes. Found while measuring for #114 rather than by looking, which is
+the uncomfortable part: two of the four rules in that file could not fire, and
+both were found by accident.
 Setting the memory limits themselves is
 [#114](https://github.com/Gerrrt/HomeLab/issues/114), deliberately separate: a
 limit enforces, a rule detects, and making the second depend on the first is

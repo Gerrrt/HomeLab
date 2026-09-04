@@ -360,14 +360,14 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is twenty-six rules of 56 so far — the five
+against the broken rule too. Coverage is twenty-seven rules of 56 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
-`ContainerNearMemoryLimit` and
+`ContainerNearMemoryLimit`, `ContainerRestartLoop` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
 `backup.test.yaml`, all five in `deploy.test.yaml`, `RemoteWriteJobStale`,
 and `SuricataStopped`.
-The other 30 are still validated for syntax only, which is exactly the
+The other 29 are still validated for syntax only, which is exactly the
 standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
 sentence they replaced claimed six and named two, and had been wrong for
 weeks. Keep each count on one line: the checker reads prose line by line, so a
