@@ -444,10 +444,30 @@ months.
   [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md).
   Under **Security** above, because it has a condition now rather than only a
   decision.
-- **[#105](https://github.com/Gerrrt/HomeLab/issues/105)** Confirm the
-  unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#105](https://github.com/Gerrrt/HomeLab/issues/105) Confirm the
+      unconfigured Snort package actually went.** 2026-09-04. It did.
+      `pkg info` on `morpheus` lists `pfSense-pkg-suricata` and `suricata` and
+      no Snort of any kind, so ADR-0006's line 49 was describing a fact and the
+      runbook prerequisite asking for the removal was describing a job already
+      done. The prerequisite is gone from
+      [`enable-suricata.md`](runbooks/enable-suricata.md) §0; the ADR stands as
+      written.
+
+      **What "removed" leaves behind is worth knowing before the next package
+      is uninstalled.** pfSense removes the package but honours
+      `forcekeepsettings`, so `config.xml` still carries a `<snortglobal>`
+      stanza — and inside it `snort_alerts:col2:open`, a dashboard widget
+      pointing at a `snort_alerts` widget that no longer exists; only
+      `suricata_alerts.widget.php` is on disk. `/var/log/snort/` also survives,
+      holding one 111-byte rules-update log from 2025-10-30. None of it runs,
+      receives updates or holds attack surface, which is what the issue was
+      actually asking about, so none of it changes the answer. The `snort`-named
+      keys under `<suricata>` — `snortcommunityrules`, `enable_snort_custom_url`
+      — are not residue at all: they are Suricata's own names for the Snort
+      Community ruleset options, both `off`.
 
 - [x] **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
       dashboard export step.** 2026-09-04. `make dashboards-export` pulls every

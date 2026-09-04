@@ -39,8 +39,6 @@ device.
   query — a bare `{app="filterlog"}` selector is rejected by the instant
   endpoint, and the rejection looks like an absence of data if you pipe it
   straight to `jq`.
-- The unconfigured Snort package removed. Two IDS packages installed, one
-  dormant, is how you end up debugging the wrong one.
 
 ---
 
