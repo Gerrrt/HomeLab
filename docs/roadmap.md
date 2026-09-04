@@ -179,6 +179,30 @@ issues intact. Nothing was summarised away.
   runbook in `Gerrrt/Lemmiwinks` covering *filtering is down and the internet is
   fine*, which presents as advertisements returning rather than as an outage.
   That is a note to whoever maintains that page, not a tenth step in the walk.
+- **[#292](https://github.com/Gerrrt/HomeLab/issues/292) Detect pfSense version
+  drift from the box.** `morpheus` was recorded as pfSense CE 2.8.1 on FreeBSD
+  15 in eleven places while running **2.9.0-RELEASE on FreeBSD 16.0-CURRENT**;
+  [#283](https://github.com/Gerrrt/HomeLab/pull/283) corrected them by hand,
+  after a human noticed. `check_compute_table()` never saw it and could not
+  have: it asserts `hardware.md` and `network.md` agree with *each other*, and
+  both copies were stale together — the failure its own `POINT_RELEASE` comment
+  already describes from the Ubuntu laptops. That comment's answer, leave the
+  running version to `node_os_info`, does not reach `morpheus`. It runs no
+  agent — the FreeBSD appliance `ship-firewall-logs.md` opens by explaining
+  cannot run Alloy — so its release line has no live counterpart anywhere, and
+  the next upgrade drifts just as quietly. **pfSense already publishes both
+  versions in one string.** It sets `sysDescr` explicitly rather than taking
+  bsnmpd's default: `pfSense morpheus.matrix.elysium 2.9.0-RELEASE FreeBSD
+  16.0-CURRENT amd64`, served by the same daemon the stack scrapes every 60s and
+  absent from all 187 series on that instance only because `1.3.6.1.2.1.1.1` is
+  not in the `pfsense` module. Collection is therefore three lines in
+  `generator.yaml` and `make snmp-generate`, on the pattern
+  `upsIdentUPSSoftwareVersion` already sets. The check is the harder half, and
+  it does not belong in `check_docs.py` — that compares documents to repo files
+  and runs in CI with no route to the stack, so this wants a
+  `snmp-verify.sh`-shaped job that fails on the fact rather than on the two
+  copies agreeing. Same shape as everything under *The stack does not watch
+  itself* below: it passed the whole time, and passing was never evidence.
 - **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
   screenshots.** `make screenshots` does five of the seven; the Logs and
   Security dashboards are deliberately excluded.
