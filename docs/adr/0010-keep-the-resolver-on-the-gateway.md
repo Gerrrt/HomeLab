@@ -2,6 +2,13 @@
 
 **Status:** Accepted · 2026-08
 
+> **Two facts in the Context below are wrong, and were wrong when this was
+> accepted:** Unbound forwards nothing, and one client is handed public
+> resolvers directly. Both were read off `morpheus` on 2026-09-04 — see
+> [Verified against the running config](#verified-against-the-running-config--2026-09-04)
+> at the foot of this ADR. The decision is unaffected; what it costs to
+> implement is not.
+
 ## Context
 
 ADR-0008 places AdGuard Home on the Winterfell mini PC. It says where the
@@ -106,3 +113,73 @@ stub's is none of those.
 - Filtering is now a convenience rather than a control, and should be described
   that way. Anything relying on DNS blocking for security would be relying on a
   component the design lets fail open on purpose.
+
+## Verified against the running config · 2026-09-04
+
+The Context above was written from the `Gerrrt/Lemmiwinks` pages, which
+[#123](https://github.com/Gerrrt/HomeLab/issues/123) flagged as nine months
+stale, self-inconsistent and unchecked. They have now been read off `morpheus`
+directly. **The decision stands unchanged. Two of the facts underneath it do
+not.**
+
+### Unbound forwards to nothing at all
+
+`/var/unbound/unbound.conf` holds `module-config: "validator iterator"`, an
+`auto-trust-anchor-file`, and **zero `forward-zone` blocks**. The resolver walks
+the root servers itself and validates DNSSEC. The `8.8.8.8` and `1.1.1.1` under
+System → General Setup are the *firewall's own* fallback — they sit in
+`morpheus`'s `/etc/resolv.conf` below `127.0.0.1`, with *DNS Server Override*
+and *Use local DNS* both unchecked — and no client query has ever reached them.
+
+So "the existing public upstreams", which the Decision says to keep listed
+alongside AdGuard, are not an existing forwarder list waiting to be prepended
+to. **Implementing this ADR means switching Unbound from recursive to forwarding
+mode**, which is a larger change than the Decision's wording implies:
+
+- Today no third party sees the estate's query stream at all. Forwarding hands
+  it to AdGuard, and whenever AdGuard is slow or down, to Cloudflare and Google.
+  That is a fair price for filtering, but this ADR assumed the price had already
+  been paid, and it has not been. It should be accepted deliberately rather than
+  arrive as a side effect of ticking *Enable Forwarding Mode*.
+- DNSSEC validation is on and should stay on, which makes the forwarders'
+  behaviour part of this change rather than incidental to it: a forwarder that
+  strips DNSSEC records turns every signed zone into SERVFAIL, and the symptom
+  is indistinguishable from the outage this ADR exists to prevent.
+- **The graceful fallback the whole decision turns on has never run here**,
+  because there is currently no forwarder that can fail. "Unbound marks an
+  unresponsive forwarder down and carries on" is documented behaviour, not
+  measured behaviour on this box. It is worth stopping AdGuard on purpose once
+  #102 is built and watching resolution continue, rather than finding out during
+  the first real outage.
+
+### One client bypasses all of this
+
+Every enabled scope hands out pfSense — five by leaving `dnsserver` empty so the
+interface address is served, and Hicks by naming `10.0.50.1`, which is that same
+address written out. One static map inside Hicks overrides it:
+
+| Static map | Address | DHCP hands it |
+| --- | --- | --- |
+| `Mekenna-Laptop` — "Mekenna's Work Laptop" | `10.0.50.69` | `8.8.8.8`, `9.9.9.9` |
+
+That laptop never reaches Unbound. It will never be filtered by AdGuard, and it
+cannot resolve `matrix.elysium` names at all. This reads as deliberate — a work
+machine kept off the household's split-horizon DNS — and nothing here proposes
+changing it.
+
+It is recorded because *clients only ever have one resolver, so they cannot
+select around the filter* is the premise this decision rests on, and there is
+exactly one exception to it. An exception that is written down is a policy; one
+that is not is a hole that gets rediscovered.
+
+### What was confirmed as documented
+
+- **Six host overrides**, all `.matrix.elysium`: `grafana` and `prometheus` →
+  `10.0.99.20`, `lemmiwinks` and `oracle` → `10.0.99.30`, `morpheus` →
+  `10.0.99.1`, `neo` → `10.7.7.2`. This settles the inconsistency #123 raised:
+  the wiki really is on `10.0.99.30` alongside `oracle` — both the name and that
+  address answer `200` from the running blackbox exporter — so the Lemmiwinks
+  page putting it on `10.0.99.20` is the stale one.
+- **No domain overrides**, so nothing else is diverted per-zone.
+- **The client's view**, checked with `resolvectl status` on `prometheus`
+  (10.0.99.20): a single resolver, `10.0.99.1`, search domain `matrix.elysium`.
