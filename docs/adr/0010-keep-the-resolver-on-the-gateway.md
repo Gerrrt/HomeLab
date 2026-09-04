@@ -94,17 +94,14 @@ stub's is none of those.
   reappearing, which nobody reports and which is indistinguishable from a
   blocklist that never covered a given site. Detection has to be deliberate, and
   a probe has to query AdGuard directly: one sent through the normal path always
-  passes, because the fallback is doing its job. Tracked as
-  [#126](https://github.com/Gerrrt/HomeLab/issues/126), and built: two `dns`
-  modules on the blackbox-exporter #91 landed, and `AdGuardNotAnswering` and
-  `AdGuardNotFiltering` in `prometheus/rules/dns.rules.yaml`. The second is
-  there because *up* and *filtering* are separate questions — a blocklist that
-  quietly stopped updating leaves a healthy service filtering nothing. Both are
-  `warning` rather than `critical`, which is the severity this decision implies:
-  the failure costs advertisements, not connectivity. The targets stay disabled
-  until #102 builds the box — and when it does, they are also the instrument for
-  the deliberate test the verification below asks for: stop AdGuard, watch
-  `AdGuardNotAnswering` fire while resolution carries on.
+  passes, because the fallback is doing its job. Built as
+  [#126](https://github.com/Gerrrt/HomeLab/issues/126): `AdGuardNotAnswering`,
+  and `AdGuardNotFiltering` beside it, because *up* and *filtering* are separate
+  questions — a blocklist that quietly stopped updating leaves a healthy service
+  filtering nothing. Both `warning` rather than `critical`: the failure costs
+  advertisements, not connectivity. The probes wait on what this decision waits
+  on — a box (#102) and a forwarder that can fail (below) — and when both exist
+  they are the instrument for the deliberate test the verification asks for.
 - **The household-facing documentation stays correct without edits.** Every
   runbook, wiki page and diagram that points at pfSense for DNS keeps pointing
   at pfSense. A change that requires no update to the pages the family reads is
