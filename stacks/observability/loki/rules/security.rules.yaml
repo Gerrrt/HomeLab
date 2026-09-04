@@ -228,7 +228,7 @@ groups:
           summary: "No firewall logs received for 30 minutes"
           description: >-
             morpheus has stopped shipping filterlog to Loki, or Alloy has
-            stopped receiving it. Check Services → System Logs → Settings on
+            stopped receiving it. Check Status → System Logs → Settings on
             pfSense, and that UDP 1514 is still published by the alloy
             container.
 
@@ -363,8 +363,8 @@ groups:
           description: >-
             Something took a DHCP lease on the management segment. Everything
             that belongs there has a reservation and has held it for months.
-            Treat as an unauthorised device on the segment ADR-0002 says
-            compromise of is total, unless you know you just plugged it in.
+            Treat as an unauthorised device on the segment where ADR-0002
+            says compromise is total, unless you know you just plugged it in.
 
       - alert: DhcpLeaseLogsStopped
         # Same shape and same reasoning as FirewallLogsStopped above: the two
