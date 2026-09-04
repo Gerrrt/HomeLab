@@ -1,4 +1,4 @@
-# ADR-0019: Run the lab stack in a guest, and give it its own Prometheus
+# ADR-0020: Run the lab stack in a guest, and give it its own Prometheus
 
 **Status:** Accepted · 2026-09
 

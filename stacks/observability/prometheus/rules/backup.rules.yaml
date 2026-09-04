@@ -20,9 +20,16 @@
 #
 # homelab_job_max_age_seconds is written by scripts/install-timers.sh from the
 # JOBS table that also decides the cadence, so a threshold and a schedule cannot
-# drift apart. It also means NO RULE HERE NAMES A JOB: adding a sixth timer is a
-# row in that table, not an edit to this file. That is deliberate — a rule file
-# listing job names is a list that silently stops growing.
+# drift apart. It also means NO RULE HERE NAMES A JOB: adding a timer is a row in
+# that table, not an edit to this file. That is deliberate — a rule file listing
+# job names is a list that silently stops growing.
+#
+# That claim has since been tested rather than merely asserted. #99 added
+# `converge`, an hourly job on a different cadence to everything above, and
+# every rule in this file covered it with no edit at all. What #99 DID need was
+# a separate file — prometheus/rules/deploy.rules.yaml — because the rules here
+# describe whether a job RAN, and deployment also has results worth alerting on:
+# which refusal, and how far behind the host is.
 #
 # WHY THERE IS NO absent()
 #

@@ -1,0 +1,34 @@
+[Unit]
+Description=HomeLab: hourly convergence onto main
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/converge-the-host.md
+
+[Timer]
+Unit=homelab-converge.service
+# Hourly, and hourly is a statement about how long a merged change may take to
+# reach the host — an hour is short enough that "merged" and "deployed" are
+# nearly the same word, and long enough that nothing here is chasing a webhook.
+#
+# The cost of the cadence is one fetch, not one deploy: converge.sh exits before
+# it renders anything when the checkout is already at the fetched tip, so almost
+# every one of these 24 daily runs touches no container at all.
+#
+# :25 rather than :00 or :30 because every other unit here is on one of those
+# two marks, and the three that share the `backups` lock should not queue behind
+# each other by default when they could simply not collide.
+OnCalendar=*-*-* *:25:00
+# Five minutes, not the fifteen the other timers use. Jitter here spreads load
+# on GitHub rather than on this host, one fetch is not load worth spreading, and
+# a wide window makes "how stale can the host be" harder to state than it needs
+# to be.
+RandomizedDelaySec=300
+# True. A missed convergence — the host was off, or rebooting — should be picked
+# up at boot rather than waiting for the next hour, because the state it is
+# catching up to is the whole point. This is the opposite of the reasoning on
+# homelab-backup-volumes.timer, where a replayed run quiesces the stack at an
+# arbitrary hour; a replayed run here just deploys what should already be
+# deployed.
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

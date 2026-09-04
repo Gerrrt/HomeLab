@@ -287,7 +287,7 @@ what left this one unfireable for months.
   and a second observability stack. The umbrella. Nothing of it is built, but
   the shape is settled and the work is split seven ways, which is what moved it
   out of *Decided but not built* below.
-  [ADR-0019](adr/0019-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
+  [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
   answered the two questions ADR-0007 left open, and both of them blocked the
   first line of work. `stacks/lab/` runs in a **guest**, not on the hypervisor:
   `Saruman` is the one host in the estate that must not run Docker, because
@@ -312,7 +312,7 @@ what left this one unfireable for months.
   [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS decides what it is
   for before it is installed, since a hypervisor backing up its own guests to
   itself is not a backup. Liveness stays where it already was, with
-  [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0019 decides only
+  [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0020 decides only
   that no Alertmanager goes *inside* the stack, and the lab is otherwise being
   built to go quiet.
 - **[#96](https://github.com/Gerrrt/HomeLab/issues/96) Procure `ifrit` and build
@@ -373,7 +373,17 @@ what left this one unfireable for months.
   → [runbook](runbooks/ship-firewall-logs.md)
 - **[#99](https://github.com/Gerrrt/HomeLab/issues/99) Move deployment from
   `make up` over SSH to something pull-based**, so the host converges on the repo
-  rather than being pushed to.
+  rather than being pushed to. Answered by
+  [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md): an
+  hourly timer running `scripts/converge.sh`, on #77's existing wrapper and
+  alert machinery. The issue's stated blocker — an age key on a host that pulls
+  from a public repository — turned out not to be one, because the key was
+  already on that host and *public* means readable. The real question was
+  unattended execution, and the answer is a pinned signing fingerprint plus a
+  record of every revision deployed. What is deliberately left out: `oracle` and
+  `saruman` are still pushed to with `deploy-agent.sh`, and nothing tracks
+  unifying that.
+- **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
 
 ## Decided but not built
 

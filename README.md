@@ -47,7 +47,7 @@ incident.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 7 provisioned dashboards, 140 panels, and
-  64 alert rules — 48 metric-based in Prometheus, 16 log-based in Loki — sharing
+  69 alert rules — 53 metric-based in Prometheus, 16 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -163,7 +163,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 .
 ├── stacks/observability/     # the deployed stack — one compose file, six services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 48 alert rules
+│   ├── prometheus/           # config, file_sd targets, 53 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 16 LogQL rules
 │   ├── alloy/                # the agent config directory, shipped to every host
@@ -175,12 +175,12 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 19 architecture decision records
-│   └── runbooks/             # deploy, add device, rotate creds, certs, key backup,
-│                             #   purge, restore the firewall, restore the stack,
-│                             #   ship firewall logs, verify the alert path,
-│                             #   enable suricata, fit the UPS battery,
-│                             #   add a host override
+│   ├── adr/                  # 21 architecture decision records
+│   └── runbooks/             # deploy, converge, add device, rotate creds, certs,
+│                             #   key backup, purge, restore the firewall,
+│                             #   restore the stack, ship firewall logs,
+│                             #   verify the alert path, enable suricata,
+│                             #   fit the UPS battery, add a host override
 └── Makefile                  # make help
 ```
 
@@ -213,9 +213,18 @@ trust `certificates/ca.pem` — step 4 of that runbook. Full procedure,
 verification steps and troubleshooting in
 [`docs/runbooks/deploy-stack.md`](docs/runbooks/deploy-stack.md).
 
+That is the first deploy. After it, the monitoring host deploys itself: a timer
+runs `scripts/converge.sh` hourly, which fetches `main`, refuses it unless the
+tip carries GitHub's signature, fast-forwards and runs the same `make up` —
+recording what it deployed and refusing to overwrite anything edited on the host
+([#99](https://github.com/Gerrrt/HomeLab/issues/99),
+[ADR-0021](docs/adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md),
+[`docs/runbooks/converge-the-host.md`](docs/runbooks/converge-the-host.md)).
+
 ```console
 $ make help
   up               Render config and start the stack
+  converge         Fetch main, verify it, fast-forward and deploy
   down             Stop the stack (volumes are preserved)
   reload           Hot-reload Prometheus, Alertmanager and snmp-exporter (no restart)
   secrets-init     Generate an age keypair and create the encrypted secrets file
@@ -228,8 +237,8 @@ $ make help
   ...
 ```
 
-The timers are what stop `backup`, `backup-firewall` and `snmp-verify` being
-things someone has to remember, and the alert rules that come with them fire on a
+The timers are what stop `backup`, `backup-firewall`, `snmp-verify` and now
+deployment itself being things someone has to remember, and the alert rules that come with them fire on a
 job having *stopped being run* rather than only on one that failed
 ([#77](https://github.com/Gerrrt/HomeLab/issues/77)). One job deliberately has no
 timer: `secrets-verify-backup` needs a human to mount removable media, so it gets

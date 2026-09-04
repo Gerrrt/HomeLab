@@ -1,6 +1,6 @@
 # Weekly quiesced backup of the observability stack's volumes.
 #
-# This unit is the fully-commented one of the four; the others state only what
+# This unit is the fully-commented one of the five; the others state only what
 # differs. Installed by scripts/install-timers.sh, which is also what asserts
 # that every ExecStart= here goes through run-scheduled.sh (#77).
 [Unit]
@@ -27,7 +27,7 @@ SupplementaryGroups=docker
 # Load-bearing, not tidiness. backup-firewall.sh resolves backups/firewall and
 # .sops.yaml RELATIVE to the process's directory, so on that unit this line is
 # the difference between a backup and a crash. Same directive everywhere so the
-# four units cannot disagree about where the repository is.
+# five units cannot disagree about where the repository is.
 WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
 Environment=STACK=observability
 # Explicit even though User= already sets $HOME from the passwd entry: the

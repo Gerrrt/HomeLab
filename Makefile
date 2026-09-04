@@ -46,6 +46,18 @@ down: ## Stop the stack (volumes are preserved)
 .PHONY: restart
 restart: down up ## Restart the stack
 
+.PHONY: converge
+converge: ## Fetch main, verify it, fast-forward and deploy (ARGS=--dry-run)
+	@# What the hourly timer runs, and what a human runs to deploy on purpose
+	@# without waiting for it. It ends in `make up` rather than replacing it, so
+	@# there is exactly one deployment path and both callers exercise it.
+	@#
+	@# It refuses to run anywhere but /home/robo/code/Gerrrt/HomeLab, for the
+	@# reason `make up` cares about and `make deploy-agent` does not: render
+	@# writes into the .rendered/ of the tree it is run from, and no container
+	@# mounts a worktree's copy. ARGS=--dry-run says what it would do.
+	./scripts/converge.sh $(ARGS)
+
 .PHONY: pull
 pull: ## Pull the pinned images
 	$(COMPOSE) pull
