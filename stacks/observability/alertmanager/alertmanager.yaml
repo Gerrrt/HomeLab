@@ -49,11 +49,20 @@ route:
     # 5m to the heartbeat URL, which is a cron-monitor ping watched from off
     # this host. Keep this at or under the external check's period; the runbook
     # states the relationship, so retuning one without the other is visible.
+    # group_interval MUST stay below repeat_interval, and 1m is not a tuning
+    # preference. A group is only reconsidered on a group_interval tick, and at
+    # that tick it notifies only if repeat_interval has already elapsed. Set the
+    # two equal and the tick at +5m arrives fractionally BEFORE the deadline it
+    # is testing, skips, and sends at +10m instead — a heartbeat at exactly half
+    # the advertised rate, with every notification still a success and no metric
+    # to say otherwise. Measured on the live stack at 600s between pings against
+    # the 300s this file claimed (#120). At 1m the tick granularity is finer
+    # than the deadline, so the ping lands at 5m and never later than 6m.
     - receiver: heartbeat
       matchers:
         - alertname = "Watchdog"
       group_wait: 0s
-      group_interval: 5m
+      group_interval: 1m
       repeat_interval: 5m
       continue: true
 
