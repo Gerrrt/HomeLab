@@ -405,21 +405,6 @@ what left this one unfireable for months.
   attackers; #235 decided either way before this build makes it true. What is
   left is the purchase itself and the build.
   → [runbook](runbooks/build-the-playground.md)
-- **[#97](https://github.com/Gerrrt/HomeLab/issues/97) Work out DNS for the
-  MokerLink management UI** so it is not reached by IP. Answered by
-  [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), which
-  splits the issue in two and only grants one half. The name is a host override
-  like any other — `neo` → `10.7.7.2` — and was never blocked behind ADR-0008,
-  because ADR-0010 keeps the overrides on Unbound whatever AdGuard does. **The
-  certificate half is closed as unavailable rather than pending:** the switch
-  has no TLS listener and no way to import one, checked against the device on
-  2026-09-04. That is its third firmware limit after #84 and #85, and the
-  argument for replacing it — where TLS management belongs in the selection
-  criteria next to SNMPv3. **The granted half is done, found while verifying
-  #123 rather than reported:** `neo` → `10.7.7.2` is one of six host overrides
-  on Unbound, read off `morpheus` on 2026-09-04, and the `via: dns` twin probes
-  green from the running exporter (`probe_success 1`, `probe_http_status_code
-  200`, lookup 0.9 ms). Nothing is left on this issue but closing it.
 
 ## Automation
 
@@ -485,6 +470,25 @@ months.
 
 ## Done
 
+- [x] **[#97](https://github.com/Gerrrt/HomeLab/issues/97) Work out DNS for the
+      MokerLink management UI** so it is not reached by IP. 2026-09-04. Answered
+      by [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md),
+      which splits the issue in two and grants one half. The name is a host
+      override like any other — `neo` → `10.7.7.2` — and was never blocked
+      behind ADR-0008, because ADR-0010 keeps the overrides on Unbound whatever
+      AdGuard does. **The certificate half is closed as unavailable rather than
+      pending:** the switch has no TLS listener and no way to import one,
+      checked against the device on 2026-09-04. That is its third firmware limit
+      after #84 and #85, and the argument for replacing it — where TLS
+      management belongs in the selection criteria next to SNMPv3.
+
+      Both halves were already settled when this file still listed the granted
+      one as outstanding. Confirmed while verifying
+      [#123](https://github.com/Gerrrt/HomeLab/issues/123): `neo` → `10.7.7.2`
+      is one of six host overrides read off `morpheus` on 2026-09-04, and the
+      `via: dns` twin probes green from the running exporter (`probe_success 1`,
+      `probe_http_status_code 200`, lookup 0.9 ms). The entry outlived the work
+      by a day, which is the failure this section exists to prevent.
 - [x] **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
       dashboard export step.** 2026-09-04. `make dashboards-export` pulls every
       dashboard back by uid and writes it over the file, so the loop is edit →
