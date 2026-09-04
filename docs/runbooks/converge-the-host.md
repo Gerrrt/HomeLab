@@ -85,6 +85,41 @@ printf 'HOMELAB_CONVERGE_APPLY=0\n' | sudo tee -a /etc/default/homelab-timers
 Every run then fetches, verifies and records, and applies nothing — deployment
 stays a thing a human does with `make up`.
 
+> **Every merge needs a manual apply while this is set, including config that
+> would otherwise need no deploy at all.** This is the part that is easy to miss,
+> because a merge in this mode looks like it landed: `git pull` moves the
+> checkout, the files are on disk, and the containers bind-mount the directories
+> they came from. Nothing has re-read them.
+>
+> It caught this change out on its first day. The merge that installed the agent
+> also added `deploy.rules.yaml`, so Prometheus sat with 48 alerting rules where
+> the repository had 53 — and the five missing ones were the rules that watch
+> convergence, `DeployApplyDisabled` among them. The mode had silently disabled
+> the alerting that reports the mode. `make reload` fixed it in one hot reload,
+> no container restart:
+>
+> ```bash
+> cd /home/robo/code/Gerrrt/HomeLab && make reload
+> ```
+>
+> Prometheus re-reads rule files at startup and on `POST /-/reload`, and at
+> nothing else. Loki is the exception that makes this easy to get wrong — it
+> polls its rule directory, so its rules DO arrive on their own, and seeing them
+> update is not evidence that Prometheus has.
+>
+> So while report-only is on, treat `make up` — or `make reload` for a
+> config-only change — as part of merging, not as an optional follow-up. The
+> check is one command:
+>
+> ```bash
+> curl -s localhost:9090/api/v1/rules | jq '[.data.groups[].rules[] | select(.type=="alerting")] | length'
+> ```
+>
+> Compare it against `grep -c '^      - alert:' stacks/observability/prometheus/rules/*.rules.yaml`.
+> Note the `jq` rather than a `grep -c` on the response: the API returns the
+> whole document on one line, so `grep -c` counts that line and answers `1`
+> however many rules are loaded.
+
 Two alerts describe that state together, and reading them as a pair is the
 point:
 
@@ -232,6 +267,8 @@ copy — so converging there would report success and change nothing. Run it fro
 | `DeployBehind` **with** `DeployApplyDisabled` | Report-only mode — the host is fetching and recording but not applying | Working as intended. §Letting it act when you want it to deploy |
 | `DeployBehind` **without** `DeployApplyDisabled` | Convergence is genuinely refusing | `journalctl -u homelab-converge.service -n 50` names the refusal; every case is in §When it refuses |
 | `DeployApplyDisabled` you did not expect | Somebody set `HOMELAB_CONVERGE_APPLY=0` and it was forgotten | That is what this alert is for. `grep CONVERGE /etc/default/homelab-timers` |
+| A merged change is on disk but the stack does not have it | Report-only mode applies nothing, and Prometheus re-reads rule files only on reload | `make reload`, or `make up` if compose or a rendered file changed. Expected in this mode — §Start in report-only mode |
+| Prometheus has fewer alerting rules than the repository | The same thing: a rule file landed and nothing reloaded | `make reload`. Loki polls its rule directory and updates on its own, so Loki being current is not evidence that Prometheus is |
 | `DeployBehind` with `ScheduledJobFailed` | The refusal is real and recurring | The journal names it; every case is in §"When it refuses" |
 | `DeployMetricsAbsent` | `homelab-deploy.prom` stopped arriving, while the backup metrics still do | Two separate files fail independently. Check `node_textfile_scrape_error`, then the file itself. If the timer was never installed, `make install-timers` |
 | `homelab_job_last_exit_code{homelab_job="converge"}` is 75 | It never started — the weekly backup held the `backups` lock for the full 900s | Expected at most once a week, on Sunday. Persistent means a backup is hanging: `systemctl list-units 'homelab-*'` |
