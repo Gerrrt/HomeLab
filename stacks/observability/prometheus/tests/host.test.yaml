@@ -1,0 +1,105 @@
+---
+# Unit tests for host.rules.yaml.
+#
+# Added for #189, which proposes accepting Loki's unbounded growth as a residual
+# and relying on HostDiskWillFillIn24h to catch a disk actually filling. A
+# residual is only as good as the control it leans on, and this file had no
+# tests at all — so the control was as unverified as ContainerCpuThrottled was
+# in #185, and for the same reason nobody noticed: `promtool check rules` parses
+# PromQL and never asks whether an expression can be true.
+#
+# The rule is not in #185's position. node_filesystem_avail_bytes and
+# node_filesystem_size_bytes are real series that every Alloy agent here
+# produces — prometheus, oracle and Saruman all report them today — so the
+# input exists and the question is only whether the expression handles it. That
+# is what these cases answer.
+#
+# Every firing case is paired with a quiet one, per containers.test.yaml's
+# header: a test that only ever expects silence would pass against a rule that
+# can never fire.
+
+rule_files:
+  - ../rules/host.rules.yaml
+
+evaluation_interval: 5m
+
+tests:
+  # --- HostDiskWillFillIn24h: fires -----------------------------------------
+  # A 100 GB filesystem starting at 29% free and losing 200 MB every 5 minutes
+  # (2.4 GB/h). Both halves of the `and` have to hold:
+  #
+  #   predict_linear over 6h, extrapolated 24h, is negative — at 2.4 GB/h the
+  #   projection is 57.6 GB below where it stands, which it is from early on;
+  #   and free space is under 30%, which it is from the first sample.
+  #
+  # 29% and not 5%: the rule exists to catch a disk that is still comfortable
+  # and moving fast, which is exactly the shape #189 is about. A fixture already
+  # at 5% would pass against a rule that had lost its predictive half entirely.
+  - interval: 5m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="prometheus",device="/dev/mapper/ubuntu--vg-ubuntu--lv",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "29000000000-200000000x96"
+      - series: 'node_filesystem_size_bytes{instance="prometheus",device="/dev/mapper/ubuntu--vg-ubuntu--lv",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "100000000000x96"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: HostDiskWillFillIn24h
+        exp_alerts:
+          - exp_labels:
+              alertname: HostDiskWillFillIn24h
+              instance: prometheus
+              device: /dev/mapper/ubuntu--vg-ubuntu--lv
+              mountpoint: /
+              fstype: ext4
+              job: integrations/node_exporter
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "prometheus:/ fills within 24h"
+              description: >-
+                / on prometheus (/dev/mapper/ubuntu--vg-ubuntu--lv) is below 30%
+                free and, extrapolating the last 6 hours, reaches zero within a
+                day.
+
+      # Not yet held long enough — for: 1h has not elapsed at 30m.
+      - eval_time: 30m
+        alertname: HostDiskWillFillIn24h
+        exp_alerts: []
+
+  # --- HostDiskWillFillIn24h: quiet on a full-but-stable disk ---------------
+  # 12% free and not moving. This is the case the rule was written to NOT fire
+  # on — "a disk sitting at 86% and stable is not an emergency" — and it is the
+  # half a static threshold would get wrong. predict_linear over a flat series
+  # is flat, so the extrapolation never reaches zero however low the level is.
+  - interval: 5m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="prometheus",device="/dev/mapper/ubuntu--vg-ubuntu--lv",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "12000000000x96"
+      - series: 'node_filesystem_size_bytes{instance="prometheus",device="/dev/mapper/ubuntu--vg-ubuntu--lv",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "100000000000x96"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: HostDiskWillFillIn24h
+        exp_alerts: []
+
+  # --- HostDiskWillFillIn24h: quiet on a roomy disk that IS filling ----------
+  # Losing 200 MB every 5 minutes from 60% free — the same slope as the firing
+  # case, and the guard is what keeps it silent. This is the pair that proves
+  # the 30% condition is load-bearing rather than decorative: without it, every
+  # ordinary week of log growth on a half-empty disk would page.
+  #
+  # Evaluated at 4h and not 2h. Without the guard the projection first goes
+  # negative at 1h and the alert would fire at 2h, so an eval there lands on the
+  # exact boundary and would report silence either way — a quiet case that
+  # cannot fail is the thing this file exists to avoid.
+  - interval: 5m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="prometheus",device="/dev/mapper/ubuntu--vg-ubuntu--lv",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "60000000000-200000000x96"
+      - series: 'node_filesystem_size_bytes{instance="prometheus",device="/dev/mapper/ubuntu--vg-ubuntu--lv",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "100000000000x96"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: HostDiskWillFillIn24h
+        exp_alerts: []

@@ -47,6 +47,7 @@ is a very different thing from an overlooked one. Full detail in
 | Alertmanager published on `0.0.0.0`, letting anyone who could reach it silence an alert | Fixed 2026-08-30 — 9093 now binds to `127.0.0.1` ([#70](https://github.com/Gerrrt/HomeLab/issues/70), [ADR-0012](docs/adr/0012-publish-only-ports-with-an-off-host-consumer.md)). This was the sharpest of the three because a silence switches off monitoring and the record of it lives in the system being switched off. Nothing off-host ever used the port: silences are reached through Grafana, which proxies Alertmanager over the compose network behind a login, so closing it cost no capability. |
 | Prometheus and Loki published on `0.0.0.0` with no authentication | **Accepted residual, not a fix in progress.** Anything that can route to `10.0.99.20:9090` or `10.0.99.20:3100` can read every metric and log line, inject metrics through Prometheus' remote-write receiver, and delete log ranges through Loki's delete API. Both stay published because `oracle`'s Alloy agent remote-writes to 9090 and pushes to 3100 — it is not a scrape target, so those ports are its only path. Firewall default-deny is the whole control, and since 2026-09-02 it is narrower than it was: the ingest ports are reachable from Winterfell (99) itself and from `10.0.30.110` on ImaginationLAN, which has an explicit pass for `Saruman`'s Alloy agent. Hicks (50) reaches `10.0.99.20` on `3000` only — a logged *Block access to Winterfell* drops the rest — and no untrusted segment reaches it at all. `docs/network.md` lists what Hicks may reach. Closing it properly means authentication in front of the ingest ports and a credential on every agent, which is a separate piece of work — see below. |
 | The monitoring host's disk and swap are unencrypted | **Accepted residual, not a fix in progress** — see below. |
+| Loki's log volume has no size ceiling | **Accepted residual, not a fix in progress** — see below. Prometheus has a byte ceiling since [#184](https://github.com/Gerrrt/HomeLab/issues/184); Loki has no size-based retention to set, only time. `HostDiskWillFillIn24h` is the control. |
 
 The switch is the honest gap, and it is a deliberate one. `neo` (10.7.7.2) is
 rotated and polling, but it also still accepts the community it held before the
@@ -113,6 +114,40 @@ own failure mode. It is written down because the undo-file row above
 was only serious *because* of this — an undo file at mode 664 on an encrypted
 disk is a much smaller problem, and the two facts are easy to lose track of
 separately.
+
+### Loki has no size ceiling, and rate limits would not give it one
+
+`--storage.tsdb.retention.size=12GB` bounds Prometheus. Loki has
+`retention_period: 720h` and no size equivalent, because Loki has no
+size-based retention to configure — so it is the only store on this disk
+bounded by time alone, fed by a push endpoint that is unauthenticated for the
+reason the ingest-port row above gives
+([#189](https://github.com/Gerrrt/HomeLab/issues/189)).
+
+**Rate limits are the obvious response and they do not solve it.** The lab
+produces roughly 0.012 MB/s of logs, so even a deliberately tight 0.5 MB/s
+`ingestion_rate_mb` is 40x headroom — and 0.5 MB/s still fills 59 GiB inside a
+day and a half. Any limit loose enough not to drop real logs is loose enough to
+fill the disk. There is no clean number, which is why one has not been picked.
+
+What actually bounds this is **who can write**, not how fast, and that is
+authentication in front of the ingest ports — the work in
+[#182](https://github.com/Gerrrt/HomeLab/issues/182), which this is a second
+justification for rather than a separate task. Until then the volume is bounded
+by trust in the segments that can reach `10.0.99.20:3100`, which is the same
+control and the same firewall rules as the row above.
+
+The measured position, so a later reader can tell drift from noise:
+`loki-data` was 461 MB on 2026-08-31 and 549 MB on 2026-09-04 — about 22 MB a
+day against 53 GiB free, which is years rather than months. Nothing here is
+urgent; it is unbounded, which is a different property from close.
+
+`HostDiskWillFillIn24h` is the whole control if that ever changes, so it is no
+longer an untested rule: `prometheus/tests/host.test.yaml` asserts it fires on a
+disk that is filling, and stays quiet both on one that is full but stable and on
+one that is filling with room to spare. That file was added with this residual
+and for it — a residual is only as good as the control it leans on, and that
+control had no test at all.
 
 ## What this repository will not contain
 
