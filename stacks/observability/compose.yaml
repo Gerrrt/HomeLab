@@ -361,8 +361,9 @@ services:
       # Required, not defaulted, and not optional: Grafana refuses to *start*
       # with the built-in renderer token once a rendering server is configured,
       # so a missing value here is a crash loop on the dashboard host, not a
-      # failed screenshot. The required-variable guard below turns that into a
-      # named error at `make up` instead, before anything is recreated.
+      # failed screenshot. The `${GRAFANA_RENDERER_TOKEN:?...}` guard on the
+      # next line turns that into a named error at `make up` instead, before
+      # anything is recreated.
       # Shared with the renderer's AUTH_TOKEN below.
       GF_RENDERING_RENDERER_TOKEN: ${GRAFANA_RENDERER_TOKEN:?set in secrets/observability.sops.yaml}
     volumes:
