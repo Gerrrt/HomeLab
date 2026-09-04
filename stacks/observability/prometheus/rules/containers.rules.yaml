@@ -167,6 +167,33 @@ groups:
             Anonymous memory, so page cache is not inflating it. The container
             is OOM-killed if this reaches 100%.
 
+      # INERT BY DESIGN, and deliberately so — see #185.
+      #
+      # CFS accounting only exists when a CPU quota exists. No service in any
+      # stack sets `cpus` or `deploy.resources`, so the cgroup reports
+      # nr_periods=0 and nr_throttled=0 forever, both rates are 0, and the
+      # numerator can never be non-zero. `promtool check rules` passes it —
+      # it parses PromQL and never asks whether an expression can be true —
+      # and it shows loaded and healthy on the Prometheus status page. That is
+      # #63 exactly, one rule up in this same file.
+      #
+      # The tempting fix is the wrong one. Adding `cpus:` would make this live
+      # and should not be done: the whole stack peaks at ~0.4 of 4 cores, and
+      # HostHighLoad already fires at load15 > 2 x cores. There is no saturation
+      # to prevent, and CPU degrades gracefully anyway — CFS fair-shares, so a
+      # runaway produces slowness rather than death. Meanwhile a 0.20-core-
+      # average service saturates a modest quota inside individual 100ms CFS
+      # windows during a scrape burst, so the limit would manufacture exactly
+      # the alert fatigue this repository avoids, to justify a control that
+      # prevents nothing.
+      #
+      # So it is kept, unfireable, against the day a quota is set for some other
+      # reason — a noisy-neighbour guest, a service that genuinely needs
+      # bounding. What has to change for it to become live: any service gains
+      # `cpus:` or `deploy.resources.limits.cpus`. Nothing else. The unit tests
+      # in containers.test.yaml assert it CAN fire against synthetic non-zero
+      # CFS series, so its correctness is checked even while production cannot
+      # produce the input — which is the whole lesson of #63.
       - alert: ContainerCpuThrottled
         expr: |
           rate(container_cpu_cfs_throttled_periods_total{name!=""}[15m])

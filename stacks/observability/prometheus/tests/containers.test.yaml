@@ -347,3 +347,67 @@ tests:
       - eval_time: 20m
         alertname: ContainerRestartLoop
         exp_alerts: []
+
+  # --- ContainerCpuThrottled: fires ----------------------------------------
+  # The rule is inert in production and always has been: CFS accounting only
+  # exists when a CPU quota exists, no service sets one, and both counters stay
+  # at 0 forever (#185). That is precisely why it needs a firing case — the
+  # input it would fire on is one production cannot currently produce, so
+  # nothing else in this repository can tell a correct expression from a broken
+  # one. #63 is what that looks like when nobody checks.
+  #
+  # Synthetic, and realistic: the default CFS period is 100ms, so a container
+  # pinned by a quota accrues 600 periods a minute. 180 of them throttled is
+  # 30%, comfortably over the 0.25 threshold and a plausible figure for a
+  # service being squeezed rather than a contrived 100%.
+  #
+  # `rate()` returns a value from the second sample onward — it does not wait
+  # for the 15m window to fill — so the ratio is over threshold from 1m, the
+  # alert goes pending there and fires at 31m. Evaluated at 50m, with 25m as
+  # the paired "not yet" so the `for:` is asserted rather than assumed.
+  - interval: 1m
+    input_series:
+      - series: 'container_cpu_cfs_throttled_periods_total{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "0+180x60"
+      - series: 'container_cpu_cfs_periods_total{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "0+600x60"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: ContainerCpuThrottled
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerCpuThrottled
+              name: loki
+              instance: prometheus
+              host: prometheus
+              job: integrations/cadvisor
+              component: containers
+              severity: info
+              category: saturation
+            exp_annotations:
+              summary: "Container loki throttled 30% of CPU periods"
+
+      # Pending, not firing — for: 30m has not elapsed at 25m.
+      - eval_time: 25m
+        alertname: ContainerCpuThrottled
+        exp_alerts: []
+
+  # --- ContainerCpuThrottled: quiet on what production actually reports -----
+  # Both counters flat at 0, which is what cAdvisor reports for every container
+  # in this estate and will keep reporting until something sets a CPU quota.
+  # clamp_min keeps the denominator at 1 rather than dividing by zero, so the
+  # expression evaluates to 0 and stays silent instead of producing NaN.
+  #
+  # This is the case that documents the rule's real state. If a quota is ever
+  # set, this fixture stops resembling production — and the firing case above
+  # is what says the rule was ready for it.
+  - interval: 1m
+    input_series:
+      - series: 'container_cpu_cfs_throttled_periods_total{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "0x60"
+      - series: 'container_cpu_cfs_periods_total{name="loki",instance="prometheus",host="prometheus",job="integrations/cadvisor"}'
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: ContainerCpuThrottled
+        exp_alerts: []
