@@ -101,7 +101,10 @@
 #   HOMELAB_CONVERGE_APPLY   0 makes every run report-only, as though --dry-run
 #                            had been passed. Set in /etc/default/homelab-timers
 #                            to watch the agent decide for a while before
-#                            letting it act.
+#                            letting it act. Recorded as
+#                            homelab_deploy_apply_enabled, so the mode is
+#                            visible from Prometheus rather than only from a
+#                            file on the host.
 
 set -euo pipefail
 
@@ -153,9 +156,23 @@ done
 # The report-only switch, so the timer can be installed and watched before it is
 # allowed to act. Folded into DRY_RUN rather than given a second code path —
 # two ways to not-apply is two things to get wrong.
+#
+# APPLY_ENABLED is tracked SEPARATELY from DRY_RUN, and the distinction is the
+# whole reason it exists. DRY_RUN is also set by --dry-run, which is a human
+# asking a question; this is a property of how the host is configured. Only the
+# second is worth recording, because only the second persists after the run and
+# explains why a host stays behind.
+#
+# Without it, DeployBehind can only say "it is refusing, OR report-only is set",
+# and telling those apart means someone with shell access reading a file in
+# /etc that nothing else in this repository tracks. That is precisely the shape
+# of unrecorded state #99 is about, so the mode goes in the record with
+# everything else.
+APPLY_ENABLED=1
 if [[ "${HOMELAB_CONVERGE_APPLY:-1}" == "0" ]]; then
   info "HOMELAB_CONVERGE_APPLY=0 — reporting only, nothing will be applied"
   DRY_RUN=1
+  APPLY_ENABLED=0
 fi
 
 # ---------------------------------------------------------------------------
@@ -219,14 +236,17 @@ homelab_deploy_tree_dirty ${DIRTY}
 # HELP homelab_deploy_verified 1 when the deployed revision carries a good signature from the pinned key.
 # TYPE homelab_deploy_verified gauge
 homelab_deploy_verified ${VERIFIED}
+# HELP homelab_deploy_apply_enabled 1 when this host applies what it fetches. 0 is report-only, set by HOMELAB_CONVERGE_APPLY=0.
+# TYPE homelab_deploy_apply_enabled gauge
+homelab_deploy_apply_enabled ${APPLY_ENABLED}
 EOF
   chmod 0644 "${tmp}"
   mv -f "${tmp}" "${PROM}"
 
   # One structured line for the journal, which Alloy already ships to Loki with
   # a `unit` label — findable with LogQL without parsing anything above it.
-  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s\n' \
-    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}"
+  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s\n' \
+    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}"
 }
 trap record EXIT
 

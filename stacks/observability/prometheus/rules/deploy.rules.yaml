@@ -5,7 +5,7 @@
 # what got deployed, so `make up` on an uncommitted tree and `make up` on `main`
 # were indistinguishable; and nothing compared the host to the repository, so a
 # config edited in place stayed edited until a deploy silently overwrote it.
-# scripts/converge.sh now runs hourly and writes five gauges into the same
+# scripts/converge.sh now runs hourly and writes six gauges into the same
 # textfile directory the maintenance jobs use.
 #
 # WHAT backup.rules.yaml ALREADY COVERS, AND IS NOT REPEATED HERE
@@ -19,7 +19,7 @@
 # correctly refuses to move — because the tree is dirty, or the tip did not
 # verify — exits non-zero and is fully described by ScheduledJobFailed, but the
 # interesting fact is WHICH refusal and how far behind the host now is. These
-# four rules read the record converge.sh writes rather than its exit code.
+# five rules read the record converge.sh writes rather than its exit code.
 #
 # WHY THERE IS NO ALERT ON THE REVISION ITSELF
 #
@@ -73,6 +73,11 @@ groups:
         # report-only mode — in which case this alert IS the report and is
         # expected to fire.
         #
+        # Which of those two it is used to be unanswerable without shell access
+        # to read /etc/default/homelab-timers. DeployApplyDisabled below now
+        # fires alongside this one in the report-only case, so the pair reads as
+        # one sentence and neither rule needs to guess.
+        #
         # > 0 and not != 0 on purpose. A failed fetch records -1 rather than a
         # stale count, precisely so it cannot masquerade as a known lag; the
         # fetch failing is ScheduledJobFailed's to report, and this rule stays
@@ -94,9 +99,9 @@ groups:
             Convergence has run and has not applied what it fetched. Either it
             is refusing — check `journalctl -u homelab-converge.service -n 50`
             for a dirty tree, a signature that did not verify, or a
-            non-fast-forward — or HOMELAB_CONVERGE_APPLY=0 is set in
-            /etc/default/homelab-timers and this is the report-only mode doing
-            its job. docs/runbooks/converge-the-host.md.
+            non-fast-forward. If DeployApplyDisabled is firing too, it is
+            neither: the host is in report-only mode and this alert is that
+            mode's report. docs/runbooks/converge-the-host.md.
 
       - alert: DeployUnverified
         # The deployed revision does not carry a good signature from the pinned
@@ -127,6 +132,41 @@ groups:
             it is done — or HEAD is a commit that did not come through a pull
             request. `git -C /home/robo/code/Gerrrt/HomeLab log --show-signature -1`
             distinguishes them. docs/runbooks/converge-the-host.md.
+
+      - alert: DeployApplyDisabled
+        # The host is deliberately not deploying.
+        #
+        # This is the only rule here that reports a CHOICE rather than a fault,
+        # and it exists because the choice is made in /etc/default/homelab-timers
+        # — a file outside this repository, which nothing tracks and which is
+        # exactly the kind of thing that is still set eighteen months later
+        # because everyone who knew forgot.
+        #
+        # info, not warning: nothing is broken and nothing needs doing tonight.
+        # It routes to the info receiver alongside the other two info rules.
+        #
+        # It resolves by itself the moment the line is removed and the timer
+        # runs again, which is what makes it a better reminder than an issue —
+        # there is nothing to close, and no way to leave it stale.
+        #
+        # `for: 6h` because a deliberate mode is not urgent and a six-hour floor
+        # keeps it out of the way during the install itself, when converge is
+        # being primed and restarted by hand.
+        expr: homelab_deploy_apply_enabled == 0
+        for: 6h
+        labels:
+          component: deploy
+          severity: info
+          category: correctness
+        annotations:
+          summary: "Convergence is in report-only mode and is deploying nothing"
+          description: >-
+            HOMELAB_CONVERGE_APPLY=0 is set in /etc/default/homelab-timers, so
+            this host fetches, verifies and records but applies nothing —
+            deployment is back to being something a human does. Intended as a
+            temporary state while the agent is watched. Remove the line and
+            `systemctl restart homelab-converge.timer` to let it act; this
+            resolves on the next run. docs/runbooks/converge-the-host.md.
 
       - alert: DeployMetricsAbsent
         # The measuring apparatus, and not a duplicate of

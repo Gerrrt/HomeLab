@@ -97,9 +97,9 @@ tests:
                 Convergence has run and has not applied what it fetched. Either
                 it is refusing — check `journalctl -u homelab-converge.service
                 -n 50` for a dirty tree, a signature that did not verify, or a
-                non-fast-forward — or HOMELAB_CONVERGE_APPLY=0 is set in
-                /etc/default/homelab-timers and this is the report-only mode
-                doing its job. docs/runbooks/converge-the-host.md.
+                non-fast-forward. If DeployApplyDisabled is firing too, it is
+                neither: the host is in report-only mode and this alert is that
+                mode's report. docs/runbooks/converge-the-host.md.
 
   # --- DeployUnverified: unsigned, and signed -----------------------------
   - interval: 1m
@@ -131,6 +131,42 @@ tests:
                 through a pull request. `git -C /home/robo/code/Gerrrt/HomeLab
                 log --show-signature -1` distinguishes them.
                 docs/runbooks/converge-the-host.md.
+
+  # --- DeployApplyDisabled: report-only, and applying --------------------
+  #
+  # The paired silent case is the one that matters: a host that IS applying must
+  # not report itself as deliberately stopped, or the alert stops meaning
+  # anything the moment it is used for its intended week.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_apply_enabled{instance="prometheus"}'
+        values: "0+0x480"
+      - series: 'homelab_deploy_apply_enabled{instance="oracle"}'
+        values: "1+0x480"
+    alert_rule_test:
+      - eval_time: 5h55m
+        alertname: DeployApplyDisabled
+        exp_alerts: []
+
+      - eval_time: 6h5m
+        alertname: DeployApplyDisabled
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployApplyDisabled
+              instance: prometheus
+              component: deploy
+              severity: info
+              category: correctness
+            exp_annotations:
+              summary: "Convergence is in report-only mode and is deploying nothing"
+              description: >-
+                HOMELAB_CONVERGE_APPLY=0 is set in
+                /etc/default/homelab-timers, so this host fetches, verifies and
+                records but applies nothing — deployment is back to being
+                something a human does. Intended as a temporary state while the
+                agent is watched. Remove the line and `systemctl restart
+                homelab-converge.timer` to let it act; this resolves on the next
+                run. docs/runbooks/converge-the-host.md.
 
   # --- DeployMetricsAbsent: the series is there ---------------------------
   #

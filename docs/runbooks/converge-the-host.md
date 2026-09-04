@@ -72,23 +72,50 @@ make converge ARGS=--dry-run
 A converged host prints `converged — <revision> is main` and nothing else. A
 host that is behind lists the commits it would apply and stops.
 
-### Optional: watch it for a week before letting it act
+### Start in report-only mode
 
-To install the timer but keep it from changing anything, put this in
-`/etc/default/homelab-timers` on the host:
+**This is how it is being rolled out.** The timer is installed and watched for a
+while before it is allowed to change anything. Do this before
+`make install-timers`, as root:
 
 ```bash
-HOMELAB_CONVERGE_APPLY=0
+printf 'HOMELAB_CONVERGE_APPLY=0\n' | sudo tee -a /etc/default/homelab-timers
 ```
 
-Every run then fetches, verifies and records, and applies nothing.
-`DeployBehind` fires whenever the host is behind — in this mode that alert *is*
-the report, and it firing is the expected state, not a fault. Remove the line
-and `systemctl restart homelab-converge.timer` when you want it to act.
+Every run then fetches, verifies and records, and applies nothing — deployment
+stays a thing a human does with `make up`.
+
+Two alerts describe that state together, and reading them as a pair is the
+point:
+
+- `DeployApplyDisabled` (info) says the host is deliberately not deploying. It
+  fires six hours in and **resolves by itself** on the first run after the line
+  is removed.
+- `DeployBehind` (warning) says how far behind it has got. In this mode that
+  alert *is* the report and firing is expected, not a fault.
+
+When only `DeployBehind` is firing, report-only is **not** the explanation and
+something is genuinely refusing — see §When it refuses.
+
+### Letting it act
+
+Remove the line, then restart the timer:
+
+```bash
+sudo sed -i '/^HOMELAB_CONVERGE_APPLY=0$/d' /etc/default/homelab-timers
+```
+
+```bash
+sudo systemctl restart homelab-converge.timer && sudo systemctl start homelab-converge.service
+```
+
+`DeployApplyDisabled` resolves on that run. Nothing else needs doing: the first
+convergence catches up however many commits have accumulated, in one
+fast-forward.
 
 ## What it records
 
-Five gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
+Six gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
 written on every exit path including the refusals, so a run that declined to
 move still reports what the host is on.
 
@@ -99,6 +126,7 @@ move still reports what the host is on.
 | `homelab_deploy_behind_commits` | How far behind `main`; `-1` means the fetch failed |
 | `homelab_deploy_tree_dirty` | Whether someone edited a file on the host |
 | `homelab_deploy_verified` | Whether the deployed revision has a valid signature |
+| `homelab_deploy_apply_enabled` | Whether this host applies what it fetches, or is in report-only mode |
 
 The quickest read of "what is this host running" is the journal, which Alloy
 already ships to Loki:
@@ -201,7 +229,9 @@ copy — so converging there would report success and change nothing. Run it fro
 | `DeployUnverified` right after install | GitHub's key is not in `robo`'s keyring, so nothing can verify | The import above. This is the expected state between installing the timer and doing it |
 | `DeployUnverified` with the key present | `HEAD` is a commit that did not come through a pull request — usually someone committing on the host | `git log --show-signature -1` on the host. Get the commit onto a branch and merge it properly |
 | `DeployDrifted` | A file was edited on the monitoring host | §"The tree is dirty". The edit is still there — this alert exists because it used to not be |
-| `DeployBehind` and nothing else | Convergence is refusing, or is in report-only mode | `journalctl -u homelab-converge.service -n 50` names the refusal. If `HOMELAB_CONVERGE_APPLY=0` is set, this is the mode working |
+| `DeployBehind` **with** `DeployApplyDisabled` | Report-only mode — the host is fetching and recording but not applying | Working as intended. §Letting it act when you want it to deploy |
+| `DeployBehind` **without** `DeployApplyDisabled` | Convergence is genuinely refusing | `journalctl -u homelab-converge.service -n 50` names the refusal; every case is in §When it refuses |
+| `DeployApplyDisabled` you did not expect | Somebody set `HOMELAB_CONVERGE_APPLY=0` and it was forgotten | That is what this alert is for. `grep CONVERGE /etc/default/homelab-timers` |
 | `DeployBehind` with `ScheduledJobFailed` | The refusal is real and recurring | The journal names it; every case is in §"When it refuses" |
 | `DeployMetricsAbsent` | `homelab-deploy.prom` stopped arriving, while the backup metrics still do | Two separate files fail independently. Check `node_textfile_scrape_error`, then the file itself. If the timer was never installed, `make install-timers` |
 | `homelab_job_last_exit_code{homelab_job="converge"}` is 75 | It never started — the weekly backup held the `backups` lock for the full 900s | Expected at most once a week, on Sunday. Persistent means a backup is hanging: `systemctl list-units 'homelab-*'` |

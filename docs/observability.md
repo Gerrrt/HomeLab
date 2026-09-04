@@ -256,7 +256,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-65 rules in total: 52 metric-based in `prometheus/rules/`, and 13 log-based in
+66 rules in total: 53 metric-based in `prometheus/rules/`, and 13 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -285,7 +285,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-52 rules across ten files in `prometheus/rules/`:
+53 rules across ten files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -307,11 +307,11 @@ and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/Ho
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is twenty-two rules of 52 so far — the five
+against the broken rule too. Coverage is twenty-three rules of 53 so far — the five
 in `blackbox.rules.yaml`, `ContainerHighMemory` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
-`backup.test.yaml`, all four in `deploy.test.yaml`, `RemoteWriteJobStale`,
+`backup.test.yaml`, all five in `deploy.test.yaml`, `RemoteWriteJobStale`,
 and `SuricataStopped`.
 The other 30 are still validated for syntax only, which is exactly the
 standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the

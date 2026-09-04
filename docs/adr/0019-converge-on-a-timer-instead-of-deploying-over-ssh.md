@@ -150,6 +150,7 @@ that declined to move still knows what the host is running.
 | `homelab_deploy_behind_commits` | How far behind `main` the host is; `-1` for "the fetch failed", so not-knowing cannot read as being-behind |
 | `homelab_deploy_tree_dirty` | Whether anyone edited the host |
 | `homelab_deploy_verified` | Whether the deployed revision carries a good signature |
+| `homelab_deploy_apply_enabled` | Whether the host applies what it fetches, or is in report-only mode |
 
 Because `converge` is an ordinary row in the `JOBS` table, `ScheduledJobStale`,
 `ScheduledJobFailed` and `ScheduledJobNeverRan` cover "the convergence stopped
@@ -186,16 +187,30 @@ converges the *configuration*; whether a running image still matches the digest
 `compose.yaml` names is `make check-digests`'s question, and answering it here
 would be two checks with one name.
 
-### Report-only exists, and it is one variable
+### Report-only exists, it is one variable, and it is how this ships
 
 `HOMELAB_CONVERGE_APPLY=0` in `/etc/default/homelab-timers` — the file every
 unit here already reads — makes every run fetch, verify and record while
-applying nothing. `DeployBehind` then fires as the report, which is what that
-mode is for.
+applying nothing.
 
-It is there because "let a timer restart my monitoring stack unattended" is a
-reasonable thing to want to watch before allowing, and because the alternative
-to a switch is not installing the timer, which is the state that produced #99.
+**That is the chosen rollout.** The timer goes on in report-only, and applying
+is switched on once it has been watched deciding correctly for a while. "Let a
+timer restart my monitoring stack unattended" is a reasonable thing to want to
+see working first, and the alternative to a switch is not installing the timer
+at all, which is the state that produced #99.
+
+The mode is a gauge, not just a file. `homelab_deploy_apply_enabled` is written
+with the rest of the record, because a mode that lives only in `/etc` on one
+host is unrecorded state — the exact thing this ADR exists to stop — and
+because without it `DeployBehind` could only say "it is refusing, OR
+report-only is set" and leave the operator to go and read a file.
+
+`DeployApplyDisabled` (info) reports the mode, and it is deliberately an alert
+rather than an issue on the roadmap: it fires six hours in, and it **resolves by
+itself** on the first run after the line is removed. There is nothing to close
+and no way to leave it stale, which is the failure mode a tracked task for
+"remember to turn this on" would have. Being temporary is enforced by the thing
+itself rather than by anyone remembering.
 
 ## Consequences
 
@@ -204,11 +219,13 @@ to a switch is not installing the timer, which is the state that produced #99.
   changes is that the host no longer waits to be told.
 
 - **A merged pull request reaches the monitoring host within an hour, with no
-  human in the loop.** That is the point, and it is also the cost. Merging
-  becomes deploying, so a change that would break the stack breaks it at 03:25
-  rather than when someone was watching. The mitigations are the ones this
-  repository already leans on — `make validate` in CI on every pull request, and
-  a stack whose failure is loud.
+  human in the loop — once report-only is switched off.** That is the point, and
+  it is also the cost. Merging becomes deploying, so a change that would break
+  the stack breaks it at 03:25 rather than when someone was watching. The
+  mitigations are the ones this repository already leans on — `make validate` in
+  CI on every pull request, and a stack whose failure is loud. Until the switch
+  is flipped, `DeployBehind` and `DeployApplyDisabled` fire as a pair and
+  deployment stays manual.
 
 - **One new setup step, and it fails loudly rather than silently.** GitHub's
   web-flow key has to be imported into `robo`'s keyring once. Until it is,
