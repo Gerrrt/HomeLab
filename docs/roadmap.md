@@ -154,8 +154,8 @@ issues intact. Nothing was summarised away.
   The real cost is not the two rules but a pinning decision for APC's MIB in
   `scripts/snmp-mibs.sh`, which has no first-party git ref to point at.
   → [runbook](runbooks/fit-the-ups-battery.md)
-- **[#123](https://github.com/Gerrrt/HomeLab/issues/123) Make a dead AdGuard
-  visible.** The failure
+- **[#102](https://github.com/Gerrrt/HomeLab/issues/102) Turn on the AdGuard
+  probe once the machine exists.** The failure
   [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) chose on purpose:
   filtering fails open, so losing it costs advertisements rather than
   connectivity and nobody in the house reports it. That is
@@ -180,11 +180,24 @@ issues intact. Nothing was summarised away.
   has already agreed not to ship. Uncommenting it is two lines and a verify,
   and it belongs to #102.
 
-  The rest of #123 closed with ADR-0010 and the verification appended to it on
-  2026-09-04. What is left sits outside this repository: one line for the family
-  runbook in `Gerrrt/Lemmiwinks` covering *filtering is down and the internet is
-  fine*, which presents as advertisements returning rather than as an outage.
-  That is a note to whoever maintains that page, not a tenth step in the walk.
+  **This entry was headed #123 until 2026-09-04**, and is re-headed rather than
+  deleted because the work outlived the issue. #123 asked whether moving DNS off
+  the gateway adds a quiet way to lose the internet; ADR-0010 and the
+  verification appended to it answered that, and #123 closed. #126 was the same
+  detection filed separately and closed with it. What survived both is the
+  paragraph above, which is #102's to land — so it is filed under #102 here
+  rather than left pointing at a closed issue, which is the failure this file
+  keeps finding in itself.
+
+  What is left outside this repository: one line for the family runbook in
+  `Gerrrt/Lemmiwinks` covering *filtering is down and the internet is fine*,
+  which presents as advertisements returning rather than as an outage. Held
+  until the machine exists, for the same reason the target is — today there is
+  no filtering to lose, so it would describe a symptom that cannot occur. Two
+  edits there come due in the same sitting: the "there isn't a Pi-hole" bullet
+  in `runbooks/dns_is_broken` stops being true as written, and that page's
+  source note deserves a line saying this was the one thing that did need
+  writing. A note to whoever maintains those pages, not a tenth step in the walk.
 - **[#292](https://github.com/Gerrrt/HomeLab/issues/292) Detect pfSense version
   drift from the box.** `morpheus` was recorded as pfSense CE 2.8.1 on FreeBSD
   15 in eleven places while running **2.9.0-RELEASE on FreeBSD 16.0-CURRENT**;
