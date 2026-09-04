@@ -313,9 +313,30 @@ what left this one unfireable for months.
 
 ## Automation
 
-- **[#98](https://github.com/Gerrrt/HomeLab/issues/98) Home Assistant ↔ the eero
-  API**, so device joins and leaves are events rather than accidents. Blocked
-  behind ADR-0008's sensitive tier.
+- **[#98](https://github.com/Gerrrt/HomeLab/issues/98) Device joins as events.**
+  Answered by
+  [ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md), which keeps
+  the issue's landing site and changes its source. The events belong in Loki
+  and in `security.rules.yaml` — that part was right. But "the eero API" is a
+  cloud API: there is no local one, the integration everyone means is a HACS
+  component polling `api-user.e2ro.com` every 120 seconds, and it cannot log in
+  with an Amazon-linked account. Routing a question about this network's own
+  wire through Amazon makes the answer late and makes it disappear whenever the
+  WAN does. **`morpheus` already knows.** The eeros are bridged, Kea serves
+  every segment, and 1,200 lease lines a day are one pfSense checkbox from the
+  1514 listener that already carries filterlog. Three rules land in the `dhcp`
+  group: first lease on Hicks in seven days (warning), the same on Winterfell
+  (critical, and zero in 13 days of logs), and `DhcpLeaseLogsStopped`, because
+  the other two fail silently. Measured cost on Hicks: about one alert every
+  three days, and every one of the five in the sample was worth a look — two of
+  them an OUI the inventory places on Skids. **No longer blocked behind
+  ADR-0008's sensitive tier**, and leaves are dropped rather than deferred: 9
+  releases against 4,732 allocations in four days, and a departure is not a
+  security event. What is left is ticking **DHCP Events** on `morpheus` —
+  before the rules deploy, or `DhcpLeaseLogsStopped` fires truthfully — and
+  reading the first week, which is one alert per device and therefore an
+  inventory check.
+  → [runbook](runbooks/ship-firewall-logs.md)
 - **[#99](https://github.com/Gerrrt/HomeLab/issues/99) Move deployment from
   `make up` over SSH to something pull-based**, so the host converges on the repo
   rather than being pushed to.
