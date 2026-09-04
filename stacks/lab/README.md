@@ -63,11 +63,11 @@ thing entirely on this segment.
 
 ## Things worth knowing before editing
 
-- **Nothing here is validated by CI yet.** Every checker in this repository is
-  pinned to `stacks/observability` — `validate.sh`, the four Python checkers,
-  `check_loki_rules.sh`, `seed-validation-env.sh` and `ci.yml`. Making them
-  multi-stack is [#263]. Until it lands, run the checks against this stack by
-  hand; the commands are at the bottom of this file.
+- **CI validates this stack.** It did not when the directory first landed —
+  every checker was pinned to `stacks/observability` — and [#263] fixed that:
+  `scripts/stacks.sh` is now the one definition of what a stack is, and
+  `validate.sh`, `ci.yml`, `pin-digests.sh` and the Python checkers all read it.
+  What that does *not* cover is stated below.
 - **Nothing converges this stack, either.** [#99] replaced deploying over SSH
   with `scripts/converge.sh` on an hourly timer, and that script runs a bare
   `make up` — which is `STACK=observability`, on the monitoring host. This
@@ -102,18 +102,26 @@ thing entirely on this segment.
 
 ## Validate before deploying
 
-`make validate` does **not** cover this stack ([#263]). Until it does:
-
 ```bash
-make check-rules STACK=lab
+make validate
 ```
 
-That target already follows `STACK`, because it uses `$(STACK_DIR)`. The rest
-needs the image directly:
+Covers this stack and the estate's together, and names which is which on every
+line. `make check-rules STACK=lab` narrows it to this stack's Prometheus rules
+and their unit tests.
 
-```bash
-docker compose -f stacks/lab/compose.yaml config -q
-```
+What `make validate` still does **not** prove about this stack, in the order it
+matters:
+
+- **That it runs.** Nothing here has ever been deployed — the guest is [#262].
+  Every check is static: configs parse, images resolve, healthcheck binaries
+  exist inside their pinned images. None of it says the four services come up
+  and talk to each other.
+- **That its Grafana serves.** `check_dashboard_roundtrip.sh` boots the pinned
+  Grafana against the estate's dashboards; this stack has none to round-trip,
+  so that check has nothing to say here.
+- **That the retention figures are right.** They are a bound, not a
+  measurement — see above.
 
 [#99]: https://github.com/Gerrrt/HomeLab/issues/99
 [#88]: https://github.com/Gerrrt/HomeLab/issues/88

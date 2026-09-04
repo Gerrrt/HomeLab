@@ -14,7 +14,23 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}" || exit 1
 
-STACK="stacks/observability"
+# Every stack, from the one place that defines what a stack is. This was
+# `STACK="stacks/observability"`, which is why `stacks/lab` landed as a stack
+# CI had never seen — its compose was not `config`-checked, its rules were not
+# promtool-tested, its images were pinned by nothing (#263).
+#
+# A failure here is fatal rather than an empty loop: stacks.sh exits non-zero
+# on a directory under stacks/ with no compose.yaml, and silently validating
+# zero stacks is the precise defect this is fixing.
+# Command substitution and not `mapfile < <(...)`: a process substitution's
+# exit status is not mapfile's, so `if ! mapfile ...` succeeds even when
+# stacks.sh has just refused — which would turn "a stack nothing checks" into
+# "no stacks checked at all", reported as a pass.
+if ! STACK_LIST="$(./scripts/stacks.sh)"; then
+  printf '\033[0;31merror:\033[0m could not list the stacks — see above\n' >&2
+  exit 1
+fi
+mapfile -t STACKS <<< "${STACK_LIST}"
 # Resolved from compose.yaml so Dependabot's bumps reach the checks. Hardcoding
 # these meant CI validated Prometheus v3.1.0 configs while the stack ran v3.13.2.
 PROM_IMAGE="$(./scripts/image-for.sh prometheus)"
@@ -35,6 +51,21 @@ head_() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 have_docker() { have docker && docker info >/dev/null 2>&1; }
+
+# Whether ANY stack is up on this machine. Used to decide whether this is a
+# deployment host, which was previously "is the observability stack running".
+# The lab stack runs on its own guest, and a host running only that one is
+# still a deployment host with timers to install.
+stack_running() {
+  local stack
+  for stack in "${STACKS[@]}"; do
+    if docker compose -f "stacks/${stack}/compose.yaml" ps --status running -q 2>/dev/null \
+       | grep -q .; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 # One trap for every temporary file this script owns. A second `trap ... EXIT`
 # replaces the first rather than adding to it, so they are registered together
@@ -60,17 +91,24 @@ head_ "Compose"
 if have docker; then
   # A .env is required for the ${VAR:?} guards; seeded by the same script CI
   # uses, so a variable added there cannot pass locally and fail in CI. Written
-  # to a temp file rather than ${STACK}/.env so a local run never leaves an .env
+  # to a temp file rather than ${sd}/.env so a local run never leaves an .env
   # sitting next to a real one.
+  #
+  # Seeded PER STACK, because the guard list is derived from that stack's own
+  # compose.yaml. Seeding every stack from the estate's guards would prove
+  # nothing about the file being validated.
   TMP_ENV="$(mktemp)"
-  if ! ./scripts/seed-validation-env.sh "${TMP_ENV}"; then
-    fail "seed a validation-only .env"
-  elif docker compose --env-file "${TMP_ENV}" -f "${STACK}/compose.yaml" config -q 2>/dev/null; then
-    pass "docker compose config"
-  else
-    docker compose --env-file "${TMP_ENV}" -f "${STACK}/compose.yaml" config -q
-    fail "docker compose config"
-  fi
+  for stack in "${STACKS[@]}"; do
+    sd="stacks/${stack}"
+    if ! ./scripts/seed-validation-env.sh "${TMP_ENV}" "${stack}"; then
+      fail "${stack}: seed a validation-only .env"
+    elif docker compose --env-file "${TMP_ENV}" -f "${sd}/compose.yaml" config -q 2>/dev/null; then
+      pass "${stack}: docker compose config"
+    else
+      docker compose --env-file "${TMP_ENV}" -f "${sd}/compose.yaml" config -q
+      fail "${stack}: docker compose config"
+    fi
+  done
 else
   skip "docker not installed"
 fi
@@ -87,30 +125,61 @@ else
 fi
 
 if ((${#PROMTOOL[@]})); then
-  if "${PROMTOOL[@]}" check config "${STACK}/prometheus/prometheus.yaml" 2>&1 \
-      | grep -qE '^\s*SUCCESS'; then
-    pass "promtool check config"
-  else
-    "${PROMTOOL[@]}" check config "${STACK}/prometheus/prometheus.yaml"
-    fail "promtool check config"
-  fi
+  for stack in "${STACKS[@]}"; do
+    sd="stacks/${stack}"
+    # A stack need not run Prometheus at all. Absence is reported and moved
+    # past rather than skipped: a skip means "could not check", and this ran
+    # and found nothing to check. Inflating SKIPPED with by-design absences is
+    # how the count stops being read (#68).
+    if [[ ! -f "${sd}/prometheus/prometheus.yaml" ]]; then
+      pass "${stack}: no prometheus.yaml — nothing to check"
+      continue
+    fi
 
-  if "${PROMTOOL[@]}" check rules "${STACK}"/prometheus/rules/*.rules.yaml >/dev/null 2>&1; then
-    pass "promtool check rules"
-  else
-    "${PROMTOOL[@]}" check rules "${STACK}"/prometheus/rules/*.rules.yaml
-    fail "promtool check rules"
-  fi
+    if "${PROMTOOL[@]}" check config "${sd}/prometheus/prometheus.yaml" 2>&1 \
+        | grep -qE '^\s*SUCCESS'; then
+      pass "${stack}: promtool check config"
+    else
+      "${PROMTOOL[@]}" check config "${sd}/prometheus/prometheus.yaml"
+      fail "${stack}: promtool check config"
+    fi
 
-  # `check rules` only parses PromQL; it cannot tell whether an expression can
-  # ever be true. ContainerHighMemory passed it for months while being
-  # unfireable (#63). The unit tests are what actually assert the rules fire.
-  if "${PROMTOOL[@]}" test rules "${STACK}"/prometheus/tests/*.test.yaml >/dev/null 2>&1; then
-    pass "promtool test rules"
-  else
-    "${PROMTOOL[@]}" test rules "${STACK}"/prometheus/tests/*.test.yaml
-    fail "promtool test rules"
-  fi
+    # nullglob so an absent rules/ or tests/ directory does not hand promtool
+    # the literal glob, which it reports as a missing file — a failure that
+    # reads as a broken rule rather than as a stack that has none.
+    shopt -s nullglob
+    rule_files=("${sd}"/prometheus/rules/*.rules.yaml)
+    test_files=("${sd}"/prometheus/tests/*.test.yaml)
+    shopt -u nullglob
+
+    if ((${#rule_files[@]} == 0)); then
+      pass "${stack}: no alert rules — nothing to check"
+    elif "${PROMTOOL[@]}" check rules "${rule_files[@]}" >/dev/null 2>&1; then
+      pass "${stack}: promtool check rules (${#rule_files[@]} file(s))"
+    else
+      "${PROMTOOL[@]}" check rules "${rule_files[@]}"
+      fail "${stack}: promtool check rules"
+    fi
+
+    # `check rules` only parses PromQL; it cannot tell whether an expression can
+    # ever be true. ContainerHighMemory passed it for months while being
+    # unfireable (#63). The unit tests are what actually assert the rules fire.
+    #
+    # Rules with no tests is a FAIL and not a pass-with-a-note, and that is the
+    # one place this loop is stricter than the old single-stack version. A new
+    # stack arriving with rules and no tests is #63 waiting to happen, and the
+    # moment to say so is when the rules land.
+    if ((${#rule_files[@]} == 0)); then
+      :
+    elif ((${#test_files[@]} == 0)); then
+      fail "${stack}: ${#rule_files[@]} rule file(s) and no promtool tests — a rule that cannot fire passes 'check rules' (#63)"
+    elif "${PROMTOOL[@]}" test rules "${test_files[@]}" >/dev/null 2>&1; then
+      pass "${stack}: promtool test rules (${#test_files[@]} file(s))"
+    else
+      "${PROMTOOL[@]}" test rules "${test_files[@]}"
+      fail "${stack}: promtool test rules"
+    fi
+  done
 else
   skip "no promtool and no docker daemon"
 fi
@@ -129,12 +198,24 @@ fi
 
 # The receiver URL comes from url_file, which Alertmanager reads at notify time
 # rather than at load time — so this validates without any secret present.
-if ((${#AMTOOL[@]})); then
+# Which stacks have an Alertmanager at all. `stacks/lab` has none by decision
+# (ADR-0020), so there is no config to parse and no routing tree to assert
+# against — the ROUTES table below describes the estate's tree specifically.
+am_stacks=()
+for stack in "${STACKS[@]}"; do
+  [[ -f "stacks/${stack}/alertmanager/alertmanager.yaml" ]] && am_stacks+=("${stack}")
+done
+
+if ((${#am_stacks[@]} == 0)); then
+  pass "no stack runs an Alertmanager — nothing to check"
+elif ((${#AMTOOL[@]})); then
+ for stack in "${am_stacks[@]}"; do
+  STACK="stacks/${stack}"
   if "${AMTOOL[@]}" check-config "${STACK}/alertmanager/alertmanager.yaml" >/dev/null 2>&1; then
-    pass "amtool check-config"
+    pass "${stack}: amtool check-config"
   else
     "${AMTOOL[@]}" check-config "${STACK}/alertmanager/alertmanager.yaml"
-    fail "amtool check-config"
+    fail "${stack}: amtool check-config"
   fi
 
   # check-config proves the tree parses and that every route names a receiver
@@ -175,10 +256,11 @@ null      severity=info category=correctness
 ROUTES
 
   if ((routes_ok)); then
-    pass "amtool config routes test (8 assertions)"
+    pass "${stack}: amtool config routes test (8 assertions)"
   else
-    fail "amtool config routes test"
+    fail "${stack}: amtool config routes test"
   fi
+ done
 else
   skip "no amtool and no docker daemon"
 fi
@@ -201,13 +283,25 @@ fi
 # monitoring host mounts all of them, and deploy-agent.sh ships a subset. One
 # unformatted file used to be impossible to have; now it is one `fmt -w` away
 # from being missed, and this is the check that misses nothing.
-if ((${#ALLOY[@]})); then
-  for alloy_file in "${STACK}"/alloy/*.alloy; do
+# Every *.alloy in the repository, found rather than assumed to live under one
+# stack. `stacks/lab` has no alloy/ directory — it mounts config.alloy and
+# docker.alloy straight out of stacks/observability/alloy/ (ADR-0007's "reused
+# unchanged"), so those files are checked once here and are the same bytes both
+# stacks run. A stack that grows its own agent config is picked up with no
+# change to this block.
+shopt -s nullglob globstar
+alloy_files=(stacks/**/alloy/*.alloy)
+shopt -u nullglob globstar
+
+if ((${#alloy_files[@]} == 0)); then
+  fail "no *.alloy anywhere under stacks/ — the agent config has gone missing"
+elif ((${#ALLOY[@]})); then
+  for alloy_file in "${alloy_files[@]}"; do
     if "${ALLOY[@]}" fmt --test "${alloy_file}" >/dev/null 2>&1; then
-      pass "alloy fmt --test ${alloy_file##*/}"
+      pass "alloy fmt --test ${alloy_file#stacks/}"
     else
       "${ALLOY[@]}" fmt --test "${alloy_file}"
-      fail "alloy fmt --test ${alloy_file##*/}"
+      fail "alloy fmt --test ${alloy_file#stacks/}"
     fi
   done
 else
@@ -230,10 +324,22 @@ if have python3; then
   else
     skip "no docker daemon — healthcheck binaries not probed inside their images"
   fi
-  if "${HEALTH[@]}"; then
-    pass "compose health dependencies"
+  for stack in "${STACKS[@]}"; do
+    if "${HEALTH[@]}" "stacks/${stack}/compose.yaml"; then
+      pass "${stack}: compose health dependencies"
+    else
+      fail "${stack}: compose health dependencies"
+    fi
+  done
+
+  # The half no single file can answer: a SERVICES entry, or an
+  # ABSENT_BINARIES claim, naming a service that exists in NO stack. Both
+  # checks had to stop treating "absent from this compose file" as a defect
+  # once a second stack existed, and this is where that catch went.
+  if python3 scripts/check_compose_health.py --cross-stack; then
+    pass "reloaded and claimed services all exist in some stack"
   else
-    fail "compose health dependencies"
+    fail "reloaded and claimed services all exist in some stack"
   fi
 else
   skip "python3 not installed"
@@ -265,22 +371,26 @@ head_ "Loki rules and dashboard LogQL"
 # a pass here and left SKIPPED untouched — so this script could sign off with an
 # unqualified "all checks passed" over rules it never validated (#68).
 LOKI_SKIPS="$(mktemp)"
-if ./scripts/check_loki_rules.sh --skips-file "${LOKI_SKIPS}"; then
-  :
-else
-  FAILED=1
-fi
+for stack in "${STACKS[@]}"; do
+  if ./scripts/check_loki_rules.sh --stack "${stack}" --skips-file "${LOKI_SKIPS}"; then
+    :
+  else
+    FAILED=1
+  fi
+done
 SKIPPED=$((SKIPPED + $(wc -l < "${LOKI_SKIPS}")))
 
 # ---------------------------------------------------------------------------
 head_ "Grafana dashboards"
 # ---------------------------------------------------------------------------
 if have python3; then
-  if python3 scripts/check_dashboards.py; then
-    pass "dashboard JSON and datasource references"
-  else
-    fail "dashboard JSON and datasource references"
-  fi
+  for stack in "${STACKS[@]}"; do
+    if python3 scripts/check_dashboards.py --stack "${stack}"; then
+      pass "${stack}: dashboard JSON and datasource references"
+    else
+      fail "${stack}: dashboard JSON and datasource references"
+    fi
+  done
 else
   skip "python3 not installed"
 fi
@@ -395,8 +505,8 @@ if ! have systemctl; then
   skip "systemctl absent — cannot tell whether the schedule is installed"
 elif ! have_docker; then
   skip "docker unavailable — cannot tell whether this is the deployment host"
-elif ! docker compose -f "${STACK}/compose.yaml" ps --status running -q 2>/dev/null | grep -q .; then
-  skip "the stack is not running here — this is not the deployment host"
+elif ! stack_running; then
+  skip "no stack is running here — this is not a deployment host"
 elif systemctl list-unit-files 'homelab-*' --no-legend 2>/dev/null | grep -q .; then
   pass "the schedule is installed on this host"
 else
@@ -445,8 +555,12 @@ fi
 # certificates/ is in that list because its contents were committed once and
 # had to be removed by rewriting every commit in the repository. The cheapest
 # possible check is that it never becomes tracked again.
-if git ls-files --error-unmatch "${STACK}/.env" >/dev/null 2>&1 \
-   || git ls-files "${STACK}/snmp-exporter/.rendered" | grep -q . \
+# Every stack's, not one stack's: a second stack means a second .env holding a
+# decrypted Grafana password, and the check that it never becomes tracked has
+# to grow with it. `git ls-files 'stacks/*/.env'` rather than a loop, so a
+# stack added without touching this file is still covered.
+if git ls-files 'stacks/*/.env' | grep -q . \
+   || git ls-files 'stacks/*/.rendered' 'stacks/*/*/.rendered' | grep -q . \
    || git ls-files | grep -q '\.purge-secrets\.txt' \
    || git ls-files | grep -q '^certificates/' \
    || git ls-files | grep -q '^backups/'; then

@@ -31,10 +31,12 @@ they are what `scripts/check_dashboards.py` enforces.
 
 Two things about this stack specifically:
 
-- **`check_dashboards.py` does not enforce them here.** That checker is pinned
-  to `stacks/observability`, along with every other validator in the
-  repository. Making them multi-stack is [#263]. Until it lands, a dashboard
-  committed to this directory is checked by nothing, so check it by hand.
+- **`check_dashboards.py` does enforce them here**, since [#263] made the
+  validators multi-stack. A dashboard committed to this directory is checked by
+  `make validate` and by CI the same way the estate's seven are: JSON validity,
+  unique uid, provisioned datasource references, and its PromQL and LogQL
+  parsed by promtool and by Loki's own ruler. Today it reports "no dashboards
+  — nothing to check", which is a pass and not a skip.
 - **`make dashboards-export STACK=lab` works, and nothing reminds you to run
   it.** `scripts/export-dashboards.sh` takes a stack argument, and the provider
   here sets `allowUiUpdates: true` so that it can. What the lab does not have

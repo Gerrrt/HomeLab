@@ -34,6 +34,11 @@ import re
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
+
+# Rebound by main() from --stack. They stay module-level because
+# declared_datasources() and the emit paths read them, and threading a stack
+# through six call sites to avoid two `global` statements would be the worse
+# trade.
 DASHBOARDS = REPO / "stacks/observability/grafana/dashboards"
 DATASOURCES = REPO / "stacks/observability/grafana/provisioning/datasources/datasources.yaml"
 
@@ -276,7 +281,25 @@ def main() -> int:
                       help="print dashboard PromQL as a rules file for promtool")
     emit.add_argument("--emit-logql", action="store_true",
                       help="print dashboard LogQL as a rules file for Loki's ruler")
+    parser.add_argument("--stack", default="observability",
+                        help="stack under stacks/ to check (default: observability)")
     args = parser.parse_args()
+
+    global DASHBOARDS, DATASOURCES
+    stack_dir = REPO / "stacks" / args.stack
+    if not (stack_dir / "compose.yaml").is_file():
+        print(f"no such stack: {stack_dir}", file=sys.stderr)
+        return 1
+    DASHBOARDS = stack_dir / "grafana/dashboards"
+    DATASOURCES = stack_dir / "grafana/provisioning/datasources/datasources.yaml"
+
+    # ALLOY_DIR is deliberately NOT stack-relative. The agent config is one
+    # directory shared by every stack — stacks/lab mounts config.alloy and
+    # docker.alloy straight out of stacks/observability/alloy/ rather than
+    # copying them (ADR-0007's "reused unchanged") — so the level vocabulary it
+    # defines is a property of the repository, not of whichever stack is being
+    # checked. Making it stack-relative would look tidier and would check the
+    # lab's dashboards against an alloy directory that does not exist.
 
     declared = declared_datasources()
     known = set(declared) | BUILTIN_UIDS
@@ -289,8 +312,27 @@ def main() -> int:
 
     files = sorted(DASHBOARDS.glob("*.json"))
     if not files:
-        print(f"no dashboards found in {DASHBOARDS}", file=sys.stderr)
-        return 1
+        # Not an error. `stacks/lab` ships no dashboards on purpose — copying
+        # the estate's seven would render four rows of empty panels, and an
+        # empty panel is indistinguishable from a broken collector. A stack is
+        # allowed to have none.
+        #
+        # This does not weaken the guard against the estate's dashboards
+        # disappearing: check_docs.py counts them and asserts the count against
+        # the prose that claims seven, so observability reaching zero fails
+        # there, in the check that owns that claim.
+        # The emit paths stay STRICT, and that is the half that matters. Their
+        # callers hand the output to promtool or to Loki's ruler as the file
+        # that proves the panel queries parse, so emitting an empty file over a
+        # vanished dashboard directory would pass those checks over nothing —
+        # which is the #68 shape. check_loki_rules.sh therefore only asks for an
+        # emit when the stack actually has dashboards, and a request that
+        # arrives anyway is a bug worth failing on.
+        if args.emit_promql or args.emit_logql:
+            print(f"no dashboards found in {DASHBOARDS}", file=sys.stderr)
+            return 1
+        print(f"no dashboards in {DASHBOARDS.relative_to(REPO)} — nothing to check")
+        return 0
 
     for path in files:
         name = path.name

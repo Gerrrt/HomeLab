@@ -179,12 +179,25 @@ check-timers: ## Verify the schedule and its staleness thresholds agree
 	./scripts/install-timers.sh --check
 
 .PHONY: pin-digests
-pin-digests: ## Re-resolve image digests in compose.yaml (--write applies)
-	./scripts/pin-digests.sh --write
+pin-digests: ## Re-resolve image digests in every stack's compose.yaml (--write applies)
+	@# Every stack, not just the estate's. pin-digests.sh takes one compose file
+	@# and rewrites it in place, which is the right shape for the work it does —
+	@# so the loop lives here rather than inside it, driven by the same
+	@# scripts/stacks.sh that validate.sh and ci.yml read. Left single-stack,
+	@# `stacks/lab`'s digests would be re-resolved by nothing and verified by
+	@# nothing, which is the #263 defect in the one place it costs a supply-chain
+	@# guarantee rather than a test.
+	@set -e; for sd in $$(./scripts/stacks.sh --paths); do \
+		printf '\033[0;34m--\033[0m %s\n' "$$sd"; \
+		COMPOSE_FILE="$$sd/compose.yaml" ./scripts/pin-digests.sh --write; \
+	done
 
 .PHONY: check-digests
 check-digests: ## Verify pinned digests still match the registry
-	./scripts/pin-digests.sh
+	@set -e; for sd in $$(./scripts/stacks.sh --paths); do \
+		printf '\033[0;34m--\033[0m %s\n' "$$sd"; \
+		COMPOSE_FILE="$$sd/compose.yaml" ./scripts/pin-digests.sh; \
+	done
 
 .PHONY: scan
 scan: ## Scan the working tree and history for secrets
