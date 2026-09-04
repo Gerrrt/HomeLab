@@ -138,6 +138,21 @@ check-compose-health: ## Verify health deps are satisfiable, probe the images (n
 check-loki-rules: ## Validate Loki (LogQL) alerting rules and dashboard panel queries
 	./scripts/check_loki_rules.sh
 
+.PHONY: check-dashboard-roundtrip
+check-dashboard-roundtrip: ## Boot the pinned Grafana and verify the dashboards round-trip
+	@# Under Validation and not Maintenance, unlike `dashboards-export` below,
+	@# because it needs neither a secret nor the live stack: it boots a
+	@# throwaway Grafana from the pinned image, provisions the committed JSON
+	@# into it and reads it back. Same shape and the same reasoning as
+	@# `check-loki-rules` — the only thing that genuinely understands the format
+	@# is the thing that will serve it.
+	@#
+	@# It also asserts that Grafana still ACCEPTS a save to a provisioned
+	@# dashboard. That is not incidental: while allowUiUpdates is false the
+	@# export is a silent no-op, so this is the check standing between #100 and
+	@# a command that succeeds without doing anything.
+	./scripts/check_dashboard_roundtrip.sh
+
 .PHONY: check-image-pins
 check-image-pins: ## Verify every docker image comes from compose.yaml
 	python3 scripts/check_image_pins.py
@@ -313,6 +328,24 @@ screenshots: ## Render the dashboards to docs/images/ (stack must be up)
 	@# again. Review every image before committing — docs/images/README.md says
 	@# what to look for.
 	./scripts/capture-screenshots.sh $(STACK)
+
+.PHONY: dashboards-export
+dashboards-export: ## Pull the dashboards out of the running Grafana into git (ARGS=--check)
+	@# Under Maintenance, not Validation, for the same reason as `screenshots`:
+	@# it needs the decrypted Grafana password and a running stack, so it must
+	@# never be reachable from `make validate`, where it would either always skip
+	@# or ask CI for a secret. `make check-dashboard-roundtrip` is the half that
+	@# belongs there.
+	@#
+	@# The loop this replaces was Dashboard settings → JSON Model, select all,
+	@# copy, paste over the file — manual, and therefore skipped under pressure
+	@# (#100). It is now: edit in the UI, run this, read `git diff`.
+	@#
+	@# ARGS=--check writes nothing and exits non-zero when the running Grafana
+	@# holds an edit that git does not. That is the half that makes
+	@# allowUiUpdates: true safe rather than merely convenient, and it is what
+	@# the `dashboards-drift` timer runs — see systemd/homelab-dashboards-drift.
+	./scripts/export-dashboards.sh $(ARGS) $(STACK)
 
 .PHONY: backup-firewall
 backup-firewall: ## Pull morpheus's pfSense config, encrypt it to ./backups/, copy it to oracle

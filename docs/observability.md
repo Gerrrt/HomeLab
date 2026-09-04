@@ -117,13 +117,31 @@ folder:
 | Observability Stack | `homelab-stack` | Scrape health for every target, and Prometheus, Loki, Alertmanager and Alloy watching themselves |
 | Security | `homelab-security` | Firewall blocks by interface and direction, top blocked sources, Suricata classification and priority, terminal-segment violations |
 
-`allowUiUpdates` is `false`, so edits made in the Grafana UI are discarded on
-restart. That is deliberate — the JSON in git is the source of truth. To change
-a dashboard: edit it in the UI, **Dashboard settings → JSON Model**, copy, and
-commit it over the file. CI checks the result parses, that every datasource UID
-resolves, that panels fit the grid and do not overlap, and that every panel
-expression is syntactically valid — PromQL through `promtool`, LogQL through a
-real Loki, since nothing else parses it.
+The JSON in git is the source of truth: Grafana re-provisions over its own copy
+whenever a file changes, so a UI edit never outlives the next commit that
+touches its dashboard. To change one, edit it in the UI, save, and run:
+
+```bash
+make dashboards-export        # ARGS=--check to report drift and write nothing
+```
+
+That pulls every dashboard back by uid and writes it over the file, so the loop
+is edit → one command → `git diff`. It replaced a hand copy out of **Dashboard
+settings → JSON Model** ([#100](https://github.com/Gerrrt/HomeLab/issues/100)),
+and making it work meant setting `allowUiUpdates: true`: with `false`, Grafana
+refuses to *store* a UI edit at all, so the export could only ever hand back the
+file it started from — a silent no-op over the edit it was meant to capture.
+What that flag used to guarantee is now bought explicitly, by the daily
+`dashboards-drift` job and by a CI check that the save path still works;
+[`grafana/dashboards/README.md`](../stacks/observability/grafana/dashboards/README.md)
+has the whole trade, and what the export drops and refuses to overwrite.
+
+CI checks the result parses, that every datasource UID resolves, that panels fit
+the grid and do not overlap, and that every panel expression is syntactically
+valid — PromQL through `promtool`, LogQL through a real Loki, since nothing else
+parses it. It also boots the pinned Grafana image and asserts the committed JSON
+is what Grafana produces from it, so an export never arrives as a diff nobody
+can read.
 
 ### Watching the collection path
 

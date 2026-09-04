@@ -43,11 +43,13 @@ TMP_ENV=""
 LINT_SKIPS=""
 LOKI_SKIPS=""
 TIMER_SKIPS=""
+ROUNDTRIP_SKIPS=""
 cleanup() {
   [[ -n "${TMP_ENV}" ]] && rm -f "${TMP_ENV}"
   [[ -n "${LINT_SKIPS}" ]] && rm -f "${LINT_SKIPS}"
   [[ -n "${LOKI_SKIPS}" ]] && rm -f "${LOKI_SKIPS}"
   [[ -n "${TIMER_SKIPS}" ]] && rm -f "${TIMER_SKIPS}"
+  [[ -n "${ROUNDTRIP_SKIPS}" ]] && rm -f "${ROUNDTRIP_SKIPS}"
   return 0
 }
 trap cleanup EXIT
@@ -282,6 +284,20 @@ if have python3; then
 else
   skip "python3 not installed"
 fi
+
+# check_dashboards.py reads the JSON; this boots the pinned Grafana and makes it
+# serve the JSON back. They answer different questions and neither covers the
+# other: the first says the dashboards are internally coherent, the second says
+# the committed form is the form Grafana produces — and that a UI edit can still
+# be saved at all, which is the one condition `make dashboards-export` cannot
+# work without and cannot detect for itself (#100).
+#
+# Owns its own skips file for the same reason check_loki_rules.sh does: it
+# prints its own SKIP and exits 0 with no docker, which would read as a pass
+# here and leave SKIPPED untouched (#68).
+ROUNDTRIP_SKIPS="$(mktemp)"
+./scripts/check_dashboard_roundtrip.sh --skips-file "${ROUNDTRIP_SKIPS}" || FAILED=1
+SKIPPED=$((SKIPPED + $(wc -l < "${ROUNDTRIP_SKIPS}")))
 
 # ---------------------------------------------------------------------------
 head_ "Documentation"

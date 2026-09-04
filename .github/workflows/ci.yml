@@ -295,6 +295,19 @@ jobs:
           docker run --rm --entrypoint promtool \
             -v /tmp:/tmp "$PROM_IMAGE" check rules /tmp/dashboard-exprs.yaml
 
+      # The step above reads the dashboard JSON; this one makes Grafana serve it
+      # back. Grafana does not return what it was given — it sorts keys, HTML-
+      # escapes `&` and migrates old schema versions — so without this the first
+      # real `make dashboards-export` rewrites all seven files and buries the one
+      # diff that matters.
+      #
+      # It also asserts Grafana still accepts a save to a provisioned dashboard.
+      # That is the condition the whole export depends on and the one it cannot
+      # detect for itself: with allowUiUpdates back at false the command still
+      # succeeds, still exits zero, and silently writes nothing (#100).
+      - name: Verify the dashboards round-trip through Grafana
+        run: ./scripts/check_dashboard_roundtrip.sh
+
   # ---------------------------------------------------------------------------
   secret-scan:
     name: Secret scan

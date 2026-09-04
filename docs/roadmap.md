@@ -239,9 +239,6 @@ what left this one unfireable for months.
 - **[#99](https://github.com/Gerrrt/HomeLab/issues/99) Move deployment from
   `make up` over SSH to something pull-based**, so the host converges on the repo
   rather than being pushed to.
-- **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
-  dashboard export step** — the current loop is manual and therefore skipped
-  under pressure.
 
 ## Decided but not built
 
@@ -264,6 +261,58 @@ months.
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
+      dashboard export step.** 2026-09-04. `make dashboards-export` pulls every
+      dashboard back by uid and writes it over the file, so the loop is edit →
+      one command → `git diff` rather than a hand copy out of the JSON Model
+      panel — manual, and therefore skipped under pressure, which is what this
+      file said about it.
+
+      **The issue's design could not work as written, and finding out why is
+      most of what this was.** The plan was to pull each dashboard from the API
+      and write it back. But `allowUiUpdates` was `false`, and that does not
+      mean what the issue assumed it meant: Grafana does not discard a UI edit
+      at the next restart, it refuses to *store* one at all —
+      `POST /api/dashboards/db` answers `400 Cannot save provisioned
+      dashboard`. So the API could only ever return the file it was provisioned
+      from. Every export would have been a clean no-op over the very edit it
+      existed to capture, exiting zero and writing nothing while `git diff`
+      reported no change to something plainly different on the screen. Measured
+      against the running stack before anything was built: the API's copy of
+      `homelab-docker` was identical to the committed file in every field but
+      `id` and `version`.
+
+      So `allowUiUpdates` is now `true`. The JSON stays the source of truth —
+      a file change re-provisions over Grafana's copy — but an edit now survives
+      long enough to be exported. What `false` bought for free was that the
+      running dashboard and the committed one could not disagree, and that is
+      bought back rather than dropped: `ARGS=--check` writes nothing and exits
+      non-zero when Grafana holds an edit git does not, and the daily
+      `dashboards-drift` timer runs it, so forgetting to export ages into a
+      stale job with an alert behind it. The rules in `backup.rules.yaml` join
+      against the `JOBS` table rather than naming jobs, so it needed no rule.
+
+      Two things found on the way, both of which would have made the diffs
+      unreadable. Grafana serialises keys **alphabetically** at every level,
+      while these files put `uid`, `title` and `description` first — a naive
+      write-back would have reordered every key in all seven and buried the one
+      line that changed, so the committed order is preserved and only new keys
+      are appended. And Grafana persists whatever the browser was showing at
+      save time, so the time picker's range and each variable's selection are
+      read back out of the file rather than taken from the API: without that,
+      one person's afternoon of debugging silently becomes everyone's default
+      time range. Those fields are the one thing the round trip will not write,
+      and the dashboards README says so.
+
+      The round-trip check the issue asked for boots the pinned Grafana image,
+      provisions the committed JSON into it and reads it back, which is what
+      keeps an export from arriving as noise. It also asserts that a save to a
+      provisioned dashboard is still accepted — the condition the whole feature
+      depends on and the one it cannot detect for itself, since flipping the
+      flag back breaks the export silently. Verified in both directions: with
+      `allowUiUpdates: false` the check fails and names the setting.
+      → [`grafana/dashboards/README.md`](../stacks/observability/grafana/dashboards/README.md)
 
 - [x] **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle`
       is for.** 2026-09-03,
