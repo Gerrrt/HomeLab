@@ -31,10 +31,10 @@ compose.yaml               all seven services, one network, health-gated orderin
 prometheus/
   prometheus.yaml          scrape config; SNMP via file_sd
   targets/snmp.yaml        SNMP targets — hot-reloaded, no restart needed
-  targets/blackbox.yaml    probe targets — hot-reloaded, no restart needed
-  rules/*.rules.yaml       53 alert rules across host/network/ups/containers/blackbox/backup/ids/deploy
+  targets/blackbox*.yaml   probe targets, http and dns — hot-reloaded, no restart
+  rules/*.rules.yaml       55 alert rules across host/network/ups/containers/blackbox/dns/backup/ids/deploy
   tests/*.test.yaml        promtool unit tests — assert the rules can fire
-blackbox/blackbox.yaml     probe modules — reachability from outside the service
+blackbox/blackbox.yaml     probe modules — reachability, and what a resolver said
 alertmanager/
   alertmanager.yaml        severity + category routing, inhibition
 loki/loki-config.yaml      single-binary, filesystem, 30-day retention

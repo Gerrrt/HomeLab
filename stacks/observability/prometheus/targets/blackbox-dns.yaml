@@ -1,0 +1,71 @@
+---
+# DNS probe targets, consumed by the `blackbox-dns` job via file_sd_configs.
+# Hot-reloaded every 5 minutes — no Prometheus restart required.
+#
+# Separate from targets/blackbox.yaml because the job is separate, and the job
+# is separate for two reasons prometheus.yaml sets out: `EndpointUnreachable`
+# is critical and routes to `urgent`, which a filter that fails open must never
+# do, and `EndpointNameNotResolving` joins `via="dns"` to `via="address"` on
+# `name`, a join that means nothing when the target IS a resolver.
+#
+# `module` selects a prober from blackbox/blackbox.yaml — `dns_answers` or
+#          `dns_filters`. Unlike the http modules, a dns module carries its own
+#          query, so the module name is the question being asked.
+# `name`   is the service being asked, and both probes of one service share it:
+#          the `and on (name)` join in rules/dns.rules.yaml is what keeps a
+#          stopped AdGuard from also raising "AdGuard is not filtering".
+# `check`  is which question — `liveness` or `filtering`. The rules select on
+#          this, so a target added without it fires nothing.
+# `role`   as elsewhere: what the thing is for.
+#
+# The address is the service's own, on port 53, NEVER pfSense. That is the
+# entire point of the file. Under ADR-0010 Unbound forwards to AdGuard with the
+# public resolvers listed alongside it, so a query through the normal path is
+# answered by the fallback and passes while AdGuard is dead — see ADR-0010
+# and #126.
+
+# --- AdGuard Home ------------------------------------------------------------
+#
+# WRITTEN OUT AND NOT ENABLED. AdGuard Home does not exist yet: ADR-0008 places
+# it on a low-power mini PC on Winterfell that #102 has neither bought nor
+# named, and ADR-0010's forwarding is not configured either — Unbound recurses
+# and forwards to nothing, verified on `morpheus` 2026-09-04 (#123). Enabling
+# these today would report a service down from the moment the file is loaded
+# until the box is racked, and this repository has agreed not to ship a check
+# that is permanently red for a known reason — it is the same call
+# targets/blackbox.yaml makes for the iLO and pfSense UIs.
+#
+# `10.0.99.40` below is the next free reservation in docs/network.md's
+# Winterfell table, following the .1/.10/.20/.30 spacing already there. It is
+# an assumption, not a decision: #102 assigns the address, and these two lines
+# are wrong until it does. No `host` label, for the same reason — the box has
+# no hostname to record, and the alerts name AdGuard rather than its machine.
+#
+# When the box exists, verify from the running exporter BEFORE uncommenting —
+# both the positive and, for the filtering probe, the negative, because a
+# probe that cannot go red is not a probe:
+#
+#   docker exec blackbox-exporter wget -qO- \
+#     'http://localhost:9115/probe?target=10.0.99.40:53&module=dns_filters' \
+#     | grep -E '^probe_(success|dns_answer_rrs)'
+#
+#   docker exec blackbox-exporter wget -qO- \
+#     'http://localhost:9115/probe?target=10.0.99.1:53&module=dns_filters' \
+#     | grep -E '^probe_success'
+#
+# The first must report 1 and the second 0 — 10.0.99.1 is Unbound, which does
+# not filter. A `1` from both means the probe is measuring nothing.
+
+# - targets: ["10.0.99.40:53"]
+#   labels:
+#     module: dns_answers
+#     name: adguard
+#     check: liveness
+#     role: dns-filter
+#
+# - targets: ["10.0.99.40:53"]
+#   labels:
+#     module: dns_filters
+#     name: adguard
+#     check: filtering
+#     role: dns-filter

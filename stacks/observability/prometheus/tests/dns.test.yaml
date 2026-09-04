@@ -1,0 +1,146 @@
+---
+# Unit tests for dns.rules.yaml.
+#
+# AdGuardNotFiltering is the rule these exist for. It carries an `and on (name)`
+# join between two probes of the same service, and a join that matches nothing
+# is invisible to `promtool check rules` — it parses, loads, reports healthy and
+# can never fire. That is #63, and blackbox.test.yaml was written for the same
+# hazard in EndpointNameNotResolving.
+#
+# The four cases below are the four states measured against a real AdGuard Home
+# on 2026-09-04, before either rule was written:
+#
+#                                     liveness   filtering   expected alert
+#   healthy, default blocking mode        1           1       none
+#   blocklists not loaded                 1           0       AdGuardNotFiltering
+#   blocking mode changed to NXDOMAIN     1           0       AdGuardNotFiltering
+#   AdGuard stopped                       0           0       AdGuardNotAnswering
+#
+# The last row is the one the join is for: both probes fail, and only the
+# liveness alert may fire. A test that only asserted firing would have passed
+# against a rule with no join at all.
+#
+# `instance` here is 10.0.99.40:53, matching the disabled targets in
+# targets/blackbox-dns.yaml. Both are an assumption about an address #102 has
+# not assigned; they are written the same way so that changing one and not the
+# other shows up as a diff rather than as two files quietly disagreeing.
+rule_files:
+  - ../rules/dns.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- AdGuard stopped -----------------------------------------------------
+  # Both probes fail. AdGuardNotAnswering fires; AdGuardNotFiltering must NOT,
+  # because the service is not up and "it stopped blocking" is not the repair.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-dns", instance="10.0.99.40:53",
+                 name="adguard", check="liveness", role="dns-filter"}'
+        values: "0+0x45"
+      - series: 'probe_success{job="blackbox-dns", instance="10.0.99.40:53",
+                 name="adguard", check="filtering", role="dns-filter"}'
+        values: "0+0x45"
+    alert_rule_test:
+      # `for: 15m` — still pending at ten minutes. This is what asserts the
+      # window is actually there, rather than a five-minute one inherited from
+      # the endpoint rules.
+      - eval_time: 10m
+        alertname: AdGuardNotAnswering
+        exp_alerts: []
+
+      - eval_time: 20m
+        alertname: AdGuardNotAnswering
+        exp_alerts:
+          - exp_labels:
+              alertname: AdGuardNotAnswering
+              job: blackbox-dns
+              instance: "10.0.99.40:53"
+              name: adguard
+              check: liveness
+              role: dns-filter
+              component: dns
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "adguard is not answering DNS — the house is resolving unfiltered"
+              description: >-
+                Asked directly at 10.0.99.40:53 for fifteen minutes and got
+                no valid answer. Nothing is broken and nobody is blocked: Unbound on
+                morpheus has dropped it from forwarder selection and is answering
+                from the public upstreams, exactly as ADR-0010 intended. What has
+                stopped is filtering, and it stays stopped silently until this is
+                fixed. Check the container on the mini PC, then re-probe from the
+                exporter — targets/blackbox-dns.yaml has the command.
+
+      # Silent, and this is the assertion that matters. Asserted well past the
+      # 30m `for`, so a missing join could not hide behind a short evaluation.
+      - eval_time: 40m
+        alertname: AdGuardNotFiltering
+        exp_alerts: []
+
+  # --- Alive, and filtering nothing ----------------------------------------
+  # The join under test, and the failure the second probe exists for: the
+  # blocklists stopped loading, or the blocking mode changed, and every
+  # process-level check in the estate stays green. If `and on (name)` ever
+  # stops matching, this case goes silent and nothing else in CI notices.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-dns", instance="10.0.99.40:53",
+                 name="adguard", check="liveness", role="dns-filter"}'
+        values: "1+0x45"
+      - series: 'probe_success{job="blackbox-dns", instance="10.0.99.40:53",
+                 name="adguard", check="filtering", role="dns-filter"}'
+        values: "0+0x45"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: AdGuardNotFiltering
+        exp_alerts: []
+
+      - eval_time: 40m
+        alertname: AdGuardNotFiltering
+        exp_alerts:
+          - exp_labels:
+              alertname: AdGuardNotFiltering
+              job: blackbox-dns
+              instance: "10.0.99.40:53"
+              name: adguard
+              check: filtering
+              role: dns-filter
+              component: dns
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "adguard is answering DNS but no longer blocking anything"
+              description: >-
+                The service is up — it resolved a real name on the same probe cycle
+                — and the canary domain in blackbox/blackbox.yaml came back with a
+                real address instead of 0.0.0.0. So the blocklists are not loaded,
+                or the blocking mode is no longer Null IP. Check Filters → DNS
+                blocklists for a list that has stopped updating. If the canary has
+                simply fallen off the list it is on, replace the canary in
+                blackbox/blackbox.yaml — do not disable the probe, which is the one
+                thing standing between this and three weeks of quiet.
+
+      # The service answers, so the liveness rule has nothing to say. Without
+      # this, a rule that fired on either probe would still pass the case above.
+      - eval_time: 40m
+        alertname: AdGuardNotAnswering
+        exp_alerts: []
+
+  # --- Healthy -------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-dns", instance="10.0.99.40:53",
+                 name="adguard", check="liveness", role="dns-filter"}'
+        values: "1+0x45"
+      - series: 'probe_success{job="blackbox-dns", instance="10.0.99.40:53",
+                 name="adguard", check="filtering", role="dns-filter"}'
+        values: "1+0x45"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: AdGuardNotAnswering
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: AdGuardNotFiltering
+        exp_alerts: []
