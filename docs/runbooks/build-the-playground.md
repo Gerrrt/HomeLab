@@ -290,7 +290,7 @@ avoid.
 **Two — no trunk, no VLAN-aware bridge.**
 
 ```bash
-grep -c 'bridge-vlan-aware\|vlan-aware' /etc/network/interfaces
+grep -cE 'bridge-vlan-aware|bridge-vids' /etc/network/interfaces
 ```
 
 Zero. Anything else and ADR-0014 has been reopened without an ADR saying so.
@@ -299,7 +299,7 @@ Zero. Anything else and ADR-0014 has been reopened without an ADR saying so.
 
 ```bash
 sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
-nft list ruleset 2>/dev/null | grep -i 'masquerade\|snat' || echo "no NAT"
+nft list ruleset 2>/dev/null | grep -Ei 'masquerade|snat' || echo "no NAT"
 iptables -t nat -S 2>/dev/null | grep -- '-j MASQUERADE' || echo "no legacy NAT"
 ```
 
