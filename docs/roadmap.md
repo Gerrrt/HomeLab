@@ -206,8 +206,18 @@ what left this one unfireable for months.
   mechanism ADR-0007 deferred is settled by ADR-0014: `ifrit` is single-homed on
   ImaginationLAN, the targets sit on a bridge with no physical port on a subnet
   the firewall does not route, the attack VM does not forward, and the
-  hypervisor management planes close at the host. What is left is the purchase
-  and a build runbook that checks each of those.
+  hypervisor management planes close at the host. ADR-0017 settles the rest —
+  buy for IOPS and quiet rather than for threads, because the range's whole
+  operation is snapshot-and-revert and `Saruman`'s complaint is already
+  spindles; socketed RAM, because `prometheus`'s is soldered; `172.30.30.0/24`
+  on the isolated bridge with no gateway anywhere on it; and no backups, no
+  monitoring and no patching for the guests, so the least important part of the
+  lab joins none of the estate's loops. "After the main network is finished"
+  now names issues: #101 first, because an attack VM pointed at an
+  uninstrumented estate teaches nothing; #234 before the segment holds
+  attackers; #235 decided either way before this build makes it true. What is
+  left is the purchase itself and the build.
+  → [runbook](runbooks/build-the-playground.md)
 - **[#97](https://github.com/Gerrrt/HomeLab/issues/97) Work out DNS for the
   MokerLink management UI** so it is not reached by IP, and can hold a
   certificate that verifies.

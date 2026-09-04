@@ -2,6 +2,16 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> The details this ADR leaves as adjectives — which subnet "deliberately
+> outside `10.0.0.0/16`" is, what `ifrit` is bought as, and who maintains the
+> guests — are filled in by
+> [ADR-0017](0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
+> 2026-09: `172.30.30.0/24` with no gateway on it, a quiet NVMe box with
+> socketed RAM, and no backups, monitoring or patching for the range. Nothing
+> here is amended; the constraints below are what
+> [`build-the-playground.md`](../runbooks/build-the-playground.md) checks.
+
 ## Context
 
 [ADR-0007](0007-defensive-estate-and-offensive-range.md) split the lab into a
