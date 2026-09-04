@@ -13,6 +13,7 @@ What is collected, where it goes, and how to change it.
 | `/var/log/auth.log` | Alloy | 60s poll | sshd, sudo, PAM |
 | syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
+| pfSense logs | syslog → Alloy on 1514 | stream | `filterlog` decisions, `suricata` alerts, `kea-dhcp4` leases |
 | MokerLink switch | snmp-exporter | 60s | Interface status and 64-bit octet counters |
 | APC UPS | snmp-exporter | 60s | Charge, runtime, load, voltage, alarms |
 | ProLiant iLO | snmp-exporter | 60s | Temperature, PSU, drive and battery health |
@@ -256,7 +257,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-61 rules in total: 48 metric-based in `prometheus/rules/`, and 13 log-based in
+64 rules in total: 48 metric-based in `prometheus/rules/`, and 16 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -266,6 +267,16 @@ log shows it rejecting forty passwords in five minutes. `loki/rules/security.rul
 covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
+
+It also covers **a device taking its first DHCP lease on a segment** — one rule
+for Hicks and one for Winterfell, plus the `absent_over_time` rule that says the
+lease stream itself has stopped. That is
+[ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md): device joins
+come from Kea on `morpheus` rather than from the eero cloud, because the
+firewall sees the join on the wire and the cloud sees it two minutes later over
+the WAN. "First" is expressed as the last ten minutes `unless` the seven days
+before it, which needs no state anywhere and no list of known devices in the
+repository.
 
 They use the same `severity` and `category` labels as the Prometheus rules and
 are sent to the same Alertmanager, so routing and inhibition are shared.
@@ -476,7 +487,9 @@ The stack is small, but two things will bite if ignored:
   cycle.
 - **Loki labels must stay low-cardinality.** `host`, `level`, `log_type`,
   `service_name` and `unit` are bounded. Never promote a request ID, IP address
-  or timestamp to a label; use `|=` line filters instead.
+  or timestamp to a label; use `|=` line filters instead. A MAC address is the
+  same class of mistake, which is why the ADR-0019 rules extract `mac` with a
+  query-time `| regexp` and it exists nowhere in the index.
 
 `module` and `auth` are deliberately dropped by `labeldrop` in `prometheus.yaml`
 after being converted to query parameters, so they never become metric labels.
