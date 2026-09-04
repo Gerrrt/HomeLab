@@ -77,3 +77,7 @@ software/
 *.iso
 *.exe
 docs/hardware/*.pdf
+
+# validate.sh emits dashboard panel queries here for promtool; the trap removes
+# it, but an interrupted run should not leave a puzzling untracked file behind.
+.dashboard-exprs-*.yaml

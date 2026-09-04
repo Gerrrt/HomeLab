@@ -103,47 +103,11 @@ jobs:
       # zricethezav/gitleaks sat pinned in this file's own env: block. Any
       # repo/name:version fails now. The illustrative version in the header of
       # scripts/pin-digests.sh is a comment and is filtered out below.
-      - name: Verify image versions are not duplicated outside compose.yaml
-        run: |
-          if grep -rnE '(^|[^a-zA-Z0-9._/-])[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*:v?[0-9]+\.[0-9]+' \
-               --include='*.sh' --include='*.yml' --include='Makefile' \
-               scripts .github Makefile 2>/dev/null \
-             | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' ; then
-            echo "::error::pinned image version outside compose.yaml — use scripts/image-for.sh"
-            exit 1
-          fi
-          echo "no duplicated image pins"
-
-      # Covers every place an image is referenced, not just compose.yaml — the
-      # first version of this check only looked at the stack and let :latest
-      # through in the workflow itself and in the Makefile.
-      - name: Verify no image uses a floating tag
-        run: |
-          if grep -rnE '(^|[[:space:]])[a-z0-9._/-]+:latest([[:space:]]|$)' \
-               --include='*.yaml' --include='*.yml' --include='Makefile' \
-               --include='*.sh' . \
-             | grep -v '^\./\.git/' \
-             | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' ; then
-            echo "::error::floating :latest tag found — pin an explicit version"
-            exit 1
-          fi
-          echo "all image references pinned"
-
-      # A tag is a mutable pointer; a digest is the content hash. Every service
-      # image must carry both, so a moved tag cannot change what gets deployed.
-      - name: Verify every image is pinned by digest
-        run: |
-          missing=0
-          while read -r ref; do
-            case "$ref" in
-              *@sha256:*) ;;
-              *) echo "::error::$ref is not pinned by digest — run make pin-digests"; missing=1 ;;
-            esac
-          done < <(./scripts/stacks.sh --paths | while read -r sd; do
-                     awk '$1 == "image:" { print $2 }' "$sd/compose.yaml"
-                   done)
-          exit "$missing"
-
+      # The three pattern checks that used to live here — version pins outside
+      # compose.yaml, floating :latest, and every image digest-pinned — are now
+      # in scripts/check_image_pins.py, which runs in both places (#175). They
+      # were unrunnable locally, and they belong beside the parser whose
+      # docstring explains why a grep cannot see a pin that is simply absent.
       # The three checks above are all pattern matches, and #65 walked past all
       # three: `make backup` ran a bare `alpine` — no `:latest` literal, no
       # prom/ or grafana/ prefix, and not an `image:` line in compose.yaml. A
@@ -432,25 +396,13 @@ jobs:
       # the filesystem scan skips it, and its contents are bare literals with no
       # keyword context for a rule to match. The control is simply that it must
       # never be a tracked file.
+      # Both of these were inline here and unrunnable locally, which is the
+      # wrong place for a check whose whole value is catching a plaintext
+      # secret BEFORE it reaches the remote (#175). The tracked-artefact one
+      # was also written out a second time in validate.sh, and the two copies
+      # had drifted. One script each, run from both.
       - name: Assert no decrypted artefact is tracked
-        run: |
-          fail=0
-          for pattern in '.env' '.rendered/' '.purge-secrets.txt' 'certificates/' 'backups/'; do
-            if git ls-files | grep -E "(^|/)${pattern//./\\.}" | grep -v '\.env\.example'; then
-              echo "::error::tracked file matching '${pattern}' — it must be gitignored"
-              fail=1
-            fi
-          done
-          exit "$fail"
+        run: ./scripts/check-tracked-artefacts.sh
 
       - name: Assert SOPS files are actually encrypted
-        run: |
-          shopt -s nullglob
-          fail=0
-          for f in secrets/*.sops.yaml; do
-            if ! grep -q '^sops:' "$f"; then
-              echo "::error file=$f::not SOPS-encrypted"
-              fail=1
-            fi
-          done
-          exit "$fail"
+        run: ./scripts/check-sops-encrypted.sh
