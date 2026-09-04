@@ -516,9 +516,26 @@ archive_one() {
   #
   # errexit is lifted for the pipeline because BOTH statuses are needed, and
   # `rc=$?` afterwards would clobber PIPESTATUS.
+  # --log-driver none, and it is load-bearing rather than tidiness. This
+  # container's stdout IS the gzip stream, the json-file driver records stdout
+  # whether or not anyone reads it, and Alloy's loki.source.docker tails every
+  # container on the socket — so this line used to ship each archive back into
+  # Loki as log lines. Measured on 2026-08-29: 765 MB across three volumes in
+  # about three minutes, 2.7 MiB/s against a 950 B/s baseline, which took loki's
+  # RSS to 1015 MiB and is the whole reason its mem_limit is 1536M (#286, #114).
+  #
+  # It also undid this function's own argument. The comment above says the
+  # plaintext never touches this disk; the *compressed* plaintext was landing in
+  # the loki-data volume, which is not encrypted, and staying there for the
+  # 30-day retention.
+  #
+  # `none` rather than a size cap: there is no volume of this that is useful.
+  # The stream is binary, nothing reads `docker logs` on a container the shell
+  # is already piping, and a cap would only change how much of it arrives.
   set +e
   docker run --rm --network none --read-only \
       --security-opt no-new-privileges \
+      --log-driver none --label homelab.logs=off \
       -v "${PROJECT}_${vol}:/data:ro" \
       "${TAR_IMAGE}" \
       tar --numeric-owner -czf - -C /data . \
@@ -736,7 +753,8 @@ docker image inspect "${TAR_IMAGE}" >/dev/null 2>&1 || {
 info "sizing ${#VOLUMES[@]} volume(s)"
 total_kb=0
 for v in "${VOLUMES[@]}"; do
-  kb="$(docker run --rm --network none -v "${PROJECT}_${v}:/data:ro" "${TAR_IMAGE}" \
+  kb="$(docker run --rm --network none --log-driver none --label homelab.logs=off \
+        -v "${PROJECT}_${v}:/data:ro" "${TAR_IMAGE}" \
         du -sk /data | awk '{print $1}')"
   total_kb=$((total_kb + kb))
 done
