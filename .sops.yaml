@@ -22,6 +22,19 @@
 #
 # Run `make secrets-init` on a fresh machine to generate a keypair and write its
 # public half into this file.
+#
+# ADDING A RECIPIENT
+#
+# `make secrets-add-recipient PUBKEY=age1...`, not a hand-edit. Editing this
+# file without running `sops updatekeys` produces a recipient the repository
+# advertises as a recovery path which cannot decrypt anything, and that is the
+# DEFAULT outcome of doing it by hand — see
+# docs/adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md.
+#
+# Recipients are comma-separated, written one per line in the folded scalar.
+# sops reads the value as a single string, splits it on commas and trims each
+# part, so the line break is cosmetic and the trailing comma is not. Measured on
+# sops 3.9.4; a wrong guess here parses as YAML and decrypts nothing.
 
 creation_rules:
   # The lab stack, FIRST — SOPS takes the first rule whose path_regex matches,

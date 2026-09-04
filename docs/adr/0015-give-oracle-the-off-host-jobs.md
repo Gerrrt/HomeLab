@@ -2,6 +2,16 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> "Not a second age recipient", below, is narrowed by
+> [ADR-0024](0024-hold-a-second-age-recipient-and-prove-each-one-separately.md).
+> The rejection of **`oracle`** as a recipient is unchanged and still the design
+> — this machine holds ciphertext and no key. What ADR-0024 sets aside is the
+> broader framing quoted with it, that a second recipient is worth having only
+> once the lab stops being a one-person project: that makes a loss problem read
+> as a headcount one. A second recipient, held offline and off this estate, is
+> now the design. The text here is left as written, per ADR-0001.
+
 ## Context
 
 [#94](https://github.com/Gerrrt/HomeLab/issues/94) opens with "`oracle`

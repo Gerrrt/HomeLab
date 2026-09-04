@@ -89,10 +89,16 @@ it should be a decision, not a side effect of where you happened to type this."
 elif grep -q "${PUBLIC_KEY}" "${SOPS_CONFIG}"; then
   info ".sops.yaml already lists this key"
 else
+  # Not "edit .sops.yaml and run sops updatekeys" any more. That advice is what
+  # ADR-0020 caught this script giving on the lab guest: correct for a second
+  # estate host and exactly wrong there, because the hand-edit has no idea which
+  # creation_rule it should land in. `make secrets-add-recipient` resolves that
+  # from the recipients the stack's file already uses, and re-keys in the same
+  # run so the two cannot be left disagreeing — ADR-0024.
   warn ".sops.yaml lists a different age recipient."
-  warn "Add this key as an additional recipient by hand, then run:"
-  warn "  sops updatekeys ${SECRETS_FILE}"
-  warn "Add it to the rule matching secrets/${STACK}. — NOT to another stack's."
+  warn "Add this key as an additional recipient, from a host that can already decrypt:"
+  warn "  make secrets-add-recipient PUBKEY=${PUBLIC_KEY} STACK=${STACK}"
+  warn "It picks the rule matching secrets/${STACK}. — NOT another stack's."
 fi
 
 # ---------------------------------------------------------------------------

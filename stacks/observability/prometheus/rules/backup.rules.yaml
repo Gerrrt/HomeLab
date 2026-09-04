@@ -174,23 +174,44 @@ groups:
         # a real off-host copy. That means a human has to mount removable media,
         # and no timer can do it. What a timer CAN do is notice that nobody has.
         #
-        # The threshold comes from the same declaration series as everything
-        # else, so the ninety days lives in scripts/install-timers.sh and nowhere
-        # else. Until the first verification there is no last_success series at
-        # all and ScheduledJobNeverRan is what speaks instead.
+        # ONE SERIES PER RECIPIENT, and this is the only rule in the file that
+        # is not keyed on homelab_job. ADR-0024 added a second age recipient, and
+        # the moment there were two, homelab_job_last_success_timestamp_seconds
+        # {homelab_job="verify-key-backup"} became a wrong answer: it is a single
+        # series that run-scheduled.sh writes whichever key was mounted, so
+        # proving one copy reset the ninety-day deadline for every copy and the
+        # other could rot behind a green alert. scripts/key-recipients.sh emits
+        # homelab_key_recipient_last_proof_timestamp_seconds per recipient, read
+        # out of the encrypted file's own metadata, and this fires per recipient.
+        #
+        # The threshold still comes from the same declaration series as
+        # everything else, so the ninety days lives in scripts/install-timers.sh
+        # and nowhere else. It is joined on(instance) rather than on(homelab_job)
+        # because the left side has no homelab_job label to join on — both series
+        # are written into the same textfile directory on the same host.
+        # group_left() for the reason ScheduledJobStale gives above: without it
+        # the result carries only the labels named in on(), and `recipient` — the
+        # entire point of this rule — would be silently dropped.
+        #
+        # A recipient that has never been verified is recorded as 0, not omitted,
+        # so it fires here with an absurd duration rather than being invisible.
+        # ScheduledJobNeverRan still speaks for the case before ANY verification
+        # has happened, because key-recipients.sh has not written its file yet
+        # and there are no per-recipient series to fire on.
         expr: |
-          (time() - homelab_job_last_success_timestamp_seconds{homelab_job="verify-key-backup"})
-            > on(homelab_job) group_left() homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
+          (time() - homelab_key_recipient_last_proof_timestamp_seconds)
+            > on(instance) group_left() homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
         for: 1h
         labels:
           component: backup
           severity: warning
           category: correctness
         annotations:
-          summary: "The age key backup has not been verified in {{ $value | humanizeDuration }}"
+          summary: "No proven backup of age recipient {{ $labels.recipient }} in {{ $value | humanizeDuration }}"
           description: >-
-            Nothing else here proves the secrets are recoverable from anywhere
-            but this host — every other job runs on the same machine, with the
-            same key, against the same disk. Get the offline copy out and run
-            `make secrets-verify-backup KEY=<path>`:
+            Nothing else here proves the {{ $labels.stack }} secrets are
+            recoverable from anywhere but this host — every other job runs on the
+            same machine, with the same key, against the same disk. Proving a
+            DIFFERENT recipient does not clear this one. Get that copy out and
+            run `make secrets-verify-backup KEY=<path>`:
             docs/runbooks/back-up-the-age-key.md.
