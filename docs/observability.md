@@ -379,13 +379,17 @@ emergency; one climbing fast at 60% is.
 
 ### Routing
 
-Three receivers, **three separate destinations** (see
-`alertmanager/alertmanager.yaml`). They were three names for one webhook URL
+Four receivers, **four separate destinations** (see
+`alertmanager/alertmanager.yaml`). Three of them were names for one webhook URL
 until [#66](https://github.com/Gerrrt/HomeLab/issues/66), which meant `urgent`
 and `default` differed only in how often they repeated — a UPS on battery and a
 slow scrape landed in the same place. The routing tree decides which alert is
 urgent; only a distinct destination makes that difference audible, because
 per-topic sound and do-not-disturb settings live on the receiving end.
+
+The table below is the alert routing, and covers three of the four. The fourth,
+`heartbeat`, carries no alerts at all — it is the dead man's switch, and it is
+described in [its own section](#the-dead-mans-switch) below.
 
 | Matches | Receiver | First notification | Repeats |
 | --- | --- | --- | --- |
