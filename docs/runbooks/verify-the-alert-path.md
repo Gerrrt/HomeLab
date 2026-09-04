@@ -61,9 +61,27 @@ Cronitor, or an Uptime Kuma "push" monitor on any other machine.
 ## The timing is coupled
 
 Alertmanager sends the first notification after `group_wait` and then re-sends
-every `repeat_interval`. The heartbeat route uses `group_wait: 0s` and
-`repeat_interval: 5m`.
+every `repeat_interval`. The heartbeat route uses `group_wait: 0s`,
+`group_interval: 1m` and `repeat_interval: 5m`.
 
+- **`group_interval` < `repeat_interval`, on the heartbeat route specifically.**
+  A group is only reconsidered on a `group_interval` tick, and only then asks
+  whether `repeat_interval` has elapsed. Equal values make the +5m tick land
+  fractionally before the deadline it tests, so it skips and fires at +10m: a
+  heartbeat at half its advertised rate, every notification a success, nothing
+  failing. This is not hypothetical — the route shipped with both at 5m and the
+  live stack measured 600s between pings (#120). Verify the real rate rather
+  than reading it off the config:
+
+  ```bash
+  curl -s --data-urlencode \
+    'query=600 / increase(alertmanager_notifications_total{integration="webhook"}[6h])' \
+    http://localhost:9090/api/v1/query
+  ```
+
+  That is seconds per notification over six hours; it should be near 300, and
+  near 600 means this bug is back. Note it counts every webhook receiver, so a
+  noisy warning period pulls it below 300 — read it on a quiet stack.
 - **External period ≥ `repeat_interval`.** A period shorter than 5m expects pings
   that are never sent, and the check alarms on a perfectly healthy stack.
 - **External grace ≥ 2 × `repeat_interval`.** One missed ping is a hiccup — a
@@ -80,8 +98,8 @@ every `repeat_interval`. The heartbeat route uses `group_wait: 0s` and
   [`schedule-maintenance.md`](schedule-maintenance.md).
 
 Change `repeat_interval` in `alertmanager/alertmanager.yaml` and the external
-check's period and grace move with it. Nothing enforces that from here, which is
-why it is written down.
+check's period and grace move with it — and `group_interval` has to stay under
+it. Nothing enforces that from here, which is why it is written down.
 
 ## Confirming it actually works
 

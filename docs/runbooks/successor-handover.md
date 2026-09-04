@@ -37,6 +37,15 @@ grant, and nothing in it requires the estate to be reachable.
 So: read it here, not there. If the person in front of you is *not* technical,
 the card is their document and none of this will help them.
 
+The household's *data* recovery is a separate and newer question with its own
+answer:
+[ADR-0023](../adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
+constrains it rather than making anything highly available — nothing the
+household needs in an emergency may have the estate on its only route. None of
+what it requires is built, and it falls due on ADR-0022's triggers rather than
+on a date, so a successor inherits it as a written constraint and not as a
+running system.
+
 ---
 
 ## What this estate is

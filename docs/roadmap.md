@@ -91,6 +91,30 @@ issues intact. Nothing was summarised away.
   rather than inherited from `prometheus` — a vault behind one factor on an
   unencrypted disk is not the bet `SECURITY.md` accepted for a metrics
   dashboard.
+- **[#122](https://github.com/Gerrrt/HomeLab/issues/122) Settle who reaches the
+  family's credentials, photos and documents when the estate is down.** Answered
+  by [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md),
+  and the answer is that **no sensitive-tier service has to stay reachable** —
+  one mini PC cannot be made highly available, and every way of pretending
+  otherwise adds components that can take it down. The constraint is on the path
+  instead: nothing the household needs in an emergency may have the estate on its
+  only route. Four classes, falling due on ADR-0022's triggers — the household's
+  own credentials recoverable without Vaultwarden and opened once from the other
+  person's device; an encrypted off-estate copy of Immich and Paperless-ngx whose
+  staleness is visible; nothing on the break-glass card depending on a
+  certificate this estate issues; and nothing physical operable only through Home
+  Assistant.
+
+  **Writing it turned up that off-host is not off-estate.** `oracle` holds the
+  firewall export precisely so it is not on the machine it protects (ADR-0015,
+  #92) — and it is on the same VLAN, rack, power feed and room as the mini PC
+  would be, so every failure this issue is about reaches both in one event. Two
+  smaller findings went the other way: ADR-0010 already keeps name resolution
+  alive when the mini PC dies, which is a dependency of every out-of-estate path
+  and is met by accident of a decision made for other reasons; and ADR-0011's
+  break-glass card already says "where credentials are", a sentence that goes
+  false the day Vaultwarden holds anything real. Nothing here is built — the
+  preconditions land on #131, #132, #133 and #134.
 - **[#235](https://github.com/Gerrrt/HomeLab/issues/235) Decide whether the
   iLO stays on the lab segment.** ADR-0014 puts `ifrit`'s attack VM on
   ImaginationLAN, so `shiva` — the BMC of the box being defended, on firmware
