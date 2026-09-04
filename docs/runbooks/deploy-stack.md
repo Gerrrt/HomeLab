@@ -161,6 +161,12 @@ on its own ([ADR-0021](../adr/0021-converge-on-a-timer-instead-of-deploying-over
 What follows is how to deploy something *now* rather than waiting, and what the
 timer is doing on your behalf.
 
+**Unless the host is in report-only mode**, in which case none of that is true
+and every merge needs one of the commands below —
+[`converge-the-host.md`](converge-the-host.md) §Start in report-only mode says
+how to tell, and why a merge in that mode looks like it landed when it has not.
+That is the mode the agent was rolled out in.
+
 ```bash
 make converge    # fetch main, verify it, fast-forward, make up — the timer's job, now
 ```
