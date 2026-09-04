@@ -328,8 +328,37 @@ restart_alloy() {
   ok "alloy (restarted)"
 }
 
+# SERVICES above is the union across every stack, not the contents of this one.
+# `stacks/lab` runs Prometheus, Loki, Grafana and Alloy and no Alertmanager,
+# snmp-exporter or blackbox-exporter (ADR-0020), so reloading the array as
+# written died on the first service that stack does not have — and it died
+# through reload_one's "is not running, so there is nothing to reload", which is
+# the correct message for a stopped service and a wrong one for an absent one.
+#
+# The two cases must stay separate, which is why this filters on what the
+# compose file DEFINES rather than on what is running. A service this stack
+# declares and is not running is still a failed deploy and still dies below;
+# only one it never declared is skipped.
+#
+# `compose config --services` rather than grepping for two-space-indented keys:
+# the answer is compose's own, so a service list this script disagrees with is
+# not a shape it can be tricked by. It needs the ${VAR:?} guards satisfied,
+# which is true wherever this runs — `make up` renders .env immediately before
+# calling this, and `make reload` acts on a stack that is already up. If it
+# cannot answer at all, fall back to the full array: that is exactly today's
+# behaviour, so the failure mode is the one that has always been there rather
+# than a new one.
+declared=""
+if ! declared="$("${COMPOSE[@]}" config --services 2>/dev/null)"; then
+  declared=""
+fi
+
 for entry in "${SERVICES[@]}"; do
-  reload_one "${entry%%:*}" "${entry##*:}"
+  svc="${entry%%:*}"
+  if [[ -n "${declared}" ]] && ! grep -qx "${svc}" <<<"${declared}"; then
+    continue
+  fi
+  reload_one "${svc}" "${entry##*:}"
 done
 
 restart_alloy

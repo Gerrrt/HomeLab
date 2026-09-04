@@ -137,8 +137,26 @@ need() { command -v "$1" >/dev/null 2>&1 || { red "missing dependency: $1"; exit
 
 # The age recipient is read from .sops.yaml rather than duplicated here. One
 # source of truth for the key; rotating it in .sops.yaml rotates it here too.
+#
+# Read from the rule that actually covers backups/firewall/, not the first key
+# in the file. This was `grep ... | head -1` while .sops.yaml held exactly one
+# creation_rule, which made "first key" and "the right key" the same string.
+# ADR-0020 added a second rule above it for the lab stack, and the moment that
+# rule's placeholder is replaced with a real key, `head -1` would encrypt every
+# firewall backup to the LAB guest — silently, since sops would happily do it
+# and the file would still look like a backup. That is the same trust inversion
+# the second rule was created to prevent, arriving through the back door.
+#
+# Anchored on the path_regex naming backups/firewall, so it follows the rule
+# rather than the ordering. Exits at the first key after that line: `age:` uses
+# a folded scalar, so the key is on the line following the one that matches.
 recipient() {
-  grep -oE 'age1[0-9a-z]{50,}' "$SOPS_POLICY" | head -1
+  awk '
+    /path_regex:.*backups\/firewall/ { inrule = 1 }
+    inrule && match($0, /age1[0-9a-z]{50,}/) {
+      print substr($0, RSTART, RLENGTH); exit
+    }
+  ' "$SOPS_POLICY"
 }
 
 # Newest first, sorted by NAME and not by mtime. The stamp is UTC ISO-8601

@@ -113,18 +113,69 @@ unset absent clobbered cert
 info "decrypting $(basename "${SECRETS_FILE}")"
 load_secrets "${STACK}"
 
-REQUIRED=(
-  GRAFANA_ADMIN_PASSWORD
-  GRAFANA_RENDERER_TOKEN
-  ALERTMANAGER_WEBHOOK_URL
-  ALERTMANAGER_URGENT_WEBHOOK_URL
-  ALERTMANAGER_SECURITY_WEBHOOK_URL
-  ALERTMANAGER_HEARTBEAT_URL
-  SNMP_COMMUNITY_PFSENSE
-  SNMP_COMMUNITY_APC
-  SNMP_COMMUNITY_MOKERLINK
-  SNMP_COMMUNITY_ILO
-)
+# The two inputs whose presence decides what this stack needs. Declared here
+# rather than beside the blocks that render them, because the required-key list
+# below is built from whether they exist.
+SNMP_SRC="${STACK_DIR}/snmp-exporter/snmp.yaml"
+AM_CONFIG="${STACK_DIR}/alertmanager/alertmanager.yaml"
+
+# ---------------------------------------------------------------------------
+# What this stack requires
+#
+# Derived from the stack, not listed for one of them. Every render below is
+# already guarded by `[[ -f ... ]]`, so the script has always coped with a
+# stack that has no snmp-exporter — but this list was a flat array of all ten
+# keys, which demanded four SNMP communities and four Alertmanager URLs from
+# any stack at all. `make render STACK=lab` died on a lab that runs neither,
+# naming secrets that stack has no use for.
+#
+# The Grafana half is read out of the stack's own compose.yaml: a ${VAR:?}
+# guard IS the declaration that the service cannot start without it, so a
+# second copy here could only ever drift from it. Same derivation
+# seed-validation-env.sh uses against the same guards, for the same reason.
+# The three excluded names are the ones THIS script writes into .env further
+# down — they are guarded in compose.yaml but they are not secrets, and asking
+# SOPS for them would fail every render.
+#
+# For `stacks/observability` this produces the identical ten names the flat
+# array held, which is the property that makes the change safe: the two Grafana
+# keys come from its compose guards, and both conditionals below are true.
+# ---------------------------------------------------------------------------
+REQUIRED=()
+while read -r var; do
+  [[ -n "${var}" ]] || continue
+  case "${var}" in RENDER_UID | RENDER_GID | LOG_READ_GID) continue ;; esac
+  REQUIRED+=("${var}")
+done < <(grep -oE '\$\{[A-Za-z_][A-Za-z0-9_]*:\?' "${STACK_DIR}/compose.yaml" \
+         | sed 's/^\${//; s/:?$//' | sort -u)
+
+# The SNMP community names stay written out rather than derived from the
+# placeholders in snmp.yaml, and that is deliberate. scripts/snmp-targets.sh
+# --check asserts this array against the device inventory by grepping for each
+# name on a line of its own — it is one of the five copies of the device list
+# that check exists to hold together, and deriving it here would remove the
+# copy rather than the drift, leaving --check asserting nothing. Keep the
+# one-name-per-line shape.
+if [[ -f "${SNMP_SRC}" ]]; then
+  REQUIRED+=(
+    SNMP_COMMUNITY_PFSENSE
+    SNMP_COMMUNITY_APC
+    SNMP_COMMUNITY_MOKERLINK
+    SNMP_COMMUNITY_ILO
+  )
+fi
+
+# One entry per AM_CHANNELS entry below; the pairing is asserted after they are
+# rendered, so a channel added there without a key here fails at deploy time.
+if [[ -f "${AM_CONFIG}" ]]; then
+  REQUIRED+=(
+    ALERTMANAGER_WEBHOOK_URL
+    ALERTMANAGER_URGENT_WEBHOOK_URL
+    ALERTMANAGER_SECURITY_WEBHOOK_URL
+    ALERTMANAGER_HEARTBEAT_URL
+  )
+fi
+
 missing=()
 for var in "${REQUIRED[@]}"; do
   [[ -n "${!var:-}" ]] || missing+=("${var}")
@@ -134,7 +185,6 @@ done
 # ---------------------------------------------------------------------------
 # Render snmp.yaml
 # ---------------------------------------------------------------------------
-SNMP_SRC="${STACK_DIR}/snmp-exporter/snmp.yaml"
 SNMP_OUT_DIR="${STACK_DIR}/snmp-exporter/.rendered"
 if [[ -f "${SNMP_SRC}" ]]; then
   info "rendering snmp.yaml"
@@ -202,7 +252,7 @@ AM_CHANNELS=(
   "ALERTMANAGER_HEARTBEAT_URL:heartbeat_url"
 )
 AM_OUT_DIR="${STACK_DIR}/alertmanager/.rendered"
-if [[ -f "${STACK_DIR}/alertmanager/alertmanager.yaml" ]]; then
+if [[ -f "${AM_CONFIG}" ]]; then
   info "rendering ${#AM_CHANNELS[@]} alertmanager receiver URL(s)"
   mkdir -p "${AM_OUT_DIR}"
   chmod 700 "${AM_OUT_DIR}"
@@ -229,7 +279,7 @@ if [[ -f "${STACK_DIR}/alertmanager/alertmanager.yaml" ]]; then
   # `secrets/[a-z_]+` also matched `secrets/observability.sops.yaml` in this
   # file's own header comment, and reported the header as a missing channel.
   done < <(grep -oE 'url_file:[[:space:]]*/etc/alertmanager/secrets/[a-z_]+' \
-             "${STACK_DIR}/alertmanager/alertmanager.yaml" \
+             "${AM_CONFIG}" \
            | sed 's|.*/||' | sort -u)
 fi
 

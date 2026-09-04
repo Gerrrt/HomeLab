@@ -1,0 +1,94 @@
+---
+# The lab stack watching itself.
+#
+# Four rules, and the number is the point. The estate has 48; ADR-0007 names
+# giving up "Loki, the dashboards and 40 alert rules" as the price of keeping
+# lab telemetry out of the estate, and this file does not pretend to replace
+# them. What it covers is this stack's own working — the four things that would
+# make every other signal here silently wrong.
+#
+# NOTHING HERE PAGES. There is no Alertmanager in this stack (ADR-0020), so a
+# firing alert is visible in Prometheus's /alerts and in Grafana and nowhere
+# else. That is a deliberate limit, not an oversight, and it is why these are
+# scoped to "the collector is broken" rather than to anything about the estate
+# being defended: an alert nobody is notified of is only useful to someone who
+# is already looking, and someone already looking is looking at the lab.
+#
+# The names deliberately match the estate's rules for the same conditions.
+# `external_labels: monitor: imaginationlan` in prometheus.yaml is what
+# distinguishes them, and it travels with every series; two different names for
+# one condition would not survive a screenshot pasted into an issue.
+#
+# What this does NOT cover, and cannot: this Prometheus going down. `up == 0`
+# is evaluated by the thing that would have stopped. The estate answers that
+# for itself with a watcher on `oracle` (ADR-0015) and a heartbeat receiver;
+# the lab has neither available to it, which is #257.
+groups:
+  - name: lab
+    interval: 60s
+    rules:
+      # Covers every target in prometheus.yaml — itself, loki, grafana, alloy.
+      # `up` is the only one of these four that sees a component which has
+      # stopped publishing altogether; the other three read a metric the
+      # component emits about its own working, which requires it to be working
+      # enough to emit.
+      - alert: InstanceDown
+        expr: up == 0
+        for: 5m
+        labels:
+          component: lab
+          severity: critical
+          category: availability
+        annotations:
+          summary: "{{ $labels.job }} target {{ $labels.instance }} is down in the lab stack"
+          description: >-
+            The lab's Prometheus has failed to scrape {{ $labels.instance }}
+            ({{ $labels.job }}) for 5 minutes. Nothing outside the lab can see
+            this — see #257.
+
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          component: lab
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "The lab's Prometheus rejected its own config reload"
+          description: >-
+            It is still serving the config it last parsed successfully, so the
+            change you deployed is not the one running.
+
+      # The rule this stack most needs, because its retention figures are a
+      # bound rather than a measurement — compose.yaml says so at length. If
+      # 4 GiB turns out to be too small, retention quietly becomes shorter than
+      # the 15 days configured, the store keeps working and the dashboards keep
+      # drawing. This counter is the only thing that distinguishes "the ceiling
+      # engaged" from "old data aged out normally": do not substitute
+      # prometheus_tsdb_time_retentions_total, which increments by design.
+      - alert: PrometheusSizeRetentionActive
+        expr: increase(prometheus_tsdb_size_retentions_total[1h]) > 0
+        for: 5m
+        labels:
+          component: lab
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The lab's size ceiling is evicting blocks — retention is shorter than 15 days"
+          description: >-
+            Re-derive the retention figures against the spindles rather than
+            raising the ceiling blind; compose.yaml carries the queries.
+
+      - alert: LokiIngestionStalled
+        expr: |
+          sum(rate(loki_distributor_lines_received_total[30m])) == 0
+        for: 30m
+        labels:
+          component: lab
+          severity: warning
+          category: availability
+        annotations:
+          summary: "The lab's Loki has received no log lines for 30 minutes"
+          description: >-
+            Either the lab's Alloy is down or the push endpoint is unreachable.
+            Logs are being lost, not queued indefinitely.

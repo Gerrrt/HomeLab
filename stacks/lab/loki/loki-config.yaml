@@ -1,0 +1,72 @@
+---
+# Single-binary Loki with filesystem storage, same shape as the estate's and
+# for the same reason — see docs/adr/0003-observability-stack-selection.md.
+#
+# Two differences from stacks/observability/loki/loki-config.yaml, both
+# deliberate:
+#
+#   retention_period   360h (15 days), not 720h. It tracks the Prometheus
+#                      retention in compose.yaml, which is a bound rather than
+#                      a measurement — this store shares two 7.2K spindles with
+#                      a Windows domain, Wazuh's indexer, Velociraptor and PBS.
+#                      Keep the two in step: a log store outliving the metrics
+#                      that explain it is half an investigation.
+#
+#   no `ruler:` block  The estate's ruler delivers to its Alertmanager. This
+#                      stack has none (ADR-0020), and a ruler with nowhere to
+#                      deliver evaluates rules and discards the result, which
+#                      reads as coverage and is not. compose.yaml therefore
+#                      mounts no rules directory either.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/index_cache
+  filesystem:
+    directory: /loki/chunks
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+  compaction_interval: 10m
+
+limits_config:
+  volume_enabled: true
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  # 15 days, matching PROMETHEUS_RETENTION in .env.example.
+  retention_period: 360h
+  max_query_series: 5000
+  allow_structured_metadata: true
+
+analytics:
+  reporting_enabled: false

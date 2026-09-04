@@ -1,0 +1,35 @@
+---
+# The provider is here and the folder it reads is empty on purpose — see
+# ../../dashboards/README.md. Provisioning an empty directory is not an error:
+# Grafana logs nothing and starts normally, and the first dashboard committed
+# appears within updateIntervalSeconds without a redeploy.
+#
+# `allowUiUpdates: true` matches the estate, and matching is the point.
+# `scripts/export-dashboards.sh` takes a stack argument, so `make
+# dashboards-export STACK=lab` already works against this stack — and it can
+# only work with `true`, because Grafana answers `400 Cannot save provisioned
+# dashboard` under `false` and the export reads back the file it provisioned
+# from. Setting `false` here would have made the lab the one stack where the
+# documented export loop silently does nothing (#100).
+#
+# The gap that leaves, stated rather than discovered later: `true` gives up the
+# guarantee that the running dashboard and the committed one are the same, and
+# the estate buys that back with the `dashboards-drift` timer running
+# `export-dashboards.sh --check`. Nothing runs that against this stack — the
+# timer lives on the monitoring host and points at `observability` — so an edit
+# made in the lab's Grafana and never exported ages silently. That is the same
+# shape as everything else nothing watches here (#257), and it costs nothing
+# until this directory has a dashboard in it.
+apiVersion: 1
+
+providers:
+  - name: lab
+    orgId: 1
+    folder: Lab
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

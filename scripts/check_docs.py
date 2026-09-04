@@ -178,6 +178,16 @@ def strip_md(cell: str) -> str:
     return cell.strip()
 
 
+# A host-and-stack row for something that does not exist yet. See the block
+# above check_host_stack_table() for what it does there; count_alloy_agents()
+# below reads it too, because a row describing an undeployed host describes an
+# undeployed agent.
+#
+# Matched against the RAW cell, never strip_md()'s output: that helper removes
+# every `*`, which takes the emphasis with it and leaves the marker unfindable.
+NOT_BUILT = re.compile(r"\*\*not built yet\*\*", re.I)
+
+
 # ---------------------------------------------------------------------------
 # Facts, computed from the configs
 # ---------------------------------------------------------------------------
@@ -253,6 +263,13 @@ def count_alloy_agents() -> int:
     is the machine-readable side. A row whose Contents cell names Alloy is an
     agent; "two Alloy agents" in hardware.md was unguarded and stale for as
     long as it took to deploy a third (#88).
+
+    A row marked NOT_BUILT is not counted, because an agent on a host that does
+    not exist is not an agent. `stacks/lab` declares one for `alexander`, and it
+    collects nothing until that guest is racked (#262). The exclusion is not a
+    convenience: dropping the marker on the commit that builds the host pushes
+    this count to four and fails hardware.md's "three Alloy agents" in the same
+    run, which is exactly when that sentence should be forced to change.
     """
     tables = tables_under(
         ARCH_MD.read_text(encoding="utf-8"),
@@ -262,7 +279,9 @@ def count_alloy_agents() -> int:
         return 0
     return sum(
         1 for row in tables[0][1:]
-        if len(row) > 3 and "alloy" in strip_md(row[3]).lower()
+        if len(row) > 3
+        and "alloy" in strip_md(row[3]).lower()
+        and not NOT_BUILT.search(row[3])
     )
 
 
@@ -407,6 +426,27 @@ def check_snmp_targets() -> list[str]:
 # ---------------------------------------------------------------------------
 # 3. Host and stack mapping
 # ---------------------------------------------------------------------------
+# A stack directory can legitimately exist before the host that runs it does.
+# `stacks/lab` was committed complete — compose file, configs, rules, unit
+# tests — while the guest that will run it, `alexander`, was still an issue
+# (#262, #264). ADR-0004 puts the host-to-stack mapping in this document, so the
+# row has to exist; but docs/network.md is the inventory of what is actually on
+# the wire, and writing an unbuilt guest into it would be the precise kind of
+# false claim this file exists to catch. It would also mean inventing a MAC, a
+# device and an OS for a machine whose distribution is explicitly undecided.
+#
+# So the row is marked, and the marker INVERTS the check rather than switching
+# it off. A normal row's host must APPEAR in network.md; a row marked "not built
+# yet" must be ABSENT from it. That is what makes the marker self-clearing —
+# rack the host, add its network.md row, and this fails saying the marker is
+# stale, instead of quietly tolerating a row that claims both things at once.
+# The address is still required and still checked for collisions, so a plan is
+# held to the same standard as a deployment.
+#
+# The marker itself is defined next to strip_md(), because count_alloy_agents()
+# reads it too.
+
+
 def check_host_stack_table() -> list[str]:
     text = ARCH_MD.read_text(encoding="utf-8")
     tables = tables_under(text, re.compile(r"^##\s+Host and stack mapping"))
@@ -424,6 +464,7 @@ def check_host_stack_table() -> list[str]:
         ip_match = re.search(r"(\d+\.\d+\.\d+\.\d+)", host_cell)
         vlan_match = re.search(r"(\d+)", strip_md(row[1]))
         named_stacks.update(re.findall(r"stacks/([a-z0-9-]+)", row[2]))
+        planned = bool(len(row) > 3 and NOT_BUILT.search(row[3]))
 
         if not (ip_match and vlan_match):
             problems.append(
@@ -438,7 +479,35 @@ def check_host_stack_table() -> list[str]:
             r for r in rows_for_vlan
             if strip_md(r[0]).lower() == host.lower() and ip in strip_md(r[1])
         ]
-        if not hit:
+
+        if planned:
+            # The VLAN must be one network.md actually describes, or a typo'd
+            # segment would make every assertion below vacuously true.
+            if not rows_for_vlan:
+                problems.append(
+                    f"docs/architecture.md plans {host} on VLAN {vlan}, which "
+                    f"docs/network.md has no table for"
+                )
+            if hit:
+                problems.append(
+                    f"docs/architecture.md still marks {host} 'not built yet', "
+                    f"and docs/network.md now lists it at {ip} on VLAN {vlan} — "
+                    f"it has been built, so drop the marker"
+                )
+            # An unbuilt host planned onto an address something else already
+            # holds is a real conflict, and the cheapest possible moment to
+            # find it is before anyone racks it.
+            clash = [
+                r for r in rows_for_vlan
+                if ip in strip_md(r[1]) and strip_md(r[0]).lower() != host.lower()
+            ]
+            if clash:
+                problems.append(
+                    f"docs/architecture.md plans {host} at {ip}, which "
+                    f"docs/network.md already gives to "
+                    f"{strip_md(clash[0][0])} on VLAN {vlan}"
+                )
+        elif not hit:
             problems.append(
                 f"docs/architecture.md places {host} at {ip} on VLAN {vlan}; "
                 f"docs/network.md does not list it there"

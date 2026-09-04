@@ -1,0 +1,286 @@
+---
+# Lab observability stack for the defended estate on `Saruman`.
+#
+# Deployed on: alexander (10.0.30.40, VLAN 30 / ImaginationLAN) — a guest on
+#              `Saruman`, NOT the hypervisor itself. A compose stack is Docker,
+#              and Docker rewrites the iptables of a box whose own firewall
+#              ADR-0014 relies on, which is why #88 put the native .deb agent
+#              on the hypervisor and why this runs one level down.
+#              See docs/adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md.
+# Deploy with:  make up STACK=lab      (from the repository root)
+#
+# This stack exists so that lab telemetry never reaches 10.0.99.20 (ADR-0007).
+# Nothing here remote-writes anywhere; both of Alloy's sinks are services in
+# this file.
+#
+# ---------------------------------------------------------------------------
+# On the comments in this file
+# ---------------------------------------------------------------------------
+# The settings below are shared with `stacks/observability/compose.yaml`, and
+# the reasoning for them — why `init: true`, why `pids_limit` and not
+# `mem_limit`, why `cgroup: host` and not `privileged`, why loki has no
+# healthcheck — is written out at length there and is NOT repeated here. Two
+# copies of an argument drift the same way two copies of a config do, and the
+# argument is the half nobody re-checks. What IS written out here is every
+# place this stack DIFFERS from that one, because those are the only lines a
+# reader cannot get from the sibling file.
+
+name: lab
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging: *default-logging
+  networks: [lab]
+  init: true
+  pids_limit: 512
+
+services:
+  # ---------------------------------------------------------------------------
+  # Metrics store.
+  #
+  # ADR-0007 named Loki, Grafana and Alloy and no Prometheus, and in the same
+  # sentence said config.alloy is reused with the two *_URL variables the only
+  # difference. That file has two sinks. Without this service the second one
+  # has nowhere to point but 10.0.99.20, which is the one thing that ADR's
+  # Decision forbids — so the omission was an omission. ADR-0020.
+  # ---------------------------------------------------------------------------
+  prometheus:
+    <<: *service-defaults
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+    container_name: lab-prometheus
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      # Deliberately NOT the estate's 30d/12GB, and deliberately not derived
+      # the way those were either — there is nothing to derive from yet. The
+      # estate's numbers came from measured per-block write rates over a
+      # retained window; this stack has never run, so any figure here is a
+      # bound rather than a measurement, and writing it as though it were
+      # measured would be the more dishonest choice.
+      #
+      # What IS known is the constraint. ADR-0007: "128 GB and 48 threads
+      # against a single mirrored pair of 7.2K disks. The fleet is sized
+      # against spindles, not RAM." This volume shares those two spindles with
+      # a Windows domain (#265), Wazuh's OpenSearch indexer (#266),
+      # Velociraptor (#267) and PBS (#268) — and Wazuh is the one expected to
+      # be what actually runs out. So this starts small and is meant to be
+      # re-derived, not defended.
+      #
+      # Re-derive it the way the estate's was, once the domain exists and this
+      # has run for a fortnight:
+      #   rate(prometheus_tsdb_head_samples_appended_total[1d])
+      #   prometheus_tsdb_storage_blocks_bytes
+      # and check whether the ceiling has ever bound:
+      #   prometheus_tsdb_time_retentions_total  (0 means it never has)
+      #
+      # If it has bound, retention is quietly shorter than the line above
+      # claims. That is the same failure the estate documents; unlike the
+      # estate, there is no PrometheusSizeRetentionActive rule here to say so
+      # yet, because there are no dashboards or rules beyond lab.rules.yaml.
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+      - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-4GB}
+      # Enabled with nothing pushing to it yet, which is the one place this
+      # departs from ADR-0012's "publish only what has a consumer" — the flag
+      # is not a published port, and the receiver is reachable only from this
+      # compose network until the `ports:` block below is uncommented. It is on
+      # because Alloy in this same stack pushes through it: the agent uses
+      # remote_write, not a scrape, exactly as it does on the monitoring host.
+      - --web.enable-remote-write-receiver
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      # Only the CA, never a key — the grafana job below scrapes over https and
+      # verifies the leaf against it. The SAME CA as the estate's: one lab CA,
+      # two leaves. A second CA would mean a second certificate for every
+      # browser on Hicks to trust, for no gain.
+      - ../../certificates/ca.pem:/etc/prometheus/tls/ca.pem:ro
+      - prometheus-data:/prometheus
+    # No `ports:` — deliberately, and this is the line to change when #265
+    # lands. ADR-0012 publishes a port only when something OFF this host uses
+    # it, and today nothing does: the only client is Alloy, on this compose
+    # network. When the Windows endpoints and the Wazuh host get agents they
+    # become real off-host clients, and this becomes:
+    #   ports:
+    #     - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
+    # Publishing it now would open an unauthenticated remote-write receiver on
+    # the segment that exists to hold attackers, months before anything pushes
+    # to it — "a rule nobody can test", in the shape SECURITY.md keeps finding.
+    expose:
+      - "9090"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Log store. No healthcheck, for the reason written out against the `loki`
+  # service in stacks/observability/compose.yaml: the image is distroless and
+  # holds no shell, wget or curl to probe with. Readiness is observed by the
+  # `loki` scrape job in prometheus.yaml instead.
+  # ---------------------------------------------------------------------------
+  loki:
+    <<: *service-defaults
+    image: grafana/loki:3.7.7@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500
+    container_name: lab-loki
+    user: "10001:10001"
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    # No rules mount, unlike the estate's. Loki's ruler needs an Alertmanager
+    # to deliver to and this stack has none (ADR-0020) — a ruler configured
+    # with nowhere to send is a rule that evaluates and is discarded, which
+    # reads as coverage and is not. Log-based alerting for the lab is part of
+    # the liveness question in #257, not something to half-wire here.
+    #
+    # Not published, for the same reason as prometheus above: Alloy is the only
+    # client and it is on this network. #265 is when that stops being true.
+    expose:
+      - "3100"
+
+  # ---------------------------------------------------------------------------
+  # Visualisation. The one service here a human opens, and the one this stack
+  # publishes: ADR-0007 says the lab's Grafana is reached from Hicks, over the
+  # 50 -> 30 rule that already exists. No new firewall rule anywhere.
+  # ---------------------------------------------------------------------------
+  grafana:
+    <<: *service-defaults
+    image: grafana/grafana-oss:13.0.2@sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2
+    container_name: lab-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in secrets/lab.sops.yaml}
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SERVER_PROTOCOL: https
+      GF_SERVER_CERT_FILE: /etc/grafana/tls/cert.pem
+      GF_SERVER_CERT_KEY: /etc/grafana/tls/key.pem
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+      # No GF_RENDERING_* here, and no `renderer` service at the foot of this
+      # file. The renderer exists on the monitoring host to screenshot
+      # dashboards into docs/images/; this stack ships no dashboards yet, so
+      # there is nothing to render. That absence is also why no
+      # GRAFANA_RENDERER_TOKEN appears in secrets/lab.example.yaml — Grafana
+      # only refuses to start without one *once a rendering server is
+      # configured*, and none is.
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+      # A second leaf from the SAME CA as the estate's Grafana. Issue it with:
+      #   make certs ARGS="--host grafana-lab.matrix.elysium --ip 10.0.30.40 --dns grafana"
+      # The `grafana` DNS SAN is not decoration: the prometheus job in this
+      # stack connects to the compose service name and verifies against it.
+      - ../../certificates/grafana-lab.matrix.elysium.pem:/etc/grafana/tls/cert.pem:ro
+      - ../../certificates/grafana-lab.matrix.elysium-key.pem:/etc/grafana/tls/key.pem:ro
+    group_add:
+      - "${RENDER_GID:?run make render STACK=lab}"
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "--no-check-certificate", "https://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Collection agent for this guest.
+  #
+  # The config is MOUNTED FROM stacks/observability/alloy/, not copied into a
+  # stacks/lab/alloy/ of its own. ADR-0007 asks for config.alloy "reused
+  # unchanged"; a copy is reused-until-someone-edits-one, and this repository
+  # has already paid for that lesson — scripts/deploy-agent.sh exists because
+  # `oracle` drifted four separate ways from a hand-copied agent setup, and its
+  # header states the rule: "the fix is to not copy."
+  #
+  # Two files, not the directory, and that is the one place this departs from
+  # the sibling stack's `./alloy:/etc/alloy:ro`. Mounting the directory would
+  # bring syslog.alloy, which opens a UDP listener for the firewall's logs on
+  # the host's real interface — on VLAN 30, aimed at a stack that must not
+  # receive the estate's telemetry. Shipping config.alloy always, docker.alloy
+  # to hosts with a socket, and syslog.alloy never is exactly the subset
+  # deploy-agent.sh already ships to a remote Docker host.
+  #
+  # The cost, stated: a NEW *.alloy file added to that directory does not reach
+  # this stack without a line here. That is the same property deploy-agent.sh
+  # has, and the alternative — a symlinked directory — does not work at all,
+  # because a bind mount carries the symlink and not its target, and the target
+  # would have to resolve inside the container.
+  # ---------------------------------------------------------------------------
+  alloy:
+    <<: *service-defaults
+    image: grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839
+    container_name: lab-alloy
+    pids_limit: 1024
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    group_add:
+      - "${LOG_READ_GID:?run make render STACK=lab}"
+      # The image's own `alloy` group; alloy-data is 0770 473:473. Re-derive
+      # after an image bump — the sibling compose file has the command.
+      - "473"
+    cgroup: host
+    environment:
+      # The two variables ADR-0007 calls "the only difference", pointed at this
+      # stack's own stores. They resolve to the same service names the defaults
+      # in config.alloy use, so they are strictly redundant — and set anyway,
+      # because "lab telemetry stays in the lab" should be visible in the file
+      # an operator reads rather than inferred from a coalesce() three
+      # directories away.
+      LOKI_URL: http://loki:3100/loki/api/v1/push
+      PROMETHEUS_REMOTE_WRITE_URL: http://prometheus:9090/api/v1/write
+      ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-alloy}
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy
+    volumes:
+      - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+      - /:/rootfs:ro
+    ports:
+      # Debug UI, loopback only. No syslog receiver on 1514/udp, because
+      # syslog.alloy is not mounted above.
+      - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+    depends_on:
+      loki:
+        condition: service_started
+      prometheus:
+        condition: service_healthy
+
+networks:
+  lab:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:
+  alloy-data:
