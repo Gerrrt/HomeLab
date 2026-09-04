@@ -26,8 +26,9 @@
 
 ---
 
-Seven VLANs behind a pfSense firewall, default-deny between every segment, with
-a Prometheus/Loki/Grafana stack watching all of it. Every config in this
+Six VLANs and the untagged switch-management LAN behind a pfSense firewall,
+default-deny between every segment, with a Prometheus/Loki/Grafana stack
+watching all of it. Every config in this
 repository is the config that runs, validated on every push.
 
 It started as a place to practise security work and turned into the network the
@@ -46,7 +47,7 @@ documents for different readers.
 
 ## Highlights
 
-- **Network segmented by trust, not by function.** Seven VLANs; IoT, media and
+- **Network segmented by trust, not by function.** Six VLANs; IoT, media and
   guest segments are terminal — egress only, no path to anything else, and each
   carries a tripwire that logs anything which gets past that. Default deny holds
   everywhere except the trusted workstation segment and the switch LAN, both of

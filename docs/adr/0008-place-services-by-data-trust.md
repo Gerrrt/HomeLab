@@ -40,7 +40,7 @@ property.
 ## Decision
 
 Services are placed by what their data is worth, across two hosts. **No new
-segment is created; the seven VLANs stand.**
+segment is created; the six VLANs stand.**
 
 **The sensitive tier — Winterfell (99).** A dedicated low-power mini PC hosts
 Vaultwarden, Immich, Paperless-ngx and Home Assistant, behind Caddy and step-ca

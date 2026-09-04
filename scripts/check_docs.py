@@ -127,6 +127,14 @@ NUMBER_WORDS = {
 COUNT = r"\b(\d+|(?i:" + "|".join(sorted(NUMBER_WORDS, key=len, reverse=True)) + r"))"
 
 
+# Prose wraps, and a counted claim wraps with it. "It routes all seven\nVLANs"
+# in restore-the-firewall.md was invisible to a line-by-line scan for the whole
+# life of #209 — the claim was there, the grep that would have found it was not.
+# So claims are matched against the whole file and the line is derived from the
+# offset. One newline is allowed inside a claim and a blank line is not, so a
+# count ending one paragraph cannot bind to a noun starting the next.
+WS = r"(?:[ \t]+|[ \t]*\n[ \t]*)"
+
 def number(token: str) -> int:
     """A counted claim, written either as digits or as a word."""
     return int(token) if token.isdigit() else NUMBER_WORDS[token.lower()]
@@ -310,6 +318,23 @@ def count_alloy_agents() -> int:
     )
 
 
+def count_vlans() -> int:
+    """VLANs in docs/network.md's segment table.
+
+    The table is the enumeration; the prose above it was the claim, and they
+    disagreed five times over (#209). `WAN` and `LAN` carry a dash in the VLAN
+    column precisely because they are not VLANs — the untagged switch-management
+    LAN is a real network and a real seventh thing to count, which is why the
+    wrong number was so durable. Counting the tag column rather than the rows
+    keeps that distinction.
+    """
+    text = NETWORK_MD.read_text(encoding="utf-8")
+    rows = tables_under(text, re.compile(r"^#\s+Network$", re.M))
+    if not rows:
+        return 0
+    return sum(1 for row in rows[0] if len(row) > 1 and strip_md(row[1]).isdigit())
+
+
 def facts() -> dict:
     prom_rules = sorted((STACK / "prometheus/rules").glob("*.rules.yaml"))
     loki_rules = sorted((STACK / "loki/rules").glob("*.rules.yaml"))
@@ -330,6 +355,7 @@ def facts() -> dict:
         "untested_rules": prom - len(tested),
         "alloy_agents": count_alloy_agents(),
         "receivers": count_notifying_receivers(),
+        "vlans": count_vlans(),
     }
 
 
@@ -342,42 +368,42 @@ def check_counts(f: dict) -> list[str]:
     # legitimate prose, so both are accepted — the check still catches a number
     # that is neither, which is what stale looks like.
     claims = (
-        (rf"{COUNT}\s+alert rules", {f["prometheus_rules"], f["total_rules"]},
+        (rf"{COUNT}" + WS + r"alert rules", {f["prometheus_rules"], f["total_rules"]},
          "alert rules"),
-        (rf"{COUNT}\s+rules in total", {f["total_rules"]}, "total rules"),
-        (rf"{COUNT}\s+rules loaded", {f["prometheus_rules"]}, "rules loaded"),
-        (rf"{COUNT}\s+rules across", {f["prometheus_rules"]}, "Prometheus rules"),
-        (rf"{COUNT}\s+metric-based", {f["prometheus_rules"]}, "metric-based rules"),
-        (rf"{COUNT}\s+log-based", {f["loki_rules"]}, "log-based rules"),
+        (rf"{COUNT}" + WS + r"rules in total", {f["total_rules"]}, "total rules"),
+        (rf"{COUNT}" + WS + r"rules loaded", {f["prometheus_rules"]}, "rules loaded"),
+        (rf"{COUNT}" + WS + r"rules across", {f["prometheus_rules"]}, "Prometheus rules"),
+        (rf"{COUNT}" + WS + r"metric-based", {f["prometheus_rules"]}, "metric-based rules"),
+        (rf"{COUNT}" + WS + r"log-based", {f["loki_rules"]}, "log-based rules"),
         # README says "13 LogQL rules" where observability.md says "log-based".
         # Same number, different prose; the first phrasing matched nothing.
-        (rf"{COUNT}\s+LogQL rules", {f["loki_rules"]}, "LogQL rules"),
-        (rf"{COUNT}\s+(?:provisioned\s+)?dashboards", {f["dashboards"]},
+        (rf"{COUNT}" + WS + r"LogQL rules", {f["loki_rules"]}, "LogQL rules"),
+        (rf"{COUNT}" + WS + r"(?:provisioned\s+)?dashboards", {f["dashboards"]},
          "dashboards"),
-        (rf"{COUNT}\s+panels", {f["panels"]}, "panels"),
+        (rf"{COUNT}" + WS + r"panels", {f["panels"]}, "panels"),
         # "39 rules across six files" states two counts. The first was checked
         # and the second was not, so splitting a rule file could not fail here.
-        (rf"rules across\s+{COUNT}\s+files", {f["prometheus_rule_files"]},
+        (rf"rules across" + WS + COUNT + WS + r"files", {f["prometheus_rule_files"]},
          "Prometheus rule files"),
         # How many rules have a unit test, and how many do not. Both were
         # unguarded and both were already stale: the sentence read "Coverage is
         # six rules of 39 ... ContainerHighMemory and Watchdog" while
         # blackbox.test.yaml had covered three more for weeks. This is the
         # figure most likely to drift, because it moves whenever a test lands.
-        (rf"[Cc]overage is\s+{COUNT}\s+rules", {f["tested_rules"]},
+        (rf"[Cc]overage is" + WS + COUNT + WS + r"rules", {f["tested_rules"]},
          "unit-tested rules"),
-        (rf"[Oo]ther\s+{COUNT}\s+are still validated", {f["untested_rules"]},
+        (rf"[Oo]ther" + WS + COUNT + WS + r"are still validated", {f["untested_rules"]},
          "rules without a unit test"),
         # "Coverage is fifteen rules of 45" states two counts and only the
         # first was checked, so the denominator could go stale on its own —
         # the same shape as "39 rules across six files" above, and it did go
         # stale the same way the moment a rule was added (#81).
-        (rf"rules of\s+{COUNT}\s+so far", {f["prometheus_rules"]},
+        (rf"rules of" + WS + COUNT + WS + r"so far", {f["prometheus_rules"]},
          "rules in the coverage denominator"),
         # Where the agents run is documented, not deployed from here, so the
         # architecture table is the source and hardware.md's sentence is the
         # claim. See count_alloy_agents.
-        (rf"{COUNT}\s+Alloy agents", {f["alloy_agents"]}, "Alloy agents"),
+        (rf"{COUNT}" + WS + r"Alloy agents", {f["alloy_agents"]}, "Alloy agents"),
         # The second time a number in observability.md drifted (#72, then #212):
         # `security` was added and the sentence introducing the routing table
         # still said three. Both halves of "N receivers, N separate
@@ -388,24 +414,31 @@ def check_counts(f: dict) -> list[str]:
         # Derived from alertmanager.yaml the way the rule counts are derived
         # from the rule files, so adding a receiver fails here rather than
         # waiting for someone to reread the paragraph.
-        (rf"{COUNT}\s+receivers", {f["receivers"]}, "notifying receivers"),
-        (rf"{COUNT}\s+separate destinations", {f["receivers"]},
+        (rf"{COUNT}" + WS + r"receivers", {f["receivers"]}, "notifying receivers"),
+        (rf"{COUNT}" + WS + r"separate destinations", {f["receivers"]},
          "separate destinations"),
+        # Asserted five times and enumerated zero times (#209). The count is
+        # the segment table's tag column, so the untagged switch-management LAN
+        # stays uncounted here and "seven internal networks" stays sayable.
+        (rf"{COUNT}" + WS + r"VLANs", {f["vlans"]}, "VLANs"),
     )
     problems = []
     for rel in PROSE:
         path = REPO / rel
         if not path.exists():
             continue
-        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            for pattern, expected, label in claims:
-                for match in re.finditer(pattern, line):
-                    if number(match.group(1)) not in expected:
-                        want = " or ".join(str(v) for v in sorted(expected))
-                        problems.append(
-                            f"{rel}:{n} claims {match.group(1)} {label}; "
-                            f"the repository has {want}"
-                        )
+        text = path.read_text(encoding="utf-8")
+        for pattern, expected, label in claims:
+            for match in re.finditer(pattern, text):
+                if number(match.group(1)) in expected:
+                    continue
+                n = text.count("\n", 0, match.start()) + 1
+                want = " or ".join(str(v) for v in sorted(expected))
+                claimed = " ".join(match.group(1).split())
+                problems.append(
+                    f"{rel}:{n} claims {claimed} {label}; "
+                    f"the repository has {want}"
+                )
     return problems
 
 
