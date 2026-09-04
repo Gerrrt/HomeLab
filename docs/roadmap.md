@@ -298,12 +298,19 @@ what left this one unfireable for months.
   `*_URL` variables changed, and that file has two sinks, so a lab without a
   Prometheus points the second one at `10.0.99.20` and inverts the isolation
   the ADR exists for.
-  In order — [#262](https://github.com/Gerrrt/HomeLab/issues/262) the guest,
-  then [#263](https://github.com/Gerrrt/HomeLab/issues/263) the validators,
-  because `STACK ?=` reaches the lifecycle targets and stops there and every
-  checker in this repository is pinned to `stacks/observability`, so a second
-  stack today would be one CI has never seen; then
-  [#264](https://github.com/Gerrrt/HomeLab/issues/264) the stack itself.
+  [#264](https://github.com/Gerrrt/HomeLab/issues/264) is built:
+  `stacks/lab/` holds the compose file, both configs, four alert rules and
+  their unit tests, and the secrets template. What is left of it is a deploy,
+  which needs [#262](https://github.com/Gerrrt/HomeLab/issues/262) — the guest
+  on `Saruman` — to exist first. Building it made the tooling stack-aware
+  (`render-config.sh` derives its required keys per stack rather than demanding
+  the estate's ten, `reload-config.sh` skips services a stack does not declare,
+  `bootstrap.sh` refuses to give one age key both stacks) and gave `.sops.yaml`
+  the lab rule ADR-0020 asked for. It did **not** touch
+  [#263](https://github.com/Gerrrt/HomeLab/issues/263): `STACK ?=` reaches the
+  lifecycle targets and stops there, every checker is still pinned to
+  `stacks/observability`, and so the new stack is one CI has never seen —
+  validated only by hand and by the checks that already follow `STACK`.
   [#265](https://github.com/Gerrrt/HomeLab/issues/265) the domain is what
   everything else is pointed at, and blocks both
   [#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh — the heaviest

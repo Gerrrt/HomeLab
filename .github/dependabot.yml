@@ -19,6 +19,28 @@ updates:
       prometheus-stack:
         patterns: ["prom/*"]
 
+  # The lab stack. A second entry rather than a second directory on the one
+  # above, because Dependabot takes a single directory per entry — and without
+  # it the lab's pins would rot exactly the way the comment above says pinned
+  # tags do, while the estate's stayed current. The two run the same four
+  # images, so they are expected to move together; they get separate PRs
+  # because they are separate deploys to separate hosts, and the lab's is a
+  # host the operator has to be sitting in front of.
+  - package-ecosystem: docker-compose
+    directory: /stacks/lab
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "lab"]
+    groups:
+      grafana-stack:
+        patterns: ["grafana/*"]
+      prometheus-stack:
+        patterns: ["prom/*"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

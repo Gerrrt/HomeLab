@@ -1,0 +1,41 @@
+---
+# Two datasources, not the estate's three: there is no Alertmanager in this
+# stack (ADR-0020), so there is none to provision. A datasource pointed at a
+# service that does not exist is not inert — Grafana's Alerting pages render it
+# as a configured-but-unreachable receiver, which is a worse answer than an
+# absent one.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: ${PROMETHEUS_URL}
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
+      manageAlerts: false
+      prometheusType: Prometheus
+      exemplarTraceIdDestinations: []
+
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: ${LOKI_URL}
+    editable: false
+    jsonData:
+      maxLines: 2000
+      # Clicking a hostname in a log line jumps to that host's metrics rather
+      # than making you retype it into a new query. Kept identical to the
+      # estate's so the two Grafanas behave the same way under the hands of
+      # someone who uses both.
+      derivedFields:
+        - name: host
+          matcherRegex: 'host="([^"]+)"'
+          datasourceUid: prometheus
+          url: '$${__value.raw}'
+          urlDisplayLabel: "View host metrics"

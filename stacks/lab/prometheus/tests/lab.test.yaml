@@ -1,0 +1,138 @@
+---
+# Unit tests for lab.rules.yaml.
+#
+# The pairing is the point, and it is the argument #63 produced: a case that
+# only ever expects silence would pass against a rule that can never fire.
+# `ContainerHighMemory` divided by a limit nothing set, guarded on it being
+# non-zero, and was therefore unfireable for any input — while `promtool check
+# rules` passed it every time, because that parses PromQL and never asks
+# whether an expression can be true. So each rule below gets a firing case AND
+# a quiet case: the first proves the expression produces an alert for a real
+# input, the second proves it does not produce one for the input production
+# actually supplies.
+#
+# All four rules in lab.rules.yaml are covered here. That is a deliberate
+# difference from the estate's tests, where four of the nine stack rules are
+# syntax-checked only: this file is small enough that "test the ones that were
+# hard" has no advantage over testing all of them, and a new stack has no
+# operational history to lean on when deciding which ones were hard.
+rule_files:
+  - ../rules/lab.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- InstanceDown --------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="loki:3100",job="loki"}'
+        values: "1+0x5 0+0x20"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              alertname: InstanceDown
+              instance: loki:3100
+              job: loki
+              component: lab
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "loki target loki:3100 is down in the lab stack"
+              description: >-
+                The lab's Prometheus has failed to scrape loki:3100 (loki) for
+                5 minutes. Nothing outside the lab can see this — see #257.
+      # Quiet while the target is up, including inside the `for:` window.
+      - eval_time: 4m
+        alertname: InstanceDown
+        exp_alerts: []
+
+  # --- PrometheusConfigReloadFailed ----------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_config_last_reload_successful{instance="localhost:9090",job="prometheus"}'
+        values: "0+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PrometheusConfigReloadFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusConfigReloadFailed
+              instance: localhost:9090
+              job: prometheus
+              component: lab
+              severity: critical
+              category: correctness
+            exp_annotations:
+              summary: "The lab's Prometheus rejected its own config reload"
+              description: >-
+                It is still serving the config it last parsed successfully, so
+                the change you deployed is not the one running.
+
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_config_last_reload_successful{instance="localhost:9090",job="prometheus"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PrometheusConfigReloadFailed
+        exp_alerts: []
+
+  # --- PrometheusSizeRetentionActive ---------------------------------------
+  # The counter is flat until the size ceiling starts evicting, then steps.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_tsdb_size_retentions_total{instance="localhost:9090",job="prometheus"}'
+        values: "0+0x40 1+0x30"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: PrometheusSizeRetentionActive
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusSizeRetentionActive
+              instance: localhost:9090
+              job: prometheus
+              component: lab
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The lab's size ceiling is evicting blocks — retention is shorter than 15 days"
+              description: >-
+                Re-derive the retention figures against the spindles rather
+                than raising the ceiling blind; compose.yaml carries the
+                queries.
+      # A store that has never evicted is the normal case and must stay quiet.
+      - eval_time: 30m
+        alertname: PrometheusSizeRetentionActive
+        exp_alerts: []
+
+  # --- LokiIngestionStalled ------------------------------------------------
+  # A flat counter is a zero rate: lines are arriving nowhere.
+  - interval: 1m
+    input_series:
+      - series: 'loki_distributor_lines_received_total{instance="loki:3100",job="loki"}'
+        values: "1000+0x90"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: LokiIngestionStalled
+        exp_alerts:
+          - exp_labels:
+              alertname: LokiIngestionStalled
+              component: lab
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "The lab's Loki has received no log lines for 30 minutes"
+              description: >-
+                Either the lab's Alloy is down or the push endpoint is
+                unreachable. Logs are being lost, not queued indefinitely.
+
+  - interval: 1m
+    input_series:
+      - series: 'loki_distributor_lines_received_total{instance="loki:3100",job="loki"}'
+        values: "1000+120x90"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: LokiIngestionStalled
+        exp_alerts: []

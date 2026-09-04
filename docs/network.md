@@ -278,7 +278,21 @@ Where things get broken on purpose.
   dedicated port, `Saruman` is the Proxmox install. They are separate addresses
   and separate names, and conflating them is a mistake this document previously
   made.
-- `Saruman` currently runs no guests.
+- `Saruman` currently runs no guests. The first will be `alexander`, at
+  `10.0.30.40` — a static below `.100` with a reservation, single-homed on this
+  segment like its host — which runs
+  [`stacks/lab`](../stacks/lab): the lab's own Prometheus, Loki, Grafana and
+  Alloy. The stack is built and committed; the guest is
+  [#262](https://github.com/Gerrrt/HomeLab/issues/262), which is why it is
+  described here and not in the table above. **It is a guest and not the
+  hypervisor for a reason**: a compose stack is Docker, and Docker would
+  rewrite the iptables of the box whose own firewall ADR-0014 relies on — the
+  same fact that put the native `.deb` agent on `Saruman` rather than a
+  container
+  ([ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)).
+  It gets **no** pass into Winterfell: the rule below is the hypervisor's, and
+  ADR-0007's "guests get no such rule" covers this one too. Nothing in that
+  stack remote-writes off the segment.
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
   into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry

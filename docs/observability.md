@@ -2,6 +2,29 @@
 
 What is collected, where it goes, and how to change it.
 
+**This document describes the estate's stack, on `prometheus` (10.0.99.20).**
+There is a second one. [`stacks/lab`](../stacks/lab) is the lab's own
+Prometheus, Loki, Grafana and Alloy, and it is deliberately not part of any of
+what follows: no series it holds reaches this Prometheus, no log line reaches
+this Loki, and none of the alert rules or dashboards below can see it. That is
+ADR-0007's decision — lab telemetry stays in the lab, so that deliberately
+hostile data never lands in the store the estate is actually run from — and
+[ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
+settles its shape. It is built but not yet deployed; the guest that runs it is
+[#262](https://github.com/Gerrrt/HomeLab/issues/262).
+
+The one path that does cross belongs to the hypervisor and not to any guest:
+`Saruman`'s own agent remote-writes here over a single unlogged pass
+([#88](https://github.com/Gerrrt/HomeLab/issues/88)). A DL360 with an ageing
+mirrored pair is estate hardware, and its health belongs with the rest of the
+estate's.
+
+The consequence worth carrying into everything below: **nothing here can tell a
+quiet lab from a dead one.** `RemoteWriteJobStale` keys on jobs that arrive on
+this Prometheus, so by construction it can never cover a stack that never
+arrives. That gap is [#257](https://github.com/Gerrrt/HomeLab/issues/257), and
+it is not closed by anything in this document.
+
 ## What is collected
 
 | Source | Via | Interval | Examples |

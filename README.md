@@ -169,6 +169,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │   ├── alloy/                # the agent config directory, shipped to every host
 │   ├── snmp-exporter/        # generator.yaml is the source of truth
 │   └── grafana/              # provisioning + 7 dashboards
+├── stacks/lab/               # the lab's own stack — four services, not yet deployed
+│                             #   runs on a guest on Saruman, never remote-writes
+│                             #   to VLAN 99. See its README and ADR-0020
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
 ├── scripts/                  # bootstrap, render, validate, pin-digests, purge
 ├── SECURITY.md               # disclosure policy and known exposure

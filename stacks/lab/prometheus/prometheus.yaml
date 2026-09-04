@@ -1,0 +1,68 @@
+---
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+  external_labels:
+    site: matrix.elysium
+    # The estate's says `winterfell`. This one names the segment it serves, so
+    # that a series copied into a paste, a screenshot or a bug report says which
+    # of the two stacks it came from without anyone having to remember there are
+    # two. They are deliberately never joined, so the label is the only thing
+    # that would ever tell them apart.
+    monitor: imaginationlan
+
+rule_files:
+  - /etc/prometheus/rules/*.rules.yaml
+
+# No `alerting:` block, because there is no Alertmanager in this stack —
+# ADR-0020 decided that, and the reasoning is there. Rules below still evaluate;
+# a firing alert is visible in this Prometheus's own /alerts and through
+# Grafana. Nothing pages, and nothing is meant to.
+#
+# What that leaves uncovered is #257: the estate's RemoteWriteJobStale keys on
+# jobs arriving on VLAN 99, so it can never see this stack, and a lab that has
+# died looks exactly like a lab nobody is using. Adding an alertmanagers: block
+# pointed at 10.0.99.20 would "fix" that by opening the remote-write path
+# ADR-0007 exists to refuse. Whatever #257 settles goes outside this file.
+
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # The stack monitoring itself. Service names resolve on the compose network,
+  # so nothing here carries this guest's address.
+  # ---------------------------------------------------------------------------
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # This is also loki's readiness check. The image is distroless and can carry
+  # no compose healthcheck, so `up{job="loki"}` is the only thing that observes
+  # it — the same arrangement, and the same reasoning, as the estate's.
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+
+  # Verified properly rather than with insecure_skip_verify: the lab CA is
+  # mounted into this container, and the leaf carries `grafana` as a SAN
+  # alongside its FQDN precisely so this scrape can check the name it dials.
+  - job_name: grafana
+    scheme: https
+    tls_config:
+      ca_file: /etc/prometheus/tls/ca.pem
+      server_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+
+# No `snmp` or `blackbox` jobs: this stack runs neither exporter. The devices
+# on this segment that answer SNMP — `shiva`, the iLO of this guest's own host
+# — are polled by the estate's stack over the exception ADR-0013 records, and
+# polling them from here as well would be two stacks scraping one device and
+# two answers to "when did it last respond".
+#
+# No remote-write job list either. Agents on the lab's guests do not need one:
+# they push, and a pushed series appears without a target to edit. That is
+# #265's work, and it needs the ports: block in compose.yaml opened first.
