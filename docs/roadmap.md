@@ -194,23 +194,53 @@ issues intact. Nothing was summarised away.
   [#90](https://github.com/Gerrrt/HomeLab/issues/90)'s shape one service over —
   a filter that is dead and one that is merely quiet look identical from
   outside — and the mechanism is the blackbox exporter that now exists.
-  **The probe has to ask AdGuard directly rather than go through `morpheus`**,
-  because a query down the normal path always succeeds: that is the fallback
-  doing its job, and it is the whole reason the outage is silent. So it is a
-  `dns` prober against Winterfell's address, and the assertion worth making is
-  that a known-blocked name comes back *filtered* — AdGuard answering while
-  serving an empty blocklist is a third state that a liveness check reads as
-  healthy. **Blocked on [#102](https://github.com/Gerrrt/HomeLab/issues/102)**,
-  which has not bought the machine: a target written before then is red from the
-  moment the file loads, which is the check
+
+  **The detection is written, and it is the target that is blocked, not the
+  work.** [#126](https://github.com/Gerrrt/HomeLab/issues/126) — the same
+  failure, filed twice — landed the two `dns` modules, `AdGuardNotAnswering`,
+  `AdGuardNotFiltering` and their unit tests on 2026-09-04, with all four states
+  measured against a real AdGuard Home first. The entry above was right that a
+  probe cannot go through `morpheus`, right that "answering" and "filtering" are
+  two questions, and wrong about only one thing: what could not be written today
+  was the *target*, not the rules. It sits commented out in
+  [`targets/blackbox-dns.yaml`](../stacks/observability/prometheus/targets/blackbox-dns.yaml)
+  under its own scrape job, because
+  [#102](https://github.com/Gerrrt/HomeLab/issues/102) has not bought the
+  machine and Unbound is not forwarding to it — a target written before then is
+  red from the moment the file loads, which is the check
   [`targets/blackbox.yaml`](../stacks/observability/prometheus/targets/blackbox.yaml)
-  has already agreed not to ship.
+  has already agreed not to ship. Uncommenting it is two lines and a verify,
+  and it belongs to #102.
 
   The rest of #123 closed with ADR-0010 and the verification appended to it on
   2026-09-04. What is left sits outside this repository: one line for the family
   runbook in `Gerrrt/Lemmiwinks` covering *filtering is down and the internet is
   fine*, which presents as advertisements returning rather than as an outage.
   That is a note to whoever maintains that page, not a tenth step in the walk.
+- **[#292](https://github.com/Gerrrt/HomeLab/issues/292) Detect pfSense version
+  drift from the box.** `morpheus` was recorded as pfSense CE 2.8.1 on FreeBSD
+  15 in eleven places while running **2.9.0-RELEASE on FreeBSD 16.0-CURRENT**;
+  [#283](https://github.com/Gerrrt/HomeLab/pull/283) corrected them by hand,
+  after a human noticed. `check_compute_table()` never saw it and could not
+  have: it asserts `hardware.md` and `network.md` agree with *each other*, and
+  both copies were stale together — the failure its own `POINT_RELEASE` comment
+  already describes from the Ubuntu laptops. That comment's answer, leave the
+  running version to `node_os_info`, does not reach `morpheus`. It runs no
+  agent — the FreeBSD appliance `ship-firewall-logs.md` opens by explaining
+  cannot run Alloy — so its release line has no live counterpart anywhere, and
+  the next upgrade drifts just as quietly. **pfSense already publishes both
+  versions in one string.** It sets `sysDescr` explicitly rather than taking
+  bsnmpd's default: `pfSense morpheus.matrix.elysium 2.9.0-RELEASE FreeBSD
+  16.0-CURRENT amd64`, served by the same daemon the stack scrapes every 60s and
+  absent from all 187 series on that instance only because `1.3.6.1.2.1.1.1` is
+  not in the `pfsense` module. Collection is therefore three lines in
+  `generator.yaml` and `make snmp-generate`, on the pattern
+  `upsIdentUPSSoftwareVersion` already sets. The check is the harder half, and
+  it does not belong in `check_docs.py` — that compares documents to repo files
+  and runs in CI with no route to the stack, so this wants a
+  `snmp-verify.sh`-shaped job that fails on the fact rather than on the two
+  copies agreeing. Same shape as everything under *The stack does not watch
+  itself* below: it passed the whole time, and passing was never evidence.
 - **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
   screenshots.** `make screenshots` does five of the seven; the Logs and
   Security dashboards are deliberately excluded.
@@ -365,6 +395,17 @@ what left this one unfireable for months.
   external exposure cannot reach a phone that is not on it. Whether the
   in-house ntfy replaces the external topics or sits beside them is a decision
   this build makes, not a detail of it.
+
+  **One of the four services arrives with monitoring already written for it.**
+  [#126](https://github.com/Gerrrt/HomeLab/issues/126) shipped the DNS probes
+  and rules that catch a silently-dead AdGuard, with the two targets disabled in
+  `stacks/observability/prometheus/targets/blackbox-dns.yaml` because there is
+  nothing to probe yet. Uncommenting them is part of this build, not a separate
+  task: the file carries the address assumption to correct — `10.0.99.40`, the
+  next free reservation — and the two commands to verify the probes against the
+  running exporter, including the negative one, since a filtering probe that
+  cannot go red is measuring nothing. Blocking mode has to be Default/Null IP,
+  which the module pins deliberately.
 
   **Two purchases where the plan assumed zero, and this is the first.** `oracle`
   cannot host it — ADR-0015 measured 2549 MiB available behind a 5400 rpm disk
@@ -733,6 +774,48 @@ months.
       segmentation decision to record in ADR-0013's table when made — the
       pfSense one hands a host with two unauthenticated push ports a path to
       the firewall's login page, and #235 may move the iLO first.
+
+- [x] **[#126](https://github.com/Gerrrt/HomeLab/issues/126) Notice when the
+      house stops filtering DNS.** 2026-09-04. Also the monitoring half of
+      [#123](https://github.com/Gerrrt/HomeLab/issues/123), which describes the
+      same failure and whose entry under Monitoring has been corrected: the
+      rules were writable today, only the target was not.
+      [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) left the public
+      upstreams in Unbound's forwarder list so that a dead AdGuard costs
+      filtering rather than connectivity, and that trade converts a loud
+      failure into a silent one: the only symptom is advertisements
+      reappearing, which nobody reports. Two `dns` modules in
+      `blackbox/blackbox.yaml` and two rules in a new `dns.rules.yaml`.
+      `AdGuardNotAnswering` asks whether it answers at all; `AdGuardNotFiltering`
+      asks whether it is still *blocking*, which is the quieter failure — a
+      blocklist that silently stopped updating leaves a perfectly healthy
+      service filtering nothing. Both `warning`, so they route to `default`
+      rather than `urgent`: nothing is down and nobody is blocked.
+
+      **The whole design is in where the probe is aimed.** A query through the
+      normal resolver path always passes, because the fallback is doing its
+      job, so both probes go straight at port 53 on the filter under their own
+      scrape job — separate from `blackbox` because `EndpointUnreachable` is
+      critical and routes to `urgent`, and because `EndpointNameNotResolving`
+      joins on `name` in a way that means nothing when the target is itself a
+      resolver. `AdGuardNotFiltering` carries an `and on (name)` join so a
+      stopped AdGuard raises one alert and not two, and `tests/dns.test.yaml`
+      asserts that silence — the #63 hazard, since a join that stops matching
+      passes `promtool check rules`.
+
+      All four states were measured against a real AdGuard Home running the
+      default filter before either rule was written: healthy, blocklists not
+      loaded, blocking mode changed, and stopped — plus the trap itself,
+      Unbound at `10.0.99.1`, which answers the liveness probe and fails the
+      filtering one. The canary is `doubleclick.net`, a real blocklist entry
+      rather than a rule of our own, because a custom rule would keep working
+      while every downloaded list failed to load.
+
+      **The targets are written out and disabled**, the same call #91 made for
+      the iLO and pfSense UIs: AdGuard does not exist until #102 buys the mini
+      PC, and a probe enabled today would report a service down from the moment
+      the file loaded. The scrape job ships anyway, so turning them on is a
+      file_sd append with no restart. Enabling them belongs to #102.
 
 - [x] **[#90](https://github.com/Gerrrt/HomeLab/issues/90) Detect Suricata
       being dead.** 2026-09-03. The roadmap line said the SNMP module does not

@@ -94,8 +94,17 @@ stub's is none of those.
   reappearing, which nobody reports and which is indistinguishable from a
   blocklist that never covered a given site. Detection has to be deliberate, and
   a probe has to query AdGuard directly: one sent through the normal path always
-  passes, because the fallback is doing its job. Tracked as its own item; the
-  mechanism is the blackbox-exporter already on the roadmap.
+  passes, because the fallback is doing its job. Tracked as
+  [#126](https://github.com/Gerrrt/HomeLab/issues/126), and built: two `dns`
+  modules on the blackbox-exporter #91 landed, and `AdGuardNotAnswering` and
+  `AdGuardNotFiltering` in `prometheus/rules/dns.rules.yaml`. The second is
+  there because *up* and *filtering* are separate questions — a blocklist that
+  quietly stopped updating leaves a healthy service filtering nothing. Both are
+  `warning` rather than `critical`, which is the severity this decision implies:
+  the failure costs advertisements, not connectivity. The targets stay disabled
+  until #102 builds the box — and when it does, they are also the instrument for
+  the deliberate test the verification below asks for: stop AdGuard, watch
+  `AdGuardNotAnswering` fire while resolution carries on.
 - **The household-facing documentation stays correct without edits.** Every
   runbook, wiki page and diagram that points at pfSense for DNS keeps pointing
   at pfSense. A change that requires no update to the pages the family reads is
@@ -116,11 +125,26 @@ stub's is none of those.
 
 ## Verified against the running config · 2026-09-04
 
-The Context above was written from the `Gerrrt/Lemmiwinks` pages, which
-[#123](https://github.com/Gerrrt/HomeLab/issues/123) flagged as nine months
-stale, self-inconsistent and unchecked. They have now been read off `morpheus`
-directly. **The decision stands unchanged. Two of the facts underneath it do
-not.**
+The Context above was written from the `Gerrrt/Lemmiwinks` pages. It has now
+been read off `morpheus` directly. **The decision stands unchanged. Two of the
+facts underneath it do not.**
+
+**Where the error actually came from, because the obvious answer is wrong.**
+This ADR was written on 2026-08-24, and on that date the vault did say external
+DNS was Cloudflare and Google — the claim was copied accurately. Six days later,
+on 2026-08-30, the vault settled that section against `/cf/conf/config.xml` and
+corrected itself in two places at once: `network/dhcp_dns_architecture` now says
+"**There isn't one, and that is the correct answer rather than a gap**", and
+`runbooks/dns_is_broken` carries a standing instruction not to restore the
+forwarding description. Both were right, and both were right eleven days before
+this section was written.
+
+So the failure was not that the wiki went stale. The wiki repaired itself in six
+days. The failure was that this ADR copied a fact and never looked at the source
+again — and [#123](https://github.com/Gerrrt/HomeLab/issues/123), filed the same
+day as this ADR, quotes the same superseded text and concludes from it that the
+Lemmiwinks pages are nine months stale. They are not, on this subject. A copied
+fact goes stale at the copy, and the copy is the thing with nobody watching it.
 
 ### Unbound forwards to nothing at all
 

@@ -1,0 +1,110 @@
+---
+# Whether the house is still filtering DNS.
+#
+# ADR-0010 puts the resolver on the gateway and the filter one hop behind it:
+# Unbound on `morpheus` forwards to AdGuard Home with the public upstreams
+# listed alongside it, so an unresponsive AdGuard drops out of forwarder
+# selection and every client carries on resolving. The household never notices,
+# which is the point — and is exactly why these two rules exist. **The decision
+# converts a loud failure into a silent one, and an alert is the only thing that
+# distinguishes "AdGuard is fine and this site was never on a list" from
+# "AdGuard has been dead for three weeks" (#126, filed again as #123).**
+#
+# Neither half of that is deployed. Unbound recurses from the root and forwards
+# to nothing today — measured on `morpheus` on 2026-09-04 under #123 and
+# appended to ADR-0010 — and AdGuard needs a mini PC #102 has not bought. These
+# rules are written ahead of the service so that the detection lands with the
+# decision rather than a fortnight after it, which is how a silent failure gets
+# its first three weeks.
+#
+# Nothing already in this directory would catch it, and the near-misses are
+# worth naming so nobody writes one of them again:
+#
+#   containers.rules.yaml   ContainerRestartLoop and ContainerOomKilled need a
+#                           metrics agent on the mini PC. That is the #88
+#                           pattern and the box does not exist (ADR-0008, #102).
+#   host.rules.yaml         InstanceDown covers a host, not a container, and
+#                           only once the host is a scrape target at all.
+#   network.rules.yaml      touches pf, SNMP and the switch. Nothing about DNS.
+#   blackbox.rules.yaml     would be the obvious place, and its probes go
+#                           through URLs rather than at a resolver.
+#
+# And the one that would have been written first and been worse than nothing:
+# **a probe through the normal resolver path always passes.** Query pfSense, get
+# an answer, mark AdGuard healthy — because the fallback is doing its job. Both
+# rules below read `job="blackbox-dns"`, whose targets are aimed at AdGuard's
+# own address on port 53. See targets/blackbox-dns.yaml, where they are written
+# out and disabled until #102 builds the box, and blackbox/blackbox.yaml for the
+# two questions the probes ask.
+#
+# Both are `warning`. Nothing is down, nobody is blocked, and no data is at
+# risk: what has been lost is ad filtering, and ADR-0010 already says outright
+# that filtering here is a convenience rather than a control. alertmanager.yaml
+# routes warning to `default`, which is the normal notification this should be,
+# and no new receiver is needed.
+#
+# BlackboxExporterDown in blackbox.rules.yaml covers the prober for both jobs —
+# a dead exporter makes these two silent rather than red, which is the failure
+# mode that matters most and is alerted on there.
+groups:
+  - name: dns
+    interval: 60s
+    rules:
+      # Liveness. The check that closes #126: does AdGuard answer queries at
+      # all, asked directly rather than through the path that hides the answer.
+      #
+      # `for: 15m` rather than the 5m the endpoint rules use, and longer on
+      # purpose. Five minutes is right when someone is blocked; here the house
+      # is resolving normally throughout, so the only thing a short window buys
+      # is a notification every time the container restarts for an update.
+      - alert: AdGuardNotAnswering
+        expr: probe_success{job="blackbox-dns", check="liveness"} == 0
+        for: 15m
+        labels:
+          component: dns
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }} is not answering DNS — the house is resolving unfiltered"
+          description: >-
+            Asked directly at {{ $labels.instance }} for fifteen minutes and got
+            no valid answer. Nothing is broken and nobody is blocked: Unbound on
+            morpheus has dropped it from forwarder selection and is answering
+            from the public upstreams, exactly as ADR-0010 intended. What has
+            stopped is filtering, and it stays stopped silently until this is
+            fixed. Check the container on the mini PC, then re-probe from the
+            exporter — targets/blackbox-dns.yaml has the command.
+
+      # Function, and a quieter failure than the one above: a blocklist update
+      # that silently stopped working leaves a perfectly healthy AdGuard
+      # filtering nothing, and the liveness probe stays green right through it.
+      #
+      # The `and on (name)` join is what separates the two. A stopped AdGuard
+      # fails both probes, and without the join it would raise this alert as
+      # well — two different repairs in front of whoever reads the phone, for
+      # one fault. This is the EndpointNameNotResolving pattern, and it carries
+      # the same hazard: a join that stops matching is invisible to `promtool
+      # check rules`, which is what tests/dns.test.yaml is for (#63).
+      #
+      # `for: 30m` clears a blocklist refresh, which is the one routine event
+      # during which a healthy AdGuard might briefly not block.
+      - alert: AdGuardNotFiltering
+        expr: >-
+          probe_success{job="blackbox-dns", check="filtering"} == 0
+          and on (name) probe_success{job="blackbox-dns", check="liveness"} == 1
+        for: 30m
+        labels:
+          component: dns
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }} is answering DNS but no longer blocking anything"
+          description: >-
+            The service is up — it resolved a real name on the same probe cycle
+            — and the canary domain in blackbox/blackbox.yaml came back with a
+            real address instead of 0.0.0.0. So the blocklists are not loaded,
+            or the blocking mode is no longer Null IP. Check Filters → DNS
+            blocklists for a list that has stopped updating. If the canary has
+            simply fallen off the list it is on, replace the canary in
+            blackbox/blackbox.yaml — do not disable the probe, which is the one
+            thing standing between this and three weeks of quiet.

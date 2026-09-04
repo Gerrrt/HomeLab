@@ -7,13 +7,20 @@
 # unreachable for an unknown period and nothing here noticed, because nothing
 # here was ever looking from the outside.
 #
-# Modules are referenced by name from targets/blackbox.yaml. Pick by what the
-# endpoint actually serves, not by what would be nice:
+# Modules are referenced by name from targets/blackbox.yaml and, for the two
+# `dns` ones, targets/blackbox-dns.yaml. Pick by what the endpoint actually
+# serves, not by what would be nice:
 #
 #   http_2xx_lab_ca       https, certificate issued by certificates/ca.pem
 #   http_2xx_self_signed  https, certificate the device made for itself
 #   http_2xx_plain        http, no TLS on offer
 #   tcp_connect           anything at all holding the port open
+#   dns_answers           a resolver, asked whether it still answers at all
+#   dns_filters           a resolver, asked whether it is still filtering
+#
+# The two `dns` modules are a different shape from the four above them and the
+# block at the foot of this file says why: an http module is picked by what the
+# endpoint serves, a dns module carries its own question.
 #
 # Every https module exports probe_ssl_earliest_cert_expiry whether or not it
 # verifies the chain — blackbox reads it off the handshake, before deciding
@@ -100,3 +107,111 @@ modules:
     tcp:
       preferred_ip_protocol: ip4
       ip_protocol_fallback: false
+
+  # --- Asking a resolver what it answered ------------------------------------
+  #
+  # The four modules above ask whether an endpoint can be reached. These two ask
+  # the question only a DNS server can be asked — *what did you say?* — and they
+  # exist because ADR-0010 deliberately made one failure silent.
+  #
+  # ADR-0010 has Unbound on `morpheus` forward to AdGuard Home with the public
+  # resolvers listed alongside it, so a dead AdGuard drops out of forwarder
+  # selection and the house carries on resolving, unfiltered. Nothing breaks and
+  # nobody reports it: the only symptom is advertisements gradually reappearing,
+  # which looks exactly like a blocklist that never covered a given site. That
+  # trade is right for a household whose runbook has no branch for "everything
+  # is up and it still doesn't work", and this is what it costs (#126).
+  #
+  # None of it is running yet. Unbound recurses from the root and forwards to
+  # nothing — read off `morpheus` on 2026-09-04 under #123, and appended to
+  # ADR-0010 — and AdGuard needs the mini PC #102 has not bought. So these
+  # modules are the detection written ahead of the thing detected, which is why
+  # targets/blackbox-dns.yaml ships with every target disabled.
+  #
+  # THE TRAP, and the reason this comment is long: a probe sent through the
+  # normal resolver path always passes. Ask pfSense, get an answer, conclude
+  # AdGuard is healthy — because the fallback is doing its job. Both modules are
+  # therefore aimed at AdGuard's own address on port 53, one hop off the path
+  # the household uses. targets/blackbox-dns.yaml is where that is enforced.
+  #
+  # A `dns` module is a different shape from an `http` one. `query_name` is
+  # module configuration and the file_sd target is the server to ask, so these
+  # are one module per QUESTION rather than one per class of endpoint — which is
+  # why they are named for what they assert rather than for a transport.
+  #
+  # Both were verified on 2026-09-04 against AdGuard Home running the default
+  # AdGuard DNS filter (180,105 rules), and against Unbound on 10.0.99.1 as the
+  # unfiltered control. The table is the whole point of having two:
+  #
+  #                                   dns_answers   dns_filters
+  #   AdGuard healthy                       1             1
+  #   blocklists not loaded                 1             0
+  #   blocking mode changed                 1             0
+  #   AdGuard stopped                       0             0
+  #   asked Unbound instead (the trap)      1             0
+
+  # Does this resolver still answer a real name with a real address?
+  #
+  # example.com because it is IANA-reserved: it resolves permanently and no ad
+  # blocklist will ever carry it, so a failure here is about the resolver and
+  # never about the name. Validating the answer rather than only the rcode is
+  # what makes this more than a port check — a resolver returning NOERROR with
+  # an empty answer section fails, which blackbox v0.28.0 was checked to do
+  # rather than passing vacuously over zero records.
+  #
+  # This does depend on AdGuard's own upstreams, and that is deliberate: a
+  # filter that answers every query with SERVFAIL is as useless to the house as
+  # a stopped one, and Unbound's fallback treats the two the same way.
+  dns_answers:
+    prober: dns
+    timeout: 5s
+    dns:
+      transport_protocol: udp
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      query_name: example.com
+      query_type: A
+      valid_rcodes: ["NOERROR"]
+      validate_answer_rrs:
+        fail_if_not_matches_regexp:
+          - 'example\.com\.\s+\d+\s+IN\s+A\s+'
+
+  # Is this resolver still *filtering*, or merely still alive?
+  #
+  # A distinct and quieter failure than a dead service: a blocklist update that
+  # silently stopped working leaves a perfectly healthy-looking AdGuard
+  # filtering nothing, and `dns_answers` above would stay green through it.
+  #
+  # doubleclick.net is the canary. Unfiltered it returns six A records at
+  # Google (measured through Unbound, 2026-09-04); through AdGuard with the
+  # default filter it returns exactly one, 0.0.0.0. It is on the default
+  # AdGuard DNS filter, has been an advertising apex for two decades, and is a
+  # bare A record rather than a CNAME chain — which matters, because
+  # fail_if_not_matches_regexp requires EVERY record in the answer section to
+  # match, and a CNAME beside the address would fail a correctly-blocked name.
+  #
+  # A custom filtering rule of our own would be more stable and would test the
+  # wrong thing. It lives in AdGuard's own configuration and would keep working
+  # while every downloaded blocklist failed to load, which is the exact failure
+  # this module exists to see. The cost of using a real list entry instead: if
+  # the list ever drops doubleclick.net, this goes red while AdGuard is fine.
+  # The fix then is to replace the canary, not to disable the probe.
+  #
+  # 0.0.0.0 rather than an rcode assertion pins AdGuard's blocking mode to
+  # Default/Null IP. Checked: with the mode set to NXDOMAIN this probe fails
+  # while the service is healthy. That coupling is a feature — the module states
+  # the answer it expects, so changing the mode in the UI without changing this
+  # file is a change the monitoring reports rather than absorbs.
+  dns_filters:
+    prober: dns
+    timeout: 5s
+    dns:
+      transport_protocol: udp
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      query_name: doubleclick.net
+      query_type: A
+      valid_rcodes: ["NOERROR"]
+      validate_answer_rrs:
+        fail_if_not_matches_regexp:
+          - 'doubleclick\.net\.\s+\d+\s+IN\s+A\s+0\.0\.0\.0'
