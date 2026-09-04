@@ -53,7 +53,7 @@ The KVM in the rack is that access.
 | `oracle` | `matrix.elysium` | `10.0.99.30` | The machine the wiki runs on |
 | `prometheus` | `matrix.elysium` | `10.0.99.20` | Monitoring host |
 | `grafana` | `matrix.elysium` | `10.0.99.20` | Dashboards — matches the certificate's CN |
-| `neo` | `matrix.elysium` | `10.7.7.2` | The switch — ADR-0017. Note the subnet: this one is not `10.0.99.x` |
+| `neo` | `matrix.elysium` | `10.7.7.2` | The switch — ADR-0018. Note the subnet: this one is not `10.0.99.x` |
 
 `morpheus` needs no entry. It already resolves — and note it answers with **two**
 addresses, `10.0.99.1` and `10.7.7.1`, because pfSense registers the firewall's
@@ -64,7 +64,7 @@ shows one or the other is round-robin rather than drift.
 > **The first four were applied on 2026-08-30 and verified.** The procedure below
 > is what was run; it is kept for the next name, not because those four are
 > outstanding. `neo` is the fifth and was added later, by
-> [ADR-0017](../adr/0017-name-the-switch-and-leave-its-ui-on-plain-http.md) —
+> [ADR-0018](../adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md) —
 > check it with the `dig` below rather than assuming, since it is the one row
 > here that has not been true for as long as the others.
 
@@ -172,7 +172,7 @@ The address is documented — [`network.md`](../network.md) has a LAN section fo
 it — it is only outside the `10.0.x` convention, which is a memory problem and
 not a routing one. And the certificate that was supposed to be the harder half
 is not hard, it is unavailable: the switch has no TLS listener to point one at.
-[ADR-0017](../adr/0017-name-the-switch-and-leave-its-ui-on-plain-http.md)
+[ADR-0018](../adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
 records the check and closes that half. The UI stays at
 `http://neo.matrix.elysium/`, and `10.7.7.2` stays written down beside it,
 because the name needs `morpheus` and the switch is what you reach for when

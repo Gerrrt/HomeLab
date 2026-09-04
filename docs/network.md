@@ -69,14 +69,14 @@ truth for what a box actually does.
 - This interface exists solely to reach the switch's[^MokerLink] management UI,
   which will not bind to a tagged interface.
 - **`neo.matrix.elysium` resolves to `10.7.7.2`**, so the switch is reached by
-  name like everything else — [ADR-0017](adr/0017-name-the-switch-and-leave-its-ui-on-plain-http.md).
+  name like everything else — [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md).
   The address stays written down beside it on purpose: the name depends on
   Unbound on `morpheus`, and this is the device you open when `morpheus` is the
   suspect.
 - **The UI is plain HTTP and cannot be anything else.** No TLS listener, no
   certificate import — checked against the live switch on 2026-09-04, and the
   third firmware limit on this device after #84 and #85. Admin credentials cross
-  the wire in clear, over a path that runs through `neo` itself. ADR-0017 has the
+  the wire in clear, over a path that runs through `neo` itself. ADR-0018 has the
   reasoning and the rejected alternatives.
 - DHCP disabled.
 

@@ -269,7 +269,7 @@ complete state table and interface topology. They are credentials.
 `neo` serves its management UI on port 80 and nothing on 443 — no TLS listener,
 and no way to import a certificate. Checked against the device on 2026-09-04 and
 decided in
-[ADR-0017](adr/0017-name-the-switch-and-leave-its-ui-on-plain-http.md), which
+[ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), which
 gave the switch a name (`neo.matrix.elysium`) and closed the certificate half of
 [#97](https://github.com/Gerrrt/HomeLab/issues/97) as unavailable rather than
 pending.
