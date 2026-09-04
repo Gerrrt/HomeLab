@@ -58,6 +58,46 @@ discovery.docker "dockerlogs" {
 	host = "unix:///var/run/docker.sock"
 }
 
+// Ephemeral containers opt out of log collection with `homelab.logs=off`, and
+// this drops them before Alloy ever opens their log stream.
+//
+// It exists because `make backup` was shipping its own archives back through
+// here. backup-volumes.sh runs `tar -czf -` in a container, so the gzip stream
+// IS that container's stdout; the json-file driver records stdout regardless of
+// who is reading, and this component discovers every container on the socket
+// rather than one stack's. 765 MB of binary arrived as log lines in three
+// minutes on 2026-08-29 — 2.7 MiB/s against a 950 B/s baseline — which took
+// loki's RSS to 1015 MiB and set its mem_limit (#286, #114).
+//
+// Those runs now also pass `--log-driver none`, which is the real fix: Docker
+// discards the stream at source and there is nothing left to tail. This rule is
+// the second line, for the next ad-hoc `docker run` that forgets.
+//
+// NOT filtered on the compose project, which is the obvious-looking form and is
+// wrong here. `__meta_docker_container_label_com_docker_compose_project` is
+// empty for every container on `oracle` — `wiki`, `db` and the agent itself are
+// all plain `docker run` (see scripts/deploy-agent.sh) — so "drop what has no
+// project label" would silently stop collecting logs for the one service in
+// this estate that a person actually uses. Verified against
+// container_last_seen across both hosts before writing this. An allow-list of
+// known-good names is the same trap one step further on: it fails closed on a
+// host nobody remembered to add.
+//
+// Opt-out rather than opt-in is a real weakness and worth naming: a future
+// throwaway container that sets neither flag still gets tailed. What bounds
+// that case is not this rule — it is a per-stream ingestion limit in Loki,
+// which is a separate decision because it trades a flood for silently dropped
+// lines. Recorded on #286 rather than done here.
+discovery.relabel "dockerlogs_targets" {
+	targets = discovery.docker.dockerlogs.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_label_homelab_logs"]
+		regex         = "off"
+		action        = "drop"
+	}
+}
+
 discovery.relabel "dockerlogs" {
 	targets = []
 
@@ -70,7 +110,7 @@ discovery.relabel "dockerlogs" {
 
 loki.source.docker "default" {
 	host          = "unix:///var/run/docker.sock"
-	targets       = discovery.docker.dockerlogs.targets
+	targets       = discovery.relabel.dockerlogs_targets.output
 	labels        = {"platform" = "docker", "log_type" = "docker"}
 	relabel_rules = discovery.relabel.dockerlogs.rules
 	forward_to    = [loki.process.dockerlogs_filter.receiver]

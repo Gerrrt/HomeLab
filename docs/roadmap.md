@@ -165,16 +165,31 @@ issues intact. Nothing was summarised away.
   byte ceiling on the TSDB, which is at a measurable steady state at day 28
   of 30.
 - **[#286](https://github.com/Gerrrt/HomeLab/issues/286) Alloy tails the backup
-  archiver's tar stream into Loki.** Found while sizing #114, and it is the
-  reason `loki`'s ceiling is 1536M rather than about 512M.
-  `discovery.docker` has no filter, so it tails every container on the socket
-  rather than this stack's seven — and `backup-volumes.sh` writes each volume's
-  gzip stream to a container's stdout. One `make backup` put 765 MB of binary
-  through the log pipeline in three minutes, roughly three days of the estate's
-  real logs, and `loki-data` is not encrypted where the archives deliberately
-  are. Filter on the compose project label; the archiver should also get
-  `logging: driver: none`. Until then #114's largest number is sized around
-  this rather than around Loki.
+  archiver's tar stream into Loki.** Done 2026-09-04. Found while sizing #114,
+  and it is the reason `loki`'s ceiling is 1536M rather than about 512M:
+  `backup-volumes.sh` writes each volume's gzip stream to a container's stdout
+  and `discovery.docker` tails every container on the socket, so one
+  `make backup` put 765 MB of binary through the log pipeline in three minutes
+  — roughly three days of the estate's real logs, into a `loki-data` volume
+  that is not encrypted where the archives deliberately are.
+
+  **The fix this entry proposed would have broken log collection.** Filtering
+  on `__meta_docker_container_label_com_docker_compose_project` and dropping
+  what does not carry it reads as the tidy answer, but that label is empty for
+  every container on `oracle` — `wiki`, `db` and the agent itself are all plain
+  `docker run` — so it would have silently stopped collecting logs for the one
+  service in this estate anybody uses. Checked against `container_last_seen`
+  across both hosts before writing any of it. What landed instead is
+  `--log-driver none` on the archiver runs, so Docker discards the stream at
+  source, plus an opt-out label (`homelab.logs=off`) that Alloy drops on before
+  opening a stream at all.
+
+  Opt-out is a weaker guarantee than the allow-list this entry wanted, and the
+  gap is named rather than papered over: a future throwaway container that sets
+  neither flag is still tailed. Bounding *that* is a per-stream ingestion limit
+  in Loki, which trades a flood for silently dropped lines and is its own
+  decision. `loki`'s `mem_limit` is unchanged until a fortnight without the
+  flood exists to re-derive from — 2026-09-18.
 - **[#249](https://github.com/Gerrrt/HomeLab/issues/249) Scrape the UPS
   self-test schedule.** [#93](https://github.com/Gerrrt/HomeLab/issues/93) left
   `mjolnir` testing itself every fortnight and nothing able to see that it does.

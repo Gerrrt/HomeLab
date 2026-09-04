@@ -252,7 +252,8 @@ printf '  %-32s %14s %14s\n' "volume" "live now" "in the set"
 for v in "${TARGETS[@]}"; do
   live="?"
   if docker volume inspect "${PROJECT}_${v}" >/dev/null 2>&1; then
-    kb="$(docker run --rm --network none -v "${PROJECT}_${v}:/data:ro" "${ARCHIVER}" du -sk /data | awk '{print $1}')"
+    kb="$(docker run --rm --network none --log-driver none --label homelab.logs=off \
+          -v "${PROJECT}_${v}:/data:ro" "${ARCHIVER}" du -sk /data | awk '{print $1}')"
     live="$(human $((kb * 1024)))"
   else
     live="does not exist"
@@ -312,7 +313,11 @@ if ((SAFETY)); then
   snapped=()
   for v in "${TARGETS[@]}"; do
     docker volume inspect "${PROJECT}_${v}" >/dev/null 2>&1 || continue
+    # --log-driver none for the reason archive_one() in backup-volumes.sh
+    # spells out: stdout here is the gzip stream, and without this it is shipped
+    # into Loki as log lines (#286).
     docker run --rm --network none --read-only --security-opt no-new-privileges \
+        --log-driver none --label homelab.logs=off \
         -v "${PROJECT}_${v}:/data:ro" "${ARCHIVER}" \
         tar --numeric-owner -czf - -C /data . 2>/dev/null \
       | age --recipient "${AGE_RECIPIENT}" --output "${SNAP_DIR}/${v}.tar.gz.age"
@@ -359,7 +364,8 @@ for v in "${TARGETS[@]}"; do
   # Extracted as root, with --numeric-owner, so tar can put back the uids the
   # services run as (65534, 10001, 472) rather than remapping them.
   age --decrypt -i "${AGE_IDENTITY}" "${SET_DIR}/${v}.tar.gz.age" \
-    | docker run --rm -i --network none -v "${PROJECT}_${v}:/data" "${ARCHIVER}" \
+    | docker run --rm -i --network none --log-driver none --label homelab.logs=off \
+        -v "${PROJECT}_${v}:/data" "${ARCHIVER}" \
         sh -c 'set -e; cd /data && find . -mindepth 1 -delete && tar --numeric-owner -xzf - -C /data'
 done
 
@@ -370,7 +376,8 @@ printf '\n'
 for v in "${TARGETS[@]}"; do
   want="${EXPECT_UID[$v]:-}"
   [[ -n ${want} ]] || continue
-  got="$(docker run --rm --network none -v "${PROJECT}_${v}:/data:ro" "${ARCHIVER}" \
+  got="$(docker run --rm --network none --log-driver none --label homelab.logs=off \
+        -v "${PROJECT}_${v}:/data:ro" "${ARCHIVER}" \
         stat -c '%u' /data/. 2>/dev/null || echo '?')"
   if [[ ${got} == "${want}" ]]; then
     green "${v}: owned by uid ${got}, as ${VOL_SERVICE[$v]} expects"

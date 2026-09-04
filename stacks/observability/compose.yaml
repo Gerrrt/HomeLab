@@ -162,8 +162,14 @@ x-service-defaults: &service-defaults
 # to start with, on a 152 MiB peak from a six-hour window. Fourteen days
 # inverts that — it is the riskiest of the seven to bound.
 #
-# When #286 lands, re-derive this from a fortnight without the flood; it should
-# fall to roughly 512M. Move the number and this paragraph together.
+# #286 landed on 2026-09-04: the archiver runs with `--log-driver none`, so
+# Docker discards the stream at source, and Alloy drops any container labelled
+# `homelab.logs=off` before opening its log stream. The number here has
+# deliberately NOT been moved yet — every measurement above still includes the
+# flood, and a fortnight without it does not exist until 2026-09-18. Re-derive
+# then, from `max_over_time(container_memory_rss{name="loki"}[14d])`; on the
+# nine quiet days in this window that peaked at 107-128 MiB, so expect roughly
+# 512M. Move the number and this paragraph together.
 #
 # NO SWAP, DELIBERATELY. `memswap_limit` equals `mem_limit` on every service,
 # which sets `memory.swap.max` to 0. Left unset it defaults to 2x mem_limit,
@@ -341,9 +347,11 @@ services:
     # is the same fact twice: loki has by far the widest dynamic range here,
     # 93 MiB median against a peak eleven times that. That peak is the 2026-08-29
     # ingest flood explained above, it belongs to #286 rather than to Loki, and
-    # it recurs — 577 MiB as recently as 09-04. Sized to clear it rather than
-    # to clip it, because a log store OOM-killed mid-flood takes the record of
-    # the flood with it.
+    # it recurred until #286 was fixed on 2026-09-04 — 577 MiB as recently as
+    # that morning. Sized to clear it rather than to clip it, because a log
+    # store OOM-killed mid-flood takes the record of the flood with it. The
+    # cause is gone; the number stays until a fortnight of data without it
+    # exists to re-derive from. See the block above `services:`.
     mem_limit: 1536m
     memswap_limit: 1536m
     command: -config.file=/etc/loki/loki-config.yaml
