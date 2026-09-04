@@ -11,7 +11,7 @@
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
 [![Loki](https://img.shields.io/badge/Loki-F5A800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/loki/)
-[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2015-212121?style=plastic)](https://www.pfsense.org)
+[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2016-212121?style=plastic)](https://www.pfsense.org)
 
 [Architecture](docs/architecture.md) ·
 [Network](docs/network.md) ·
@@ -146,7 +146,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 
 | Layer | Tool | Role |
 | --- | --- | --- |
-| Firewall / routing | [pfSense on FreeBSD 15](docs/network.md) | VLANs, DHCP, default-deny |
+| Firewall / routing | [pfSense on FreeBSD 16](docs/network.md) | VLANs, DHCP, default-deny |
 | Virtualisation | Proxmox VE | Lab hypervisor |
 | Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention capped at 12 GiB, remote-write receiver |
 | Logs | [Loki](stacks/observability/loki) | Single-binary, filesystem storage |
@@ -178,7 +178,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 21 architecture decision records
+│   ├── adr/                  # 23 architecture decision records
 │   └── runbooks/             # deploy, converge, add device, rotate creds, certs,
 │                             #   key backup, purge, restore the firewall,
 │                             #   restore the stack, ship firewall logs,

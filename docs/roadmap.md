@@ -91,6 +91,30 @@ issues intact. Nothing was summarised away.
   rather than inherited from `prometheus` — a vault behind one factor on an
   unencrypted disk is not the bet `SECURITY.md` accepted for a metrics
   dashboard.
+- **[#122](https://github.com/Gerrrt/HomeLab/issues/122) Settle who reaches the
+  family's credentials, photos and documents when the estate is down.** Answered
+  by [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md),
+  and the answer is that **no sensitive-tier service has to stay reachable** —
+  one mini PC cannot be made highly available, and every way of pretending
+  otherwise adds components that can take it down. The constraint is on the path
+  instead: nothing the household needs in an emergency may have the estate on its
+  only route. Four classes, falling due on ADR-0022's triggers — the household's
+  own credentials recoverable without Vaultwarden and opened once from the other
+  person's device; an encrypted off-estate copy of Immich and Paperless-ngx whose
+  staleness is visible; nothing on the break-glass card depending on a
+  certificate this estate issues; and nothing physical operable only through Home
+  Assistant.
+
+  **Writing it turned up that off-host is not off-estate.** `oracle` holds the
+  firewall export precisely so it is not on the machine it protects (ADR-0015,
+  #92) — and it is on the same VLAN, rack, power feed and room as the mini PC
+  would be, so every failure this issue is about reaches both in one event. Two
+  smaller findings went the other way: ADR-0010 already keeps name resolution
+  alive when the mini PC dies, which is a dependency of every out-of-estate path
+  and is met by accident of a decision made for other reasons; and ADR-0011's
+  break-glass card already says "where credentials are", a sentence that goes
+  false the day Vaultwarden holds anything real. Nothing here is built — the
+  preconditions land on #131, #132, #133 and #134.
 - **[#235](https://github.com/Gerrrt/HomeLab/issues/235) Decide whether the
   iLO stays on the lab segment.** ADR-0014 puts `ifrit`'s attack VM on
   ImaginationLAN, so `shiva` — the BMC of the box being defended, on firmware
@@ -130,6 +154,31 @@ issues intact. Nothing was summarised away.
   The real cost is not the two rules but a pinning decision for APC's MIB in
   `scripts/snmp-mibs.sh`, which has no first-party git ref to point at.
   → [runbook](runbooks/fit-the-ups-battery.md)
+- **[#123](https://github.com/Gerrrt/HomeLab/issues/123) Make a dead AdGuard
+  visible.** The failure
+  [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) chose on purpose:
+  filtering fails open, so losing it costs advertisements rather than
+  connectivity and nobody in the house reports it. That is
+  [#90](https://github.com/Gerrrt/HomeLab/issues/90)'s shape one service over —
+  a filter that is dead and one that is merely quiet look identical from
+  outside — and the mechanism is the blackbox exporter that now exists.
+  **The probe has to ask AdGuard directly rather than go through `morpheus`**,
+  because a query down the normal path always succeeds: that is the fallback
+  doing its job, and it is the whole reason the outage is silent. So it is a
+  `dns` prober against Winterfell's address, and the assertion worth making is
+  that a known-blocked name comes back *filtered* — AdGuard answering while
+  serving an empty blocklist is a third state that a liveness check reads as
+  healthy. **Blocked on [#102](https://github.com/Gerrrt/HomeLab/issues/102)**,
+  which has not bought the machine: a target written before then is red from the
+  moment the file loads, which is the check
+  [`targets/blackbox.yaml`](../stacks/observability/prometheus/targets/blackbox.yaml)
+  has already agreed not to ship.
+
+  The rest of #123 closed with ADR-0010 and the verification appended to it on
+  2026-09-04. What is left sits outside this repository: one line for the family
+  runbook in `Gerrrt/Lemmiwinks` covering *filtering is down and the internet is
+  fine*, which presents as advertisements returning rather than as an outage.
+  That is a note to whoever maintains that page, not a tenth step in the walk.
 - **[#12](https://github.com/Gerrrt/HomeLab/issues/12) Capture dashboard
   screenshots.** `make screenshots` does five of the seven; the Logs and
   Security dashboards are deliberately excluded.
@@ -231,6 +280,14 @@ what left this one unfireable for months.
   [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) has since been
   decided on top of it. What is outstanding is a purchase, a stack, and four
   firewall rules the ADR counted as two.
+
+  **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
+  Unbound on `morpheus` is recursive and DNSSEC-validating with zero
+  `forward-zone` blocks, so "put AdGuard first in the forwarder list" is a
+  resolution-mode change rather than an edit to a list that already exists — and
+  it hands a query stream that currently reaches no third party to AdGuard,
+  Cloudflare and Google. Worth accepting deliberately when this build happens,
+  not by ticking *Enable Forwarding Mode*. The ADR carries the detail.
 
   **All four are insertions above a deny, and none of them is an addition.**
   ADR-0008 named 50→40 and 99→20 and said the estate's count "rises from three
@@ -372,18 +429,6 @@ what left this one unfireable for months.
   attackers; #235 decided either way before this build makes it true. What is
   left is the purchase itself and the build.
   → [runbook](runbooks/build-the-playground.md)
-- **[#97](https://github.com/Gerrrt/HomeLab/issues/97) Work out DNS for the
-  MokerLink management UI** so it is not reached by IP. Answered by
-  [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), which
-  splits the issue in two and only grants one half. The name is a host override
-  like any other — `neo` → `10.7.7.2` — and was never blocked behind ADR-0008,
-  because ADR-0010 keeps the overrides on Unbound whatever AdGuard does. **The
-  certificate half is closed as unavailable rather than pending:** the switch
-  has no TLS listener and no way to import one, checked against the device on
-  2026-09-04. That is its third firmware limit after #84 and #85, and the
-  argument for replacing it — where TLS management belongs in the selection
-  criteria next to SNMPv3. What is left is applying the override and adding the
-  `via: dns` blackbox twin, in that order.
 
 ## Automation
 
@@ -486,6 +531,25 @@ months.
       line in the config revision log, so the word `snortglobal` still appears
       once in `config.xml` — as the description of the change that removed it.
 
+- [x] **[#97](https://github.com/Gerrrt/HomeLab/issues/97) Work out DNS for the
+      MokerLink management UI** so it is not reached by IP. 2026-09-04. Answered
+      by [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md),
+      which splits the issue in two and grants one half. The name is a host
+      override like any other — `neo` → `10.7.7.2` — and was never blocked
+      behind ADR-0008, because ADR-0010 keeps the overrides on Unbound whatever
+      AdGuard does. **The certificate half is closed as unavailable rather than
+      pending:** the switch has no TLS listener and no way to import one,
+      checked against the device on 2026-09-04. That is its third firmware limit
+      after #84 and #85, and the argument for replacing it — where TLS
+      management belongs in the selection criteria next to SNMPv3.
+
+      Both halves were already settled when this file still listed the granted
+      one as outstanding. Confirmed while verifying
+      [#123](https://github.com/Gerrrt/HomeLab/issues/123): `neo` → `10.7.7.2`
+      is one of six host overrides read off `morpheus` on 2026-09-04, and the
+      `via: dns` twin probes green from the running exporter (`probe_success 1`,
+      `probe_http_status_code 200`, lookup 0.9 ms). The entry outlived the work
+      by a day, which is the failure this section exists to prevent.
 - [x] **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
       dashboard export step.** 2026-09-04. `make dashboards-export` pulls every
       dashboard back by uid and writes it over the file, so the loop is edit →
