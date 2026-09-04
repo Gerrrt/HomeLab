@@ -181,7 +181,12 @@ Televisions and consoles. Internet only.
 - Internet only, no path to any other segment. Smart TVs run unauditable
   firmware with a permanent internet connection and no patch guarantee, so they
   get the same trust level as a guest.
-- The planned NAS lands here — see [roadmap](roadmap.md).
+- The planned NAS lands here — `zion` at `10.0.40.30`, decided by
+  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+  and not yet bought. It does not change the *Reaches* column: nothing on this
+  segment will initiate anywhere, and the three rules that ADR writes down all
+  let a more trusted segment reach **in**. That is the direction this row
+  records, and it is the one that is unchanged.
 
 [^OLEDTV]: [LG OLED TV](https://www.lg.com/us/tvs/oled)
 [^PS5]: [PlayStation 5](https://www.playstation.com/en-us/ps5/)

@@ -180,8 +180,27 @@ what left this one unfireable for months.
   664. The pages survive a disk failure because Wiki.js syncs from the
   Lemmiwinks repository; the accounts, history and configuration do not.
 - **[#95](https://github.com/Gerrrt/HomeLab/issues/95) Plan and build the NAS on
-  VLAN 40.** Adds an inter-VLAN rule and changes what "terminal" means for that
-  segment. ADR-0008.
+  VLAN 40.** Planned;
+  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+  answers the four questions #95 raised, and nothing is bought or configured.
+  Reading the enforced ruleset first changed two of the answers. **50→40 is not
+  a rule to add**: Hicks and Winterfell each carry an explicit *Block access to
+  CasaBonita* above their catch-all, so the pass has to be ordered in front of a
+  deny, and one appended where new rules naturally land would match nothing —
+  the same fault ADR-0013 found in *Allow Hicks access to ImaginationLAN*. And
+  **one rule is not enough**: every other host in the estate is monitored and
+  backed up by pushing, so a NAS built like the others would have its Alloy
+  agent initiating 40→99, the first upward path in the estate and the end of the
+  property ADR-0008 claims to keep. The ADR reverses the direction instead —
+  `node_exporter` scraped rather than Alloy pushing, the metadata backup pulled
+  by `prometheus` rather than sent — which costs the NAS its logs, because Loki
+  has no pull and its ingest is unauthenticated. Three rules, all inbound, all
+  host- and port-scoped, written down and deliberately not created: a `pass` to
+  an address with nothing behind it is a rule nobody can test. Terminal survives
+  in the direction that carries it — CasaBonita stops being terminal inbound and
+  stays terminal outbound, with #223's tripwire untouched. Capacity buys a
+  four-bay chassis with two bays filled, because the bay count is the half that
+  cannot be changed later and the library's size is a number nobody has.
 - **[#96](https://github.com/Gerrrt/HomeLab/issues/96) Procure `ifrit` and build
   the playground** — only after the main network is finished. The isolation
   mechanism ADR-0007 deferred is settled by ADR-0014: `ifrit` is single-homed on
