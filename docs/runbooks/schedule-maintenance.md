@@ -57,6 +57,7 @@ the host.
 | `verify-backups` | `make backup ARGS='--verify-only --all'` | daily 05:30 | 3 days |
 | `backup-firewall` | `make backup-firewall` | daily 04:30 | 3 days |
 | `snmp-verify` | `make snmp-verify` | Wednesdays 06:30 | 14 days |
+| `check-versions` | `make check-versions` | Wednesdays 06:45 | 14 days |
 | `dashboards-drift` | `make dashboards-export ARGS=--check` | daily 07:30 | 2 days |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
@@ -67,11 +68,13 @@ times, because it shares the `backups` lock and a run that queues behind the
 weekly archive can legitimately spend its full 900-second wait and then be an
 hour late. Being late for a reason is not the finding.
 
-`dashboards-drift` is the odd one out, and worth reading as a different kind of
-job. Every other row here proves that something *happened* — an archive was
-written, a device answered. This one proves that nothing *diverged*: it runs
-`make dashboards-export ARGS=--check`, which writes nothing and exits non-zero
-when the running Grafana holds a dashboard edit that git does not.
+`dashboards-drift` and `check-versions` are the odd ones out, and worth reading
+as a different kind of job. Every other row here proves that something
+*happened* — an archive was written, a device answered. These two prove that
+nothing *diverged*. `dashboards-drift` runs `make dashboards-export ARGS=--check`,
+which writes nothing and exits non-zero when the running Grafana holds a
+dashboard edit that git does not. `check-versions` asks Prometheus what OS each
+host is actually running and exits non-zero when a document disagrees.
 
 It exists because of a trade made in
 [#100](https://github.com/Gerrrt/HomeLab/issues/100). `allowUiUpdates` was
@@ -250,6 +253,7 @@ expected rather than a second fault.
 | `homelab_job_last_exit_code` is 75 | The job never started — another job held its lock for the full wait | Expected if a `--verify-only` run collided with a long backup. Persistent means a job is hanging: check `systemctl list-units 'homelab-*'` |
 | `backup-firewall` exits 1 with *off-host copy FAILED* | `oracle` is down, its host key is not in `robo`'s `known_hosts`, or this host's key is not authorised there | The export was written locally and is intact. Repair the path to `oracle` — [`restore-the-firewall.md`](restore-the-firewall.md) §0 — and the next run copies every file that never left |
 | `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
+| `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |
 | `ScheduledJobMetricsAbsent` fires and nothing else in `backup.rules.yaml` ever has | This step was never run at all | `systemctl list-unit-files 'homelab*'` reports *0 unit files* and `/var/lib/node_exporter/textfile_collector` does not exist. The four other rules here join against a series `--install` writes, so none of them can fire — that alert is the only one that can, and it is doing its job ([#215](https://github.com/Gerrrt/HomeLab/issues/215)). Run `make install-timers` |

@@ -98,6 +98,7 @@ JOBS=(
   "verify-backups    homelab-verify-backups      259200  backup"
   "backup-firewall   homelab-backup-firewall     259200  backup-firewall"
   "snmp-verify       homelab-snmp-verify        1209600  snmp-verify"
+  "check-versions    homelab-check-versions     1209600  check-versions"
   "dashboards-drift  homelab-dashboards-drift    172800  dashboards-export"
   "verify-key-backup -                          7776000  secrets-verify-backup"
 )

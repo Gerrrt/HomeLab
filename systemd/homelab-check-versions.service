@@ -1,0 +1,53 @@
+# Weekly check that the OS versions the documents claim are the ones the hosts
+# are running.
+#
+# This exists because the offline assertion could not see the fault it was
+# built for. check_docs.py asserts hardware.md and network.md agree with each
+# other about every host's OS, and that passed for a full pfSense release while
+# both documents said FreeBSD 15 and `morpheus` ran FreeBSD 16 — it compares the
+# two copies, and both copies were stale together (#292). The same thing had
+# already happened once with the laptops at 24.04.3 against a running 24.04.4.
+#
+# So this asks the running system instead. `node_os_info` covers the Linux
+# hosts; `morpheus` is the one that needed new collection, because it runs no
+# node_exporter — the FreeBSD appliance that cannot run Alloy — and its version
+# now arrives as SNMP sysDescr, which pfSense sets explicitly to a string
+# carrying both the pfSense and FreeBSD versions.
+#
+# Needs Prometheus, and no secret: it reads the query API over localhost and
+# never decrypts anything. That is why the Makefile keeps it under Maintenance
+# and out of `make validate` — CI has no route to the stack — and why this unit
+# needs neither the age key nor a lock.
+#
+# Failure here is a documentation finding, not an outage. Nothing is broken when
+# it exits 1; a document is describing an intention as a fact, which is the
+# thing #105 opened over.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: check documented OS versions against the running hosts
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job check-versions -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab check-versions
+TimeoutStartSec=300
+Restart=no
+Nice=10
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-check-versions
