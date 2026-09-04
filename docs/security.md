@@ -71,9 +71,11 @@ segment explicitly before its egress rule, and the narrow exceptions that exist
 
 **It does not hold for Hicks (50), and it does not hold for the switch LAN.**
 Hicks blocks CasaBonita, Skids and Degens and then passes to `any`, so it reaches
-**all of ImaginationLAN** on every protocol and port, which no rule grants and no
-rule denies. [#228](https://github.com/Gerrrt/HomeLab/issues/228) is where that
-gets decided. The switch LAN carries pfSense's stock *Default allow LAN to any*
+**all of ImaginationLAN** on every protocol and port. Nothing denies it, and what
+grants it is the catch-all rather than a decision about that segment — the one
+rule that names ImaginationLAN grants nothing the catch-all was not already
+granting. [#228](https://github.com/Gerrrt/HomeLab/issues/228) is where that gets
+decided. The switch LAN carries pfSense's stock *Default allow LAN to any*
 rule and reaches every segment.
 
 **Winterfell is the half that has since been narrowed.** On 2026-09-02 the Hicks
@@ -110,11 +112,11 @@ is decided by ADR-0014 and lands with `ifrit`
 
 Segmentation is doing more work here than it should have to. Prometheus and Loki
 publish unauthenticated ingest ports for `oracle`'s agent to use, so anything
-that can route to `10.0.99.20:9090` or `:3100` can write to the metric and log
-stores without a credential — which is exactly the failure ADR-0002 predicted
-when it recorded that "a compromised workstation reaches Winterfell". That is an
-accepted residual, recorded in [`SECURITY.md`](../SECURITY.md), not a solved
-problem.
+that can route to `10.0.99.20:9090` or `10.0.99.20:3100` can write to the metric
+and log stores without a credential — which is exactly the failure ADR-0002
+predicted when it recorded that "a compromised workstation reaches Winterfell".
+That is an accepted residual, recorded in [`SECURITY.md`](../SECURITY.md), not a
+solved problem.
 
 **What has changed is who "anything" is.** A workstation on Hicks was in that
 set for as long as the catch-all was the only rule in the way; since 2026-09-02

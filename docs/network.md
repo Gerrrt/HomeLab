@@ -33,12 +33,14 @@ above CasaBonita, which the spectrum does not. Reasoning in
     one device and said "Nothing" here until
     [ADR-0013](adr/0013-segment-access-as-implemented.md) read the ruleset.
 
-[^hicks]: Hicks is the only segment with a path into management, and since
+[^hicks]: Hicks has the broadest path into management of any VLAN, and since
     2026-09-02 that path is a list of destinations rather than the segment: ten
-    passes sit above a logged *Block access to Winterfell* and everything else
-    from 50 to 99 is dropped. They are enumerated in the Hicks notes below.
-    ImaginationLAN is not blocked, so the catch-all under those rules still
-    grants that segment entire —
+    passes sit above a logged *Block access to Winterfell*, everything else from
+    50 to 99 is dropped, and the ten are enumerated in the Hicks notes below. It
+    is not the only way into 99 — the switch LAN reaches every segment, and two
+    host-scoped passes carry ImaginationLAN to `10.0.99.20`. Going the other
+    way, nothing blocks Hicks from ImaginationLAN, so the catch-all under those
+    rules still grants that segment entire —
     [#228](https://github.com/Gerrrt/HomeLab/issues/228) owns that half.
     [ADR-0013](adr/0013-segment-access-as-implemented.md) read the ruleset on
     2026-09-01, the day before the narrowing landed, and describes the wider
@@ -148,7 +150,9 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 
 🟠 **Orange** on the rack.
 
-Personal and work machines. The only segment with a path into management.
+Personal and work machines. The VLAN with the broadest path into management,
+though not the only one — the switch LAN reaches every segment, and
+ImaginationLAN has two host-scoped passes to `10.0.99.20`.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
