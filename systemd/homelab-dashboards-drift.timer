@@ -1,0 +1,15 @@
+[Unit]
+Description=HomeLab: daily check for unexported dashboard edits
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-dashboards-drift.service
+# 07:30, after the 03:30/04:30/05:30/06:30 backup and verification jobs, so a
+# morning read of the textfile metrics covers the whole night's schedule.
+OnCalendar=*-*-* 07:30:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

@@ -9,7 +9,6 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
   "editable": true,
   "graphTooltip": 1,
   "refresh": "1m",
@@ -72,7 +71,7 @@
     {
       "type": "table",
       "title": "Host alerts",
-      "description": "Firing and pending alerts carrying component=host, from the ALERTS series Prometheus exposes for its own rules. Empty is the good state. Silences live in Alertmanager and are not reflected here \u2014 see dashboards/README.md.",
+      "description": "Firing and pending alerts carrying component=host, from the ALERTS series Prometheus exposes for its own rules. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -559,7 +558,7 @@
     {
       "type": "stat",
       "title": "Shortest uptime",
-      "description": "Lowest uptime across the selected hosts \u2014 a sudden drop means a reboot.",
+      "description": "Lowest uptime across the selected hosts — a sudden drop means a reboot.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

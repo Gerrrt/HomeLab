@@ -1,0 +1,50 @@
+# Daily check that no dashboard edit is live in Grafana but missing from git.
+#
+# This is the other half of #100. `allowUiUpdates` became true so that a UI edit
+# survives long enough for `make dashboards-export` to capture it, and what that
+# gave up is the guarantee the old `false` provided for free: that the running
+# dashboard and the committed JSON were necessarily the same thing. An edit
+# nobody exported now simply persists, silently, until the next commit that
+# touches that file overwrites it — which is a quiet way to lose work weeks
+# after doing it.
+#
+# So the guarantee is bought back rather than abandoned. `ARGS=--check` writes
+# nothing and exits non-zero when Grafana holds something git does not, which
+# run-scheduled.sh records as a failed job — and the rules in
+# prometheus/rules/backup.rules.yaml join against the JOBS table rather than
+# naming jobs, so this one is covered with no rule edit at all.
+#
+# Needs the age key, because it decrypts the Grafana password out of SOPS, and
+# needs the stack running — which is why `dashboards-export` sits under
+# Maintenance in the Makefile and out of `make validate`. The offline half is
+# `make check-dashboard-roundtrip`, which CI runs.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: check for unexported Grafana dashboard edits
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+Environment=SOPS_AGE_KEY_FILE=/home/robo/.config/sops/age/keys.txt
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job dashboards-drift --lock dashboards --lock-wait 300 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab dashboards-export ARGS=--check
+TimeoutStartSec=300
+Restart=no
+Nice=10
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-dashboards-drift

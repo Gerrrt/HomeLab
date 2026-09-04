@@ -57,8 +57,11 @@ grafana/
   `make snmp-generate`. Its community strings are `${PLACEHOLDERS}`;
   `scripts/render-config.sh` renders the real file into a gitignored
   `.rendered/` directory at deploy time.
-- **Grafana UI edits are discarded on restart** (`allowUiUpdates: false`). Export
-  the JSON model and commit it — see
+- **Grafana UI edits are captured with `make dashboards-export`**, not by hand.
+  The JSON in git stays the source of truth — a file change re-provisions over
+  Grafana's copy — but `allowUiUpdates` is `true` so an edit survives long
+  enough to be exported, and the daily `dashboards-drift` job is what notices
+  one nobody exported. See
   [`docs/observability.md`](../../docs/observability.md#dashboards) and
   [`grafana/dashboards/README.md`](grafana/dashboards/README.md), which is where
   the constraints CI imposes on panel queries are written down.
