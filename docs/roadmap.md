@@ -456,18 +456,35 @@ months.
       [`enable-suricata.md`](runbooks/enable-suricata.md) §0; the ADR stands as
       written.
 
-      **What "removed" leaves behind is worth knowing before the next package
-      is uninstalled.** pfSense removes the package but honours
-      `forcekeepsettings`, so `config.xml` still carries a `<snortglobal>`
-      stanza — and inside it `snort_alerts:col2:open`, a dashboard widget
-      pointing at a `snort_alerts` widget that no longer exists; only
-      `suricata_alerts.widget.php` is on disk. `/var/log/snort/` also survives,
-      holding one 111-byte rules-update log from 2025-10-30. None of it runs,
-      receives updates or holds attack surface, which is what the issue was
-      actually asking about, so none of it changes the answer. The `snort`-named
-      keys under `<suricata>` — `snortcommunityrules`, `enable_snort_custom_url`
-      — are not residue at all: they are Suricata's own names for the Snort
-      Community ruleset options, both `off`.
+      **What "removed" left behind is worth knowing before the next package is
+      uninstalled.** pfSense removed the package but honoured
+      `forcekeepsettings`, so `config.xml` kept a `<snortglobal>` stanza — and
+      inside it `snort_alerts:col2:open`, a widget record pointing at a
+      `snort_alerts` widget no longer on disk; only `suricata_alerts.widget.php`
+      is there. `/var/log/snort/` also survived, holding one 111-byte
+      rules-update log from 2025-10-30. The `snort`-named keys under
+      `<suricata>` — `snortcommunityrules`, `enable_snort_custom_url` — are not
+      residue at all: they are Suricata's own names for the Snort Community
+      ruleset options, both `off`, and were left alone.
+
+      **Both are now cleared.** `config_del_path()` and `write_config()` over
+      SSH for the stanza, `rm -rf` for the log directory, with an encrypted
+      off-host export taken either side. Not because the residue was dangerous
+      — nothing ran, updated or listened, and the live dashboard reads
+      `<widgets><sequence>`, which never referenced `snort_alerts`, so nothing
+      was even visibly broken. It went because of the one line in the stanza
+      that was not inert: `<forcekeepsettings>on</forcekeepsettings>` is what a
+      future `pkg install pfSense-pkg-snort` would have read its settings back
+      out of, so leaving it meant a reinstall resurrecting a half-configured
+      Snort rather than starting clean — the 1am mistake this issue was opened
+      about, deferred rather than closed.
+
+      Verified after the write: 88 user-defined rules, the same count the
+      pre-change export recorded; `<widgets><sequence>` byte-identical;
+      Suricata still on `igc0.20` and `igc0.10` under the same PIDs, never
+      restarted; web UI answering 200. `write_config()` leaves its own audit
+      line in the config revision log, so the word `snortglobal` still appears
+      once in `config.xml` — as the description of the change that removed it.
 
 - [x] **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
       dashboard export step.** 2026-09-04. `make dashboards-export` pulls every
