@@ -682,7 +682,7 @@ services:
 
   editorconfig-checker:
     profiles: ["lint"]
-    image: mstruebing/editorconfig-checker:v3.11.2@sha256:909028274c0a33509bebaa366f1538b4b728ba6cb7f4b958ee15f8bd9df59ffa
+    image: mstruebing/editorconfig-checker:4.0.1@sha256:c843ca21130986fb1c8c5e09bb38075bd51432ad40cc6db118a6f8cde897db0e
     command: ["editorconfig-checker", "--version"]
 
 networks:
