@@ -506,10 +506,47 @@ months.
   [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md).
   Under **Security** above, because it has a condition now rather than only a
   decision.
-- **[#105](https://github.com/Gerrrt/HomeLab/issues/105)** Confirm the
-  unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#105](https://github.com/Gerrrt/HomeLab/issues/105) Confirm the
+      unconfigured Snort package actually went.** 2026-09-04. It did.
+      `pkg info` on `morpheus` lists `pfSense-pkg-suricata` and `suricata` and
+      no Snort of any kind, so ADR-0006's line 49 was describing a fact and the
+      runbook prerequisite asking for the removal was describing a job already
+      done. The prerequisite is gone from
+      [`enable-suricata.md`](runbooks/enable-suricata.md) §0; the ADR stands as
+      written.
+
+      **What "removed" left behind is worth knowing before the next package is
+      uninstalled.** pfSense removed the package but honoured
+      `forcekeepsettings`, so `config.xml` kept a `<snortglobal>` stanza — and
+      inside it `snort_alerts:col2:open`, a widget record pointing at a
+      `snort_alerts` widget no longer on disk; only `suricata_alerts.widget.php`
+      is there. `/var/log/snort/` also survived, holding one 111-byte
+      rules-update log from 2025-10-30. The `snort`-named keys under
+      `<suricata>` — `snortcommunityrules`, `enable_snort_custom_url` — are not
+      residue at all: they are Suricata's own names for the Snort Community
+      ruleset options, both `off`, and were left alone.
+
+      **Both are now cleared.** `config_del_path()` and `write_config()` over
+      SSH for the stanza, `rm -rf` for the log directory, with an encrypted
+      off-host export taken either side. Not because the residue was dangerous
+      — nothing ran, updated or listened, and the live dashboard reads
+      `<widgets><sequence>`, which never referenced `snort_alerts`, so nothing
+      was even visibly broken. It went because of the one line in the stanza
+      that was not inert: `<forcekeepsettings>on</forcekeepsettings>` is what a
+      future `pkg install pfSense-pkg-snort` would have read its settings back
+      out of, so leaving it meant a reinstall resurrecting a half-configured
+      Snort rather than starting clean — the 1am mistake this issue was opened
+      about, deferred rather than closed.
+
+      Verified after the write: 88 user-defined rules, the same count the
+      pre-change export recorded; `<widgets><sequence>` byte-identical;
+      Suricata still on `igc0.20` and `igc0.10` under the same PIDs, never
+      restarted; web UI answering 200. `write_config()` leaves its own audit
+      line in the config revision log, so the word `snortglobal` still appears
+      once in `config.xml` — as the description of the change that removed it.
 
 - [x] **[#97](https://github.com/Gerrrt/HomeLab/issues/97) Work out DNS for the
       MokerLink management UI** so it is not reached by IP. 2026-09-04. Answered

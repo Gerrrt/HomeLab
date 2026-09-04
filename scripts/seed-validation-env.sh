@@ -55,12 +55,26 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
 # stops both of them drifting from compose.yaml: a newly added ${VAR:?} guard
 # fails here, naming the variable, instead of surfacing later as an opaque
 # compose interpolation error in whichever caller runs first.
+#
+# The guard list comes from scripts/compose-guards.sh, which reads the parsed
+# YAML: this grepped the raw file, so a comment in compose.yaml that mentioned
+# the guard syntax was read as a guard and demanded a value for a variable that
+# does not exist (#107).
+#
+# Command substitution and not `while read < <(...)`: a process substitution's
+# exit status is not the loop's, so a failure over there would arrive here as an
+# empty guard list and this check would pass by finding nothing to check.
+if ! GUARDS="$("${REPO_ROOT}/scripts/compose-guards.sh" "${STACK}/compose.yaml")"; then
+  printf 'could not read the guards from %s — see above\n' \
+    "${STACK}/compose.yaml" >&2
+  exit 1
+fi
+
 missing=()
 while read -r var; do
   [[ -n "${var}" ]] || continue
   grep -qE "^${var}=" "${OUT}" || missing+=("${var}")
-done < <(grep -oE '\$\{[A-Za-z_][A-Za-z0-9_]*:\?' "${STACK}/compose.yaml" \
-         | sed 's/^\${//; s/:?$//' | sort -u)
+done <<< "${GUARDS}"
 
 if ((${#missing[@]})); then
   printf 'compose.yaml guards %s, which the validation .env does not set.\n' \
