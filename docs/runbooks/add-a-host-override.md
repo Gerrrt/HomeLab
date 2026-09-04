@@ -98,13 +98,19 @@ dig +short @10.0.99.1 grafana.matrix.elysium
 dig +short @10.0.99.1 neo.matrix.elysium
 ```
 
-Five addresses, matching the table above. Query `@10.0.99.1` explicitly rather
-than relying on the client's configured resolver — otherwise a wrong answer from
-a local cache looks like a wrong answer from Unbound.
+**Five answers, three distinct addresses** — match each against the table above
+rather than counting them. `oracle` and `lemmiwinks` both answer `10.0.99.30`,
+and `grafana` and `prometheus` both answer `10.0.99.20`, because each pair is
+two names for one machine. A duplicate here is the expected result, not a
+copy-paste error in the override table.
 
-`neo` is the one worth reading carefully: it should answer `10.7.7.2`, on a
-different subnet from the other four. An answer in `10.0.99.x` means the row was
-typed from muscle memory.
+Query `@10.0.99.1` explicitly rather than relying on the client's configured
+resolver — otherwise a wrong answer from a local cache looks like a wrong answer
+from Unbound.
+
+`neo` is the one worth reading carefully: it should answer `10.7.7.2`, and it is
+the only one of the five that does not land in `10.0.99.x`. An answer on the
+management subnet means the row was typed from muscle memory.
 
 > [!IMPORTANT]
 > **A name that failed before may keep failing for a while after you fix it.**
