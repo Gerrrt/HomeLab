@@ -48,6 +48,13 @@ for certificates, with AdGuard Home, ntfy and Homepage alongside. Everything
 here holds data whose loss or exposure genuinely hurts. Clients on Hicks reach
 all of it under the existing 50→99 rule, so this adds no rule at all.
 
+> *This paragraph weighs what the data is worth and not who can reach it when
+> the estate is down.
+> [ADR-0023](0023-keep-the-household-recovery-path-outside-the-estate.md) adds
+> that constraint — no service here has to stay reachable, but the household's
+> recovery path may not run through this box. The placement above is unchanged
+> and this ADR is not superseded.*
+
 **The streaming tier — CasaBonita (40).** A quiet N100-class NAS holds the bulk
 media library and runs Jellyfin, with Plex beside it for household convenience.
 This data is replaceable; its loss is annoying rather than catastrophic. Placing

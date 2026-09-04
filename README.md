@@ -178,7 +178,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 21 architecture decision records
+│   ├── adr/                  # 23 architecture decision records
 │   └── runbooks/             # deploy, converge, add device, rotate creds, certs,
 │                             #   key backup, purge, restore the firewall,
 │                             #   restore the stack, ship firewall logs,
