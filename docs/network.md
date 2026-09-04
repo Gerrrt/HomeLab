@@ -68,6 +68,16 @@ truth for what a box actually does.
 - Cat6 from the ProDesk's add-on NIC[^adapter] to port 1 of the switch (trunk).
 - This interface exists solely to reach the switch's[^MokerLink] management UI,
   which will not bind to a tagged interface.
+- **`neo.matrix.elysium` resolves to `10.7.7.2`**, so the switch is reached by
+  name like everything else — [ADR-0017](adr/0017-name-the-switch-and-leave-its-ui-on-plain-http.md).
+  The address stays written down beside it on purpose: the name depends on
+  Unbound on `morpheus`, and this is the device you open when `morpheus` is the
+  suspect.
+- **The UI is plain HTTP and cannot be anything else.** No TLS listener, no
+  certificate import — checked against the live switch on 2026-09-04, and the
+  third firmware limit on this device after #84 and #85. Admin credentials cross
+  the wire in clear, over a path that runs through `neo` itself. ADR-0017 has the
+  reasoning and the rejected alternatives.
 - DHCP disabled.
 
 > [!CAUTION]
