@@ -33,7 +33,7 @@ There were three plausible options:
 
 ## Decision
 
-Seven VLANs, assigned by how much a compromise of that segment would cost, with
+Six VLANs, assigned by how much a compromise of that segment would cost, with
 default deny between all of them.
 
 | VLAN | Trust | Rationale |

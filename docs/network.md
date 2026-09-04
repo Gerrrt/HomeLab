@@ -1,6 +1,8 @@
 # Network
 
-Seven VLANs behind a pfSense firewall, default-deny between segments. Each
+Six VLANs behind a pfSense firewall, default-deny between segments — seven
+internal networks counting the untagged switch-management LAN, which the table
+below records with a dash because it carries no tag. Each
 section below lists the devices on a segment, how it is wired, and what it is
 allowed to reach.
 

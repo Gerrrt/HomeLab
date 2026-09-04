@@ -13,9 +13,9 @@ bootable media, and physical access to the rack
 > discover during an outage.
 > See [`hardware.md`](../hardware.md#accessories).
 
-`morpheus` is the single point of failure in this lab. It routes all seven
-VLANs, serves DHCP on every tagged interface, and is the only path to the
-internet. When it is down the house has no network — not degraded, none. The
+`morpheus` is the single point of failure in this lab. It routes six VLANs and
+the untagged switch-management LAN — seven internal networks in total — serves
+DHCP on every tagged interface, and is the only path to the internet. When it is down the house has no network — not degraded, none. The
 firewall is also the one device whose loss cannot be worked around from the
 network, because the network is the thing it provides.
 
