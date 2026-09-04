@@ -373,6 +373,49 @@ def probe_binary(
     return "present", ""
 
 
+def bind_source_problems(compose_path: pathlib.Path, services: dict) -> list[str]:
+    """A file-shaped bind source that is really a directory.
+
+    Docker creates a bind mount's source when it does not exist, and it always
+    creates a *directory*, owned by root. So a mistyped path in `volumes:`
+    produces no error at all: `make up` silently makes the directory, mounts an
+    empty one where a config file should be, and the service starts and reads
+    nothing. That is how `loki/config.yaml` came to be an empty root-owned
+    directory that survived from 2026-08-29 until #213 — nothing referenced it,
+    and being empty, git could not track it either.
+
+    It is the same silent-empty shape `docs/observability.md` warns about for
+    the ruler's `<directory>/<tenant>/` path, and it deserves the same
+    treatment: something has to look, because nothing fails.
+
+    The test is "names a file, exists as a directory", which is precise enough
+    to need no allowlist. Absence is deliberately NOT a problem — `.rendered/`
+    and the certificates are generated before `make up` and are legitimately
+    missing in a fresh clone, so requiring existence would fail a clean checkout
+    for no reason. Only a directory sitting where a file belongs is reported,
+    and removing one needs root, so this reports rather than repairs.
+    """
+    problems = []
+    for name, svc in services.items():
+        for volume in ((svc or {}).get("volumes") or []):
+            if not isinstance(volume, str):
+                continue
+            source = volume.split(":")[0]
+            if not source.startswith("."):
+                continue
+            if not pathlib.PurePath(source).suffix:
+                continue
+            resolved = (compose_path.parent / source).resolve()
+            if resolved.is_dir():
+                problems.append(
+                    f"{name} mounts {source}, which names a file but is a "
+                    f"directory on disk — docker creates a directory when a "
+                    f"bind source is missing, so this is a mount of nothing "
+                    f"(remove it: rmdir {resolved})"
+                )
+    return problems
+
+
 def cross_stack_problems() -> list[str]:
     """Names this file asserts about, checked against every stack at once.
 
@@ -449,6 +492,8 @@ def main() -> int:
     compose = yaml.safe_load(path.read_text(encoding="utf-8"))
     services = compose.get("services") or {}
     problems: list[str] = []
+
+    problems += bind_source_problems(path, services)
 
     for name, svc in services.items():
         svc = svc or {}
