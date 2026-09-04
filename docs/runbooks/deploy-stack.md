@@ -157,7 +157,7 @@ own, a single GPG import:
 ## Updating
 
 **Normally you do not.** A merged pull request reaches this host within the hour
-on its own ([ADR-0019](../adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md)).
+on its own ([ADR-0020](../adr/0020-converge-on-a-timer-instead-of-deploying-over-ssh.md)).
 What follows is how to deploy something *now* rather than waiting, and what the
 timer is doing on your behalf.
 

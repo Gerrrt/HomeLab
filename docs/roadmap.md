@@ -16,12 +16,33 @@ issues intact. Nothing was summarised away.
 ## Security
 
 - **[#228](https://github.com/Gerrrt/HomeLab/issues/228) Decide whether Hicks
-  should reach all of Winterfell and ImaginationLAN.** It does, on every
-  protocol and port, because the Hicks interface blocks 40/20/10 and then passes
-  to `any`. No rule grants it and no rule denies it. `SECURITY.md` accepts a
-  narrower version — one host, two ports — and the real exposure is both
-  segments entire. Found writing ADR-0013; that ADR fixed the description, this
-  is the posture. Decide before #102 adds rules to the same segment.
+  should reach all of Winterfell and ImaginationLAN.** **The Winterfell half was
+  answered on the firewall and never written down.** Read on `morpheus`
+  2026-09-04, `pfctl -sr` with the interface tables resolved: the Hicks tab
+  carries ten narrow passes into Winterfell — SSH, the pfSense management UI,
+  the resolver, NTP, ping, the wiki on both ports, Grafana, and `mjolnir`'s card
+  on both ports — above a logged *Block access to Winterfell*; a second logged
+  *Block access to LAN* sits under the pass to the switch's web UI; and only
+  then the catch-all. Nine of those passes and both blocks were created
+  2026-09-02, the day after ADR-0013 was written, which is why that ADR and
+  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)'s
+  aside about "a catch-all nobody wrote" both describe a ruleset one day out of
+  date. It is enforcing rather than decorative: the Winterfell block has dropped
+  22 packets, and the passes above it carry the real traffic — 834,283 through
+  *Allow SSH to Winterfell* alone — with only *Allow NTP* and *Allow HTTP to
+  Mjolnir* still at zero. `network.md`'s segment table still says Hicks reaches
+  "Internet, 99, 30", and that row is now wrong in the direction of too wide.
+
+  **ImaginationLAN is the half still open.** No rule blocks it, so the catch-all
+  grants the segment entire, on every protocol and port. *Allow Hicks access to
+  ImaginationLAN* was recreated on the **Hicks** interface in the same batch —
+  ADR-0013's dead rule, fixed — where it matches at last and grants nothing the
+  catch-all was not already granting. What is left is to decide whether 30 gets
+  the treatment 99 just had, and to write down the treatment 99 got. Still worth
+  settling before [#102](https://github.com/Gerrrt/HomeLab/issues/102) and #95
+  add passes to this tab, though the reason has changed: not precedent, which
+  now exists, but position — this is an ordered list in which a pass below the
+  blocks does nothing.
 - **[#229](https://github.com/Gerrrt/HomeLab/issues/229) The switch LAN still
   carries pfSense's stock *Default allow LAN to any*.** `10.7.7.0/24` reaches
   every VLAN; `network.md` said "Nothing". Bounded by that segment holding only
@@ -179,6 +200,65 @@ what left this one unfireable for months.
   nothing copies either volume anywhere, and `/etc/wiki/.db-secret` is mode
   664. The pages survive a disk failure because Wiki.js syncs from the
   Lemmiwinks repository; the accounts, history and configuration do not.
+- **[#102](https://github.com/Gerrrt/HomeLab/issues/102) Build ADR-0008's
+  sensitive tier on VLAN 99.** A low-power mini PC running Vaultwarden, Immich,
+  Paperless-ngx and Home Assistant behind Caddy and step-ca, with AdGuard Home,
+  ntfy and Homepage alongside. Nothing is bought and nothing is built. The
+  placement is not the outstanding part — ADR-0008 settled it, and
+  [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) has since been
+  decided on top of it. What is outstanding is a purchase, a stack, and four
+  firewall rules the ADR counted as two.
+
+  **All four are insertions above a deny, and none of them is an addition.**
+  ADR-0008 named 50→40 and 99→20 and said the estate's count "rises from three
+  to five"; [ADR-0013](adr/0013-segment-access-as-implemented.md) retired the
+  count precisely because a number cannot say *where in the order* a rule goes,
+  and when these land they belong in that ADR's list rather than in a new total.
+  ADR-0016 then read the ruleset and turned 50→40 into three — one on the Hicks
+  tab and two on Winterfell's, each above a *Block access to CasaBonita* — and
+  #95 carries those with the hardware, because a `pass` to an address with no
+  NAS behind it is a rule nobody can test.
+
+  **99→20 was the row nobody had read. It is read now.** `pfctl -sr` on
+  `morpheus`, 2026-09-04: Winterfell blocks every other VLAN explicitly above
+  its egress pass, *Block access to Skids* (`10.0.99.0/24 → 10.0.20.0/24`)
+  among them, so Home Assistant's rule is the fourth insertion and not an
+  append. It goes beside the two SNMP passes that already sit above that stack.
+  Skids as a source is untouched — it blocks all five other VLANs, carries
+  #223's tripwire, then egresses — and the return traffic for a session Home
+  Assistant opens is carried by state and never reaches the ruleset. So **Skids
+  stops being terminal inbound and stays terminal outbound**, the same trade
+  ADR-0016 made for CasaBonita and with the same test: the tripwire's counter,
+  zero today, must not move.
+
+  **What the firewall cannot tell you is how wide the rule should be.** The
+  other three are host- and port-scoped. This one has a source that does not
+  exist yet, and a destination that is a whole segment unless the IoT devices
+  are given statics — which would be a segment-wide grant of the kind #228
+  exists to close, this time out of Winterfell and into the VLAN whose stated
+  assumption is that everything on it is already compromised. Worth settling in
+  the same sitting: Home Assistant discovers devices over mDNS, which is
+  link-local and does not cross a VLAN boundary, so nothing on 20 appears by
+  itself however the pass is written.
+
+  **Two of the three things said to be waiting on this tier are not waiting on
+  it.** [#67](https://github.com/Gerrrt/HomeLab/issues/67)'s watcher went to
+  `oracle` under ADR-0015 and needs no self-hosted ntfy;
+  [#97](https://github.com/Gerrrt/HomeLab/issues/97)'s host override was never
+  downstream of AdGuard, which ADR-0018 says outright and ADR-0010 is the reason
+  for. [#98](https://github.com/Gerrrt/HomeLab/issues/98) is the one that
+  stands — there is no eero integration until there is a Home Assistant. What
+  moving ntfy in-house *does* change is the alert path: the heartbeat's whole
+  value is that it leaves the house, and an endpoint on a network with no
+  external exposure cannot reach a phone that is not on it. Whether the
+  in-house ntfy replaces the external topics or sits beside them is a decision
+  this build makes, not a detail of it.
+
+  **Two purchases where the plan assumed zero, and this is the first.** `oracle`
+  cannot host it — ADR-0015 measured 2549 MiB available behind a 5400 rpm disk
+  and a 100 Mb/s NIC — and ADR-0007 keeps household services off the lab
+  hypervisor. The SSO this box deliberately does not get is
+  [#103](https://github.com/Gerrrt/HomeLab/issues/103).
 - **[#95](https://github.com/Gerrrt/HomeLab/issues/95) Plan and build the NAS on
   VLAN 40.** Planned;
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
@@ -233,13 +313,34 @@ what left this one unfireable for months.
 
 ## Automation
 
-- **[#98](https://github.com/Gerrrt/HomeLab/issues/98) Home Assistant ↔ the eero
-  API**, so device joins and leaves are events rather than accidents. Blocked
-  behind ADR-0008's sensitive tier.
+- **[#98](https://github.com/Gerrrt/HomeLab/issues/98) Device joins as events.**
+  Answered by
+  [ADR-0020](adr/0019-read-device-joins-from-the-dhcp-server.md), which keeps
+  the issue's landing site and changes its source. The events belong in Loki
+  and in `security.rules.yaml` — that part was right. But "the eero API" is a
+  cloud API: there is no local one, the integration everyone means is a HACS
+  component polling `api-user.e2ro.com` every 120 seconds, and it cannot log in
+  with an Amazon-linked account. Routing a question about this network's own
+  wire through Amazon makes the answer late and makes it disappear whenever the
+  WAN does. **`morpheus` already knows.** The eeros are bridged, Kea serves
+  every segment, and 1,200 lease lines a day are one pfSense checkbox from the
+  1514 listener that already carries filterlog. Three rules land in the `dhcp`
+  group: first lease on Hicks in seven days (warning), the same on Winterfell
+  (critical, and zero in 13 days of logs), and `DhcpLeaseLogsStopped`, because
+  the other two fail silently. Measured cost on Hicks: about one alert every
+  three days, and every one of the five in the sample was worth a look — two of
+  them an OUI the inventory places on Skids. **No longer blocked behind
+  ADR-0008's sensitive tier**, and leaves are dropped rather than deferred: 9
+  releases against 4,732 allocations in four days, and a departure is not a
+  security event. What is left is ticking **DHCP Events** on `morpheus` —
+  before the rules deploy, or `DhcpLeaseLogsStopped` fires truthfully — and
+  reading the first week, which is one alert per device and therefore an
+  inventory check.
+  → [runbook](runbooks/ship-firewall-logs.md)
 - **[#99](https://github.com/Gerrrt/HomeLab/issues/99) Move deployment from
   `make up` over SSH to something pull-based**, so the host converges on the repo
   rather than being pushed to. Answered by
-  [ADR-0019](adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md): an
+  [ADR-0020](adr/0020-converge-on-a-timer-instead-of-deploying-over-ssh.md): an
   hourly timer running `scripts/converge.sh`, on #77's existing wrapper and
   alert machinery. The issue's stated blocker — an age key on a host that pulls
   from a public repository — turned out not to be one, because the key was
@@ -249,8 +350,6 @@ what left this one unfireable for months.
   `saruman` are still pushed to with `deploy-agent.sh`, and nothing tracks
   unifying that.
 - **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
-  dashboard export step** — the current loop is manual and therefore skipped
-  under pressure.
 
 ## Decided but not built
 
@@ -266,13 +365,67 @@ months.
   is `10.0.30.0/24`, and the restore runbook expecting four where it expects
   three. Log-only; a no-op until the segment holds attackers.
 - **[#102](https://github.com/Gerrrt/HomeLab/issues/102)** ADR-0008's sensitive
-  tier and its two new firewall rules.
+  tier — the mini PC, its nine services and the four firewall rules. Under
+  **Infrastructure** above, because it has a shape now rather than only a
+  decision.
 - **[#103](https://github.com/Gerrrt/HomeLab/issues/103)** The SSO deferral
   ADR-0008 takes knowingly — give it an expiry.
 - **[#105](https://github.com/Gerrrt/HomeLab/issues/105)** Confirm the
   unconfigured Snort package actually went.
 
 ## Done
+
+- [x] **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
+      dashboard export step.** 2026-09-04. `make dashboards-export` pulls every
+      dashboard back by uid and writes it over the file, so the loop is edit →
+      one command → `git diff` rather than a hand copy out of the JSON Model
+      panel — manual, and therefore skipped under pressure, which is what this
+      file said about it.
+
+      **The issue's design could not work as written, and finding out why is
+      most of what this was.** The plan was to pull each dashboard from the API
+      and write it back. But `allowUiUpdates` was `false`, and that does not
+      mean what the issue assumed it meant: Grafana does not discard a UI edit
+      at the next restart, it refuses to *store* one at all —
+      `POST /api/dashboards/db` answers `400 Cannot save provisioned
+      dashboard`. So the API could only ever return the file it was provisioned
+      from. Every export would have been a clean no-op over the very edit it
+      existed to capture, exiting zero and writing nothing while `git diff`
+      reported no change to something plainly different on the screen. Measured
+      against the running stack before anything was built: the API's copy of
+      `homelab-docker` was identical to the committed file in every field but
+      `id` and `version`.
+
+      So `allowUiUpdates` is now `true`. The JSON stays the source of truth —
+      a file change re-provisions over Grafana's copy — but an edit now survives
+      long enough to be exported. What `false` bought for free was that the
+      running dashboard and the committed one could not disagree, and that is
+      bought back rather than dropped: `ARGS=--check` writes nothing and exits
+      non-zero when Grafana holds an edit git does not, and the daily
+      `dashboards-drift` timer runs it, so forgetting to export ages into a
+      stale job with an alert behind it. The rules in `backup.rules.yaml` join
+      against the `JOBS` table rather than naming jobs, so it needed no rule.
+
+      Two things found on the way, both of which would have made the diffs
+      unreadable. Grafana serialises keys **alphabetically** at every level,
+      while these files put `uid`, `title` and `description` first — a naive
+      write-back would have reordered every key in all seven and buried the one
+      line that changed, so the committed order is preserved and only new keys
+      are appended. And Grafana persists whatever the browser was showing at
+      save time, so the time picker's range and each variable's selection are
+      read back out of the file rather than taken from the API: without that,
+      one person's afternoon of debugging silently becomes everyone's default
+      time range. Those fields are the one thing the round trip will not write,
+      and the dashboards README says so.
+
+      The round-trip check the issue asked for boots the pinned Grafana image,
+      provisions the committed JSON into it and reads it back, which is what
+      keeps an export from arriving as noise. It also asserts that a save to a
+      provisioned dashboard is still accepted — the condition the whole feature
+      depends on and the one it cannot detect for itself, since flipping the
+      flag back breaks the export silently. Verified in both directions: with
+      `allowUiUpdates: false` the check fails and names the setting.
+      → [`grafana/dashboards/README.md`](../stacks/observability/grafana/dashboards/README.md)
 
 - [x] **[#94](https://github.com/Gerrrt/HomeLab/issues/94) Decide what `oracle`
       is for.** 2026-09-03,

@@ -228,9 +228,171 @@ groups:
           summary: "No firewall logs received for 30 minutes"
           description: >-
             morpheus has stopped shipping filterlog to Loki, or Alloy has
-            stopped receiving it. Check Services → System Logs → Settings on
+            stopped receiving it. Check Status → System Logs → Settings on
             pfSense, and that UDP 1514 is still published by the alloy
             container.
+
+  # ---------------------------------------------------------------------------
+  # DHCP. Kea on morpheus logs a line for every lease it offers, allocates,
+  # reuses or releases, and pfSense forwards them to the same listener as
+  # filterlog once "DHCP Events" is ticked in Remote Syslog Contents. The app
+  # label is `kea-dhcp4`, straight from the syslog program name.
+  #
+  # These three rules are ADR-0019: device joins become events by reading the
+  # DHCP server the estate already runs, rather than by asking eero's cloud
+  # what happened on the estate's own wire (#98).
+  #
+  # A LEASE IS NOT A JOIN. Kea's valid-lifetime here is 7200 seconds, so every
+  # device renews about hourly and DHCP4_LEASE_ALLOC is overwhelmingly a
+  # renewal: 4732 of them in four days, from 57 distinct MACs. The event worth
+  # alerting on is the FIRST line from a MAC on a segment, and that is what the
+  # `unless` below expresses — everything seen in the last 10 minutes, minus
+  # everything seen in the 7 days before that.
+  #
+  # `offset` must equal the trigger window, or the two ranges either overlap
+  # (and nothing ever fires) or leave a gap (and a device that renews across it
+  # fires again).
+  #
+  # WHY `mac` IS EXTRACTED AT QUERY TIME. It is a parser label, not an ingest
+  # label — the same decision, for the same reason, as src and dst in the
+  # filterlog rules above: ADR-0003 records label cardinality as this stack's
+  # live constraint, and one stream per MAC is the textbook way to detonate it.
+  # The regex is in BACKTICKS for the escaping reason at the top of the
+  # firewall block.
+  #
+  # AND WHY THE ADDRESS IS NOT IN `sum by`. It is in the line and it is useful,
+  # but grouping by it would defeat the suppression: a known device that renews
+  # onto a different address would have no matching series on the right-hand
+  # side and would fire as though it were a stranger. The MAC identifies the
+  # device; the segment is fixed by the vlan filter; the address is looked up
+  # afterwards with the query in the annotation.
+  #
+  # MEASURED against 13 days of morpheus's own dhcpd.log before any of this was
+  # written: 5 first-seen events on VLAN 50 and 0 on VLAN 99. Of the five, one
+  # was a device that arrived and stayed, one was a phone rotating its private
+  # Wi-Fi address, two were an OUI the inventory places on Skids taking a lease
+  # on Hicks for a few minutes, and one was a new machine on a familiar OUI.
+  # That rate — roughly one every three days, every one of them worth a glance —
+  # is the whole argument for warning rather than critical on 50.
+  #
+  # PRIVATE MAC ADDRESSES ARE THE NOISE FLOOR AND ARE NOT EXCLUDED. Five of the
+  # twenty MACs seen on VLAN 50 are locally administered, which is iOS and
+  # Android rotating their per-network addresses; each rotation reads here as a
+  # new device. Filtering them out would silence exactly the class of device an
+  # intruder would present, so the rate is accepted instead.
+  #
+  # COLD START: for the first 7 days after DHCP shipping is enabled the
+  # right-hand side is empty, so every device announces itself once. That is a
+  # bounded, one-time inventory of the segment — about twenty alerts on VLAN 50
+  # and three on VLAN 99 — and docs/runbooks/ship-firewall-logs.md says to
+  # expect it.
+  # ---------------------------------------------------------------------------
+  - name: dhcp
+    # 5m rather than the 1m used elsewhere in this file. Each evaluation reads
+    # a 7-day range, and a device appearing on a segment is not a 60-second
+    # response. The 10-minute trigger window is deliberately twice the interval,
+    # so no join can fall between two evaluations.
+    interval: 5m
+    rules:
+      - alert: UnknownDeviceOnTrustedSegment
+        expr: |
+          sum by (mac) (
+            count_over_time(
+              {app="kea-dhcp4"}
+              | regexp `hwtype=1 (?P<mac>[0-9a-f:]{17}).*10\.0\.(?P<vlan>[0-9]{1,3})\.`
+              | vlan = "50"
+              [10m]
+            )
+          )
+          unless
+          sum by (mac) (
+            count_over_time(
+              {app="kea-dhcp4"}
+              | regexp `hwtype=1 (?P<mac>[0-9a-f:]{17}).*10\.0\.(?P<vlan>[0-9]{1,3})\.`
+              | vlan = "50"
+              [7d] offset 10m
+            )
+          )
+        for: 0s
+        labels:
+          component: logs
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.mac }} took a lease on Hicks (VLAN 50) for the first time in 7 days"
+          description: >-
+            Hicks is the only segment with a path into management, and its
+            Wi-Fi is a pre-shared key that people are given. A device here is
+            either one of yours, one that rotated its private MAC, or one that
+            has the PSK and should not. Find the address with
+            {app="kea-dhcp4"} |= "{{ $labels.mac }}" and identify it against
+            docs/network.md before deciding which.
+
+      - alert: UnknownDeviceOnManagementSegment
+        # The same rule on Winterfell, where it means something else entirely.
+        # Nothing joins 99 by accident: it holds the firewall, the UPS and the
+        # two monitoring hosts, all on reservations, and its only Wi-Fi path is
+        # a device someone has moved onto the management VLAN by hand. Zero
+        # first-seen events in 13 days of logs, so this is a tripwire rather
+        # than a signal with a rate.
+        expr: |
+          sum by (mac) (
+            count_over_time(
+              {app="kea-dhcp4"}
+              | regexp `hwtype=1 (?P<mac>[0-9a-f:]{17}).*10\.0\.(?P<vlan>[0-9]{1,3})\.`
+              | vlan = "99"
+              [10m]
+            )
+          )
+          unless
+          sum by (mac) (
+            count_over_time(
+              {app="kea-dhcp4"}
+              | regexp `hwtype=1 (?P<mac>[0-9a-f:]{17}).*10\.0\.(?P<vlan>[0-9]{1,3})\.`
+              | vlan = "99"
+              [7d] offset 10m
+            )
+          )
+        for: 0s
+        labels:
+          component: logs
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $labels.mac }} took a lease on Winterfell (VLAN 99) for the first time in 7 days"
+          description: >-
+            Something took a DHCP lease on the management segment. Everything
+            that belongs there has a reservation and has held it for months.
+            Treat as an unauthorised device on the segment where ADR-0002
+            says compromise is total, unless you know you just plugged it in.
+
+      - alert: DhcpLeaseLogsStopped
+        # Same shape and same reasoning as FirewallLogsStopped above: the two
+        # rules before this one fail silently, and a stream that has stopped
+        # arriving looks exactly like a segment nobody joined.
+        #
+        # This is a threshold the data supports. With a 7200-second lease every
+        # device renews about hourly, and across the 13 days of dhcpd.log after
+        # the firewall settled, the largest gap between two lines was 975
+        # seconds. Two hours is seven times that.
+        #
+        # It catches the fault FirewallLogsStopped cannot: the DHCP content
+        # class alone being unticked on morpheus, which leaves filterlog
+        # arriving and this stream gone.
+        expr: |
+          absent_over_time({app="kea-dhcp4"}[2h])
+        for: 0s
+        labels:
+          component: logs
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "No DHCP lease logs received for 2 hours"
+          description: >-
+            Kea on morpheus has stopped shipping, or Alloy has stopped
+            receiving. Check that DHCP Events is still ticked under Status →
+            System Logs → Settings. Until it is back, both unknown-device
+            rules above are silent rather than clear.
 
   # ---------------------------------------------------------------------------
   # Intrusion detection. Suricata runs on morpheus in IDS mode — alert only, no

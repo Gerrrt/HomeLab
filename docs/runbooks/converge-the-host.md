@@ -4,7 +4,7 @@ How the monitoring host converges on `main`, how to set it up, and what to do
 when it refuses.
 
 The decision and its reasoning are in
-[ADR-0019](../adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md).
+[ADR-0020](../adr/0020-converge-on-a-timer-instead-of-deploying-over-ssh.md).
 This is the operating half. The schedule this joins is
 [`schedule-maintenance.md`](schedule-maintenance.md), and the manual deployment
 it does not replace is [`deploy-stack.md`](deploy-stack.md).
@@ -29,7 +29,7 @@ overwrites a local edit, and nothing rolls the host backwards.
 
 > **This is not how `oracle` and `saruman` are deployed.** They run Alloy and
 > are pushed to with [`make deploy-agent`](../../scripts/deploy-agent.sh). They
-> have no repository checkout and no age key, and ADR-0019 §"Three things it
+> have no repository checkout and no age key, and ADR-0020 §"Three things it
 > deliberately does not do" is why that is not changing.
 
 ## Set it up
@@ -235,7 +235,7 @@ copy — so converging there would report success and change nothing. Run it fro
 | `DeployBehind` with `ScheduledJobFailed` | The refusal is real and recurring | The journal names it; every case is in §"When it refuses" |
 | `DeployMetricsAbsent` | `homelab-deploy.prom` stopped arriving, while the backup metrics still do | Two separate files fail independently. Check `node_textfile_scrape_error`, then the file itself. If the timer was never installed, `make install-timers` |
 | `homelab_job_last_exit_code{homelab_job="converge"}` is 75 | It never started — the weekly backup held the `backups` lock for the full 900s | Expected at most once a week, on Sunday. Persistent means a backup is hanging: `systemctl list-units 'homelab-*'` |
-| The stack restarted at 03:25 and nobody deployed | Somebody merged a pull request | Working as designed — ADR-0019 §Consequences. `journalctl -u homelab-converge.service` names the revision |
+| The stack restarted at 03:25 and nobody deployed | Somebody merged a pull request | Working as designed — ADR-0020 §Consequences. `journalctl -u homelab-converge.service` names the revision |
 | Convergence succeeds but a config change did not take | The container reads its config once at startup and nothing reloaded it | `make up` runs `reload-config.sh`, so this should not happen. If it does, it is a bug in that script's service list, not in convergence |
 | `git fetch` fails every hour | No egress to github.com, or DNS | The host stays where it is, which is correct. `homelab_deploy_behind_commits` goes to `-1` rather than lying about the lag |
 

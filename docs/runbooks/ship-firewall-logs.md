@@ -93,10 +93,42 @@ ss -ulnp | grep 1514
 | Remote Syslog Contents | **Firewall Events** |
 
 Leave the other content classes off to begin with. Firewall events alone are
-the reason for doing this; DHCP, DNS resolver and the rest can be added once
-the volume is understood — this is a 30-day retention Loki on a 2012 MacBook,
-and turning everything on at once is how you find out what its ingest ceiling
-is the hard way.
+the reason for doing this; DNS resolver and the rest can be added once the
+volume is understood — this is a 30-day retention Loki on a 2012 MacBook, and
+turning everything on at once is how you find out what its ingest ceiling is
+the hard way.
+
+Two more classes have been added since, each by the change that needed it and
+each with a number behind it. **Ticking one is still an edit to this page**, so
+it is the same unreliable save (below) and the same risk of trading one stream
+for another:
+
+| Class | Added by | Carries | Volume |
+| --- | --- | --- | --- |
+| Firewall Events | this runbook | `filterlog` | ~3,798 lines/hour (#83) |
+| System Events | [`enable-suricata.md`](enable-suricata.md) §4 | `suricata`, and the rest of the system log | Varies with the ruleset |
+| DHCP Events | [ADR-0019](../adr/0019-read-device-joins-from-the-dhcp-server.md) | `kea-dhcp4` | ~1,200 lines/day, measured on `morpheus` |
+
+The DHCP class is shipped by **program name** — `/var/etc/syslog.d/pfSense.conf`
+matches `kea-dhcp4,kea-dhcp6` and forwards every severity — so unlike Suricata
+it does not depend on a facility surviving the System Events selector. It also
+means System Events does *not* carry it: Kea is on that selector's exclusion
+list, which is why the class has to be ticked separately.
+
+> [!IMPORTANT]
+> **Tick DHCP Events before the ADR-0019 rules are deployed, not after.**
+> `DhcpLeaseLogsStopped` is an `absent_over_time` rule, and a stream that has
+> never existed is absent — verified against a real Loki, the expression
+> returns 1 for a stream nobody has ever pushed. Deploy the rules first and it
+> fires truthfully, immediately and permanently.
+>
+> **Then expect one alert per device for the first week.** The two
+> unknown-device rules compare the last ten minutes against the previous seven
+> days, so until seven days of lease history exist every device on Hicks and
+> Winterfell announces itself once — about twenty and three respectively. That
+> is a one-off inventory, and each line is a claim worth checking against
+> [`network.md`](../network.md). Silencing it is a choice; reading it is the
+> better one.
 
 No firewall rule is needed. `morpheus` already has an interface on VLAN 99
 (`10.0.99.1`) and `prometheus` is on the same segment.
@@ -262,10 +294,30 @@ One more label trap, on the other path:
 > `loki.write.network_syslog` exists as a separate component with no
 > `external_labels`.
 
+If DHCP Events is ticked, confirm the lease stream arrives and parses. `mac` is
+extracted at query time rather than being a label (ADR-0019), so this is also
+the check that the regex still matches what Kea emits — an empty result with
+lines present means the line format moved:
+
+```bash
+# Lease lines arriving at all, by segment.
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (vlan) (count_over_time({app="kea-dhcp4"} | regexp `10\.0\.(?P<vlan>[0-9]{1,3})\.` [1h]))' \
+  | jq -r '.data.result[] | "vlan \(.metric.vlan)\t\(.value[1])"'
+
+# How many distinct devices Loki has seen on Hicks in the last day. This is the
+# list the unknown-device rules compare against; if it is empty, they cannot
+# fire.
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=count(sum by (mac) (count_over_time({app="kea-dhcp4"} | regexp `hwtype=1 (?P<mac>[0-9a-f:]{17}).*10\.0\.(?P<vlan>[0-9]{1,3})\.` | vlan = "50" [24h])))' \
+  | jq -r '.data.result[].value[1]'
+```
+
 Then confirm the rules loaded:
 
 ```bash
 curl -s http://localhost:3100/loki/api/v1/rules | grep -o 'name: firewall' || echo "firewall group not loaded"
+curl -s http://localhost:3100/loki/api/v1/rules | grep -o 'name: dhcp' || echo "dhcp group not loaded"
 ```
 
 ---
@@ -310,6 +362,11 @@ volume and little of the signal.
 Untick **Enable Remote Logging** on pfSense. That stops the source instantly and
 needs no change on the monitoring host.
 
-`FirewallLogsStopped` will fire 30 minutes later, which is correct — it exists
+`FirewallLogsStopped` will fire 30 minutes later, and `DhcpLeaseLogsStopped`
+two hours later if the DHCP class was on. Both are correct — they exist
 precisely so that a silent pipeline is distinguishable from a quiet network.
-Silence it if the stop was deliberate.
+Silence them if the stop was deliberate.
+
+Unticking **DHCP Events** alone is the narrower rollback, and it is the one
+`FirewallLogsStopped` cannot see: filterlog keeps arriving while the lease
+stream goes. That is the fault `DhcpLeaseLogsStopped` exists for.

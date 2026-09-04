@@ -47,7 +47,7 @@ incident.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 7 provisioned dashboards, 140 panels, and
-  66 alert rules — 53 metric-based in Prometheus, 13 log-based in Loki — sharing
+  69 alert rules — 53 metric-based in Prometheus, 16 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -162,7 +162,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │   ├── compose.yaml
 │   ├── prometheus/           # config, file_sd targets, 53 alert rules
 │   ├── alertmanager/         # routing and inhibition
-│   ├── loki/                 # single-binary config + 13 LogQL rules
+│   ├── loki/                 # single-binary config + 16 LogQL rules
 │   ├── alloy/                # the agent config directory, shipped to every host
 │   ├── snmp-exporter/        # generator.yaml is the source of truth
 │   └── grafana/              # provisioning + 7 dashboards
@@ -215,7 +215,7 @@ runs `scripts/converge.sh` hourly, which fetches `main`, refuses it unless the
 tip carries GitHub's signature, fast-forwards and runs the same `make up` —
 recording what it deployed and refusing to overwrite anything edited on the host
 ([#99](https://github.com/Gerrrt/HomeLab/issues/99),
-[ADR-0019](docs/adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md),
+[ADR-0020](docs/adr/0020-converge-on-a-timer-instead-of-deploying-over-ssh.md),
 [`docs/runbooks/converge-the-host.md`](docs/runbooks/converge-the-host.md)).
 
 ```console

@@ -6,11 +6,31 @@ providers:
     orgId: 1
     folder: HomeLab
     type: file
-    # Dashboards are version-controlled in this repository, so edits made in the
-    # Grafana UI are intentionally discarded on restart. Export the JSON and
-    # commit it instead — see docs/observability.md.
+    # Dashboards are version-controlled in this repository and the JSON in
+    # grafana/dashboards/ is the source of truth: Grafana re-provisions over its
+    # own copy whenever a file changes, so a UI edit never outlives the next
+    # commit that touches its dashboard.
+    #
+    # This was `false` until #100, and it had to change for `make
+    # dashboards-export` to be able to do anything at all. With `false`, Grafana
+    # refuses to store an edit to a provisioned dashboard — the save API answers
+    # `400 Cannot save provisioned dashboard` — so the export could only ever
+    # read back the file it was provisioned from. Every run would have been a
+    # clean no-op over the very edit it was meant to capture, and `git diff`
+    # would have reported nothing while the change sat there on the screen. The
+    # old loop worked around it by hand: Dashboard settings → JSON Model, copy,
+    # paste over the file.
+    #
+    # What `true` costs is the guarantee that the running dashboard and the
+    # committed one are the same thing. That guarantee is now bought back rather
+    # than assumed: `scripts/export-dashboards.sh --check` reports an edit that
+    # is live but unexported, and the `dashboards-drift` timer runs it, so
+    # forgetting to export ages into a stale job rather than into a surprise.
+    # scripts/check_dashboard_roundtrip.sh asserts in CI that saves are still
+    # accepted, because flipping this back to `false` breaks the export
+    # silently — the command still succeeds and still writes nothing.
     disableDeletion: false
-    allowUiUpdates: false
+    allowUiUpdates: true
     updateIntervalSeconds: 30
     options:
       path: /var/lib/grafana/dashboards

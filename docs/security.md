@@ -15,7 +15,8 @@ What this network is actually built to survive:
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
-| Losing visibility of a failure | 53 alert rules, 30 days of metrics and logs |
+| Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
+| Losing visibility of a failure | 69 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 
@@ -60,6 +61,24 @@ process table over SNMP instead, and fires per declared interface
 alive, not that it is inspecting anything: a silent `ids` alert group is now
 evidence that the sensor is running, and the runbook's test alert is still the
 only proof that it detects.
+
+**Device joins are detected as of 2026-09-04**, from the DHCP server rather
+than from the wireless. `morpheus` ships Kea's lease log to Loki, and the first
+lease a MAC takes on Hicks or Winterfell in seven days raises an alert —
+warning on the trusted segment, critical on management, where nothing has
+joined in the 13 days of logs the rules were written against. The eero cloud
+was rejected as the source: it is a two-minute poll of Amazon for an event the
+firewall logs in the same second, and it is unavailable exactly when the WAN
+is ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)).
+
+Three limits here too. **It sees leases, not associations** — a device with a
+static address never asks, and never appears. **It sees the segment, not the
+radio**: on Hicks it cannot tell a new laptop on the cable from a new phone on
+the Wi-Fi, and it never knows which access point. And **the noise floor is
+private MAC addresses**: iOS and Android rotate them per network, so a
+rotation reads as a new device, which is accepted rather than filtered out
+because filtering it would blind the rule to the addresses an intruder would
+present.
 
 ## Segmentation
 
@@ -371,7 +390,9 @@ fingerprint of a house is not. Withheld on purpose:
 - **Full MAC addresses.** Truncated to the OUI, which keeps the useful
   information (vendor, and therefore what the device is) and drops the unique
   identifier. Full MACs enable device tracking and, on some networks, MAC-based
-  access control bypass.
+  access control bypass. This is also why the unknown-device rules hold no
+  allowlist: the set of known devices is whatever Loki has seen in the last
+  seven days, so nothing in this repository has to enumerate them.
 - **Owner-linked device names.** Personal devices are listed by role
   (`laptop-01`) rather than by person, and a child's bedroom is not labelled.
 - **Camera-to-room mapping.** Knowing there are seven cameras is fine. Knowing

@@ -9,7 +9,6 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
   "editable": true,
   "graphTooltip": 1,
   "refresh": "1m",
@@ -102,7 +101,7 @@
     {
       "type": "table",
       "title": "Container alerts",
-      "description": "Firing and pending alerts carrying component=containers \u2014 the four cAdvisor rules, and only those. The five rules watching the stack's own components moved to component=stack in #81 and are on the Observability Stack dashboard; a Prometheus that cannot reload its config used to appear here. Empty is the good state. Silences live in Alertmanager and are not reflected here \u2014 see dashboards/README.md.",
+      "description": "Firing and pending alerts carrying component=containers — the four cAdvisor rules, and only those. The five rules watching the stack's own components moved to component=stack in #81 and are on the Observability Stack dashboard; a Prometheus that cannot reload its config used to appear here. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

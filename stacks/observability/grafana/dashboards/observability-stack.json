@@ -9,7 +9,6 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
   "editable": true,
   "graphTooltip": 1,
   "refresh": "1m",
@@ -2893,7 +2892,7 @@
     {
       "type": "timeseries",
       "title": "WAL replay and corruption",
-      "description": "Replay is how long the agent spent reading its own WAL back at startup, so this only moves when an agent restarts \u2014 a step in it dates a restart to the minute, which is the context missing when Remote-write lag jumps and nothing says why. Corruptions are samples the WAL could not read back at all: non-zero means those samples are already lost, and no retry recovers them.",
+      "description": "Replay is how long the agent spent reading its own WAL back at startup, so this only moves when an agent restarts — a step in it dates a restart to the minute, which is the context missing when Remote-write lag jumps and nothing says why. Corruptions are samples the WAL could not read back at all: non-zero means those samples are already lost, and no retry recovers them.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

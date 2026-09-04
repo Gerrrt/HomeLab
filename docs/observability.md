@@ -13,6 +13,7 @@ What is collected, where it goes, and how to change it.
 | `/var/log/auth.log` | Alloy | 60s poll | sshd, sudo, PAM |
 | syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
+| pfSense logs | syslog → Alloy on 1514 | stream | `filterlog` decisions, `suricata` alerts, `kea-dhcp4` leases |
 | MokerLink switch | snmp-exporter | 60s | Interface status and 64-bit octet counters |
 | APC UPS | snmp-exporter | 60s | Charge, runtime, load, voltage, alarms |
 | ProLiant iLO | snmp-exporter | 60s | Temperature, PSU, drive and battery health |
@@ -117,13 +118,31 @@ folder:
 | Observability Stack | `homelab-stack` | Scrape health for every target, and Prometheus, Loki, Alertmanager and Alloy watching themselves |
 | Security | `homelab-security` | Firewall blocks by interface and direction, top blocked sources, Suricata classification and priority, terminal-segment violations |
 
-`allowUiUpdates` is `false`, so edits made in the Grafana UI are discarded on
-restart. That is deliberate — the JSON in git is the source of truth. To change
-a dashboard: edit it in the UI, **Dashboard settings → JSON Model**, copy, and
-commit it over the file. CI checks the result parses, that every datasource UID
-resolves, that panels fit the grid and do not overlap, and that every panel
-expression is syntactically valid — PromQL through `promtool`, LogQL through a
-real Loki, since nothing else parses it.
+The JSON in git is the source of truth: Grafana re-provisions over its own copy
+whenever a file changes, so a UI edit never outlives the next commit that
+touches its dashboard. To change one, edit it in the UI, save, and run:
+
+```bash
+make dashboards-export        # ARGS=--check to report drift and write nothing
+```
+
+That pulls every dashboard back by uid and writes it over the file, so the loop
+is edit → one command → `git diff`. It replaced a hand copy out of **Dashboard
+settings → JSON Model** ([#100](https://github.com/Gerrrt/HomeLab/issues/100)),
+and making it work meant setting `allowUiUpdates: true`: with `false`, Grafana
+refuses to *store* a UI edit at all, so the export could only ever hand back the
+file it started from — a silent no-op over the edit it was meant to capture.
+What that flag used to guarantee is now bought explicitly, by the daily
+`dashboards-drift` job and by a CI check that the save path still works;
+[`grafana/dashboards/README.md`](../stacks/observability/grafana/dashboards/README.md)
+has the whole trade, and what the export drops and refuses to overwrite.
+
+CI checks the result parses, that every datasource UID resolves, that panels fit
+the grid and do not overlap, and that every panel expression is syntactically
+valid — PromQL through `promtool`, LogQL through a real Loki, since nothing else
+parses it. It also boots the pinned Grafana image and asserts the committed JSON
+is what Grafana produces from it, so an export never arrives as a diff nobody
+can read.
 
 ### Watching the collection path
 
@@ -256,7 +275,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-66 rules in total: 53 metric-based in `prometheus/rules/`, and 13 log-based in
+69 rules in total: 53 metric-based in `prometheus/rules/`, and 16 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -266,6 +285,16 @@ log shows it rejecting forty passwords in five minutes. `loki/rules/security.rul
 covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
+
+It also covers **a device taking its first DHCP lease on a segment** — one rule
+for Hicks and one for Winterfell, plus the `absent_over_time` rule that says the
+lease stream itself has stopped. That is
+[ADR-0020](adr/0019-read-device-joins-from-the-dhcp-server.md): device joins
+come from Kea on `morpheus` rather than from the eero cloud, because the
+firewall sees the join on the wire and the cloud sees it two minutes later over
+the WAN. "First" is expressed as the last ten minutes `unless` the seven days
+before it, which needs no state anywhere and no list of known devices in the
+repository.
 
 They use the same `severity` and `category` labels as the Prometheus rules and
 are sent to the same Alertmanager, so routing and inhibition are shared.
@@ -297,7 +326,7 @@ boot check.
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http. The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, and never-ran |
-| `deploy.rules.yaml` | Whether this host is running what the repository says — an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` the host is. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0019](adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
+| `deploy.rules.yaml` | Whether this host is running what the repository says — an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` the host is. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0020](adr/0020-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the process metric `security.rules.yaml` says a log rule cannot be ([#90](https://github.com/Gerrrt/HomeLab/issues/90)) |
 
 `promtool check rules` validates that these parse. It does not — and cannot —
@@ -478,7 +507,9 @@ The stack is small, but two things will bite if ignored:
   cycle.
 - **Loki labels must stay low-cardinality.** `host`, `level`, `log_type`,
   `service_name` and `unit` are bounded. Never promote a request ID, IP address
-  or timestamp to a label; use `|=` line filters instead.
+  or timestamp to a label; use `|=` line filters instead. A MAC address is the
+  same class of mistake, which is why the ADR-0019 rules extract `mac` with a
+  query-time `| regexp` and it exists nowhere in the index.
 
 `module` and `auth` are deliberately dropped by `labeldrop` in `prometheus.yaml`
 after being converted to query parameters, so they never become metric labels.

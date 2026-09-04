@@ -263,9 +263,24 @@ cd "${DEPLOY_ROOT}"
 
 command -v git >/dev/null 2>&1 || die "git is not installed"
 
-# Read before any check that can fail, so that EVERY exit path records what the
-# host is on — including the ones that give up. A refusal that leaves yesterday's
+# Read before any check about the STATE of this checkout — the branch it is on,
+# whether it is clean, what it can fetch — so that every one of those refusals
+# still records what the host is running. A refusal that leaves yesterday's
 # metric in place is a refusal that reads as a healthy deployment.
+#
+# Three guards do run earlier and can exit before this line, and all three are
+# cases where recording nothing is the correct outcome rather than a gap:
+#
+#   - an unwritable TEXTFILE_DIR, where recording is impossible by definition
+#     and dying is the point;
+#   - REPO_ROOT != DEPLOY_ROOT, where HEAD belongs to some other checkout, and
+#     writing its revision as "what is deployed" would be an actively false
+#     statement about the host rather than a missing one;
+#   - git absent, where there is no revision to read.
+#
+# So the claim is narrower than "before anything that can fail", and stating it
+# loosely was wrong: a maintainer reading the loose version would think the
+# earlier guards were an oversight to fix.
 REVISION="$(git rev-parse --short=12 HEAD)"
 COMMIT_TS="$(git log -1 --format=%ct HEAD)"
 

@@ -38,7 +38,7 @@ fails on purpose until that is done. The volume sets still do not leave
 ([#92](https://github.com/Gerrrt/HomeLab/issues/92)). Deployment itself is now
 one of these jobs rather than something a human remembers to do —
 [#99](https://github.com/Gerrrt/HomeLab/issues/99),
-[ADR-0019](../adr/0019-converge-on-a-timer-instead-of-deploying-over-ssh.md), and
+[ADR-0020](../adr/0020-converge-on-a-timer-instead-of-deploying-over-ssh.md), and
 [`converge-the-host.md`](converge-the-host.md) for the one setup step it needs
 beyond this runbook.
 The honest summary is still that this host watches its own chores, and the
@@ -57,6 +57,7 @@ the host.
 | `verify-backups` | `make backup ARGS='--verify-only --all'` | daily 05:30 | 3 days |
 | `backup-firewall` | `make backup-firewall` | daily 04:30 | 3 days |
 | `snmp-verify` | `make snmp-verify` | Wednesdays 06:30 | 14 days |
+| `dashboards-drift` | `make dashboards-export ARGS=--check` | daily 07:30 | 2 days |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
@@ -65,6 +66,22 @@ tolerates one missed run and not two. `converge` is the one exception at three
 times, because it shares the `backups` lock and a run that queues behind the
 weekly archive can legitimately spend its full 900-second wait and then be an
 hour late. Being late for a reason is not the finding.
+
+`dashboards-drift` is the odd one out, and worth reading as a different kind of
+job. Every other row here proves that something *happened* — an archive was
+written, a device answered. This one proves that nothing *diverged*: it runs
+`make dashboards-export ARGS=--check`, which writes nothing and exits non-zero
+when the running Grafana holds a dashboard edit that git does not.
+
+It exists because of a trade made in
+[#100](https://github.com/Gerrrt/HomeLab/issues/100). `allowUiUpdates` was
+`false`, which meant a UI edit could never be saved at all — and so the
+committed JSON and the running dashboard could not disagree. That also meant
+`make dashboards-export` had nothing to export, which is why the flag is now
+`true`. The property that was free before is bought here instead: a failed
+`dashboards-drift` means somebody edited a dashboard in the browser and did not
+run `make dashboards-export`. Fix it by running that, reviewing `git diff` and
+committing — not by silencing the job.
 
 Both halves of that table live in one place. The cadence is in the `.timer`
 files, the threshold is in the `JOBS` table in
@@ -232,6 +249,7 @@ expected rather than a second fault.
 | A metric exists but no alert can fire | `exported_job` in the query output | A `job` label got into a `.prom` file. Fix the label name in `run-scheduled.sh` |
 | `homelab_job_last_exit_code` is 75 | The job never started — another job held its lock for the full wait | Expected if a `--verify-only` run collided with a long backup. Persistent means a job is hanging: check `systemctl list-units 'homelab-*'` |
 | `backup-firewall` exits 1 with *off-host copy FAILED* | `oracle` is down, its host key is not in `robo`'s `known_hosts`, or this host's key is not authorised there | The export was written locally and is intact. Repair the path to `oracle` — [`restore-the-firewall.md`](restore-the-firewall.md) §0 — and the next run copies every file that never left |
+| `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |
 | `ScheduledJobMetricsAbsent` fires and nothing else in `backup.rules.yaml` ever has | This step was never run at all | `systemctl list-unit-files 'homelab*'` reports *0 unit files* and `/var/lib/node_exporter/textfile_collector` does not exist. The four other rules here join against a series `--install` writes, so none of them can fire — that alert is the only one that can, and it is doing its job ([#215](https://github.com/Gerrrt/HomeLab/issues/215)). Run `make install-timers` |
