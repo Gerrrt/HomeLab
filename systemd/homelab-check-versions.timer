@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: weekly documented-versions check
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-check-versions.service
+# Wednesdays 06:45, a quarter-hour after snmp-verify. A host upgrade is not a
+# time-critical finding, and running it right after the SNMP credential check
+# means a week where the exporter cannot reach morpheus at all shows up as two
+# adjacent failures rather than one puzzling one.
+OnCalendar=Wed *-*-* 06:45:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

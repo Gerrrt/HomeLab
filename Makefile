@@ -280,6 +280,18 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml (needs make snmp-mibs
 	fi; \
 	printf '\033[0;32mok\033[0m — %s placeholder(s) survived generation\n' "$${#vars[@]}"
 
+.PHONY: check-versions
+check-versions: ## Check the documented OS versions against what the hosts report
+	@# Under Maintenance rather than Validation, for the same reason snmp-verify
+	@# is: it reads the running system. Everything under Validation is offline and
+	@# safe for CI, and this one needs Prometheus — so `make validate` must not
+	@# grow it, or CI starts failing on a host it cannot reach.
+	@#
+	@# This is the half check_docs.py structurally cannot do. That script asserts
+	@# hardware.md and network.md agree with each other, which passed for a whole
+	@# pfSense release while both said FreeBSD 15 and the box ran 16 (#292).
+	./scripts/check_versions.py $(ARGS)
+
 .PHONY: snmp-verify
 snmp-verify: ## Check each SNMP device answers to its community (ARGS=--old)
 	@# Deliberately under Maintenance, not Validation: everything under

@@ -103,6 +103,28 @@ modules:
       - 1.3.6.1.2.1.25.4.2.1.2   # hrSWRunName        filter + lookup label; not a metric
       - 1.3.6.1.2.1.25.4.2.1.5   # hrSWRunParameters  lookup label ("-i igc0.20 ..."); not a metric
       - 1.3.6.1.2.1.25.4.2.1.7   # hrSWRunStatus      1 running 2 runnable 3 notRunnable 4 invalid
+      # SNMPv2-MIB sysDescr, for #292. pfSense sets this string explicitly
+      # rather than taking bsnmpd's default, and it carries both versions this
+      # repository records about the box:
+      #
+      #   pfSense morpheus.matrix.elysium 2.9.0-RELEASE FreeBSD 16.0-CURRENT amd64
+      #
+      # It is here because `morpheus` runs no node_exporter — it is the FreeBSD
+      # appliance that cannot run Alloy — so its OS version had no live
+      # counterpart, and the docs drifted a full release without anything able
+      # to notice. scripts/check-versions.sh reads it.
+      #
+      # Probed 2026-09-04 with scripts/snmp-walk.sh before being added here, per
+      # the note in the mokerlink module below: 1 row, 1 request, 0.47s, and the
+      # four overshoot varbinds (sysObjectID, sysUpTime, sysContact, sysName)
+      # all decode — sysObjectID answers .1.3.6.1.4.1.12325.1.1.2.1.1, not the
+      # zero-length OBJECT IDENTIFIER that makes the switch's ifSpecific poison
+      # a whole GETBULK response.
+      #
+      # That probe is the worst case rather than what runs: sysDescr is a scalar
+      # with one instance, so the generator resolves this walk into a GET of
+      # 1.3.6.1.2.1.1.1.0 and no GETBULK is issued at scrape time at all.
+      - 1.3.6.1.2.1.1.1          # sysDescr
     lookups:
       - source_indexes: [hrSWRunIndex]
         lookup: hrSWRunName
