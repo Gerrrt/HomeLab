@@ -16,7 +16,7 @@ What this network is actually built to survive:
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 71 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 72 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -255,6 +255,23 @@ Measured on `prometheus` (10.0.99.20):
 - `/boot` and the EFI partition are likewise plain.
 - `/swap.img` is 4 GiB, unencrypted, on that same root filesystem, and in use.
   Anything the stack has held in memory can have been paged into it.
+
+Since [#114](https://github.com/Gerrrt/HomeLab/issues/114) the containers no
+longer contribute to that last line. Every service in
+`stacks/observability/compose.yaml` sets `memswap_limit` equal to its
+`mem_limit`, which is `memory.swap.max = 0` — the stack cannot page out at all.
+Left unset, `memswap_limit` defaults to twice `mem_limit`, so setting a memory
+limit without one would have *increased* what reaches this file: a constrained
+container spills to swap rather than being killed, and Grafana's admin password,
+Alertmanager's receiver URLs and the SNMP community string are all resident in
+those processes. The measured cost of switching it off is small — peak
+`container_memory_swap` over the fourteen days that sized the limits was 70 MiB
+for Prometheus, 17 for Alloy, 12 for Loki and under 5 for the rest.
+
+This narrows the exposure; it does not close it. Swap is only one of the ways
+memory reaches the disk, the host's own processes still swap freely, and
+anything already paged out before this change was deployed is still in
+`/swap.img`. The files below remain the substance of this section.
 
 So the age private key at `~/.config/sops/age/keys.txt`, the rendered artefacts
 under `snmp-exporter/.rendered/` and `alertmanager/.rendered/`, and

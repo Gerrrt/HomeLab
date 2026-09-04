@@ -84,6 +84,13 @@ of the host. Measured on `prometheus` (10.0.99.20): `/dev/mapper` holds only
 filesystem is plain ext4 on LVM — and `/swap.img` is 4 GiB, unencrypted, on that
 same filesystem.
 
+The observability containers no longer page into it. Since
+[#114](https://github.com/Gerrrt/HomeLab/issues/114) every service sets
+`memswap_limit` equal to its `mem_limit`, which disables container swap
+outright; the default is twice `mem_limit`, so adding memory limits without it
+would have made this entry worse rather than better. The disk itself is
+unchanged, and so is this row's status.
+
 So `~/.config/sops/age/keys.txt` and the rendered artefacts under
 `snmp-exporter/.rendered/`, `alertmanager/.rendered/` and
 `stacks/observability/.env` — which hold plaintext by design — are all mode 600

@@ -298,7 +298,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-71 rules in total: 55 metric-based in `prometheus/rules/`, and 16 log-based in
+72 rules in total: 56 metric-based in `prometheus/rules/`, and 16 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -337,7 +337,7 @@ boot check.
 
 ### Metric-based (Prometheus)
 
-55 rules across eleven files in `prometheus/rules/`:
+56 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -355,13 +355,14 @@ boot check.
 
 `promtool check rules` validates that these parse. It does not — and cannot —
 tell you whether a rule can ever be true: `ContainerHighMemory` passed it for
-months while dividing by a memory limit no service sets, so it showed as loaded
-and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/HomeLab/issues/63)).
+months while dividing by a memory limit no service set at the time, so it showed
+as loaded and healthy and could not fire for any input ([#63](https://github.com/Gerrrt/HomeLab/issues/63)).
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is twenty-five rules of 55 so far — the five
-in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory` and
+against the broken rule too. Coverage is twenty-six rules of 56 so far — the five
+in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
+`ContainerNearMemoryLimit` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
 `backup.test.yaml`, all five in `deploy.test.yaml`, `RemoteWriteJobStale`,
