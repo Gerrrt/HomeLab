@@ -121,3 +121,48 @@ scrape_configs:
         action: labeldrop
       - target_label: __address__
         replacement: blackbox-exporter:9115
+
+  # ---------------------------------------------------------------------------
+  # DNS probes, sent straight at the filter.
+  #
+  # The same exporter and the same relabel dance as `blackbox` above, and a
+  # separate job on purpose rather than for tidiness. Two rules key off the job
+  # name, and both would misfire if these targets shared it:
+  #
+  #   EndpointUnreachable is `probe_success{job="blackbox"} == 0` at severity
+  #   critical, which alertmanager.yaml routes to `urgent`. ADR-0010 designed
+  #   the house to keep resolving without AdGuard, so a filter that stops
+  #   answering is explicitly not a 2 a.m. problem. A job boundary says that
+  #   structurally; a `role!=` matcher bolted onto the existing rule would
+  #   quietly capture the next target somebody adds without the label.
+  #
+  #   EndpointNameNotResolving joins `via="dns"` to `via="address"` on `name`.
+  #   `via` has no meaning for a probe whose target is itself a resolver, and a
+  #   target here sharing a `name` with one there would satisfy that join by
+  #   accident — the failure mode blackbox.test.yaml exists to prevent.
+  #
+  # Every target in the file is commented out today, because the box AdGuard
+  # runs on has not been built (#102) and Unbound is not forwarding to it yet
+  # (#123). The job is here anyway so that enabling them is a file_sd append,
+  # hot-reloaded, with no restart and no edit to this file at the moment it
+  # matters.
+  # ---------------------------------------------------------------------------
+  - job_name: blackbox-dns
+    scrape_interval: 60s
+    scrape_timeout: 15s
+    metrics_path: /probe
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/blackbox-dns.yaml
+        refresh_interval: 5m
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [module]
+        target_label: __param_module
+      - regex: module
+        action: labeldrop
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

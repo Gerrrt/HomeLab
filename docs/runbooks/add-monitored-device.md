@@ -1,6 +1,8 @@
 # Runbook: Add a monitored device
 
-Two paths, depending on whether the device can run an agent.
+Four paths: a host that can run an agent, a device that cannot, an endpoint
+with a URL, and a resolver — which is asked what it answered rather than
+whether it can be reached.
 
 ---
 
@@ -338,3 +340,66 @@ exactly that reason, with the rule each needs written beside them. Do not
 enable a target that fails today — it pages `urgent` until someone changes the
 firewall, and a permanently-red check is one the operator learns to scroll
 past.
+
+---
+
+## A DNS resolver
+
+A resolver is the one thing here that can be *asked a question*, so it is
+monitored by what it answers rather than by whether the port is open. That
+distinction is the whole reason this section exists:
+[ADR-0010](../adr/0010-keep-the-resolver-on-the-gateway.md) puts AdGuard Home
+behind Unbound with the public upstreams listed alongside it, so when it dies
+the house keeps resolving and nothing reports anything. (Neither the filter nor
+the forwarding is deployed yet — the targets ship disabled, see below.)
+
+**Aim the probe at the resolver itself, never through the normal path.** A
+query to pfSense is answered by whichever forwarder is alive and passes
+whatever the filter is doing, which is exactly the check that would have looked
+right for three weeks while filtering was off (#126).
+
+Two modules in `blackbox/blackbox.yaml` ask the two questions. Unlike an http
+module, a `dns` module carries its own query, so the module *is* the question:
+
+| Module | Asks | Fails when |
+| --- | --- | --- |
+| `dns_answers` | resolve `example.com`, expect an A record | the service is stopped, or answering SERVFAIL |
+| `dns_filters` | resolve the blocked canary, expect `0.0.0.0` | blocklists are not loaded, or the blocking mode changed |
+
+Probe both from the running exporter before adding anything, and probe the
+negative case too — a filtering check that cannot go red is measuring nothing:
+
+```bash
+docker exec blackbox-exporter wget -qO- \
+  'http://localhost:9115/probe?target=<resolver>:53&module=dns_filters' \
+  | grep -E '^probe_(success|dns_answer_rrs)'
+```
+
+Then append both blocks to `prometheus/targets/blackbox-dns.yaml` — a separate
+file from `targets/blackbox.yaml`, and a separate scrape job, so that
+`EndpointUnreachable` does not page `urgent` for a filter the design lets fail
+open:
+
+```yaml
+- targets: ["<resolver>:53"]
+  labels:
+    module: dns_answers
+    name: <what the alert says>
+    check: liveness
+    role: dns-filter
+
+- targets: ["<resolver>:53"]
+  labels:
+    module: dns_filters
+    name: <same name as above>
+    check: filtering
+    role: dns-filter
+```
+
+**Both blocks must share `name`.** `AdGuardNotFiltering` joins the two probes
+on it, and a mismatch leaves a rule that loads, reports healthy and can never
+fire — the #63 shape, which is why `tests/dns.test.yaml` asserts the join.
+
+Prometheus re-reads the file within five minutes. Confirm under **Status →
+Targets**, job `blackbox-dns`, then read `probe_success` for both `check`
+values rather than the target state.
