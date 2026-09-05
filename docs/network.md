@@ -272,6 +272,7 @@ Where things get broken on purpose.
 | morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
 | shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
 | Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
+| alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 
 ### Notes
 
@@ -280,21 +281,19 @@ Where things get broken on purpose.
   dedicated port, `Saruman` is the Proxmox install. They are separate addresses
   and separate names, and conflating them is a mistake this document previously
   made.
-- `Saruman` currently runs no guests. The first will be `alexander`, at
-  `10.0.30.40` — a static below `.100` with a reservation, single-homed on this
-  segment like its host — which runs
-  [`stacks/lab`](../stacks/lab): the lab's own Prometheus, Loki, Grafana and
-  Alloy. The stack is built and committed; the guest is
-  [#262](https://github.com/Gerrrt/HomeLab/issues/262), which is why it is
-  described here and not in the table above. **It is a guest and not the
-  hypervisor for a reason**: a compose stack is Docker, and Docker would
-  rewrite the iptables of the box whose own firewall ADR-0014 relies on — the
-  same fact that put the native `.deb` agent on `Saruman` rather than a
-  container
+- `Saruman` runs one guest, `alexander`, built 2026-09-05
+  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)). It runs
+  [`stacks/lab`](../stacks/lab) — the lab's own Prometheus, Loki, Grafana and
+  Alloy. **It is a guest and not the hypervisor for a reason**: a compose stack
+  is Docker, and Docker would rewrite the iptables of the box whose own
+  firewall ADR-0014 relies on — the same fact that put the native `.deb` agent
+  on `Saruman` rather than a container
   ([ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)).
   It gets **no** pass into Winterfell: the rule below is the hypervisor's, and
   ADR-0007's "guests get no such rule" covers this one too. Nothing in that
-  stack remote-writes off the segment.
+  stack remote-writes off the segment, so nothing outside the lab sees it — and
+  nothing outside the lab can tell it apart from a lab nobody is using
+  ([#257](https://github.com/Gerrrt/HomeLab/issues/257)).
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
   into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry

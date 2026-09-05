@@ -24,7 +24,7 @@ is already built and validated; what is missing is somewhere to run it.
 | Name | `alexander` | A Final Fantasy summon, like `shiva` and `ifrit` already on this segment. A fortress, which is what the defended estate's own observer is |
 | Address | `10.0.30.40/24` | Statics on this segment live **below `.100`**; the pool is `.100–.200`. Continues the decade spacing — `shiva` .10, `Saruman` .20 (after #96), `ifrit` .30 |
 | Kind | **VM, not LXC** | `stacks/lab` uses `cgroup: host`, `cap_drop: [ALL]` and a Docker socket mount. Docker in an LXC needs nesting and keyctl workarounds, and those settings behave differently under one. A VM has no such asterisks |
-| OS | **Ubuntu Server 24.04 LTS** | See below. This is the one that would have bitten quietly |
+| OS | **Ubuntu Server LTS** — `alexander` runs 26.04 | See below. This is the one that would have bitten quietly |
 | Disk | 64 GB | Prometheus is capped at 4 GB and Loki keeps 15 days of a small estate. 64 GB leaves room without pretending the spindles are free |
 | RAM | 8 GB | The estate's whole stack runs on a 2012 MacBook with 8 GB. This one is smaller and has headroom for the domain arriving |
 
@@ -38,12 +38,15 @@ is already built and validated; what is missing is somewhere to run it.
 > two of its four log sources.
 >
 > That is the exact failure this repository keeps paying for — #62 and #63 were
-> both collectors that ran healthy and produced nothing. Ubuntu Server 24.04
-> ships rsyslog, has both files, and is what `prometheus` and `oracle` already
-> run, so the agent behaves identically on every Linux host in the estate.
+> both collectors that ran healthy and produced nothing. Ubuntu is what
+> `prometheus` and `oracle` already run, so the agent behaves identically on
+> every Linux host in the estate.
 >
-> If you ever do put this on Debian, install `rsyslog` in the same breath and
-> check §7 rather than assuming.
+> **Verify it rather than trusting the distribution.** 24.04 ships rsyslog;
+> Ubuntu has been steadily narrowing what it installs by default, and this
+> runbook does not know what the LTS you are installing does. §7 is the check,
+> and it is the reason §7 exists. If either file is missing — on Ubuntu or on
+> Debian — `sudo apt-get install -y rsyslog` restores both, and §7 confirms it.
 
 ## 1. Create the VM
 
@@ -337,8 +340,13 @@ if you forget:
   That marker is load-bearing: while it is there, `check_docs.py` requires the
   host to be **absent** from `network.md`, so adding the row without removing
   the marker fails and says the marker is stale.
-- `docs/hardware.md` — removing the marker also pushes the Alloy agent count to
-  four, which fails the "three Alloy agents" sentence in the same run. That is
-  deliberate, and it is the moment that sentence should change.
+- `docs/hardware.md` — removing the marker also raises the Alloy agent count,
+  which fails the sentence there that states it. That is deliberate, and it is
+  the moment that sentence should change.
+
+  This bullet used to quote that sentence verbatim, and `check_docs.py` counted
+  the quotation as a second claim of the same fact — so the runbook describing
+  the failure became one more place to fix when it fired. Correctly: the check
+  does not care whether prose is describing a number or asserting one.
 
 `make check-docs` walks you through all three.
