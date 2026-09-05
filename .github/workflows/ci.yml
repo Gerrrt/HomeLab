@@ -283,6 +283,13 @@ jobs:
       # This ran in scripts/validate.sh and nowhere else — it was the only check
       # `make validate` had that CI did not, so it had never run on a pull
       # request. That asymmetry is #68.
+      # sops silently uses the next rule when one matches nothing, so a
+      # recipient separation can exist in the file, be reviewed, be merged, and
+      # not be real. That is exactly what happened to the stacks/lab rule
+      # ADR-0020 added.
+      - name: Verify every .sops.yaml rule matches the file it was written for
+        run: python3 scripts/check_sops_rules.py
+
       - name: Verify the SNMP inventory agrees with itself
         run: ./scripts/snmp-targets.sh --check
 

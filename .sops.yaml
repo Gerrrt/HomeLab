@@ -58,7 +58,17 @@ creation_rules:
   # ON that guest, fills it in — and refuses if the key it would write is
   # already a recipient below, because that would collapse the two rules back
   # into one.
-  - path_regex: secrets/lab\..*\.sops\.ya?ml$
+  #
+  # The optional group in the pattern is load-bearing. This shipped as
+  # `secrets/lab\..*\.sops\.ya?ml$`, which cannot match `secrets/lab.sops.yaml`
+  # — after `secrets/lab\.` consumes the only dot before `sops`, `\.sops\.`
+  # has no second dot left to match. So the rule matched NOTHING, sops fell
+  # through to the catch-all below, and the lab's secrets were encrypted to the
+  # estate's key: silently, and as the precise inversion this rule exists to
+  # prevent. It surfaced only on the guest, as sops' "no identity matched any
+  # of the recipients". scripts/check_sops_rules.py now fails on any rule that
+  # matches no file, which is what makes a dead rule loud instead of harmless.
+  - path_regex: secrets/lab(\..+)?\.sops\.ya?ml$
     age: >-
       REPLACE_WITH_LAB_AGE_PUBLIC_KEY
 

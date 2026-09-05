@@ -170,6 +170,40 @@ assumed to be compromised.
 Commit and push `.sops.yaml` and `secrets/lab.sops.yaml` from here; the
 ciphertext belongs in the repository, the private key never does.
 
+> [!WARNING]
+> **If `secrets-edit` says `no identity matched any of the recipients`,** the
+> file was encrypted to the estate's key rather than this host's. That was a
+> real bug in the lab's `path_regex` — it matched nothing, so sops fell through
+> to the catch-all — fixed on 2026-09-05, and
+> `scripts/check_sops_rules.py` now fails CI on any rule that matches no file.
+>
+> Recover on this host. Nothing is lost: the file holds only the template's
+> placeholder values, and it was never committed.
+>
+> ```bash
+> cd ~/HomeLab
+> rm secrets/lab.sops.yaml
+> git checkout .sops.yaml
+> git pull
+> make secrets-init STACK=lab
+> make secrets-edit STACK=lab
+> ```
+>
+> `git checkout .sops.yaml` discards the public key `secrets-init` wrote there
+> so the pull applies cleanly; the re-run puts it back, into a rule that now
+> matches. Your age private key in `~/.config/sops/age/keys.txt` is untouched
+> throughout — `secrets-init` reuses an existing keypair rather than minting a
+> second.
+>
+> Confirm the separation is real before moving on:
+>
+> ```bash
+> python3 scripts/check_sops_rules.py
+> ```
+>
+> `secrets/lab.sops.yaml` must resolve to the `secrets/lab...` rule, not to the
+> catch-all.
+
 ## 5. The certificate
 
 **On the monitoring host**, where the CA lives:
