@@ -721,12 +721,30 @@ services:
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
       # Network syslog for devices that cannot run an agent — morpheus today.
       # Unlike the debug UI above this must be reachable off-host, so it binds
-      # to BIND_ADDR. 1514 rather than 514: the container cannot take a
-      # privileged port. That claim used to read "does not run as root", which
-      # was simply false — it runs as uid 0 and, until #188, held every
-      # capability including NET_BIND_SERVICE. It is true now, and true for the
-      # stated reason, because cap_drop above removes that capability.
-      # pfSense sends UDP by default.
+      # to BIND_ADDR. pfSense sends UDP by default.
+      #
+      # The container side is 1514, and the reason is NOT that it cannot bind a
+      # privileged port — it can. Measured here 2026-09-05 (Docker 29.8.0, the
+      # pinned alloy digest): uid 0 with CapEff 0000000000000000, and Docker
+      # sets net.ipv4.ip_unprivileged_port_start=0 in the container's network
+      # namespace, so the privileged range inside it is empty and
+      # CAP_NET_BIND_SERVICE is never consulted for any port. The cap_drop above
+      # is doing what #188 intended; it just has no bearing on which ports Alloy
+      # can bind. Two earlier versions of this comment gave a wrong reason —
+      # first "does not run as root" (#188), then the capability (#290).
+      #
+      # 1514 stays anyway, on a reason that does hold: that sysctl is a daemon
+      # *default*. It is settable per container and has not always been what it
+      # is now, so a container-side :514 would rest on something a future
+      # daemon default or a hardening pass could take away — silently, as a bind
+      # failure at start. Nothing needs the container side to be 514.
+      #
+      # The host side is free to be 514, because dockerd binds it as root before
+      # Alloy is involved. SYSLOG_PORT sets only the host side, so a device that
+      # can only send to the standard port is accommodated by SYSLOG_PORT=514 in
+      # .env and nothing else — no change to this mapping. Verified end to end
+      # on this host 2026-09-05: 127.0.0.1:514 published to a --cap-drop ALL
+      # container, packet delivered. The consumer is Gerrrt/Lemmiwinks#161.
       - "${BIND_ADDR:-0.0.0.0}:${SYSLOG_PORT:-1514}:1514/udp"
     depends_on:
       # service_started for loki, for the same reason as grafana above: the
