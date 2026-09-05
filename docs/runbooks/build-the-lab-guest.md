@@ -212,8 +212,62 @@ ciphertext belongs in the repository, the private key never does.
 make certs ARGS="--host grafana-lab.matrix.elysium --ip 10.0.30.40 --dns grafana"
 ```
 
-Copy three files into `~/HomeLab/certificates/` on `alexander`:
-`ca.pem`, `grafana-lab.matrix.elysium.pem`, `grafana-lab.matrix.elysium-key.pem`.
+That writes into `certificates/` at the root of the checkout the stack is
+deployed from — `/home/robo/code/Gerrrt/HomeLab/certificates/` on `prometheus`.
+Three of the files there go to `alexander`:
+
+| File | What it is |
+| --- | --- |
+| `ca.pem` | The lab CA. Prometheus verifies Grafana's leaf against it |
+| `grafana-lab.matrix.elysium.pem` | The leaf you just issued |
+| `grafana-lab.matrix.elysium-key.pem` | Its private key |
+
+> [!CAUTION]
+> **`ca-key.pem` is not on that list and must never leave the monitoring
+> host.** It is the key that signs every certificate in the estate; a copy of
+> it on a machine that sits on the segment built to hold attackers is a
+> different class of problem from a leaked leaf. Copy the three files by name.
+> Do not `scp certificates/*`.
+
+### Do it from Hicks, because the two hosts cannot reach each other
+
+**`99 → 30` is closed.** An `scp` from `prometheus` to `alexander` does not
+work — there is no rule that would carry it, and the one exception on that
+interface is the iLO's SNMP return path. Hicks reaches both segments, so the
+Mac is the only machine that can see both ends.
+
+From the Mac. The first command matters because `certificates/` is gitignored,
+so a fresh clone on `alexander` does not have it and `scp` would fail into a
+directory that is not there:
+
+```bash
+ssh you@10.0.30.40 'mkdir -p HomeLab/certificates && chmod 700 HomeLab/certificates'
+
+CERTS=/home/robo/code/Gerrrt/HomeLab/certificates
+scp -3 -p \
+  robo@10.0.99.20:$CERTS/ca.pem \
+  robo@10.0.99.20:$CERTS/grafana-lab.matrix.elysium.pem \
+  robo@10.0.99.20:$CERTS/grafana-lab.matrix.elysium-key.pem \
+  you@10.0.30.40:HomeLab/certificates/
+```
+
+`-3` routes the copy through the Mac without writing either file to its disk,
+which is worth having for a private key. If your `scp` does not support it, do
+it in two steps and `shred -u` the local copies afterwards — the key is the
+whole point of the care.
+
+`-p` preserves the mode. Check that it did, on `alexander`, because a default
+umask would otherwise leave a private key world-readable:
+
+```bash
+ls -l ~/HomeLab/certificates/
+chmod 640 ~/HomeLab/certificates/grafana-lab.matrix.elysium-key.pem
+```
+
+`0640` and owned by you is what the stack expects: Grafana runs as uid 472 and
+gets your gid as a supplementary group (`group_add: ${RENDER_GID}` in
+`compose.yaml`), which is how it reads the key without the key being readable
+by everything on the host.
 
 > [!WARNING]
 > **Do not run `make certs ARGS=--ca` on `alexander`.** If the files are
