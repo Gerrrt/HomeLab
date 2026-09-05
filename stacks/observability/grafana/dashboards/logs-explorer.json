@@ -357,7 +357,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({host=~\"$host\", log_type=\"authlog\"} |~ \"(?i)failed (password|publickey)\" [24h]))",
+          "expr": "sum(\n  sum by (host) (count_over_time({host=~\"$host\", log_type=\"authlog\"} |~ \"(?i)failed (password|publickey)\" [24h]))\n  or\n  sum by (host) (count_over_time({host=~\"$host\", log_type=\"journal\"} |~ \"(?i)failed (password|publickey)\" [24h]))\n  or\n  sum by (host) (count_over_time({host=~\"$host\", log_type=\"syslog\", app=~\"sshd.*|sudo|su\"} |~ \"(?i)failed (password|publickey)\" [24h]))\n)",
           "legendFormat": "__auto",
           "range": false,
           "instant": true,
@@ -777,7 +777,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{host=~\"$host\", log_type=\"authlog\"}",
+          "expr": "{host=~\"$host\", log_type=~\"authlog|journal|syslog\", app=~\"sshd.*|sudo|su|\"} |~ \"(?i)(sshd|sudo:|useradd|groupadd|usermod|accepted (password|publickey|keyboard-interactive)|failed (password|publickey)|authentication failure|invalid user|session (opened|closed) for user)\"",
           "queryType": "range",
           "refId": "A"
         }

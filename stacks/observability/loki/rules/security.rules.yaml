@@ -12,11 +12,82 @@ groups:
   - name: authentication
     interval: 1m
     rules:
+      # Every rule in this group reads a three-branch union rather than
+      # {log_type="authlog"} alone. Until #261 they all began with that single
+      # selector, and only two hosts ever produce that label — so the two hosts
+      # where root can be reached with a password were structurally invisible:
+      #
+      #   saruman   Proxmox on Debian 13, journald-only. There is no
+      #             /var/log/auth.log for local.file_match "authlogs" to match,
+      #             so its sshd lines arrive via loki.source.journal as
+      #             log_type="journal", unit="ssh.service".
+      #   morpheus  pfSense, not an Alloy host at all. It arrives through
+      #             loki.source.syslog "network", which stamps log_type="syslog"
+      #             on everything, app="sshd" or "sshd-session".
+      #
+      # Nothing was missing from the store. The rules just could not see it: a
+      # password-guessing run against root@morpheus produced no SshBruteForce at
+      # any volume. Same shape as #223 — a rule that reads correctly and cannot
+      # fire.
+      #
+      # Measured 2026-09-05 over 7 days: 54 accepted logins on those two hosts,
+      # every one of them invisible to all five rules below.
+      #
+      # Why `or` and not a wider selector. Three things, in order of how much
+      # they hurt:
+      #
+      #  1. `or` deduplicates. oracle and prometheus ship the same sshd events
+      #     twice — once via auth.log, once via the journal — so summing a
+      #     combined selector would double-count them and halve every threshold
+      #     on the two hosts that currently work. `or` is left-preferring, so
+      #     each host is counted once, from its most specific source. Verified:
+      #     oracle 129 accepted logins over 7d, not 256.
+      #
+      #     The branch order matters, because `or` is left-preferring and will
+      #     use auth.log's count even if the journal's is higher. That is the
+      #     right way round here, measured over the 7 days to 2026-09-05:
+      #     auth.log is the *more* complete source on both hosts that have it
+      #     (oracle 129 vs 127, prometheus 269 vs 234), and #194 has the journal
+      #     delivering a fraction of what it should. Putting `journal` first
+      #     would prefer the lossy source. If #194 is ever fixed and the journal
+      #     starts reporting more than auth.log, revisit this: the safe form is
+      #     a `label_replace` per branch plus `max by (host)`, which is a true
+      #     maximum rather than a preference, at the cost of being much harder
+      #     to read.
+      #  2. `{log_type=~"authlog|journal|syslog"}` costs ~3700 lines per 5m
+      #     against ~6 today, and most of that is this stack's own container
+      #     logs, which carry neither `unit` nor `app`. The syslog branch is
+      #     constrained by `app` for the same reason: morpheus's syslog is
+      #     mostly filterlog.
+      #  3. Do NOT add log_type="docker" to any of these. Loki's ruler logs its
+      #     own query text at info, so a rule matching container logs matches
+      #     the string of its own line filter — 23644 hits over 7d for
+      #     SudoFailure's pattern alone, every one of them the ruler quoting the
+      #     rule back at itself.
+      #
+      # Fixing the labels at the shipper was the other option #261 raised, and
+      # it is worse here: stamping log_type="authlog" on journal sshd lines
+      # would put oracle's and prometheus's events under that label twice, which
+      # is problem 1 again with no way for a rule to see it. Avoiding that needs
+      # host-conditional shipper config.
+      #
+      # The line format is identical on all four hosts — "Accepted publickey for
+      # root from 10.0.99.20 port 48288 ssh2" — so the filters below did not
+      # need rewriting, only pointing somewhere they can match.
       - alert: SshBruteForce
-        # /var/log/auth.log, labelled log_type="authlog" by config.alloy.
         expr: |
-          sum by (host) (
-            count_over_time({log_type="authlog"} |~ "(?i)failed (password|publickey)" [5m])
+          (
+            sum by (host) (
+              count_over_time({log_type="authlog"} |~ "(?i)failed (password|publickey)" [5m])
+            )
+            or
+            sum by (host) (
+              count_over_time({log_type="journal"} |~ "(?i)failed (password|publickey)" [5m])
+            )
+            or
+            sum by (host) (
+              count_over_time({log_type="syslog", app=~"sshd.*|sudo|su"} |~ "(?i)failed (password|publickey)" [5m])
+            )
           ) > 20
         for: 2m
         labels:
@@ -31,8 +102,18 @@ groups:
 
       - alert: SshBruteForceSevere
         expr: |
-          sum by (host) (
-            count_over_time({log_type="authlog"} |~ "(?i)failed (password|publickey)" [5m])
+          (
+            sum by (host) (
+              count_over_time({log_type="authlog"} |~ "(?i)failed (password|publickey)" [5m])
+            )
+            or
+            sum by (host) (
+              count_over_time({log_type="journal"} |~ "(?i)failed (password|publickey)" [5m])
+            )
+            or
+            sum by (host) (
+              count_over_time({log_type="syslog", app=~"sshd.*|sudo|su"} |~ "(?i)failed (password|publickey)" [5m])
+            )
           ) > 100
         for: 1m
         labels:
@@ -46,14 +127,43 @@ groups:
         # Accepted logins should only ever originate from Hicks (10.0.50.0/24)
         # or from within management itself. Anything else means a firewall rule
         # is not doing what the documentation claims.
+        # The exclusions were re-checked against pfSense's and Proxmox's line
+        # formats when #261 widened this, because a substring `!=` is only as
+        # good as the format it runs against. Both write the source address the
+        # same way OpenSSH always has, and pfSense's trailing key fingerprint is
+        # base64 — no dots — so it cannot accidentally satisfy either exclusion.
+        # Evaluated over the 7 days to 2026-09-05: no series, so widening added
+        # visibility without adding a false positive.
         expr: |
-          sum by (host) (
-            count_over_time(
-              {log_type="authlog"}
-              |~ "Accepted (password|publickey)"
-              != "10.0.50."
-              != "10.0.99."
-              [10m]
+          (
+            sum by (host) (
+              count_over_time(
+                {log_type="authlog"}
+                |~ "Accepted (password|publickey)"
+                != "10.0.50."
+                != "10.0.99."
+                [10m]
+              )
+            )
+            or
+            sum by (host) (
+              count_over_time(
+                {log_type="journal"}
+                |~ "Accepted (password|publickey)"
+                != "10.0.50."
+                != "10.0.99."
+                [10m]
+              )
+            )
+            or
+            sum by (host) (
+              count_over_time(
+                {log_type="syslog", app=~"sshd.*|sudo|su"}
+                |~ "Accepted (password|publickey)"
+                != "10.0.50."
+                != "10.0.99."
+                [10m]
+              )
             )
           ) > 0
         for: 1m
@@ -68,9 +178,23 @@ groups:
             stale. Both are worth knowing about immediately.
 
       - alert: SudoFailure
+        # The journal branch matters more here than for the ssh rules: on a
+        # systemd host sudo logs under the session scope (session-34.scope), not
+        # under ssh.service, so a unit-constrained selector would miss it. That
+        # is why the journal branch below is unconstrained.
         expr: |
-          sum by (host) (
-            count_over_time({log_type="authlog"} |~ "sudo:.*authentication failure" [10m])
+          (
+            sum by (host) (
+              count_over_time({log_type="authlog"} |~ "sudo:.*authentication failure" [10m])
+            )
+            or
+            sum by (host) (
+              count_over_time({log_type="journal"} |~ "sudo:.*authentication failure" [10m])
+            )
+            or
+            sum by (host) (
+              count_over_time({log_type="syslog", app=~"sshd.*|sudo|su"} |~ "sudo:.*authentication failure" [10m])
+            )
           ) > 5
         for: 5m
         labels:
@@ -81,9 +205,35 @@ groups:
           summary: "{{ $labels.host }}: repeated sudo authentication failures"
 
       - alert: NewUserOrGroupCreated
+        # morpheus is FreeBSD and has no useradd, so the syslog branch will
+        # never match there. It is kept for uniformity rather than removed: the
+        # five rules in this group reading the same union is worth more than
+        # saving one branch that costs nothing when it matches nothing.
         expr: |
-          sum by (host) (
-            count_over_time({log_type="authlog"} |~ "(useradd|groupadd|usermod).*new (user|group)" [10m])
+          (
+            sum by (host) (
+              count_over_time(
+                {log_type="authlog"}
+                |~ "(useradd|groupadd|usermod).*new (user|group)"
+                [10m]
+              )
+            )
+            or
+            sum by (host) (
+              count_over_time(
+                {log_type="journal"}
+                |~ "(useradd|groupadd|usermod).*new (user|group)"
+                [10m]
+              )
+            )
+            or
+            sum by (host) (
+              count_over_time(
+                {log_type="syslog", app=~"sshd.*|sudo|su"}
+                |~ "(useradd|groupadd|usermod).*new (user|group)"
+                [10m]
+              )
+            )
           ) > 0
         labels:
           component: logs
