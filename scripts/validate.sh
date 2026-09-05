@@ -554,6 +554,21 @@ fi
 # ---------------------------------------------------------------------------
 head_ "Secrets"
 # ---------------------------------------------------------------------------
+# Which age recipient each encrypted file actually resolves to. ADR-0020 gives
+# stacks/lab its own rule above the catch-all so the lab guest's key cannot also
+# decrypt the estate's — and that rule shipped with a path_regex matching
+# nothing, so sops fell through and encrypted the lab's secrets to the estate's
+# key while reporting success. sops does not warn about a dead rule. This does.
+if have python3; then
+  if python3 scripts/check_sops_rules.py; then
+    pass "every .sops.yaml rule matches the file it was written for"
+  else
+    fail "a .sops.yaml rule matches nothing — the recipient separation is not in effect"
+  fi
+else
+  skip "python3 not installed"
+fi
+
 # Both scans, matching CI exactly. Running only the working-tree scan locally
 # would let `make validate` pass while CI fails on history, or vice versa.
 # The docker fallback is the same shape promtool, amtool and alloy have above,
