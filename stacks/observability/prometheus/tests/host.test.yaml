@@ -103,3 +103,324 @@ tests:
       - eval_time: 4h
         alertname: HostDiskWillFillIn24h
         exp_alerts: []
+
+  # ==========================================================================
+  # The remaining six rules — added for #320.
+  #
+  # Nothing below was broken when these were written (checked 2026-09-05: every
+  # input series exists on all three hosts). This is coverage, not repair. The
+  # failure mode being guarded against is the one #63 and #185 both hit — a rule
+  # that parses, loads, shows healthy, and cannot fire — which `promtool check
+  # rules` cannot see, because it never asks whether an expression can be true.
+  #
+  # Each firing case is paired with a quiet one chosen so that breaking the rule
+  # breaks a test. A green run of a test that cannot fail proves nothing, which
+  # is #189's lesson — so every case below was mutation-tested on 2026-09-05,
+  # against a copy of the rules, with each mutation asserted to match exactly
+  # once before being applied. #189's other trap was a mutation that silently
+  # failed to apply and looked identical to a rule that could not be broken.
+  #
+  # All 14 were killed. If you change a rule here, re-run them:
+  #
+  #   InstanceDown        up == 0 -> up == 1;  for: 5m -> 0m
+  #   HostDiskCritical    < 0.10 -> < 0.01;  drop fstype!~"tmpfs|overlay";
+  #                       for: 15m -> 0m
+  #   HostMemoryPressure  < 0.10 -> < 0.01;  for: 15m -> 0m
+  #   HostHighLoad        drop the / count without (cpu, mode) normaliser;
+  #                       without (cpu, mode) -> without (cpu);  for: 30m -> 0m
+  #   HostClockSkew       drop abs();  for: 10m -> 0m
+  #   HostRebooted        < 600 -> < 60;  < 600 -> < 6000
+  #
+  # The two HostRebooted mutations are in opposite directions on purpose: one
+  # silences the firing case, the other fires the quiet one. A single-direction
+  # mutation on a threshold only ever proves half of it.
+  # ==========================================================================
+
+  # --- InstanceDown: fires after 5m down ------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="oracle:9100",job="integrations/node_exporter"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              alertname: InstanceDown
+              instance: oracle:9100
+              job: integrations/node_exporter
+              component: host
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "integrations/node_exporter target oracle:9100 is down"
+              description: >-
+                Prometheus has failed to scrape oracle:9100
+                (integrations/node_exporter) for 5 minutes.
+
+      # Down, but not for long enough yet.
+      - eval_time: 3m
+        alertname: InstanceDown
+        exp_alerts: []
+
+  # --- InstanceDown: quiet on a target that recovers inside the window ------
+  # Down for 3 minutes, then back. This is the pair that makes `for: 5m`
+  # load-bearing: without it a single missed scrape pages. A quiet case built
+  # from a permanently-up target would pass against a rule with no `for` at all.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="oracle:9100",job="integrations/node_exporter"}'
+        values: "0 0 0 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: InstanceDown
+        exp_alerts: []
+
+  # --- HostDiskCritical: fires below 10% free -------------------------------
+  - interval: 5m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="oracle",device="/dev/sda1",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "5000000000x24"
+      - series: 'node_filesystem_size_bytes{instance="oracle",device="/dev/sda1",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "100000000000x24"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: HostDiskCritical
+        exp_alerts:
+          - exp_labels:
+              alertname: HostDiskCritical
+              instance: oracle
+              device: /dev/sda1
+              mountpoint: /
+              fstype: ext4
+              job: integrations/node_exporter
+              component: host
+              severity: critical
+              category: capacity
+            exp_annotations:
+              summary: "oracle:/ below 10% free"
+
+      # Below threshold, but for: 15m has not elapsed at 10m.
+      - eval_time: 10m
+        alertname: HostDiskCritical
+        exp_alerts: []
+
+  # --- HostDiskCritical: quiet, and the tmpfs exclusion is load-bearing -----
+  # Two filesystems. The real one sits at 15% free, comfortably above the
+  # threshold. Alongside it a tmpfs at 2% free — a completely ordinary state for
+  # a small tmpfs, and exactly what `fstype!~"tmpfs|overlay"` exists to ignore.
+  #
+  # Without that tmpfs series this case would pass against a rule that had lost
+  # its fstype filter entirely, which is the whole point of including it.
+  - interval: 5m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="oracle",device="/dev/sda1",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "15000000000x24"
+      - series: 'node_filesystem_size_bytes{instance="oracle",device="/dev/sda1",mountpoint="/",fstype="ext4",job="integrations/node_exporter"}'
+        values: "100000000000x24"
+      - series: 'node_filesystem_avail_bytes{instance="oracle",device="tmpfs",mountpoint="/run",fstype="tmpfs",job="integrations/node_exporter"}'
+        values: "20000000x24"
+      - series: 'node_filesystem_size_bytes{instance="oracle",device="tmpfs",mountpoint="/run",fstype="tmpfs",job="integrations/node_exporter"}'
+        values: "1000000000x24"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: HostDiskCritical
+        exp_alerts: []
+
+  # --- HostMemoryPressure: fires below 10% available ------------------------
+  - interval: 5m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{instance="prometheus",job="integrations/node_exporter"}'
+        values: "400000000x24"
+      - series: 'node_memory_MemTotal_bytes{instance="prometheus",job="integrations/node_exporter"}'
+        values: "8000000000x24"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: HostMemoryPressure
+        exp_alerts:
+          - exp_labels:
+              alertname: HostMemoryPressure
+              instance: prometheus
+              job: integrations/node_exporter
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "prometheus has less than 10% memory available"
+
+      - eval_time: 10m
+        alertname: HostMemoryPressure
+        exp_alerts: []
+
+  # --- HostMemoryPressure: quiet at 25% available ---------------------------
+  - interval: 5m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{instance="prometheus",job="integrations/node_exporter"}'
+        values: "2000000000x24"
+      - series: 'node_memory_MemTotal_bytes{instance="prometheus",job="integrations/node_exporter"}'
+        values: "8000000000x24"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: HostMemoryPressure
+        exp_alerts: []
+
+  # --- HostHighLoad: fires at 3x core count ---------------------------------
+  # Four idle-mode CPU series, so `count without (cpu, mode)` resolves to 4, and
+  # a load15 of 12 normalises to 3.0.
+  #
+  # The four cpu series are the point. If `without (cpu, mode)` ever stopped
+  # matching — a renamed label, a changed node_exporter metric — the division
+  # would produce an empty vector and this rule would go permanently silent with
+  # nothing to show for it. That failure is invisible on the status page and is
+  # what put ContainerCpuThrottled (#185) in the state it was in for months.
+  # Here it fails this case loudly.
+  - interval: 1m
+    input_series:
+      - series: 'node_load15{instance="Saruman",job="integrations/node_exporter"}'
+        values: "12x60"
+      - series: 'node_cpu_seconds_total{instance="Saruman",job="integrations/node_exporter",cpu="0",mode="idle"}'
+        values: "1000+10x60"
+      - series: 'node_cpu_seconds_total{instance="Saruman",job="integrations/node_exporter",cpu="1",mode="idle"}'
+        values: "1000+10x60"
+      - series: 'node_cpu_seconds_total{instance="Saruman",job="integrations/node_exporter",cpu="2",mode="idle"}'
+        values: "1000+10x60"
+      - series: 'node_cpu_seconds_total{instance="Saruman",job="integrations/node_exporter",cpu="3",mode="idle"}'
+        values: "1000+10x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: HostHighLoad
+        exp_alerts:
+          - exp_labels:
+              alertname: HostHighLoad
+              instance: Saruman
+              job: integrations/node_exporter
+              component: host
+              severity: warning
+              category: saturation
+            exp_annotations:
+              summary: "Saruman load is 3x core count"
+
+      # Sustained, but for: 30m has not elapsed at 20m.
+      - eval_time: 20m
+        alertname: HostHighLoad
+        exp_alerts: []
+
+  # --- HostHighLoad: quiet at 1.5x core count -------------------------------
+  # Load 6 on 4 cores. Chosen so the raw load15 (6) is comfortably over the
+  # threshold (2) while the normalised value (1.5) is under it: this case is
+  # silent only if the division by core count actually happens. A rule that
+  # compared raw load15 against 2 — the tuning-free property the comment on the
+  # rule claims — fires here and fails the test.
+  - interval: 1m
+    input_series:
+      - series: 'node_load15{instance="Saruman",job="integrations/node_exporter"}'
+        values: "6x60"
+      - series: 'node_cpu_seconds_total{instance="Saruman",job="integrations/node_exporter",cpu="0",mode="idle"}'
+        values: "1000+10x60"
+      - series: 'node_cpu_seconds_total{instance="Saruman",job="integrations/node_exporter",cpu="1",mode="idle"}'
+        values: "1000+10x60"
+      - series: 'node_cpu_seconds_total{instance="Saruman",job="integrations/node_exporter",cpu="2",mode="idle"}'
+        values: "1000+10x60"
+      - series: 'node_cpu_seconds_total{instance="Saruman",job="integrations/node_exporter",cpu="3",mode="idle"}'
+        values: "1000+10x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: HostHighLoad
+        exp_alerts: []
+
+  # --- HostClockSkew: fires on drift in BOTH directions ---------------------
+  # Two hosts, one ahead by 0.9s and one behind by 0.9s. Both must alert: the
+  # expression is abs(), and a rule that had lost it — or that used a bare
+  # `> 0.5` — would catch only the positive one and still pass a one-sided test.
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_offset_seconds{instance="prometheus",job="integrations/node_exporter"}'
+        values: "0.9x30"
+      - series: 'node_timex_offset_seconds{instance="Saruman",job="integrations/node_exporter"}'
+        values: "-0.9x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostClockSkew
+        exp_alerts:
+          - exp_labels:
+              alertname: HostClockSkew
+              instance: Saruman
+              job: integrations/node_exporter
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman clock is 900ms off"
+              description: >-
+                Clock skew breaks log correlation across hosts and can
+                invalidate rate() calculations.
+          - exp_labels:
+              alertname: HostClockSkew
+              instance: prometheus
+              job: integrations/node_exporter
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "prometheus clock is 900ms off"
+              description: >-
+                Clock skew breaks log correlation across hosts and can
+                invalidate rate() calculations.
+
+      # Skewed, but for: 10m has not elapsed at 5m.
+      - eval_time: 5m
+        alertname: HostClockSkew
+        exp_alerts: []
+
+  # --- HostClockSkew: quiet on ordinary sub-threshold drift, both signs -----
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_offset_seconds{instance="prometheus",job="integrations/node_exporter"}'
+        values: "0.2x30"
+      - series: 'node_timex_offset_seconds{instance="Saruman",job="integrations/node_exporter"}'
+        values: "-0.2x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostClockSkew
+        exp_alerts: []
+
+  # --- HostRebooted: fires inside 10m of boot, quiet after -------------------
+  # This rule is time-relative — `time() - node_boot_time_seconds < 600` — so the
+  # fixture is written against promtool's evaluation clock, which starts at Unix
+  # 0, and NOT against a wall-clock constant. A fixture pinned to a real date
+  # passes on the day it is written and rots silently thereafter.
+  #
+  # One flat series at boot time 1500s, read twice. Confirmed against promtool
+  # directly: `time()` at eval_time 30m is 1800, so uptime is 300s here and 900s
+  # at 40m. That single fixture giving two different answers purely because the
+  # clock advanced is what proves the rule is genuinely time-relative; the pair
+  # also makes the 600s threshold load-bearing, since widening it fires the
+  # quiet case and narrowing it silences the firing one.
+  #
+  # Both evals sit well clear of the 600s boundary (which falls at 35m), because
+  # a case landing on a boundary reports the same result whether or not the
+  # guard it is meant to prove still exists — the #189 trap.
+  - interval: 1m
+    input_series:
+      - series: 'node_boot_time_seconds{instance="prometheus",job="integrations/node_exporter"}'
+        values: "1500x60"
+    alert_rule_test:
+      # 300s of uptime — freshly rebooted.
+      - eval_time: 30m
+        alertname: HostRebooted
+        exp_alerts:
+          - exp_labels:
+              alertname: HostRebooted
+              instance: prometheus
+              job: integrations/node_exporter
+              component: host
+              severity: info
+              category: availability
+            exp_annotations:
+              summary: "prometheus rebooted in the last 10 minutes"
+
+      # 900s of uptime — the same host, no longer newly booted. HostRebooted has
+      # no `for:`, so this is the only thing stopping it firing forever.
+      - eval_time: 40m
+        alertname: HostRebooted
+        exp_alerts: []
