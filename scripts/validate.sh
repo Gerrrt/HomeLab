@@ -56,6 +56,27 @@ have_docker() { have docker && docker info >/dev/null 2>&1; }
 # deployment host, which was previously "is the observability stack running".
 # The lab stack runs on its own guest, and a host running only that one is
 # still a deployment host with timers to install.
+# The checkout the committed units point at.
+#
+# Every ExecStart in systemd/*.service is an absolute path into the deployment
+# checkout, and install-timers.sh asserts they all agree with its DEPLOY_ROOT —
+# so the path baked into the units IS the definition of "the host these timers
+# belong to", and it can be read rather than restated as a third literal.
+#
+# This gate was missing, and the check below therefore fired on `alexander` the
+# first time the lab stack came up: stack_running() asks whether ANY stack runs
+# here, which #263 widened it to do, and the timers are the ESTATE's — converge
+# runs `make up` (STACK=observability), snmp-verify polls devices the lab does
+# not have, backup-firewall ships to a host 30 -> 99 cannot reach. So a
+# perfectly healthy lab guest was told to run `make install-timers`, which
+# install-timers.sh then refuses because the units name a checkout that is not
+# there. A failure whose advice is refused by the next command is a dead end,
+# and it was pointing at work that should never happen on that host.
+unit_deploy_root() {
+  sed -n 's|^ExecStart=\(.*\)/scripts/run-scheduled\.sh .*|\1|p' \
+    "${REPO_ROOT}"/systemd/*.service | head -1
+}
+
 stack_running() {
   local stack
   for stack in "${STACKS[@]}"; do
@@ -543,6 +564,8 @@ if ! have systemctl; then
   skip "systemctl absent — cannot tell whether the schedule is installed"
 elif ! have_docker; then
   skip "docker unavailable — cannot tell whether this is the deployment host"
+elif [[ "${REPO_ROOT}" != "$(unit_deploy_root)" ]]; then
+  skip "the homelab-* units name $(unit_deploy_root), not this checkout — their jobs are not this host's"
 elif ! stack_running; then
   skip "no stack is running here — this is not a deployment host"
 elif systemctl list-unit-files 'homelab-*' --no-legend 2>/dev/null | grep -q .; then
