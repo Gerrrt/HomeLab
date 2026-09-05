@@ -507,11 +507,12 @@ what left this one unfireable for months.
   `*_URL` variables changed, and that file has two sinks, so a lab without a
   Prometheus points the second one at `10.0.99.20` and inverts the isolation
   the ADR exists for.
-  [#264](https://github.com/Gerrrt/HomeLab/issues/264) is built:
-  `stacks/lab/` holds the compose file, both configs, four alert rules and
-  their unit tests, and the secrets template. What is left of it is a deploy,
-  which needs [#262](https://github.com/Gerrrt/HomeLab/issues/262) — the guest
-  on `Saruman` — to exist first.
+  [#264](https://github.com/Gerrrt/HomeLab/issues/264) is built **and
+  running**: `stacks/lab/` is deployed on `alexander`
+  ([#262](https://github.com/Gerrrt/HomeLab/issues/262), 2026-09-05), the guest
+  on `Saruman` that ADR-0020 called for. Four services, its own age key, its own
+  leaf from the estate's CA, and three Loki log sources confirmed on the host —
+  the check the Ubuntu-over-Debian decision exists for.
   → [runbook](runbooks/build-the-lab-guest.md) Building it made the tooling stack-aware
   (`render-config.sh` derives its required keys per stack rather than demanding
   the estate's ten, `reload-config.sh` skips services a stack does not declare,

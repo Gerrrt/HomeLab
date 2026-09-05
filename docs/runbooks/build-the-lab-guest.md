@@ -6,6 +6,21 @@
 KVM or `shiva`), an Ubuntu Server ISO, and a shell on the monitoring host for
 the certificate in §5
 
+> **Status — 2026-09-05: `alexander` is built and `stacks/lab` is running.**
+>
+> Ubuntu 26.04 LTS, `10.0.30.40`, `bc:24:11` OUI. §7 passed with all three Loki
+> jobs — `/var/log/auth.log`, `/var/log/syslog` and `/var/log/journal` — so the
+> file sources are collecting and not merely configured.
+>
+> **26.04 ships rsyslog**, which §0 could not assume: both files are present and
+> `syslog:adm 0640`, the ownership `LOG_READ_GID` is derived from. That is one
+> LTS confirmed, not a guarantee about the next one — §7 stays the check.
+>
+> Two things bit on the way through and are fixed rather than described: the
+> lab's `.sops.yaml` rule matched nothing, so §4 encrypted to the estate's key
+> (#321), and `make validate` told the guest to install the estate's timers
+> (#323). Both are in the repository's history if the symptoms recur.
+
 This builds the host [ADR-0020](../adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
 called for: a guest, **not** the hypervisor, because a compose stack is Docker
 and Docker would rewrite the iptables of the box whose own firewall ADR-0014
@@ -244,14 +259,14 @@ so a fresh clone on `alexander` does not have it and `scp` would fail into a
 directory that is not there:
 
 ```bash
-ssh you@10.0.30.40 'mkdir -p HomeLab/certificates && chmod 700 HomeLab/certificates'
+ssh garnet@10.0.30.40 'mkdir -p HomeLab/certificates && chmod 700 HomeLab/certificates'
 
 CERTS=/home/robo/code/Gerrrt/HomeLab/certificates
 scp -3 -p \
   robo@10.0.99.20:$CERTS/ca.pem \
   robo@10.0.99.20:$CERTS/grafana-lab.matrix.elysium.pem \
   robo@10.0.99.20:$CERTS/grafana-lab.matrix.elysium-key.pem \
-  you@10.0.30.40:HomeLab/certificates/
+  garnet@10.0.30.40:HomeLab/certificates/
 ```
 
 `-3` routes the copy through the Mac without writing either file to its disk,
