@@ -619,6 +619,43 @@ months.
 
 ## Done
 
+- [x] **[#153](https://github.com/Gerrrt/HomeLab/issues/153) Decided: the
+      documents stay hand-written, and are checked where the truth is.**
+      2026-09-06. [ADR-0026](adr/0026-check-the-documents-where-the-truth-is.md).
+
+      **The answer was already built and never recorded.** #153 offered three
+      ways to close — adopt a tool, write a CI cross-check, or accept
+      hand-maintenance and say why — and `check_docs.py` landed on 2026-08-26,
+      the same day the issue was filed, following the pattern
+      `snmp-targets.sh --check` set on 2026-08-17. It now carries seven
+      assertions. So the middle option won by default and nothing said so, which
+      is the state #153 warned about in its own last line: *"leaving it
+      undecided is what produced the list at the top."*
+
+      No discovery tool. NetBox is, as the issue says itself, "a source of truth
+      you maintain, not a discovery tool" — it moves the hand-maintenance rather
+      than removing it, and brings a Postgres-backed Django app for four SNMP
+      devices. Scanopy is closer to the want and worse for this estate: a
+      discovery tool that can see every VLAN is by construction a device that
+      violates the segmentation model.
+
+      **The residual is prose about the firewall, and this session produced two
+      instances of it in one day** — ADR-0013's stale claim
+      ([#344](https://github.com/Gerrrt/HomeLab/issues/344)) and the correction
+      for it asserting something that had been false for four days
+      ([#229](https://github.com/Gerrrt/HomeLab/issues/229)). Both passed
+      `check_docs.py` correctly: it has nothing to compare them against, because
+      `config.xml` carries rule bodies, the WAN address and password hashes, and
+      `backup-firewall.sh` explains at length why that stays out of the
+      repository. Committing it so CI could read it would trade a documentation
+      defect for *"one age-key compromise hands over the complete blueprint"*.
+
+      So the firewall wants a deploy-time check rather than a CI one, in the
+      family this estate already has — `check_loki_coverage.py`,
+      `check_alert_channels.py --live`, `check_versions.py`,
+      `check_mounted_config.py`. Tracked as
+      [#363](https://github.com/Gerrrt/HomeLab/issues/363).
+
 - [x] **[#193](https://github.com/Gerrrt/HomeLab/issues/193) Alloy reaches the
       Docker API through a read-only proxy.** 2026-09-06. The socket is no longer
       mounted into Alloy at all.
