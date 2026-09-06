@@ -485,6 +485,22 @@ else
   skip "python3 not installed"
 fi
 
+# Every url_file alertmanager.yaml reads must be one render-config.sh writes,
+# and the reverse. #214 is the failure: all four receiver URLs were unreadable
+# for ten and a half hours, and the alert about it travelled the broken path.
+# This half needs no secret and no host, so it belongs here rather than only at
+# deploy time — "added a receiver, forgot AM_CHANNELS" should fail a pull
+# request, not a deploy.
+if have python3; then
+  if python3 scripts/check_alert_channels.py; then
+    pass "alertmanager receivers and rendered URL files agree"
+  else
+    fail "alertmanager receivers and rendered URL files disagree"
+  fi
+else
+  skip "python3 not installed"
+fi
+
 # ---------------------------------------------------------------------------
 head_ "Lint"
 # ---------------------------------------------------------------------------
