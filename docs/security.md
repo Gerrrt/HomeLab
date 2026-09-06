@@ -16,7 +16,7 @@ What this network is actually built to survive:
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 72 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 74 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -329,17 +329,21 @@ fabricated values rather than measurements, so a dashboard or query whose range
 crosses that date is reading fiction on one side of it. And the card's test
 schedule is on but unwatched. Read off the NMC on 2026-09-03,
 `upsAdvTestDiagnosticSchedule` is `8` (biweeklySinceLastTest), which is what
-*should* keep `1` from being a frozen last-known result — should, because
-nothing here can confirm it still does. That OID is PowerNet, and
-the `apc_ups` module walks the standard UPS-MIB only. Nothing here would notice
-the card reverting to `never`: `upsTestResultsSummary` would hold `1` and every
-rule would stay quiet. `UpsBatteryUnproven` cannot catch it either, because it
-matches `6` (noTestsInitiated) and this card reads `1`. Note the shape of that —
-the missing pack was visible in a MIB already walked, and the missing *schedule*
-would not be. The manual check is in
-[`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), and
-closing the gap is
-[#249](https://github.com/Gerrrt/HomeLab/issues/249).
+keeps `1` from being a frozen last-known result — and as of
+[#249](https://github.com/Gerrrt/HomeLab/issues/249) that is confirmed rather
+than assumed. The `apc_ups` module now walks `1.3.6.1.4.1.318.1.1.1.7.2`
+alongside the standard UPS-MIB, and two rules watch it: `UpsSelfTestScheduleOff`
+fires the moment the schedule reads unknown, at-turn-on or never, and
+`UpsSelfTestStale` fires when the last-test date has not moved in 21 days.
+
+That closes a gap worth naming for its shape rather than its size. The missing
+battery pack was visible in a MIB already walked — `upsTestResultsSummary = 4`
+needed no new OIDs — and the missing *schedule* would not have been.
+`upsTestResultsSummary` would have held `1` forever and every rule would have
+stayed correctly quiet; `UpsBatteryUnproven` could not have caught it either,
+because it matches `6` (noTestsInitiated) and this card reads `1`. A
+healthy-looking metric with nothing underneath it is the failure this estate
+keeps finding, one level up each time.
 
 ### Why SNMPv2c is still a weak point
 

@@ -25,12 +25,15 @@ un-silenced by hand at the right moment.**
 > advancing on its own — not the setting reading `8` — that proves the schedule
 > actually runs.
 >
-> **Nothing in the stack can see any of that.** All three are PowerNet OIDs
-> under `1.3.6.1.4.1.318`, and the `apc_ups` module walks the standard UPS-MIB
-> only, so no rule in `ups.rules.yaml` can detect a card that has quietly
-> stopped testing. That is
-> [#249](https://github.com/Gerrrt/HomeLab/issues/249); until it lands, step 6
-> is verified by hand with `scripts/snmp-walk.sh` and by nothing else.
+> **The stack can see all of that as of
+> [#249](https://github.com/Gerrrt/HomeLab/issues/249).** The `apc_ups` module
+> walks `1.3.6.1.4.1.318.1.1.1.7.2` alongside the standard UPS-MIB, and two
+> rules in `ups.rules.yaml` watch it: `UpsSelfTestScheduleOff` fires the moment
+> the schedule leaves a recurring value, and `UpsSelfTestStale` fires when the
+> last-test date has not moved in 21 days — the fortnightly interval plus a
+> week of grace. Step 6 is no longer a by-hand check, though
+> `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2` is still how
+> you read the card directly when one of those fires.
 >
 > **One reading that was not reset.** `upsBasicBatteryLastReplaceDate` is
 > `08/15/2026` — thirteen days before the pack went in, on a date when this
