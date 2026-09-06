@@ -473,6 +473,33 @@ services:
     <<: *service-defaults
     image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
     container_name: blackbox-exporter
+    # 65534, and this line is here because the image does not supply one:
+    # prom/blackbox-exporter:v0.28.0 sets no USER, so without it this container
+    # runs as uid 0. It was the only member of the stack that did — every other
+    # service either declares a user here or inherits a non-root one from its
+    # image — and it was different for no recorded reason rather than for a
+    # good one (#330). #187 took its capabilities away; this takes the uid.
+    #
+    # A literal rather than ${RENDER_UID}, unlike alertmanager and
+    # snmp-exporter. Those two run as the operator because they mount a 0600
+    # file render-config.sh wrote and must be able to read it. Nothing here is
+    # rendered: both mounts are world-readable committed files, so there is no
+    # ownership to match and the uid is free to be the same nobody prometheus
+    # uses.
+    #
+    # The exporter writes nothing at runtime — no storage path, no state, no
+    # TSDB — which is what makes an unwritable uid a non-question here rather
+    # than something to test for.
+    #
+    # Verified against the pinned digest with both real mounts and every module
+    # in blackbox.yaml, beside an unchanged control container on the same
+    # network: all ten targets in prometheus/targets/blackbox.yaml returned
+    # identical probe_success, as did dns_answers, dns_filters and tcp_connect.
+    # Both http_2xx_lab_ca targets are the ones that matter — they verify the
+    # chain against the mounted ca.pem, so a uid that could not read it would
+    # fail them and did not. The healthcheck's `wget --spider` also exits 0 as
+    # this uid.
+    user: "65534:65534"
     # 7.2x the 18 MiB peak. The shortest history of the seven — this service
     # only exists since 2026-08-30, so it has six days rather than fourteen.
     # It is also the flattest thing on the host (median 13 MiB, never above

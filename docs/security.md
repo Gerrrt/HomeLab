@@ -386,12 +386,15 @@ belongs in the selection criteria whenever this switch is replaced.
 ## Hardening applied to the stack
 
 - Anonymous Grafana access disabled; sign-up disabled; admin password from SOPS.
-- Prometheus runs as `nobody` (65534), Loki and Grafana as their own
+- Every service except Alloy runs as a non-root uid. Prometheus and
+  blackbox-exporter run as `nobody` (65534), Loki and Grafana as their own
   unprivileged UIDs (10001, 472), and Alertmanager and snmp-exporter as the
   operator's `${RENDER_UID}` because each mounts a 0600 file that
-  `scripts/render-config.sh` wrote. blackbox-exporter is the exception: its
-  image sets no `USER`, so it runs as uid 0 — with an empty capability set as
-  of the bullet below, but still uid 0. Tracked in #330.
+  `scripts/render-config.sh` wrote. blackbox-exporter needs its `user:` written
+  out because its image sets none — it was uid 0 until #330, which is how it
+  went unnoticed for as long as it did. Alloy is uid 0 on purpose and is
+  covered separately below: it reads the host's logs, and the capability drop
+  rather than the uid is what bounds it.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence
@@ -422,8 +425,11 @@ belongs in the selection criteria whenever this switch is replaced.
   file-capability binary cannot be used to gain one, which `no-new-privileges`
   independently forecloses. None of the six pinned images contains such a
   binary today; each container's filesystem was exported and scanned for the
-  setuid and setgid bits. blackbox-exporter is the exception: it was running as
-  uid 0 with the full effective set, so there the drop removes something real.
+  setuid and setgid bits. blackbox-exporter was the exception when #187 landed:
+  it was running as uid 0 with the full effective set, so there the drop removed
+  something real. #330 then gave it a non-root uid as well, which puts it in the
+  same belt-and-braces position as the other five — the position to be in, and
+  not a reason to drop either setting.
 - Every service runs under a real init (`init: true`) and a chosen task ceiling
   (`pids_limit`, 512; 1024 for Alloy) rather than the inherited systemd default
   of 9056. This was not theoretical: Grafana's https healthcheck was leaking two
