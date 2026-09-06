@@ -141,6 +141,27 @@ tests:
                 this — a test transfers the load to battery, which on a weak
                 pack is the outage the alert exists to warn about.
 
+  # --- UpsSelfTestStale: quiet on a brand-new metric ------------------------
+  # THE FALSE POSITIVE THE FIRST VERSION SHIPPED WITH, caught on the live stack
+  # twenty minutes after #249 deployed. A metric that has just appeared has
+  # exactly one distinct value by construction, so "one date in 21 days" was
+  # true for a reason that had nothing to do with the card, and it would have
+  # stayed true until the next real self-test.
+  #
+  # Two days of samples: enough for the count to be 1, nowhere near enough for
+  # present_over_time(...offset 20d) to find history. Without that gate this
+  # case fires.
+  - interval: 30m
+    input_series:
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="08/28/2026"}'
+        values: "1x96"
+      - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "1x96"
+    alert_rule_test:
+      - eval_time: 48h
+        alertname: UpsSelfTestStale
+        exp_alerts: []
+
   # --- UpsSelfTestStale: quiet when a test has happened ---------------------
   # Two distinct dates inside the range, which is a card testing normally. The
   # production state, and the proof the rule is counting dates rather than

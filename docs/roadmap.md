@@ -663,6 +663,16 @@ months.
       long-schedule case that stops someone tidying the expression into
       `<= 5 or >= 10`.
 
+      **A false positive shipped with it and was caught on the live stack twenty
+      minutes later.** `UpsSelfTestStale` fired immediately on deploy: a metric
+      that has just appeared has exactly one distinct value by construction, so
+      "one date in 21 days" was true with one sample in the window. The rule is
+      now also gated on `present_over_time(...[1d] offset 20d)`, so the count
+      only means what it claims once there are twenty days of history, with a
+      regression test. The cost is stated: it says nothing for the first twenty
+      days after the metric appears or after a Prometheus wipe, which is correct
+      because before then there is genuinely no evidence.
+
       Still outstanding and not a monitoring question: the proof the schedule
       *runs* rather than merely being set is the date advancing with nobody at
       the card, due around 2026-09-11. As of 2026-09-06 it still reads

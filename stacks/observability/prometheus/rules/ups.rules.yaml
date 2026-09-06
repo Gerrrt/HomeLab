@@ -299,9 +299,26 @@ groups:
         # otherwise read as a card that stopped testing. `up` for the snmp job is
         # the discriminator, and it makes the rule silent about a fault
         # SnmpTargetDown already owns.
+        # AND GATED ON HAVING 21 DAYS OF HISTORY, which the first version of this
+        # rule was not, and it fired the moment #249 deployed. A brand-new metric
+        # has exactly one distinct value by construction — there was one sample
+        # in the window, twenty minutes old — so "one date in 21 days" was true
+        # for a reason that had nothing to do with the card. It would have stayed
+        # true until the next real self-test.
+        #
+        # present_over_time(...[1d] offset 20d) asserts the series already
+        # existed twenty days ago, so the count means what it claims. A day-wide
+        # probe rather than an instant one, because a brief exporter outage
+        # exactly 20 days back should not silence the rule for three weeks.
+        #
+        # The cost is honest and bounded: this rule says nothing for the first
+        # twenty days after the metric is introduced or after a Prometheus wipe.
+        # That is correct — before then there is genuinely no evidence — and it
+        # is far better than a rule that pages on the day it ships.
         expr: |
           count by (device) (last_over_time(upsAdvTestLastDiagnosticsDate[21d])) == 1
           and on(device) (up{job="snmp"} == 1)
+          and on(device) present_over_time(upsAdvTestLastDiagnosticsDate[1d] offset 20d)
         labels:
           component: ups
           severity: warning
