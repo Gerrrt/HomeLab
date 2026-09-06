@@ -204,7 +204,19 @@ within two hours.
 `make up` recreates a container only when its *service definition* changes — a
 changed bind-mounted config file is invisible to `docker compose up -d`. So
 `make up` finishes by reloading Prometheus, Alertmanager and snmp-exporter from
-disk, and fails if any of them will not take the new config. Then it runs
+disk, and fails if any of them will not take the new config.
+
+Before that reload it checks something the reload cannot: that each container is
+actually mounting the file the repository has. `compose.yaml` bind-mounts four
+config files individually, and a single-file bind mount is pinned to the
+**inode** — `git merge` writes a temporary file and renames it over the target,
+so the container keeps the old inode and `/-/reload` returns 200 having
+faithfully re-read the pre-merge bytes. A config-only commit changes no service
+definition, so `docker compose up -d` recreates nothing and the stale mount
+survives the deploy
+([#355](https://github.com/Gerrrt/HomeLab/issues/355)). `make up` recreates only
+the services that diverged and then asserts the recreate worked; `make
+check-mounted-config` asks the same question read-only. Then it runs
 `make check-container-health`'s script, which is the step that distinguishes
 "the commands were issued" from "the stack came up". Both can be run again
 later without a redeploy:

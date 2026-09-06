@@ -666,6 +666,79 @@ months.
       still deploys to every host and that one keeps working until it gets a
       proxy of its own.
 
+- [x] **[#344](https://github.com/Gerrrt/HomeLab/issues/344) ADR-0013's title
+      became half false; ADR-0025 supersedes it.** 2026-09-06.
+      `Gerrrt/Lemmiwinks#177` added a logged block from Winterfell to
+      `10.7.7.0/24`, so default deny now holds there with SNMP as the one pass
+      above it — the exact thing ADR-0013 said the switch LAN lacked.
+
+      **The issue declined to fix it because "superseding versus amending is a
+      call for whoever owns the decision record". ADR-0001 already makes that
+      call:** *"ADRs are immutable once accepted. A decision that changes gets a
+      new ADR that supersedes the old one, and the old one is marked Superseded
+      rather than edited."* ADR-0002 → ADR-0013 is the precedent, and its
+      Superseded note is careful to say which claim fell — ADR-0013's now does
+      the same.
+
+      A note would have been the wrong instrument. ADR-0013 already carries one
+      for a table row added later, which is right for a table gaining an entry;
+      a *title* that has become false is not that.
+
+      Read off the firewall rather than taken from the issue: `pfctl -sr` shows
+      the block as rule 174 with the interface catch-all at 175, and the SNMP
+      pass above at 159.
+
+      **That reading also found a hole the issue only suspected.** The
+      `10.0.99.20 → 10.7.7.2:80/tcp` pass, added to keep the `switch-ui` blackbox
+      probes alive while the block landed, is still on the firewall — and those
+      probes were removed in
+      [#343](https://github.com/Gerrrt/HomeLab/pull/343). Verified there is no
+      consumer: nothing probes `10.7.7.2`, and `targets/blackbox.yaml` names it
+      zero times. Removing it is a firewall change on the Lemmiwinks side and is
+      recorded in ADR-0025's consequences rather than silently left.
+
+- [x] **[#355](https://github.com/Gerrrt/HomeLab/issues/355) A deploy no longer
+      reports success over a stale config.** 2026-09-06. Found the same day, when
+      #166 deployed clean — `make converge` fine, `make up` fine,
+      `reload-config.sh` reporting `reloaded prometheus`,
+      `check_container_health.py` reporting prometheus healthy — and its three
+      latency targets never appeared. Prometheus was running the previous config.
+
+      `compose.yaml` bind-mounts four config files individually, and a
+      single-file bind mount is pinned to the inode. `git merge` writes a
+      temporary file and renames it over the target, so the container keeps the
+      old inode and `POST /-/reload` returns 200 having faithfully re-read the
+      pre-merge bytes. `docker compose up -d` recreates a container only when its
+      service definition changes, so a config-only commit recreates nothing and
+      the stale mount survives — which is most changes here. It went unnoticed
+      until #166 only because the deploys before it happened to change
+      `compose.yaml` too (#187, #330, #186) and recreated everything.
+
+      `reload-config.sh` already knew this shape: it records that
+      `render-config.sh` truncates with `>` to keep the inode, and that
+      write-temp-then-mv "would leave the mount pointing at the old inode". That
+      covers the files this repository writes. It never covered the files git
+      rewrites, which is every committed config.
+
+      **Bytes, not inodes**, which is a change from what the issue first
+      proposed. Comparing inodes detects this one mechanism and cries wolf on
+      another: a file rewritten with identical content has a new inode and
+      nothing wrong with it. Verified — after restoring the original bytes
+      through a fresh inode, the content check correctly reported a match where
+      an inode check would have reported staleness. Comparing bytes also works
+      on `loki`, whose distroless image has no shell at all, because `docker cp`
+      needs neither a shell nor `/proc`.
+
+      `make up` runs it with `--fix`, before the reload rather than after,
+      because the reload is not what is broken. It recreates only the services
+      that actually diverged and then asserts the recreate worked, so a
+      force-recreate that rebound nothing cannot report success.
+
+      Reproduced end to end rather than reasoned about: `blackbox.yaml` rewritten
+      the way git does it, the check failing and naming the service, `--fix`
+      recreating it, and the new bytes confirmed inside the container. The live
+      stack was restored afterwards and its eleven probes re-verified.
+
 - [x] **[#166](https://github.com/Gerrrt/HomeLab/issues/166) Measure latency, and
       say where it is.** 2026-09-06. Three targets, a `blackbox-latency` job and
       two rules, so the estate can answer the question #166 opened over — *"is
