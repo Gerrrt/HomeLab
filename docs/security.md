@@ -16,7 +16,7 @@ What this network is actually built to survive:
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 74 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 76 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -420,6 +420,22 @@ belongs in the selection criteria whenever this switch is replaced.
   the same flags to every Docker host it deploys to, so `oracle`'s agent is
   no longer the privileged copy it was until #88; on `Saruman` the native
   package runs as its own unprivileged `alloy` user.
+- Every service runs with a read-only root filesystem (#186). Writable state is
+  confined to the named volumes and, where a process genuinely needs scratch
+  space, to a sized `tmpfs`: 64 MiB on Grafana, which extracts plugins into
+  `/tmp`, and 32 + 16 MiB on Alloy for `/tmp` and `/root/.cache`. The sizes are
+  set rather than defaulted because a tmpfs is memory, and the default is half
+  of host RAM — an unbounded one would be a second memory budget beside the
+  `mem_limit` each service already has.
+
+  This was established by running, not by reading: a missing `tmpfs` is a crash
+  loop that `restart: unless-stopped` retries forever, so each service was
+  booted read-only from its pinned digest with its real mounts before the line
+  was written. Grafana got the full soak the issue asked for — login, all three
+  datasources, all seven dashboards fetched by uid, an annotation written and a
+  folder created. Alloy is included too: #186 proposed skipping it as
+  performative next to `privileged: true`, and that reason left with #188.
+
 - The other six services hold no capabilities either. Each carries
   `cap_drop: [ALL]` and `no-new-privileges:true` (#187). For five of them this
   is belt and braces and the honest description matters: they already ran

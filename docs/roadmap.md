@@ -668,6 +668,77 @@ months.
       the card, due around 2026-09-11. As of 2026-09-06 it still reads
       `08/28/2026`. `UpsSelfTestStale` is now what will say so if it does not.
 
+- [x] **[#194](https://github.com/Gerrrt/HomeLab/issues/194) The journal is not
+      under-delivered; the measurement was.** 2026-09-06. The issue reported
+      Alloy shipping ~1.5% of the host journal. It ships all of it.
+
+      The 1.5% came from `{job="/var/log/journal"}`, and the stream carries
+      `job="loki.source.journal.journal"` — Alloy overrides `job` with its own
+      component name, so the configured value survives only on `component`. The
+      query counted one label set and missed the other. #194's own last "worth
+      checking" bullet asked whether the count compared like with like; it did
+      not.
+
+      Compared like with like — `journalctl --output=json` entries against Loki
+      entries over identical windows — delivery is **100%** (6/6 over 10m, 59/59
+      over 1h, 2581/2581 over 6h) and was **98.8%** on 2026-08-31, the day the
+      issue measured 1.5%: 28,801 of 29,154 entries. An hourly reconstruction of
+      that day matches the host almost exactly once the `count_over_time[1h]`
+      one-hour stamp offset is accounted for.
+
+      **What the search did find**, and the reason the issue was worth working
+      rather than closing: Loki had been discarding around 185,000 entries a
+      week and nothing said so —
+      `greater_than_max_sample_age` 146,867, `too_far_behind` 26,398,
+      `rate_limited` 11,704. Tracked as
+      [#341](https://github.com/Gerrrt/HomeLab/issues/341); the root cause wants
+      splitting by source before any limit is changed.
+
+      #194's second acceptance box — "if the journal is genuinely
+      under-collected, something detects it" — is closed by two rules in
+      `stack.rules.yaml`, both with paired firing and quiet unit tests.
+      `LogEntriesDropped` fires on any rejection, with no tolerance band,
+      because a dropped line is evidence that no longer exists — except
+      `too_far_behind`, which is excluded and which is the difference between a
+      usable alert and one that fires on every deploy. An Alloy with no position
+      file replays up to 24h of journal on start and Loki rejects nearly all of
+      it against a stream that is already current: +19,490 discards from one
+      agent start, measured while testing #186. Those entries are duplicates the
+      previous agent already delivered. The cost of the exclusion, stated: a
+      stream persistently behind rather than briefly replaying is real and this
+      will not see it — that is the other half of #341.
+      `JournalSourceStopped` asserts `== 0` rather than a tuned threshold, and
+      that is only honest because the quietest host was measured: `Saruman`
+      reads 3.1 entries an hour at its slowest over 24h, against 37.6 here and
+      70.2 on `oracle`. The quiet test fixture is deliberately as slow as
+      `Saruman` really is, so a rule written as `< 5/hour` would fail it.
+
+- [x] **[#309](https://github.com/Gerrrt/HomeLab/issues/309) Check shiva's iLO
+      firmware against the documents.** 2026-09-06. `check_versions.py` grows an
+      `OUT_OF_BAND` table for devices that have a checkable version but are not
+      hosts, and `shiva` is its only entry.
+
+      A table rather than a third bespoke comparison, which is what #309 asked
+      for and the reason is arithmetic: `morpheus` already needs its own
+      extraction because pfSense packs two versions into one string, this is the
+      second, and a fourth is how a script ends up unreadable.
+
+      The generic parser genuinely cannot do it. `os_key()` takes the first word
+      as the family and the first number as the version, so
+      `'Integrated Lights-Out 4 2.82 Feb 06 2023'` becomes `('integrated', '4')`
+      against the document's `('ilo', '2.82')` — both halves disagree, and the
+      running side is wrong in the way that matters, because the `4` is the iLO
+      generation and `2.82` is the firmware.
+
+      Proved it can fail, not just pass: with `network.md` edited to `iLO 2.79`
+      it exits 1 with *"says shiva runs 'iLO 2.79'; sysDescr reports 2.82"*, and
+      with an unreadable cell it says so rather than passing quietly.
+
+      `neo` stays out, and the reason changed underneath the issue: #309 said the
+      switch answers no `sysDescr`, and #310 gave it one. The answer is the
+      literal string `"Switch"` — no version — so there is still nothing to
+      compare, and a row would produce a permanent SKIP.
+
 - [x] **[#339](https://github.com/Gerrrt/HomeLab/issues/339) Fail when a
       declared timer is not actually installed.** 2026-09-06. `make
       check-timers` now asks `systemctl is-enabled` for every job in the `JOBS`

@@ -32,7 +32,7 @@ it is not closed by anything in this document.
 | Linux hosts | Alloy → `node_exporter` | 60s | CPU, memory, filesystem, network, load, clock offset |
 | Docker containers | Alloy → cAdvisor | 60s | Per-container CPU, memory, network, restarts, OOM |
 | Container logs | Alloy → Docker socket | stream | stdout/stderr per container |
-| systemd journal | Alloy | stream | unit, boot ID, transport, priority |
+| systemd journal | Alloy | stream | unit, boot ID, transport, priority. Delivery is watched by `JournalSourceStopped` |
 | `/var/log/auth.log` | Alloy | 60s poll | sshd, sudo, PAM |
 | syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
@@ -298,7 +298,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-74 rules in total: 58 metric-based in `prometheus/rules/`, and 16 log-based in
+76 rules in total: 60 metric-based in `prometheus/rules/`, and 16 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -352,6 +352,27 @@ it validates the config file and never opens the rule files. A file containing
 `count_over_time({{{BROKEN` passes `-verify-config` and is caught only by the
 boot check.
 
+### Is the collection itself complete?
+
+A rule that parses and can see every host is still only as good as what reaches
+Loki, and two rules in `stack.rules.yaml` watch that:
+
+- `JournalSourceStopped` fires when an agent that is up and publishing metrics
+  has read no journal entries for two hours. Zero is a safe assertion rather
+  than a tuned threshold because the quietest host in the estate, `Saruman`,
+  still reads about three entries an hour — measured, not assumed.
+- `LogEntriesDropped` fires when Loki *rejects* what an agent sends. There is no
+  retry behind a rejection, so those lines are gone.
+
+Both came out of [#194](https://github.com/Gerrrt/HomeLab/issues/194), which
+reported the journal arriving at 1.5%. That turned out to be a measurement
+artifact — the query named `job="/var/log/journal"` while the stream carries
+`job="loki.source.journal.journal"`, so it counted one label set and missed the
+other. Compared like with like, delivery was 98.8% on the day of the report and
+is 100% now. What the search did find is that Loki had been discarding around
+185,000 entries a week and nothing said so, which is
+[#341](https://github.com/Gerrrt/HomeLab/issues/341).
+
 That check answers whether the rules *parse*. It cannot answer whether they can
 *see*, and those are different failures with the same symptom — a green run.
 [#261](https://github.com/Gerrrt/HomeLab/issues/261) was the second kind: five
@@ -382,7 +403,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-58 rules across eleven files in `prometheus/rules/`:
+60 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -405,7 +426,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is thirty-seven rules of 58 so far — the five
+against the broken rule too. Coverage is thirty-nine rules of 60 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from

@@ -75,7 +75,12 @@ something *happened* — an archive was written, a device answered. These three
 prove that nothing *diverged*. `dashboards-drift` runs `make dashboards-export
 ARGS=--check`, which writes nothing and exits non-zero when the running Grafana
 holds a dashboard edit that git does not. `check-versions` asks Prometheus what
-OS each host is actually running and exits non-zero when a document disagrees.
+OS each host is actually running and exits non-zero when a document disagrees —
+and since [#309](https://github.com/Gerrrt/HomeLab/issues/309) it also covers
+`shiva`, the iLO BMC, which is not a host and so not in the Compute table the
+rest of the check is scoped to. An out-of-band management processor that can
+power the hypervisor on and off is the first thing anyone checks against an
+advisory, so a stale firmware version in `network.md` is worth catching.
 `loki-coverage` asks the live Loki whether any alerting rule has gone blind to a
 host whose logs it is about, which is a thing CI structurally cannot ask because
 it has no log store ([#327](https://github.com/Gerrrt/HomeLab/issues/327)).

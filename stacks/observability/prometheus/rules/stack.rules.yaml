@@ -175,3 +175,111 @@ groups:
             InstanceDown cannot see it — it has simply stopped pushing. Either
             the Alloy agent on {{ $labels.instance }} is down or it cannot reach
             this host. Metrics from it are being lost, not queued.
+
+      - alert: LogEntriesDropped
+        # Alloy accepted a log line and Loki refused it. The line is gone: there
+        # is no retry queue behind a rejection, unlike the network errors
+        # loki_write_batch_retries_total counts.
+        #
+        # This was found by #194, which was filed about a different thing. The
+        # journal is delivered in full — 98.8% on the day that issue measured
+        # 1.5%, and 100% today — but looking for the gap turned up a real one
+        # underneath. Over the seven days to 2026-09-06 Loki discarded roughly
+        # 185,000 entries and nothing said so:
+        #
+        #   greater_than_max_sample_age   146,867
+        #   too_far_behind                 26,398
+        #   rate_limited                   11,704
+        #
+        # Every drop the agents recorded in that window carried
+        # reason="ingester_error", which is Alloy's name for "Loki said no" and
+        # is where all three of the above arrive. Peaks were 121,529 entries
+        # from `oracle` on 09-03 and 15,588 from this host on 09-06.
+        #
+        # `> 0` with no tolerance band, deliberately. A dropped log line is not a
+        # degradation to be graded — it is evidence that no longer exists, and
+        # the difference between one and a thousand is a matter of how long
+        # nobody looked. `for: 15m` is what keeps a single rejected batch during
+        # a Loki restart from paging.
+        #
+        # By reason, because the reasons want different fixes: an ingest limit
+        # is a Loki config change, a sample age is an agent replaying a backlog
+        # older than reject_old_samples_max_age, and rate_limited is neither.
+        # Why Loki is refusing them at all is tracked separately (#341).
+        #
+        # `too_far_behind` IS EXCLUDED, and the exclusion is the difference
+        # between a useful alert and one that fires on every deploy. Measured
+        # while testing #186: an Alloy with no position file replays up to
+        # `max_age = "24h0m0s"` of journal on start, and Loki rejects almost all
+        # of it against a stream that is already current —
+        #
+        #   entry too far behind, entry timestamp is: 2026-09-06T04:38:22Z,
+        #   oldest acceptable timestamp is:           2026-09-06T16:24:52Z
+        #
+        # — which is +19,490 discards from one agent start. Those entries are
+        # duplicates the previous agent already delivered, so nothing is lost;
+        # counting them as loss would page after every `make up`, and this
+        # repository has enough experience of an alert that cries wolf to know
+        # where that ends.
+        #
+        # What that costs, said plainly: a stream PERSISTENTLY behind rather
+        # than briefly replaying is real and this will not see it. That is the
+        # other half of #341 and wants a rule shaped around duration, not a
+        # counter delta.
+        expr: |
+          sum by (job, reason) (
+            rate(loki_write_dropped_entries_total{reason!="too_far_behind"}[15m])
+          ) > 0
+        for: 15m
+        labels:
+          component: stack
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.job }} is losing log lines to {{ $labels.reason }}"
+          description: >-
+            Loki rejected these entries and Alloy discarded them — there is no
+            retry behind a rejection, so they are gone. Ask Loki which limit it
+            applied with `sum by (reason) (loki_discarded_samples_total)`; the
+            usual answers are an entry older than reject_old_samples_max_age, a
+            stream too far behind, or an ingestion rate limit.
+
+      - alert: JournalSourceStopped
+        # The journal reader is alive and reading nothing.
+        #
+        # THE RULE #194 ASKED FOR, and the reason it needs a measured threshold
+        # rather than an obvious one: "a quiet source and a broken one currently
+        # look identical" is only true if you do not know how quiet the quiet
+        # one is. Measured over 24h to 2026-09-06, the lowest hourly read rate
+        # each agent reached was
+        #
+        #   Saruman     3.1 lines/hour      the quietest host in the estate
+        #   prometheus 37.6
+        #   alloy      49.2
+        #   oracle     70.2
+        #
+        # so zero is not a quiet hour anywhere. It is a reader that has stopped,
+        # and the gap between 3.1 and 0 is what makes `== 0` safe to assert
+        # rather than a threshold somebody would have to keep tuning.
+        #
+        # This can only fire while the agent is still publishing metrics — a
+        # dead agent takes the series with it, which is RemoteWriteJobStale's
+        # job above. The two partition the failure: this one is the agent that
+        # is up, healthy, scraped, and collecting none of the host's journal.
+        # That is precisely the shape #62 and #194 are both about, and precisely
+        # the one nothing else here can see.
+        expr: |
+          sum by (job) (rate(loki_source_journal_target_lines_total[1h])) == 0
+        for: 2h
+        labels:
+          component: stack
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.job }} has read no journal entries for two hours"
+          description: >-
+            The agent is up and publishing metrics, so this is not an outage —
+            its journal reader has stopped. The quietest host in the estate
+            still produces about three entries an hour, so zero is a fault
+            rather than a quiet night. Check the reader's position file in the
+            alloy-data volume and whether /var/log/journal is still mounted.
