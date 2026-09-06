@@ -619,6 +619,50 @@ months.
 
 ## Done
 
+- [x] **[#151](https://github.com/Gerrrt/HomeLab/issues/151) SMART on the drives
+      that matter, with no new collection.** 2026-09-06. The issue asked to
+      choose between Scrutiny and `smartctl_exporter`. Working it turned up that
+      **the disks it said mattered most were already being scraped.**
+
+      `Saruman`'s two SAS drives sit behind an HPE Smart Array, and the `ilo`
+      module already walks `1.3.6.1.4.1.232.2`. `cpqDaPhyDrvSmartStatus` was
+      there all along, reading `ok(2)` for both. It had no rule.
+
+      The distinction is the whole issue. `IloHardwareDegraded` already reads
+      `cpqDaPhyDrvCondition > 2` — the drive's CURRENT condition, which moves
+      once redundancy is spent. `cpqDaPhyDrvSmartStatus` is SMART's PREDICTION,
+      and it moves while the array still says everything is fine. On a RAID 1
+      mirror that gap is exactly what #151 was worried about: the mirror keeps
+      serving reads through a dying disk, and the failure only becomes visible
+      when the second one goes.
+
+      Enumeration read out of `cpqida.mib` rather than assumed, in HPE's own
+      words: `replaceDrive(3)` is *"a S.M.A.R.T predictive failure error"*,
+      `replaceDriveSSDWearOut(4)` is approaching the write limit, and `other(1)`
+      is the agent being unable to determine anything.
+
+      Two rules, because "replace this drive" and "I can no longer tell" want
+      different actions. `IloDrivePredictiveFailure` is `> 2` and **warning, not
+      critical** — `IloHardwareDegraded` is critical because redundancy is
+      already spent, this fires before that, and paging at the same level for
+      both would make the critical one mean less. `IloDriveSmartUnreadable` is
+      `== 1` with `for: 1h`, so a controller initialising does not page, and so
+      the predictive check cannot go blind quietly — the #63 shape.
+
+      Five test cases, including `ok(2)` staying quiet (both drives read 2
+      today, so without it the rule would pass its test while firing for a
+      healthy array) and `other(1)` staying quiet for the predictive rule, which
+      is what stops someone widening it to `!= 2`.
+
+      **The rest of the estate is still unwatched and that is
+      [#351](https://github.com/Gerrrt/HomeLab/issues/351).** Neither option
+      #151 proposed fits any more: Scrutiny is a service with its own datastore,
+      which ADR-0004 argues against, and `smartctl_exporter` as a container needs
+      raw device access — it would be the one container reversing `cap_drop`,
+      non-root and `read_only` all at once, to read something the host reads for
+      free. The fit is node_exporter's textfile collector, and the catch is that
+      it needs root while every timer in the `JOBS` table runs as `robo`.
+
 - [x] **[#214](https://github.com/Gerrrt/HomeLab/issues/214) Catch a broken
       notification path without using it.** 2026-09-06.
       `scripts/check_alert_channels.py`, in three parts, because the question has
