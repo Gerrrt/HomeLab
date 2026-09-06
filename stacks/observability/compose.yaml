@@ -244,6 +244,18 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    # read_only, and the reason it is a separate line from cap_drop above rather
+    # than part of the same change: capabilities are verifiable by reading the
+    # config, and this is only verifiable from something running. A missing
+    # tmpfs is a crash loop that `restart: unless-stopped` retries forever, so
+    # every service below was booted from its pinned digest with its real
+    # mounts and its real config before the line was written (#186).
+    #
+    # This service needs no tmpfs. Proven twice: `docker diff` on the running
+    # container shows only mount points and the `init: true` binary — nothing
+    # written to the image layer — and a read-only copy on the stack's own
+    # network answered its own healthcheck endpoint.
+    read_only: true
     command:
       - --config.file=/etc/prometheus/prometheus.yaml
       - --storage.tsdb.path=/prometheus
@@ -332,6 +344,8 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    # No tmpfs needed; see prometheus above for how that was established.
+    read_only: true
     command:
       - --config.file=/etc/alertmanager/alertmanager.yaml
       - --storage.path=/alertmanager
@@ -387,6 +401,12 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    # No tmpfs needed, and this one was designed for it: loki-config.yaml puts
+    # `rule_path: /loki/rules-temp` inside the data volume on purpose, with a
+    # comment saying why. Verified rather than trusted — a read-only copy was
+    # watched evaluating the real rule files and writing its temporary rule
+    # state into the volume.
+    read_only: true
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -443,6 +463,8 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    # No tmpfs needed; see prometheus above for how that was established.
+    read_only: true
     command:
       - --config.file=/etc/snmp_exporter/snmp.yaml
     volumes:
@@ -533,6 +555,8 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    # No tmpfs needed; see prometheus above for how that was established.
+    read_only: true
     command:
       - --config.file=/etc/blackbox_exporter/config.yml
     volumes:
@@ -587,7 +611,31 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    # The one service that needs a tmpfs, and the one the issue said needed a
+    # soak rather than a reading (#186). It got one: booted read-only from the
+    # pinned digest with the real provisioning, dashboards and certificates,
+    # then logged in, listed all three datasources, fetched all seven
+    # provisioned dashboards by uid, wrote an annotation and created a folder.
+    # All of it works.
+    #
+    # /tmp is required because Grafana extracts plugins there — visible as
+    # /tmp/plugin<random> in `docker diff` on the running container. 64m rather
+    # than the default, which is half of host RAM: a tmpfs is memory, and this
+    # service already has a mem_limit chosen from measurement, so an unbounded
+    # one would be a second memory budget nobody sized.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
     environment:
+      # Read-only makes Grafana's background plugin installer fail on every
+      # start: it tries to unlink the bundled elasticsearch plugin from
+      # /usr/share/grafana/data/plugins-bundled and cannot. Nothing here uses
+      # elasticsearch, so the effect is one `level=error` line per start about
+      # a plugin nobody wants — which is exactly the permanently-red signal
+      # this repository keeps recording as the thing operators learn to scroll
+      # past. Measured: with this set, a read-only Grafana logs zero read-only
+      # errors and still serves all seven dashboards and all three datasources.
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in secrets/observability.sops.yaml}
       # Now true: the cookie is only ever sent over TLS. It was false because
@@ -734,6 +782,31 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    # read_only, which #186 proposed to skip on the grounds that it would be
+    # performative next to `privileged: true`. That reason left with #188 —
+    # there is no privileged flag any more and no CAP_SYS_ADMIN, so this
+    # container cannot remount anything, and the line does what it says.
+    #
+    # It is still not the thing that bounds Alloy. The Docker socket below is,
+    # and it is unchanged by this. Defence in depth, on the same footing as the
+    # capability drop above, and the socket comment further down is the honest
+    # account of what is left.
+    #
+    # /root/.cache is required and was found rather than guessed: `docker diff`
+    # on the running container shows /root/.cache/snowflake, and a read-only
+    # copy recreated it in the tmpfs. /tmp is insurance rather than a
+    # measurement — nothing was observed writing there, but Go's os.TempDir
+    # points at it, the exporters this runs are not all inspected here, and the
+    # failure mode for getting it wrong is a crash loop rather than an error.
+    #
+    # Verified with 31 components healthy, the journal reader having read 20,358
+    # lines, and zero read-only or permission errors in the log. That test ran
+    # with its write endpoints blackholed, because a second agent replaying a
+    # 24h journal backlog into the live Loki is a real side effect — see #341.
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+      - /root/.cache:size=16m
     # Root without DAC_OVERRIDE also cannot read /var/log/auth.log or
     # /var/log/syslog — they are syslog:adm 0640 and root owns neither — which
     # would take out the two file sources in config.alloy and, with them, most
