@@ -64,6 +64,14 @@ up: render ## Render config and start the stack
 	@# derived from that service's own start_period, retries, interval and
 	@# timeout, and is the point Docker itself would have given up.
 	python3 scripts/check_container_health.py $(STACK)
+	@# And that Alertmanager can still read the URLs it notifies through. The
+	@# container's view, not this host's: in #214 the files were present here and
+	@# absent inside the container, and every receiver reads from the same
+	@# directory, so all four went dark together for ten and a half hours. The
+	@# alert that fired about it could not be delivered, because it was the
+	@# delivery path that was broken — so this has to be a check rather than an
+	@# alert.
+	python3 scripts/check_alert_channels.py --files --live $(STACK)
 	@# The port is read back out of the rendered .env rather than expanded here.
 	@# GRAFANA_PORT lives in $(STACK_DIR)/.env, which docker compose reads and make
 	@# does not, so a bare $${GRAFANA_PORT:-3000} in a recipe yields 3000 whatever
@@ -220,6 +228,14 @@ check-container-health: ## Ask the RUNNING stack whether its healthchecks pass (
 .PHONY: check-loki-rules
 check-loki-rules: ## Validate Loki (LogQL) alerting rules and dashboard panel queries
 	./scripts/check_loki_rules.sh
+
+.PHONY: check-alert-channels
+check-alert-channels: ## Verify Alertmanager can read every receiver URL (deploy-time)
+	@# The static half runs in `make validate` and in CI, where it needs neither
+	@# a secret nor a host. This adds --files and --live, which need both: the
+	@# rendered files on this host, and what the running container can actually
+	@# open. #214 is the difference between those two.
+	python3 scripts/check_alert_channels.py --files --live $(STACK)
 
 .PHONY: check-loki-coverage
 check-loki-coverage: ## Ask the LIVE Loki whether any rule is blind to a host (deploy-time)

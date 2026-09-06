@@ -663,6 +663,49 @@ months.
       free. The fit is node_exporter's textfile collector, and the catch is that
       it needs root while every timer in the `JOBS` table runs as `robo`.
 
+- [x] **[#214](https://github.com/Gerrrt/HomeLab/issues/214) Catch a broken
+      notification path without using it.** 2026-09-06.
+      `scripts/check_alert_channels.py`, in three parts, because the question has
+      three different homes.
+
+      The failure it exists for: 471 of 493 notifications failed over ten and a
+      half hours on 2026-08-31, every receiver at once, because all four read
+      their URL from the same directory and it was unreadable inside the
+      container. `AlertmanagerNotificationsFailing` fired correctly and could not
+      be delivered — the alert about the broken delivery path travelled the
+      broken delivery path. `IloBatteryCondition` was firing and undeliverable
+      through the whole window.
+
+      **The static half now runs in CI**, which is the part that was missing.
+      `render-config.sh` already asserted that every `url_file` has a matching
+      `AM_CHANNELS` entry, but only at render time on the monitoring host — so
+      "added a receiver, forgot the renderer" failed a deploy rather than a pull
+      request. That half needs no secret and no host, so it is pure text and it
+      gates a PR. It checks both directions: a `url_file` nothing renders is the
+      #214 failure waiting to happen, and a rendered file nothing reads is a
+      secret written for no reason.
+
+      `--files` adds **non-empty**, which the existing assertion did not. A SOPS
+      key that is present but blank renders zero bytes, passes an `-f` test, and
+      makes Alertmanager POST to the empty string.
+
+      `--live` is the one that would actually have caught #214, and it is the
+      reason this is a check rather than an alert: it asks what the CONTAINER
+      can open, because there the files were present on this host and absent
+      inside the container. `make up` runs it after every deploy.
+
+      Deliberately does not ask Alertmanager whether it is healthy, and
+      deliberately sends no test notification. A check that depends on the
+      delivery path inherits the blind spot that made this last ten hours. Every
+      assertion reads a file. The dead man's switch is the other half of the
+      answer and remains untested — #288.
+
+      All three failure paths were exercised rather than assumed: a `url_file`
+      with no renderer, a rendered-but-empty file, and a container that cannot
+      see one. The `wc -c` probe returns 1 on a missing file, so the checker
+      reports it rather than crashing on empty output — checked, because that
+      branch is the one that runs on the bad day.
+
 - [x] **[#341](https://github.com/Gerrrt/HomeLab/issues/341) Loki is not losing
       log data.** 2026-09-06. The issue — which I filed — said Loki was
       discarding ~185,000 entries a week. Both halves of that were wrong.

@@ -302,6 +302,14 @@ jobs:
       - name: Verify the documents agree with the configs
         run: python3 scripts/check_docs.py
 
+      # Every url_file alertmanager.yaml reads must be one render-config.sh
+      # writes. #214 lost every notification for ten and a half hours because
+      # the files were unreadable, and the alert about it travelled the same
+      # broken path. This half is pure text — no secret, no host — so it gates a
+      # pull request rather than waiting for a deploy to discover it.
+      - name: Verify the alert channels are wired end to end
+        run: python3 scripts/check_alert_channels.py
+
       # The schedule's cadence lives in systemd/*.timer and its staleness
       # threshold lives in the JOBS table in install-timers.sh — two copies of
       # one fact, which is what #68 was about. The check that compares them ran
