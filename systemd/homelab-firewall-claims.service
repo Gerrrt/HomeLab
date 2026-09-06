@@ -1,0 +1,70 @@
+# Daily check that what this repository says about segmentation is still true.
+#
+# WHY A TIMER AND NOT ONLY A DEPLOY-TIME CHECK. Every other check in this family
+# watches something this repository changes: check_mounted_config.py catches a
+# deploy that stranded a config, check_loki_coverage.py catches a rule this repo
+# edited going blind. This one watches something this repository does NOT
+# change. The ruleset lives in `Gerrrt/Lemmiwinks` and in the pfSense web UI, so
+# the drift it hunts opens on a day when nothing here was deployed at all —
+# which is exactly how it went unnoticed three times on 2026-09-06 (#363):
+#
+#   * ADR-0013's "default deny does not hold for the switch LAN" was four days
+#     stale when #344 caught it by reading.
+#   * Its correction said the switch LAN "still reaches every segment outbound",
+#     false since 2026-09-02 (#229).
+#   * ADR-0025 called `50 -> 30` and `50 -> 99` wholesale paths "that no rule
+#     grants and no rule denies", four days after one was denied by name and the
+#     other granted by name.
+#
+# All three were found by a person reading a file. Hanging this on `make up`
+# alone would leave that as the only mechanism on any week without a deploy.
+#
+# WHAT IT ASKS. Per interface and address family: which other segments does the
+# catch-all `pass ... to any` still reach, because no full-segment block sits
+# above it. docs/firewall-claims.yaml declares the answer and this diffs it
+# against `pfctl -a '*' -sr` read over SSH. It never writes a rule body anywhere
+# — output names rules by descr only — which is what lets it run unattended
+# without violating docs/security.md's "rule bodies are not published".
+#
+# WHY IT CANNOT BE CI, and this is the whole reason the check has this shape:
+# the ruleset carries the WAN address and user password hashes, `backups/` is
+# gitignored, and both `make validate` and CI assert nothing under it is tracked.
+# Putting it in the repository so CI could read it would trade a documentation
+# defect for a blueprint of the network. ADR-0026 records that; #363 built this.
+#
+# NEEDS SSH TO THE FIREWALL and nothing else — no age key, no docker, no lock.
+# FW_HOST and FW_USER default to 10.0.99.1 and root, the same pair
+# scripts/backup-firewall.sh uses, and override in /etc/default/homelab-timers.
+#
+# Failure here is a documentation finding, not an outage. Nothing is broken when
+# it exits 1: the firewall is right and a document is stale. The fix is to
+# re-derive the claims file and move the prose that cites it, never to edit an
+# ADR in place — ADR-0001 makes those immutable.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: check firewall claims against the running ruleset
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job firewall-claims -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab check-firewall
+TimeoutStartSec=300
+Restart=no
+Nice=10
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-firewall-claims

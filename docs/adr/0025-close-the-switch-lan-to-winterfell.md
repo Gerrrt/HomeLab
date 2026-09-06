@@ -63,6 +63,34 @@ Hicks is unchanged and is still the one exception: its catch-all is reached, so
 denies. Whether that should stay is [#228](https://github.com/Gerrrt/HomeLab/issues/228),
 and it is deliberately not decided here.
 
+**Corrected 2026-09-06, after this ADR was first written — the second such
+correction in this document, and the reason [#363](https://github.com/Gerrrt/HomeLab/issues/363)
+was built.** The paragraph above is wrong about both halves, and wrong the same
+way the switch-LAN paragraph below was: it carried ADR-0013's sentence forward
+instead of reading `pfctl`. Read off the running firewall, with rule identifiers
+as creation timestamps:
+
+- `50 → 99` is **denied**. *Block access to Winterfell* — a logged, full-segment
+  block above the catch-all — was created **2026-09-02 03:47 UTC**, four days
+  before this ADR. Ten host- and port-scoped passes sit above it, so Hicks
+  reaches management on an enumerated list rather than wholesale. `security.md`
+  and `network.md` both had this right at the time; only this document did not.
+- `50 → 30` is **granted by name**. *Allow Hicks access to ImaginationLAN* was
+  created **2026-09-02 03:40 UTC**. It is scoped to TCP, so the catch-all is
+  still what carries everything else to that segment — which leaves the
+  conclusion standing while the stated reason for it does not.
+
+What survives is narrower and still true: Hicks is the one segment whose
+catch-all reaches another, and that other is ImaginationLAN alone. #228 still
+owns it.
+
+The correction is recorded here rather than applied above because
+[ADR-0001](0001-record-architecture-decisions.md) makes accepted ADRs immutable.
+Three claims of this kind went stale in a single day, all three found by a
+person reading a file; `docs/firewall-claims.yaml` and `make check-firewall` now
+diff the estate's segmentation claims against the live ruleset daily, so the
+next one is found by a timer instead.
+
 ## Consequences
 
 - `network.md`'s claim that the switch LAN reaches "Nothing" is true for the

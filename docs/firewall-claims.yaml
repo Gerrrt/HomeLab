@@ -1,0 +1,103 @@
+---
+# What this repository claims about segmentation, in the form pfctl can answer.
+#
+# Checked against the running firewall by scripts/check_firewall_claims.py, which
+# is the answer to #363 and to the one open consequence of ADR-0026: every other
+# fact in the documents is cross-checked against something, and prose about the
+# firewall was checked against nothing.
+#
+# WHAT `wholesale` MEANS. For each interface and address family, the segments
+# that interface's catch-all `pass ... to any` still reaches, because no
+# full-segment block sits above it. An empty list is default deny: either every
+# other segment is blocked above the catch-all, or there is no catch-all for that
+# family at all. Those are different rulesets and the same posture.
+#
+# It is deliberately NOT a list of what each segment can reach. The narrow
+# host-and-port exceptions — SNMP to the iLO, SSH to the firewall, the ten passes
+# from Hicks into management — are enumerated in docs/network.md, they change far
+# more often than this does, and every one of them is a rule body. Rule bodies
+# are not published here (docs/security.md, scripts/backup-firewall.sh).
+#
+# THIS FILE IS DERIVED, NOT AUTHORED. Regenerate it rather than editing it:
+#
+#     scripts/check_firewall_claims.py --derive
+#
+# and when it changes, the prose that cites it has to move too — docs/network.md
+# and docs/security.md. ADRs are immutable (ADR-0001): a stale one gets a marked
+# amendment or a superseding ADR, never an edit in place.
+#
+# `segment` is the one field the firewall cannot supply. pf knows OPT4; that it
+# is ImaginationLAN lives here, and only so failures read as segment names
+# instead of macros. The macro-to-VLAN mapping itself is derived at runtime from
+# each interface's own catch-all, so it is not a second table to keep in step.
+
+interfaces:
+
+  # The switch management LAN. Default deny since 2026-09-02 (#229) outbound and
+  # 2026-09-06 inbound (ADR-0025); ADR-0013 read it before either and describes
+  # the wider state.
+  #
+  # The inet6 row is the residual ADR-0025 and network.md's [^lan] footnote both
+  # record: this interface still carries pfSense's stock *Default allow LAN IPv6
+  # to any* with no IPv6 blocks above it, so on paper it reaches every VLAN.
+  # Latent rather than live — igc0 has only a link-local address, which does not
+  # route. Declared as it is rather than as it should be, because a claims file
+  # that recorded the intent would pass while the rule sat there.
+  igc0:
+    segment: Switch LAN
+    wholesale:
+      inet: []
+      inet6: [OPT1, OPT2, OPT3, OPT4, OPT5, OPT6]
+
+  # Management. The one segment whose catch-all reaches nothing in either family.
+  igc0.99:
+    segment: Winterfell
+    wholesale:
+      inet: []
+      inet6: []
+
+  # Trusted workstations, and the one IPv4 exception in the estate: nothing
+  # blocks Hicks from ImaginationLAN, so the catch-all grants that segment
+  # entire. #228 owns whether it should.
+  #
+  # Note what is NOT here. `50 -> 99` was wholesale until 2026-09-02 03:47 UTC,
+  # when *Block access to Winterfell* landed under ten host- and port-scoped
+  # passes; Hicks now reaches management on an enumerated list. ADR-0025 said
+  # otherwise on 2026-09-06 and was four days stale when it was written — the
+  # third of the three defects that produced this file.
+  igc0.50:
+    segment: Hicks
+    wholesale:
+      inet: [OPT4]
+      inet6: []
+
+  # Media, lab, IoT and guest. Identical posture, and the inet6 row is identical
+  # for a reason worth stating: each of these carries paired inet/inet6 blocks
+  # toward the six VLAN macros and neither toward LAN, so their IPv6 catch-all
+  # still reaches the switch LAN. It is the mirror of igc0's residual above and
+  # latent for the same reason — no routable IPv6 on that interface. The
+  # documents recorded igc0's half and never this one. Tracked with #353, which
+  # owns whether IPv6 is carried at all.
+  igc0.40:
+    segment: CasaBonita
+    wholesale:
+      inet: []
+      inet6: [LAN]
+
+  igc0.30:
+    segment: ImaginationLAN
+    wholesale:
+      inet: []
+      inet6: [LAN]
+
+  igc0.20:
+    segment: Skids
+    wholesale:
+      inet: []
+      inet6: [LAN]
+
+  igc0.10:
+    segment: Degens
+    wholesale:
+      inet: []
+      inet6: [LAN]
