@@ -147,3 +147,51 @@ groups:
             homelab_reboot_required_packages counts them. The running kernel is
             older than the installed one until this happens. Pick a window —
             rebooting the monitoring host blinds the estate for its duration.
+
+      - alert: PatchStateStopped
+        # A host that WAS reporting patch state and no longer is.
+        #
+        # THE FAILURE THIS COVERS, and #360 names it exactly: "a host that
+        # silently stops collecting looks exactly like a host with nothing to
+        # report". Both SecurityUpdatesPending and RebootRequired are written
+        # against a metric being > 0, so a collector that dies takes both alerts
+        # with it and the host goes quiet in the way that looks healthiest.
+        #
+        # This is the second half of a lesson already paid for here: #152's
+        # collector wrote its samples to the same filename run-scheduled.sh uses
+        # for its own outcome metrics, so the wrapper overwrote them on every
+        # run. `make patch-state` printed the right numbers, the job exited 0,
+        # and the series never existed. Nothing noticed for as long as nothing
+        # was looking for absence.
+        #
+        # STOPPED, NOT MISSING, and the distinction is deliberate. An absent()
+        # over the whole metric would fire for every apt host not yet covered —
+        # `Saruman` today — which is a known gap tracked in #360 rather than an
+        # alert. Comparing a day-long window against the last six hours asks
+        # only about hosts that were reporting and are not, so onboarding a host
+        # is silent and losing one is not.
+        #
+        # Six hours, against a daily timer, because the metric is a file on disk:
+        # node_exporter re-serves it on every scrape, so the series is present
+        # continuously and not once a day. Six hours survives a Prometheus
+        # restart and a host rebooting, which is the same window
+        # deploy.rules.yaml and backup.rules.yaml settled on.
+        expr: >-
+          count by (host) (present_over_time(homelab_apt_upgrades_pending[1d] offset 6h))
+          unless
+          count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting patch state"
+          description: >-
+            It reported within the last day and has not in six hours, so
+            SecurityUpdatesPending and RebootRequired are both blind to this host
+            until it comes back. Check homelab-patch-state.timer on the host —
+            `systemctl status homelab-patch-state.timer` — and that
+            /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+            being written and is world-readable. A 0600 file is invisible to the
+            collector and produces exactly this silence.

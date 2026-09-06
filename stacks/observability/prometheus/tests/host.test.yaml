@@ -497,3 +497,62 @@ tests:
       - eval_time: 130h
         alertname: RebootRequired
         exp_alerts: []
+
+  # --- PatchStateStopped: fires for a host whose collector died --------------
+  # 20 hours of reporting, then the series ends. `_` is a genuine gap in
+  # promtool's fixture language, not a zero, so this is the real shape of a
+  # collector that stopped writing rather than one that started writing 0.
+  #
+  # Evaluated at 30h: the left side still sees the host inside [1d] offset 6h
+  # (its samples sit between 24h and 6h before now), the right side sees nothing
+  # in the last 6h, so the difference is the alert.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="oracle"}'
+        values: "3x240 _x120"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "oracle has stopped reporting patch state"
+              description: >-
+                It reported within the last day and has not in six hours, so
+                SecurityUpdatesPending and RebootRequired are both blind to this
+                host until it comes back. Check homelab-patch-state.timer on the
+                host — `systemctl status homelab-patch-state.timer` — and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable. A 0600 file is invisible to
+                the collector and produces exactly this silence.
+
+  # --- PatchStateStopped: quiet for a host that reports zero -----------------
+  # The whole point of the rule. A host with nothing to report and a host whose
+  # collector died look identical in SecurityUpdatesPending and RebootRequired,
+  # which is why this rule exists; if it could not tell them apart either, it
+  # would add nothing. 0 is a sample, absence is not.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="oracle"}'
+        values: "0x400"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- PatchStateStopped: quiet for a host being onboarded -------------------
+  # A host that has never reported must stay silent, or every apt host not yet
+  # covered by #360 — `Saruman` today — alerts as a fault. The series starts at
+  # 20h and is still going; the left side finds nothing before it.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="Saruman"}'
+        values: "_x240 1x120"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts: []

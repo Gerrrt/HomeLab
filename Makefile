@@ -244,6 +244,21 @@ patch-state: ## Collect this host's package patch state into the textfile dir
 	@# touching the collector.
 	./scripts/collect-patch-state.sh
 
+.PHONY: install-agent-patch-state
+install-agent-patch-state: ## Put the patch-state collector on an agent host (needs sudo THERE)
+	@# AGENT=user@host, one or more. #152 covered the monitoring host and only it;
+	@# this covers a host that runs Alloy but has no checkout of this repository,
+	@# which on 2026-09-06 meant `oracle` had a kernel update unbooted for two days
+	@# that nothing in the estate could see (#360).
+	@#
+	@# Deliberately NOT part of deploy-agent.sh, which goes out of its way to need
+	@# no privilege on the target. This step does — /usr/local/bin, /etc/systemd
+	@# and the root-owned textfile directory — so it is run by hand, once per host,
+	@# and prompts for a sudo password there. AGENT='...' ARGS=--check verifies an
+	@# existing install and changes nothing.
+	@test -n "$(AGENT)" || { echo "set AGENT=user@host (e.g. AGENT=atropos@10.0.99.30)"; exit 1; }
+	./scripts/install-agent-patch-state.sh $(ARGS) $(AGENT)
+
 .PHONY: check-mounted-config
 check-mounted-config: ## Verify each container runs the config the repo has (deploy-time)
 	@# Read-only without --fix, so it is safe to ask at any time. `make up` runs

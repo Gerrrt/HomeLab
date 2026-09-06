@@ -92,6 +92,26 @@ previously have, which is how far behind this host's packages are
 covers **this host only**: `oracle` and `Saruman` would need it shipped to them
 and `morpheus` is FreeBSD with no apt at all.
 
+`patch-state` runs on agent hosts too, and not through this table. A host that
+runs Alloy but has no checkout of this repository — `oracle` — gets the collector
+and its own timer installed directly, by `make install-agent-patch-state
+AGENT=user@host`. That step needs `sudo` **on the target** and is deliberately
+not part of `scripts/deploy-agent.sh`, which goes out of its way to need no
+privilege there. It is run once per host; `ARGS=--check` re-verifies an existing
+install and changes nothing.
+
+Those runs have no `homelab_job_*` metrics, because `run-scheduled.sh` needs a
+checkout and a Makefile that an agent host does not have. `PatchStateStopped`
+covers them from the data side instead: it fires for a host that *was* reporting
+and has stopped, which is what separates a host with nothing to report from a
+host whose collector died. Two things made that rule necessary rather than
+tidy — `oracle` had a kernel update unbooted for two days that nothing in the
+estate could see, and the monitoring host's own collector had never delivered a
+sample, because it wrote to `patch-state.prom` and `run-scheduled.sh` writes its
+outcome metrics to the same filename ([#360](https://github.com/Gerrrt/HomeLab/issues/360)).
+The collector's file is now `apt-patch-state.prom`, and the wrapper refuses to
+overwrite a `.prom` it did not write.
+
 `loki-coverage` is daily rather than weekly, and the reason is the opposite of
 the obvious one. Its `--window` is not a sensitivity dial: both sides of its
 comparison use it, so a host that goes quiet drops out of the denominator too

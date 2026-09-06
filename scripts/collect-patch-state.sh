@@ -22,20 +22,44 @@
 #     other option here wanted privilege this estate's job table does not have
 #     (#339, #351).
 #
-# WHAT IT DOES NOT COVER, and this is most of the estate. `morpheus` is FreeBSD
-# and has no apt; `Saruman` is Proxmox and would need this shipped to it;
-# `oracle` is Ubuntu and would need the same. Only the host it runs on is
-# covered, which today is the monitoring host alone. That is a real limit and it
-# is written into the metrics themselves rather than left for a reader to infer:
-# a host with no data produces no series, and the alert rules are written so
-# that absence is visible rather than quiet.
+# WHAT IT COVERS, as of #360. This script now runs on agent hosts too, installed
+# by scripts/install-agent-patch-state.sh — it is shipped unchanged and needs no
+# per-host variant, because everything it reads is in the same place on every
+# apt system. `prometheus` and `oracle` are covered today.
+#
+# WHAT IT STILL DOES NOT COVER. `Saruman` is Proxmox and reachable only from the
+# user's Mac, not from the monitoring host, so it is a hand-run of the installer
+# away rather than blocked on anything here; #360 also notes Proxmox ships
+# `update-notifier-common` inconsistently, which the installer checks rather than
+# assumes. `morpheus` is FreeBSD and has no apt at all — `pkg version -vRL=` is
+# the equivalent and nothing here speaks it. That last one is the gap that
+# matters most, since docs/security.md names a pfSense vulnerability as an
+# accepted, undefended threat.
+#
+# The limit is written into the metrics rather than left for a reader to infer:
+# a host with no data produces no series at all, and `PatchStateStopped` alerts
+# when a host that WAS reporting stops — which is the difference between a host
+# with nothing to report and a host whose collector died.
 #
 # Usage: scripts/collect-patch-state.sh [--print]
 #        --print writes to stdout instead of the textfile directory.
 set -uo pipefail
 
 TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
-PROM="${TEXTFILE_DIR}/patch-state.prom"
+
+# NOT patch-state.prom, and the collision is worth naming because it cost this
+# collector every sample it ever produced. scripts/run-scheduled.sh writes its
+# homelab_job_* metrics to "${TEXTFILE_DIR}/${JOB}.prom", and the job is called
+# `patch-state`. So the wrapper ran this script, this script wrote the apt
+# metrics, and the wrapper then wrote its own outcome over the top of them —
+# every run, silently, with both halves reporting success. `make patch-state`
+# printed the right numbers, `homelab_job_last_exit_code` was 0, and
+# homelab_apt_upgrades_pending did not exist in Prometheus at all.
+#
+# The filename must therefore not match any job name in install-timers.sh's
+# JOBS table. run-scheduled.sh now refuses to overwrite a .prom it did not
+# write, so a future collector hits an error instead of this silence.
+PROM="${TEXTFILE_DIR}/apt-patch-state.prom"
 HOSTNAME_LABEL="$(hostname)"
 
 PRINT_ONLY=0

@@ -1,0 +1,24 @@
+[Unit]
+Description=HomeLab: daily apt patch state collection
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-patch-state.service
+# 08:00 daily, matching the monitoring host's patch-state timer rather than
+# spreading the estate out. These runs are independent — each host reads its own
+# apt database and writes its own file, nothing is shared and nothing contends —
+# so there is no reason to stagger them, and one time across the estate means
+# "every host's patch state is from this morning" is a sentence that stays true.
+#
+# Persistent=true matters more here than on the monitoring host: an agent host
+# can be off overnight, and the whole value of the metric is that it keeps
+# reporting. A missed run is collected at the next boot rather than skipped,
+# which is what keeps PatchStateMissing meaning "this host stopped reporting"
+# instead of "this host was asleep at 08:00".
+OnCalendar=*-*-* 08:00:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

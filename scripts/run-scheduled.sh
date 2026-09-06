@@ -176,6 +176,26 @@ record() {
   # The temp must not itself end in .prom, or the collector parses it too, and
   # it must not live in /tmp, or the rename crosses a filesystem boundary and
   # silently degrades to copy-then-unlink.
+  # Never write over a .prom this wrapper did not write. `patch-state` is both a
+  # job name here AND, until it was renamed, the filename
+  # scripts/collect-patch-state.sh chose for its own metrics — so the wrapper
+  # ran the collector, the collector wrote its samples, and this block put the
+  # outcome metrics over the top of them. Every run, silently: the job exited 0,
+  # `make patch-state` printed the right numbers, and the apt series never
+  # existed in Prometheus (#360).
+  #
+  # The marker is this wrapper's own first metric name. A file without it was
+  # written by something else, and clobbering it would destroy data that has
+  # nowhere else to live. Failing loudly instead costs one job's outcome
+  # metrics, which surfaces as ScheduledJobStale rather than as nothing at all.
+  if [[ -f "${PROM}" ]] \
+     && ! grep -q '^homelab_job_last_run_timestamp_seconds' "${PROM}"; then
+    die "${PROM} was not written by this wrapper — it holds metrics from
+something else, and writing the outcome of '${JOB}' would destroy them.
+A job must not share a name with a collector's output file. Rename one of them;
+see the header of scripts/collect-patch-state.sh for the instance this caught."
+  fi
+
   tmp="${TEXTFILE_DIR}/${JOB}.prom.$$"
   cat > "${tmp}" <<EOF
 # HELP homelab_job_last_run_timestamp_seconds Unix time this job last finished, whatever the outcome.
