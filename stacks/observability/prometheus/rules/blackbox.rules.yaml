@@ -136,3 +136,72 @@ groups:
             device certificate keeps answering and browsers start refusing it.
             Reissue now — docs/runbooks/generate-certificates.md — and restart
             whatever serves it.
+
+      - alert: GatewayLatencyHigh
+        # "Is it the house, or beyond the house?" — the first half of the
+        # question #166 could not answer. On 2026-08-29 a workstation reported
+        # high game ping and every metric here was healthy: WAN peaked at
+        # 3.1/8.7 Mbit/s, every pf drop counter was zero, every SNMP target was
+        # up. Nothing measured round-trip time to anything.
+        #
+        # THE THRESHOLD IS MEASURED, NOT CHOSEN. Twelve TCP connects to
+        # 10.0.99.1:53 from this host on 2026-09-06: min 0.40, median 0.52, max
+        # 0.66 ms. 10 ms is about twenty times the median and fifteen times the
+        # worst sample, which on a switched local segment is not a busy moment —
+        # it is something wrong with the gateway or the path to it.
+        #
+        # AVERAGED, NOT INSTANTANEOUS, and #166 asked for exactly this: "a probe
+        # that alarms on one bad RTT will alarm constantly and be muted within a
+        # week". avg_over_time across ten minutes plus `for: 10m` means twenty
+        # minutes of genuinely elevated latency, not one unlucky handshake.
+        expr: |
+          avg_over_time(probe_duration_seconds{job="blackbox-latency", scope="gateway"}[10m]) > 0.010
+        for: 10m
+        labels:
+          component: blackbox
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Round-trip time to the gateway has been above 10ms for twenty minutes"
+          description: >-
+            A TCP connect to {{ $labels.name }} is averaging
+            {{ $value | humanizeDuration }} against a measured baseline of about
+            0.5ms. This is inside the house — the switch, the segment or the
+            firewall itself — and not the ISP. If InternetLatencyHigh is also
+            firing, this is the more likely cause of both.
+
+      - alert: InternetLatencyHigh
+        # The second half: beyond the house. Two anchors on different networks,
+        # because one resolver having a bad day is a story about that resolver
+        # and both being slow together is a story about the link. The rule fires
+        # per target and the summary names it, so which of those it is can be
+        # read off the alert list rather than guessed.
+        #
+        # Measured baseline, twelve samples each on 2026-09-06:
+        #   1.1.1.1:443   min 8.01  median 13.66  max 16.13 ms
+        #   8.8.8.8:53    min 7.72  median 13.71  max 28.72 ms
+        #
+        # 100 ms is roughly seven times the median and well clear of that 28.72
+        # outlier, which is the point — the outlier is what an instantaneous
+        # threshold would have fired on.
+        #
+        # WARNING, NEVER CRITICAL. Slow is not down, EndpointUnreachable owns
+        # down, and this must not route to `urgent`: the estate keeps working at
+        # 200ms and nobody should be woken for it. The job boundary is what
+        # guarantees that rather than a matcher somebody could widen.
+        expr: |
+          avg_over_time(probe_duration_seconds{job="blackbox-latency", scope="internet"}[10m]) > 0.100
+        for: 10m
+        labels:
+          component: blackbox
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Round-trip time to {{ $labels.name }} has been above 100ms for twenty minutes"
+          description: >-
+            A TCP connect to {{ $labels.name }} is averaging
+            {{ $value | humanizeDuration }} against a measured baseline of about
+            14ms. If GatewayLatencyHigh is quiet, this is past the firewall —
+            the ISP or beyond. If both anchors are firing it is the link; if
+            only one is, it is that provider. Slow is not down: nothing here is
+            unreachable, or EndpointUnreachable would be firing instead.

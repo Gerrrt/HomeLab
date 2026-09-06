@@ -619,6 +619,57 @@ months.
 
 ## Done
 
+- [x] **[#166](https://github.com/Gerrrt/HomeLab/issues/166) Measure latency, and
+      say where it is.** 2026-09-06. Three targets, a `blackbox-latency` job and
+      two rules, so the estate can answer the question #166 opened over — *"is
+      the internet bad right now, and is it us or the ISP?"*
+
+      **`tcp_connect`, not ICMP.** #166 called `NET_RAW` "the one wrinkle". Since
+      it was written, blackbox-exporter gained `cap_drop: [ALL]`, uid 65534 and a
+      read-only root filesystem (#187, #330, #186) — so an `icmp` module would
+      hand exactly one container back a capability the rest of the stack just
+      gave up. A TCP connect is also the better measurement, not merely the
+      cheaper one: ISPs routinely deprioritise ICMP, so a ping time is not what a
+      game or a call experiences.
+
+      **Thresholds measured, not chosen.** Twelve samples each from `10.0.99.20`:
+
+      | target | min | median | max |
+      | --- | --- | --- | --- |
+      | `10.0.99.1:53` | 0.40 | 0.52 | 0.66 ms |
+      | `1.1.1.1:443` | 8.01 | 13.66 | 16.13 ms |
+      | `8.8.8.8:53` | 7.72 | 13.71 | 28.72 ms |
+
+      10 ms for the gateway is twenty times its median; 100 ms for the anchors is
+      seven times theirs and well clear of that 28.72 outlier — which is exactly
+      what an instantaneous threshold would have fired on. Both rules average
+      over ten minutes and then wait ten more, because #166 asked for precisely
+      that: *"a probe that alarms on one bad RTT will alarm constantly and be
+      muted within a week"*. A unit test holds a single 500 ms sample and
+      requires silence.
+
+      Two anchors on different networks, and two rules rather than one, because
+      the diagnosis is the point: gateway slow means the house, anchors slow with
+      the gateway fine means beyond it, one anchor slow means that provider.
+
+      **A separate job**, like `blackbox-dns` and for a related reason:
+      `EndpointUnreachable` is critical and routes to `urgent`, and an ISP blip
+      reaching `1.1.1.1` is not a 2 a.m. page.
+
+      **The second half of #166 is answered rather than built.** It asked whether
+      pfSense's own `dpinger` was absent from Loki because monitoring was off,
+      logging was off, or the syslog selector excluded it. Asked the firewall
+      directly: `dpinger` is running, `WAN_DHCP` reports 12.486 ms / 0.0% loss to
+      `1.1.1.1` — which independently corroborates the 13.66 ms baseline measured
+      from this host — and it logs to syslog only on a state change, so a stable
+      gateway writes nothing. Nothing was broken; there was nothing to ship.
+
+      That same command found `WAN_DHCP6` **down at 100% loss**, which nothing in
+      the estate knew. Filed as
+      [#353](https://github.com/Gerrrt/HomeLab/issues/353), deliberately without
+      a fix: nothing in the documents mentions IPv6 at all, so whether it is
+      wanted has to be decided before it is repaired.
+
 - [x] **[#151](https://github.com/Gerrrt/HomeLab/issues/151) SMART on the drives
       that matter, with no new collection.** 2026-09-06. The issue asked to
       choose between Scrutiny and `smartctl_exporter`. Working it turned up that

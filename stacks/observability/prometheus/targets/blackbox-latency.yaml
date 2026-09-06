@@ -1,0 +1,78 @@
+---
+# Latency probe targets, consumed by the `blackbox-latency` job via
+# file_sd_configs. Hot-reloaded every 5 minutes — no Prometheus restart.
+#
+# WHY THESE EXIST (#166). The stack measured throughput, counters and logs, and
+# round-trip time to nothing at all. On 2026-08-29 a workstation reported high
+# game ping and every metric here was healthy: WAN peaked at 3.1/8.7 Mbit/s, all
+# the pf drop counters were zero, every SNMP target was up. The honest answer
+# was "I can't tell you", and that is what these targets change.
+#
+# WHY tcp_connect AND NOT icmp. #166 called ICMP "the one wrinkle", because an
+# `icmp` prober needs CAP_NET_RAW. Since then blackbox-exporter runs with
+# `cap_drop: [ALL]`, as uid 65534, on a read-only root filesystem (#187, #330,
+# #186) — so an ICMP module would mean handing exactly one container back a
+# capability the rest of the stack just gave up, to measure something a TCP
+# handshake measures for free.
+#
+# A TCP connect is also the better measurement here, not merely the cheaper one:
+# ISPs routinely deprioritise ICMP, so a ping time is not what a game or a video
+# call experiences. Every target below answers TCP on a port it already serves.
+#
+# WHY A SEPARATE JOB AND FILE, rather than appending to targets/blackbox.yaml:
+# `EndpointUnreachable` is `probe_success{job="blackbox"} == 0` at severity
+# critical, routed to `urgent`. A momentary ISP blip reaching 1.1.1.1 is not a
+# 2 a.m. problem, and it would be one if these shared that job. The same
+# argument blackbox-dns.yaml makes, for a different reason.
+#
+# THE LABELS THE RULES KEY ON:
+#   scope   `gateway` or `internet` — this is the whole diagnostic. Gateway slow
+#           means the house; anchors slow while the gateway is fine means beyond
+#           it. Two rules, so the alert says which.
+#   name    what is being probed, for the summary line.
+#   role    as elsewhere: what the thing is for.
+#
+# BASELINE, measured from 10.0.99.20 on 2026-09-06, twelve samples each:
+#
+#   10.0.99.1:53    min 0.40   median 0.52   max  0.66 ms
+#   1.1.1.1:443     min 8.01   median 13.66  max 16.13 ms
+#   8.8.8.8:53      min 7.72   median 13.71  max 28.72 ms
+#
+# The thresholds in blackbox.rules.yaml come from those numbers rather than from
+# a round figure that felt right.
+#
+# EGRESS, stated deliberately rather than left as a side effect. Two of these
+# targets are on the public internet, so this is a new outbound path from
+# VLAN 99. docs/security.md records it. The probes are outbound TCP connects to
+# two well-known anycast resolvers and carry nothing about the estate.
+
+# The gateway. Separates "the house" from "beyond the house", which is the
+# question #166 could not answer. Port 53 because Unbound is what ADR-0010 puts
+# there and it is already listening; probing 443 would measure whether the
+# pfSense web UI is up, which is a different question and blackbox.yaml's.
+- targets: ["10.0.99.1:53"]
+  labels:
+    module: tcp_connect
+    name: gateway
+    scope: gateway
+    role: firewall
+    host: morpheus
+
+# Two anchors rather than one, and on different networks on purpose: one
+# resolver having a bad day is a story about that resolver, and both being slow
+# together is a story about the link. A single anchor cannot tell those apart.
+- targets: ["1.1.1.1:443"]
+  labels:
+    module: tcp_connect
+    name: cloudflare
+    scope: internet
+    role: anchor
+    host: internet
+
+- targets: ["8.8.8.8:53"]
+  labels:
+    module: tcp_connect
+    name: google
+    scope: internet
+    role: anchor
+    host: internet

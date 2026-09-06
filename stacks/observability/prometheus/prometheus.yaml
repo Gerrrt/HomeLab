@@ -147,6 +147,39 @@ scrape_configs:
   # hot-reloaded, with no restart and no edit to this file at the moment it
   # matters.
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Latency probes — how long, not whether.
+  #
+  # A third job on the same exporter, and separate for the reason the DNS job
+  # above is: EndpointUnreachable is critical and routed to `urgent`, and two of
+  # these targets are on the public internet. An ISP blip reaching 1.1.1.1 is
+  # not a 2 a.m. page, and it would be one if these shared job="blackbox".
+  #
+  # scrape_interval is 30s rather than 60s. Latency is the one thing here that
+  # is worth asking about twice a minute: the question #166 exists for is "is it
+  # bad RIGHT NOW", and the rules average over ten minutes, so a coarser sample
+  # would make that average out of four points instead of twenty.
+  # ---------------------------------------------------------------------------
+  - job_name: blackbox-latency
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /probe
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/blackbox-latency.yaml
+        refresh_interval: 5m
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [module]
+        target_label: __param_module
+      - regex: module
+        action: labeldrop
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
   - job_name: blackbox-dns
     scrape_interval: 60s
     scrape_timeout: 15s
