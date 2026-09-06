@@ -25,7 +25,7 @@ to `BIND_ADDR`. Reasoning in
 ## Layout
 
 ```text
-compose.yaml               all seven services, one network, health-gated ordering
+compose.yaml               all eight services, one network, health-gated ordering
 .env.example               non-sensitive tunables (ports, retention, bind address)
                            edit this, not .env — .env is regenerated on `make up`
 prometheus/

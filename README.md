@@ -173,7 +173,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 
 ```text
 .
-├── stacks/observability/     # the deployed stack — one compose file, six services
+├── stacks/observability/     # the deployed stack — one compose file, eight services
 │   ├── compose.yaml
 │   ├── prometheus/           # config, file_sd targets, 64 alert rules
 │   ├── alertmanager/         # routing and inhibition

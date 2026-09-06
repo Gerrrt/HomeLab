@@ -101,8 +101,11 @@ Which makes anything that can ignore file permissions worth naming. Until
 2026-08-31 the Alloy container was one: uid 0, every capability, and `/` mounted
 read-only, so it could read the age key outright. It now holds no capabilities
 and cannot ([#188](https://github.com/Gerrrt/HomeLab/issues/188)). The Docker
-socket it still mounts is the remaining path — that API can start a container
-with `/` mounted read-write — and closing it is tracked, not done.
+socket it mounted was the remaining path — that API can start a container with
+`/` mounted read-write — and it is no longer mounted into Alloy at all: an
+allowlisting proxy holds it and refuses `POST`
+([#193](https://github.com/Gerrrt/HomeLab/issues/193)). That moves the boundary
+rather than removing it, and the proxy is now the container to look at.
 Permissions mean nothing to someone holding the disk.
 
 This is accepted rather than tracked as work. The threat model in

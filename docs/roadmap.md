@@ -619,6 +619,53 @@ months.
 
 ## Done
 
+- [x] **[#193](https://github.com/Gerrrt/HomeLab/issues/193) Alloy reaches the
+      Docker API through a read-only proxy.** 2026-09-06. The socket is no longer
+      mounted into Alloy at all.
+
+      `:ro` on a socket mount is close to decorative — it applies to the socket
+      FILE, not the API behind it, and anything that can talk to that API can
+      `POST /containers/create` with `/` bound read-write, which is root on this
+      host and the age key with it. #188 took Alloy's capabilities and closed the
+      direct read off `/rootfs`; this closes the larger half.
+
+      **Proven, not assumed.** Through the proxy,
+      `POST /containers/create` returns `403 Forbidden` and
+      `GET /containers/json` works.
+
+      **The allowlist was wrong on the first attempt, and only measurement found
+      it.** `discovery.docker` calls `/networks` to compute the network labels it
+      puts on every target, so with `NETWORKS: 0` the component failed with a
+      403, container log collection stopped entirely, and *the agent stayed
+      healthy while cAdvisor carried on unaffected* —
+      `loki_source_docker_target_entries_total` sat at 0 and nothing else looked
+      wrong. That is exactly the #62/#63 shape #193 predicted for a too-narrow
+      allowlist and the reason it insisted on before/after numbers. With
+      `NETWORKS: 1` the flow resumed: 864 entries streamed, 450 lines in two
+      minutes.
+
+      Before and after on this host, cAdvisor unaffected throughout:
+      `container_last_seen` 10 → 11 (the proxy is a container),
+      `cadvisor_version_info` 1 → 1, and the named set unchanged apart from the
+      proxy arriving and two of my own throwaway test containers leaving.
+
+      **One container is deliberately not `read_only`,** which is the exception
+      #186 asked to have recorded rather than skipped. The image generates
+      `haproxy.cfg` from its environment at every start, and a tmpfs over that
+      directory shadows the template it ships — both observed by running it, not
+      predicted. It still drops every capability, takes `no-new-privileges`,
+      holds no secret, and publishes nothing.
+
+      Said plainly in `SECURITY.md` and `docs/security.md`: this **moves** the
+      trust boundary rather than removing it. The proxy holds the socket now.
+      What it buys is that Alloy — network listener, rootfs mount, largest
+      surface in the stack — has no path to POST.
+
+      `oracle` still mounts the socket directly. `docker.alloy` reads
+      `DOCKER_API` and falls back to the socket when unset, so one config file
+      still deploys to every host and that one keeps working until it gets a
+      proxy of its own.
+
 - [x] **[#166](https://github.com/Gerrrt/HomeLab/issues/166) Measure latency, and
       say where it is.** 2026-09-06. Three targets, a `blackbox-latency` job and
       two rules, so the estate can answer the question #166 opened over — *"is
