@@ -408,3 +408,101 @@ tests:
       - eval_time: 2h
         alertname: TlsCertificateExpiryImminent
         exp_alerts: []
+
+  # --- GatewayLatencyHigh: fires on sustained elevation ---------------------
+  # 50ms held for well over the twenty minutes the rule needs. Against a
+  # measured baseline of 0.52ms this is the LAN being genuinely wrong.
+  - interval: 30s
+    input_series:
+      - series: 'probe_duration_seconds{job="blackbox-latency",scope="gateway",name="gateway",instance="10.0.99.1:53"}'
+        values: "0.050x120"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: GatewayLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              job: blackbox-latency
+              scope: gateway
+              name: gateway
+              instance: 10.0.99.1:53
+              component: blackbox
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Round-trip time to the gateway has been above 10ms for twenty minutes"
+              description: >-
+                A TCP connect to gateway is averaging 50ms against a measured
+                baseline of about 0.5ms. This is inside the house — the switch,
+                the segment or the firewall itself — and not the ISP. If
+                InternetLatencyHigh is also firing, this is the more likely cause
+                of both.
+
+  # --- GatewayLatencyHigh: quiet at the measured baseline -------------------
+  # 0.52ms is the median actually observed. Without this case the rule would
+  # pass its test while firing continuously for a healthy gateway.
+  - interval: 30s
+    input_series:
+      - series: 'probe_duration_seconds{job="blackbox-latency",scope="gateway",name="gateway"}'
+        values: "0.00052x120"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: GatewayLatencyHigh
+        exp_alerts: []
+
+  # --- GatewayLatencyHigh: quiet for a single bad handshake -----------------
+  # THE CASE #166 ASKED FOR: "a probe that alarms on one bad RTT will alarm
+  # constantly and be muted within a week". One 500ms sample in an otherwise
+  # healthy ten minutes lifts the average nowhere near 10ms, and this fixture is
+  # what stops the expression being simplified to an instantaneous comparison.
+  - interval: 30s
+    input_series:
+      - series: 'probe_duration_seconds{job="blackbox-latency",scope="gateway",name="gateway"}'
+        values: "0.0005x40 0.5 0.0005x79"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: GatewayLatencyHigh
+        exp_alerts: []
+
+  # --- InternetLatencyHigh: fires per anchor -------------------------------
+  # One anchor slow and the other fine, which is the case that distinguishes
+  # "that resolver is having a bad day" from "the link is bad". Only the slow
+  # one may fire.
+  - interval: 30s
+    input_series:
+      - series: 'probe_duration_seconds{job="blackbox-latency",scope="internet",name="cloudflare"}'
+        values: "0.250x120"
+      - series: 'probe_duration_seconds{job="blackbox-latency",scope="internet",name="google"}'
+        values: "0.0137x120"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: InternetLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              job: blackbox-latency
+              scope: internet
+              name: cloudflare
+              component: blackbox
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Round-trip time to cloudflare has been above 100ms for twenty minutes"
+              description: >-
+                A TCP connect to cloudflare is averaging 250ms against a measured
+                baseline of about 14ms. If GatewayLatencyHigh is quiet, this is
+                past the firewall — the ISP or beyond. If both anchors are firing
+                it is the link; if only one is, it is that provider. Slow is not
+                down: nothing here is unreachable, or EndpointUnreachable would
+                be firing instead.
+
+  # --- InternetLatencyHigh: quiet at the measured baseline, outlier included -
+  # 13.7ms steady with the 28.72ms sample that was actually observed. That
+  # outlier is precisely what a threshold on the instantaneous value would have
+  # fired on, and it must not fire here.
+  - interval: 30s
+    input_series:
+      - series: 'probe_duration_seconds{job="blackbox-latency",scope="internet",name="google"}'
+        values: "0.0137x60 0.02872 0.0137x59"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: InternetLatencyHigh
+        exp_alerts: []
