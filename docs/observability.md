@@ -352,6 +352,28 @@ it validates the config file and never opens the rule files. A file containing
 `count_over_time({{{BROKEN` passes `-verify-config` and is caught only by the
 boot check.
 
+That check answers whether the rules *parse*. It cannot answer whether they can
+*see*, and those are different failures with the same symptom — a green run.
+[#261](https://github.com/Gerrrt/HomeLab/issues/261) was the second kind: five
+authentication rules that were valid, loaded, evaluated, and matched nothing on
+two of the four monitored hosts, because they selected `log_type="authlog"`
+while `Saruman` ships a journal and `morpheus` ships syslog.
+
+`scripts/check_loki_coverage.py` (`make check-loki-coverage`) asks the second
+question, and it has to run against the **live** Loki on the monitoring host —
+CI has no log store, so this one is deliberately outside `make validate`. For
+each host-scoped rule it compares the hosts the rule's own stream selectors
+reach against the hosts shipping logs at all, and for a host it cannot reach it
+asks whether lines matching what the rule hunts exist there anyway. A rule blind
+to a host that is producing exactly those lines fails; one blind to a host with
+nothing to see warns.
+
+There is no table of which rule should see which host, deliberately — a table
+like that drifts, and a drifting table is the same class of defect. The
+expectation comes out of the data instead, which is also what makes `useradd`
+never matching on FreeBSD `morpheus` a non-event rather than an exception
+somebody has to write down.
+
 ### Metric-based (Prometheus)
 
 56 rules across eleven files in `prometheus/rules/`:

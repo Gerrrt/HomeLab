@@ -619,6 +619,46 @@ months.
 
 ## Done
 
+- [x] **[#327](https://github.com/Gerrrt/HomeLab/issues/327) Fail when a Loki
+      rule is blind to a host.** 2026-09-06.
+      `scripts/check_loki_coverage.py`, against the live Loki, outside `make
+      validate` — `check_loki_rules.sh` boots the pinned image against a
+      throwaway config with no data and asks whether the rules parse, which is
+      the right question for CI and a different question from this one.
+
+      **No expectation table**, which #327 called the hard part and it is: a
+      table of which rule should see which host drifts, and a drifting table is
+      the defect this exists to catch. Two derived questions instead. Do the
+      rule's own stream selectors, unioned across its `or` branches, reach every
+      host shipping logs? And for a host they miss, do lines matching what the
+      rule *hunts* exist there anyway? The second grades the first — blind to a
+      host producing those lines is a live hole, blind to a quiet one is latent
+      — and it makes `useradd` never matching on FreeBSD `morpheus` answer
+      itself rather than need a row.
+
+      The subject query keeps the rule's positive filters (`|~`, `|=`) and drops
+      its negative ones (`!=`, `!~`), and that is load-bearing rather than
+      tidy. The negatives are policy — `SshLoginFromUnexpectedSubnet` excludes
+      `10.0.50.` and `10.0.99.` — and with them the rule matches nothing
+      anywhere, which is indistinguishable from being blind. Keeping them made
+      an earlier draft pass over #261.
+
+      Verified both ways against the live store. Against the rules as they stood
+      before #261 was fixed it exits 1 on `SshLoginFromUnexpectedSubnet`,
+      naming `Saruman` (journal, 2 lines) and `morpheus` (syslog, 46) and
+      warning that the four sibling rules cannot reach those hosts either.
+      Against the rules as they are now, all eight host-scoped rules reach all
+      four hosts.
+
+      The candidate selector is `{log_type=~".+", log_type!="docker"}` and
+      #327's trap is why. Loki logs its own query text, so `{host=~".+"}` makes
+      a rule match the string of its own line filter: 43,913 lines for
+      `SudoFailure`'s pattern over seven days against 2 real ones, 30,365 of the
+      difference being `service_name="loki"`. The label is required to be
+      *present* rather than only non-docker because 11,721 more are container
+      logs from before a labelling change that carry no `log_type` at all, and
+      `!=` matches a stream where the label is absent.
+
 - [x] **[#292](https://github.com/Gerrrt/HomeLab/issues/292) Detect pfSense
       version drift from the box.** 2026-09-04. `sysDescr` joins the `pfsense`
       SNMP module and `scripts/check_versions.py` compares what the documents
