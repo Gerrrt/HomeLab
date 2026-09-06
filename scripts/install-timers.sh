@@ -118,6 +118,7 @@ JOBS=(
   "check-versions    homelab-check-versions     1209600  check-versions"
   "dashboards-drift  homelab-dashboards-drift    172800  dashboards-export"
   "loki-coverage     homelab-loki-coverage       172800  check-loki-coverage"
+  "patch-state       homelab-patch-state         172800  patch-state"
   "verify-key-backup -                          7776000  secrets-verify-backup"
 )
 

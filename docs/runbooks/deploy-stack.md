@@ -118,7 +118,7 @@ Then in the UI:
 
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
-2. **Prometheus → Status → Rules.** 64 rules loaded, none in error. The
+2. **Prometheus → Status → Rules.** 66 rules loaded, none in error. The
    page counts 57: the extra one is `homelab_suricata_expected_interface`,
    the stack's only recording rule. Everything counted in this repository is
    alert rules, so the two numbers differ by one and always have.

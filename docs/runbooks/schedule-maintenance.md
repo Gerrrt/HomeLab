@@ -60,6 +60,7 @@ the host.
 | `check-versions` | `make check-versions` | Wednesdays 06:45 | 14 days |
 | `dashboards-drift` | `make dashboards-export ARGS=--check` | daily 07:30 | 2 days |
 | `loki-coverage` | `make check-loki-coverage` | daily 07:45 | 2 days |
+| `patch-state` | `make patch-state` | daily 08:00 | 2 days |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
@@ -84,6 +85,12 @@ advisory, so a stale firmware version in `network.md` is worth catching.
 `loki-coverage` asks the live Loki whether any alerting rule has gone blind to a
 host whose logs it is about, which is a thing CI structurally cannot ask because
 it has no log store ([#327](https://github.com/Gerrrt/HomeLab/issues/327)).
+`patch-state` is the odd one among the odd ones: it does not prove anything
+happened OR that nothing diverged — it collects a fact the estate did not
+previously have, which is how far behind this host's packages are
+([#152](https://github.com/Gerrrt/HomeLab/issues/152)). It needs no root, and it
+covers **this host only**: `oracle` and `Saruman` would need it shipped to them
+and `morpheus` is FreeBSD with no apt at all.
 
 `loki-coverage` is daily rather than weekly, and the reason is the opposite of
 the obvious one. Its `--window` is not a sensitivity dial: both sides of its

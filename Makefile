@@ -236,6 +236,14 @@ check-container-health: ## Ask the RUNNING stack whether its healthchecks pass (
 check-loki-rules: ## Validate Loki (LogQL) alerting rules and dashboard panel queries
 	./scripts/check_loki_rules.sh
 
+.PHONY: patch-state
+patch-state: ## Collect this host's package patch state into the textfile dir
+	@# Needs no root: apt-check runs unprivileged, /var/run/reboot-required is a
+	@# world-readable flag, and the textfile directory is owned by the user the
+	@# timers run as. --print writes to stdout instead, for looking without
+	@# touching the collector.
+	./scripts/collect-patch-state.sh
+
 .PHONY: check-mounted-config
 check-mounted-config: ## Verify each container runs the config the repo has (deploy-time)
 	@# Read-only without --fix, so it is safe to ask at any time. `make up` runs
