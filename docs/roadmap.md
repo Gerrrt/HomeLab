@@ -619,6 +619,32 @@ months.
 
 ## Done
 
+- [x] **[#339](https://github.com/Gerrrt/HomeLab/issues/339) Fail when a
+      declared timer is not actually installed.** 2026-09-06. `make
+      check-timers` now asks `systemctl is-enabled` for every job in the `JOBS`
+      table and fails naming the ones that are not.
+
+      Found while landing #335, and the finding was not the new job:
+      **`check-versions` had been declared since #292, had a correct unit file,
+      and had never been installed.** The weekly documented-versions check
+      simply never ran, for two weeks, and nothing said so.
+
+      Nothing *could* say so. `ScheduledJobNeverRan` is exactly the rule for
+      "declared but never ran" — `max_age unless on(homelab_job) last_success` —
+      and `max_age` is written by `--install`. A job added to the table and
+      never installed has NEITHER series, both sides of the `unless` are empty,
+      and there is nothing to alert on. The alerting was keyed on the installed
+      state while the table is what a pull request reviews, so a row merged
+      green and the job did not exist. Checks 1-5 compare the table against the
+      `.timer` files, which were present and correct throughout.
+
+      Read-only — `systemctl is-enabled` queries and changes nothing — so it is
+      safe inside `make validate`. It can only mean something on the deployment
+      checkout, so elsewhere it goes through `skip_offhost()` for the same
+      reason check 5 does: a CI runner failing because it has not installed the
+      monitoring host's timers would be nonsense. The header comment claiming
+      "there is exactly one" such skip was corrected in the same commit.
+
 - [x] **[#335](https://github.com/Gerrrt/HomeLab/issues/335) Run the Loki
       coverage check on a schedule.** 2026-09-06.
       `homelab-loki-coverage.{service,timer}`, daily at 07:45, plus a row in the

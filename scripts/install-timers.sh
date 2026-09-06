@@ -21,10 +21,13 @@
 # skipped there is one nobody will ever run. Same contract, same flag name and
 # the same reasoning as scripts/lint.sh, which is where this came from.
 #
-# One skip deliberately survives it. `systemd-analyze verify` resolves
+# Two skips deliberately survive it, and both are the same shape: a check that
+# only means anything on the deployment host. `systemd-analyze verify` resolves
 # ExecStart= against the real filesystem, so from a runner or a worktree every
-# unit reports a missing wrapper — escalating that would fail CI for being CI.
-# It goes through skip_offhost() and every other skip goes through skip().
+# unit reports a missing wrapper; and the installed-timer check asks systemd
+# what is enabled, which off that host is correctly nothing. Escalating either
+# would fail CI for being CI. Both go through skip_offhost() and every other
+# skip goes through skip().
 #
 # WHY --check EXISTS AND WHAT IT ASSERTS
 #
@@ -34,6 +37,13 @@
 # `systemd-analyze calendar` and asserts the declared max_age is at least twice
 # it, so a cadence changed in one place and not the other fails `make validate`
 # rather than quietly alerting every week.
+#
+# There is a THIRD copy, and it is the one that actually bit: what systemd has
+# enabled. `check-versions` sat in the table with a correct unit file from #292
+# and was never installed, so it simply never ran and no alert could say so —
+# max_age is written by --install, so the rule for "declared but never ran" had
+# no series to fire on either. Check 6 compares the table against
+# `systemctl is-enabled` on the deployment host (#339).
 #
 # It also asserts that every ExecStart= goes through run-scheduled.sh. That is
 # what guarantees a scheduled job records its outcome — and it is the mitigation
@@ -130,10 +140,14 @@ skip() {
 # A skip that is CORRECT everywhere except the deployment host, and so must not
 # become a failure under --require-all.
 #
-# There is exactly one: systemd-analyze verify resolves ExecStart against the
-# real filesystem, so from a CI runner or a worktree every unit reports a
-# missing wrapper. Escalating that would make CI fail for being CI. Every other
-# skip here means a tool was unreachable, which in CI is a check nobody runs.
+# There are two, both checks that can only mean something on the deployment
+# host. systemd-analyze verify resolves ExecStart against the real filesystem,
+# so from a CI runner or a worktree every unit reports a missing wrapper. And
+# check 6 asks systemd which timers are enabled, which anywhere but that host is
+# correctly none — a CI runner failing because it has not installed the
+# monitoring host's timers would be nonsense. Escalating either would make CI
+# fail for being CI. Every other skip here means a tool was unreachable, which
+# in CI is a check nobody runs.
 skip_offhost() {
   printf '\033[0;33m  SKIP\033[0m %s\n' "$*"
   [[ -n "${SKIPS_FILE}" ]] && printf '%s\n' "$*" >> "${SKIPS_FILE}"
@@ -276,7 +290,62 @@ if [[ "${MODE}" == check ]]; then
     fail "systemd-analyze verify"
   fi
 
-  # 6. That CI calls this at all.
+  # 6. That every declared timer is actually ENABLED on this host.
+  #
+  #    Checks 1-5 compare the table against the .timer FILES, which is two
+  #    copies of one fact. This is the third copy, and it is the one nobody was
+  #    comparing: what systemd actually has. `check-versions` sat in the table
+  #    with a correct unit file from #292 until 2026-09-06 and was never
+  #    installed, so the weekly documented-versions check had simply never run
+  #    (#339).
+  #
+  #    Nothing else could see that state. ScheduledJobNeverRan is exactly the
+  #    rule for "declared but never ran" —
+  #
+  #      homelab_job_max_age_seconds
+  #        unless on(homelab_job) homelab_job_last_success_timestamp_seconds
+  #
+  #    — and it cannot fire here, because max_age is written by --install. A job
+  #    added to the table and never installed has NEITHER series, both sides of
+  #    the `unless` are empty, and there is nothing to alert on. The alerting is
+  #    keyed on the installed state while the table is what a pull request
+  #    reviews, so a row merges green and the job does not exist.
+  #
+  #    Read-only: `systemctl is-enabled` queries and changes nothing, so this
+  #    stays safe inside `make validate`. It can only mean something on the
+  #    deployment checkout — anywhere else the units are not installed and are
+  #    not supposed to be — so elsewhere it goes through skip_offhost() for the
+  #    same reason check 5 does. On the monitoring host it turns "somebody
+  #    forgot to run install-timers" from invisible into a failed validate,
+  #    which is where that failure belongs.
+  if ! command -v systemctl >/dev/null 2>&1; then
+    skip "systemctl not found — installed timers unchecked"
+  elif [[ "${REPO_ROOT}" != "${DEPLOY_ROOT}" ]]; then
+    skip_offhost "not the deployment checkout — installed timers unchecked (they are not installed here, and should not be)"
+  else
+    missing=()
+    for row in "${JOBS[@]}"; do
+      unit="$(job_unit "${row}")"
+      # verify-key-backup has no unit: it is a deadline declared for a human,
+      # and the table says so with a "-". Nothing to install, nothing to check.
+      [[ "${unit}" == "-" ]] && continue
+      state="$(systemctl is-enabled "${unit}.timer" 2>/dev/null || true)"
+      case "${state}" in
+        enabled | enabled-runtime | static | indirect | generated) ;;
+        *) missing+=("$(job_name "${row}") (${unit}.timer: ${state:-not installed})") ;;
+      esac
+    done
+    if ((${#missing[@]} == 0)); then
+      pass "every declared timer is enabled on this host"
+    else
+      fail "declared in the table but not enabled here: ${missing[*]}"
+      printf '        These jobs do not run and nothing alerts on them — max_age is\n'
+      printf '        written by --install, so ScheduledJobNeverRan has no series to\n'
+      printf '        fire on either. Fix with: sudo %s --install\n' "$0"
+    fi
+  fi
+
+  # 7. That CI calls this at all.
   #
   #    Everything above ran in scripts/validate.sh and in no CI job, so it
   #    guarded a `make validate` a contributor might not run and guarded the

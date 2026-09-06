@@ -109,6 +109,25 @@ derives each timer's real period from `systemd-analyze calendar` and refuses to
 pass if the threshold is less than twice it. Change one without the other and
 `make validate` fails rather than the alerting quietly going wrong.
 
+There is a third copy, and it is the one that actually bit:
+**what systemd has enabled**. Adding a row here and a `.timer` file does not
+install anything — that needs `sudo ./scripts/install-timers.sh --install` on
+the monitoring host — and until it is run the job does not exist. Nothing could
+see that state, because `ScheduledJobNeverRan` joins against
+`homelab_job_max_age_seconds`, which `--install` is what writes: a declared but
+uninstalled job has *neither* series and there is nothing to fire on.
+`check-versions` sat in that state from
+[#292](https://github.com/Gerrrt/HomeLab/issues/292) until 2026-09-06 and simply
+never ran.
+
+So `make check-timers` now also asks `systemctl is-enabled` for every declared
+timer, and fails naming the ones that are not
+([#339](https://github.com/Gerrrt/HomeLab/issues/339)). It is read-only and
+means something only on the deployment checkout, so everywhere else — CI, a
+worktree — it skips, the same way the `systemd-analyze verify` check does. **On
+the monitoring host, a merged row that nobody installed is now a failed
+`make validate` rather than silence.**
+
 `make check-digests` is deliberately **not** here. It needs no host and no
 secret, so it runs weekly in GitHub Actions
 ([`digests.yml`](../../.github/workflows/digests.yml)) instead — genuinely
