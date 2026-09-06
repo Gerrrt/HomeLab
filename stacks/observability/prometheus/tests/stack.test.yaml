@@ -129,3 +129,91 @@ tests:
       - eval_time: 60m
         alertname: RemoteWriteJobStale
         exp_alerts: []
+
+  # --- LogEntriesDropped: fires on a counter that is moving ------------------
+  # 15 entries dropped over 15 minutes is 1/min, which is a small enough rate to
+  # prove the rule has no tolerance band. That is the intent: a dropped line is
+  # evidence that no longer exists, and one is a fault of the same kind as a
+  # thousand.
+  - interval: 1m
+    input_series:
+      - series: 'loki_write_dropped_entries_total{job="oracle-alloy",reason="ingester_error"}'
+        values: "0+1x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: LogEntriesDropped
+        exp_alerts:
+          - exp_labels:
+              job: oracle-alloy
+              reason: ingester_error
+              component: stack
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "oracle-alloy is losing log lines to ingester_error"
+              description: >-
+                Loki rejected these entries and Alloy discarded them — there is
+                no retry behind a rejection, so they are gone. Ask Loki which
+                limit it applied with `sum by (reason)
+                (loki_discarded_samples_total)`; the usual answers are an entry
+                older than reject_old_samples_max_age, a stream too far behind,
+                or an ingestion rate limit.
+
+  # --- LogEntriesDropped: quiet on a flat counter ---------------------------
+  # The production state, and the case that matters most here. The counter
+  # EXISTS for every agent — five reasons per loki.write component, all sitting
+  # at zero — so a rule keyed on presence rather than on movement would fire
+  # permanently for every healthy agent in the estate. This is the proof it is
+  # keyed on rate.
+  - interval: 1m
+    input_series:
+      - series: 'loki_write_dropped_entries_total{job="oracle-alloy",reason="rate_limited"}'
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: LogEntriesDropped
+        exp_alerts: []
+
+  # --- JournalSourceStopped: fires on a reader that has stopped -------------
+  # A counter that advanced and then went flat, which is the failure #194 was
+  # filed about: the agent is up, the component is healthy, and no journal
+  # entry is being read. The counter must be non-flat first, because a series
+  # that was never anything but flat is indistinguishable from an agent that has
+  # only just started.
+  - interval: 1m
+    input_series:
+      - series: 'loki_source_journal_target_lines_total{job="prometheus-alloy",component_id="loki.source.journal.journal"}'
+        values: "0+2x60 120x240"
+    alert_rule_test:
+      - eval_time: 300m
+        alertname: JournalSourceStopped
+        exp_alerts:
+          - exp_labels:
+              job: prometheus-alloy
+              component: stack
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "prometheus-alloy has read no journal entries for two hours"
+              description: >-
+                The agent is up and publishing metrics, so this is not an outage
+                — its journal reader has stopped. The quietest host in the estate
+                still produces about three entries an hour, so zero is a fault
+                rather than a quiet night. Check the reader's position file in
+                the alloy-data volume and whether /var/log/journal is still
+                mounted.
+
+  # --- JournalSourceStopped: quiet for the quietest host in the estate -------
+  # `Saruman` reads about 3 entries an hour, which over a 1h rate window is a
+  # number very close to zero without being zero. This is the case that decides
+  # whether the threshold is honest: a rule written as `< 1` or `< 5` per hour
+  # would fire for a host that is working correctly, which is why the expression
+  # asserts `== 0` and this fixture is deliberately as slow as the real thing.
+  - interval: 1m
+    input_series:
+      - series: 'loki_source_journal_target_lines_total{job="Saruman-alloy",component_id="loki.source.journal.journal"}'
+        values: "0+1x300"
+    alert_rule_test:
+      - eval_time: 290m
+        alertname: JournalSourceStopped
+        exp_alerts: []
