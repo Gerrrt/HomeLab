@@ -619,6 +619,34 @@ months.
 
 ## Done
 
+- [x] **[#310](https://github.com/Gerrrt/HomeLab/issues/310) Ask the switch what
+      it is.** 2026-09-06. `sysDescr` joins the `mokerlink` module; `ifType` was
+      walked and deliberately left out. The issue proposed both and named its own
+      failure condition for the second — *"26 identical values would answer
+      nothing"* — which is exactly what came back: `.1.3.6.1.2.1.2.2.1.3.N = 117`
+      on all 26 ports, IANAifType `gigabitEthernet`, uplinks included. It does
+      not distinguish the SFP cages, so it costs 26 varbinds a scrape and carries
+      no information, and on this switch scrape volume is a safety property.
+      Recorded in `generator.yaml` so nobody walks it a third time; the question
+      it was for is answered by looking at the rack.
+
+      `sysDescr` went in, and the honest note is that it says nothing either:
+      `.1.3.6.1.2.1.1.1.0` is the literal string `"Switch"` with a trailing NUL.
+      No model, no firmware, no hardware revision. It is there because the
+      switch was the only SNMP target reporting no `sysDescr` at all, and
+      because it lights up on its own if a firmware bump ever populates it.
+
+      Measured rather than argued, twice. `snmp-walk.sh` first at the module's
+      request shape, per the note that file carries — 1 row, 2 requests, 0.53s,
+      the overshoot being `sysObjectID` answering `.1.3.6.1.4.1.27282` rather
+      than the zero-length OBJECT IDENTIFIER that makes this switch's
+      `ifSpecific` poison a whole response. Then end to end, because a walk
+      probe is not a scrape: the pinned exporter run against the live switch
+      with the regenerated config, beside a control container on the committed
+      one, three interleaved rounds each and identical every time — 31 packets,
+      131 PDUs, 1.46s and 136 series with it, against 30, 130, 1.45s and 135
+      without.
+
 - [x] **[#292](https://github.com/Gerrrt/HomeLab/issues/292) Detect pfSense
       version drift from the box.** 2026-09-04. `sysDescr` joins the `pfsense`
       SNMP module and `scripts/check_versions.py` compares what the documents
