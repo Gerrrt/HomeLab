@@ -1,9 +1,20 @@
 # ADR-0013: Default deny holds everywhere except Hicks and the switch LAN
 
-**Status:** Accepted · 2026-09 · supersedes
+**Status:** Superseded · 2026-09 · by
+[ADR-0025](0025-close-the-switch-lan-to-winterfell.md) · supersedes
 [ADR-0002](0002-vlan-segmentation-strategy.md)
 
 > [!NOTE]
+> Superseded only in its claim about the switch LAN. *"It does not hold for the
+> switch LAN"*, below, stopped being true on 2026-09-06, when
+> `Gerrrt/Lemmiwinks#177` added a logged block from Winterfell to
+> `10.7.7.0/24`. Default deny now holds there too, with SNMP as the named
+> exception, and the title above is wrong by half.
+> [ADR-0025](0025-close-the-switch-lan-to-winterfell.md) records what is
+> actually enforced. Everything else here — the Hicks catch-all, the rule that
+> matches nothing, the reasoning about which interface a rule is evaluated on —
+> is unchanged and still correct. The text is left as written, per ADR-0001.
+>
 > The table of explicit cross-segment passes below gained one row after this
 > was written: `30 | 10.0.30.110 → 10.0.99.20:9090,3100/tcp | Saruman's Alloy
 > agent`, added for [#88](https://github.com/Gerrrt/HomeLab/issues/88) and
