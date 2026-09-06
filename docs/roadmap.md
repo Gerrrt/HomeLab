@@ -619,6 +619,37 @@ months.
 
 ## Done
 
+- [x] **[#344](https://github.com/Gerrrt/HomeLab/issues/344) ADR-0013's title
+      became half false; ADR-0025 supersedes it.** 2026-09-06.
+      `Gerrrt/Lemmiwinks#177` added a logged block from Winterfell to
+      `10.7.7.0/24`, so default deny now holds there with SNMP as the one pass
+      above it — the exact thing ADR-0013 said the switch LAN lacked.
+
+      **The issue declined to fix it because "superseding versus amending is a
+      call for whoever owns the decision record". ADR-0001 already makes that
+      call:** *"ADRs are immutable once accepted. A decision that changes gets a
+      new ADR that supersedes the old one, and the old one is marked Superseded
+      rather than edited."* ADR-0002 → ADR-0013 is the precedent, and its
+      Superseded note is careful to say which claim fell — ADR-0013's now does
+      the same.
+
+      A note would have been the wrong instrument. ADR-0013 already carries one
+      for a table row added later, which is right for a table gaining an entry;
+      a *title* that has become false is not that.
+
+      Read off the firewall rather than taken from the issue: `pfctl -sr` shows
+      the block as rule 174 with the interface catch-all at 175, and the SNMP
+      pass above at 159.
+
+      **That reading also found a hole the issue only suspected.** The
+      `10.0.99.20 → 10.7.7.2:80/tcp` pass, added to keep the `switch-ui` blackbox
+      probes alive while the block landed, is still on the firewall — and those
+      probes were removed in
+      [#343](https://github.com/Gerrrt/HomeLab/pull/343). Verified there is no
+      consumer: nothing probes `10.7.7.2`, and `targets/blackbox.yaml` names it
+      zero times. Removing it is a firewall change on the Lemmiwinks side and is
+      recorded in ADR-0025's consequences rather than silently left.
+
 - [x] **[#166](https://github.com/Gerrrt/HomeLab/issues/166) Measure latency, and
       say where it is.** 2026-09-06. Three targets, a `blackbox-latency` job and
       two rules, so the estate can answer the question #166 opened over — *"is
