@@ -740,6 +740,110 @@ services:
   # the right subset to a remote host with LOKI_URL / PROMETHEUS_REMOTE_WRITE_URL
   # pointed back here; the header of alloy/config.alloy has the reasoning.
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # An allowlisting proxy in front of the Docker socket (#193).
+  #
+  # Alloy needs the Docker API for three things — cAdvisor's container names and
+  # labels, discovery.docker's enumeration, and loki.source.docker's log stream —
+  # and none of them needs write. It used to get that by mounting the socket
+  # directly, marked `:ro`, which is close to decorative: read-only applies to
+  # the socket FILE, not to the API behind it, and anything that can talk to that
+  # API can
+  #
+  #   POST /containers/create {"HostConfig":{"Binds":["/:/host"],"Privileged":true}}
+  #
+  # which is root on this host and the age key with it. #188 took Alloy's
+  # capabilities away and closed the direct read of that key off /rootfs; this
+  # closes the larger half.
+  #
+  # WHAT THIS BUYS, AND WHAT IT DOES NOT. It moves the trust boundary rather than
+  # removing it — this container holds the socket now. What it buys is that
+  # ALLOY no longer has a path to POST, and Alloy is the component with a network
+  # listener, a read-only mount of the whole rootfs and by far the largest attack
+  # surface here. That is worth having. It is not "the socket is now safe".
+  #
+  # Every variable below is an explicit allow, and the image denies by default.
+  # They are the smallest set the three components actually use, and the failure
+  # mode for getting it wrong is the one this repository keeps meeting: a missing
+  # endpoint does not error, it just returns less — cAdvisor silently loses its
+  # `name` labels, or discovery returns nothing, and the agent stays healthy
+  # while collecting less. So the set was verified by measurement after the
+  # switch rather than by reading the docs (#62, #63 are both that shape).
+  #
+  # POST stays 0, which is the whole point, and is what makes the container
+  # create above impossible rather than merely unattempted.
+  # ---------------------------------------------------------------------------
+  docker-socket-proxy:
+    <<: *service-defaults
+    image: tecnativa/docker-socket-proxy:0.3.0@sha256:9e4b9e7517a6b660f2cc903a19b257b1852d5b3344794e3ea334ff00ae677ac2
+    container_name: docker-socket-proxy
+    environment:
+      # What Alloy reads.
+      CONTAINERS: 1   # /containers/json and /containers/{id}/json — names, labels
+      IMAGES: 1       # cAdvisor resolves image names for its series
+      INFO: 1         # /info, which cAdvisor calls on startup
+      VERSION: 1      # /version, the API handshake every client makes first
+      EVENTS: 1       # /events, how discovery.docker notices a new container
+      # NETWORKS is required and was NOT obvious. discovery.docker calls
+      # /networks to compute the network labels it puts on every target, so with
+      # it off the whole component fails:
+      #
+      #   Unable to refresh target groups ... error while computing network
+      #   labels: 403 Forbidden — Request forbidden by administrative rules
+      #
+      # and container log collection stops entirely while the agent stays
+      # healthy and cAdvisor carries on unaffected. That is the exact failure
+      # #193 predicted for a too-narrow allowlist and the reason it insisted on
+      # measurement: loki_source_docker_target_entries_total sat at 0 and
+      # nothing else looked wrong. Still a read.
+      NETWORKS: 1
+      # Everything else stays off. Listed rather than omitted so that turning
+      # one on is a visible edit and not a silent default.
+      POST: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EXEC: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      VOLUMES: 0
+    volumes:
+      # The socket now stops here. This container is the trust boundary, and it
+      # is a 4 MB HAProxy with no network listener beyond the compose bridge.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Not published. The only client is Alloy, on this network.
+    expose:
+      - "2375"
+    mem_limit: 64m
+    memswap_limit: 64m
+    # NOT read_only, and this is the exception #186 asked to have recorded rather
+    # than skipped. The entrypoint GENERATES haproxy.cfg from the environment
+    # above at every start, into its own config directory:
+    #
+    #   can't create /usr/local/etc/haproxy/haproxy.cfg: Read-only file system
+    #
+    # A tmpfs over that directory does not rescue it — it shadows the
+    # haproxy.cfg.template the image ships, and the next start fails with
+    #
+    #   sed: /usr/local/etc/haproxy/haproxy.cfg.template: No such file or directory
+    #
+    # Both were observed by running it, not predicted. So this one container
+    # keeps a writable layer. It still drops every capability and takes
+    # no-new-privileges, it holds no secret, and what it can write is a config
+    # file it generated from environment variables that are themselves in this
+    # file. The thing worth protecting here is the socket, and that is protected
+    # by the allowlist rather than by the filesystem.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
   alloy:
     <<: *service-defaults
     # No `hostname:` here, deliberately. Setting it is the only way to give
@@ -858,6 +962,11 @@ services:
       # deliberately obvious rather than plausible — a host="alloy" label means
       # render was skipped, which is easier to spot than a name that looks right.
       ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-alloy}
+      # Read by all three components in docker.alloy. Unset elsewhere — on
+      # `oracle` the agent still uses the socket directly, because it has no
+      # proxy yet, and the default in that file keeps it working rather than
+      # breaking collection on a host this change does not reach.
+      DOCKER_API: tcp://docker-socket-proxy:2375
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
@@ -868,14 +977,12 @@ services:
     volumes:
       - ./alloy:/etc/alloy:ro
       - alloy-data:/var/lib/alloy/data
-      # The API, not the log files: cAdvisor takes container names and labels
-      # from it, and discovery.docker + loki.source.docker stream stdout through
-      # it. `:ro` is close to decorative — it applies to the socket file, not to
-      # the API behind it, and that API can create a container with / mounted
-      # read-write. It is the one path left from a compromised Alloy to root on
-      # this host, and it is why the capability drop above is defence in depth
-      # rather than a closed door. Tracked separately; see docs/security.md.
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # THE SOCKET IS NO LONGER MOUNTED HERE (#193). It used to be, marked `:ro`,
+      # which is close to decorative — read-only applies to the socket file, not
+      # to the API behind it, and that API can create a container with / mounted
+      # read-write. That was the one path left from a compromised Alloy to root
+      # on this host. Alloy now reaches the API through docker-socket-proxy
+      # above, which permits GETs and refuses POST, and the socket stops there.
       # /var/lib/docker/containers is NOT mounted, though it was until #188.
       # Nothing read it: loki.source.docker streams over the socket above rather
       # than tailing the json-file driver's output, the node exporter names the
@@ -938,7 +1045,7 @@ services:
   # ---------------------------------------------------------------------------
   # Headless renderer for dashboard screenshots. NOT part of the running stack:
   # it sits behind the `capture` profile, so `make up` neither starts it nor
-  # pulls it, and `docker compose ps` shows six services as before.
+  # pulls it, and `docker compose ps` shows eight services as before.
   #
   # It exists because the monitoring host has no browser and Grafana has no
   # built-in PNG export — screenshots for the README were the one artefact this
@@ -1001,7 +1108,7 @@ services:
   # ---------------------------------------------------------------------------
   # tar and gzip for scripts/backup-volumes.sh. NOT part of the running stack:
   # it sits behind the `backup` profile, so `make up` neither starts it nor
-  # pulls it, and `docker compose ps` shows six services as before.
+  # pulls it, and `docker compose ps` shows eight services as before.
   #
   # This service is never actually started. It exists so that the image the
   # backup script runs is pinned in the one place this repository pins images.
@@ -1037,7 +1144,7 @@ services:
   # ---------------------------------------------------------------------------
   # gitleaks for the secret-scan CI job. NOT part of the running stack: it sits
   # behind the `scan` profile, so `make up` neither starts it nor pulls it, and
-  # `docker compose ps` shows six services as before.
+  # `docker compose ps` shows eight services as before.
   #
   # Here for the same reason `archiver` above is. This one was a version pinned
   # in ci.yml's env: block — directly underneath the comment saying image
@@ -1059,7 +1166,7 @@ services:
   # ---------------------------------------------------------------------------
   # actionlint and editorconfig-checker for scripts/lint.sh. NOT part of the
   # running stack: both sit behind the `lint` profile, so `make up` neither
-  # starts nor pulls them, and `docker compose ps` shows six services as before.
+  # starts nor pulls them, and `docker compose ps` shows eight services as before.
   #
   # Here for the same reason `archiver` and `gitleaks` above are. These two were
   # GitHub Actions — raven-actions/actionlint and

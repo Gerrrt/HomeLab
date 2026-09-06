@@ -7,7 +7,15 @@
 // they were declared in the same file. The header of config.alloy says which
 // file goes where.
 //
-// Everything in this file needs /var/run/docker.sock. It is shipped only to
+// WHERE THE DOCKER API COMES FROM (#193). All three components below read
+// DOCKER_API, defaulting to the socket itself. On the monitoring host
+// compose.yaml sets it to the read-only proxy and does not mount the socket at
+// all; anywhere the variable is unset — `oracle` today — the default keeps the
+// previous behaviour rather than breaking collection on a host that has no
+// proxy yet. One file, deployed identically, and the difference expressed as an
+// environment variable rather than as a second copy of this config.
+//
+// Everything in this file needs a Docker API. It is shipped only to
 // hosts that have one — the monitoring host by the compose bind mount, and a
 // Docker host by scripts/deploy-agent.sh when it detects the socket. A host
 // without Docker (Saruman, a Proxmox hypervisor running the native package)
@@ -20,7 +28,7 @@
 // CONTAINER METRICS
 // ============================================================================
 prometheus.exporter.cadvisor "dockermetrics" {
-	docker_host      = "unix:///var/run/docker.sock"
+	docker_host      = coalesce(sys.env("DOCKER_API"), "unix:///var/run/docker.sock")
 	storage_duration = "5m"
 
 	// Once the container can see the host's cgroups (compose sets cgroup: host,
@@ -55,7 +63,7 @@ discovery.relabel "dockermetrics" {
 // ============================================================================
 
 discovery.docker "dockerlogs" {
-	host = "unix:///var/run/docker.sock"
+	host = coalesce(sys.env("DOCKER_API"), "unix:///var/run/docker.sock")
 }
 
 // Ephemeral containers opt out of log collection with `homelab.logs=off`, and
@@ -109,7 +117,7 @@ discovery.relabel "dockerlogs" {
 }
 
 loki.source.docker "default" {
-	host          = "unix:///var/run/docker.sock"
+	host          = coalesce(sys.env("DOCKER_API"), "unix:///var/run/docker.sock")
 	targets       = discovery.relabel.dockerlogs_targets.output
 	labels        = {"platform" = "docker", "log_type" = "docker"}
 	relabel_rules = discovery.relabel.dockerlogs.rules

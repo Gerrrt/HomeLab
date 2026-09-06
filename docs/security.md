@@ -419,11 +419,25 @@ belongs in the selection criteria whenever this switch is replaced.
   published for `oracle`'s agent and remain an accepted residual. See
   [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md).
 - The Alloy debug UI binds to `127.0.0.1` only.
-- The Docker socket is mounted into Alloy. It is marked `:ro`, which is worth
-  less than it looks: read-only applies to the socket *file*, not to the API
-  behind it, and anything that can talk to that API can start a container with
-  the host filesystem mounted read-write. This is the one remaining path from a
-  compromised Alloy to root on the host — see the paragraph below the list.
+- **The Docker socket is no longer mounted into Alloy** (#193). It was, marked
+  `:ro`, which was worth less than it looked: read-only applies to the socket
+  *file*, not to the API behind it, and anything that can talk to that API can
+  start a container with the host filesystem mounted read-write. Alloy now
+  reaches the API through `docker-socket-proxy`, which allowlists the reads its
+  three components need — containers, images, info, version, events and networks
+  — and refuses everything else. Verified rather than assumed:
+  `POST /containers/create` through the proxy returns `403 Forbidden`, while
+  `GET /containers/json` works.
+
+  **This moves the trust boundary rather than removing it.** The proxy container
+  holds the socket now. What it buys is that Alloy — the component with a
+  network listener, a read-only mount of the whole rootfs and by far the largest
+  attack surface here — no longer has a path to `POST`. It is not "the socket is
+  now safe".
+
+  `oracle`'s agent still mounts the socket directly. `docker.alloy` reads the
+  API address from `DOCKER_API` and falls back to the socket when it is unset,
+  so that host keeps working unchanged until it gets a proxy of its own.
 - Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
   `no-new-privileges`, so root inside it is subject to file permissions like any
   other user, and joins only the group that owns `/var/log/syslog` so the auth

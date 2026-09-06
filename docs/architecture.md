@@ -180,7 +180,7 @@ hole from the monitoring VLAN into the monitored one.
 
 | Host | VLAN | Stack | Contents |
 | --- | --- | --- | --- |
-| `prometheus` (10.0.99.20) | 🔴 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, blackbox-exporter, Alloy |
+| `prometheus` (10.0.99.20) | 🔴 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, blackbox-exporter, docker-socket-proxy, Alloy |
 | `Saruman` (10.0.30.110) | 🟢 30 | *(none — and none intended)* | Proxmox VE 9, no guests yet — see [roadmap](roadmap.md); Alloy agent (native package). It runs no compose stack by decision, not by omission: Docker would rewrite the iptables its own firewall relies on ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)), which is why the agent here is the native package and why `stacks/lab` runs in a guest |
 | `alexander` (10.0.30.40) | 🟢 30 | [`stacks/lab`](../stacks/lab) | Prometheus, Loki, Grafana, Alloy — the lab's own observability, which never remote-writes to VLAN 99 ([ADR-0007](adr/0007-defensive-estate-and-offensive-range.md), [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)). A guest on `Saruman`, not the hypervisor; Alloy agent (Docker) |
 | `oracle` (10.0.99.30) | 🔴 99 | *(none — hand-run containers)* | The Lemmiwinks wiki and its Postgres, since 2025-11-12 ([ADR-0011](adr/0011-keep-the-wiki-internal.md)); Alloy agent (Docker, `scripts/deploy-agent.sh`); the off-host copy of the firewall export (`make backup-firewall`). The estate's host for small off-host jobs — [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md) |
@@ -202,6 +202,7 @@ re-shard of everything. Reasoning in
 | Alloy syslog | 1514/udp | `${BIND_ADDR}` | Network syslog receiver — pfSense pushes here |
 | snmp-exporter | 9116 | *compose network only* | Never published to a host interface |
 | blackbox-exporter | 9115 | *compose network only* | Never published — an open prober is an SSRF primitive |
+| docker-socket-proxy | 2375 | *compose network only* | Never published — it holds the Docker socket, and an open one is root on this host |
 
 A port is published only when something off this host uses it
 ([ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)). Grafana
