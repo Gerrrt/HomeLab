@@ -2,6 +2,11 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 STACK       ?= observability
+# How far back check-loki-coverage looks. Long enough that a host which simply
+# had a quiet week is not read as one the rules cannot reach; short enough to
+# stay inside the current log labelling, which is a real constraint rather than
+# a hypothetical one — see the docstring in scripts/check_loki_coverage.py.
+WINDOW      ?= 7d
 STACK_DIR   := stacks/$(STACK)
 COMPOSE     := docker compose -f $(STACK_DIR)/compose.yaml
 SECRETS     := secrets/$(STACK).sops.yaml
@@ -194,6 +199,15 @@ check-container-health: ## Ask the RUNNING stack whether its healthchecks pass (
 .PHONY: check-loki-rules
 check-loki-rules: ## Validate Loki (LogQL) alerting rules and dashboard panel queries
 	./scripts/check_loki_rules.sh
+
+.PHONY: check-loki-coverage
+check-loki-coverage: ## Ask the LIVE Loki whether any rule is blind to a host (deploy-time)
+	@# Not in `make validate`, and not in CI, for the reason check_loki_rules.sh
+	@# gives in its own header: that script boots the pinned image against a
+	@# throwaway config with no data and asks whether the rules PARSE. This asks
+	@# whether they can SEE, which only a Loki holding real logs can answer, and
+	@# CI has no log store at all (#327). WINDOW=24h to narrow it.
+	python3 scripts/check_loki_coverage.py $(STACK) --window $(WINDOW)
 
 .PHONY: check-dashboard-roundtrip
 check-dashboard-roundtrip: ## Boot the pinned Grafana and verify the dashboards round-trip
