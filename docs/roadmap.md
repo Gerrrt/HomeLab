@@ -670,6 +670,93 @@ months.
       a fix: nothing in the documents mentions IPv6 at all, so whether it is
       wanted has to be decided before it is repaired.
 
+- [x] **[#151](https://github.com/Gerrrt/HomeLab/issues/151) SMART on the drives
+      that matter, with no new collection.** 2026-09-06. The issue asked to
+      choose between Scrutiny and `smartctl_exporter`. Working it turned up that
+      **the disks it said mattered most were already being scraped.**
+
+      `Saruman`'s two SAS drives sit behind an HPE Smart Array, and the `ilo`
+      module already walks `1.3.6.1.4.1.232.2`. `cpqDaPhyDrvSmartStatus` was
+      there all along, reading `ok(2)` for both. It had no rule.
+
+      The distinction is the whole issue. `IloHardwareDegraded` already reads
+      `cpqDaPhyDrvCondition > 2` — the drive's CURRENT condition, which moves
+      once redundancy is spent. `cpqDaPhyDrvSmartStatus` is SMART's PREDICTION,
+      and it moves while the array still says everything is fine. On a RAID 1
+      mirror that gap is exactly what #151 was worried about: the mirror keeps
+      serving reads through a dying disk, and the failure only becomes visible
+      when the second one goes.
+
+      Enumeration read out of `cpqida.mib` rather than assumed, in HPE's own
+      words: `replaceDrive(3)` is *"a S.M.A.R.T predictive failure error"*,
+      `replaceDriveSSDWearOut(4)` is approaching the write limit, and `other(1)`
+      is the agent being unable to determine anything.
+
+      Two rules, because "replace this drive" and "I can no longer tell" want
+      different actions. `IloDrivePredictiveFailure` is `> 2` and **warning, not
+      critical** — `IloHardwareDegraded` is critical because redundancy is
+      already spent, this fires before that, and paging at the same level for
+      both would make the critical one mean less. `IloDriveSmartUnreadable` is
+      `== 1` with `for: 1h`, so a controller initialising does not page, and so
+      the predictive check cannot go blind quietly — the #63 shape.
+
+      Five test cases, including `ok(2)` staying quiet (both drives read 2
+      today, so without it the rule would pass its test while firing for a
+      healthy array) and `other(1)` staying quiet for the predictive rule, which
+      is what stops someone widening it to `!= 2`.
+
+      **The rest of the estate is still unwatched and that is
+      [#351](https://github.com/Gerrrt/HomeLab/issues/351).** Neither option
+      #151 proposed fits any more: Scrutiny is a service with its own datastore,
+      which ADR-0004 argues against, and `smartctl_exporter` as a container needs
+      raw device access — it would be the one container reversing `cap_drop`,
+      non-root and `read_only` all at once, to read something the host reads for
+      free. The fit is node_exporter's textfile collector, and the catch is that
+      it needs root while every timer in the `JOBS` table runs as `robo`.
+
+- [x] **[#214](https://github.com/Gerrrt/HomeLab/issues/214) Catch a broken
+      notification path without using it.** 2026-09-06.
+      `scripts/check_alert_channels.py`, in three parts, because the question has
+      three different homes.
+
+      The failure it exists for: 471 of 493 notifications failed over ten and a
+      half hours on 2026-08-31, every receiver at once, because all four read
+      their URL from the same directory and it was unreadable inside the
+      container. `AlertmanagerNotificationsFailing` fired correctly and could not
+      be delivered — the alert about the broken delivery path travelled the
+      broken delivery path. `IloBatteryCondition` was firing and undeliverable
+      through the whole window.
+
+      **The static half now runs in CI**, which is the part that was missing.
+      `render-config.sh` already asserted that every `url_file` has a matching
+      `AM_CHANNELS` entry, but only at render time on the monitoring host — so
+      "added a receiver, forgot the renderer" failed a deploy rather than a pull
+      request. That half needs no secret and no host, so it is pure text and it
+      gates a PR. It checks both directions: a `url_file` nothing renders is the
+      #214 failure waiting to happen, and a rendered file nothing reads is a
+      secret written for no reason.
+
+      `--files` adds **non-empty**, which the existing assertion did not. A SOPS
+      key that is present but blank renders zero bytes, passes an `-f` test, and
+      makes Alertmanager POST to the empty string.
+
+      `--live` is the one that would actually have caught #214, and it is the
+      reason this is a check rather than an alert: it asks what the CONTAINER
+      can open, because there the files were present on this host and absent
+      inside the container. `make up` runs it after every deploy.
+
+      Deliberately does not ask Alertmanager whether it is healthy, and
+      deliberately sends no test notification. A check that depends on the
+      delivery path inherits the blind spot that made this last ten hours. Every
+      assertion reads a file. The dead man's switch is the other half of the
+      answer and remains untested — #288.
+
+      All three failure paths were exercised rather than assumed: a `url_file`
+      with no renderer, a rendered-but-empty file, and a container that cannot
+      see one. The `wc -c` probe returns 1 on a missing file, so the checker
+      reports it rather than crashing on empty output — checked, because that
+      branch is the one that runs on the bad day.
+
 - [x] **[#341](https://github.com/Gerrrt/HomeLab/issues/341) Loki is not losing
       log data.** 2026-09-06. The issue — which I filed — said Loki was
       discarding ~185,000 entries a week. Both halves of that were wrong.
