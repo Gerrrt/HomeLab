@@ -1,0 +1,74 @@
+# Daily check that no Loki rule has gone blind to a host whose logs it is about.
+#
+# This exists because the offline check could not see the fault it was built
+# for, which is the same shape as homelab-check-versions.service above.
+# scripts/check_loki_rules.sh boots the pinned Loki image against a throwaway
+# config with no data and asks whether the rules PARSE — and that passed for
+# five authentication rules that were valid, loaded, evaluated, and matched
+# nothing on two of the four monitored hosts, because they selected
+# log_type="authlog" while Saruman ships a journal and morpheus ships syslog
+# (#261). Parsing and seeing are different questions with the same green
+# symptom.
+#
+# So this asks the live store instead. For each host-scoped rule it compares the
+# hosts the rule's own stream selectors reach against the hosts shipping logs at
+# all, and for a host it cannot reach it asks whether lines matching what the
+# rule hunts exist there anyway. There is no table of which rule should see
+# which host — the expectation comes out of the data, because a table like that
+# drifts and a drifting table is the defect being hunted (#327).
+#
+# WHY DAILY AND NOT WEEKLY
+#
+# #335 proposed weekly and worried that a 7d window against a weekly interval
+# barely overlaps, so a gap opening and closing inside a week could be missed.
+# The framing was wrong in two ways, and both are worth stating because the
+# obvious reading of the window is backwards.
+#
+# First, a long window does not make the check more sensitive — it makes it
+# SLOWER. `reach` counts lines over the window, so a selector that went blind an
+# hour ago still shows the host as reached until the last pre-breakage line
+# falls out of range. A 7d window hides a new gap for up to a week.
+#
+# Second, the overlap worry does not apply to this defect class. A rule going
+# blind is a configuration fault: it does not heal on its own, it persists until
+# somebody fixes it. Tiling 24h windows daily is therefore enough, and a gap
+# that genuinely comes and goes inside a day is an agent restart rather than
+# something to page about.
+#
+# Needs Prometheus's neighbour rather than Prometheus: it reads Loki's query API
+# over localhost and decrypts nothing. That is why this unit needs neither the
+# age key nor a lock, and why the Makefile keeps the target out of `make
+# validate` — CI has no log store to ask.
+#
+# Failure here is a monitoring finding, not an outage. Nothing is broken when it
+# exits 1; an alert rule is quietly unable to fire for a host, which is the
+# thing #261 opened over and the thing #327 built this to catch.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: check Loki rules can see every host they are about
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job loki-coverage -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab check-loki-coverage
+TimeoutStartSec=300
+Restart=no
+Nice=10
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-loki-coverage

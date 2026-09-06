@@ -2,11 +2,32 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 STACK       ?= observability
-# How far back check-loki-coverage looks. Long enough that a host which simply
-# had a quiet week is not read as one the rules cannot reach; short enough to
-# stay inside the current log labelling, which is a real constraint rather than
-# a hypothetical one — see the docstring in scripts/check_loki_coverage.py.
-WINDOW      ?= 7d
+# How far back check-loki-coverage looks, and the reason it is 24h rather than
+# the 7d it started as (#335). The window is not a sensitivity dial in the
+# direction it looks: BOTH sides of the check's comparison use it, so a host
+# that goes quiet drops out of the denominator as well as the numerator and the
+# check goes vacuous rather than wrong. What the window actually sets is
+# DETECTION LAG. `reach` counts lines over the window, so a selector that went
+# blind an hour ago still shows the host as reached until the last pre-breakage
+# line falls out of range — a 7d window hides a new gap for up to a week.
+#
+# 24h is as short as the estate allows. Measured 2026-09-06, lines per host:
+#
+#   window   Saruman   morpheus   oracle   prometheus
+#   1h            15      5,048      204          326
+#   24h          186     89,340    5,379       45,998
+#
+# Saruman is the constraint at ~15 lines an hour and is comfortably present at
+# 24h. The cost of the shorter window, stated rather than glossed: a host whose
+# *subject* lines are rare — Saruman produced 2 SSH accepts in seven days — has
+# none inside 24h, so a real gap there is reported as a latent WARN instead of a
+# live FAIL. Verified both ways against the pre-#261 rules, where 24h still
+# exits 1 on morpheus.
+#
+# Overridable per run (WINDOW=7d make check-loki-coverage) and inherited by
+# homelab-loki-coverage.service, which sets no window of its own — one number,
+# in one place.
+WINDOW      ?= 24h
 STACK_DIR   := stacks/$(STACK)
 COMPOSE     := docker compose -f $(STACK_DIR)/compose.yaml
 SECRETS     := secrets/$(STACK).sops.yaml
