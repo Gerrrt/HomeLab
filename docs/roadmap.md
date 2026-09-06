@@ -619,6 +619,55 @@ months.
 
 ## Done
 
+- [x] **[#249](https://github.com/Gerrrt/HomeLab/issues/249) Watch the UPS
+      self-test schedule.** 2026-09-06. `#93` set `mjolnir` to test itself every
+      fortnight and nothing in the stack could see that setting, so the control
+      keeping `upsTestResultsSummary` meaningful was itself unmonitored.
+
+      **The vendor MIB turned out not to be the cost the issue expected.** #249
+      framed adding PowerNet as "a pinning decision, not a URL" — Schneider
+      distribute it as a versioned download rather than a git ref, so the
+      options looked like vendoring 2.2 MB into the tree or trusting a moving
+      vendor path. Neither was needed: the observium commit this repository
+      **already pins** for UPS-MIB carries `mibs/apc/PowerNet-MIB` too. The line
+      added is a path against an existing pin, inheriting its argument unchanged.
+
+      One subtree, `1.3.6.1.4.1.318.1.1.1.7.2`, never the enterprise root — the
+      `pfTablesAddrTable` lesson one vendor along. Measured against the live
+      card: 7 rows, 2 GETBULKs, 0.07s to walk, and end to end the scrape goes
+      from 3 packets / 51 PDUs / 56 series to 4 / 58 / 63.
+
+      Two rules, and they are a pair on purpose. `UpsSelfTestScheduleOff` is the
+      fast signal, true the moment the card reads `never(5)`;
+      `UpsSelfTestStale` is the backstop for a card that says it is scheduled
+      and is not. Either alone leaves half the failure.
+
+      The enumeration was read out of the MIB rather than assumed, because an
+      older PowerNet enumeration stopping at `twelveWeeks(7)` is in circulation
+      and would read this card's `8` as out of range — the real definition runs
+      to `fiftytwoWeeks(12)`. A unit test pins `8` as quiet for exactly that
+      reason: a rule that fired for the estate's correct setting would be worse
+      than no rule.
+
+      `UpsSelfTestStale` counts distinct series over 21 days rather than using
+      `for:`, because `upsAdvTestLastDiagnosticsDate` is a DisplayString and
+      snmp_exporter renders it as a value-1 gauge carrying the date as a label —
+      so "the date changed" is "a second series appeared", and no date parsing
+      is needed. It is gated on `up{job="snmp"}` because a dead exporter
+      produces no new series either and would otherwise read as a card that
+      stopped testing.
+
+      **`tests/ups.test.yaml` did not exist**; nine rules were syntax-only,
+      which is the standing #63 objected to. It does now, with seven cases
+      covering both new rules — including the dead-exporter trap and the
+      long-schedule case that stops someone tidying the expression into
+      `<= 5 or >= 10`.
+
+      Still outstanding and not a monitoring question: the proof the schedule
+      *runs* rather than merely being set is the date advancing with nobody at
+      the card, due around 2026-09-11. As of 2026-09-06 it still reads
+      `08/28/2026`. `UpsSelfTestStale` is now what will say so if it does not.
+
 - [x] **[#194](https://github.com/Gerrrt/HomeLab/issues/194) The journal is not
       under-delivered; the measurement was.** 2026-09-06. The issue reported
       Alloy shipping ~1.5% of the host journal. It ships all of it.

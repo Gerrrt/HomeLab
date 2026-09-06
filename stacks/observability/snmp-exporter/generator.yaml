@@ -48,6 +48,37 @@ modules:
   apc_ups:
     walk:
       - 1.3.6.1.2.1.33.1  # UPS-MIB::upsObjects
+      # APC's own tree, for the one thing UPS-MIB has no concept of: the self-test
+      # SCHEDULE. UPS-MIB carries upsTestResultsSummary — the LAST result — and
+      # nothing that says another test is ever coming. #93 set this card to test
+      # itself every fortnight and #249 found that the control keeping that
+      # result meaningful was itself unmonitored: if the card drops back to
+      # never(5) after a config reset or a firmware update, upsTestResultsSummary
+      # holds donePass forever and every rule in ups.rules.yaml stays correctly
+      # quiet. UpsBatteryUnproven cannot catch it either — it matches
+      # noTestsInitiated(6), and a card that has stopped testing still reads 1.
+      #
+      # ONE SUBTREE, NOT THE ENTERPRISE ROOT. 1.3.6.1.4.1.318 is enormous and
+      # walking it is the pfTablesAddrTable mistake one vendor along; the pfsense
+      # module above descends into .1.9 rather than taking it whole for exactly
+      # this reason. .7.2 is the diagnostics group: 7 rows, 2 GETBULKs, 0.07s
+      # measured against the live card on 2026-09-06.
+      #
+      # Read that day, and matching what #249 recorded three days earlier:
+      #
+      #   .7.2.1.0  upsAdvTestDiagnosticSchedule    8   biweeklySinceLastTest
+      #   .7.2.3.0  upsAdvTestDiagnosticsResults    1   ok
+      #   .7.2.4.0  upsAdvTestLastDiagnosticsDate   "08/28/2026"
+      #
+      # The enumeration matters and is the one thing easy to get wrong here.
+      # PowerNet's own definition runs unknown(1), biweekly(2), weekly(3),
+      # atTurnOn(4), never(5), fourWeeks(6), twelveWeeks(7),
+      # biweeklySinceLastTest(8), weeklySinceLastTest(9), eightWeeks(10),
+      # twentysixWeeks(11), fiftytwoWeeks(12) — read out of the MIB rather than
+      # assumed. An older enumeration stopping at 7 would read this card's 8 as
+      # out of range, and a rule built on that would be wrong about the one
+      # value the card actually holds.
+      - 1.3.6.1.4.1.318.1.1.1.7.2  # PowerNet-MIB::upsAdvTest (diagnostics)
 
   # pfSense (morpheus, 10.0.99.1) — BEGEMOT-PF-MIB, plus one HOST-RESOURCES
   # table. Packet filter counters, state table usage, per-interface pf

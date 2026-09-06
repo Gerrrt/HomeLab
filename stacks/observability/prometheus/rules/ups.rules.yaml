@@ -49,39 +49,39 @@
 # 2026-09-20 (54f1715c-e57b-4322-8a6d-5435bc8e1bd8) was deleted on 2026-08-28,
 # so both rules are live.
 #
-# WHAT THIS FILE STILL CANNOT SEE.
+# WHAT THIS FILE COULD NOT SEE UNTIL #249.
 #
-# Scheduled self-tests ARE enabled on the NMC. Read off the card on 2026-09-03:
+# Scheduled self-tests are enabled on the NMC. Read off the card on 2026-09-06,
+# matching what #249 recorded three days earlier:
 #
 #   upsAdvTestDiagnosticSchedule   8    (biweeklySinceLastTest)
 #   upsAdvTestDiagnosticsResults   1    (ok)
 #   upsAdvTestLastDiagnosticsDate  "08/28/2026"
 #
-# All three are PowerNet (1.3.6.1.4.1.318.1.1.1.7.2.x), and the apc_ups module
-# in snmp-exporter/generator.yaml walks 1.3.6.1.2.1.33.1 — the standard UPS-MIB
-# — and nothing else. So none of it reaches Prometheus, and no rule below can
-# be written against it.
+# All three are PowerNet (1.3.6.1.4.1.318.1.1.1.7.2.x), and until #249 the
+# apc_ups module walked 1.3.6.1.2.1.33.1 — the standard UPS-MIB — and nothing
+# else. None of it reached Prometheus, so no rule here could be written against
+# it, and that left a hole worth naming precisely.
 #
-# That leaves one hole open. A value of 1 is the *last* result, not a fresh one:
-# if the card stops testing, upsTestResultsSummary simply stops changing, and
-# nothing here detects that. UpsBatteryUnproven cannot — it matches 6
-# (noTestsInitiated), and this card reads 1. upsTestStartTime is
+# upsTestResultsSummary is the LAST result, not a fresh one. If the card stops
+# testing it simply stops changing, and every rule below stays correctly quiet.
+# UpsBatteryUnproven cannot catch it — that matches 6 (noTestsInitiated) and a
+# card that has stopped testing still reads 1. upsTestStartTime is
 # sysUpTime-relative and does not survive an agent restart, so it is not a
 # usable staleness signal either. A card that quietly reverts to never(5) — a
-# config reset, a firmware update, a restored configuration file — is
+# config reset, a firmware update, a restored configuration file — was
 # indistinguishable, from inside this file, from one testing every fortnight.
 #
-# The fix is to walk those three OIDs and alert on the schedule leaving the
-# recurring values and on the last-test date going stale, which needs APC's
-# PowerNet MIB added to scripts/snmp-mibs.sh and a pinning decision for it. That
-# is issue #249, not this file. Until it lands, the check is by hand:
+# UpsSelfTestScheduleOff and UpsSelfTestStale below close that, and they are a
+# pair on purpose: the first is the fast signal, true the moment the card reads
+# never(5); the second is the backstop for a card that says it is scheduled and
+# is not. Either alone would leave half the failure.
 #
-#   scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2
-#
-# and the thing that proves the schedule runs, rather than merely being set, is
+# The thing that proves the schedule RUNS rather than merely being set is
 # upsAdvTestLastDiagnosticsDate advancing with nobody at the card — due around
-# 2026-09-11 for a biweekly schedule last tested on 2026-08-28. Step 6 of
-# docs/runbooks/fit-the-ups-battery.md.
+# 2026-09-11 for a biweekly schedule last tested on 2026-08-28. As of 2026-09-06
+# it has not moved yet, which is expected and not yet evidence either way.
+# UpsSelfTestStale is what will say so if it does not.
 #
 # Do not run self-tests by hand to keep the metric warm. A test transfers the
 # load to battery, and on a pack that is weak that is the outage the alert
@@ -232,3 +232,88 @@ groups:
             way — scripts/snmp-walk.sh --device mjolnir
             1.3.6.1.4.1.318.1.1.1.7.2 — and if the schedule is off, turn it on
             rather than running tests by hand.
+
+      - alert: UpsSelfTestScheduleOff
+        # The control #93 set, watched. Nothing above can see the schedule; this
+        # is the only rule that does, and it is the fast half of the pair.
+        #
+        # 1 unknown, 4 atTurnOn, 5 never — the three values that mean no
+        # recurring test. The full PowerNet enumeration is unknown(1),
+        # biweekly(2), weekly(3), atTurnOn(4), never(5), fourWeeks(6),
+        # twelveWeeks(7), biweeklySinceLastTest(8), weeklySinceLastTest(9),
+        # eightWeeks(10), twentysixWeeks(11), fiftytwoWeeks(12), read out of the
+        # MIB rather than assumed. An older enumeration stopping at 7 is in
+        # circulation and would read this card's 8 as out of range — a rule
+        # built on that would be wrong about the one value the card holds.
+        #
+        # 10, 11 and 12 are deliberately NOT here. They are real schedules, just
+        # long ones, and a card set to fifty-two weeks is caught by
+        # UpsSelfTestStale below rather than by this — which is the right
+        # division, because "not recurring at all" and "recurring too slowly to
+        # be a control" are different findings with different fixes.
+        # Written as three comparisons rather than a regex: `=~` is a LABEL
+        # matcher in PromQL and does not apply to a sample's value, so
+        # `metric =~ 1|4|5` is a parse error rather than the shorthand it looks
+        # like.
+        expr: |
+          upsAdvTestDiagnosticSchedule == 1
+          or upsAdvTestDiagnosticSchedule == 4
+          or upsAdvTestDiagnosticSchedule == 5
+        for: 15m
+        labels:
+          component: ups
+          severity: warning
+          category: power
+        annotations:
+          summary: "{{ $labels.device }} is no longer scheduled to self-test"
+          description: >-
+            The card's automatic battery test schedule reads {{ $value }} —
+            unknown, at-turn-on or never — so no recurring test is coming.
+            upsTestResultsSummary will hold its last result indefinitely and
+            every other rule in this file will stay quiet. Set it back to
+            biweekly in the NMC; see docs/runbooks/fit-the-ups-battery.md.
+
+      - alert: UpsSelfTestStale
+        # The backstop: a card that says it is scheduled and is not.
+        #
+        # NO DATE PARSING, and none is needed. upsAdvTestLastDiagnosticsDate is a
+        # DisplayString, which snmp_exporter renders as a value-1 gauge carrying
+        # the string as a label — verified against the live card, which returns
+        #
+        #   upsAdvTestLastDiagnosticsDate{upsAdvTestLastDiagnosticsDate="08/28/2026"} 1
+        #
+        # so each distinct date is a distinct series and counting series over a
+        # range counts TESTS. One distinct date in 21 days means the date has not
+        # changed in 21 days.
+        #
+        # 21 = the fortnightly schedule plus a week of grace, so a test that
+        # slips does not page.
+        #
+        # Expressed against the stored series rather than as a long `for:`, for
+        # the reason UpsBatteryUnproven states: a `for: 21d` restarts its clock
+        # whenever Prometheus does, so it would never fire on a box that is
+        # redeployed more often than three weeks. This reads history instead.
+        #
+        # GATED ON THE SCRAPE BEING UP, which is the trap in a rule shaped like
+        # this: a dead exporter produces no new series either, and would
+        # otherwise read as a card that stopped testing. `up` for the snmp job is
+        # the discriminator, and it makes the rule silent about a fault
+        # SnmpTargetDown already owns.
+        expr: |
+          count by (device) (last_over_time(upsAdvTestLastDiagnosticsDate[21d])) == 1
+          and on(device) (up{job="snmp"} == 1)
+        labels:
+          component: ups
+          severity: warning
+          category: power
+        annotations:
+          summary: "{{ $labels.device }} has not completed a self-test in 21 days"
+          description: >-
+            upsAdvTestLastDiagnosticsDate has reported one distinct date for
+            three weeks against a fortnightly schedule, so the card is not
+            testing even if it says it is. That makes upsTestResultsSummary a
+            stale pass rather than a fresh one. Read the card with
+            `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2`.
+            Do NOT run a test by hand to clear this — a test transfers the load
+            to battery, which on a weak pack is the outage the alert exists to
+            warn about.

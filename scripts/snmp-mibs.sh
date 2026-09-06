@@ -62,6 +62,14 @@ command -v tar  >/dev/null 2>&1 || die "tar not found"
 NET_SNMP_URL='https://raw.githubusercontent.com/net-snmp/net-snmp/v5.9/mibs'
 FREEBSD_URL='https://raw.githubusercontent.com/freebsd/freebsd-src/release/14.2.0'
 UPS_MIB_URL='https://raw.githubusercontent.com/pgmillon/observium/9064fa3ae1ae634709198decf99aca7380693351/mibs/UPS-MIB'
+# PowerNet, from the SAME observium commit as UPS-MIB above, which is the whole
+# reason this line is cheap. #249 expected adding APC's vendor MIB to be "a
+# pinning decision, not a URL" — Schneider distribute it as a versioned download
+# rather than a git ref, so the options were vendoring 2.2 MB into the tree or
+# trusting a moving vendor path. Neither is needed: the commit this repository
+# already pins for UPS-MIB carries mibs/apc/PowerNet-MIB too, so this adds a
+# path to an existing pin and inherits its argument unchanged.
+POWERNET_MIB_URL='https://raw.githubusercontent.com/pgmillon/observium/9064fa3ae1ae634709198decf99aca7380693351/mibs/apc/PowerNet-MIB'
 HPE_URL='https://downloads.hpe.com/pub/softlib2/software1/pubsw-linux/p1580676047/v229101/upd11.85mib.tar.gz'
 
 CURL_OPTS=(-L -sS --retry 3 --retry-delay 3 --fail --max-time 180)
@@ -97,6 +105,20 @@ done
 # ---------------------------------------------------------------------------
 info "UPS-MIB"
 fetch UPS-MIB "${UPS_MIB_URL}"
+
+# ---------------------------------------------------------------------------
+# PowerNet, APC's own tree (1.3.6.1.4.1.318). UPS-MIB above covers battery,
+# input, output and the LAST self-test result; it has no concept of a self-test
+# SCHEDULE, which is the control #93 set and #249 found nothing watching.
+#
+# 2.2 MB and 70,663 lines for three scalars, which looks disproportionate and is
+# not: the generator reads the whole tree to resolve three OIDs and emits only
+# what generator.yaml asks for. The apc_ups module walks
+# 1.3.6.1.4.1.318.1.1.1.7.2 and nothing else of 318 — walking the enterprise
+# root is the pfTablesAddrTable mistake, one vendor along.
+# ---------------------------------------------------------------------------
+info "PowerNet-MIB (APC)"
+fetch PowerNet-MIB "${POWERNET_MIB_URL}"
 
 # ---------------------------------------------------------------------------
 # pfSense exposes pf through FreeBSD's bsnmpd. BEGEMOT-PF-MIB imports from

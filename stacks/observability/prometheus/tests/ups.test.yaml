@@ -1,0 +1,176 @@
+---
+# Unit tests for ups.rules.yaml.
+#
+# This file did not exist before #249. Nine rules were validated for syntax and
+# nothing else, which is the standing #63 objected to — `promtool check rules`
+# passes a rule that can never be true, and the two rules added by #249 are both
+# in that risky shape: one compares a sample's value against an enumeration, and
+# the other counts series over a range instead of using `for:`.
+#
+# The pairing is the point, and it is the argument containers.test.yaml makes at
+# length: a case that only ever expects silence would pass against a rule that
+# can never fire. Every rule below gets a firing case AND the production input,
+# because the production input is what a broken rule is most likely to be
+# accidentally right about.
+#
+# Only the two new rules are covered. The other nine are unchanged by #249 and
+# are still syntax-only — stated here rather than left for someone to discover,
+# the way stack.test.yaml names its own gaps.
+rule_files:
+  - ../rules/ups.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- UpsSelfTestScheduleOff: fires on never(5) ----------------------------
+  # The failure #249 exists for: a card that reverts to never after a config
+  # reset or a firmware update. Everything else in ups.rules.yaml stays quiet
+  # through this, because upsTestResultsSummary keeps reporting the last pass.
+  - interval: 1m
+    input_series:
+      - series: 'upsAdvTestDiagnosticSchedule{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "5x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: UpsSelfTestScheduleOff
+        exp_alerts:
+          - exp_labels:
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              component: ups
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "mjolnir is no longer scheduled to self-test"
+              description: >-
+                The card's automatic battery test schedule reads 5 — unknown,
+                at-turn-on or never — so no recurring test is coming.
+                upsTestResultsSummary will hold its last result indefinitely and
+                every other rule in this file will stay quiet. Set it back to
+                biweekly in the NMC; see docs/runbooks/fit-the-ups-battery.md.
+
+  # --- UpsSelfTestScheduleOff: fires on atTurnOn(4) too ---------------------
+  # Not a duplicate of the case above. The rule is three `or`ed comparisons
+  # rather than a set membership, so each arm can be wrong independently — and 4
+  # is the arm most easily lost, sitting between two that look more obviously
+  # like "off".
+  - interval: 1m
+    input_series:
+      - series: 'upsAdvTestDiagnosticSchedule{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "4x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: UpsSelfTestScheduleOff
+        exp_alerts:
+          - exp_labels:
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              component: ups
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "mjolnir is no longer scheduled to self-test"
+              description: >-
+                The card's automatic battery test schedule reads 4 — unknown,
+                at-turn-on or never — so no recurring test is coming.
+                upsTestResultsSummary will hold its last result indefinitely and
+                every other rule in this file will stay quiet. Set it back to
+                biweekly in the NMC; see docs/runbooks/fit-the-ups-battery.md.
+
+  # --- UpsSelfTestScheduleOff: quiet on the value the card actually holds ----
+  # 8 is biweeklySinceLastTest, read off mjolnir on 2026-09-06. This is the case
+  # that catches the enumeration mistake #249 warns about: an older PowerNet
+  # enumeration stops at twelveWeeks(7), and a rule written against it would
+  # treat 8 as out of range. A rule that fired for the estate's real, correct
+  # setting is worse than no rule.
+  - interval: 1m
+    input_series:
+      - series: 'upsAdvTestDiagnosticSchedule{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "8x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: UpsSelfTestScheduleOff
+        exp_alerts: []
+
+  # --- UpsSelfTestScheduleOff: quiet on the long schedules ------------------
+  # 12 is fiftytwoWeeks. Deliberately not in the rule: it is a real schedule,
+  # just a useless one, and UpsSelfTestStale is what says so. This fixture is
+  # what stops someone "tidying" the expression into `<= 5 or >= 10`.
+  - interval: 1m
+    input_series:
+      - series: 'upsAdvTestDiagnosticSchedule{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "12x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: UpsSelfTestScheduleOff
+        exp_alerts: []
+
+  # --- UpsSelfTestStale: fires when the date has not moved in 21 days -------
+  # One distinct date across the range, with the scrape up. The date lives in a
+  # label because snmp_exporter renders a DisplayString as a value-1 gauge, so
+  # "the date changed" is "a second series appeared" — which is what makes this
+  # countable without parsing anything.
+  #
+  # 22 days of samples at 30m so the 21d range is fully covered.
+  - interval: 30m
+    input_series:
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="08/28/2026"}'
+        values: "1x1056"
+      - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "1x1056"
+    alert_rule_test:
+      - eval_time: 528h
+        alertname: UpsSelfTestStale
+        exp_alerts:
+          - exp_labels:
+              device: mjolnir
+              component: ups
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "mjolnir has not completed a self-test in 21 days"
+              description: >-
+                upsAdvTestLastDiagnosticsDate has reported one distinct date for
+                three weeks against a fortnightly schedule, so the card is not
+                testing even if it says it is. That makes upsTestResultsSummary
+                a stale pass rather than a fresh one. Read the card with
+                `scripts/snmp-walk.sh --device mjolnir
+                1.3.6.1.4.1.318.1.1.1.7.2`. Do NOT run a test by hand to clear
+                this — a test transfers the load to battery, which on a weak
+                pack is the outage the alert exists to warn about.
+
+  # --- UpsSelfTestStale: quiet when a test has happened ---------------------
+  # Two distinct dates inside the range, which is a card testing normally. The
+  # production state, and the proof the rule is counting dates rather than
+  # merely asserting the series exists.
+  - interval: 30m
+    input_series:
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="08/28/2026"}'
+        values: "1x528"
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="09/11/2026"}'
+        values: "_x528 1x528"
+      - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "1x1056"
+    alert_rule_test:
+      - eval_time: 528h
+        alertname: UpsSelfTestStale
+        exp_alerts: []
+
+  # --- UpsSelfTestStale: quiet when the exporter is down -------------------
+  # THE TRAP THIS RULE IS MOST LIKELY TO FALL INTO. A dead snmp target produces
+  # no new date series either, so without the `up` gate this rule would report a
+  # card that stopped testing whenever the exporter stopped scraping — a true
+  # alert about the wrong thing, raised against the wrong runbook.
+  # SnmpTargetDown owns that failure; this must stay silent for it.
+  - interval: 30m
+    input_series:
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="08/28/2026"}'
+        values: "1x1056"
+      - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "0x1056"
+    alert_rule_test:
+      - eval_time: 528h
+        alertname: UpsSelfTestStale
+        exp_alerts: []
