@@ -177,72 +177,63 @@ groups:
             this host. Metrics from it are being lost, not queued.
 
       - alert: LogEntriesDropped
-        # Alloy accepted a log line and Loki refused it. The line is gone: there
-        # is no retry queue behind a rejection, unlike the network errors
+        # Alloy accepted a log line and Loki refused it. There is no retry
+        # behind a rejection, unlike the network errors
         # loki_write_batch_retries_total counts.
         #
-        # This was found by #194, which was filed about a different thing. The
-        # journal is delivered in full — 98.8% on the day that issue measured
-        # 1.5%, and 100% today — but looking for the gap turned up a real one
-        # underneath. Over the seven days to 2026-09-06 Loki discarded roughly
-        # 185,000 entries and nothing said so:
+        # WHAT #341 ESTABLISHED, and why this rule is shaped by duration rather
+        # than by reason. Every discard in the seven days to 2026-09-06 was an
+        # Alloy restart replaying history, in three flavours of the same event:
         #
-        #   greater_than_max_sample_age   146,867
-        #   too_far_behind                 26,398
-        #   rate_limited                   11,704
+        #   greater_than_max_sample_age   the docker source re-reading a
+        #                                 container's log from the start. oracle's
+        #                                 `db` container has been up nine months,
+        #                                 so the replay carried an entry stamped
+        #                                 2026-08-11 against a 168h limit.
+        #   too_far_behind                the journal source replaying its
+        #                                 max_age = 24h against a stream already
+        #                                 current.
+        #   rate_limited                  the same replay arriving faster than
+        #                                 Loki's default ingestion limit.
         #
-        # Every drop the agents recorded in that window carried
-        # reason="ingester_error", which is Alloy's name for "Loki said no" and
-        # is where all three of the above arrive. Peaks were 121,529 entries
-        # from `oracle` on 09-03 and 15,588 from this host on 09-06.
+        # The timings are exact: oracle's agent started 02:37:07 on 09-04 and
+        # Loki logged the rejection at 02:38:21; this host's started 02:54:07 and
+        # its rejection landed at 02:54:15. The replayed entries are duplicates
+        # already in the store, so nothing was lost — Loki refusing them is the
+        # system working.
         #
-        # `> 0` with no tolerance band, deliberately. A dropped log line is not a
-        # degradation to be graded — it is evidence that no longer exists, and
-        # the difference between one and a thousand is a matter of how long
-        # nobody looked. `for: 15m` is what keeps a single rejected batch during
-        # a Loki restart from paging.
+        # An earlier version of this rule excluded too_far_behind by name. That
+        # was the wrong axis: it silenced one flavour of a benign event while
+        # leaving the other two to page, and it would have hidden a genuine
+        # too_far_behind — a stream persistently trailing — along with them.
         #
-        # By reason, because the reasons want different fixes: an ingest limit
-        # is a Loki config change, a sample age is an agent replaying a backlog
-        # older than reject_old_samples_max_age, and rate_limited is neither.
-        # Why Loki is refusing them at all is tracked separately (#341).
+        # DURATION IS THE DISCRIMINATOR. A restart burst is one step in the
+        # counter, so rate() over 15m is positive for 15 minutes and no longer.
+        # `for: 1h` cannot be satisfied by it, and is satisfied by loss that
+        # keeps happening. That keeps every reason in scope: an ingest limit
+        # being hit steadily, a stream permanently behind, a line too long — all
+        # still fire, and none of them is a redeploy.
         #
-        # `too_far_behind` IS EXCLUDED, and the exclusion is the difference
-        # between a useful alert and one that fires on every deploy. Measured
-        # while testing #186: an Alloy with no position file replays up to
-        # `max_age = "24h0m0s"` of journal on start, and Loki rejects almost all
-        # of it against a stream that is already current —
-        #
-        #   entry too far behind, entry timestamp is: 2026-09-06T04:38:22Z,
-        #   oldest acceptable timestamp is:           2026-09-06T16:24:52Z
-        #
-        # — which is +19,490 discards from one agent start. Those entries are
-        # duplicates the previous agent already delivered, so nothing is lost;
-        # counting them as loss would page after every `make up`, and this
-        # repository has enough experience of an alert that cries wolf to know
-        # where that ends.
-        #
-        # What that costs, said plainly: a stream PERSISTENTLY behind rather
-        # than briefly replaying is real and this will not see it. That is the
-        # other half of #341 and wants a rule shaped around duration, not a
-        # counter delta.
+        # `> 0` with no tolerance band inside that hour, deliberately. A dropped
+        # log line is not a degradation to be graded; it is evidence that no
+        # longer exists.
         expr: |
-          sum by (job, reason) (
-            rate(loki_write_dropped_entries_total{reason!="too_far_behind"}[15m])
-          ) > 0
-        for: 15m
+          sum by (job, reason) (rate(loki_write_dropped_entries_total[15m])) > 0
+        for: 1h
         labels:
           component: stack
           severity: warning
           category: correctness
         annotations:
-          summary: "{{ $labels.job }} is losing log lines to {{ $labels.reason }}"
+          summary: "{{ $labels.job }} has been losing log lines to {{ $labels.reason }} for an hour"
           description: >-
-            Loki rejected these entries and Alloy discarded them — there is no
-            retry behind a rejection, so they are gone. Ask Loki which limit it
-            applied with `sum by (reason) (loki_discarded_samples_total)`; the
-            usual answers are an entry older than reject_old_samples_max_age, a
-            stream too far behind, or an ingestion rate limit.
+            Loki has been rejecting these entries for an hour, so this is not the
+            burst an agent restart produces — that lasts minutes and clears.
+            Ask Loki which limit it is applying with
+            `sum by (reason) (loki_discarded_samples_total)`. An entry older than
+            reject_old_samples_max_age or a stream too far behind means an agent
+            is replaying rather than tailing; rate_limited means the estate is
+            producing more than the ingester accepts.
 
       - alert: JournalSourceStopped
         # The journal reader is alive and reading nothing.

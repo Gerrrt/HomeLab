@@ -361,8 +361,10 @@ Loki, and two rules in `stack.rules.yaml` watch that:
   has read no journal entries for two hours. Zero is a safe assertion rather
   than a tuned threshold because the quietest host in the estate, `Saruman`,
   still reads about three entries an hour — measured, not assumed.
-- `LogEntriesDropped` fires when Loki *rejects* what an agent sends. There is no
-  retry behind a rejection, so those lines are gone.
+- `LogEntriesDropped` fires when Loki *rejects* what an agent sends, and only
+  when it keeps doing so for an hour. There is no retry behind a rejection, so
+  those lines are gone — but an agent restart produces a burst of rejections
+  that are not loss at all, and `for: 1h` is what separates the two.
 
 Both came out of [#194](https://github.com/Gerrrt/HomeLab/issues/194), which
 reported the journal arriving at 1.5%. That turned out to be a measurement

@@ -619,6 +619,44 @@ months.
 
 ## Done
 
+- [x] **[#341](https://github.com/Gerrrt/HomeLab/issues/341) Loki is not losing
+      log data.** 2026-09-06. The issue — which I filed — said Loki was
+      discarding ~185,000 entries a week. Both halves of that were wrong.
+
+      **The arithmetic.** It summed `max_over_time` of a *cumulative* counter
+      over 7 days, which includes everything accumulated before the window.
+      113,630 of the 146,867 predated it. The true in-window increase was 33,237,
+      in a single event.
+
+      **The conclusion.** Every discard was an Alloy restart replaying history,
+      in three flavours of one event: `greater_than_max_sample_age` is the docker
+      source re-reading a container's log from the start — oracle's `db` has been
+      up nine months, so the replay carried an entry stamped 2026-08-11 against a
+      168h limit; `too_far_behind` is the journal source replaying its 24h
+      `max_age` against a stream already current; `rate_limited` is the same
+      replay arriving faster than Loki's default ingestion limit.
+
+      The timings settle it. oracle's agent started 02:37:07 on 09-04 and Loki
+      logged its rejection at 02:38:21; this host's started 02:54:07 and its
+      rejection landed at 02:54:15. The replayed entries are duplicates already
+      in the store, so nothing was lost — Loki refusing them is the system
+      working. Nothing has moved since: `greater_than_max_sample_age` flat for
+      two days, `rate_limited` zero over 15m, 1h and 3h.
+
+      `LogEntriesDropped` is reshaped around **duration rather than reason**. It
+      previously excluded `too_far_behind` by name, which was the wrong axis: it
+      silenced one flavour of a benign event, left the other two to page after
+      every deploy, and would have hidden a genuine persistently-behind stream.
+      A restart burst keeps `rate()` positive for the drain plus fifteen minutes;
+      `for: 1h` cannot be satisfied by that and is satisfied by loss that keeps
+      happening, so every reason stays in scope.
+
+      The regression test took two attempts to be worth anything. A single-step
+      fixture passes under both forms — the rate from one step is positive for
+      exactly the window length, one minute short of `for: 15m`. The committed
+      fixture climbs over six minutes, which is what a real replay does, and it
+      fails at `for: 15m` and passes at `for: 1h`.
+
 - [x] **[#249](https://github.com/Gerrrt/HomeLab/issues/249) Watch the UPS
       self-test schedule.** 2026-09-06. `#93` set `mjolnir` to test itself every
       fortnight and nothing in the stack could see that setting, so the control
