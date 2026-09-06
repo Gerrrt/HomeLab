@@ -740,12 +740,25 @@ services:
       # failure at start. Nothing needs the container side to be 514.
       #
       # The host side is free to be 514, because dockerd binds it as root before
-      # Alloy is involved. SYSLOG_PORT sets only the host side, so a device that
-      # can only send to the standard port is accommodated by SYSLOG_PORT=514 in
-      # .env and nothing else — no change to this mapping. Verified end to end
-      # on this host 2026-09-05: 127.0.0.1:514 published to a --cap-drop ALL
-      # container, packet delivered. The consumer is Gerrrt/Lemmiwinks#161.
+      # Alloy is involved. Verified end to end on this host 2026-09-05:
+      # 127.0.0.1:514 published to a --cap-drop ALL container, packet delivered.
+      #
+      # TWO HOST PORTS, NOT ONE, AND THE SECOND IS WHY THIS COMMENT CHANGED.
+      # It previously said a device that can only send to the standard port is
+      # "accommodated by SYSLOG_PORT=514 in .env and nothing else". That advice
+      # was wrong in a way that would not have shown up until logs went missing:
+      # SYSLOG_PORT does not ADD a port, it MOVES the only one. pfSense is
+      # already sending to it, and on 2026-09-06 that stream was the busiest in
+      # Loki — filterlog block events at roughly 250-350 per five minutes across
+      # em0, igc0.10 and igc0.20. Repointing SYSLOG_PORT would have taken
+      # morpheus's firewall log off the air silently, since a UDP sender gets no
+      # error from a port nobody is bound to.
+      #
+      # So the standard port is published alongside rather than instead. Both
+      # map to the same container listener, so Alloy needs no config change and
+      # neither sender has to move. Gerrrt/Lemmiwinks#161.
       - "${BIND_ADDR:-0.0.0.0}:${SYSLOG_PORT:-1514}:1514/udp"
+      - "${BIND_ADDR:-0.0.0.0}:${SYSLOG_STD_PORT:-514}:1514/udp"
     depends_on:
       # service_started for loki, for the same reason as grafana above: the
       # distroless image cannot report health. Alloy retries a failed push with
