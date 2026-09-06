@@ -664,6 +664,32 @@ months.
       70.2 on `oracle`. The quiet test fixture is deliberately as slow as
       `Saruman` really is, so a rule written as `< 5/hour` would fail it.
 
+- [x] **[#309](https://github.com/Gerrrt/HomeLab/issues/309) Check shiva's iLO
+      firmware against the documents.** 2026-09-06. `check_versions.py` grows an
+      `OUT_OF_BAND` table for devices that have a checkable version but are not
+      hosts, and `shiva` is its only entry.
+
+      A table rather than a third bespoke comparison, which is what #309 asked
+      for and the reason is arithmetic: `morpheus` already needs its own
+      extraction because pfSense packs two versions into one string, this is the
+      second, and a fourth is how a script ends up unreadable.
+
+      The generic parser genuinely cannot do it. `os_key()` takes the first word
+      as the family and the first number as the version, so
+      `'Integrated Lights-Out 4 2.82 Feb 06 2023'` becomes `('integrated', '4')`
+      against the document's `('ilo', '2.82')` — both halves disagree, and the
+      running side is wrong in the way that matters, because the `4` is the iLO
+      generation and `2.82` is the firmware.
+
+      Proved it can fail, not just pass: with `network.md` edited to `iLO 2.79`
+      it exits 1 with *"says shiva runs 'iLO 2.79'; sysDescr reports 2.82"*, and
+      with an unreadable cell it says so rather than passing quietly.
+
+      `neo` stays out, and the reason changed underneath the issue: #309 said the
+      switch answers no `sysDescr`, and #310 gave it one. The answer is the
+      literal string `"Switch"` — no version — so there is still nothing to
+      compare, and a row would produce a permanent SKIP.
+
 - [x] **[#339](https://github.com/Gerrrt/HomeLab/issues/339) Fail when a
       declared timer is not actually installed.** 2026-09-06. `make
       check-timers` now asks `systemctl is-enabled` for every job in the `JOBS`

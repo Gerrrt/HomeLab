@@ -109,33 +109,35 @@
 # two of them can be probed from here and two cannot, and the difference is the
 # firewall, not the device.
 
-# The switch's web UI is plain http, and http only — 443 is dropped, checked
-# from 10.0.99.20 and re-checked 2026-09-04. That is the device, not the
-# probe: no TLS listener and no certificate import, so `http_2xx_plain` is the
-# permanent module here rather than a placeholder until it gets a certificate
-# (ADR-0018). Reachable because the switch LAN (10.7.7.0/24) is the one segment
-# Winterfell's egress rule does not block (ADR-0013).
+# The switch's web UI WAS probed here, by name and by address, and both probes
+# were REMOVED on 2026-09-06. The premise they rested on is gone.
 #
-# Probed twice since ADR-0018 gave it a name. The dns twin matters more here
-# than elsewhere: this is the one endpoint whose address is on a different
-# subnet from every other management address, so "the name broke" and "someone
-# typed 10.0.99.2" are failures worth telling apart.
-
-- targets: ["http://neo.matrix.elysium/"]
-  labels:
-    module: http_2xx_plain
-    name: switch-ui
-    role: switch
-    host: neo
-    via: dns
-
-- targets: ["http://10.7.7.2/"]
-  labels:
-    module: http_2xx_plain
-    name: switch-ui
-    role: switch
-    host: neo
-    via: address
+# The comment that stood here said they were "reachable because the switch LAN
+# (10.7.7.0/24) is the one segment Winterfell's egress rule does not block
+# (ADR-0013)". That stopped being true the same day: Lemmiwinks #177 added a
+# logged `block opt1 net -> lan net` on the Winterfell interface, closing the
+# switch's cleartext management plane to every host on 10.0.99.0/24. The probes
+# went red within a minute and paged EndpointUnreachable twice.
+#
+# They were brought back by a named pass rule, 10.0.99.20 -> 10.7.7.2:80, and
+# then deliberately dropped instead, because that rule is the whole question:
+# keeping it means the one segment we just fenced off the cleartext plane still
+# has a host that reaches it, for a check that `up{job="snmp"}` already makes.
+# The SNMP scrape polls this switch every 60s and goes red if it stops
+# answering; what this probe added over that was confirmation that a Realtek
+# CGI login page renders — on a device that, per ADR-0018, will never hold a
+# certificate and has no TLS listener to watch.
+#
+# NOTE FOR ADR-0013: its title and its "does not hold for the switch LAN"
+# section are now out of date for VLAN 99. Default deny does hold there, with
+# SNMP as the single remaining exception. Tracked separately rather than edited
+# here.
+#
+# If it is ever wanted back, it needs the firewall rule again first:
+#
+#   pass tcp from 10.0.99.20 to 10.7.7.2 port 80   (igc0.99, above the block)
+#
+# and the same verify-before-enabling step the two probes below use.
 
 # The APC card is https only — port 80 is closed — with a certificate it made
 # for itself (subject `CN=.`, expires 2035-12-16). `/` is a 303 to /home.htm,

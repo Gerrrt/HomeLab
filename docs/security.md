@@ -416,6 +416,22 @@ belongs in the selection criteria whenever this switch is replaced.
   the same flags to every Docker host it deploys to, so `oracle`'s agent is
   no longer the privileged copy it was until #88; on `Saruman` the native
   package runs as its own unprivileged `alloy` user.
+- Every service runs with a read-only root filesystem (#186). Writable state is
+  confined to the named volumes and, where a process genuinely needs scratch
+  space, to a sized `tmpfs`: 64 MiB on Grafana, which extracts plugins into
+  `/tmp`, and 32 + 16 MiB on Alloy for `/tmp` and `/root/.cache`. The sizes are
+  set rather than defaulted because a tmpfs is memory, and the default is half
+  of host RAM — an unbounded one would be a second memory budget beside the
+  `mem_limit` each service already has.
+
+  This was established by running, not by reading: a missing `tmpfs` is a crash
+  loop that `restart: unless-stopped` retries forever, so each service was
+  booted read-only from its pinned digest with its real mounts before the line
+  was written. Grafana got the full soak the issue asked for — login, all three
+  datasources, all seven dashboards fetched by uid, an annotation written and a
+  folder created. Alloy is included too: #186 proposed skipping it as
+  performative next to `privileged: true`, and that reason left with #188.
+
 - The other six services hold no capabilities either. Each carries
   `cap_drop: [ALL]` and `no-new-privileges:true` (#187). For five of them this
   is belt and braces and the honest description matters: they already ran

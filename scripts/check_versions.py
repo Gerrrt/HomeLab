@@ -215,6 +215,124 @@ PFSENSE_DEVICE = "morpheus"
 PFSENSE_VERSION = re.compile(r"\b(\d+\.\d+\.\d+-\S+)")
 
 
+# ---------------------------------------------------------------------------
+# Devices with a checkable version that are NOT in hardware.md's Compute table
+# ---------------------------------------------------------------------------
+#
+# That table is the list of hosts this estate runs, and `shiva` is correctly not
+# in it: it is the iLO BMC on the same physical box as `Saruman`, not a host.
+# But it is the only device outside the table with both halves of a checkable
+# claim — a live `sysDescr` and a documented version — so the only thing making
+# it unchecked was a scoping line (#309).
+#
+# A TABLE RATHER THAN A THIRD BESPOKE FUNCTION. `morpheus` already needs its own
+# extraction, because pfSense packs two versions into one string; this is the
+# second, and writing it as another hand-rolled comparison is how a script grows
+# a fourth. Each row says where the running value comes from, how to get a
+# version out of both sides, and what to call it.
+#
+# WHY THE GENERIC PARSER CANNOT DO THIS. os_key() takes the first word as the
+# family and the first number as the version:
+#
+#   'Integrated Lights-Out 4 2.82 Feb 06 2023'  ->  ('integrated', '4')
+#   'iLO 2.82'                                  ->  ('ilo', '2.82')
+#
+# Both halves disagree, and the running side is wrong in the way that matters:
+# the 4 is the iLO GENERATION and 2.82 is the firmware. A naive comparison would
+# fail every run, and a check that fails every run gets switched off — which is
+# the argument this script already makes about point releases.
+#
+# `neo` IS NOT HERE, and the reason changed under #309. That issue said the
+# switch was out because the mokerlink module walks IF-MIB columns only and so
+# answers no sysDescr. It answers one now — #310 added it — and the answer is
+# the literal string "Switch" with a trailing NUL: no model, no firmware, no
+# version. Its OS cell in network.md is "—" for the same reason. So the switch
+# still has nothing to compare, and a row here would only produce a permanent
+# SKIP line that says so every week.
+OUT_OF_BAND = (
+    {
+        "device": "shiva",
+        "label": "iLO firmware",
+        # "Integrated Lights-Out 4 2.82 Feb 06 2023" -> 2.82. The generation is
+        # matched and discarded deliberately: anchoring on it is what stops the
+        # pattern latching onto the 4 when the firmware is absent.
+        "running": re.compile(r"Integrated Lights-Out\s+\d+\s+(\d+\.\d+)"),
+        # network.md:273 gives shiva the OS cell "iLO 2.82".
+        "documented": re.compile(r"^iLO\s+(\d+\.\d+(?:\.\d+)*)$"),
+    },
+)
+
+
+def documented_cells(device: str) -> list[tuple[str, str]]:
+    """(document, cell) for one device's OS column in network.md.
+
+    documented_versions() above deliberately filters to the Compute table, so it
+    cannot answer for a device that is not a host. This asks the same question
+    without that filter, for the handful of devices OUT_OF_BAND names.
+    """
+    found: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for rows in network_sections(NETWORK_MD.read_text(encoding="utf-8")).values():
+        for row in rows[1:]:
+            if len(row) >= 5 and strip_md(row[0]).lower() == device:
+                cell = strip_md(row[4])
+                if cell and cell != "—" and cell not in seen:
+                    seen.add(cell)
+                    found.append(("docs/network.md", cell))
+    return found
+
+
+def check_out_of_band_versions(prom: str, failures: list[str]) -> None:
+    """Compare each OUT_OF_BAND device's documented version against sysDescr."""
+    reported = {
+        (entry["metric"].get("device") or entry["metric"].get("instance") or "").lower():
+            entry["metric"].get("sysDescr", "")
+        for entry in query(prom, "sysDescr")
+    }
+
+    for row in OUT_OF_BAND:
+        device, label = row["device"], row["label"]
+        descr = reported.get(device)
+        if descr is None:
+            # Not "everything agrees". Nothing is being collected, which is a
+            # collection fault wearing a clean bill of health — the distinction
+            # this script makes for morpheus too.
+            skip(f"{label} — nothing reports sysDescr for {device}")
+            continue
+
+        match = row["running"].search(descr)
+        if match is None:
+            fail(
+                f"{label} — {device} reports sysDescr {descr!r}, which carries "
+                f"no version this can read"
+            )
+            failures.append(f"sysDescr:{device}")
+            continue
+        running = match.group(1)
+
+        cells = documented_cells(device)
+        if not cells:
+            skip(f"{label} — no document states a version for {device}")
+            continue
+
+        for document, cell in cells:
+            claim = row["documented"].match(cell)
+            if claim is None:
+                fail(
+                    f"{document} gives {device} the OS {cell!r}, which this "
+                    f"cannot read as an {label}"
+                )
+                failures.append(f"{document}:{device}")
+            elif claim.group(1) == running:
+                pass_(f"{document} says {device} runs {cell!r}; sysDescr agrees")
+            else:
+                fail(
+                    f"{document} says {device} runs {cell!r}; sysDescr reports "
+                    f"{running}"
+                )
+                failures.append(f"{document}:{device}")
+
+
 def check_runbook_pfsense_version(prom: str, failures: list[str]) -> None:
     descr = None
     for entry in query(prom, "sysDescr"):
@@ -292,6 +410,9 @@ def main() -> int:
                     f"{value!r}"
                 )
                 failures.append(f"{document}:{host}")
+
+    print(f"\n{BOLD}Devices outside the Compute table{OFF}")
+    check_out_of_band_versions(args.prometheus, failures)
 
     print(f"\n{BOLD}The one version claim in prose{OFF}")
     check_runbook_pfsense_version(args.prometheus, failures)
