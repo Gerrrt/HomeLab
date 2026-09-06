@@ -309,6 +309,23 @@ covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
 
+The five authentication rules read a **three-branch union** — `authlog`, then
+`journal`, then `syslog` constrained to the `sshd`/`sudo` apps — joined with
+`or`, rather than the single `{log_type="authlog"}` selector they all used until
+[#261](https://github.com/Gerrrt/HomeLab/issues/261). Only two hosts produce that
+label, and the two that do not are `saruman` (journald-only, so there is no
+`/var/log/auth.log` to tail) and `morpheus` (pfSense, which arrives over syslog).
+Those are the two hosts where `root` can be reached with a password, so a
+password-guessing run against either produced no alert at any volume — 54
+accepted logins over the week to 2026-09-05, none of them visible to any of the
+five rules. Nothing was missing from the store; the rules could not see it.
+
+`or` rather than a wider selector because it deduplicates: `oracle` and
+`prometheus` ship the same sshd events twice, once via `auth.log` and once via
+the journal, and summing a combined selector would double-count them and halve
+every threshold on the two hosts that already worked. The dashboard's two
+auth panels in `logs-explorer.json` carry the same union for the same reason.
+
 It also covers **a device taking its first DHCP lease on a segment** — one rule
 for Hicks and one for Winterfell, plus the `absent_over_time` rule that says the
 lease stream itself has stopped. That is
