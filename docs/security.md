@@ -131,8 +131,14 @@ Hicks blocks CasaBonita, Skids and Degens and then passes to `any`, so it reache
 grants it is the catch-all rather than a decision about that segment — the one
 rule that names ImaginationLAN grants nothing the catch-all was not already
 granting. [#228](https://github.com/Gerrrt/HomeLab/issues/228) is where that gets
-decided. The switch LAN carries pfSense's stock *Default allow LAN to any*
-rule and reaches every segment.
+decided. **The switch LAN no longer does**, and it is the half of this that has
+already been closed. Since 2026-09-02 that interface carries six logged blocks —
+one per VLAN — above an egress rule renamed *Allow internet*, with DNS and NTP
+to the gateway the only passes above them
+([#229](https://github.com/Gerrrt/HomeLab/issues/229)). The stock *Default allow
+LAN IPv6 to any* rule is still there with no IPv6 blocks above it, unlike every
+other interface, but `igc0` has only a link-local address so nothing routes
+through it — a divergence from the pattern rather than a live path.
 
 **Winterfell is the half that has since been narrowed.** On 2026-09-02 the Hicks
 interface gained ten host- and port-scoped passes into 99 and a logged *Block
