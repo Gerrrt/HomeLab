@@ -656,6 +656,64 @@ months.
       `check_mounted_config.py`. Tracked as
       [#363](https://github.com/Gerrrt/HomeLab/issues/363).
 
+- [x] **[#229](https://github.com/Gerrrt/HomeLab/issues/229) The switch LAN's
+      default-allow was replaced four days before anyone wrote it down.**
+      2026-09-06. Read off `pfctl -sr` rather than taken from the issue: the
+      interface carries six logged blocks — one per VLAN — above an egress rule
+      renamed *Allow internet*, with DNS and NTP to the gateway the only passes
+      above them. Exactly the shape #229 proposed, done on **2026-09-02**,
+      datable because pfSense rule identifiers are creation timestamps.
+
+      **This corrects a claim I introduced an hour earlier.** ADR-0025 and three
+      places in `network.md` said the switch LAN "still reaches every segment
+      outbound". That was ADR-0013's claim carried forward without being checked,
+      restated with a "still" that turned a quotation into a fresh assertion —
+      which is the exact failure mode ADR-0025 exists to fix, committed while
+      fixing it. `security.md` said the same. All four corrected, and ADR-0025
+      carries the correction rather than a quiet edit, per ADR-0001.
+
+      **One residual, latent rather than live.** The stock *Default allow LAN
+      IPv6 to any* rule is still there with no IPv6 blocks above it, while every
+      other interface carries paired `inet`/`inet6` blocks — the 2026-09-02 work
+      was IPv4 only. `igc0` has only a link-local address, which does not route,
+      so nothing can use it today. Worth closing when IPv6 is decided
+      ([#353](https://github.com/Gerrrt/HomeLab/issues/353)).
+
+- [x] **[#152](https://github.com/Gerrrt/HomeLab/issues/152) The estate knows how
+      far behind its own packages are — on one host.** 2026-09-06. Images are
+      tagged, digest-pinned, CI-enforced and Dependabot-bumped; the kernel
+      underneath was patched when somebody remembered.
+
+      **Cheapest thing that closes the gap, which is what the issue asked for:**
+      *"the point of the issue is the gap, not the tool. A four-host estate
+      probably wants the exporter, not another web UI."* No new service, no new
+      image, and **no root** — `/usr/lib/update-notifier/apt-check` runs
+      unprivileged, `/var/run/reboot-required` is a world-readable flag, and the
+      textfile directory is already owned by the user the timers run as. That
+      matters because every richer option wanted privilege the job table does not
+      have (#339, #351).
+
+      Two rules. `SecurityUpdatesPending` is **security** updates only, not all
+      pending upgrades — a host three ordinary packages behind is not a finding
+      and alerting on it is how this becomes noise. Its `for: 7d` is load-bearing
+      rather than cautious: unattended-upgrades applies security updates on its
+      own, so anything still pending after a week is held, phased or waiting on a
+      reboot. `RebootRequired` waits three days, because rebooting this host
+      blinds the estate and the alert is a reminder rather than an instruction.
+
+      **A test fixture taught me something about the rules I had just written.**
+      The first firing case used samples an hour apart and failed with `got:[]`
+      against a correct rule: an instant vector only looks back 5 minutes, so an
+      hourly fixture is stale for 55 minutes of every hour and the `for` clock
+      resets each time. Production is unaffected — the collector writes daily but
+      the textfile is scraped every 60s — and the fixture has to imitate the
+      SCRAPE interval, not the collection interval.
+
+      **It covers this host alone, and that is written down rather than implied.**
+      `oracle` is Ubuntu and would need it shipped by `deploy-agent.sh`;
+      `Saruman` is Proxmox and the same; `morpheus` is FreeBSD with no apt at
+      all. Tracked in [#360](https://github.com/Gerrrt/HomeLab/issues/360).
+
 - [x] **[#193](https://github.com/Gerrrt/HomeLab/issues/193) Alloy reaches the
       Docker API through a read-only proxy.** 2026-09-06. The socket is no longer
       mounted into Alloy at all.

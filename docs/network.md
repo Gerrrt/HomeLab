@@ -30,11 +30,18 @@ above CasaBonita, which the spectrum does not. Reasoning in
 | [Skids](#skids--vlan-20--iot) | 20 | 🔵 Blue | `10.0.20.0/24` | IoT and cameras | Internet |
 | [Degens](#degens--vlan-10--guest) | 10 | 🟣 Purple | `10.0.10.0/24` | Guest Wi-Fi | Internet |
 
-[^lan]: True since 2026-09-06, and not before. That interface carries
-    pfSense's stock *Default allow LAN to any* rule and no blocks, so
-    `10.7.7.0/24` still reaches every segment outbound — but nothing on
-    Winterfell can reach IT any more: `Gerrrt/Lemmiwinks#177` added a logged
-    block from `10.0.99.0/24`, leaving SNMP as the one pass above it.
+[^lan]: True in both directions since 2026-09-06, and in neither before
+    2026-09-02. Outbound, the interface carried pfSense's stock *Default allow
+    LAN to any* until 2026-09-02, when six logged blocks — one per VLAN — were
+    placed above an egress rule renamed *Allow internet*, leaving DNS and NTP to
+    the gateway as the only passes above them
+    ([#229](https://github.com/Gerrrt/HomeLab/issues/229)). Inbound, nothing on
+    Winterfell can reach it since 2026-09-06: `Gerrrt/Lemmiwinks#177` added a
+    logged block from `10.0.99.0/24`, leaving SNMP as the one pass above that.
+    One residual: the stock *Default allow LAN IPv6 to any* rule is still there
+    with no IPv6 blocks above it, unlike every other interface, which carries
+    paired `inet`/`inet6` blocks. It is latent rather than live — `igc0` has
+    only a link-local address, which does not route.
     [ADR-0013](adr/0013-segment-access-as-implemented.md) read the ruleset while
     this said "Nothing" and was wrong;
     [ADR-0025](adr/0025-close-the-switch-lan-to-winterfell.md) records the
@@ -44,9 +51,8 @@ above CasaBonita, which the spectrum does not. Reasoning in
     2026-09-02 that path is a list of destinations rather than the segment: ten
     passes sit above a logged *Block access to Winterfell*, everything else from
     50 to 99 is dropped, and the ten are enumerated in the Hicks notes below. It
-    is not the only way into 99 — the switch LAN still reaches every segment
-    outbound, and two host-scoped passes carry ImaginationLAN to
-    `10.0.99.20`. Going the other
+    is not the only way into 99 — two host-scoped passes carry ImaginationLAN
+    to `10.0.99.20`. Going the other
     way, nothing blocks Hicks from ImaginationLAN, so the catch-all under those
     rules still grants that segment entire —
     [#228](https://github.com/Gerrrt/HomeLab/issues/228) owns that half.
@@ -159,8 +165,8 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 🟠 **Orange** on the rack.
 
 Personal and work machines. The VLAN with the broadest path into management,
-though not the only one — the switch LAN still reaches every segment outbound,
-and ImaginationLAN has two host-scoped passes to `10.0.99.20`.
+though not the only one — ImaginationLAN has two host-scoped passes to
+`10.0.99.20`.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |

@@ -1,0 +1,49 @@
+# Daily collection of how far behind this host's packages are.
+#
+# The asymmetry #152 is about: every container image here is tagged, digest
+# pinned, CI-enforced and Dependabot-bumped, while the kernel underneath is
+# patched when somebody remembers. docs/security.md names a vulnerability in the
+# host OS as an accepted, undefended threat — a reasonable position to hold
+# deliberately, and a much weaker one when nobody knows how far behind it is.
+#
+# Needs no root and no network. /usr/lib/update-notifier/apt-check runs
+# unprivileged, /var/run/reboot-required is a world-readable flag, and the
+# textfile directory is already owned by the user below. That is why this exists
+# as a timer rather than as another service with a web UI: #152 priced both and
+# said "a four-host estate probably wants the exporter, not another web UI".
+#
+# COVERS THIS HOST ALONE, which is the honest limit. `oracle` is Ubuntu and would
+# need this shipped by deploy-agent.sh; `Saruman` is Proxmox and the same;
+# `morpheus` is FreeBSD and has no apt at all. The rules that read these metrics
+# are written so a host with no data is visible rather than silently fine.
+#
+# Failure here is a collection fault, not an outage. Nothing is broken when it
+# exits non-zero; the estate simply stops knowing its own patch state.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: collect this host's package patch state
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job patch-state -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab patch-state
+TimeoutStartSec=300
+Restart=no
+Nice=10
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-patch-state

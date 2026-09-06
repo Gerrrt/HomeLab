@@ -92,3 +92,58 @@ groups:
           category: availability
         annotations:
           summary: "{{ $labels.instance }} rebooted in the last 10 minutes"
+
+      - alert: SecurityUpdatesPending
+        # The gap #152 named: images are digest-pinned, CI-enforced and
+        # Dependabot-bumped, while the kernel underneath is patched when somebody
+        # remembers. docs/security.md accepts a host-OS vulnerability as an
+        # undefended threat, which is a reasonable position to hold deliberately
+        # and a much weaker one when nobody knows how far behind the host is.
+        #
+        # SECURITY updates only, not all pending upgrades. A host that is three
+        # ordinary packages behind is not a finding and alerting on it is how
+        # this becomes noise; a host carrying an unapplied security update for a
+        # week is. `homelab_apt_upgrades_pending` is collected alongside and is
+        # there to be looked at, not alerted on.
+        #
+        # `for: 7d` rather than a smaller number, and it is doing real work: the
+        # unattended-upgrades timer Ubuntu ships applies security updates on its
+        # own, so anything still pending after a week is something that did not
+        # apply — held, phased, or needing a reboot — rather than something
+        # nobody has got to yet.
+        expr: homelab_apt_security_upgrades_pending > 0
+        for: 7d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has had {{ $value }} security update(s) pending for a week"
+          description: >-
+            Unattended-upgrades should have applied these. A week of them sitting
+            there means they are held, phased, or waiting on a reboot. Check with
+            `apt list --upgradable` and
+            `systemctl status unattended-upgrades.service`.
+
+      - alert: RebootRequired
+        # A package post-install asked for a reboot and nothing has done it. This
+        # is the only reliable "running something older than what is installed"
+        # signal available here: node_uname_info reports the RUNNING kernel and
+        # node_exporter reports no installed one, so the two cannot be compared.
+        #
+        # 3 days, not immediately. A reboot is a decision with a window — this
+        # host runs the monitoring stack, and rebooting it blinds the estate for
+        # the duration — so the alert is a reminder rather than an instruction.
+        expr: homelab_reboot_required == 1
+        for: 3d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has needed a reboot for three days"
+          description: >-
+            /var/run/reboot-required.pkgs names which packages asked, and
+            homelab_reboot_required_packages counts them. The running kernel is
+            older than the installed one until this happens. Pick a window —
+            rebooting the monitoring host blinds the estate for its duration.
