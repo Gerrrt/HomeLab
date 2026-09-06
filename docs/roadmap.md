@@ -619,6 +619,48 @@ months.
 
 ## Done
 
+- [x] **[#355](https://github.com/Gerrrt/HomeLab/issues/355) A deploy no longer
+      reports success over a stale config.** 2026-09-06. Found the same day, when
+      #166 deployed clean — `make converge` fine, `make up` fine,
+      `reload-config.sh` reporting `reloaded prometheus`,
+      `check_container_health.py` reporting prometheus healthy — and its three
+      latency targets never appeared. Prometheus was running the previous config.
+
+      `compose.yaml` bind-mounts four config files individually, and a
+      single-file bind mount is pinned to the inode. `git merge` writes a
+      temporary file and renames it over the target, so the container keeps the
+      old inode and `POST /-/reload` returns 200 having faithfully re-read the
+      pre-merge bytes. `docker compose up -d` recreates a container only when its
+      service definition changes, so a config-only commit recreates nothing and
+      the stale mount survives — which is most changes here. It went unnoticed
+      until #166 only because the deploys before it happened to change
+      `compose.yaml` too (#187, #330, #186) and recreated everything.
+
+      `reload-config.sh` already knew this shape: it records that
+      `render-config.sh` truncates with `>` to keep the inode, and that
+      write-temp-then-mv "would leave the mount pointing at the old inode". That
+      covers the files this repository writes. It never covered the files git
+      rewrites, which is every committed config.
+
+      **Bytes, not inodes**, which is a change from what the issue first
+      proposed. Comparing inodes detects this one mechanism and cries wolf on
+      another: a file rewritten with identical content has a new inode and
+      nothing wrong with it. Verified — after restoring the original bytes
+      through a fresh inode, the content check correctly reported a match where
+      an inode check would have reported staleness. Comparing bytes also works
+      on `loki`, whose distroless image has no shell at all, because `docker cp`
+      needs neither a shell nor `/proc`.
+
+      `make up` runs it with `--fix`, before the reload rather than after,
+      because the reload is not what is broken. It recreates only the services
+      that actually diverged and then asserts the recreate worked, so a
+      force-recreate that rebound nothing cannot report success.
+
+      Reproduced end to end rather than reasoned about: `blackbox.yaml` rewritten
+      the way git does it, the check failing and naming the service, `--fix`
+      recreating it, and the new bytes confirmed inside the container. The live
+      stack was restored afterwards and its eleven probes re-verified.
+
 - [x] **[#166](https://github.com/Gerrrt/HomeLab/issues/166) Measure latency, and
       say where it is.** 2026-09-06. Three targets, a `blackbox-latency` job and
       two rules, so the estate can answer the question #166 opened over — *"is

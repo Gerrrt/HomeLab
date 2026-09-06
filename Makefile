@@ -51,6 +51,13 @@ up: render ## Render config and start the stack
 	@# to it and the container keeps serving what it parsed at startup. Without
 	@# this line `make up` reports success over a stale config — see
 	@# scripts/reload-config.sh for the incident that produced it.
+	@# BEFORE the reload, because the reload is not what is broken. A single-file
+	@# bind mount is pinned to the inode and git replaces it, so a config-only
+	@# commit leaves the container on the pre-merge bytes and POST /-/reload
+	@# returns 200 having faithfully re-read them. That is #355, found when #166
+	@# deployed clean and its three targets never appeared. --fix recreates only
+	@# the services that actually diverged, then asserts the recreate worked.
+	python3 scripts/check_mounted_config.py --fix $(STACK)
 	./scripts/reload-config.sh $(STACK)
 	@# The deploy asserts on its own result. Everything above reports success
 	@# from having ISSUED the commands — compose accepted the file, the reloads
@@ -228,6 +235,14 @@ check-container-health: ## Ask the RUNNING stack whether its healthchecks pass (
 .PHONY: check-loki-rules
 check-loki-rules: ## Validate Loki (LogQL) alerting rules and dashboard panel queries
 	./scripts/check_loki_rules.sh
+
+.PHONY: check-mounted-config
+check-mounted-config: ## Verify each container runs the config the repo has (deploy-time)
+	@# Read-only without --fix, so it is safe to ask at any time. `make up` runs
+	@# it with --fix. Compares BYTES rather than inodes: an inode check would
+	@# report a file rewritten with identical content as stale, which git and
+	@# render-config.sh both do routinely.
+	python3 scripts/check_mounted_config.py $(STACK)
 
 .PHONY: check-alert-channels
 check-alert-channels: ## Verify Alertmanager can read every receiver URL (deploy-time)
