@@ -26,6 +26,18 @@ up: render ## Render config and start the stack
 	@# this line `make up` reports success over a stale config — see
 	@# scripts/reload-config.sh for the incident that produced it.
 	./scripts/reload-config.sh $(STACK)
+	@# The deploy asserts on its own result. Everything above reports success
+	@# from having ISSUED the commands — compose accepted the file, the reloads
+	@# returned 200 — and none of it asks whether what came up is actually
+	@# serving. snmp-exporter sat permanently unhealthy on a healthcheck pointed
+	@# at a 404 for as long as it did precisely because nothing ever asked
+	@# (#205). This is the only place the question can be asked, since CI has no
+	@# stack to ask it of.
+	@#
+	@# It waits, so a slow start is not a failure: the per-service deadline is
+	@# derived from that service's own start_period, retries, interval and
+	@# timeout, and is the point Docker itself would have given up.
+	python3 scripts/check_container_health.py $(STACK)
 	@# The port is read back out of the rendered .env rather than expanded here.
 	@# GRAFANA_PORT lives in $(STACK_DIR)/.env, which docker compose reads and make
 	@# does not, so a bare $${GRAFANA_PORT:-3000} in a recipe yields 3000 whatever
@@ -168,6 +180,16 @@ check-compose-health: ## Verify health deps are satisfiable, probe the images (n
 	@# drop the flag, rather than handing back a green run it did not earn.
 	@# `make validate` is the graceful path — it skips the probe and says so.
 	python3 scripts/check_compose_health.py --probe
+
+.PHONY: check-container-health
+check-container-health: ## Ask the RUNNING stack whether its healthchecks pass (deploy-time)
+	@# The other half of check-compose-health above, and deliberately not part
+	@# of `make validate`: that one asks whether a healthcheck CAN run, from the
+	@# config and the image, and gates pull requests. This one asks whether the
+	@# endpoint it probes actually answers, which only a running daemon knows.
+	@# `make up` runs it; this target is for asking again later without a
+	@# redeploy. Add --no-wait for a snapshot of a stack that is already up.
+	python3 scripts/check_container_health.py $(STACK)
 
 .PHONY: check-loki-rules
 check-loki-rules: ## Validate Loki (LogQL) alerting rules and dashboard panel queries
