@@ -220,6 +220,22 @@ modules:
   # new column anywhere gets walked with scripts/snmp-walk.sh before it is
   # added here, because the exporter's first contact with a bad varbind is a
   # scrape that returns nothing.
+  #
+  # ifType (ifTable column 3) WAS WALKED AND DELIBERATELY NOT ADDED. #310
+  # proposed it to settle what kind of ports 25 and 26 are, and named its own
+  # failure condition: 26 identical values would answer nothing. That is what
+  # came back. Probed 2026-09-06 with scripts/snmp-walk.sh at this module's
+  # request shape — 26 rows in 6 requests, 0.39s, overshooting four varbinds
+  # into ifMtu (1526, decodes) — and every one of the 26 is
+  #
+  #   .1.3.6.1.2.1.2.2.1.3.N = 117
+  #
+  # IANAifType 117, gigabitEthernet, on all 26 ports including the two uplinks.
+  # The switch does not distinguish its SFP cages here, so the column costs 26
+  # varbinds a scrape and carries no information — and on this device scrape
+  # volume is a safety property, per the paragraph above. Recorded rather than
+  # added so nobody walks it a third time. The question it was meant to answer
+  # is answered by looking at the rack.
   mokerlink:
     walk:
       - 1.3.6.1.2.1.2.2.1.1     # ifIndex
@@ -227,6 +243,42 @@ modules:
       - 1.3.6.1.2.1.2.2.1.8     # ifOperStatus  (SwitchInterfaceDown)
       - 1.3.6.1.2.1.31.1.1.1.6  # ifHCInOctets  (64-bit)
       - 1.3.6.1.2.1.31.1.1.1.10 # ifHCOutOctets (64-bit)
+      # The switch was the only SNMP target reporting no sysDescr at all, which
+      # is why this is here — not because of what it says. What it says,
+      # measured 2026-09-06, is the whole of it:
+      #
+      #   .1.3.6.1.2.1.1.1.0 = "53 77 69 74 63 68 00"   -> "Switch\0"
+      #
+      # The literal word "Switch" and a trailing NUL. No model, no firmware, no
+      # hardware revision, and so nothing that names the port composition.
+      # Anyone arriving here hoping this fills the gap in docs/hardware.md
+      # should stop at this comment rather than at the metric.
+      #
+      # It is still worth the line: it is a scalar with one instance, so the
+      # generator resolves this into a GET of 1.3.6.1.2.1.1.1.0 and no GETBULK
+      # is issued at scrape time — the same argument the pfsense module above
+      # makes — and it lights up on its own if a firmware bump ever starts
+      # populating it. Probed at the module's request shape first, because the
+      # overshoot is what bites on this device: 1 row, 1 overshoot varbind, 2
+      # requests, 0.53s, and the overshoot is sysObjectID answering
+      # .1.3.6.1.4.1.27282 rather than the zero-length OBJECT IDENTIFIER that
+      # makes this switch's ifSpecific poison a whole response.
+      #
+      # Then measured end to end, because a walk probe is not a scrape: the
+      # pinned exporter image was run with this regenerated snmp.yaml against
+      # the live switch, beside a control container running the committed one.
+      # Three rounds each, interleaved, identical every time —
+      #
+      #   with sysDescr     31 packets   131 PDUs   1.46s   136 series
+      #   without           30 packets   130 PDUs   1.45s   135 series
+      #
+      # One extra packet, which is the GET, and one extra series. That is the
+      # whole cost on a device where scrape volume is a safety property.
+      #
+      # scripts/check_versions.py reads sysDescr and is unaffected: it selects
+      # the pfSense claim by device name, and its OS-table regex wants a
+      # FreeBSD version, which "Switch" is not.
+      - 1.3.6.1.2.1.1.1         # sysDescr      ("Switch", and nothing more)
     lookups:
       - source_indexes: [ifIndex]
         lookup: ifDescr

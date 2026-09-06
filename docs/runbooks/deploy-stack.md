@@ -32,6 +32,20 @@ make up
 `make up` renders the decrypted config and starts all six services. Give it a
 minute — Grafana waits on Prometheus and Loki reporting healthy.
 
+It then asserts on its own result: every service that declares a healthcheck
+must reach `healthy`, and `make up` fails naming the service and the probe's
+own output if one does not. That last part is the point — the failure it exists
+for is a healthcheck pointed at an endpoint that answers 404, which reports a
+permanent fault on a service that is working perfectly and looks in `make ps`
+exactly like something that has always been that way
+([#205](https://github.com/Gerrrt/HomeLab/issues/205)). The wait is bounded per
+service by that service's own `start_period`, `retries`, `interval` and
+`timeout`, so a slow start is not a failure and a broken probe does not hang
+the deploy.
+
+Loki and Alloy declare no healthcheck, so the check cannot speak for them and
+says so by name rather than passing over them.
+
 `certificates/` is gitignored, so a clean clone has neither the CA nor the leaf
 and the `certs` steps above are not optional. Skipping them used to produce a
 stack that started and then failed obscurely: Docker creates a *directory* when
@@ -190,7 +204,15 @@ within two hours.
 `make up` recreates a container only when its *service definition* changes — a
 changed bind-mounted config file is invisible to `docker compose up -d`. So
 `make up` finishes by reloading Prometheus, Alertmanager and snmp-exporter from
-disk, and fails if any of them will not take the new config.
+disk, and fails if any of them will not take the new config. Then it runs
+`make check-container-health`'s script, which is the step that distinguishes
+"the commands were issued" from "the stack came up". Both can be run again
+later without a redeploy:
+
+```bash
+make reload                 # re-read the configs on disk
+make check-container-health # ask the running stack whether its probes pass
+```
 
 A config-only change — Prometheus rules, Alertmanager routing, the rendered
 snmp-exporter config — needs no compose round trip at all:
