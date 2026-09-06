@@ -424,3 +424,76 @@ tests:
       - eval_time: 40m
         alertname: HostRebooted
         exp_alerts: []
+
+  # --- SecurityUpdatesPending: fires after a week ---------------------------
+  # Unattended-upgrades applies security updates on its own, so a week of them
+  # still pending means they did not apply — held, phased, or waiting on a
+  # reboot — rather than that nobody has got to them.
+  #
+  # INTERVAL 2m, NOT 1h, and the first draft of this case got it wrong. A
+  # fixture whose samples are an hour apart is STALE for 55 minutes of every
+  # hour, because Prometheus only looks back 5 minutes for an instant vector —
+  # so the alert's `for` clock resets every hour and `for: 7d` can never be
+  # satisfied. The test failed with `got:[]` against a rule that is correct.
+  #
+  # Production is unaffected: the collector writes daily, but the textfile
+  # collector is scraped every 60s, so the series is continuous. The fixture has
+  # to imitate the scrape interval, not the collection interval.
+  - interval: 2m
+    input_series:
+      - series: 'homelab_apt_security_upgrades_pending{host="prometheus"}'
+        values: "3x5300"
+    alert_rule_test:
+      - eval_time: 175h
+        alertname: SecurityUpdatesPending
+        exp_alerts:
+          - exp_labels:
+              host: prometheus
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "prometheus has had 3 security update(s) pending for a week"
+              description: >-
+                Unattended-upgrades should have applied these. A week of them
+                sitting there means they are held, phased, or waiting on a
+                reboot. Check with `apt list --upgradable` and `systemctl status
+                unattended-upgrades.service`.
+
+  # --- SecurityUpdatesPending: quiet at zero, the live value ----------------
+  # This host reports 0;0 today. Without this case the rule would pass its test
+  # while firing for a fully patched estate.
+  - interval: 2m
+    input_series:
+      - series: 'homelab_apt_security_upgrades_pending{host="prometheus"}'
+        values: "0x5300"
+    alert_rule_test:
+      - eval_time: 175h
+        alertname: SecurityUpdatesPending
+        exp_alerts: []
+
+  # --- SecurityUpdatesPending: quiet when they are applied inside the week ---
+  # The normal case: unattended-upgrades runs and the count returns to zero.
+  # Without this, `for: 7d` could be shortened to nothing and the test would
+  # still pass.
+  - interval: 2m
+    input_series:
+      - series: 'homelab_apt_security_upgrades_pending{host="prometheus"}'
+        values: "2x1500 0x3800"
+    alert_rule_test:
+      - eval_time: 175h
+        alertname: SecurityUpdatesPending
+        exp_alerts: []
+
+  # --- RebootRequired: quiet for a reboot that happens inside three days -----
+  # The flag appears and is cleared by an actual reboot. This is what keeps
+  # `for: 3d` honest — the rule is a reminder, not an instruction, because
+  # rebooting this host blinds the estate for the duration.
+  - interval: 2m
+    input_series:
+      - series: 'homelab_reboot_required{host="prometheus"}'
+        values: "1x1000 0x3000"
+    alert_rule_test:
+      - eval_time: 130h
+        alertname: RebootRequired
+        exp_alerts: []
