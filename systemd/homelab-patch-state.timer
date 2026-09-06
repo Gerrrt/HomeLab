@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: daily package patch state
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-patch-state.service
+# 08:00 daily, last in the morning run and a quarter-hour after loki-coverage.
+# Deliberately after the apt-daily timers Ubuntu ships, which refresh the package
+# lists overnight: reading apt-check before those have run reports yesterday's
+# answer with today's confidence.
+OnCalendar=*-*-* 08:00:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
