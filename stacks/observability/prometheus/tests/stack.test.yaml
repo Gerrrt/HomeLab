@@ -130,64 +130,79 @@ tests:
         alertname: RemoteWriteJobStale
         exp_alerts: []
 
-  # --- LogEntriesDropped: fires on a counter that is moving ------------------
-  # 15 entries dropped over 15 minutes is 1/min, which is a small enough rate to
-  # prove the rule has no tolerance band. That is the intent: a dropped line is
-  # evidence that no longer exists, and one is a fault of the same kind as a
-  # thousand.
+  # --- LogEntriesDropped: fires on loss that keeps happening ---------------
+  # A counter climbing steadily for well over the hour. That is loss that is
+  # still going on, which is the only thing this rule is for.
   - interval: 1m
     input_series:
-      - series: 'loki_write_dropped_entries_total{job="oracle-alloy",reason="ingester_error"}'
-        values: "0+1x60"
+      - series: 'loki_write_dropped_entries_total{job="oracle-alloy",reason="rate_limited"}'
+        values: "0+1x180"
     alert_rule_test:
-      - eval_time: 40m
+      - eval_time: 150m
         alertname: LogEntriesDropped
         exp_alerts:
           - exp_labels:
               job: oracle-alloy
-              reason: ingester_error
+              reason: rate_limited
               component: stack
               severity: warning
               category: correctness
             exp_annotations:
-              summary: "oracle-alloy is losing log lines to ingester_error"
+              summary: "oracle-alloy has been losing log lines to rate_limited for an hour"
               description: >-
-                Loki rejected these entries and Alloy discarded them — there is
-                no retry behind a rejection, so they are gone. Ask Loki which
-                limit it applied with `sum by (reason)
-                (loki_discarded_samples_total)`; the usual answers are an entry
-                older than reject_old_samples_max_age, a stream too far behind,
-                or an ingestion rate limit.
+                Loki has been rejecting these entries for an hour, so this is not
+                the burst an agent restart produces — that lasts minutes and
+                clears. Ask Loki which limit it is applying with `sum by (reason)
+                (loki_discarded_samples_total)`. An entry older than
+                reject_old_samples_max_age or a stream too far behind means an
+                agent is replaying rather than tailing; rate_limited means the
+                estate is producing more than the ingester accepts.
 
-  # --- LogEntriesDropped: quiet on a flat counter ---------------------------
-  # The production state, and the case that matters most here. The counter
-  # EXISTS for every agent — five reasons per loki.write component, all sitting
-  # at zero — so a rule keyed on presence rather than on movement would fire
-  # permanently for every healthy agent in the estate. This is the proof it is
-  # keyed on rate.
+  # --- LogEntriesDropped: quiet for an agent-restart burst ------------------
+  # THE CASE THIS RULE WAS RESHAPED AROUND (#341). A restart replay is ONE step
+  # in the counter — 33,231 entries in a single jump, measured on 09-04 — after
+  # which the counter is flat. rate() over 15m is positive for fifteen minutes
+  # and no longer, so `for: 1h` cannot be satisfied by it.
+  #
+  # The fixture is a single large jump followed by three hours of flat, which is
+  # exactly the shape the live counter had. An earlier version of this rule used
+  # `for: 15m` and excluded too_far_behind by name; that silenced one flavour of
+  # this event and left the other two to page after every deploy.
+  #
+  # THE FIXTURE CLIMBS OVER SIX MINUTES RATHER THAN JUMPING ONCE, and that
+  # detail is what makes this a real test. A replay is not instantaneous: the
+  # agent pushes for as long as it takes to drain the backlog, so the counter
+  # rises across several scrapes. rate()[15m] is then positive for the climb
+  # plus fifteen minutes — about twenty here — which IS enough to satisfy
+  # `for: 15m` and is nowhere near an hour.
+  #
+  # A single-step fixture proves nothing, and the first draft of this case was
+  # one: the rate from one step is positive for exactly the window length, one
+  # minute short of `for: 15m`, so it passed under both forms.
   - interval: 1m
     input_series:
-      - series: 'loki_write_dropped_entries_total{job="oracle-alloy",reason="rate_limited"}'
-        values: "0x60"
+      - series: 'loki_write_dropped_entries_total{job="oracle-alloy",reason="greater_than_max_sample_age"}'
+        values: "0x5 0+6646x5 33231x170"
     alert_rule_test:
-      - eval_time: 40m
+      - eval_time: 25m
+        alertname: LogEntriesDropped
+        exp_alerts: []
+      # And still quiet once the burst has aged out, which is the steady state
+      # after any redeploy.
+      - eval_time: 170m
         alertname: LogEntriesDropped
         exp_alerts: []
 
-  # --- LogEntriesDropped: quiet for a restart replay ------------------------
-  # The case that decides whether this alert is usable. An Alloy with no
-  # position file replays up to 24h of journal and Loki rejects it as
-  # `too_far_behind` — 19,490 entries from a single agent start, measured. Those
-  # are duplicates the previous agent already delivered, so an alert that
-  # counted them would page after every deploy. The fixture is a steeply rising
-  # counter, which is exactly what a replay looks like, and the rule must stay
-  # silent for it.
+  # --- LogEntriesDropped: quiet on a flat counter --------------------------
+  # The production state. The counter EXISTS for every agent — five reasons per
+  # loki.write component, all at zero — so a rule keyed on presence rather than
+  # on movement would fire permanently for a healthy estate.
   - interval: 1m
     input_series:
-      - series: 'loki_write_dropped_entries_total{job="prometheus-alloy",reason="too_far_behind"}'
-        values: "0+500x60"
+      - series: 'loki_write_dropped_entries_total{job="oracle-alloy",reason="rate_limited"}'
+        values: "0x180"
     alert_rule_test:
-      - eval_time: 40m
+      - eval_time: 150m
         alertname: LogEntriesDropped
         exp_alerts: []
 
