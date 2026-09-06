@@ -619,6 +619,41 @@ months.
 
 ## Done
 
+- [x] **[#335](https://github.com/Gerrrt/HomeLab/issues/335) Run the Loki
+      coverage check on a schedule.** 2026-09-06.
+      `homelab-loki-coverage.{service,timer}`, daily at 07:45, plus a row in the
+      `JOBS` table in `install-timers.sh`. No alert rule was edited: the
+      staleness rules join against `homelab_job_max_age_seconds`, so a timer is
+      a row in that table and nothing else — the property #99 tested and this
+      confirms a second time.
+
+      **Daily, not the weekly the issue proposed, and the window went 7d -> 24h.**
+      #335 worried that a 7-day window against a weekly interval barely overlaps,
+      so a gap opening and closing inside a week could be missed. That framing
+      was wrong twice. The window is not a sensitivity dial — both sides of the
+      comparison use it, so a host that goes quiet leaves the denominator as well
+      as the numerator and the check goes vacuous rather than wrong. What it
+      actually sets is DETECTION LAG: `reach` counts lines over the window, so a
+      selector blinded an hour ago still looks reached until the last
+      pre-breakage line ages out, and 7d hides a new gap for a week. And the
+      overlap worry does not apply to the defect class at all — a rule going
+      blind is configuration, it persists until somebody fixes it, so tiling 24h
+      windows daily is enough.
+
+      24h is as short as the estate allows, measured rather than picked. Lines
+      per host: `Saruman` 15/hour and 186/day against `morpheus` 89,340/day, so
+      the quietest host is comfortably present. The cost, stated rather than
+      glossed: a host whose *subject* lines are rare — `Saruman` produced two SSH
+      accepts in seven days — has none inside 24h, so a real gap there reports as
+      a latent WARN instead of a live FAIL. Checked both ways against the
+      pre-#261 rules, where 24h still exits 1 on `morpheus`.
+
+      Verified end to end through the wrapper the timer actually calls:
+      `run-scheduled.sh --job loki-coverage` exits 0 in 2s and writes the four
+      `homelab_job_*` series, and a forced failure advances `last_run` while
+      leaving `last_success` behind — which is what lets the staleness rule fire
+      on repeated failures rather than only on a stopped timer.
+
 - [x] **[#327](https://github.com/Gerrrt/HomeLab/issues/327) Fail when a Loki
       rule is blind to a host.** 2026-09-06.
       `scripts/check_loki_coverage.py`, against the live Loki, outside `make

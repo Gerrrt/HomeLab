@@ -59,6 +59,7 @@ the host.
 | `snmp-verify` | `make snmp-verify` | Wednesdays 06:30 | 14 days |
 | `check-versions` | `make check-versions` | Wednesdays 06:45 | 14 days |
 | `dashboards-drift` | `make dashboards-export ARGS=--check` | daily 07:30 | 2 days |
+| `loki-coverage` | `make check-loki-coverage` | daily 07:45 | 2 days |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
@@ -68,13 +69,28 @@ times, because it shares the `backups` lock and a run that queues behind the
 weekly archive can legitimately spend its full 900-second wait and then be an
 hour late. Being late for a reason is not the finding.
 
-`dashboards-drift` and `check-versions` are the odd ones out, and worth reading
-as a different kind of job. Every other row here proves that something
-*happened* — an archive was written, a device answered. These two prove that
-nothing *diverged*. `dashboards-drift` runs `make dashboards-export ARGS=--check`,
-which writes nothing and exits non-zero when the running Grafana holds a
-dashboard edit that git does not. `check-versions` asks Prometheus what OS each
-host is actually running and exits non-zero when a document disagrees.
+`dashboards-drift`, `check-versions` and `loki-coverage` are the odd ones out,
+and worth reading as a different kind of job. Every other row here proves that
+something *happened* — an archive was written, a device answered. These three
+prove that nothing *diverged*. `dashboards-drift` runs `make dashboards-export
+ARGS=--check`, which writes nothing and exits non-zero when the running Grafana
+holds a dashboard edit that git does not. `check-versions` asks Prometheus what
+OS each host is actually running and exits non-zero when a document disagrees.
+`loki-coverage` asks the live Loki whether any alerting rule has gone blind to a
+host whose logs it is about, which is a thing CI structurally cannot ask because
+it has no log store ([#327](https://github.com/Gerrrt/HomeLab/issues/327)).
+
+`loki-coverage` is daily rather than weekly, and the reason is the opposite of
+the obvious one. Its `--window` is not a sensitivity dial: both sides of its
+comparison use it, so a host that goes quiet drops out of the denominator too
+and the check goes vacuous rather than wrong. What the window sets is
+*detection lag* — `reach` counts lines over the window, so a selector that went
+blind an hour ago still looks reached until the last pre-breakage line falls out
+of range. A 7-day window would hide a new gap for a week. 24 hours is as short
+as the estate allows: `Saruman` is the quietest host at roughly 15 lines an
+hour and is comfortably present at that window. The window is `WINDOW` in the
+Makefile, and the unit deliberately sets none of its own, so there is one
+number in one place.
 
 It exists because of a trade made in
 [#100](https://github.com/Gerrrt/HomeLab/issues/100). `allowUiUpdates` was
@@ -253,6 +269,7 @@ expected rather than a second fault.
 | `homelab_job_last_exit_code` is 75 | The job never started — another job held its lock for the full wait | Expected if a `--verify-only` run collided with a long backup. Persistent means a job is hanging: check `systemctl list-units 'homelab-*'` |
 | `backup-firewall` exits 1 with *off-host copy FAILED* | `oracle` is down, its host key is not in `robo`'s `known_hosts`, or this host's key is not authorised there | The export was written locally and is intact. Repair the path to `oracle` — [`restore-the-firewall.md`](restore-the-firewall.md) §0 — and the next run copies every file that never left |
 | `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
+| `loki-coverage` exits 1 | A Loki alerting rule cannot see a host that is producing exactly the lines it hunts | Not an outage — nothing is broken, but an alert cannot fire for that host, which is how [#261](https://github.com/Gerrrt/HomeLab/issues/261) went unnoticed. The FAIL line names the rule, the host and the log type the lines are arriving under; the fix is usually an `or` branch on the rule for that host's stream. A `WARN` is the latent form — the rule cannot reach the host at all, but nothing there matches it today — and does not fail the job |
 | `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |

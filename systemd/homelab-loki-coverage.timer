@@ -1,0 +1,23 @@
+[Unit]
+Description=HomeLab: daily Loki rule coverage check
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-loki-coverage.service
+# 07:45 daily, a quarter-hour after dashboards-drift and last in the morning
+# run. Both read the live stack rather than the repository, so keeping them
+# adjacent means a morning where the stack is unreachable shows up as two
+# neighbouring failures rather than two unrelated ones — the same argument
+# check-versions makes for sitting behind snmp-verify.
+#
+# Daily, and the service file says why at length: the window sets detection lag
+# rather than sensitivity, so a weekly run would hide a new gap for a week. It
+# is deliberately AFTER the overnight backup jobs, because a rule going blind is
+# never the more urgent of the two.
+OnCalendar=*-*-* 07:45:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

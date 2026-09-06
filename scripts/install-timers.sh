@@ -107,6 +107,7 @@ JOBS=(
   "snmp-verify       homelab-snmp-verify        1209600  snmp-verify"
   "check-versions    homelab-check-versions     1209600  check-versions"
   "dashboards-drift  homelab-dashboards-drift    172800  dashboards-export"
+  "loki-coverage     homelab-loki-coverage       172800  check-loki-coverage"
   "verify-key-backup -                          7776000  secrets-verify-backup"
 )
 

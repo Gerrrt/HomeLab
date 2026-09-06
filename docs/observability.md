@@ -374,6 +374,12 @@ expectation comes out of the data instead, which is also what makes `useradd`
 never matching on FreeBSD `morpheus` a non-event rather than an exception
 somebody has to write down.
 
+It runs daily at 07:45 as `homelab-loki-coverage.timer`, over a 24-hour window
+([#335](https://github.com/Gerrrt/HomeLab/issues/335)). The window is short
+because it sets detection lag, not sensitivity — see
+[`runbooks/schedule-maintenance.md`](runbooks/schedule-maintenance.md) for the
+argument and for what to do when it exits 1.
+
 ### Metric-based (Prometheus)
 
 56 rules across eleven files in `prometheus/rules/`:
