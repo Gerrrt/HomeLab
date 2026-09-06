@@ -169,6 +169,85 @@ groups:
             rollups are read at 4 only, not 3 — a flat cache battery degrades
             both, and IloBatteryCondition owns that.
 
+      - alert: IloDrivePredictiveFailure
+        # The rule #151 is about, and the distinction it turns on.
+        #
+        # IloHardwareDegraded above already reads cpqDaPhyDrvCondition > 2 —
+        # that is the drive's CURRENT condition, and by the time it moves the
+        # redundancy is spent. cpqDaPhyDrvSmartStatus is SMART's PREDICTION, and
+        # it moves while the array is still reporting everything ok. On a RAID 1
+        # mirror that gap is the whole point: the mirror keeps serving reads
+        # through a dying disk without complaint, and the failure only becomes
+        # visible when the second one goes — which is the scenario the mirror
+        # exists to prevent and cannot, if nobody was told about the first.
+        #
+        # Read out of cpqida.mib rather than assumed, and HPE's own wording:
+        #
+        #   other(1)                  the agent cannot determine the status
+        #   ok(2)                     functioning properly
+        #   replaceDrive(3)           "has a S.M.A.R.T predictive failure error
+        #                              and should be replaced"
+        #   replaceDriveSSDWearOut(4) approaching the write limit, "should be
+        #                              replaced as soon as possible"
+        #
+        # > 2 covers both replace cases and leaves 1 to the rule below, because
+        # "replace this drive" and "I can no longer tell" need different actions.
+        #
+        # WARNING, NOT CRITICAL, and deliberately. IloHardwareDegraded is
+        # critical because a redundancy has already been spent; this fires
+        # BEFORE that, while the mirror is still whole. Paging at the same level
+        # for both would make the critical one mean less, and this one is
+        # "order a disk", not "get up".
+        #
+        # No join for the bay. Multiplying by cpqDaPhyDrvBay to carry it as a
+        # label would corrupt $value, and $value here is the thing worth
+        # printing — 3 and 4 are different findings. The description says where
+        # to read the bay instead.
+        expr: cpqDaPhyDrvSmartStatus > 2
+        for: 15m
+        labels:
+          component: network
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "SMART predicts failure on a drive behind {{ $labels.device }}"
+          description: >-
+            Physical drive {{ $labels.cpqDaPhyDrvIndex }} on controller
+            {{ $labels.cpqDaPhyDrvCntlrIndex }} reports SMART status
+            {{ $value }} — 3 is a predictive failure, 4 is an SSD approaching
+            its write limit. The array is probably still reporting healthy, and
+            on a RAID 1 mirror it will keep doing so until the other drive goes.
+            Read `cpqDaPhyDrvBay` and `cpqDaPhyDrvModel` at the same index for
+            the bay to pull and the part to order.
+
+      - alert: IloDriveSmartUnreadable
+        # The complement, and the reason the rule above stops at > 2. other(1)
+        # means the agent cannot determine SMART status at all — so the
+        # predictive check is not passing, it is blind, and without this the
+        # estate could not tell those apart. That is the shape ups.rules.yaml
+        # and #63 keep recording: a control that has quietly stopped being able
+        # to act looks exactly like one with nothing to report.
+        #
+        # `for: 1h` because a controller reports 1 transiently while it
+        # initialises, and an iLO reboot should not page.
+        #
+        # info, not warning: nothing is wrong with the hardware, and the action
+        # is to find out why the agent has gone quiet rather than to order a
+        # part.
+        expr: cpqDaPhyDrvSmartStatus == 1
+        for: 1h
+        labels:
+          component: network
+          severity: info
+          category: correctness
+        annotations:
+          summary: "iLO cannot read SMART status for a drive behind {{ $labels.device }}"
+          description: >-
+            Physical drive {{ $labels.cpqDaPhyDrvIndex }} reports SMART status
+            other(1) — the agent cannot determine whether predictive failure
+            monitoring is working. IloDrivePredictiveFailure is therefore blind
+            for this drive rather than quiet about it.
+
       - alert: IloBatteryCondition
         # cpqHeSysBackupBatteryCondition, which this replaced, is a single
         # scalar with no index labels — it cannot say which pack, why, or what

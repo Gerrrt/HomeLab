@@ -322,3 +322,95 @@ tests:
                 web UI for the specific component. The two Smart Array rollups
                 are read at 4 only, not 3 — a flat cache battery degrades both,
                 and IloBatteryCondition owns that.
+
+  # --- IloDrivePredictiveFailure: fires on replaceDrive(3) ------------------
+  # #151's case. The drive is still working and the array still says so — that
+  # is exactly when SMART moves, and on a RAID 1 mirror it is the only warning
+  # before the second disk goes.
+  - interval: 1m
+    input_series:
+      - series: 'cpqDaPhyDrvSmartStatus{device="shiva",cpqDaPhyDrvIndex="0",cpqDaPhyDrvCntlrIndex="0"}'
+        values: "3x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: IloDrivePredictiveFailure
+        exp_alerts:
+          - exp_labels:
+              device: shiva
+              cpqDaPhyDrvIndex: "0"
+              cpqDaPhyDrvCntlrIndex: "0"
+              component: network
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "SMART predicts failure on a drive behind shiva"
+              description: >-
+                Physical drive 0 on controller 0 reports SMART status 3 — 3 is a
+                predictive failure, 4 is an SSD approaching its write limit. The
+                array is probably still reporting healthy, and on a RAID 1 mirror
+                it will keep doing so until the other drive goes. Read
+                `cpqDaPhyDrvBay` and `cpqDaPhyDrvModel` at the same index for the
+                bay to pull and the part to order.
+
+  # --- IloDrivePredictiveFailure: quiet on ok(2), the live value ------------
+  # Both drives on shiva read 2 today. Without this case the rule would pass its
+  # test while firing for a healthy array.
+  - interval: 1m
+    input_series:
+      - series: 'cpqDaPhyDrvSmartStatus{device="shiva",cpqDaPhyDrvIndex="0",cpqDaPhyDrvCntlrIndex="0"}'
+        values: "2x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: IloDrivePredictiveFailure
+        exp_alerts: []
+
+  # --- IloDrivePredictiveFailure: quiet on other(1) -------------------------
+  # 1 is "cannot determine", which is NOT a predictive failure and must not be
+  # reported as one. It is IloDriveSmartUnreadable's job, and this case is what
+  # stops someone widening the expression to `!= 2`.
+  - interval: 1m
+    input_series:
+      - series: 'cpqDaPhyDrvSmartStatus{device="shiva",cpqDaPhyDrvIndex="0",cpqDaPhyDrvCntlrIndex="0"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: IloDrivePredictiveFailure
+        exp_alerts: []
+
+  # --- IloDriveSmartUnreadable: fires on other(1), after an hour -----------
+  # The complement. A controller reports 1 while it initialises, so the hour is
+  # what keeps an iLO reboot from paging; this fixture holds 1 well past it.
+  - interval: 1m
+    input_series:
+      - series: 'cpqDaPhyDrvSmartStatus{device="shiva",cpqDaPhyDrvIndex="0",cpqDaPhyDrvCntlrIndex="0"}'
+        values: "1x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: IloDriveSmartUnreadable
+        exp_alerts:
+          - exp_labels:
+              device: shiva
+              cpqDaPhyDrvIndex: "0"
+              cpqDaPhyDrvCntlrIndex: "0"
+              component: network
+              severity: info
+              category: correctness
+            exp_annotations:
+              summary: "iLO cannot read SMART status for a drive behind shiva"
+              description: >-
+                Physical drive 0 reports SMART status other(1) — the agent cannot
+                determine whether predictive failure monitoring is working.
+                IloDrivePredictiveFailure is therefore blind for this drive rather
+                than quiet about it.
+
+  # --- IloDriveSmartUnreadable: quiet during a short initialisation --------
+  # Thirty minutes of 1 then back to ok, which is what an iLO reboot looks like.
+  # Without the hour this pages on every controller restart.
+  - interval: 1m
+    input_series:
+      - series: 'cpqDaPhyDrvSmartStatus{device="shiva",cpqDaPhyDrvIndex="0",cpqDaPhyDrvCntlrIndex="0"}'
+        values: "1x30 2x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: IloDriveSmartUnreadable
+        exp_alerts: []
