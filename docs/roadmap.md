@@ -649,7 +649,15 @@ months.
       under-collected, something detects it" — is closed by two rules in
       `stack.rules.yaml`, both with paired firing and quiet unit tests.
       `LogEntriesDropped` fires on any rejection, with no tolerance band,
-      because a dropped line is evidence that no longer exists.
+      because a dropped line is evidence that no longer exists — except
+      `too_far_behind`, which is excluded and which is the difference between a
+      usable alert and one that fires on every deploy. An Alloy with no position
+      file replays up to 24h of journal on start and Loki rejects nearly all of
+      it against a stream that is already current: +19,490 discards from one
+      agent start, measured while testing #186. Those entries are duplicates the
+      previous agent already delivered. The cost of the exclusion, stated: a
+      stream persistently behind rather than briefly replaying is real and this
+      will not see it — that is the other half of #341.
       `JournalSourceStopped` asserts `== 0` rather than a tuned threshold, and
       that is only honest because the quietest host was measured: `Saruman`
       reads 3.1 entries an hour at its slowest over 24h, against 37.6 here and

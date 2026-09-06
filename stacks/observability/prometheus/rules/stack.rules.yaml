@@ -205,9 +205,31 @@ groups:
         # By reason, because the reasons want different fixes: an ingest limit
         # is a Loki config change, a sample age is an agent replaying a backlog
         # older than reject_old_samples_max_age, and rate_limited is neither.
-        # Why Loki is refusing them at all is tracked separately.
+        # Why Loki is refusing them at all is tracked separately (#341).
+        #
+        # `too_far_behind` IS EXCLUDED, and the exclusion is the difference
+        # between a useful alert and one that fires on every deploy. Measured
+        # while testing #186: an Alloy with no position file replays up to
+        # `max_age = "24h0m0s"` of journal on start, and Loki rejects almost all
+        # of it against a stream that is already current —
+        #
+        #   entry too far behind, entry timestamp is: 2026-09-06T04:38:22Z,
+        #   oldest acceptable timestamp is:           2026-09-06T16:24:52Z
+        #
+        # — which is +19,490 discards from one agent start. Those entries are
+        # duplicates the previous agent already delivered, so nothing is lost;
+        # counting them as loss would page after every `make up`, and this
+        # repository has enough experience of an alert that cries wolf to know
+        # where that ends.
+        #
+        # What that costs, said plainly: a stream PERSISTENTLY behind rather
+        # than briefly replaying is real and this will not see it. That is the
+        # other half of #341 and wants a rule shaped around duration, not a
+        # counter delta.
         expr: |
-          sum by (job, reason) (rate(loki_write_dropped_entries_total[15m])) > 0
+          sum by (job, reason) (
+            rate(loki_write_dropped_entries_total{reason!="too_far_behind"}[15m])
+          ) > 0
         for: 15m
         labels:
           component: stack
