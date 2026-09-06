@@ -219,6 +219,31 @@ services:
     # no longer six hours of a mostly-empty database.
     mem_limit: 1024m
     memswap_limit: 1024m
+    # cap_drop and no-new-privileges, here and on the four services that follow,
+    # are belt and braces, and this comment should say so rather than imply
+    # otherwise. Measured 2026-09-06 against the running stack: prometheus,
+    # alertmanager, loki, grafana and snmp-exporter each already run as a
+    # non-root uid with CapEff 0000000000000000. There is no capability here to
+    # take away.
+    #
+    # What `cap_drop: [ALL]` clears is the BOUNDING set — 00000000a80425fb,
+    # Docker's default fourteen — which is not what the process has but what it
+    # could ever regain. So it costs nothing today and closes the path a future
+    # image bump would open by shipping a setuid or file-capability binary.
+    # None of the six pinned images contains one: `docker export` of each
+    # container, scanned for the setuid and setgid bits, comes back empty.
+    #
+    # `no-new-privileges:true` is the other half of the same sentence, and it
+    # read 0 on every container in this stack. It makes execve unable to raise
+    # privilege at all, so the setuid binary that does not exist yet cannot help
+    # even if a later image bump brings one.
+    #
+    # Two services are not covered by that "costs nothing": blackbox-exporter,
+    # where the drop takes away a live effective set (see there), and alloy,
+    # which has carried both since #188 for a third reason again.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     command:
       - --config.file=/etc/prometheus/prometheus.yaml
       - --storage.tsdb.path=/prometheus
@@ -303,6 +328,10 @@ services:
     # all. 256M is 5x even the working-set peak of 52 MiB.
     mem_limit: 256m
     memswap_limit: 256m
+    # Bounding set only — CapEff here was already 0. See prometheus above.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     command:
       - --config.file=/etc/alertmanager/alertmanager.yaml
       - --storage.path=/alertmanager
@@ -354,6 +383,10 @@ services:
     # exists to re-derive from. See the block above `services:`.
     mem_limit: 1536m
     memswap_limit: 1536m
+    # Bounding set only — CapEff here was already 0. See prometheus above.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -406,6 +439,10 @@ services:
     # fourteen days, median 14, with no trend.
     mem_limit: 128m
     memswap_limit: 128m
+    # Bounding set only — CapEff here was already 0. See prometheus above.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     command:
       - --config.file=/etc/snmp_exporter/snmp.yaml
     volumes:
@@ -443,6 +480,32 @@ services:
     # shorter window does not change the number.
     mem_limit: 128m
     memswap_limit: 128m
+    # The one service in this stack where the drop takes something away today,
+    # and the reason is that #187's table was wrong about this row. Measured
+    # 2026-09-06: this container runs as Uid 0 with CapEff 00000000a80425fb —
+    # the full default set, effective rather than merely bounding — because
+    # prom/blackbox-exporter:v0.28.0 sets no USER in its image config and
+    # nothing above sets `user:`. The issue asserted the image runs as `nobody`.
+    # It does not, so this line is here on its own merits rather than as a
+    # formality.
+    #
+    # Nothing in blackbox.yaml needs a capability. There is no `icmp` prober
+    # defined — the six modules are three http, one tcp_connect and two dns —
+    # so CAP_NET_RAW is not wanted, and the exporter binds only 9115, above
+    # 1024. Verified rather than assumed: this pinned digest was run with
+    # --cap-drop ALL --security-opt no-new-privileges:true against the real
+    # blackbox.yaml and every module probed. tcp_connect, http_2xx_plain and
+    # dns_answers returned probe_success 1. dns_filters and http_2xx_self_signed
+    # returned 0 — and returned 0 identically from an uncapped control container
+    # and from the live blackbox-exporter against the same targets, so those two
+    # are properties of the targets and not of the drop. (dns_filters against
+    # Unbound is the trap row the blackbox.yaml table already documents.)
+    #
+    # Giving this service a non-root `user:` as well is the obvious next step.
+    # It is a separate change with its own verification and is tracked in #330.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     command:
       - --config.file=/etc/blackbox_exporter/config.yml
     volumes:
@@ -493,6 +556,10 @@ services:
     # folded into the multiplier so the next person knows it is an assumption.
     mem_limit: 1280m
     memswap_limit: 1280m
+    # Bounding set only — CapEff here was already 0. See prometheus above.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in secrets/observability.sops.yaml}
