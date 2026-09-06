@@ -68,6 +68,18 @@ and it is deliberately not decided here.
 - `network.md`'s claim that the switch LAN reaches "Nothing" is true for the
   first time. ADR-0013 recorded it as false; it is now a description rather
   than an aspiration.
+
+  **Corrected 2026-09-06, after this ADR was first written.** The paragraph
+  above originally said the switch LAN "still reaches every segment outbound".
+  That was wrong, and wrong in the way this document exists to fix: it was
+  ADR-0013's claim carried forward without being checked, restated with a
+  "still" that turned a quotation into a fresh assertion. The outbound half was
+  closed on **2026-09-02** — six logged blocks, one per VLAN, above an egress
+  rule renamed *Allow internet*, with DNS and NTP to the gateway the only passes
+  above them. Read off `pfctl -sr`; the rule identifiers are creation
+  timestamps and they date it. That is
+  [#229](https://github.com/Gerrrt/HomeLab/issues/229), substantially done
+  before either that issue or this ADR said so.
 - **The switch's cleartext management plane is closed to the management
   segment.** [ADR-0018](0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
   accepted plain HTTP on the switch UI because the segment was small and
@@ -87,3 +99,10 @@ and it is deliberately not decided here.
 - SNMP remains the single functional exception, and it is the one thing that
   must keep working: `up{job="snmp"}` for `neo` is how the switch is monitored
   at all.
+- **One residual, latent rather than live.** The switch LAN interface still
+  carries pfSense's stock *Default allow LAN IPv6 to any* with no IPv6 blocks
+  above it, while every other interface here carries paired `inet`/`inet6`
+  blocks. `igc0` has only a link-local address, which does not route, so nothing
+  can currently use it — but it is a divergence from the pattern and the IPv4
+  work of 2026-09-02 did not extend to it. Worth closing when IPv6 is decided
+  ([#353](https://github.com/Gerrrt/HomeLab/issues/353)).

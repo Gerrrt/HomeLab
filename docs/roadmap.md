@@ -619,6 +619,29 @@ months.
 
 ## Done
 
+- [x] **[#229](https://github.com/Gerrrt/HomeLab/issues/229) The switch LAN's
+      default-allow was replaced four days before anyone wrote it down.**
+      2026-09-06. Read off `pfctl -sr` rather than taken from the issue: the
+      interface carries six logged blocks — one per VLAN — above an egress rule
+      renamed *Allow internet*, with DNS and NTP to the gateway the only passes
+      above them. Exactly the shape #229 proposed, done on **2026-09-02**,
+      datable because pfSense rule identifiers are creation timestamps.
+
+      **This corrects a claim I introduced an hour earlier.** ADR-0025 and three
+      places in `network.md` said the switch LAN "still reaches every segment
+      outbound". That was ADR-0013's claim carried forward without being checked,
+      restated with a "still" that turned a quotation into a fresh assertion —
+      which is the exact failure mode ADR-0025 exists to fix, committed while
+      fixing it. `security.md` said the same. All four corrected, and ADR-0025
+      carries the correction rather than a quiet edit, per ADR-0001.
+
+      **One residual, latent rather than live.** The stock *Default allow LAN
+      IPv6 to any* rule is still there with no IPv6 blocks above it, while every
+      other interface carries paired `inet`/`inet6` blocks — the 2026-09-02 work
+      was IPv4 only. `igc0` has only a link-local address, which does not route,
+      so nothing can use it today. Worth closing when IPv6 is decided
+      ([#353](https://github.com/Gerrrt/HomeLab/issues/353)).
+
 - [x] **[#152](https://github.com/Gerrrt/HomeLab/issues/152) The estate knows how
       far behind its own packages are — on one host.** 2026-09-06. Images are
       tagged, digest-pinned, CI-enforced and Dependabot-bumped; the kernel
