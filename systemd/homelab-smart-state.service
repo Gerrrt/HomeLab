@@ -21,9 +21,21 @@
 #
 # WHAT IT COLLECTS AND FROM WHERE. `make smart-state` reads the local disks and
 # reads morpheus over SSH — morpheus is FreeBSD with no node_exporter and no
-# textfile directory of its own, but pfSense already ships smartctl and root SSH
-# from this host already works, so it needs no agent. Saruman is not here: its
-# array is already covered by cpqDaPhyDrvSmartStatus over SNMP (#151).
+# textfile directory of its own, but pfSense already ships smartctl, so it needs
+# no agent. Saruman is not here: its array is already covered by
+# cpqDaPhyDrvSmartStatus over SNMP (#151).
+#
+# THE TWO HALVES NEED OPPOSITE THINGS, which the first scheduled run of this
+# unit proved the hard way. smartctl needs root. The SSH to the firewall needs
+# the OPERATOR key at /home/robo/.ssh/id_ed25519 — the one
+# homelab-backup-firewall.service has used since #92, and which root does not
+# have. Running the whole job as root failed on the morpheus half with
+# "Permission denied (publickey)" while the identical command worked by hand.
+#
+# So the script drops to SMART_SSH_USER (default `robo`) via runuser for the SSH
+# call only, and keeps root for the device reads. Root giving away privilege it
+# does not need is the right direction; the alternatives were minting a second
+# firewall key for root, or having root read another user's private key.
 #
 # KNOWN INCOMPLETE, and visible rather than silent: smartmontools is not
 # installed on this host or on oracle, so the local half collects nothing until
