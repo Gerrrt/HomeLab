@@ -1,0 +1,52 @@
+# SMART for an agent host's own disks — a host that runs Alloy but not this
+# repository (#351).
+#
+# NOT the same unit as systemd/homelab-smart-state.service. On the monitoring
+# host the job goes through scripts/run-scheduled.sh, which wraps it in
+# homelab_job_* outcome metrics and needs a checkout and a Makefile. An agent
+# host has neither, so this calls the collector directly. The cost is that
+# ScheduledJobFailed does not cover these runs; what covers them is the shape of
+# the data, since a host that stops collecting stops producing homelab_smart_*
+# series entirely.
+#
+# ONLY THE LOCAL DISKS, and there is no remote counterpart here. The split on the
+# monitoring host exists because that host also reads morpheus over SSH; an agent
+# host reads nothing but itself, so it needs one unit and no credential at all.
+# This one is purely the privileged half: root, no network, one writable path.
+#
+# ROOT, for the same reason as everywhere else — smartctl issues ATA and NVMe
+# pass-through ioctls and needs raw device access. The textfile directory on an
+# agent host is created root-owned by the Alloy deployment, so root also happens
+# to be what can write there; that is convenience, not the reason.
+#
+# NEEDS smartmontools ON THE TARGET. scripts/install-agent-collectors.sh checks
+# for it rather than assuming, because a missing binary here would otherwise
+# produce a host that looks like it has no disks.
+[Unit]
+Description=HomeLab: collect SMART health for this host's disks
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-smart-state
+TimeoutStartSec=300
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+PrivateNetwork=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-smart-state

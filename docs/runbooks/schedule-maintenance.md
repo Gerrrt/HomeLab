@@ -95,10 +95,14 @@ previously have, which is how far behind this host's packages are
 covers **this host only**: `oracle` and `Saruman` would need it shipped to them
 and `morpheus` is FreeBSD with no apt at all.
 
-`patch-state` runs on agent hosts too, and not through this table. A host that
-runs Alloy but has no checkout of this repository — `oracle` — gets the collector
-and its own timer installed directly, by `make install-agent-patch-state
-AGENT=user@host`. That step needs `sudo` **on the target** and is deliberately
+**Agent hosts run these collectors too, and not through this table.** A host that
+runs Alloy but has no checkout of this repository — `oracle` — gets the
+collectors and their own timers installed directly, by `make
+install-agent-collectors AGENT=user@host`. It ships every collector the script's
+`COLLECTORS` table names — `patch-state` and `smart-state` today — and checks
+each host's requirements **per collector**, so a host without apt still gets
+SMART and the one it cannot have is reported rather than skipped silently.
+`ARGS='--only smart-state'` narrows it. That step needs `sudo` **on the target** and is deliberately
 not part of `scripts/deploy-agent.sh`, which goes out of its way to need no
 privilege there. It is run once per host; `ARGS=--check` re-verifies an existing
 install and changes nothing.

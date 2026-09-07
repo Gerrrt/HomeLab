@@ -1,0 +1,21 @@
+[Unit]
+Description=HomeLab: daily SMART collection
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-smart-state.service
+# 08:30, matching the monitoring host's local SMART timer. These runs are
+# independent — each host reads its own disks and writes its own file, nothing
+# is shared and nothing contends — so there is no reason to stagger them, and one
+# time across the estate keeps "every host's SMART is from this morning" true.
+#
+# Persistent=true matters here: an agent host can be off overnight, and a missed
+# run should be collected at the next boot rather than skipped, so a gap in the
+# series means "stopped reporting" and not "was asleep at 08:30".
+OnCalendar=*-*-* 08:30:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
