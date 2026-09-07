@@ -55,6 +55,7 @@ Usage: scripts/check_docs.py
 """
 from __future__ import annotations
 
+import functools
 import json
 import pathlib
 import re
@@ -156,7 +157,23 @@ def _number_words() -> dict[str, int]:
     return words
 
 NUMBER_WORDS = _number_words()
-COUNT = r"\b(\d+|(?i:" + "|".join(sorted(NUMBER_WORDS, key=len, reverse=True)) + r"))"
+# Built as STRUCTURE rather than as a flat list of all ninety-nine words. A
+# 99-branch alternation is correct and slow: it is applied for ~20 claim
+# patterns across ~25 documents, and flattening it took check_docs from 1.6s to
+# 5.5s — measured. Expressing the compounds as "tens, optionally hyphen ones"
+# gives 27 branches for the same language and puts the cost back to noise.
+#
+# Longest-first within each group, so "seven" cannot match inside "seventeen"
+# and leave the rest of the pattern to fail.
+def _alt(words: list[str]) -> str:
+    return "|".join(sorted(words, key=len, reverse=True))
+
+_WORD_NUMBER = (
+    rf"(?:{_alt(_TENS)})(?:-(?:{_alt(_ONES)}))?"   # twenty, forty-five
+    rf"|{_alt(_TEENS)}"                             # ten .. nineteen
+    rf"|{_alt(_ONES)}"                              # one .. nine
+)
+COUNT = r"\b(\d+|(?i:" + _WORD_NUMBER + r"))"
 
 # Number words this table cannot turn into an integer. A claim built on one of
 # these is invisible to every assertion below, so it is reported rather than
@@ -407,6 +424,17 @@ def facts() -> dict:
 # ---------------------------------------------------------------------------
 # 1. Counted claims
 # ---------------------------------------------------------------------------
+@functools.lru_cache(maxsize=None)
+def _unreadable_pattern(pattern: str) -> re.Pattern[str]:
+    """`pattern` with the number token swapped for the ones that cannot be read.
+
+    Memoised because the claim patterns are rebuilt on every call and compiling
+    a 99-branch alternation repeatedly is most of what made the ceiling scan
+    expensive.
+    """
+    return re.compile(pattern.replace(COUNT, UNPARSEABLE_NUMBER.pattern))
+
+
 def check_counts(f: dict) -> list[str]:
     # "N alert rules" is genuinely ambiguous in this repository: README uses it
     # for the total, security.md for the Prometheus half. Both readings are
@@ -473,6 +501,13 @@ def check_counts(f: dict) -> list[str]:
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8")
+        # Whether this file could possibly hold an unreadable count, asked once
+        # per file instead of once per claim pattern. Without it the ceiling
+        # scan re-walks every document with a 99-branch alternation for each of
+        # ~20 patterns, and check_docs went from 1.6s to 7.5s — measured, not
+        # guessed. Almost no file contains "hundred" at all, so this skips the
+        # whole scan for nearly all of them and the cost returns to noise.
+        may_be_unreadable = UNPARSEABLE_NUMBER.search(text) is not None
         for pattern, expected, label in claims:
             for match in re.finditer(pattern, text):
                 if number(match.group(1)) in expected:
@@ -493,8 +528,10 @@ def check_counts(f: dict) -> list[str]:
             # (#367). The ceiling is asserted here rather than assumed, so the
             # next time prose outgrows the table it fails loudly instead of
             # going quiet.
-            unreadable = pattern.replace(COUNT, UNPARSEABLE_NUMBER.pattern)
-            for match in re.finditer(unreadable, text):
+            if not may_be_unreadable:
+                continue
+            unreadable = _unreadable_pattern(pattern)
+            for match in unreadable.finditer(text):
                 n = text.count("\n", 0, match.start()) + 1
                 problems.append(
                     f"{rel}:{n} states {label} as a number this check cannot "
