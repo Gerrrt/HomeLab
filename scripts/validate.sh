@@ -483,6 +483,18 @@ else
   fail "collect-patch-state.sh --self-test"
 fi
 
+# Same reasoning, one OS along. morpheus cannot be made to have a pfSense system
+# upgrade pending on demand, so the branch that matters most — a system
+# meta-package behind the repository — has never been observed live and exists
+# only as a fixture. It also pins the false positive that would make the alert
+# untrustworthy: `pfSense-repoc` starts with "pfSense-" and is NOT the system.
+if "${REPO_ROOT}/scripts/collect-pkg-state.sh" --self-test >/dev/null 2>&1; then
+  pass "collect-pkg-state.sh --self-test (8 fixtures)"
+else
+  "${REPO_ROOT}/scripts/collect-pkg-state.sh" --self-test || true
+  fail "collect-pkg-state.sh --self-test"
+fi
+
 head_ "Documentation"
 # ---------------------------------------------------------------------------
 # Asserts the prose still agrees with the configs it describes: rule and panel
