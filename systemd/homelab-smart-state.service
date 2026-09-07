@@ -1,0 +1,62 @@
+# Daily SMART collection for the disks the iLO cannot see (#351).
+#
+# THE FIRST UNIT HERE THAT RUNS AS ROOT, and #351 called that out as the reason
+# this is a provisioning change rather than a config change. Every other timer
+# in install-timers.sh's JOBS table runs as User=robo. smartctl issues ATA and
+# NVMe pass-through ioctls and needs raw device access; no group membership
+# substitutes for it.
+#
+# ROOT UNIT RATHER THAN A SUDOERS RULE, deliberately. A NOPASSWD entry for
+# smartctl is also a NOPASSWD entry for `smartctl --set` and `smartctl -t`,
+# which write to the drive and can start self-tests — so the narrow-looking
+# option is not actually narrower. A unit that runs as root and gives back
+# everything it does not need is easier to reason about and easier to read:
+# ProtectSystem=strict with a single ReadWritePaths, no network beyond the SSH
+# it needs, and every kernel-surface toggle set.
+#
+# It still goes through run-scheduled.sh, like every other job here. That is
+# what produces homelab_job_* and what install-timers.sh --check asserts for
+# every ExecStart; running as root changes who executes it and nothing about how
+# its outcome is recorded.
+#
+# WHAT IT COLLECTS AND FROM WHERE. `make smart-state` reads the local disks and
+# reads morpheus over SSH — morpheus is FreeBSD with no node_exporter and no
+# textfile directory of its own, but pfSense already ships smartctl and root SSH
+# from this host already works, so it needs no agent. Saruman is not here: its
+# array is already covered by cpqDaPhyDrvSmartStatus over SNMP (#151).
+#
+# KNOWN INCOMPLETE, and visible rather than silent: smartmontools is not
+# installed on this host or on oracle, so the local half collects nothing until
+# it is. The target says so on every run and the absence shows as a missing
+# homelab_smart_devices series for that host rather than as healthy disks.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: collect SMART health for the disks SNMP does not reach
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job smart-state -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab smart-state
+TimeoutStartSec=300
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-smart-state

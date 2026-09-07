@@ -32,7 +32,7 @@ prometheus/
   prometheus.yaml          scrape config; SNMP via file_sd
   targets/snmp.yaml        SNMP targets — hot-reloaded, no restart needed
   targets/blackbox*.yaml   probe targets, http and dns — hot-reloaded, no restart
-  rules/*.rules.yaml       66 alert rules across host/network/ups/containers/blackbox/dns/backup/ids/deploy
+  rules/*.rules.yaml       70 alert rules across host/network/ups/containers/blackbox/dns/backup/ids/deploy
   tests/*.test.yaml        promtool unit tests — assert the rules can fire
 blackbox/blackbox.yaml     probe modules — reachability, and what a resolver said
 alertmanager/
