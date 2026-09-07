@@ -123,6 +123,7 @@ JOBS=(
   "smart-state       homelab-smart-state         172800  smart-state"
   "smart-state-remote homelab-smart-state-remote 172800  smart-state-remote"
   "pkg-state         homelab-pkg-state           172800  pkg-state"
+  "gateway-state     homelab-gateway-state         5400  gateway-state"
   "verify-key-backup -                          7776000  secrets-verify-backup"
 )
 

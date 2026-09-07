@@ -317,3 +317,63 @@ groups:
             the cause (25 = noCapacitorAttached is a dead backup battery), and
             cpqDaAccelBadData = 3 is the one that matters for the array — it
             means dirty cache was lost.
+
+      # --- The firewall's own view of its uplinks (#353) ---------------------
+      #
+      # Two rules, because "pfSense says this gateway is down" has two very
+      # different causes and only one of them is an outage. On 2026-09-07
+      # WAN_DHCP6 reported 100% loss while the box reached the v6 internet
+      # through that exact gateway in 11ms: dpinger was pointed at the
+      # gateway's link-local address, which does not answer ICMPv6 echo. A rule
+      # on status alone would have fired forever for a working link.
+
+      - alert: GatewayDown
+        # The firewall says the gateway is down AND cannot reach the internet
+        # over that address family. Both halves, because either alone is a
+        # measurement rather than a conclusion.
+        expr: >-
+          homelab_gateway_status == 0
+          and on(host, family) homelab_gateway_forwarding == 0
+        for: 10m
+        labels:
+          component: network
+          severity: critical
+          category: availability
+        annotations:
+          summary: >-
+            {{ $labels.host }}: {{ $labels.gateway }} is down and
+            {{ $labels.family }} does not leave the building
+          description: >-
+            dpinger reports this gateway down and an independent probe over
+            {{ $labels.family }} also failed, so this is the uplink rather than
+            the monitor. Check the modem and the ISP before the firewall —
+            homelab_gateway_loss_ratio has the loss dpinger measured.
+
+      - alert: GatewayMonitorUnreliable
+        # The mirror image: reported down while traffic of that family flows.
+        # Not an outage — a monitor pointed at something that never answers,
+        # which is worth fixing because it makes the gateway's real state
+        # unreadable and, on pfSense, can influence routing decisions.
+        #
+        # 6h, not minutes. A brief genuine outage will show as status 0 with
+        # forwarding 0 and belongs to GatewayDown; this one only becomes true
+        # when the disagreement PERSISTS, which is what a misconfigured monitor
+        # looks like and a flapping link does not.
+        expr: >-
+          homelab_gateway_status == 0
+          and on(host, family) homelab_gateway_forwarding == 1
+        for: 6h
+        labels:
+          component: network
+          severity: warning
+          category: config
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.gateway }} reports down while {{ $labels.family }} still works"
+          description: >-
+            The firewall reports this gateway down and traffic of this family
+            reaches the internet through it anyway, so the monitor address is
+            not answering rather than the link being broken — common when
+            dpinger is pointed at an ISP gateway's link-local address. Point the
+            gateway's Monitor IP at something that answers, or set it to
+            not-monitored. Until then the gateway's real state cannot be read
+            from its status.

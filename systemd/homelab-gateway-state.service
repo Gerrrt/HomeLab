@@ -1,0 +1,46 @@
+# The firewall's own view of its uplinks (#353).
+#
+# WHY IT IS NOT COVERED BY #166's PROBES. Those measure "monitoring host ->
+# target" and are the right shape for latency. A gateway's view of its uplink is
+# a different measurement on a different interface, and dpinger logs to syslog
+# only on a STATE CHANGE — so a gateway down since before log retention began
+# writes nothing at all. That is how WAN_DHCP6 sat at 100% loss unnoticed.
+#
+# IT MEASURES TWO THINGS ON PURPOSE. pfSense's reported status, and whether the
+# box can actually reach the internet over that address family. On 2026-09-07
+# those disagreed: WAN_DHCP6 reported down at 100% loss while v6 traffic
+# traversed that exact gateway in 11ms, because dpinger was pointed at a
+# link-local address that does not answer ICMPv6 echo. Collecting only the
+# status would have produced a permanently-firing alert for a working link.
+#
+# Runs as robo over SSH like the other morpheus collectors — the firewall has no
+# agent, and the key that reaches it is robo's. See homelab-pkg-state.service.
+[Unit]
+Description=HomeLab: collect gateway state from the firewall
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job gateway-state -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab gateway-state
+TimeoutStartSec=300
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-gateway-state

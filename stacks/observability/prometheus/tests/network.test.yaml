@@ -414,3 +414,99 @@ tests:
       - eval_time: 90m
         alertname: IloDriveSmartUnreadable
         exp_alerts: []
+
+  # --- GatewayDown: fires only when the family is genuinely off the air -----
+  - interval: 1m
+    input_series:
+      - series: 'homelab_gateway_status{host="morpheus",gateway="WAN_DHCP",family="inet"}'
+        values: "1x20 0x40"
+      - series: 'homelab_gateway_forwarding{host="morpheus",family="inet"}'
+        values: "1x20 0x40"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: GatewayDown
+        exp_alerts:
+          - exp_labels:
+              host: morpheus
+              gateway: WAN_DHCP
+              family: inet
+              component: network
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "morpheus: WAN_DHCP is down and inet does not leave the building"
+              description: >-
+                dpinger reports this gateway down and an independent probe over
+                inet also failed, so this is the uplink rather than the monitor.
+                Check the modem and the ISP before the firewall —
+                homelab_gateway_loss_ratio has the loss dpinger measured.
+
+  # --- GatewayDown: QUIET for the real WAN_DHCP6 state ----------------------
+  # The live values on 2026-09-07: pfSense says down, the family still reaches
+  # the internet. This is the case a status-only rule would have fired on
+  # forever, and the reason the rule has two halves.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_gateway_status{host="morpheus",gateway="WAN_DHCP6",family="inet6"}'
+        values: "0x60"
+      - series: 'homelab_gateway_forwarding{host="morpheus",family="inet6"}'
+        values: "1x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: GatewayDown
+        exp_alerts: []
+
+  # --- GatewayMonitorUnreliable: fires for exactly that state ---------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_gateway_status{host="morpheus",gateway="WAN_DHCP6",family="inet6"}'
+        values: "0x600"
+      - series: 'homelab_gateway_forwarding{host="morpheus",family="inet6"}'
+        values: "1x600"
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: GatewayMonitorUnreliable
+        exp_alerts:
+          - exp_labels:
+              host: morpheus
+              gateway: WAN_DHCP6
+              family: inet6
+              component: network
+              severity: warning
+              category: config
+            exp_annotations:
+              summary: "morpheus: WAN_DHCP6 reports down while inet6 still works"
+              description: >-
+                The firewall reports this gateway down and traffic of this
+                family reaches the internet through it anyway, so the monitor
+                address is not answering rather than the link being broken —
+                common when dpinger is pointed at an ISP gateway's link-local
+                address. Point the gateway's Monitor IP at something that
+                answers, or set it to not-monitored. Until then the gateway's
+                real state cannot be read from its status.
+
+  # --- GatewayMonitorUnreliable: quiet during a real outage -----------------
+  # Both halves down is GatewayDown's case, not this one. Without this the two
+  # rules could both fire for one event and the pair would say nothing.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_gateway_status{host="morpheus",gateway="WAN_DHCP",family="inet"}'
+        values: "0x600"
+      - series: 'homelab_gateway_forwarding{host="morpheus",family="inet"}'
+        values: "0x600"
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: GatewayMonitorUnreliable
+        exp_alerts: []
+
+  # --- GatewayDown: quiet for a healthy gateway ----------------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_gateway_status{host="morpheus",gateway="WAN_DHCP",family="inet"}'
+        values: "1x60"
+      - series: 'homelab_gateway_forwarding{host="morpheus",family="inet"}'
+        values: "1x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: GatewayDown
+        exp_alerts: []

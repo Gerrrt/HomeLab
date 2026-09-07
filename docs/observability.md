@@ -298,7 +298,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-88 rules in total: 72 metric-based in `prometheus/rules/`, and 16 log-based in
+90 rules in total: 74 metric-based in `prometheus/rules/`, and 16 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -405,7 +405,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-72 rules across eleven files in `prometheus/rules/`:
+74 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -428,13 +428,15 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is fifty-one rules of 72 so far — the five
+against the broken rule too. Coverage is fifty-three rules of 74 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
 `backup.test.yaml`, all five in `deploy.test.yaml`, `RemoteWriteJobStale`,
-`SuricataStopped`, and all fifteen in `host.rules.yaml` —
+`SuricataStopped`, the two gateway rules from
+[#353](https://github.com/Gerrrt/HomeLab/issues/353), and all fifteen in
+`host.rules.yaml` —
 `HostDiskWillFillIn24h` from [#189](https://github.com/Gerrrt/HomeLab/issues/189),
 six more from [#320](https://github.com/Gerrrt/HomeLab/issues/320), the four
 SMART rules from [#351](https://github.com/Gerrrt/HomeLab/issues/351),
