@@ -62,6 +62,7 @@ the host.
 | `loki-coverage` | `make check-loki-coverage` | daily 07:45 | 2 days |
 | `patch-state` | `make patch-state` | daily 08:00 | 2 days |
 | `firewall-claims` | `make check-firewall` | daily 08:15 | 2 days |
+| `smart-state` | `make smart-state` | daily 08:30 | 2 days |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
@@ -109,6 +110,43 @@ interval is the whole detection latency, which is why it is daily. It needs SSH
 to the firewall and nothing else — no age key, no docker, no lock — and it never
 writes a rule body anywhere, which is what lets it run unattended without
 breaching `security.md`'s "rule bodies are not published".
+
+`smart-state` is the only job here that runs as **root**, and that is the whole
+reason [#351](https://github.com/Gerrrt/HomeLab/issues/351) was a separate issue
+rather than a config change. `smartctl` issues ATA and NVMe pass-through ioctls
+and needs raw device access; every other timer runs as `robo`. A root unit was
+chosen over a `sudoers` rule because the narrow-looking option is not narrower —
+a `NOPASSWD` entry for `smartctl` is also one for `smartctl --set` and
+`smartctl -t`, which write to the drive. The unit gives back everything it does
+not need instead: `ProtectSystem=strict`, one `ReadWritePaths`, and every
+kernel-surface toggle set. It still runs through `run-scheduled.sh`, so its
+outcome is recorded like any other job.
+
+It covers what SNMP does not. `Saruman`'s array is already watched by
+`cpqDaPhyDrvSmartStatus` through the `ilo` module
+([#151](https://github.com/Gerrrt/HomeLab/issues/151)), so it is deliberately
+absent here. `morpheus` needed no agent in the end: #351 assumed a "fourth path"
+for a FreeBSD host with no node_exporter, and pfSense already ships `smartctl`
+while root SSH from this host already works — so it is read over SSH and written
+into this host's textfile directory under `host="morpheus"`. Those series carry
+`instance="prometheus"`, which is the price of the host having no agent and is
+stated in the collector rather than left to surprise someone grouping by
+instance.
+
+**The local half is not collecting yet, and that is visible rather than
+silent.** `smartmontools` is not installed on this host or on `oracle`:
+
+```bash
+sudo apt install smartmontools
+```
+
+Until then `make smart-state` prints a `SKIP` line naming that command on every
+run, and the gap shows as a missing `homelab_smart_devices` series for the host
+rather than as healthy disks. The four rules read the drive's own verdict rather
+than a threshold chosen here — `morpheus` idles at 62 °C against an operational
+limit of 100 °C, so any fixed temperature number would be wrong for some drive in
+this estate. Temperature is collected and deliberately not alerted on for that
+reason.
 
 `loki-coverage` is daily rather than weekly, and the reason is the opposite of
 the obvious one. Its `--window` is not a sensitivity dial: both sides of its
@@ -320,6 +358,7 @@ expected rather than a second fault.
 | `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
 | `loki-coverage` exits 1 | A Loki alerting rule cannot see a host that is producing exactly the lines it hunts | Not an outage — nothing is broken, but an alert cannot fire for that host, which is how [#261](https://github.com/Gerrrt/HomeLab/issues/261) went unnoticed. The FAIL line names the rule, the host and the log type the lines are arriving under; the fix is usually an `or` branch on the rule for that host's stream. A `WARN` is the latent form — the rule cannot reach the host at all, but nothing there matches it today — and does not fail the job |
 | `firewall-claims` exits 1 | A segmentation claim in `docs/firewall-claims.yaml` no longer matches the running ruleset | Not an outage, and the firewall is not the thing that is wrong — a document is. The FAIL line names the interface, the segment and the direction: *now reaches X* means a block was removed or a VLAN was added, *no longer reaches X* means a block landed and the prose still describes the world before it. Re-derive with `scripts/check_firewall_claims.py --derive`, then move the prose that cites it — `docs/network.md` and `docs/security.md`. Never edit an ADR in place: [ADR-0001](../adr/0001-record-architecture-decisions.md) makes them immutable, so a stale one gets a marked amendment or a superseding ADR |
+| `smart-state` exits 1 | A disk failed SMART, or the collector could not read one | `SmartDriveUnhealthy` is the firmware's own verdict and means replace the drive, not investigate a counter. `SmartDriveSpareLow` compares against the threshold the drive publishes for itself. A non-zero exit with no alert usually means SSH to `morpheus` failed or `smartctl` returned nothing readable — the job prints the device it could not read. A `SKIP` line for the local disks is not a failure: `smartmontools` is not installed here yet |
 | `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |

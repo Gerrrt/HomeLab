@@ -1,0 +1,22 @@
+[Unit]
+Description=HomeLab: daily SMART collection
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-smart-state.service
+# 08:30 daily, after firewall-claims and last in the morning run. It reaches the
+# firewall over SSH like backup-firewall does, so it sits with the jobs that
+# leave this host rather than with the ones that read it.
+#
+# Daily is generous for what it measures — a drive's endurance moves over
+# months, not hours — and the interval is set by detection latency for the one
+# signal that is not slow: SmartDriveUnhealthy is a latch the firmware sets when
+# it has concluded the disk is failing, and waiting a week to notice that is not
+# a trade worth making for a job that takes two seconds.
+OnCalendar=*-*-* 08:30:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

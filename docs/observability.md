@@ -298,7 +298,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-82 rules in total: 66 metric-based in `prometheus/rules/`, and 16 log-based in
+86 rules in total: 70 metric-based in `prometheus/rules/`, and 16 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -405,7 +405,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-66 rules across eleven files in `prometheus/rules/`:
+70 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -428,15 +428,16 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is forty-five rules of 66 so far — the five
+against the broken rule too. Coverage is forty-nine rules of 70 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
 `backup.test.yaml`, all five in `deploy.test.yaml`, `RemoteWriteJobStale`,
-`SuricataStopped`, and all seven in `host.rules.yaml` —
-`HostDiskWillFillIn24h` from [#189](https://github.com/Gerrrt/HomeLab/issues/189)
-and the other six from [#320](https://github.com/Gerrrt/HomeLab/issues/320).
+`SuricataStopped`, and all eleven in `host.rules.yaml` —
+`HostDiskWillFillIn24h` from [#189](https://github.com/Gerrrt/HomeLab/issues/189),
+six more from [#320](https://github.com/Gerrrt/HomeLab/issues/320), and the
+four SMART rules from [#351](https://github.com/Gerrrt/HomeLab/issues/351).
 The other 21 are still validated for syntax only, which is exactly the
 standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
 sentence they replaced claimed six and named two, and had been wrong for
