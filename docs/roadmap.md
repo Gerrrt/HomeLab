@@ -533,9 +533,14 @@ what left this one unfireable for months.
   [#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh — the heaviest
   component, and the one most likely to be what the spindles run out on — and
   [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor.
-  [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS decides what it is
-  for before it is installed, since a hypervisor backing up its own guests to
-  itself is not a backup. Liveness stays where it already was, with
+  [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS is **decided and
+  deferred** by
+  [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md):
+  a hypervisor backing up its own guests to itself is not a backup, `zion` is
+  decided and not yet bought, and PVE already does the snapshots the local-only
+  answer needs — so PBS would add a service for a capability that exists. The
+  lab has **revert and not backup** until `zion` does, and the ADR names what
+  gets backed up when it arrives. Liveness stays where it already was, with
   [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0020 decides only
   that no Alertmanager goes *inside* the stack, and the lab is otherwise being
   built to go quiet.
