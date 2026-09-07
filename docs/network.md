@@ -38,10 +38,15 @@ above CasaBonita, which the spectrum does not. Reasoning in
     ([#229](https://github.com/Gerrrt/HomeLab/issues/229)). Inbound, nothing on
     Winterfell can reach it since 2026-09-06: `Gerrrt/Lemmiwinks#177` added a
     logged block from `10.0.99.0/24`, leaving SNMP as the one pass above that.
-    One residual: the stock *Default allow LAN IPv6 to any* rule is still there
-    with no IPv6 blocks above it, unlike every other interface, which carries
-    paired `inet`/`inet6` blocks. It is latent rather than live — `igc0` has
-    only a link-local address, which does not route.
+    One residual, in both directions: the stock *Default allow LAN IPv6 to any*
+    rule is still there with no IPv6 blocks above it, so on paper this interface
+    reaches every VLAN over v6. Going the other way, CasaBonita, ImaginationLAN,
+    Skids and Degens each carry paired `inet`/`inet6` blocks toward the six VLAN
+    macros and neither toward this one, so their IPv6 catch-all reaches it. Both
+    halves are latent rather than live — `igc0` has only a link-local address,
+    which does not route — and the second half went unrecorded until
+    `make check-firewall` derived it
+    ([#363](https://github.com/Gerrrt/HomeLab/issues/363)).
     [ADR-0013](adr/0013-segment-access-as-implemented.md) read the ruleset while
     this said "Nothing" and was wrong;
     [ADR-0025](adr/0025-close-the-switch-lan-to-winterfell.md) records the

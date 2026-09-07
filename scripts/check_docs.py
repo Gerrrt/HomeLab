@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Seven assertions, each comparing prose against something machine-readable:
+Eight assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents
@@ -29,6 +29,11 @@ Seven assertions, each comparing prose against something machine-readable:
   6. Image versions        no version pins in prose; compose.yaml owns them
   7. ADR numbering         one ADR per number, and each file's H1 agrees with
                            the number in its filename
+  8. Firewall posture      docs/security.md <-> docs/firewall-claims.yaml. The
+                           CI half of #363; the claims file is checked against
+                           the running firewall by check_firewall_claims.py,
+                           which cannot run here because the ruleset is not in
+                           this repository and deliberately never will be.
 
 Only present-tense documents are checked. `docs/roadmap.md` and `docs/adr/`
 record what was true when the work landed — `roadmap.md` still says "(34 rules)"
@@ -867,6 +872,96 @@ def check_adr_numbers() -> list[str]:
     return problems
 
 
+def check_firewall_posture() -> list[str]:
+    """docs/security.md naming the same segments docs/firewall-claims.yaml does.
+
+    This is the CI half of #363 and it is deliberately the smaller half. The
+    claims file is checked against the running firewall by
+    check_firewall_claims.py, which cannot run here: the ruleset is not in this
+    repository and never will be, for the reason security.md gives two sections
+    below. What CAN be checked here is that the prose and the claims file agree,
+    so the pair closes — the file cannot drift from the firewall, and the
+    section cannot drift from the file.
+
+    Anchored on "Default deny holds for" / "It does not hold for", which is how
+    that section has opened since it was written. If those sentences are
+    rewritten this stops matching, and it says so rather than passing.
+    """
+    problems: list[str] = []
+    claims_path = REPO / "docs" / "firewall-claims.yaml"
+    if not claims_path.is_file():
+        return [f"{claims_path.relative_to(REPO)} is missing — check-firewall has nothing to check"]
+
+    claims = yaml.safe_load(claims_path.read_text(encoding="utf-8")) or {}
+    interfaces = claims.get("interfaces") or {}
+    if not interfaces:
+        return [f"{claims_path.name} declares no interfaces"]
+
+    # IPv4 only. The v6 rows are latent — nothing routes over them — and are
+    # prose in that section rather than a list, so holding them to this shape
+    # would force the paragraph to lie about which half is live.
+    deny, open_ = set(), set()
+    for spec in interfaces.values():
+        segment = (spec or {}).get("segment")
+        if not segment:
+            problems.append(f"{claims_path.name} has an interface with no segment name")
+            continue
+        (deny if not ((spec.get("wholesale") or {}).get("inet")) else open_).add(segment)
+
+    text = (REPO / "docs" / "security.md").read_text(encoding="utf-8")
+
+    def named(prefix: str) -> set[str] | None:
+        """Bolded segment names in the sentence starting with `prefix`.
+
+        The window starts two characters early and the prefix is then dropped,
+        because one of these sentences bolds its own opening words — "**It does
+        not hold for Hicks (50)**" — so anchoring on the prefix alone would put
+        the run's opening `**` outside the window and pair the closing one with
+        whatever bold came next.
+        """
+        start = text.find(prefix)
+        if start == -1:
+            return None
+        sentence = text[max(0, start - 2) : start + 400].replace(prefix, "", 1)
+        # Up to the first sentence-ending period that is not inside the bold
+        # runs — the names carry "(99)" and similar, so a naive split on "." is
+        # fine here but a split on ", " is not.
+        cut = re.search(r"\.\s", sentence)
+        if cut:
+            sentence = sentence[: cut.start()]
+        return {
+            re.sub(r"\s*\(\d+\)$", "", n).strip()
+            for n in re.findall(r"\*\*(.+?)\*\*", sentence)
+        }
+
+    claimed_deny = named("Default deny holds for")
+    claimed_open = named("It does not hold for")
+    if claimed_deny is None or claimed_open is None:
+        return problems + [
+            "docs/security.md no longer opens its Segmentation section with "
+            "'Default deny holds for' / 'It does not hold for', so this check "
+            "has stopped reading it — re-anchor it or the section is unchecked"
+        ]
+
+    for segment in sorted(deny - claimed_deny):
+        problems.append(
+            f"{claims_path.name} says default deny holds for {segment}, and "
+            f"security.md's Segmentation section does not say so"
+        )
+    for segment in sorted(claimed_deny - deny):
+        problems.append(
+            f"security.md says default deny holds for {segment}, and "
+            f"{claims_path.name} says its catch-all still reaches another segment"
+        )
+    for segment in sorted(open_ ^ claimed_open):
+        problems.append(
+            f"{segment} is named as an exception by exactly one of "
+            f"security.md and {claims_path.name}"
+        )
+
+    return problems
+
+
 def main() -> int:
     f = facts()
     checks = (
@@ -877,6 +972,8 @@ def main() -> int:
         ("compute table against docs/network.md", check_compute_table),
         ("image versions in prose (compose.yaml owns them)", check_image_versions),
         ("ADR numbering", check_adr_numbers),
+        ("firewall posture prose against docs/firewall-claims.yaml",
+         check_firewall_posture),
     )
 
     total = 0
