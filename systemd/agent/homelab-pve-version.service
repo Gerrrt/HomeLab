@@ -1,0 +1,48 @@
+# The Proxmox VE version, written where the Alloy agent will find it (#311).
+#
+# WHY IT EXISTS. check_versions.py compares documented OS versions against what
+# each host reports, and it skipped `Saruman` because nothing on the wire carried
+# the number the documents claim. node_os_info reports the Debian underneath and
+# node_uname_info reports the kernel; neither is "Proxmox VE 9". The claim was
+# unfalsifiable, which is the condition #292 existed to remove.
+#
+# WHY IT RUNS HERE RATHER THAN BEING PULLED. The monitoring host cannot open
+# TCP/22 to VLAN 30, which is why deploy-agent.sh against `Saruman` needs someone
+# at the Mac. So this is agent-side, like patch-state and smart-state, and it
+# writes into the textfile directory the Alloy agent already reads. Nothing new
+# is scraped and no new path is opened.
+#
+# ROOT ONLY FOR THE DIRECTORY. `pveversion` needs no privilege. The textfile
+# directory on an agent host is created root-owned by the Alloy deployment, and
+# that is the whole reason for User=root here — stated so it is not mistaken for
+# a requirement of the command. PrivateNetwork, because reading a local package
+# database has no business on the network.
+[Unit]
+Description=HomeLab: record the Proxmox VE version for the docs check
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/bin/pveversion
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-pve-version
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+PrivateNetwork=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-pve-version

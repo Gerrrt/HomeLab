@@ -74,6 +74,7 @@ TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
 COLLECTORS=(
   "patch-state scripts/collect-patch-state.sh   apt-patch-state.prom   /usr/bin/apt-get"
   "smart-state scripts/collect-smart-state.sh   smart-state-HOST.prom  /usr/sbin/smartctl"
+  "pve-version scripts/collect-pve-version.sh   pve-version.prom       /usr/bin/pveversion"
 )
 
 GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'

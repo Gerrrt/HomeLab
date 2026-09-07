@@ -105,6 +105,23 @@ each host's requirements **per collector**, so a host without apt still gets
 SMART and the one it cannot have is reported rather than skipped silently.
 `ARGS='--only smart-state'` narrows it.
 
+**`pve-version` is the third collector, and it exists to make a documented claim
+falsifiable.** `check_versions` compares what the documents say each host runs
+against what the host reports, and `Saruman` had no comparable source:
+`node_os_info` reports `Debian GNU/Linux 13`, the base Proxmox VE 9 is built on,
+and `node_uname_info` reports the **kernel**, `7.0.14-12-pve`. Neither is
+"Proxmox VE 9", so the claim could not be checked
+([#311](https://github.com/Gerrrt/HomeLab/issues/311)). The collector writes
+`pve_version_info` on the hypervisor itself, through the textfile directory the
+agent already reads — it cannot be pulled, because VLAN 99 cannot open TCP/22 to
+VLAN 30.
+
+Until it is installed, `check_versions` **skips** that host with the command to
+run rather than failing. The skip is self-clearing: the moment
+`pve_version_info` exists the source changes and the comparison happens like any
+other host. Failing instead would leave a weekly job red for a known reason
+until somebody is at the Mac, which is how a check stops being read.
+
 **It needs root on the target, which is not the same as needing `sudo`.** The
 estate has both shapes and the installer picks per host, from the login user's
 uid:

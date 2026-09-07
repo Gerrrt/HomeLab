@@ -99,18 +99,24 @@ def info(msg: str) -> None:
     print(f"{BLUE}--{OFF} {msg}")
 
 
-# `Saruman` is the one host with a live counterpart that cannot be compared.
-# node_os_info reports "Debian GNU/Linux 13 (trixie)" because that is what
-# Proxmox VE 9 is built on, and the documents record the product rather than its
-# base — correctly, since "Debian 13" would not tell a reader what the box is.
-# node_uname_info's "7.0.14-12-pve" confirms Proxmox but carries the kernel
-# version, not the PVE one. Reading `pveversion` would settle it and nothing
-# scrapes it today, so this is a named gap rather than a silent one: skipped
-# with a reason, not quietly passed.
-NO_COMPARABLE_SOURCE = {
-    "saruman": "node_os_info reports the Debian underneath Proxmox VE; "
-    "the PVE version is not scraped",
-}
+# `Saruman` used to be the one host with a live counterpart that could not be
+# compared. node_os_info reports "Debian GNU/Linux 13 (trixie)" because that is
+# what Proxmox VE 9 is built on, and the documents record the product rather
+# than its base — correctly, since "Debian 13" would not tell a reader what the
+# box is. node_uname_info's "7.0.14-12-pve" confirms Proxmox but carries the
+# KERNEL version, not the product's. So the claim "Proxmox VE 9" had nothing to
+# be checked against, which is the condition #292 existed to remove.
+#
+# scripts/collect-pve-version.sh now writes pve_version_info on the hypervisor
+# itself, through the textfile collector the Alloy agent already reads — it
+# cannot be pulled, because the monitoring host cannot open TCP/22 to VLAN 30
+# (#311). running_versions() picks it up below and Saruman is compared like
+# everything else.
+#
+# The dict stays, empty, because the NEXT host with this shape should be named
+# here rather than silently passing. An empty exceptions table is a statement
+# that there are currently none.
+NO_COMPARABLE_SOURCE: dict[str, str] = {}
 
 
 def query(prom: str, expr: str) -> list[dict]:
@@ -141,6 +147,17 @@ def running_versions(prom: str) -> dict[str, tuple[str, str]]:
         pretty = metric.get("pretty_name", "")
         if host and pretty:
             found[host.lower()] = (pretty, "node_os_info")
+
+    # Proxmox VE, which reports its product version through a textfile the agent
+    # writes rather than through node_os_info (#311). Taken AFTER node_os_info
+    # on purpose: both exist for this host, and the Debian underneath is not the
+    # answer the documents record.
+    for series in query(prom, "pve_version_info"):
+        metric = series["metric"]
+        host = metric.get("host") or metric.get("instance", "")
+        version = metric.get("version", "")
+        if host and version:
+            found[host.lower()] = (f"Proxmox VE {version}", "pve_version_info")
 
     # sysDescr is one string holding two versions. The FreeBSD half is what the
     # OS columns record; the pfSense half is checked separately below, against
@@ -397,6 +414,28 @@ def main() -> int:
             continue
         if host not in running:
             skip(f"{host} — nothing reports an OS for it")
+            continue
+
+        # A Proxmox host whose only source is node_os_info is not a
+        # disagreement, it is a collector that has not been installed yet.
+        # node_os_info reports the Debian underneath — "Debian GNU/Linux 13"
+        # against a documented "Proxmox VE 9" — and failing on that would make
+        # this check red for a known, listed reason until somebody drives to the
+        # Mac, which is how a check stops being read.
+        #
+        # SELF-CLEARING on purpose: the moment pve_version_info exists the source
+        # changes and the comparison happens like any other host. This says what
+        # to run rather than describing a gap (#311).
+        if (
+            any("proxmox" in cell.lower() for _, cell in documented[host])
+            and running[host][1] == "node_os_info"
+        ):
+            skip(
+                f"{host} — documented as Proxmox VE and only node_os_info "
+                f"reports it, which is the Debian underneath. Install the "
+                f"collector on it:\n       make install-agent-collectors "
+                f"AGENT=root@<host> ARGS='--only pve-version'"
+            )
             continue
 
         value, source = running[host]

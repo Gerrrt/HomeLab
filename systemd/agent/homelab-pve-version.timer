@@ -1,0 +1,21 @@
+[Unit]
+Description=HomeLab: daily Proxmox VE version record
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-pve-version.service
+# 08:15, between the other two agent collectors. A hypervisor's product version
+# changes on upgrade and not otherwise, so the interval is not about catching
+# drift quickly — it is about the series existing continuously, since
+# check_versions.py compares against what Prometheus currently holds and an
+# absent series is a check that cannot run.
+#
+# Persistent=true so a host that was off at 08:15 records on its next boot
+# rather than leaving that check unrunnable for a day.
+OnCalendar=*-*-* 08:15:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
