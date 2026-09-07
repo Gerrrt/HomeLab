@@ -142,12 +142,27 @@ not need instead: `ProtectSystem=strict`, one `ReadWritePaths`, and every
 kernel-surface toggle set. It still runs through `run-scheduled.sh`, so its
 outcome is recorded like any other job.
 
+**Its two halves need opposite privileges, and the first scheduled run proved
+it.** `smartctl` needs root; the SSH to the firewall needs the *operator* key at
+`/home/robo/.ssh/id_ed25519`, which is what `backup-firewall` has used since
+[#92](https://github.com/Gerrrt/HomeLab/issues/92) and which root does not have.
+Running the whole job as root failed the morpheus half with `Permission denied
+(publickey)` while the identical command worked by hand as `robo`. The script now
+drops to `SMART_SSH_USER` (default `robo`) with `runuser` for the SSH call only
+and keeps root for the device reads — giving away privilege rather than minting a
+second key for root or having root read another user's private key.
+
+That failure was also harder to read than it should have been: the collector sent
+`ssh` and `smartctl` stderr to `/dev/null`, so the journal said only `no output
+for /dev/nvme0` and a permission problem looked like an unresponsive disk. It now
+captures stderr and puts the reason on the warning line.
+
 It covers what SNMP does not. `Saruman`'s array is already watched by
 `cpqDaPhyDrvSmartStatus` through the `ilo` module
 ([#151](https://github.com/Gerrrt/HomeLab/issues/151)), so it is deliberately
 absent here. `morpheus` needed no agent in the end: #351 assumed a "fourth path"
 for a FreeBSD host with no node_exporter, and pfSense already ships `smartctl`
-while root SSH from this host already works — so it is read over SSH and written
+while this host already has a key that reaches it — so it is read over SSH and written
 into this host's textfile directory under `host="morpheus"`. Those series carry
 `instance="prometheus"`, which is the price of the host having no agent and is
 stated in the collector rather than left to surprise someone grouping by

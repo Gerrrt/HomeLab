@@ -32,10 +32,14 @@
 #             directory and no Alloy, and whose metrics otherwise arrive over
 #             SNMP. #351 assumed it would need "a fourth path" and it does not:
 #             smartctl 7.5 is ALREADY INSTALLED there (pfSense ships it for its
-#             own SMART status page) and root SSH from the monitoring host
-#             already works, which is how backup-firewall.sh reaches it. So the
-#             monitoring host reads it over SSH and writes the result into its
-#             own textfile directory under host="morpheus".
+#             own SMART status page) and the monitoring host already has an SSH
+#             key that reaches it, which is how backup-firewall.sh gets there.
+#             So the monitoring host reads it over SSH and writes the result into
+#             its own textfile directory under host="morpheus".
+#
+#             That key belongs to `robo`, not to root, and this script drops to
+#             it — see WHO RUNS THE SSH below. The first scheduled run got this
+#             wrong and failed.
 #
 #             The cost, stated: those series carry instance="prometheus", because
 #             that is the Alloy that scraped them. Every alert here keys on
@@ -73,6 +77,11 @@ DEVICES=()
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
+# stderr from smartctl and ssh is captured rather than discarded, so a failure
+# reports WHY. See the warning path below for the run that made this necessary.
+STDERR_FILE="$(mktemp)"
+trap 'rm -f "${STDERR_FILE}"' EXIT
+
 while (($#)); do
   case "$1" in
     --print)  PRINT_ONLY=1; shift ;;
@@ -98,13 +107,37 @@ this reports nothing and calls it success. On morpheus the answer is
 # Parsing happens locally in every mode, so the remote host needs nothing but
 # smartctl and sh — the same contract backup-firewall.sh holds itself to.
 # ---------------------------------------------------------------------------
+# WHO RUNS THE SSH, and why it is not root. This unit runs as root because
+# smartctl needs raw device access — but the SSH half needs the opposite thing:
+# the operator key at /home/robo/.ssh/id_ed25519, which is what reaches the
+# firewall and is what homelab-backup-firewall.service (User=robo) has always
+# used. Root has no such key, so the first scheduled run failed with "no output
+# for /dev/nvme0" while the same command worked by hand as robo.
+#
+# So the privileged half stays privileged and the SSH half drops to the user
+# that owns the credential. That is strictly better than the two alternatives:
+# giving root its own key to the firewall duplicates a credential for no reason,
+# and pointing root at robo's private key with -i has root reading another
+# user's key material to do it.
+SMART_SSH_USER="${SMART_SSH_USER:-robo}"
+
 run_smartctl() {
   local devtype="$1" node="$2"
-  if [[ -n "$SSH_TARGET" ]]; then
-    ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" \
-      "smartctl --json -x -d ${devtype} ${node}" 2>/dev/null
+  local remote="smartctl --json -x -d ${devtype} ${node}"
+  if [[ -z "$SSH_TARGET" ]]; then
+    smartctl --json -x -d "${devtype}" "${node}" 2>"${STDERR_FILE}"
+    return
+  fi
+  local ssh_cmd=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" "$remote")
+  if [[ ${EUID} -eq 0 && "${SMART_SSH_USER}" != root ]]; then
+    if ! id -u "${SMART_SSH_USER}" >/dev/null 2>&1; then
+      die "running as root and user ${SMART_SSH_USER@Q} does not exist.
+Set SMART_SSH_USER to whoever owns the key that reaches ${SSH_TARGET}, or to
+'root' if root itself has one."
+    fi
+    runuser -u "${SMART_SSH_USER}" -- "${ssh_cmd[@]}" 2>"${STDERR_FILE}"
   else
-    smartctl --json -x -d "${devtype}" "${node}" 2>/dev/null
+    "${ssh_cmd[@]}" 2>"${STDERR_FILE}"
   fi
 }
 
@@ -136,7 +169,19 @@ for spec in "${DEVICES[@]}"; do
   # smartctl exits non-zero for conditions that are not failures to read — bit 2
   # is "some SMART command failed", bit 6 is "errors in the log" — so the exit
   # code is deliberately not the gate. Valid JSON with a device in it is.
-  [[ -n "$out" ]] || { printf 'warning: no output for %s\n' "$node" >&2; continue; }
+  #
+  # But the REASON there is no output has to survive. The first scheduled run of
+  # this job logged "no output for /dev/nvme0" and nothing else, because stderr
+  # went to /dev/null — so a plain SSH permission failure looked like a disk
+  # that would not answer, and the actual message ("Permission denied
+  # (publickey)") existed nowhere. Anything a check hides is a check that sends
+  # you to the wrong place.
+  if [[ -z "$out" ]]; then
+    detail="$(tr -d '\r' < "${STDERR_FILE}" | grep -v '^$' | tail -2 | paste -sd'; ' -)"
+    printf 'warning: no output for %s%s\n' \
+      "$node" "${detail:+ — ${detail}}" >&2
+    continue
+  fi
   ((first)) || payload+=","
   payload+="$out"
   first=0
@@ -244,7 +289,20 @@ for d in docs:
                     plain, 100 - int(raw))
 
 if not seen:
-    sys.exit("smartctl returned JSON with no devices in it")
+    # smartctl puts its own reason in the JSON rather than only on stderr, and
+    # the reason is usually "Permission denied" — it needs root for the raw
+    # device. Reporting "no devices" without it sends the reader to look at the
+    # disk instead of at who ran the command.
+    notes = [
+        m.get("string", "")
+        for d in docs
+        for m in ((d.get("smartctl") or {}).get("messages") or [])
+        if m.get("string")
+    ]
+    sys.exit(
+        "smartctl returned JSON with no devices in it"
+        + (": " + "; ".join(notes) if notes else "")
+    )
 
 # A marker, so a host that stops collecting is distinguishable from a host with
 # healthy disks. Same reasoning as PatchStateStopped: every other metric here is
