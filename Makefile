@@ -289,6 +289,15 @@ smart-state: ## Collect SMART health from THIS host's disks (needs root)
 		./scripts/collect-smart-state.sh; \
 	fi
 
+.PHONY: gateway-state
+gateway-state: ## Collect the firewall's view of its uplinks (#353)
+	@# Two measurements per family: what pfSense reports, and whether traffic of
+	@# that family actually leaves the building. They disagreed on 2026-09-07 —
+	@# WAN_DHCP6 reported 100% loss while v6 reached the internet through it in
+	@# 11ms, because dpinger was pointed at a link-local address that does not
+	@# answer echo. One measurement alone cannot tell those apart.
+	./scripts/collect-gateway-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
+
 .PHONY: pkg-state
 pkg-state: ## Collect package state from morpheus over SSH (FreeBSD, runs as robo)
 	@# morpheus is the one host `patch-state` cannot cover: it is FreeBSD, with

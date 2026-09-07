@@ -16,7 +16,7 @@ What this network is actually built to survive:
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 88 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 90 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -142,7 +142,29 @@ them ([#229](https://github.com/Gerrrt/HomeLab/issues/229)); since 2026-09-06
 nothing on Winterfell can reach it either
 ([ADR-0025](adr/0025-close-the-switch-lan-to-winterfell.md)).
 
-**IPv6 is where the pattern is not finished**, and both halves of the gap are
+**IPv6 terminates at the WAN and is not carried inside the estate.** That was
+never written down and is now measured rather than assumed
+([#353](https://github.com/Gerrrt/HomeLab/issues/353), 2026-09-07): the WAN
+interface holds one global v6 address and a working v6 default route — the
+firewall itself reaches the v6 internet in about 11 ms — while **no VLAN
+interface has a global v6 address, and neither `radvd` nor `dhcpd6` is
+running**. So nothing inside is offered IPv6 and nothing inside can prefer a
+route that does not work, which is the failure a half-configured v6 stack
+usually causes. The estate is addressed in RFC1918 IPv4 by decision, and this
+paragraph is that decision.
+
+**The `WAN_DHCP6` gateway has reported 100% loss for days and the link is
+fine.** `dpinger` monitors the ISP gateway's link-local address, which does not
+answer ICMPv6 echo; traffic traverses that same gateway to Comcast's Seattle
+router, and its NDP entry is live. The "outage" is a property of the monitor
+target. `make gateway-state` now collects both the reported status and whether
+each family actually leaves the building, and `GatewayMonitorUnreliable` fires
+on precisely that disagreement — so this is visible instead of being something
+somebody had to go and ask the firewall about. **Fixing it is a firewall change**
+(point the gateway's Monitor IP at an address that answers, or set it to
+not-monitored) and belongs on the Lemmiwinks side.
+
+**IPv6 is where the segmentation pattern is not finished**, and both halves of the gap are
 worth naming because the documents recorded only one of them for a while. The
 switch LAN interface still carries pfSense's stock *Default allow LAN IPv6 to
 any* with no IPv6 blocks above it, so on paper it reaches every VLAN. Going the

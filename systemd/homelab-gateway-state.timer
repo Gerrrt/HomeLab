@@ -1,0 +1,22 @@
+[Unit]
+Description=HomeLab: gateway state from the firewall
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-gateway-state.service
+# Every 15 minutes, and this is the one job here that is not daily. The others
+# collect facts that move over days — package versions, disk endurance. A
+# gateway is an availability signal, and GatewayDown waits 10 minutes before
+# firing, so a daily sample would make that `for` meaningless: the alert would
+# be bounded by the collection interval rather than by the condition.
+#
+# Still not a substitute for the blackbox probes, which run far more often and
+# own latency (#166). This answers "what does the firewall itself think", which
+# nothing else asks.
+OnCalendar=*:0/15
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
