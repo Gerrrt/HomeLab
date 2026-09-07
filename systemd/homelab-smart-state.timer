@@ -4,15 +4,16 @@ Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maint
 
 [Timer]
 Unit=homelab-smart-state.service
-# 08:30 daily, after firewall-claims and last in the morning run. It reaches the
-# firewall over SSH like backup-firewall does, so it sits with the jobs that
-# leave this host rather than with the ones that read it.
+# 08:30 daily, after firewall-claims. This half reads only local block devices
+# — morpheus is homelab-smart-state-remote.timer at 08:45 — so it depends on
+# nothing outside this machine and could run at any hour. It sits here to keep
+# the two SMART jobs adjacent.
 #
-# Daily is generous for what it measures — a drive's endurance moves over
-# months, not hours — and the interval is set by detection latency for the one
-# signal that is not slow: SmartDriveUnhealthy is a latch the firmware sets when
-# it has concluded the disk is failing, and waiting a week to notice that is not
-# a trade worth making for a job that takes two seconds.
+# Daily is generous for what it measures: a drive's endurance moves over months.
+# The interval is set by the one signal that is not slow — SmartDriveUnhealthy is
+# a latch the firmware sets once it has concluded the disk is failing, and
+# waiting a week to notice that is not a trade worth making for a job that takes
+# two seconds.
 OnCalendar=*-*-* 08:30:00
 RandomizedDelaySec=900
 Persistent=true

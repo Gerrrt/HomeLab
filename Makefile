@@ -266,37 +266,36 @@ install-agent-patch-state: ## Put the patch-state collector on an agent host (ne
 	@test -n "$(AGENT)" || { echo "set AGENT=user@host (e.g. AGENT=atropos@10.0.99.30)"; exit 1; }
 	./scripts/install-agent-patch-state.sh $(ARGS) $(AGENT)
 .PHONY: smart-state
-smart-state: ## Collect SMART health from the local disks and from morpheus
-	@# #151 covered Saruman's array — cpqDaPhyDrvSmartStatus arrives over SNMP
-	@# and IloDrivePredictiveFailure is armed on it. This is #351: oracle's
-	@# 5400 rpm HDD, this host's 2012 SSD, and morpheus's NVMe, which had none.
+smart-state: ## Collect SMART health from THIS host's disks (needs root)
+	@# The local half, and the only half that needs root — smartctl issues ATA and
+	@# NVMe pass-through ioctls. morpheus is `smart-state-remote`, a separate job
+	@# running as robo, because the key that reaches the firewall is robo's and
+	@# root has none. One job used to do both and failed twice trying to be both
+	@# users at once (#351).
 	@#
-	@# morpheus needs no agent. #351 assumed a "fourth path" for it; there is
-	@# not one — pfSense already ships smartctl and this host already has a key
-	@# works, so it is read over SSH and written into this host's textfile
-	@# directory under host="morpheus". Those series carry instance="prometheus",
-	@# which is stated in the collector's header rather than left to surprise
-	@# someone grouping by instance.
-	./scripts/collect-smart-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus --device nvme:/dev/nvme0
-	@# The local half, and it is deliberately conditional rather than fatal.
-	@# smartmontools is not installed here or on oracle, and that is a
-	@# provisioning step a human takes (#351) — failing the whole job for it
-	@# would make the morpheus half unavailable too, to report a gap that is
-	@# already visible as a missing homelab_smart_devices series for this host.
-	@# The line below is printed on every run so the gap is never silent.
-	@# Two reasons to skip, and they are different findings. smartctl absent is
-	@# a provisioning gap; smartctl present but run by a non-root user is just a
-	@# human running this by hand — the timer runs as root, and smartctl needs
-	@# root for raw device access. Neither should fail the job and take the
-	@# morpheus half down with it, and neither may read as success.
+	@# Two reasons to skip, and they are different findings. smartctl absent is a
+	@# provisioning gap; smartctl present but run by a non-root user is a human
+	@# running a root job by hand. Neither may read as success.
 	@if ! command -v smartctl >/dev/null 2>&1; then \
 		printf '\033[0;33m  SKIP\033[0m local disks: smartctl is not installed — %s\n' 'sudo apt install smartmontools'; \
 	elif [ "$$(id -u)" != 0 ]; then \
 		printf '\033[0;33m  SKIP\033[0m local disks: smartctl needs root for raw device access, running as %s\n' "$$(id -un)"; \
-		printf '       the timer runs as root; by hand use %s\n' 'sudo ./scripts/collect-smart-state.sh'; \
+		printf '       homelab-smart-state.service runs as root; by hand use %s\n' 'sudo ./scripts/collect-smart-state.sh'; \
 	else \
 		./scripts/collect-smart-state.sh; \
 	fi
+
+.PHONY: smart-state-remote
+smart-state-remote: ## Collect SMART health from morpheus over SSH (runs as robo)
+	@# morpheus is FreeBSD with no node_exporter and no textfile directory, but
+	@# pfSense already ships smartctl and this host already has a key that reaches
+	@# it — the same one backup-firewall.sh uses. So it is read over SSH and
+	@# written into THIS host's textfile directory under host="morpheus"; those
+	@# series carry instance="prometheus" as a result, which the collector says.
+	@#
+	@# Deliberately NOT root: this half needs a credential, not a privilege, and
+	@# the credential belongs to robo.
+	./scripts/collect-smart-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus --device nvme:/dev/nvme0
 
 .PHONY: check-mounted-config
 check-mounted-config: ## Verify each container runs the config the repo has (deploy-time)

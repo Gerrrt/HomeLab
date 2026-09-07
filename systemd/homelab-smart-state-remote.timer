@@ -1,0 +1,22 @@
+[Unit]
+Description=HomeLab: daily SMART collection from morpheus
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-smart-state-remote.service
+# 08:45, a quarter-hour after the local half and last in the morning run. It
+# reaches the firewall over SSH like backup-firewall does, so it sits at the end
+# with the jobs that leave this host rather than with the ones that read it.
+#
+# Separate from homelab-smart-state.timer because it is a separate unit running
+# as a different user — see the service file for why the job is split at all.
+# Adjacent in time on purpose: both write SMART series, and a morning where the
+# estate is unreachable should read as two neighbouring failures rather than two
+# unrelated ones.
+OnCalendar=*-*-* 08:45:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,57 @@
+# Daily SMART collection for morpheus, the host with no agent (#351).
+#
+# WHY IT IS SEPARATE FROM homelab-smart-state.service. The two halves of this
+# job need opposite privileges. Reading local disks needs root. Reading
+# morpheus needs the OPERATOR KEY at /home/robo/.ssh/id_ed25519 — the one
+# homelab-backup-firewall.service has used since #92 — and root does not have it.
+#
+# One unit tried to do both and failed twice, each time in the gap between "works
+# by hand as robo" and "works as the unit": as root it hit "Permission denied
+# (publickey)", and dropping to robo with runuser hit NoNewPrivileges with
+# "cannot set user id: Operation not permitted". Splitting removes the whole
+# class — nothing changes identity, each unit runs as the user that owns what it
+# needs, and a failure means the job failed rather than the plumbing.
+#
+# WHY MORPHEUS NEEDS THIS AT ALL. It is FreeBSD with no node_exporter, no
+# textfile directory and no Alloy; its other metrics arrive over SNMP. #351
+# assumed a "fourth path" would be needed and there is none: pfSense already
+# ships smartctl 7.5 for its own SMART status page, and this host already has a
+# key that reaches it. So the monitoring host reads it over SSH and writes the
+# result into its OWN textfile directory under host="morpheus". Those series
+# carry instance="prometheus" as a consequence, which the collector's header
+# states rather than leaving to surprise someone grouping by instance.
+#
+# Runs as robo like every other job here. Nothing about this half is privileged;
+# it needs a key and a network path, which is exactly what backup-firewall needs
+# and gets the same way.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: collect SMART health from morpheus over SSH
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job smart-state-remote -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab smart-state-remote
+TimeoutStartSec=300
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-smart-state-remote
