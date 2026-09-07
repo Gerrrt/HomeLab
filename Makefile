@@ -251,12 +251,16 @@ patch-state: ## Collect this host's package patch state into the textfile dir
 	@# touching the collector.
 	./scripts/collect-patch-state.sh
 
-.PHONY: install-agent-patch-state
-install-agent-patch-state: ## Put the patch-state collector on an agent host (needs sudo THERE)
+.PHONY: install-agent-collectors
+install-agent-collectors: ## Put the textfile collectors on an agent host (needs sudo THERE)
 	@# AGENT=user@host, one or more. #152 covered the monitoring host and only it;
 	@# this covers a host that runs Alloy but has no checkout of this repository,
 	@# which on 2026-09-06 meant `oracle` had a kernel update unbooted for two days
-	@# that nothing in the estate could see (#360).
+	@# that nothing in the estate could see (#360) and no SMART at all (#351).
+	@#
+	@# It ships every collector in the script's COLLECTORS table and checks each
+	@# host's requirements per collector, so a host without apt still gets SMART.
+	@# ARGS='--only smart-state' narrows it.
 	@#
 	@# Deliberately NOT part of deploy-agent.sh, which goes out of its way to need
 	@# no privilege on the target. This step does — /usr/local/bin, /etc/systemd
@@ -264,7 +268,7 @@ install-agent-patch-state: ## Put the patch-state collector on an agent host (ne
 	@# and prompts for a sudo password there. AGENT='...' ARGS=--check verifies an
 	@# existing install and changes nothing.
 	@test -n "$(AGENT)" || { echo "set AGENT=user@host (e.g. AGENT=atropos@10.0.99.30)"; exit 1; }
-	./scripts/install-agent-patch-state.sh $(ARGS) $(AGENT)
+	./scripts/install-agent-collectors.sh $(ARGS) $(AGENT)
 .PHONY: smart-state
 smart-state: ## Collect SMART health from THIS host's disks (needs root)
 	@# The local half, and the only half that needs root — smartctl issues ATA and

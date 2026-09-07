@@ -25,7 +25,7 @@
 # directive below is set despite it.
 #
 # The collector is installed at /usr/local/bin/homelab-collect-patch-state by
-# scripts/install-agent-patch-state.sh, which is also what installs this file.
+# scripts/install-agent-collectors.sh, which is also what installs this file.
 [Unit]
 Description=HomeLab: collect apt patch state for the textfile collector
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md

@@ -23,7 +23,7 @@
 #     (#339, #351).
 #
 # WHAT IT COVERS, as of #360. This script now runs on agent hosts too, installed
-# by scripts/install-agent-patch-state.sh — it is shipped unchanged and needs no
+# by scripts/install-agent-collectors.sh — it is shipped unchanged and needs no
 # per-host variant, because everything it reads is in the same place on every
 # apt system. `prometheus` and `oracle` are covered today.
 #
