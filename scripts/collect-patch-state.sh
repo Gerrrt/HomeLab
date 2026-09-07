@@ -27,14 +27,17 @@
 # per-host variant, because everything it reads is in the same place on every
 # apt system. `prometheus` and `oracle` are covered today.
 #
-# WHAT IT STILL DOES NOT COVER. `Saruman` is Proxmox and reachable only from the
-# user's Mac, not from the monitoring host, so it is a hand-run of the installer
-# away rather than blocked on anything here; #360 also notes Proxmox ships
-# `update-notifier-common` inconsistently, which the installer checks rather than
-# assumes. `morpheus` is FreeBSD and has no apt at all — `pkg version -vRL=` is
-# the equivalent and nothing here speaks it. That last one is the gap that
-# matters most, since docs/security.md names a pfSense vulnerability as an
-# accepted, undefended threat.
+# WHAT IT STILL DOES NOT COVER. `morpheus` is FreeBSD and has no apt at all —
+# `pkg version -vRL=` is the equivalent and nothing here speaks it. That is the
+# gap that matters most, since docs/security.md names a pfSense vulnerability as
+# an accepted, undefended threat.
+#
+# `Saruman` is now covered by the apt-get fallback above rather than blocked.
+# #360 guessed it would need `update-notifier-common` installed; the truth is
+# worse and simpler — Proxmox VE 9 is Debian 13, where that package does not
+# exist at all. It is reachable only from the user's Mac, not from the
+# monitoring host, so installing there is a hand-run of
+# scripts/install-agent-collectors.sh and not something this repository can do.
 #
 # The limit is written into the metrics rather than left for a reader to infer:
 # a host with no data produces no series at all, and `PatchStateStopped` alerts
@@ -67,21 +70,118 @@ PRINT_ONLY=0
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
-# apt-check writes "updates;security_updates" to STDERR, which is not a mistake
-# on its part — it is how update-notifier has always reported. Reading stdout
-# instead yields nothing at all, silently, which is exactly the shape of failure
-# this repository keeps recording.
+# HOW THE COUNTS ARE OBTAINED, and why there are two ways.
+#
+# apt-check is the authority where it exists: it is update-notifier's own small
+# Python program, it already knows how to separate a security update from an
+# ordinary one, and it is what every Ubuntu host here has. It writes
+# "updates;security" to STDERR, which is not a mistake on its part — it is how
+# update-notifier has always reported. Reading stdout instead yields nothing at
+# all, silently, which is exactly the shape of failure this repository keeps
+# recording.
+#
+# IT DOES NOT EXIST ON MODERN DEBIAN. `Saruman` is Proxmox VE 9, which is Debian
+# 13, where update-notifier-common is gone entirely:
+#
+#     Package update-notifier-common is not available ...
+#     However the following packages replace it: apt-config-auto-update
+#
+# and apt-config-auto-update ships an apt.conf.d snippet, not apt-check. So this
+# is not a missing package to install, it is a host class the collector could not
+# cover — which #360 predicted and left open.
+#
+# THE FALLBACK reads `apt-get -s upgrade`, whose Inst lines name the origin of
+# the candidate version:
+#
+#     Inst libssl3 [3.0.11] (3.0.13 Debian-Security:13/stable-security [amd64])
+#
+# Counting those is not as good as apt-check and the difference is stated rather
+# than glossed: apt-check knows about phased updates and this does not, so on a
+# host with a phased rollout in flight the two can disagree by a package or two.
+# The security half is matched ONLY inside the parenthesised origin, not anywhere
+# on the line, because a package literally named `security-misc` would otherwise
+# count itself.
+#
+# Which method produced the numbers is published as a metric rather than left to
+# be inferred, so a host whose counts come from the weaker path says so.
 APT_CHECK=/usr/lib/update-notifier/apt-check
-if [[ ! -x "${APT_CHECK}" ]]; then
-  die "no ${APT_CHECK} on this host — it is not an apt system, or update-notifier
-is not installed. This collector covers apt hosts only; see the header."
+
+# Total and security counts from `apt-get -s upgrade` output on stdin.
+# Separated out so --self-test can drive it with fixtures: there is no way to
+# make a fully-patched host produce a pending security update on demand, and an
+# untested parser for a format this fiddly is how a wrong number gets reported
+# confidently.
+count_from_apt_get() {
+  awk '
+    /^Inst / {
+      total++
+      if (match($0, /\([^)]*\)/)) {
+        origin = substr($0, RSTART, RLENGTH)
+        if (origin ~ /[Ss]ecurity/) security++
+      }
+    }
+    END { printf "%d %d\n", total+0, security+0 }
+  '
+}
+
+if [[ "${1:-}" == "--self-test" ]]; then
+  fail=0
+  check() {
+    local name="$1" expect="$2" got
+    got="$(printf '%s\n' "$3" | count_from_apt_get)"
+    if [[ "$got" == "$expect" ]]; then
+      printf '\033[0;32m  PASS\033[0m %s -> %s\n' "$name" "$got"
+    else
+      printf '\033[0;31m  FAIL\033[0m %s -> %s, expected %s\n' "$name" "$got" "$expect"
+      fail=1
+    fi
+  }
+  check "nothing pending" "0 0" "Reading package lists...
+Building dependency tree..."
+  check "one ordinary update" "1 0" \
+"Inst libfoo [1.0-1] (1.0-2 Debian:13/stable [amd64])"
+  check "one security update" "1 1" \
+"Inst libssl3 [3.0.11-1] (3.0.13-1 Debian-Security:13/stable-security [amd64])"
+  check "mixed, Debian" "3 1" \
+"Inst libfoo [1.0-1] (1.0-2 Debian:13/stable [amd64])
+Inst libssl3 [3.0.11-1] (3.0.13-1 Debian-Security:13/stable-security [amd64])
+Inst libbar [2.0] (2.1 Debian:13/stable [amd64])"
+  check "mixed, Ubuntu origins" "2 1" \
+"Inst tzdata [2024a-0ubuntu1] (2024b-0ubuntu0.24.04 Ubuntu:24.04/noble-updates [all])
+Inst openssl [3.0.13-0ubuntu3] (3.0.13-0ubuntu3.4 Ubuntu:24.04/noble-security [amd64])"
+  # The reason the match is scoped to the parentheses. `security-misc` is a real
+  # package; a bare grep for "security" on the line counts it as a security
+  # update, which is wrong in the direction that matters least loudly.
+  check "package named security-misc is not a security update" "1 0" \
+"Inst security-misc [3:24.0] (3:24.1 Debian:13/stable [amd64])"
+  # And it IS one when the origin says so, so the previous case is not passing
+  # by being blind to the package entirely.
+  check "security-misc from a security pocket still counts" "1 1" \
+"Inst security-misc [3:24.0] (3:24.1 Debian-Security:13/stable-security [amd64])"
+  check "upgrade held back is not counted" "1 0" \
+"Inst libfoo [1.0-1] (1.0-2 Debian:13/stable [amd64])
+The following packages have been kept back:
+  libheld"
+  exit $fail
 fi
 
-raw="$("${APT_CHECK}" 2>&1 >/dev/null)" || die "${APT_CHECK} failed"
-[[ "${raw}" =~ ^([0-9]+)\;([0-9]+)$ ]] \
-  || die "${APT_CHECK} returned ${raw@Q}, which is not the expected 'updates;security' form"
-pending="${BASH_REMATCH[1]}"
-security="${BASH_REMATCH[2]}"
+if [[ -x "${APT_CHECK}" ]]; then
+  METHOD=apt-check
+  raw="$("${APT_CHECK}" 2>&1 >/dev/null)" || die "${APT_CHECK} failed"
+  [[ "${raw}" =~ ^([0-9]+)\;([0-9]+)$ ]] \
+    || die "${APT_CHECK} returned ${raw@Q}, which is not the expected 'updates;security' form"
+  pending="${BASH_REMATCH[1]}"
+  security="${BASH_REMATCH[2]}"
+else
+  METHOD=apt-get
+  command -v apt-get >/dev/null 2>&1 || die "neither ${APT_CHECK} nor apt-get on this host —
+it is not an apt system, and this collector covers apt hosts only. See the header."
+  counts="$(apt-get -s -o Debug::NoLocking=true upgrade 2>/dev/null | count_from_apt_get)" \
+    || die "apt-get -s upgrade failed"
+  read -r pending security <<<"${counts}"
+  [[ "$pending" =~ ^[0-9]+$ && "$security" =~ ^[0-9]+$ ]] \
+    || die "could not parse apt-get output into counts, got ${counts@Q}"
+fi
 
 # The flag file the kernel and libc post-install hooks drop. Its presence is the
 # only reliable "this host is running something older than what is installed"
@@ -110,6 +210,9 @@ homelab_reboot_required{host="${HOSTNAME_LABEL}"} ${reboot_required}
 # HELP homelab_reboot_required_packages Packages named in /var/run/reboot-required.pkgs.
 # TYPE homelab_reboot_required_packages gauge
 homelab_reboot_required_packages{host="${HOSTNAME_LABEL}"} ${reboot_pkgs}
+# HELP homelab_apt_check_method Which counting method produced the numbers above.
+# TYPE homelab_apt_check_method gauge
+homelab_apt_check_method{host="${HOSTNAME_LABEL}",method="${METHOD}"} 1
 EOF
 }
 
