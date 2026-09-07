@@ -157,7 +157,7 @@ verify_one() {
 }
 
 install_one() {
-  local target="$1" name="$2" script="$3" need="$4"
+  local target="$1" name="$2" script="$3" need="$4" stage="$5"
 
   if ! ssh_q "$target" "test -x ${need}"; then
     fail "${target}/${name}: ${need} is missing — not installing a unit that can only fail"
@@ -167,10 +167,10 @@ install_one() {
   # Staged into the invoking user's home first and moved into place by a single
   # privileged block, so the sudo password is asked for once per host rather than
   # once per file.
-  ssh_q "$target" "cat > ~/.homelab-${name}.sh" < "${REPO}/${script}" \
+  ssh_q "$target" "cat > ${stage}/.homelab-${name}.sh" < "${REPO}/${script}" \
     || { fail "${target}/${name}: could not copy the collector"; return 1; }
-  ssh_q "$target" "cat > ~/.homelab-${name}.service" < "${UNIT_DIR}/homelab-${name}.service"
-  ssh_q "$target" "cat > ~/.homelab-${name}.timer"   < "${UNIT_DIR}/homelab-${name}.timer"
+  ssh_q "$target" "cat > ${stage}/.homelab-${name}.service" < "${UNIT_DIR}/homelab-${name}.service"
+  ssh_q "$target" "cat > ${stage}/.homelab-${name}.timer"   < "${UNIT_DIR}/homelab-${name}.timer"
   pass "${target}/${name}: staged"
   return 0
 }
@@ -187,6 +187,21 @@ for target in "${TARGETS[@]}"; do
   remote_hostname="$(ssh_q "$target" hostname | tr -d '\r')"
   [[ -n "$remote_hostname" ]] || { fail "${target}: could not read its hostname"; continue; }
 
+  # The staging directory, ABSOLUTE, and this is not a detail. Files are staged
+  # as the login user and installed by `sudo sh -c`, and sudo sets HOME=/root —
+  # so a `~` inside that command expands to /root while the files are in
+  # /home/atropos. The first real run failed with
+  #     install: cannot stat '/root/.homelab-patch-state.sh'
+  # having staged both collectors correctly. Resolved once, here, and passed in.
+  #
+  # NOT /tmp, deliberately: these files are installed as root-owned executables,
+  # and staging them anywhere world-writable would let another local user swap
+  # one between the copy and the install.
+  # shellcheck disable=SC2016  # $HOME must expand on the REMOTE host, not here
+  remote_home="$(ssh_q "$target" 'printf %s "$HOME"' | tr -d '\r')"
+  [[ -n "$remote_home" && "$remote_home" == /* ]] \
+    || { fail "${target}: could not resolve the login user's home directory"; continue; }
+
   if ! ssh_q "$target" "test -d ${TEXTFILE_DIR}"; then
     fail "${target}: no ${TEXTFILE_DIR} — deploy Alloy to this host first
        (scripts/deploy-agent.sh), which is what creates it"
@@ -200,7 +215,7 @@ for target in "${TARGETS[@]}"; do
     for row in "${COLLECTORS[@]}"; do
       read -r name script _prom need <<<"$row"
       [[ -n "$ONLY" && "$ONLY" != "$name" ]] && continue
-      install_one "$target" "$name" "$script" "$need" && staged+=("$name")
+      install_one "$target" "$name" "$script" "$need" "$remote_home" && staged+=("$name")
     done
 
     if ((${#staged[@]})); then
@@ -212,9 +227,9 @@ for target in "${TARGETS[@]}"; do
       # for a day.
       cmds=""
       for name in "${staged[@]}"; do
-        cmds+="install -m 0755 -o root -g root ~/.homelab-${name}.sh /usr/local/bin/homelab-collect-${name} && "
-        cmds+="install -m 0644 -o root -g root ~/.homelab-${name}.service ${REMOTE_UNITS}/homelab-${name}.service && "
-        cmds+="install -m 0644 -o root -g root ~/.homelab-${name}.timer ${REMOTE_UNITS}/homelab-${name}.timer && "
+        cmds+="install -m 0755 -o root -g root ${remote_home}/.homelab-${name}.sh /usr/local/bin/homelab-collect-${name} && "
+        cmds+="install -m 0644 -o root -g root ${remote_home}/.homelab-${name}.service ${REMOTE_UNITS}/homelab-${name}.service && "
+        cmds+="install -m 0644 -o root -g root ${remote_home}/.homelab-${name}.timer ${REMOTE_UNITS}/homelab-${name}.timer && "
       done
       cmds+="systemctl daemon-reload"
       for name in "${staged[@]}"; do
@@ -225,7 +240,7 @@ for target in "${TARGETS[@]}"; do
       else
         fail "${target}: install failed"
       fi
-      ssh_q "$target" "rm -f ~/.homelab-*.sh ~/.homelab-*.service ~/.homelab-*.timer"
+      ssh_q "$target" "rm -f ${remote_home}/.homelab-*.sh ${remote_home}/.homelab-*.service ${remote_home}/.homelab-*.timer"
     fi
   fi
 
