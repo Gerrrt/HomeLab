@@ -55,6 +55,7 @@ Usage: scripts/check_docs.py
 """
 from __future__ import annotations
 
+import functools
 import json
 import pathlib
 import re
@@ -107,10 +108,8 @@ PROSE = (
 
 # Prose spells small numbers out, and a spelled count goes stale exactly as
 # readily as a digit: "five dashboards" and "across six files" were both
-# unguarded while the digits beside them were checked. Twenty is comfortably
-# above any count here — the cap keeps the alternation short, it is not a
-# claim about the ceiling. Longest-first so "seven" cannot match inside
-# "seventeen" and leave the rest of the pattern to fail.
+# unguarded while the digits beside them were checked. Longest-first so "seven"
+# cannot match inside "seventeen" and leave the rest of the pattern to fail.
 #
 # The word branch is case-insensitive because prose capitalises a number that
 # starts a sentence, and a capital is not a different claim. It was matching
@@ -118,18 +117,76 @@ PROSE = (
 # dashboards are provisioned" two files away was not — and both were stale
 # together (#81). `number()` already lowercased, so only the pattern was wrong.
 #
+# THE TABLE USED TO STOP AT TWENTY, described here as "comfortably above any
+# count here — the cap keeps the alternation short, it is not a claim about the
+# ceiling". That was true when it was written and stopped being true without
+# anything noticing. On 2026-09-07 the unit-test coverage sentence in
+# observability.md read "Coverage is forty-five rules of 67" and TWO rules were
+# added that day: the digit was caught both times and the word was not, because
+# "forty-five" was not in the table (#367). The check exists to prevent exactly
+# that, and the defect survived inside it.
+#
+# So the words are GENERATED through ninety-nine rather than typed, and the
+# ceiling is now asserted rather than assumed — see check_unparsed_counts().
+# Beyond a hundred, prose here uses digits, and the assertion is what makes that
+# a rule rather than a hope.
+#
 # The cost of widening it: a heading like "Two dashboards are not captured" is a
 # claim about a subset, and this reads it as a claim about the total and fails.
 # That is the right way round — a false positive is a reword, a false negative is
 # a document that lies. Phrase a subset so it does not put a bare count in front
 # of the noun.
-NUMBER_WORDS = {
-    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
-    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
-    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
-    "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
-}
-COUNT = r"\b(\d+|(?i:" + "|".join(sorted(NUMBER_WORDS, key=len, reverse=True)) + r"))"
+_ONES = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+_TEENS = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+          "sixteen", "seventeen", "eighteen", "nineteen"]
+_TENS = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty",
+         "ninety"]
+
+def _number_words() -> dict[str, int]:
+    words = {w: i + 1 for i, w in enumerate(_ONES)}
+    words.update({w: 10 + i for i, w in enumerate(_TEENS)})
+    for t_i, tens in enumerate(_TENS):
+        base = 20 + t_i * 10
+        words[tens] = base
+        # Hyphenated is the only form used here and the only one generated.
+        # "forty five" as two words would need the pattern to span whitespace,
+        # which would also match "forty" ending one claim and "five" starting
+        # the next.
+        for o_i, one in enumerate(_ONES):
+            words[f"{tens}-{one}"] = base + o_i + 1
+    return words
+
+NUMBER_WORDS = _number_words()
+# Built as STRUCTURE rather than as a flat list of all ninety-nine words. A
+# 99-branch alternation is correct and slow: it is applied for ~20 claim
+# patterns across ~25 documents, and flattening it took check_docs from 1.6s to
+# 5.5s — measured. Expressing the compounds as "tens, optionally hyphen ones"
+# gives 27 branches for the same language and puts the cost back to noise.
+#
+# Longest-first within each group, so "seven" cannot match inside "seventeen"
+# and leave the rest of the pattern to fail.
+def _alt(words: list[str]) -> str:
+    return "|".join(sorted(words, key=len, reverse=True))
+
+_WORD_NUMBER = (
+    rf"(?:{_alt(_TENS)})(?:-(?:{_alt(_ONES)}))?"   # twenty, forty-five
+    rf"|{_alt(_TEENS)}"                             # ten .. nineteen
+    rf"|{_alt(_ONES)}"                              # one .. nine
+)
+COUNT = r"\b(\d+|(?i:" + _WORD_NUMBER + r"))"
+
+# Number words this table cannot turn into an integer. A claim built on one of
+# these is invisible to every assertion below, so it is reported rather than
+# skipped — the ceiling stays visible instead of becoming the next silent gap.
+# This is the lesson of #367 rather than a guess about what comes next.
+# The optional leading word absorbs the determiner or multiplier these always
+# carry in prose — "a hundred panels", "two hundred panels" — because without it
+# the article sits between the verb and the number and the claim pattern's
+# whitespace cannot span it. That was the first version's bug, caught by testing
+# the assertion rather than assuming it worked.
+UNPARSEABLE_NUMBER = re.compile(
+    r"(?:\w+[ \t]+)?\b(?i:hundred|thousand|million|billion|dozen|score)\b"
+)
 
 
 # Prose wraps, and a counted claim wraps with it. "It routes all seven\nVLANs"
@@ -367,6 +424,17 @@ def facts() -> dict:
 # ---------------------------------------------------------------------------
 # 1. Counted claims
 # ---------------------------------------------------------------------------
+@functools.lru_cache(maxsize=None)
+def _unreadable_pattern(pattern: str) -> re.Pattern[str]:
+    """`pattern` with the number token swapped for the ones that cannot be read.
+
+    Memoised because the claim patterns are rebuilt on every call and compiling
+    a 99-branch alternation repeatedly is most of what made the ceiling scan
+    expensive.
+    """
+    return re.compile(pattern.replace(COUNT, UNPARSEABLE_NUMBER.pattern))
+
+
 def check_counts(f: dict) -> list[str]:
     # "N alert rules" is genuinely ambiguous in this repository: README uses it
     # for the total, security.md for the Prometheus half. Both readings are
@@ -433,6 +501,13 @@ def check_counts(f: dict) -> list[str]:
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8")
+        # Whether this file could possibly hold an unreadable count, asked once
+        # per file instead of once per claim pattern. Without it the ceiling
+        # scan re-walks every document with a 99-branch alternation for each of
+        # ~20 patterns, and check_docs went from 1.6s to 7.5s — measured, not
+        # guessed. Almost no file contains "hundred" at all, so this skips the
+        # whole scan for nearly all of them and the cost returns to noise.
+        may_be_unreadable = UNPARSEABLE_NUMBER.search(text) is not None
         for pattern, expected, label in claims:
             for match in re.finditer(pattern, text):
                 if number(match.group(1)) in expected:
@@ -443,6 +518,26 @@ def check_counts(f: dict) -> list[str]:
                 problems.append(
                     f"{rel}:{n} claims {claimed} {label}; "
                     f"the repository has {want}"
+                )
+
+            # THE SAME CLAIM, WRITTEN IN A NUMBER THIS FILE CANNOT READ.
+            # NUMBER_WORDS reaches ninety-nine and no further, so "a hundred
+            # panels" is a counted claim that every assertion above walks
+            # straight past — which is exactly how "forty-five rules" stayed
+            # stale while the digit beside it was corrected twice in one day
+            # (#367). The ceiling is asserted here rather than assumed, so the
+            # next time prose outgrows the table it fails loudly instead of
+            # going quiet.
+            if not may_be_unreadable:
+                continue
+            unreadable = _unreadable_pattern(pattern)
+            for match in unreadable.finditer(text):
+                n = text.count("\n", 0, match.start()) + 1
+                problems.append(
+                    f"{rel}:{n} states {label} as a number this check cannot "
+                    f"read ({' '.join(match.group(0).split())!r}). Counts above "
+                    f"ninety-nine must be written in digits, or NUMBER_WORDS "
+                    f"needs extending — an unreadable count is an unchecked one"
                 )
     return problems
 
