@@ -64,6 +64,7 @@ the host.
 | `firewall-claims` | `make check-firewall` | daily 08:15 | 2 days |
 | `smart-state` | `make smart-state` | daily 08:30 | 2 days |
 | `smart-state-remote` | `make smart-state-remote` | daily 08:45 | 2 days |
+| `pkg-state` | `make pkg-state` | daily 09:00 | 2 days |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
@@ -242,6 +243,42 @@ than a threshold chosen here — `morpheus` idles at 62 °C against an operation
 limit of 100 °C, so any fixed temperature number would be wrong for some drive in
 this estate. Temperature is collected and deliberately not alerted on for that
 reason.
+
+`pkg-state` is `patch-state` for the one host that cannot run it.
+[#378](https://github.com/Gerrrt/HomeLab/issues/378): `morpheus` is FreeBSD, with
+neither `apt-check` nor `apt-get`, and it is where the gap mattered most —
+`security.md` names "a vulnerability in pfSense itself" as an accepted,
+undefended threat, which is a reasonable position held deliberately and a much
+weaker one when nobody knows how far behind the firewall is.
+
+**One command answers both questions #378 could not choose between.** pfSense
+ships the system itself as `pkg` meta-packages — `pfSense`, `pfSense-base`,
+`pfSense-kernel-pfSense` — so `pkg version -vRL=` reports how many packages are
+behind the repository *and* whether a system upgrade is among them. Parsing
+`pfSense-upgrade -c`'s prose was the alternative and is worse: it is a shell
+wrapper whose human-readable output has no format contract, so reading "up to
+date" out of it would silently report "no update" the day that sentence is
+reworded. Verified 2026-09-07 — the collector said no system update, and
+`pfSense-upgrade -c` independently said the same.
+
+Only the system half is alerted on. `homelab_pkg_upgrades_pending` is collected
+and deliberately has no rule: pfSense add-ons drift routinely — `pfSense-repoc`
+republishes every few weeks — so a rule on that count would fire permanently and
+stop being read. `SystemUpdateAvailable` waits **7 days**, for the reason
+`RebootRequired` waits three: applying it restarts the firewall and takes the
+estate off the network, so it is a window somebody picks.
+
+**There is no security count, and that is a difference rather than an omission.**
+FreeBSD's `pkg` has no security pocket, so there is no counterpart to
+`homelab_apt_security_upgrades_pending`. Emitting a zero would read as "no
+security updates pending" when it means "this host cannot tell you".
+
+Like `smart-state-remote`, it runs from the monitoring host as `robo` over SSH
+and writes under `host="morpheus"`, so those series carry
+`instance="prometheus"`. `make validate` drives its parser with eight fixtures,
+including the branch that has never been observed live — a system upgrade
+pending — and the false positive that would make the alert untrustworthy, since
+`pfSense-repoc` starts with `pfSense-` and is not the system.
 
 `loki-coverage` is daily rather than weekly, and the reason is the opposite of
 the obvious one. Its `--window` is not a sensitivity dial: both sides of its
@@ -455,6 +492,7 @@ expected rather than a second fault.
 | `firewall-claims` exits 1 | A segmentation claim in `docs/firewall-claims.yaml` no longer matches the running ruleset | Not an outage, and the firewall is not the thing that is wrong — a document is. The FAIL line names the interface, the segment and the direction: *now reaches X* means a block was removed or a VLAN was added, *no longer reaches X* means a block landed and the prose still describes the world before it. Re-derive with `scripts/check_firewall_claims.py --derive`, then move the prose that cites it — `docs/network.md` and `docs/security.md`. Never edit an ADR in place: [ADR-0001](../adr/0001-record-architecture-decisions.md) makes them immutable, so a stale one gets a marked amendment or a superseding ADR |
 | `smart-state` exits 1 | A local disk failed SMART, or smartctl could not read one | `SmartDriveUnhealthy` is the firmware's own verdict and means replace the drive, not investigate a counter. `SmartDriveSpareLow` compares against the threshold the drive publishes for itself. A `SKIP` line is not a failure — it means smartctl is absent, or a human ran a root job by hand |
 | `smart-state-remote` exits 1 | `morpheus` could not be read over SSH | The warning line carries ssh's own message — `Permission denied (publickey)` means the key or the user is wrong, `No route to host` means the firewall is unreachable. This job runs as `robo` and uses the same key as `backup-firewall`, so if that job is also failing the cause is shared |
+| `pkg-state` exits 1 | `morpheus` could not be read, or its catalogue fetch failed | The message carries ssh's or pkg's own words. A catalogue fetch needs the firewall to reach its update servers, so a WAN outage looks exactly like this and is not a fault in the collector — check `BlackboxProbeFailed` for the gateway before investigating. It runs as `robo` with the same key as `backup-firewall`, so if that is failing too the cause is shared |
 | `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |

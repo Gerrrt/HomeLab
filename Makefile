@@ -289,6 +289,18 @@ smart-state: ## Collect SMART health from THIS host's disks (needs root)
 		./scripts/collect-smart-state.sh; \
 	fi
 
+.PHONY: pkg-state
+pkg-state: ## Collect package state from morpheus over SSH (FreeBSD, runs as robo)
+	@# morpheus is the one host `patch-state` cannot cover: it is FreeBSD, with
+	@# neither apt-check nor apt-get, and it is where docs/security.md's accepted
+	@# "vulnerability in pfSense itself" makes the gap matter most (#378).
+	@#
+	@# One command answers both questions. pfSense ships the system as pkg
+	@# meta-packages, so `pkg version -vRL=` reports how many packages are behind
+	@# AND whether a system upgrade is among them — no prose parsing of
+	@# `pfSense-upgrade -c`, whose output has no format contract.
+	./scripts/collect-pkg-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
+
 .PHONY: smart-state-remote
 smart-state-remote: ## Collect SMART health from morpheus over SSH (runs as robo)
 	@# morpheus is FreeBSD with no node_exporter and no textfile directory, but

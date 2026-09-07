@@ -1,0 +1,23 @@
+[Unit]
+Description=HomeLab: daily package state from morpheus
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-pkg-state.service
+# 09:00, last in the morning run and a quarter-hour after smart-state-remote.
+# Both reach the firewall over SSH, so keeping them adjacent means a morning
+# where morpheus is unreachable shows up as two neighbouring failures rather
+# than two unrelated ones — the argument every job in this block makes for its
+# placement.
+#
+# Daily because the interval IS the detection latency: a pfSense release does
+# not announce itself here, so this is the only thing that would notice one. The
+# alert on it waits a week regardless, so a slower timer would only add lag to a
+# number that already has a deliberate delay built in.
+OnCalendar=*-*-* 09:00:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

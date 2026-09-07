@@ -710,3 +710,63 @@ tests:
       - eval_time: 90m
         alertname: SmartDriveBadSectors
         exp_alerts: []
+
+  # --- SystemUpdateAvailable: fires after a week of an available upgrade -----
+  # interval 5m, not 10m. Prometheus's lookback delta is 5 minutes, so a fixture
+  # stepping every 10 leaves every other evaluation with no sample in range: the
+  # series reads as absent, `for` resets, and a correct rule never fires. The
+  # same trap cost a UPS regression test earlier.
+  #
+  # 5h at 0, then 1 for the rest. Evaluated at 190h, the condition has held for
+  # ~185h — comfortably past `for: 7d` and not so close that a rounding change
+  # flips it.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_pkg_system_update_available{host="morpheus"}'
+        values: "0x60 1x2300"
+    alert_rule_test:
+      - eval_time: 190h
+        alertname: SystemUpdateAvailable
+        exp_alerts:
+          - exp_labels:
+              host: morpheus
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "morpheus has had a system update available for a week"
+              description: >-
+                A pfSense system package is behind the repository. Applying it
+                restarts the firewall and takes the estate off the network, so
+                pick a window rather than reacting. `pfSense-upgrade -c` on the
+                host confirms it independently, and homelab_pkg_upgrades_pending
+                shows how many packages in total are behind.
+
+  # --- SystemUpdateAvailable: quiet when the upgrade is applied inside a week -
+  # Available for ~42h, then applied. This is what keeps `for: 7d` honest —
+  # without it the duration could be deleted and the firing test would still
+  # pass.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_pkg_system_update_available{host="morpheus"}'
+        values: "1x500 0x1000"
+    alert_rule_test:
+      - eval_time: 100h
+        alertname: SystemUpdateAvailable
+        exp_alerts: []
+
+  # --- SystemUpdateAvailable: quiet for add-on package drift ----------------
+  # morpheus's real state on 2026-09-07: two packages behind, neither of them a
+  # system package. This is the case that must never alert — pfSense add-ons
+  # drift routinely, and a rule that fired on the count would fire permanently
+  # and stop being read.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_pkg_upgrades_pending{host="morpheus"}'
+        values: "2x2400"
+      - series: 'homelab_pkg_system_update_available{host="morpheus"}'
+        values: "0x2400"
+    alert_rule_test:
+      - eval_time: 190h
+        alertname: SystemUpdateAvailable
+        exp_alerts: []

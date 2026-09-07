@@ -297,3 +297,40 @@ groups:
             back. The count only grows, so this stays firing until the disk is
             replaced — that is deliberate, because a drive that failed once and
             went quiet is still a drive that failed. Check backups first.
+
+      - alert: SystemUpdateAvailable
+        # A pfSense system upgrade has been available for a week (#378).
+        #
+        # THE HOST WHERE THIS MATTERS MOST, and the last one to get any patch
+        # visibility at all. docs/security.md names "a vulnerability in pfSense
+        # itself" as an accepted, undefended threat — a position that is
+        # reasonable held deliberately and much weaker when nobody knows how far
+        # behind the firewall is. `morpheus` terminates every VLAN, runs
+        # Suricata, and serves DNS and NTP.
+        #
+        # SYSTEM, NOT PACKAGES. homelab_pkg_upgrades_pending counts everything
+        # behind the repository and is deliberately NOT alerted on: pfSense
+        # add-ons drift routinely — `pfSense-repoc` republishes every few weeks —
+        # so a rule on that count would fire permanently and be ignored, which is
+        # the failure mode this repository keeps writing down. The system
+        # meta-packages are the thing an operator actually acts on, and pfSense
+        # is upgraded as a unit rather than package by package.
+        #
+        # 7d, not immediately, for the reason RebootRequired uses 3d: applying
+        # this takes the whole estate off the network while the firewall
+        # restarts, so it is a window somebody picks. A week means nobody has
+        # picked one.
+        expr: homelab_pkg_system_update_available == 1
+        for: 7d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has had a system update available for a week"
+          description: >-
+            A pfSense system package is behind the repository. Applying it
+            restarts the firewall and takes the estate off the network, so pick a
+            window rather than reacting. `pfSense-upgrade -c` on the host
+            confirms it independently, and homelab_pkg_upgrades_pending shows how
+            many packages in total are behind.

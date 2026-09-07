@@ -1,0 +1,55 @@
+# Daily package state for morpheus, the FreeBSD host (#378).
+#
+# WHY IT IS NOT patch-state. That collector is apt, in both of its paths —
+# apt-check on Ubuntu, `apt-get -s upgrade` on Debian since #377. FreeBSD has
+# neither, so morpheus was the last host in the estate with no patch visibility
+# at all, and the one where docs/security.md's accepted "vulnerability in pfSense
+# itself" makes that gap matter most.
+#
+# WHY IT RUNS HERE AND NOT THERE. morpheus has no node_exporter, no Alloy and no
+# textfile directory of its own; its other metrics arrive over SNMP. So the
+# monitoring host reads it over SSH and writes the result into its own textfile
+# directory under host="morpheus" — the same shape as
+# homelab-smart-state-remote.service, and for the same reason. Those series carry
+# instance="prometheus" as a consequence, which the collector states.
+#
+# RUNS AS robo, with no privilege at all. It needs the operator key that reaches
+# the firewall — the one backup-firewall.sh has used since #92 — and nothing
+# else. There is deliberately no root half here to split off: reading pkg status
+# needs no privilege, unlike smartctl.
+#
+# IT WRITES TO THE FIREWALL, mildly: `pkg version -R` fetches the repository
+# catalogue before comparing, which is a network round trip and a disk write on
+# morpheus. That is why this is daily rather than hourly and why the timeout
+# below is generous — a catalogue fetch over a slow WAN is not a failure.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: collect package state from morpheus over SSH
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job pkg-state -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab pkg-state
+TimeoutStartSec=600
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-pkg-state
