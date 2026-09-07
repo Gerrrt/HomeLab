@@ -617,6 +617,61 @@ months.
   Under **Security** above, because it has a condition now rather than only a
   decision.
 
+## Considered and declined
+
+The mirror of the section above, and recorded for the same reason turned around:
+a service rejected for good reasons with nothing written down is
+indistinguishable from one nobody thought of. It gets proposed again, evaluated
+again, and can be deployed on the second pass because the first pass left no
+trace ([#150](https://github.com/Gerrrt/HomeLab/issues/150)).
+
+These are declines, not bans. Each records what was weighed, so a later proposal
+argues with the reasoning rather than restarting from nothing — and several of
+them name the condition that would change the answer.
+
+- **Nextcloud** — the obvious "one app for everything" answer, and declined
+  because it overlaps three services already chosen: Immich
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132)) for photos,
+  Paperless-ngx ([#133](https://github.com/Gerrrt/HomeLab/issues/133)) for
+  documents, and file sync. It is more surface and more upkeep than all three
+  together, and its app ecosystem is a second, unpinned supply chain operating
+  outside `compose.yaml` — the same objection that rules out Home Assistant
+  add-ons in [#134](https://github.com/Gerrrt/HomeLab/issues/134). **If the want
+  is file sync rather than a suite, Syncthing does that with no server-side
+  application at all**, and would be the thing to evaluate instead.
+- **The \*arr stack** — Sonarr, Radarr, Lidarr and the indexer and subtitle
+  services around them. Five or more services, each holding indexer credentials
+  and each with a standing outbound appetite, added to the tier
+  [ADR-0008](adr/0008-place-services-by-data-trust.md) deliberately defined as
+  *low* consequence. The media tier's whole justification is that its compromise
+  costs a film night; this raises what is at stake there while adding the most
+  moving parts of anything on the list. **Declined for now rather than
+  permanently** — but it should be its own decision with its own reasoning, not
+  a footnote to the NAS build.
+- **YunoHost-class installers** — YunoHost, Tipi, HomelabOS, StartOS and
+  similar. They own the compose file, the update path and often the reverse
+  proxy, which conflicts with essentially everything this repository does on
+  purpose: one compose stack per host
+  ([ADR-0004](adr/0004-one-compose-stack-per-host.md)), every image pinned by
+  tag **and** digest, configuration validated in CI, secrets rendered from SOPS
+  at deploy time. Adopting one trades the properties that make this estate
+  reproducible for a faster first install. Wrong trade here — and the trade, not
+  the software, is the reason.
+- **Guacamole** — a clientless browser-reachable RDP/VNC gateway. Convenient,
+  and a larger concession on the management segment than SSH already is: it
+  turns any browser session on Hicks into a potential path to every console in
+  the estate, and it stores connection credentials to do it. The estate already
+  has a KVM in U6 for physical console access. Declined.
+- **Authelia / Authentik** — **already decided, and listed only so the next
+  shortlist does not present it as new.** ADR-0008 defers SSO knowingly for two
+  users with no external access;
+  [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)
+  gives that deferral an expiry and
+  [#103](https://github.com/Gerrrt/HomeLab/issues/103) tracks it. An identity
+  provider is also the only route to a second factor for Grafana, Immich and
+  AdGuard Home, none of which can carry one themselves — so this decline has a
+  known end, unlike the others here.
+
 ## Done
 
 - [x] **[#153](https://github.com/Gerrrt/HomeLab/issues/153) Decided: the

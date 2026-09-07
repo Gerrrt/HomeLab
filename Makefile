@@ -284,6 +284,17 @@ check-loki-coverage: ## Ask the LIVE Loki whether any rule is blind to a host (d
 	@# CI has no log store at all (#327). WINDOW=24h to narrow it.
 	python3 scripts/check_loki_coverage.py $(STACK) --window $(WINDOW)
 
+.PHONY: check-firewall
+check-firewall: ## Diff docs/firewall-claims.yaml against the LIVE pfSense ruleset (deploy-time)
+	@# Not in `make validate` and not in CI, and the reason is the same one that
+	@# keeps backups/ gitignored: the ruleset carries rule bodies and the WAN
+	@# address, docs/security.md says neither is published, and putting it in the
+	@# repository so CI could read it would trade a documentation defect for a
+	@# blueprint of the network (ADR-0026). So this asks the firewall directly,
+	@# over SSH, and `make check-docs` covers the half that is pure text.
+	@# Prose about pfctl was wrong three times on 2026-09-06 alone (#363).
+	python3 scripts/check_firewall_claims.py
+
 .PHONY: check-dashboard-roundtrip
 check-dashboard-roundtrip: ## Boot the pinned Grafana and verify the dashboards round-trip
 	@# Under Validation and not Maintenance, unlike `dashboards-export` below,

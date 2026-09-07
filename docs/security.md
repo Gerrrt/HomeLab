@@ -119,26 +119,50 @@ present.
 
 ## Segmentation
 
-Default deny holds for **Winterfell (99)**, **ImaginationLAN (30)**,
-**CasaBonita (40)**, **Skids (20)** and **Degens (10)**. Each blocks every other
-segment explicitly before its egress rule, and the narrow exceptions that exist
-— SNMP to the iLO and to the switch, SSH to the firewall — are listed in
+Default deny holds for **Switch LAN**, **Winterfell (99)**,
+**ImaginationLAN (30)**, **CasaBonita (40)**, **Skids (20)** and
+**Degens (10)**. Each blocks every other segment explicitly before its egress
+rule, and the narrow exceptions that exist — SNMP to the iLO and to the switch,
+SSH to the firewall, the enumerated passes from Hicks into management — are
+listed in [`network.md`](network.md) and in
 [ADR-0013](adr/0013-segment-access-as-implemented.md).
 
-**It does not hold for Hicks (50), and it does not hold for the switch LAN.**
-Hicks blocks CasaBonita, Skids and Degens and then passes to `any`, so it reaches
-**all of ImaginationLAN** on every protocol and port. Nothing denies it, and what
-grants it is the catch-all rather than a decision about that segment — the one
-rule that names ImaginationLAN grants nothing the catch-all was not already
-granting. [#228](https://github.com/Gerrrt/HomeLab/issues/228) is where that gets
-decided. **The switch LAN no longer does**, and it is the half of this that has
-already been closed. Since 2026-09-02 that interface carries six logged blocks —
-one per VLAN — above an egress rule renamed *Allow internet*, with DNS and NTP
-to the gateway the only passes above them
-([#229](https://github.com/Gerrrt/HomeLab/issues/229)). The stock *Default allow
-LAN IPv6 to any* rule is still there with no IPv6 blocks above it, unlike every
-other interface, but `igc0` has only a link-local address so nothing routes
-through it — a divergence from the pattern rather than a live path.
+**It does not hold for Hicks (50)**, and that is now the only IPv4 exception in
+the estate. Hicks blocks every other segment and then passes to `any`, so it
+reaches **all of ImaginationLAN** on every protocol and port. Nothing denies it,
+and what grants it is the catch-all rather than a decision about that segment —
+the one rule that names ImaginationLAN grants nothing the catch-all was not
+already granting. [#228](https://github.com/Gerrrt/HomeLab/issues/228) is where
+that gets decided.
+
+**The switch LAN was the other exception and is not any more.** Since 2026-09-02
+that interface carries six logged blocks — one per VLAN — above an egress rule
+renamed *Allow internet*, with DNS and NTP to the gateway the only passes above
+them ([#229](https://github.com/Gerrrt/HomeLab/issues/229)); since 2026-09-06
+nothing on Winterfell can reach it either
+([ADR-0025](adr/0025-close-the-switch-lan-to-winterfell.md)).
+
+**IPv6 is where the pattern is not finished**, and both halves of the gap are
+worth naming because the documents recorded only one of them for a while. The
+switch LAN interface still carries pfSense's stock *Default allow LAN IPv6 to
+any* with no IPv6 blocks above it, so on paper it reaches every VLAN. Going the
+other way, CasaBonita, ImaginationLAN, Skids and Degens each carry paired
+`inet`/`inet6` blocks toward the six VLAN macros and neither toward the switch
+LAN, so their IPv6 catch-all reaches it. Both are latent rather than live for
+the same reason — `igc0` has only a link-local address, which does not route —
+and both are divergences from the pattern rather than paths anything can use
+today. [#353](https://github.com/Gerrrt/HomeLab/issues/353) owns whether IPv6 is
+carried at all.
+
+Every claim in the four paragraphs above is checked against the running firewall
+rather than reviewed. `docs/firewall-claims.yaml` states the posture in the form
+`pfctl` can answer and `make check-firewall` diffs it against the live ruleset;
+`make check-docs` asserts this section names the same segments the claims file
+does. Neither can run in CI's sandbox — the ruleset is not in this repository
+and deliberately never will be — so the first runs at deploy time and on a
+timer. [ADR-0026](adr/0026-check-the-documents-where-the-truth-is.md) records
+why that is the shape, and
+[#363](https://github.com/Gerrrt/HomeLab/issues/363) is what built it.
 
 **Winterfell is the half that has since been narrowed.** On 2026-09-02 the Hicks
 interface gained ten host- and port-scoped passes into 99 and a logged *Block

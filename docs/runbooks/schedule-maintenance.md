@@ -61,6 +61,7 @@ the host.
 | `dashboards-drift` | `make dashboards-export ARGS=--check` | daily 07:30 | 2 days |
 | `loki-coverage` | `make check-loki-coverage` | daily 07:45 | 2 days |
 | `patch-state` | `make patch-state` | daily 08:00 | 2 days |
+| `firewall-claims` | `make check-firewall` | daily 08:15 | 2 days |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
@@ -111,6 +112,23 @@ sample, because it wrote to `patch-state.prom` and `run-scheduled.sh` writes its
 outcome metrics to the same filename ([#360](https://github.com/Gerrrt/HomeLab/issues/360)).
 The collector's file is now `apt-patch-state.prom`, and the wrapper refuses to
 overwrite a `.prom` it did not write.
+
+`firewall-claims` is the only job here that watches something this repository
+does not change. Every other row watches this estate's own configuration; the
+firewall's ruleset lives in `Gerrrt/Lemmiwinks` and in the pfSense web UI, so
+the drift it hunts opens on days when nothing here was deployed. That is exactly
+how it went unnoticed three times on 2026-09-06 — ADR-0013's default-deny claim
+four days stale ([#344](https://github.com/Gerrrt/HomeLab/issues/344)), its
+correction wrong about the switch LAN's outbound half
+([#229](https://github.com/Gerrrt/HomeLab/issues/229)), and ADR-0025 wrong about
+both of Hicks' paths, all three found by a person reading a file
+([#363](https://github.com/Gerrrt/HomeLab/issues/363)). It asks the firewall, per
+interface and address family, which other segments the catch-all `pass ... to
+any` still reaches, and diffs that against `docs/firewall-claims.yaml`. Its
+interval is the whole detection latency, which is why it is daily. It needs SSH
+to the firewall and nothing else — no age key, no docker, no lock — and it never
+writes a rule body anywhere, which is what lets it run unattended without
+breaching `security.md`'s "rule bodies are not published".
 
 `loki-coverage` is daily rather than weekly, and the reason is the opposite of
 the obvious one. Its `--window` is not a sensitivity dial: both sides of its
@@ -321,6 +339,7 @@ expected rather than a second fault.
 | `backup-firewall` exits 1 with *off-host copy FAILED* | `oracle` is down, its host key is not in `robo`'s `known_hosts`, or this host's key is not authorised there | The export was written locally and is intact. Repair the path to `oracle` — [`restore-the-firewall.md`](restore-the-firewall.md) §0 — and the next run copies every file that never left |
 | `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
 | `loki-coverage` exits 1 | A Loki alerting rule cannot see a host that is producing exactly the lines it hunts | Not an outage — nothing is broken, but an alert cannot fire for that host, which is how [#261](https://github.com/Gerrrt/HomeLab/issues/261) went unnoticed. The FAIL line names the rule, the host and the log type the lines are arriving under; the fix is usually an `or` branch on the rule for that host's stream. A `WARN` is the latent form — the rule cannot reach the host at all, but nothing there matches it today — and does not fail the job |
+| `firewall-claims` exits 1 | A segmentation claim in `docs/firewall-claims.yaml` no longer matches the running ruleset | Not an outage, and the firewall is not the thing that is wrong — a document is. The FAIL line names the interface, the segment and the direction: *now reaches X* means a block was removed or a VLAN was added, *no longer reaches X* means a block landed and the prose still describes the world before it. Re-derive with `scripts/check_firewall_claims.py --derive`, then move the prose that cites it — `docs/network.md` and `docs/security.md`. Never edit an ADR in place: [ADR-0001](../adr/0001-record-architecture-decisions.md) makes them immutable, so a stale one gets a marked amendment or a superseding ADR |
 | `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |

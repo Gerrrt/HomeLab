@@ -1,0 +1,27 @@
+[Unit]
+Description=HomeLab: daily firewall claims check
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-firewall-claims.service
+# 08:15 daily, a quarter-hour after patch-state and last in the morning run.
+# Same argument the neighbours make for their placement: everything from 07:15
+# onward reads something live rather than the repository, so a morning where the
+# estate is unreachable shows up as one run of adjacent failures instead of
+# several unrelated ones. This one goes last because it reaches furthest — the
+# firewall rather than a container on this host.
+#
+# Daily rather than weekly, and unlike loki-coverage the reason is not a lookup
+# window: this check has none, it reads the ruleset as it is right now. What
+# daily buys is bounded staleness in the DOCUMENTS. The drift it hunts is
+# introduced from outside this repository, on days when nothing here is
+# deployed, so the interval is the whole detection latency. A week of prose that
+# describes a firewall that has moved is how ADR-0013 came to be four days stale
+# without anyone noticing (#344).
+OnCalendar=*-*-* 08:15:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
