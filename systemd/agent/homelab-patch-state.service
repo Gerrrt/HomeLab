@@ -1,0 +1,54 @@
+# Patch state on an agent host — a host that runs Alloy but not this repository.
+#
+# NOT the same unit as systemd/homelab-patch-state.service, and the difference is
+# the point. On the monitoring host the job goes through
+# scripts/run-scheduled.sh, which wraps it in homelab_job_* outcome metrics and
+# needs a checkout of this repository and a Makefile. An agent host has neither:
+# `oracle` runs three containers and has no clone of HomeLab at all. So this unit
+# calls the collector directly.
+#
+# WHAT THAT COSTS, stated rather than discovered later: there are no
+# homelab_job_* metrics for this run, so `ScheduledJobFailed` and
+# `ScheduledJobStale` do not cover it. What covers it instead is the shape of the
+# data — a host that stops collecting stops producing homelab_apt_* series
+# entirely, and `PatchStateMissing` alerts on the absence. That is why the rule
+# was written around absence rather than around a staleness timestamp.
+#
+# RUNS AS ROOT, and only because of where it writes.
+# /var/lib/node_exporter/textfile_collector on an agent host is created by the
+# Alloy deployment and owned by root; the monitoring host's is owned by the
+# timer user because install-timers.sh makes it so. Chowning it on every agent
+# host would be a second privileged step to keep in step across hosts, and the
+# collector itself needs no privilege at all — /usr/lib/update-notifier/apt-check
+# and /var/run/reboot-required are readable by anyone. Root here buys write
+# access to that one directory and nothing else, which is why every hardening
+# directive below is set despite it.
+#
+# The collector is installed at /usr/local/bin/homelab-collect-patch-state by
+# scripts/install-agent-patch-state.sh, which is also what installs this file.
+[Unit]
+Description=HomeLab: collect apt patch state for the textfile collector
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/homelab-collect-patch-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-patch-state
