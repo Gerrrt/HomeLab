@@ -58,6 +58,7 @@ import argparse
 import pathlib
 import re
 import subprocess
+import urllib.parse
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -82,6 +83,52 @@ def failures() -> list[str]:
 
 
 _FAILURES: list[str] = []
+_WARNINGS: list[str] = []
+
+# WHAT THE HEARTBEAT URL HAS TO BE, which is a different question from whether
+# it is readable (#359).
+#
+# The heartbeat receiver exists to answer #214's recursive failure: an alert
+# about the broken delivery path travelled the broken delivery path. It works by
+# ABSENCE — something off this host expects a ping every 5 minutes and shouts
+# when one does not arrive. `docs/runbooks/verify-the-alert-path.md` names the
+# services that can do that.
+#
+# On 2026-09-06 all four receivers, the heartbeat included, pointed at ntfy.sh.
+# ntfy is a push service: it delivers what it is sent and has no notion of an
+# expected interval, so it cannot notice a message that never came. Every
+# assertion above passed — the file was present, non-empty and readable by the
+# container — because those are properties of the CONFIGURATION and this is a
+# property of the DESTINATION. That is why it took a person reading a runbook to
+# find, and why it is worth encoding here.
+#
+# Matched on host, and on the URL path only for Uptime Kuma, which is
+# self-hosted and can live on any hostname. NEITHER IS EVER PRINTED beyond the
+# host: docs/security.md's rule about what is published applies to a URL that
+# carries a topic or a check id in it.
+WATCHERS = {
+    "hc-ping.com",          # Healthchecks.io
+    "healthchecks.io",
+    "cronitor.link",
+    "cronitor.io",
+    "nosnch.in",            # Dead Man's Snitch
+    "uptime.betterstack.com",
+    "betteruptime.com",
+}
+PUSH_ONLY = {
+    "ntfy.sh",
+    "api.pushover.net",
+    "hooks.slack.com",
+    "discord.com",
+    "discordapp.com",
+    "api.telegram.org",
+}
+UPTIME_KUMA_PATH = "/api/push/"
+
+
+def warn(msg: str) -> None:
+    print(f"{YELLOW}  WARN{RESET} {msg}")
+    _WARNINGS.append(msg)
 
 
 def ok(msg: str) -> None:
@@ -109,6 +156,56 @@ def declared(stack: str) -> tuple[set[str], set[str]]:
     block = block[: block.index(")")]
     rendered = {m.group(2) for m in AM_CHANNEL.finditer(block)}
     return wanted, rendered
+
+
+def check_heartbeat_destination(container: str, name: str) -> None:
+    """Whether the heartbeat points at something that watches for ABSENCE.
+
+    Reads the URL from inside the container and reports only its host. The path
+    carries a topic or a check id and is never printed — the classification
+    needs it for Uptime Kuma, which is self-hosted and identified by path
+    rather than by hostname, so it is inspected and discarded.
+    """
+    result = subprocess.run(
+        ["docker", "exec", container, "cat",
+         f"/etc/alertmanager/secrets/{name}"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        warn(f"could not read {name} to classify its destination")
+        return
+
+    url = result.stdout.strip()
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if not host:
+        bad(f"{name} is not a URL this can parse — the heartbeat may not deliver at all")
+        return
+
+    if host in WATCHERS or UPTIME_KUMA_PATH in parsed.path:
+        ok(f"{name} points at {host}, which watches for absence")
+        return
+
+    if host in PUSH_ONLY:
+        warn(
+            f"{name} points at {host}, which is a PUSH service and cannot detect "
+            f"absence.\n       The heartbeat is delivered and nothing is waiting "
+            f"for it, so if Prometheus stops\n       evaluating, Alertmanager "
+            f"dies, or this host loses outbound network, nothing\n       "
+            f"external notices — the exact failure the heartbeat exists to "
+            f"answer (#214).\n       Fix: a check on a service that expects a "
+            f"ping every 5m with a 15m grace, notifying\n       somewhere that "
+            f"is NOT this stack. See docs/runbooks/verify-the-alert-path.md. "
+            f"(#359)"
+        )
+        return
+
+    warn(
+        f"{name} points at {host}, which this check does not recognise as either "
+        f"a watcher or a push service. If it expects a ping on an interval, add "
+        f"it to WATCHERS; if it cannot detect absence, it is not a dead man's "
+        f"switch (#359)"
+    )
 
 
 def main() -> int:
@@ -196,6 +293,8 @@ def main() -> int:
                     bad(f"{container} sees {name} as empty — it would POST to nothing")
                 else:
                     ok(f"{container} can read {name}, {size} bytes")
+                    if name == "heartbeat_url":
+                        check_heartbeat_destination(container, name)
 
     if _FAILURES:
         sys.stdout.flush()
@@ -215,6 +314,21 @@ def main() -> int:
         f"\nalert channels OK — {len(wanted)} receiver URL(s), "
         f"checked against: {', '.join(checked)}"
     )
+    # A warning that only appeared in scrollback would be the same silence this
+    # check exists to break, so it is repeated in the summary and on stderr.
+    # NOT a failure, deliberately: the heartbeat one cannot be fixed from this
+    # repository — it needs an account on a watcher service and a decision about
+    # where its notification goes — and a deploy-time check that is permanently
+    # red for a known reason stops being read, which this repository has already
+    # written down about .gitleaksignore.
+    if _WARNINGS:
+        print(
+            f"\n{len(_WARNINGS)} warning(s) — the configuration is valid and "
+            f"something about the destination is not:",
+            file=sys.stderr,
+        )
+        for msg in _WARNINGS:
+            print(f"  - {msg.splitlines()[0]}", file=sys.stderr)
     return 0
 
 

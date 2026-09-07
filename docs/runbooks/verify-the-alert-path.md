@@ -33,6 +33,13 @@ travel, but nothing machine-checks its absence — you do.
 
 ## Setting up the external watcher
 
+> **This has not been done.** As of 2026-09-07 the heartbeat URL points at
+> `ntfy.sh` exactly as every other receiver does, and ntfy cannot detect absence — so
+> there is no dead man's switch, only a heartbeat nobody is waiting on
+> ([#359](https://github.com/Gerrrt/HomeLab/issues/359)). `make up` warns about
+> it on every deploy. The steps below are what closes it, and step 2 is the one
+> that matters.
+
 The watcher has to live somewhere other than the monitoring host. A watcher on
 this host fails at the same moment as the thing it is watching, which is not
 watching at all.
