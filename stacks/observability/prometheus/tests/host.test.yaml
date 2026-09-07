@@ -555,4 +555,158 @@ tests:
     alert_rule_test:
       - eval_time: 30h
         alertname: PatchStateStopped
+  # --- SmartDriveUnhealthy: fires when the drive's own verdict is failure ----
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_healthy{host="oracle",device="/dev/sda",model="ST500LT012-1DG14"}'
+        values: "1x30 0x30"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: SmartDriveUnhealthy
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              device: /dev/sda
+              model: ST500LT012-1DG14
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "oracle: SMART says /dev/sda is failing"
+              description: >-
+                The drive's own overall self-assessment has failed on
+                ST500LT012-1DG14. This is the firmware's verdict, not a derived
+                one. Replace it; `smartctl -a /dev/sda` on the host has the
+                attribute that tripped.
+
+  # --- SmartDriveUnhealthy: quiet for a healthy drive -----------------------
+  # morpheus's real values on 2026-09-06: PASSED, and it must stay silent.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_healthy{host="morpheus",device="/dev/nvme0",model="Lexar SSD NQ700 1TB"}'
+        values: "1x60"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: SmartDriveUnhealthy
+        exp_alerts: []
+
+  # --- SmartDriveSpareLow: fires only against the drive's OWN threshold ------
+  # Spare falls to 8 against a published threshold of 10. A rule with a
+  # hardcoded number would have to guess this, and 10 is not universal.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_available_spare_percent{host="morpheus",device="/dev/nvme0"}'
+        values: "100x30 8x40"
+      - series: 'homelab_smart_available_spare_threshold_percent{host="morpheus",device="/dev/nvme0"}'
+        values: "10x70"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: SmartDriveSpareLow
+        exp_alerts:
+          - exp_labels:
+              host: morpheus
+              device: /dev/nvme0
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "morpheus: /dev/nvme0 spare capacity below the drive's own threshold"
+              description: >-
+                Remaining spare is 8%, under the threshold the drive itself
+                publishes. The drive is remapping faster than its reserve allows
+                and is near the end of its usable life. Plan a replacement.
+
+  # --- SmartDriveSpareLow: quiet when spare is low but above the threshold ---
+  # 15% would look alarming next to a hardcoded 20 and is fine on a drive whose
+  # own threshold is 10. This is the case that justifies the on(host, device)
+  # comparison instead of a constant.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_available_spare_percent{host="morpheus",device="/dev/nvme0"}'
+        values: "15x70"
+      - series: 'homelab_smart_available_spare_threshold_percent{host="morpheus",device="/dev/nvme0"}'
+        values: "10x70"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: SmartDriveSpareLow
+        exp_alerts: []
+
+  # --- SmartDriveWearHigh: fires at the ordering point, not the end of life --
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_percentage_used{host="prometheus",device="/dev/sda",model="APPLE SSD SM256E"}'
+        values: "82x200"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: SmartDriveWearHigh
+        exp_alerts:
+          - exp_labels:
+              host: prometheus
+              device: /dev/sda
+              model: APPLE SSD SM256E
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "prometheus: /dev/sda has used 82% of its rated life"
+              description: >-
+                The vendor's endurance estimate for APPLE SSD SM256E. At 100 the
+                rated write life is used; the drive will usually keep going and
+                should stop being trusted with anything not backed up. Order a
+                replacement rather than reacting.
+
+  # --- SmartDriveWearHigh: quiet below the threshold ------------------------
+  # morpheus reports 0% used. Without this the threshold could be deleted and
+  # the firing test above would still pass.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_percentage_used{host="morpheus",device="/dev/nvme0"}'
+        values: "0x200"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: SmartDriveWearHigh
+        exp_alerts: []
+
+  # --- SmartDriveBadSectors: fires on the first reallocated sector ----------
+  # And keeps firing. A remapped sector never un-remaps, which is why the rule
+  # is `> 0` rather than a rate.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda"}'
+        values: "0x30 8x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: SmartDriveBadSectors
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              device: /dev/sda
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "oracle: /dev/sda has unreadable sectors"
+              description: >-
+                8 sector(s) or media error(s) the drive could not read back. The
+                count only grows, so this stays firing until the disk is
+                replaced — that is deliberate, because a drive that failed once
+                and went quiet is still a drive that failed. Check backups
+                first.
+
+  # --- SmartDriveBadSectors: quiet on a clean drive -------------------------
+  # All four inputs at zero, including the NVMe spelling, so the `or` chain is
+  # exercised rather than only its first branch.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="morpheus",device="/dev/nvme0"}'
+        values: "0x120"
+      - series: 'homelab_smart_pending_sectors{host="morpheus",device="/dev/nvme0"}'
+        values: "0x120"
+      - series: 'homelab_smart_uncorrectable_sectors{host="morpheus",device="/dev/nvme0"}'
+        values: "0x120"
+      - series: 'homelab_smart_media_errors_total{host="morpheus",device="/dev/nvme0"}'
+        values: "0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: SmartDriveBadSectors
         exp_alerts: []

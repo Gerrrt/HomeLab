@@ -120,6 +120,7 @@ JOBS=(
   "loki-coverage     homelab-loki-coverage       172800  check-loki-coverage"
   "patch-state       homelab-patch-state         172800  patch-state"
   "firewall-claims   homelab-firewall-claims     172800  check-firewall"
+  "smart-state       homelab-smart-state         172800  smart-state"
   "verify-key-backup -                          7776000  secrets-verify-backup"
 )
 

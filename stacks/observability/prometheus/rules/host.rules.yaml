@@ -195,3 +195,105 @@ groups:
             /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
             being written and is world-readable. A 0600 file is invisible to the
             collector and produces exactly this silence.
+      # --- SMART, for the disks the iLO cannot see (#351) -------------------
+      #
+      # #151 already covers Saruman's array: cpqDaPhyDrvSmartStatus arrives over
+      # SNMP and IloDrivePredictiveFailure is armed on it. These four cover the
+      # rest — oracle's 5400 rpm HDD, the monitoring host's 2012 SSD, and
+      # morpheus's NVMe — which had nothing at all.
+      #
+      # Every one of them reads the DRIVE'S OWN verdict rather than a threshold
+      # invented here. That matters more than it sounds: morpheus idles at 62 C
+      # against an operational limit of 100 C, so any fixed temperature number
+      # would be wrong for some drive in this estate. Temperature is collected
+      # and deliberately not alerted on for exactly that reason — the drive
+      # reports seconds spent above its own warning and critical limits, and
+      # that is the signal worth a rule once there is history to write it
+      # against.
+
+      - alert: SmartDriveUnhealthy
+        # The drive's overall self-assessment has failed. This is the one SMART
+        # signal that means "replace this now": the firmware has concluded the
+        # disk is failing, not that a counter looks odd.
+        #
+        # No `for` beyond a scrape or two. Every other rule here waits because
+        # the condition might be transient; this one is a latch the drive sets
+        # and does not clear.
+        expr: homelab_smart_healthy == 0
+        for: 5m
+        labels:
+          component: host
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "{{ $labels.host }}: SMART says {{ $labels.device }} is failing"
+          description: >-
+            The drive's own overall self-assessment has failed on
+            {{ $labels.model }}. This is the firmware's verdict, not a derived
+            one. Replace it; `smartctl -a {{ $labels.device }}` on the host has
+            the attribute that tripped.
+
+      - alert: SmartDriveSpareLow
+        # NVMe keeps spare blocks to remap failures into, and publishes its OWN
+        # threshold for when that reserve is too small. Comparing against that
+        # rather than a number chosen here is the whole point — the drive knows
+        # what its reserve was sized for.
+        expr: >-
+          homelab_smart_available_spare_percent
+          < on(host, device) homelab_smart_available_spare_threshold_percent
+        for: 15m
+        labels:
+          component: host
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.device }} spare capacity below the drive's own threshold"
+          description: >-
+            Remaining spare is {{ $value }}%, under the threshold the drive
+            itself publishes. The drive is remapping faster than its reserve
+            allows and is near the end of its usable life. Plan a replacement.
+
+      - alert: SmartDriveWearHigh
+        # Endurance consumed, as the vendor estimates it. 80 rather than 100
+        # because the useful action is ordering a disk, and 100 means the rated
+        # write life is already gone. Not critical: a drive past its rated
+        # endurance usually keeps working, it just stops being trustworthy.
+        expr: homelab_smart_percentage_used >= 80
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.device }} has used {{ $value }}% of its rated life"
+          description: >-
+            The vendor's endurance estimate for {{ $labels.model }}. At 100 the
+            rated write life is used; the drive will usually keep going and
+            should stop being trusted with anything not backed up. Order a
+            replacement rather than reacting.
+
+      - alert: SmartDriveBadSectors
+        # Any non-zero value here is data the drive could not read back. Both
+        # families are covered: reallocated and pending sectors are the ATA
+        # spelling, media errors the NVMe one.
+        #
+        # `> 0` and not an increase(): a remapped sector never un-remaps, so the
+        # count only ever grows and the first one is the finding. A rate would
+        # go quiet on a drive that failed once and is sitting there degraded.
+        expr: >-
+          homelab_smart_reallocated_sectors > 0
+          or homelab_smart_pending_sectors > 0
+          or homelab_smart_uncorrectable_sectors > 0
+          or homelab_smart_media_errors_total > 0
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.device }} has unreadable sectors"
+          description: >-
+            {{ $value }} sector(s) or media error(s) the drive could not read
+            back. The count only grows, so this stays firing until the disk is
+            replaced — that is deliberate, because a drive that failed once and
+            went quiet is still a drive that failed. Check backups first.

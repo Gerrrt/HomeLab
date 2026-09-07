@@ -28,6 +28,13 @@ STACK       ?= observability
 # homelab-loki-coverage.service, which sets no window of its own — one number,
 # in one place.
 WINDOW      ?= 24h
+# The firewall, for the jobs that read it directly rather than over SNMP.
+# `smart-state` reads its NVMe SMART log over SSH, because morpheus is FreeBSD
+# with no node_exporter and no textfile directory of its own. Same names and
+# same defaults as scripts/backup-firewall.sh, which has reached it this way
+# since #92 — one pair of variables, overridable in /etc/default/homelab-timers.
+FW_HOST     ?= 10.0.99.1
+FW_USER     ?= root
 STACK_DIR   := stacks/$(STACK)
 COMPOSE     := docker compose -f $(STACK_DIR)/compose.yaml
 SECRETS     := secrets/$(STACK).sops.yaml
@@ -258,6 +265,26 @@ install-agent-patch-state: ## Put the patch-state collector on an agent host (ne
 	@# existing install and changes nothing.
 	@test -n "$(AGENT)" || { echo "set AGENT=user@host (e.g. AGENT=atropos@10.0.99.30)"; exit 1; }
 	./scripts/install-agent-patch-state.sh $(ARGS) $(AGENT)
+.PHONY: smart-state
+smart-state: ## Collect SMART health from the local disks and from morpheus
+	@# #151 covered Saruman's array — cpqDaPhyDrvSmartStatus arrives over SNMP
+	@# and IloDrivePredictiveFailure is armed on it. This is #351: oracle's
+	@# 5400 rpm HDD, this host's 2012 SSD, and morpheus's NVMe, which had none.
+	@#
+	@# morpheus needs no agent. #351 assumed a "fourth path" for it; there is
+	@# not one — pfSense already ships smartctl and root SSH from here already
+	@# works, so it is read over SSH and written into this host's textfile
+	@# directory under host="morpheus". Those series carry instance="prometheus",
+	@# which is stated in the collector's header rather than left to surprise
+	@# someone grouping by instance.
+	./scripts/collect-smart-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus --device nvme:/dev/nvme0
+	@# The local half, and it is deliberately conditional rather than fatal.
+	@# smartmontools is not installed here or on oracle, and that is a
+	@# provisioning step a human takes (#351) — failing the whole job for it
+	@# would make the morpheus half unavailable too, to report a gap that is
+	@# already visible as a missing homelab_smart_devices series for this host.
+	@# The line below is printed on every run so the gap is never silent.
+	@if command -v smartctl >/dev/null 2>&1; then 		./scripts/collect-smart-state.sh; 	else 		printf '\033[0;33m  SKIP\033[0m local disks: smartctl is not installed — %s\n' 			'sudo apt install smartmontools'; 	fi
 
 .PHONY: check-mounted-config
 check-mounted-config: ## Verify each container runs the config the repo has (deploy-time)
