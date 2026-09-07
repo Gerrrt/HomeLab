@@ -16,7 +16,13 @@
 # that changes about once. So this is its own step, run once per host, and
 # deploy-agent.sh keeps its property.
 #
-# THIS ONE DOES NEED sudo ON THE TARGET, and cannot avoid it:
+# IT NEEDS ROOT ON THE TARGET, WHICH IS NOT THE SAME AS NEEDING sudo. The estate
+# has both shapes and the script picks per host: an unprivileged login uses sudo
+# and prompts; a root login runs the block directly. Saruman is the second kind
+# and has no sudo installed at all, so assuming it failed with "command not
+# found: sudo" while already holding the only privilege it needed.
+#
+# WHERE sudo IS USED, it cannot be avoided:
 # /var/lib/node_exporter/textfile_collector on an agent host is created by the
 # Alloy deployment and owned by root, /usr/local/bin and /etc/systemd/system are
 # root-owned everywhere, and enabling a timer is a privileged operation. It is
@@ -250,6 +256,32 @@ for target in "${TARGETS[@]}"; do
   [[ -n "$remote_home" && "$remote_home" == /* ]] \
     || { fail "${target}: could not resolve the login user's home directory"; continue; }
 
+  # WHETHER sudo IS NEEDED AT ALL, which is not the same question as whether it
+  # is available. The estate has both shapes:
+  #
+  #   oracle    login atropos, uid 1000, sudo present   -> sudo, with a prompt
+  #   Saruman   login root,    uid 0,    sudo ABSENT    -> no sudo, run directly
+  #   morpheus  login root,    uid 0,    sudo absent    -> same
+  #
+  # Assuming sudo failed on Saruman with "zsh:1: command not found: sudo" while
+  # already running as root — the one privilege it needed, it already had.
+  # Proxmox and pfSense are both minimal installs where sudo is simply not there.
+  remote_uid="$(ssh_q "$target" 'id -u' | tr -d '\r')"
+  [[ "$remote_uid" =~ ^[0-9]+$ ]] \
+    || { fail "${target}: could not read the login user's uid"; continue; }
+  if [[ "$remote_uid" == 0 ]]; then
+    privileged=(sh -c)
+    priv_note="already root"
+  elif ssh_q "$target" "command -v sudo >/dev/null 2>&1"; then
+    privileged=(sudo sh -c)
+    priv_note="via sudo — expect a password prompt"
+  else
+    fail "${target}: login user is uid ${remote_uid} and there is no sudo on this host.
+       Installing units and writing /usr/local/bin needs root. Either log in as
+       root (AGENT=root@host) or install sudo there."
+    continue
+  fi
+
   if ! ssh_q "$target" "test -d ${TEXTFILE_DIR}"; then
     fail "${target}: no ${TEXTFILE_DIR} — deploy Alloy to this host first
        (scripts/deploy-agent.sh), which is what creates it"
@@ -267,7 +299,7 @@ for target in "${TARGETS[@]}"; do
     done
 
     if ((${#staged[@]})); then
-      step "${target}: installing (sudo — expect a password prompt)"
+      step "${target}: installing (${priv_note})"
       # `install` rather than mv, so the mode is set in the same operation that
       # puts the file there and is never briefly wrong. Each service is started
       # once immediately: a timer enabled but never run leaves the host with no
@@ -283,7 +315,16 @@ for target in "${TARGETS[@]}"; do
       for name in "${staged[@]}"; do
         cmds+=" && systemctl enable --now homelab-${name}.timer && systemctl start homelab-${name}.service"
       done
-      if ssh_tty "$target" "sudo sh -c '${cmds}'"; then
+      # A TTY is allocated ONLY when sudo may prompt. Asking for one when running
+      # as root adds carriage returns to everything the remote prints for no
+      # reason, and `ssh -tt` to a host with no controlling terminal is a
+      # needless failure mode.
+      if [[ "$priv_note" == "already root" ]]; then
+        ok=0; ssh_q "$target" "${privileged[*]} '${cmds}'" || ok=$?
+      else
+        ok=0; ssh_tty "$target" "${privileged[*]} '${cmds}'" || ok=$?
+      fi
+      if ((ok == 0)); then
         pass "${target}: installed and started ${staged[*]}"
       else
         fail "${target}: install failed"
