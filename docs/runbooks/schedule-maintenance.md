@@ -104,6 +104,21 @@ each host's requirements **per collector**, so a host without apt still gets
 SMART and the one it cannot have is reported rather than skipped silently.
 `ARGS='--only smart-state'` narrows it.
 
+**It needs root on the target, which is not the same as needing `sudo`.** The
+estate has both shapes and the installer picks per host, from the login user's
+uid:
+
+| host | login | uid | `sudo` | what runs |
+| --- | --- | --- | --- | --- |
+| `oracle` | `atropos` | 1000 | present | `sudo sh -c` — prompts for a password |
+| `Saruman` | `root` | 0 | **absent** | `sh -c` — direct, no prompt |
+| `morpheus` | `root` | 0 | absent | `sh -c` |
+
+Proxmox and pfSense are minimal installs with no `sudo` at all, so assuming it
+fails on them with `command not found: sudo` while already holding the only
+privilege it needed. A host that is neither root nor has `sudo` is reported with
+what to do about it rather than attempted.
+
 **`patch-state` needs apt, not `apt-check`.** It prefers
 `/usr/lib/update-notifier/apt-check` where it exists — every Ubuntu host here —
 because that is update-notifier's own program and already knows a security
