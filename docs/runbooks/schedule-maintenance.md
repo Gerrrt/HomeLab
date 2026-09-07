@@ -152,6 +152,21 @@ drops to `SMART_SSH_USER` (default `robo`) with `runuser` for the SSH call only
 and keeps root for the device reads — giving away privilege rather than minting a
 second key for root or having root read another user's private key.
 
+**That drop costs `NoNewPrivileges`, and this is the only unit here without it.**
+`PR_SET_NO_NEW_PRIVS` blocks the UID change, so the run after the first fix failed
+with `runuser: cannot set user id: Operation not permitted`. The flag and the
+privilege drop cannot both be had, and the drop is worth more: the unit already
+runs as root, where `NoNewPrivileges` prevents gaining privileges a process that
+has all of them does not need to gain, while the drop is what keeps root away
+from the operator key. `ProtectSystem=strict` with one `ReadWritePaths` and the
+kernel-surface toggles are what actually constrain this job.
+
+One more trap in the same place, worth knowing before writing another `runuser`
+call here: `runuser -u` does **not** reset the environment, so `HOME` stays
+`/root` and `ssh` looks for the key in `/root/.ssh` while running as `robo`. The
+script sets `HOME` from `getent passwd` explicitly rather than using `-l`, which
+would start a login shell and re-parse profile scripts for one `ssh` call.
+
 That failure was also harder to read than it should have been: the collector sent
 `ssh` and `smartctl` stderr to `/dev/null`, so the journal said only `no output
 for /dev/nvme0` and a permission problem looked like an unresponsive disk. It now

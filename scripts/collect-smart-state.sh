@@ -135,7 +135,17 @@ run_smartctl() {
 Set SMART_SSH_USER to whoever owns the key that reaches ${SSH_TARGET}, or to
 'root' if root itself has one."
     fi
-    runuser -u "${SMART_SSH_USER}" -- "${ssh_cmd[@]}" 2>"${STDERR_FILE}"
+    # HOME has to be set explicitly. `runuser -u` does NOT reset the
+    # environment — that is what `-l` is for — so HOME stays /root and ssh looks
+    # for the key in /root/.ssh even though it is now running as robo. The
+    # symptom is a permission error naming the right user and the wrong key,
+    # which is a bad hour to spend. `-l` is not used instead because it starts a
+    # login shell and re-parses profile scripts, which is a lot of behaviour to
+    # inherit for one ssh call.
+    local home
+    home="$(getent passwd "${SMART_SSH_USER}" | cut -d: -f6)"
+    [[ -n "$home" ]] || die "cannot resolve the home directory of ${SMART_SSH_USER@Q}"
+    runuser -u "${SMART_SSH_USER}" -- env "HOME=${home}" "${ssh_cmd[@]}" 2>"${STDERR_FILE}"
   else
     "${ssh_cmd[@]}" 2>"${STDERR_FILE}"
   fi

@@ -59,7 +59,21 @@ ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job smart-st
 TimeoutStartSec=300
 Restart=no
 Nice=10
-NoNewPrivileges=true
+# NoNewPrivileges is deliberately NOT set here, and this is the one unit in this
+# repository where that is true. It blocks the UID change this job depends on:
+# the second scheduled run failed with
+#
+#     runuser: cannot set user id: Operation not permitted
+#
+# because PR_SET_NO_NEW_PRIVS stops runuser dropping root to `robo` for the SSH
+# call. The choice is between the flag and the privilege drop, and the drop is
+# worth more: this unit already runs as root, so NoNewPrivileges buys very
+# little — it prevents *gaining* privileges a process that has all of them does
+# not need to gain — whereas the drop is what keeps root away from the operator
+# key, which is a real boundary.
+#
+# Everything else stays. ProtectSystem=strict with one ReadWritePaths, and the
+# kernel-surface toggles below, are what actually constrain this job.
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictRealtime=true
