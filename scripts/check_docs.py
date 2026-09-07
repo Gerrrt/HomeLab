@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Eight assertions, each comparing prose against something machine-readable:
+Nine assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents
@@ -34,6 +34,9 @@ Eight assertions, each comparing prose against something machine-readable:
                            the running firewall by check_firewall_claims.py,
                            which cannot run here because the ruleset is not in
                            this repository and deliberately never will be.
+  9. Guest claims          a host that says it runs no guests, while another
+                           row says it is a guest on it. Checkable only against
+                           its siblings, which is why it is its own assertion.
 
 Only present-tense documents are checked. `docs/roadmap.md` and `docs/adr/`
 record what was true when the work landed — `roadmap.md` still says "(34 rules)"
@@ -967,6 +970,50 @@ def check_adr_numbers() -> list[str]:
     return problems
 
 
+def check_guest_claims() -> list[str]:
+    """A host that says it runs no guests, while another row says it hosts one.
+
+    docs/architecture.md's host table carried both of these at once for two
+    days: `Saruman`'s row read "Proxmox VE 9, no guests yet" while the row
+    immediately below it read "`alexander` … A guest on `Saruman`". Both are
+    free prose in the Contents column, so the host-and-stack assertion had
+    nothing to compare — it checks that the hosts and stacks named here match
+    network.md and stacks/, and both rows passed that.
+
+    The claim is only checkable against its siblings, which is what this does:
+    if any row declares itself a guest on some host, that host may not also
+    claim to have none. Narrow on purpose — it asserts one contradiction rather
+    than trying to understand the column.
+    """
+    problems: list[str] = []
+    text = ARCH_MD.read_text(encoding="utf-8")
+
+    hosts = tables_under(text, re.compile(r"^##\s+.*[Hh]ost", re.M))
+    if not hosts:
+        return ["docs/architecture.md has no host table under a Host heading"]
+    rows = [r for r in hosts[0] if len(r) >= 4]
+
+    # Which hosts something claims to be a guest of. The name is in backticks
+    # in every row that says this, which is what keeps the match from picking
+    # up prose that merely mentions a hostname.
+    guest_of: dict[str, list[str]] = {}
+    for row in rows:
+        name = row[0].split("`")[1] if "`" in row[0] else row[0]
+        for m in re.finditer(r"[Gg]uest on\s+`([^`]+)`", row[-1]):
+            guest_of.setdefault(m.group(1), []).append(name)
+
+    for row in rows:
+        name = row[0].split("`")[1] if "`" in row[0] else row[0]
+        if not re.search(r"no guests(?:\s+yet)?\b", row[-1], re.I):
+            continue
+        if name in guest_of:
+            problems.append(
+                f"docs/architecture.md says {name} has no guests, and "
+                f"{', '.join(guest_of[name])} says it is a guest on it"
+            )
+    return problems
+
+
 def check_firewall_posture() -> list[str]:
     """docs/security.md naming the same segments docs/firewall-claims.yaml does.
 
@@ -1069,6 +1116,7 @@ def main() -> int:
         ("ADR numbering", check_adr_numbers),
         ("firewall posture prose against docs/firewall-claims.yaml",
          check_firewall_posture),
+        ("guest claims against each other", check_guest_claims),
     )
 
     total = 0
