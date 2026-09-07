@@ -110,7 +110,22 @@ FAILED=0
 # forward the password prompt and ssh only allocates one for a command when
 # asked twice.
 ssh_tty() { ssh -tt -o ConnectTimeout=10 "$1" "${@:2}"; }
+
+# ssh_q closes stdin so a call inside a loop cannot swallow the loop's input,
+# which is the standard hazard with ssh in shell loops.
 ssh_q()   { ssh -o BatchMode=yes -o ConnectTimeout=10 "$1" "${@:2}" </dev/null; }
+
+# ssh_in is the same WITHOUT that redirect, for the calls that pipe a file in.
+# Using ssh_q to stage is how every unit arrived on oracle as ZERO BYTES: the
+# function's own `</dev/null` overrides the caller's `< file`, so `cat >` on the
+# far end read nothing. systemd reports a zero-length unit as `masked`, so the
+# install failed with "Unit file ... is masked" and pointed nowhere near stdin.
+#
+# Worth knowing if this is ever tested by hand: under bash the last redirect
+# wins, which is the bug. Under zsh, MULTIOS concatenates them instead and the
+# content arrives — so the same command tested interactively in zsh works and in
+# the script does not.
+ssh_in()  { ssh -o BatchMode=yes -o ConnectTimeout=10 "$1" "${@:2}"; }
 
 # The .prom a collector writes. smart-state names its file after the host, so the
 # SSH mode on the monitoring host cannot overwrite the local mode's output; the
@@ -133,11 +148,20 @@ verify_one() {
   fi
   pass "${target}/${name}: ${need} present"
 
-  if ssh_q "$target" "systemctl is-enabled --quiet homelab-${name}.timer"; then
-    pass "${target}/${name}: timer enabled"
-  else
-    fail "${target}/${name}: homelab-${name}.timer is not enabled"
-  fi
+  local state
+  state="$(ssh_q "$target" "systemctl is-enabled homelab-${name}.timer 2>&1" | tr -d '\r')"
+  case "$state" in
+    enabled*) pass "${target}/${name}: timer enabled" ;;
+    masked*)
+      # Almost always a zero-length unit file rather than a deliberate mask:
+      # systemd reports both the same way, and an empty file is what a broken
+      # transfer leaves behind. Say which to check, since the words differ.
+      fail "${target}/${name}: homelab-${name}.timer is MASKED. If it was not masked
+       deliberately, the unit file is empty — check
+       'wc -c /etc/systemd/system/homelab-${name}.timer' on the host. Re-running
+       this installer overwrites it and daemon-reload picks it up." ;;
+    *) fail "${target}/${name}: homelab-${name}.timer is ${state:-unknown}, not enabled" ;;
+  esac
 
   # The file, and its mode. A 0600 .prom is invisible to the collector and the
   # metric silently never appears — the failure run-scheduled.sh records having
@@ -167,11 +191,28 @@ install_one() {
   # Staged into the invoking user's home first and moved into place by a single
   # privileged block, so the sudo password is asked for once per host rather than
   # once per file.
-  ssh_q "$target" "cat > ${stage}/.homelab-${name}.sh" < "${REPO}/${script}" \
-    || { fail "${target}/${name}: could not copy the collector"; return 1; }
-  ssh_q "$target" "cat > ${stage}/.homelab-${name}.service" < "${UNIT_DIR}/homelab-${name}.service"
-  ssh_q "$target" "cat > ${stage}/.homelab-${name}.timer"   < "${UNIT_DIR}/homelab-${name}.timer"
-  pass "${target}/${name}: staged"
+  local src dst
+  for pair in \
+      "${REPO}/${script}:${stage}/.homelab-${name}.sh" \
+      "${UNIT_DIR}/homelab-${name}.service:${stage}/.homelab-${name}.service" \
+      "${UNIT_DIR}/homelab-${name}.timer:${stage}/.homelab-${name}.timer"; do
+    src="${pair%%:*}"; dst="${pair#*:}"
+    if ! ssh_in "$target" "cat > ${dst}" < "$src"; then
+      fail "${target}/${name}: could not copy ${src##*/}"
+      return 1
+    fi
+    # ASSERT THE BYTES ARRIVED. A transfer that silently moved nothing is what
+    # put four zero-length unit files on oracle and had systemd call them
+    # masked; "staged" must mean the file is there AND has the size it should.
+    local want got
+    want="$(wc -c < "$src" | tr -d ' ')"
+    got="$(ssh_q "$target" "wc -c < ${dst} 2>/dev/null" | tr -d ' \r')"
+    if [[ "$got" != "$want" ]]; then
+      fail "${target}/${name}: ${dst##*/} arrived as ${got:-0} bytes, expected ${want}"
+      return 1
+    fi
+  done
+  pass "${target}/${name}: staged, byte counts match"
   return 0
 }
 
