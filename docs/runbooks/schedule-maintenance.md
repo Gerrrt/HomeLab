@@ -102,7 +102,33 @@ install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state` and `smart-state` today — and checks
 each host's requirements **per collector**, so a host without apt still gets
 SMART and the one it cannot have is reported rather than skipped silently.
-`ARGS='--only smart-state'` narrows it. That step needs `sudo` **on the target** and is deliberately
+`ARGS='--only smart-state'` narrows it.
+
+**`patch-state` needs apt, not `apt-check`.** It prefers
+`/usr/lib/update-notifier/apt-check` where it exists — every Ubuntu host here —
+because that is update-notifier's own program and already knows a security
+update from an ordinary one. It does not exist on modern Debian: `Saruman` is
+Proxmox VE 9, which is Debian 13, where `update-notifier-common` is gone
+entirely and `apt-config-auto-update` replaces it with an apt.conf snippet
+rather than the tool. So the collector falls back to counting the `Inst` lines
+of `apt-get -s upgrade`, matching the security pocket **inside the parenthesised
+origin only** — a package named `security-misc` would otherwise count itself.
+
+`homelab_apt_check_method{host,method}` publishes which path produced the
+numbers, because the fallback is the weaker one: `apt-check` knows about phased
+updates and this does not, so on a host mid-rollout the two can disagree by a
+package or two. `make validate` runs the parser against eight fixtures, which is
+the only way it gets tested — a fully-patched host cannot be made to produce a
+pending security update on demand.
+
+**`Saruman` takes `--only patch-state`.** Its two drives sit behind an HPE Smart
+Array and are already watched through the iLO by `cpqDaPhyDrvSmartStatus`
+([#151](https://github.com/Gerrrt/HomeLab/issues/151)), reporting `ok` with
+`IloDrivePredictiveFailure` armed. `smartctl -d auto` cannot read a Smart Array
+logical device anyway, so installing `smart-state` there would leave a
+permanently failing timer duplicating coverage that already works. It also has to
+be installed from the Mac: VLAN 99 cannot reach VLAN 30, which is the
+segmentation working as intended. That step needs `sudo` **on the target** and is deliberately
 not part of `scripts/deploy-agent.sh`, which goes out of its way to need no
 privilege there. It is run once per host; `ARGS=--check` re-verifies an existing
 install and changes nothing.

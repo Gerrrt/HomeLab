@@ -469,6 +469,20 @@ ROUNDTRIP_SKIPS="$(mktemp)"
 SKIPPED=$((SKIPPED + $(wc -l < "${ROUNDTRIP_SKIPS}")))
 
 # ---------------------------------------------------------------------------
+head_ "Collector parsers"
+
+# Pure text, no apt and no host state, so CI can run it. collect-patch-state.sh
+# parses `apt-get -s upgrade` on hosts without apt-check — every modern Debian,
+# Saruman included — and there is no way to make a fully-patched host produce a
+# pending security update on demand. Fixtures are the only way this parser is
+# tested at all (#360).
+if "${REPO_ROOT}/scripts/collect-patch-state.sh" --self-test >/dev/null 2>&1; then
+  pass "collect-patch-state.sh --self-test (8 fixtures)"
+else
+  "${REPO_ROOT}/scripts/collect-patch-state.sh" --self-test || true
+  fail "collect-patch-state.sh --self-test"
+fi
+
 head_ "Documentation"
 # ---------------------------------------------------------------------------
 # Asserts the prose still agrees with the configs it describes: rule and panel

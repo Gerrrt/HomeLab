@@ -43,6 +43,13 @@
 # missing one still gets the other, and the one it cannot have is reported rather
 # than skipped silently.
 #
+# patch-state requires apt-get and NOT apt-check. It preferred apt-check until
+# Saruman: Proxmox VE 9 is Debian 13, where update-notifier-common no longer
+# exists and apt-check with it. Requiring apt-check excluded every modern Debian
+# host from a collector that can serve them perfectly well from `apt-get -s
+# upgrade`. The collector picks the better method itself and publishes which one
+# it used.
+#
 # Usage: scripts/install-agent-collectors.sh [user@]host [...]
 #        scripts/install-agent-collectors.sh --check [user@]host [...]
 #        scripts/install-agent-collectors.sh --only NAME [user@]host [...]
@@ -59,7 +66,7 @@ TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
 
 # name         local script                     .prom it writes        requirement
 COLLECTORS=(
-  "patch-state scripts/collect-patch-state.sh   apt-patch-state.prom   /usr/lib/update-notifier/apt-check"
+  "patch-state scripts/collect-patch-state.sh   apt-patch-state.prom   /usr/bin/apt-get"
   "smart-state scripts/collect-smart-state.sh   smart-state-HOST.prom  /usr/sbin/smartctl"
 )
 
@@ -143,7 +150,7 @@ verify_one() {
   # have beats installing a unit that can only fail.
   if ! ssh_q "$target" "test -x ${need}"; then
     fail "${target}/${name}: ${need} is missing — this host cannot run this collector.
-       patch-state needs update-notifier-common; smart-state needs smartmontools."
+       patch-state needs apt; smart-state needs smartmontools."
     return
   fi
   pass "${target}/${name}: ${need} present"
