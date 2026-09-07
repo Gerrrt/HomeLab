@@ -121,6 +121,7 @@ JOBS=(
   "patch-state       homelab-patch-state         172800  patch-state"
   "firewall-claims   homelab-firewall-claims     172800  check-firewall"
   "smart-state       homelab-smart-state         172800  smart-state"
+  "smart-state-remote homelab-smart-state-remote 172800  smart-state-remote"
   "verify-key-backup -                          7776000  secrets-verify-backup"
 )
 

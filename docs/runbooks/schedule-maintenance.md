@@ -63,6 +63,7 @@ the host.
 | `patch-state` | `make patch-state` | daily 08:00 | 2 days |
 | `firewall-claims` | `make check-firewall` | daily 08:15 | 2 days |
 | `smart-state` | `make smart-state` | daily 08:30 | 2 days |
+| `smart-state-remote` | `make smart-state-remote` | daily 08:45 | 2 days |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
@@ -131,53 +132,67 @@ to the firewall and nothing else — no age key, no docker, no lock — and it n
 writes a rule body anywhere, which is what lets it run unattended without
 breaching `security.md`'s "rule bodies are not published".
 
-`smart-state` is the only job here that runs as **root**, and that is the whole
-reason [#351](https://github.com/Gerrrt/HomeLab/issues/351) was a separate issue
-rather than a config change. `smartctl` issues ATA and NVMe pass-through ioctls
-and needs raw device access; every other timer runs as `robo`. A root unit was
-chosen over a `sudoers` rule because the narrow-looking option is not narrower —
-a `NOPASSWD` entry for `smartctl` is also one for `smartctl --set` and
+**SMART is two jobs, not one, because its halves need opposite privileges.**
+That is the whole reason [#351](https://github.com/Gerrrt/HomeLab/issues/351) was
+a separate issue rather than a config change, and it took two failures to get
+right.
+
+| job | user | needs | reads |
+| --- | --- | --- | --- |
+| `smart-state` | **root** | raw device access for `smartctl` | this host's disks |
+| `smart-state-remote` | `robo` | the operator SSH key | `morpheus` |
+
+`smart-state` is the only job in this table that runs as root: `smartctl` issues
+ATA and NVMe pass-through ioctls and no group membership substitutes. A root unit
+was chosen over a `sudoers` rule because the narrow-looking option is not
+narrower — a `NOPASSWD` entry for `smartctl` is also one for `smartctl --set` and
 `smartctl -t`, which write to the drive. The unit gives back everything it does
-not need instead: `ProtectSystem=strict`, one `ReadWritePaths`, and every
-kernel-surface toggle set. It still runs through `run-scheduled.sh`, so its
-outcome is recorded like any other job.
+not need instead: `ProtectSystem=strict`, one `ReadWritePaths`, `PrivateNetwork`,
+and every kernel-surface toggle.
 
-**Its two halves need opposite privileges, and the first scheduled run proved
-it.** `smartctl` needs root; the SSH to the firewall needs the *operator* key at
-`/home/robo/.ssh/id_ed25519`, which is what `backup-firewall` has used since
-[#92](https://github.com/Gerrrt/HomeLab/issues/92) and which root does not have.
-Running the whole job as root failed the morpheus half with `Permission denied
-(publickey)` while the identical command worked by hand as `robo`. The script now
-drops to `SMART_SSH_USER` (default `robo`) with `runuser` for the SSH call only
-and keeps root for the device reads — giving away privilege rather than minting a
-second key for root or having root read another user's private key.
+`smart-state-remote` needs the opposite thing — a *credential*, not a privilege.
+The key at `/home/robo/.ssh/id_ed25519` is `robo`'s, is what `backup-firewall`
+has used since [#92](https://github.com/Gerrrt/HomeLab/issues/92), and root does
+not have it.
 
-That failure was also harder to read than it should have been: the collector sent
-`ssh` and `smartctl` stderr to `/dev/null`, so the journal said only `no output
-for /dev/nvme0` and a permission problem looked like an unresponsive disk. It now
-captures stderr and puts the reason on the warning line.
+**One unit tried to be both users and failed twice**, each time in the gap
+between "works by hand as `robo`" and "works as the unit". As root it could not
+read the key (`Permission denied (publickey)`); dropping to `robo` with `runuser`
+then hit `NoNewPrivileges` (`cannot set user id: Operation not permitted`), and
+removing that flag would have traded a real hardening directive for a workaround,
+with `runuser -u` not resetting `HOME` waiting behind it. Splitting removes the
+class: nothing changes identity, and a failure now means the job failed rather
+than the plumbing. The local unit also gets `PrivateNetwork=true` and
+`ProtectHome=read-only`, which the combined unit could never have had.
 
-It covers what SNMP does not. `Saruman`'s array is already watched by
+The first of those failures was harder to read than it should have been: the
+collector sent `ssh` and `smartctl` stderr to `/dev/null`, so the journal said
+only `no output for /dev/nvme0` and a credential problem looked like an
+unresponsive disk. It captures stderr now and puts the reason on the warning
+line — which is what made the second failure diagnosable in one read.
+
+Together they cover what SNMP does not. `Saruman`'s array is already watched by
 `cpqDaPhyDrvSmartStatus` through the `ilo` module
 ([#151](https://github.com/Gerrrt/HomeLab/issues/151)), so it is deliberately
-absent here. `morpheus` needed no agent in the end: #351 assumed a "fourth path"
-for a FreeBSD host with no node_exporter, and pfSense already ships `smartctl`
-while this host already has a key that reaches it — so it is read over SSH and written
+absent. `morpheus` needed no agent in the end: #351 assumed a "fourth path" for a
+FreeBSD host with no node_exporter, and pfSense already ships `smartctl` while
+this host already has a key that reaches it — so it is read over SSH and written
 into this host's textfile directory under `host="morpheus"`. Those series carry
 `instance="prometheus"`, which is the price of the host having no agent and is
 stated in the collector rather than left to surprise someone grouping by
 instance.
 
-**The local half is not collecting yet, and that is visible rather than
-silent.** `smartmontools` is not installed on this host or on `oracle`:
+**`oracle` is not collecting yet, and that is visible rather than silent.**
+`smartmontools` is installed on this host but not on `oracle`:
 
 ```bash
 sudo apt install smartmontools
 ```
 
-Until then `make smart-state` prints a `SKIP` line naming that command on every
-run, and the gap shows as a missing `homelab_smart_devices` series for the host
-rather than as healthy disks. The four rules read the drive's own verdict rather
+Until then `make smart-state` there prints a `SKIP` line naming that command, and
+the gap shows as a missing `homelab_smart_devices` series for the host rather than
+as healthy disks. The same `SKIP` appears when a human runs `make smart-state` on
+this host without `sudo`, which is not a fault — the timer runs as root. The four rules read the drive's own verdict rather
 than a threshold chosen here — `morpheus` idles at 62 °C against an operational
 limit of 100 °C, so any fixed temperature number would be wrong for some drive in
 this estate. Temperature is collected and deliberately not alerted on for that
@@ -393,7 +408,8 @@ expected rather than a second fault.
 | `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
 | `loki-coverage` exits 1 | A Loki alerting rule cannot see a host that is producing exactly the lines it hunts | Not an outage — nothing is broken, but an alert cannot fire for that host, which is how [#261](https://github.com/Gerrrt/HomeLab/issues/261) went unnoticed. The FAIL line names the rule, the host and the log type the lines are arriving under; the fix is usually an `or` branch on the rule for that host's stream. A `WARN` is the latent form — the rule cannot reach the host at all, but nothing there matches it today — and does not fail the job |
 | `firewall-claims` exits 1 | A segmentation claim in `docs/firewall-claims.yaml` no longer matches the running ruleset | Not an outage, and the firewall is not the thing that is wrong — a document is. The FAIL line names the interface, the segment and the direction: *now reaches X* means a block was removed or a VLAN was added, *no longer reaches X* means a block landed and the prose still describes the world before it. Re-derive with `scripts/check_firewall_claims.py --derive`, then move the prose that cites it — `docs/network.md` and `docs/security.md`. Never edit an ADR in place: [ADR-0001](../adr/0001-record-architecture-decisions.md) makes them immutable, so a stale one gets a marked amendment or a superseding ADR |
-| `smart-state` exits 1 | A disk failed SMART, or the collector could not read one | `SmartDriveUnhealthy` is the firmware's own verdict and means replace the drive, not investigate a counter. `SmartDriveSpareLow` compares against the threshold the drive publishes for itself. A non-zero exit with no alert usually means SSH to `morpheus` failed or `smartctl` returned nothing readable — the job prints the device it could not read. A `SKIP` line for the local disks is not a failure: `smartmontools` is not installed here yet |
+| `smart-state` exits 1 | A local disk failed SMART, or smartctl could not read one | `SmartDriveUnhealthy` is the firmware's own verdict and means replace the drive, not investigate a counter. `SmartDriveSpareLow` compares against the threshold the drive publishes for itself. A `SKIP` line is not a failure — it means smartctl is absent, or a human ran a root job by hand |
+| `smart-state-remote` exits 1 | `morpheus` could not be read over SSH | The warning line carries ssh's own message — `Permission denied (publickey)` means the key or the user is wrong, `No route to host` means the firewall is unreachable. This job runs as `robo` and uses the same key as `backup-firewall`, so if that job is also failing the cause is shared |
 | `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |

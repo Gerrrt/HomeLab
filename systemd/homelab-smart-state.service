@@ -1,53 +1,35 @@
-# Daily SMART collection for the disks the iLO cannot see (#351).
+# Daily SMART collection for THIS HOST'S disks (#351).
 #
-# THE FIRST UNIT HERE THAT RUNS AS ROOT, and #351 called that out as the reason
-# this is a provisioning change rather than a config change. Every other timer
+# THE ONLY UNIT HERE THAT RUNS AS ROOT, and #351 called that out as the reason
+# this was a provisioning change rather than a config change. Every other timer
 # in install-timers.sh's JOBS table runs as User=robo. smartctl issues ATA and
 # NVMe pass-through ioctls and needs raw device access; no group membership
 # substitutes for it.
 #
 # ROOT UNIT RATHER THAN A SUDOERS RULE, deliberately. A NOPASSWD entry for
-# smartctl is also a NOPASSWD entry for `smartctl --set` and `smartctl -t`,
-# which write to the drive and can start self-tests — so the narrow-looking
-# option is not actually narrower. A unit that runs as root and gives back
-# everything it does not need is easier to reason about and easier to read:
-# ProtectSystem=strict with a single ReadWritePaths, no network beyond the SSH
-# it needs, and every kernel-surface toggle set.
+# smartctl is also one for `smartctl --set` and `smartctl -t`, which write to the
+# drive and can start self-tests — so the narrow-looking option is not actually
+# narrower. A unit that runs as root and gives back everything it does not need
+# is easier to reason about than argument matching in sudoers:
+# ProtectSystem=strict with a single ReadWritePaths, no network at all, and every
+# kernel-surface toggle set.
 #
-# It still goes through run-scheduled.sh, like every other job here. That is
-# what produces homelab_job_* and what install-timers.sh --check asserts for
-# every ExecStart; running as root changes who executes it and nothing about how
-# its outcome is recorded.
+# THIS UNIT DOES NOT TOUCH THE NETWORK, and that is the point of the split.
+# morpheus is collected by homelab-smart-state-remote.service, which runs as robo
+# because the key that reaches the firewall is robo's. One job used to do both
+# and failed twice: as root it could not read that key, and dropping to robo with
+# runuser hit NoNewPrivileges. Two units, each running as the user it needs, need
+# none of that — and this one can therefore keep NoNewPrivileges and drop network
+# access entirely, which the combined unit could not.
 #
-# WHAT IT COLLECTS AND FROM WHERE. `make smart-state` reads the local disks and
-# reads morpheus over SSH — morpheus is FreeBSD with no node_exporter and no
-# textfile directory of its own, but pfSense already ships smartctl, so it needs
-# no agent. Saruman is not here: its array is already covered by
-# cpqDaPhyDrvSmartStatus over SNMP (#151).
-#
-# THE TWO HALVES NEED OPPOSITE THINGS, which the first scheduled run of this
-# unit proved the hard way. smartctl needs root. The SSH to the firewall needs
-# the OPERATOR key at /home/robo/.ssh/id_ed25519 — the one
-# homelab-backup-firewall.service has used since #92, and which root does not
-# have. Running the whole job as root failed on the morpheus half with
-# "Permission denied (publickey)" while the identical command worked by hand.
-#
-# So the script drops to SMART_SSH_USER (default `robo`) via runuser for the SSH
-# call only, and keeps root for the device reads. Root giving away privilege it
-# does not need is the right direction; the alternatives were minting a second
-# firewall key for root, or having root read another user's private key.
-#
-# KNOWN INCOMPLETE, and visible rather than silent: smartmontools is not
-# installed on this host or on oracle, so the local half collects nothing until
-# it is. The target says so on every run and the absence shows as a missing
-# homelab_smart_devices series for that host rather than as healthy disks.
+# It goes through run-scheduled.sh like every other job, which is what produces
+# homelab_job_* and what install-timers.sh --check asserts for every ExecStart.
+# Running as root changes who executes it, not how its outcome is recorded.
 #
 # See homelab-backup-volumes.service for why each directive below is set.
 [Unit]
-Description=HomeLab: collect SMART health for the disks SNMP does not reach
+Description=HomeLab: collect SMART health for this host's disks
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
-Wants=network-online.target
-After=network-online.target
 
 [Service]
 Type=oneshot
@@ -64,11 +46,15 @@ RestrictSUIDSGID=true
 LockPersonality=true
 RestrictRealtime=true
 PrivateTmp=true
+ProtectHome=read-only
 ProtectSystem=strict
 ReadWritePaths=/var/lib/node_exporter/textfile_collector
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
+# Reads local block devices and writes a textfile. It has no reason to talk to
+# anything, and the unit that does is a different one.
+PrivateNetwork=true
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=homelab-smart-state

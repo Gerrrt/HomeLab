@@ -22,24 +22,24 @@
 #                       privilege — the same path homelab_job_* already arrives
 #                       by, so the plumbing is proven.
 #
-# TWO COLLECTION MODES, because the estate has two shapes of host.
+# TWO COLLECTION MODES, AND ONE UNIT EACH. The estate has two shapes of host and
+# they need OPPOSITE privileges, which is why there are two timers rather than
+# one job doing both.
 #
 #   local     Linux hosts running Alloy with a textfile directory: `prometheus`
-#             and `oracle`. Disks are enumerated from /sys, and smartctl is run
-#             against each. NEEDS ROOT — see below.
+#             and `oracle`. Disks are enumerated from /sys and smartctl is run
+#             against each. NEEDS ROOT: smartctl issues ATA and NVMe
+#             pass-through ioctls and no group membership substitutes.
+#             homelab-smart-state.service, User=root.
 #
 #   --ssh     `morpheus`, which is FreeBSD, has no node_exporter, no textfile
 #             directory and no Alloy, and whose metrics otherwise arrive over
 #             SNMP. #351 assumed it would need "a fourth path" and it does not:
 #             smartctl 7.5 is ALREADY INSTALLED there (pfSense ships it for its
-#             own SMART status page) and the monitoring host already has an SSH
-#             key that reaches it, which is how backup-firewall.sh gets there.
-#             So the monitoring host reads it over SSH and writes the result into
-#             its own textfile directory under host="morpheus".
-#
-#             That key belongs to `robo`, not to root, and this script drops to
-#             it — see WHO RUNS THE SSH below. The first scheduled run got this
-#             wrong and failed.
+#             own SMART status page) and the monitoring host already has a key
+#             that reaches it, which is how backup-firewall.sh gets there.
+#             NEEDS THE OPERATOR KEY, NOT ROOT: that key is robo's, and root has
+#             none. homelab-smart-state-remote.service, User=robo.
 #
 #             The cost, stated: those series carry instance="prometheus", because
 #             that is the Alloy that scraped them. Every alert here keys on
@@ -48,14 +48,21 @@
 #             of the host having no agent, and it is cheaper than putting one on
 #             the firewall.
 #
-# WHY ROOT, AND ONLY FOR THE LOCAL MODE. smartctl issues ATA/NVMe pass-through
-# ioctls and needs raw device access; no amount of group membership substitutes.
-# Every timer in install-timers.sh's JOBS table runs as User=robo, so this is the
-# first unit here that does not — which is why #351 called it a provisioning
-# change rather than a config change. The unit runs as root and gives back
-# everything it can (ProtectSystem=strict, a single ReadWritePath, no network),
-# rather than a sudoers rule: a NOPASSWD entry for smartctl is a NOPASSWD entry
-# for `smartctl --set` and `-t select` too, which can write to the drive.
+# WHY TWO UNITS AND NOT ONE THAT SWITCHES USER. One job tried to do both and
+# failed twice, each time in the gap between "works by hand as robo" and "works
+# as the unit". As root it could not read robo's key
+# ("Permission denied (publickey)"); dropping to robo with runuser then hit
+# NoNewPrivileges ("cannot set user id: Operation not permitted"), and removing
+# that flag would have traded a real hardening directive for a workaround —
+# with `runuser -u` not resetting HOME waiting behind it. Two units need none of
+# that: each runs as the user it needs and neither changes identity. The failure
+# mode that remains is a unit failing to do its own job, which is legible.
+#
+# NOT A SUDOERS RULE either, for the local half. A NOPASSWD entry for smartctl
+# is a NOPASSWD entry for `smartctl --set` and `-t select` too, which can write
+# to the drive. A root unit that gives back everything it does not need
+# (ProtectSystem=strict, one ReadWritePaths, every kernel toggle) is easier to
+# reason about than argument matching in sudoers.
 #
 # NO SERIAL NUMBERS. smartctl reports one per disk and it is deliberately not
 # emitted. It identifies hardware, it is unique per drive, and `device` plus
@@ -107,37 +114,13 @@ this reports nothing and calls it success. On morpheus the answer is
 # Parsing happens locally in every mode, so the remote host needs nothing but
 # smartctl and sh — the same contract backup-firewall.sh holds itself to.
 # ---------------------------------------------------------------------------
-# WHO RUNS THE SSH, and why it is not root. This unit runs as root because
-# smartctl needs raw device access — but the SSH half needs the opposite thing:
-# the operator key at /home/robo/.ssh/id_ed25519, which is what reaches the
-# firewall and is what homelab-backup-firewall.service (User=robo) has always
-# used. Root has no such key, so the first scheduled run failed with "no output
-# for /dev/nvme0" while the same command worked by hand as robo.
-#
-# So the privileged half stays privileged and the SSH half drops to the user
-# that owns the credential. That is strictly better than the two alternatives:
-# giving root its own key to the firewall duplicates a credential for no reason,
-# and pointing root at robo's private key with -i has root reading another
-# user's key material to do it.
-SMART_SSH_USER="${SMART_SSH_USER:-robo}"
-
 run_smartctl() {
   local devtype="$1" node="$2"
-  local remote="smartctl --json -x -d ${devtype} ${node}"
-  if [[ -z "$SSH_TARGET" ]]; then
-    smartctl --json -x -d "${devtype}" "${node}" 2>"${STDERR_FILE}"
-    return
-  fi
-  local ssh_cmd=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" "$remote")
-  if [[ ${EUID} -eq 0 && "${SMART_SSH_USER}" != root ]]; then
-    if ! id -u "${SMART_SSH_USER}" >/dev/null 2>&1; then
-      die "running as root and user ${SMART_SSH_USER@Q} does not exist.
-Set SMART_SSH_USER to whoever owns the key that reaches ${SSH_TARGET}, or to
-'root' if root itself has one."
-    fi
-    runuser -u "${SMART_SSH_USER}" -- "${ssh_cmd[@]}" 2>"${STDERR_FILE}"
+  if [[ -n "$SSH_TARGET" ]]; then
+    ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" \
+      "smartctl --json -x -d ${devtype} ${node}" 2>"${STDERR_FILE}"
   else
-    "${ssh_cmd[@]}" 2>"${STDERR_FILE}"
+    smartctl --json -x -d "${devtype}" "${node}" 2>"${STDERR_FILE}"
   fi
 }
 
