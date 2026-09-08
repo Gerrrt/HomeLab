@@ -58,7 +58,8 @@ interfaces:
 
   # Trusted workstations, and the one IPv4 exception in the estate: nothing
   # blocks Hicks from ImaginationLAN, so the catch-all grants that segment
-  # entire. #228 owns whether it should.
+  # entire. ADR-0031 (#228) decided it should, until the lab build produces
+  # the list that would let it be narrowed.
   #
   # Note what is NOT here. `50 -> 99` was wholesale until 2026-09-02 03:47 UTC,
   # when *Block access to Winterfell* landed under ten host- and port-scoped
