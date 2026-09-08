@@ -395,3 +395,48 @@ groups:
             back. Check homelab-guest-state.timer on the host and that
             /var/lib/node_exporter/textfile_collector/guest-state.prom is being
             written and is world-readable.
+
+      - alert: SmartDriveBadSectorsGrowing
+        # The signal SmartDriveBadSectors cannot give you, and the one worth
+        # acting on.
+        #
+        # WHY IT IS A SEPARATE RULE RATHER THAN A BETTER THRESHOLD. Its sibling
+        # is `> 0`, which is correct — a remapped sector never un-remaps, so the
+        # first one is a finding and the count only ever grows. But that makes it
+        # fire forever once tripped, so it gets silenced, and an Alertmanager
+        # silence matches LABELS, not values: silencing 32 reallocated sectors on
+        # oracle silences 90 just as effectively, because no label carries the
+        # count. The static fact and the trend need different alertnames or the
+        # trend cannot survive the silence. That happened on 2026-09-07 (#351).
+        #
+        # SUBTRACTION, NOT increase(). These are gauges, and increase() assumes
+        # counter semantics — it extrapolates and handles resets, neither of
+        # which is right here. The value is served continuously by the textfile
+        # collector rather than sampled daily, so comparing a point against the
+        # same point a week earlier is exact and needs no estimation.
+        #
+        # All four spellings, because a drive fails in whichever one its firmware
+        # uses: reallocated and pending are the ATA vocabulary, media errors the
+        # NVMe one, and uncorrectable is the sector that could not be recovered
+        # at all.
+        expr: >-
+          (homelab_smart_reallocated_sectors - homelab_smart_reallocated_sectors offset 7d) > 0
+          or (homelab_smart_pending_sectors - homelab_smart_pending_sectors offset 7d) > 0
+          or (homelab_smart_uncorrectable_sectors - homelab_smart_uncorrectable_sectors offset 7d) > 0
+          or (homelab_smart_media_errors_total - homelab_smart_media_errors_total offset 7d) > 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: >-
+            {{ $labels.host }}: {{ $labels.device }} has gained
+            {{ $value }} bad sector(s) in seven days
+          description: >-
+            The count is rising, which is the difference between a drive that
+            failed once and a drive that is failing now. A static count is
+            expected and is usually silenced; this is not that. Replace the disk
+            rather than waiting for the drive's own assessment to fail —
+            SmartDriveUnhealthy is the firmware conceding, and it concedes late.
+            Check backups first.
