@@ -146,10 +146,11 @@ the cases that genuinely need the wire, and reads the credential from SOPS.
    closes #110. A switch that has been relocated onto a shelf but left on a wall
    socket is tidier and no better protected — the laptops still go deaf on a
    mains cut.
-4. **Rack the cold-spare ProDesk from
-   [#92](https://github.com/Gerrrt/HomeLab/issues/92) beside it**, cabled for
-   its cold-spare role and **left powered off**. A spare that is plugged in and
-   on the network is exposed to whatever took the primary.
+4. **Nothing else racks here.** This step used to rack the cold-spare ProDesk
+   from [#92](https://github.com/Gerrrt/HomeLab/issues/92) beside the switch,
+   powered off; [ADR-0034](../adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)
+   makes that box the sensitive tier's host instead, and
+   [#404](https://github.com/Gerrrt/HomeLab/issues/404) decides where it lives.
 5. **Fit the APCRBC115 pack** last, per the Smart-UPS front-bezel procedure, and
    confirm the card comes back with the battery-replacement date reset.
 

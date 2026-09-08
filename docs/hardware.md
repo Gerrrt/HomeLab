@@ -80,6 +80,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the unmanaged switch that feeds `prometheus` and `oracle`. It is not in the
   rack table above because it is not yet in the rack
   ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
+- HP ProDesk 600 G4 Micro — i5-8500T, 32 GB, 512 GB SSD, the same model as
+  `morpheus` — ordered 2026-09-08, in transit. The sensitive tier's host and
+  the firewall's spare hardware in a disaster
+  ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
+  It enters the Compute table when
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
+  firewall restore has been rehearsed on it.
 - USB stick holding the pfSense installer — **in transit; it belongs in the rack
   beside the KVM once it arrives**, and is not there yet.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as

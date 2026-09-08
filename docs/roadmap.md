@@ -318,11 +318,16 @@ what left this one unfireable for months.
   converge in one run from any divergence. The far side's login shell is zsh,
   where an unmatched glob is fatal rather than literal, so the prune deletes by
   explicit basename and sends no pattern over the wire at all.
-  What remains is the spare — the same ProDesk model, racked on the #110
-  shelf, powered off — and the rehearsal, which is what turns
+  What remains is the rehearsal, which is what turns
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) from a
   hypothesis into a runbook; it now carries the bench procedure to follow and
-  what to record. Writing that procedure found the runbook's own decrypt
+  what to record. **The box to rehearse on is bought**, 2026-09-08 — the same
+  ProDesk 600 G4 model, i5-8500T, 32 GB — and [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)
+  decides it is not a cold spare on a shelf: it is rehearsed on first, then
+  wiped and built as the sensitive tier's host ([#404](https://github.com/Gerrrt/HomeLab/issues/404)), and it is the
+  firewall's spare hardware in a disaster at the cost of the tier being down
+  until a replacement arrives. The powered-off shelf spare is deferred to the
+  day that cost is unacceptable. Writing that procedure found the runbook's own decrypt
   command had never been run: it passed `--input-type binary`, which sops
   rejects on the first byte of a real export, so a restore following the
   runbook would have stopped at step one. Fixed, and it is the kind of thing
@@ -340,8 +345,9 @@ what left this one unfireable for months.
   battery at all — the pack in #93 protects the rack, not the monitoring path.
   **The shelf is on hand; what is left is the rack visit**, to the spec measured
   at the rack on 2026-08-21: 4-post, square holes, full 1U with rear support
-  rather than a cantilever. The spare ProDesk from
-  [#92](https://github.com/Gerrrt/HomeLab/issues/92) racks here too, powered off.
+  rather than a cantilever. The shelf carries the switch and nothing else:
+  the ProDesk from [#92](https://github.com/Gerrrt/HomeLab/issues/92) is the
+  sensitive tier's host ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)), and [#404](https://github.com/Gerrrt/HomeLab/issues/404) decides where that lives.
   **Reopened 2026-09-08.** GitHub had closed the issue on 2026-08-27, when the
   commit that wrote the runbook said the switch's power move "is the one that
   closes #110" and the phrase was read as a close keyword. Nothing was racked;
@@ -359,13 +365,17 @@ what left this one unfireable for months.
   664. The pages survive a disk failure because Wiki.js syncs from the
   Lemmiwinks repository; the accounts, history and configuration do not.
 - **[#102](https://github.com/Gerrrt/HomeLab/issues/102) Build ADR-0008's
-  sensitive tier on VLAN 99.** A low-power mini PC running Vaultwarden, Immich,
+  sensitive tier on VLAN 99.** One box running Vaultwarden, Immich,
   Paperless-ngx and Home Assistant behind Caddy and step-ca, with AdGuard Home,
-  ntfy and Homepage alongside. Nothing is bought and nothing is built. The
-  placement is not the outstanding part — ADR-0008 settled it, and
+  ntfy and Homepage alongside. **The box is bought and nothing is built.** It
+  is the ProDesk 600 G4 of 2026-09-08, by [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)
+  — the one purchase this tier needed, made under #92's name because the
+  tier's host had no issue and no place in the shopping sentence after this
+  issue split; [#404](https://github.com/Gerrrt/HomeLab/issues/404) is the tracker it lost. The placement is not the
+  outstanding part — ADR-0008 settled it, and
   [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) has since been
-  decided on top of it. What is outstanding is a purchase, a stack, and four
-  firewall rules the ADR counted as two.
+  decided on top of it. What is outstanding is the build under #404, a stack,
+  and four firewall rules the ADR counted as two.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero
@@ -609,7 +619,8 @@ with nothing tracking it is indistinguishable from a rejected one after six
 months.
 
 - **[#102](https://github.com/Gerrrt/HomeLab/issues/102)** ADR-0008's sensitive
-  tier — the mini PC, its nine services and the four firewall rules. Under
+  tier — its host (#404, the ProDesk of ADR-0034), its nine services and the
+  four firewall rules. Under
   **Infrastructure** above, because it has a shape now rather than only a
   decision.
 - **[#103](https://github.com/Gerrrt/HomeLab/issues/103)** The SSO deferral
