@@ -1,0 +1,43 @@
+# Whether this hypervisor's guests are running (#257, ADR-0028).
+#
+# WHAT IT IS FOR. ADR-0007 keeps the lab's telemetry in the lab, so a guest that
+# dies takes its own monitoring with it and the estate sees a healthy DL360.
+# ADR-0028 decides that a guest's RUN STATE is hypervisor state rather than guest
+# telemetry, so it may cross — read from `qm`/`pct` on the hypervisor, carrying
+# nothing about what any guest is doing.
+#
+# It closes "the guest died" and deliberately not "the lab stack inside it died";
+# the ADR says so and names the firewall pass the second half would need.
+#
+# PrivateNetwork, because reading the local guest list has no business on the
+# network. Root only for the textfile directory, which is root-owned on an agent
+# host — `qm list` needs no privilege of its own.
+[Unit]
+Description=HomeLab: record which guests this hypervisor is running
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/qm
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-guest-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+PrivateNetwork=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-guest-state

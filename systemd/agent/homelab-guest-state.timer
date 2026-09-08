@@ -1,0 +1,18 @@
+[Unit]
+Description=HomeLab: hypervisor guest liveness
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-guest-state.service
+# Every 10 minutes, and unlike the other agent collectors this one is not daily.
+# The others record facts that move on upgrade — a package version, a product
+# release. This is an availability signal: HypervisorGuestStopped waits an hour,
+# so a daily sample would bound the alert by the collection interval rather than
+# by the condition, which is the same argument gateway-state makes for 15.
+OnCalendar=*:0/10
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

@@ -770,3 +770,89 @@ tests:
       - eval_time: 190h
         alertname: SystemUpdateAvailable
         exp_alerts: []
+
+  # --- HypervisorGuestStopped: fires an hour after a guest goes down --------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_running{host="Saruman",guest="alexander",vmid="100",type="qemu"}'
+        values: "1x30 0x120"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: HypervisorGuestStopped
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: alexander
+              vmid: "100"
+              type: qemu
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman: guest alexander has been stopped for an hour"
+              description: >-
+                The hypervisor reports this guest as not running. If it was
+                powered off deliberately this is expected and there is nothing
+                to do — the estate cannot tell the difference, and says so
+                rather than implying it can. If it was not, the guest is down
+                and anything inside it, including the lab stack on `alexander`,
+                is down with it.
+
+  # --- HypervisorGuestStopped: quiet for a running guest -------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_running{host="Saruman",guest="alexander",vmid="100",type="qemu"}'
+        values: "1x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: HypervisorGuestStopped
+        exp_alerts: []
+
+  # --- HypervisorGuestStopped: quiet for a reboot inside the hour -----------
+  # A guest restarted or restored from snapshot must not page. This is what
+  # keeps `for: 1h` honest — without it the duration could be deleted.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_running{host="Saruman",guest="alexander",vmid="100",type="qemu"}'
+        values: "1x30 0x20 1x100"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: HypervisorGuestStopped
+        exp_alerts: []
+
+  # --- GuestStateStopped: fires when the collector goes silent -------------
+  # `_` is a genuine gap, not a zero: the shape of a collector that stopped
+  # writing, as opposed to a hypervisor reporting zero guests.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guests_total{host="Saruman"}'
+        values: "1x240 _x120"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: GuestStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman has stopped reporting its guests"
+              description: >-
+                It reported within the last day and has not in six hours, so
+                HypervisorGuestStopped is blind to this hypervisor until it
+                comes back. Check homelab-guest-state.timer on the host and that
+                /var/lib/node_exporter/textfile_collector/guest-state.prom is
+                being written and is world-readable.
+
+  # --- GuestStateStopped: quiet for a hypervisor reporting zero guests ------
+  # The case that makes this rule necessary AND the case it must not fire on.
+  # Zero is a sample; absence is not.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guests_total{host="Saruman"}'
+        values: "0x400"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: GuestStateStopped
+        exp_alerts: []

@@ -495,6 +495,17 @@ else
   fail "collect-pkg-state.sh --self-test"
 fi
 
+# The hypervisor guest list, for a host this repository cannot reach: VLAN 99
+# cannot open TCP/22 to VLAN 30, so `qm list`'s output could not be run before
+# shipping the parse. Two fixtures pin what position-based parsing gets wrong —
+# a stopped guest has no PID column, and a guest name can contain a space.
+if "${REPO_ROOT}/scripts/collect-guest-state.sh" --self-test >/dev/null 2>&1; then
+  pass "collect-guest-state.sh --self-test (7 fixtures)"
+else
+  "${REPO_ROOT}/scripts/collect-guest-state.sh" --self-test || true
+  fail "collect-guest-state.sh --self-test"
+fi
+
 head_ "Documentation"
 # ---------------------------------------------------------------------------
 # Asserts the prose still agrees with the configs it describes: rule and panel
