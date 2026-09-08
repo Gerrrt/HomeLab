@@ -325,15 +325,16 @@ Open work is tracked in
 [`docs/roadmap.md`](docs/roadmap.md) is the narrative — what is outstanding and
 why it is in that order.
 
-The current top items: rack the shelf switch, and buy the spare ProDesk that
-turns the firewall's restore runbook from a hypothesis into something rehearsed.
+The current top items: rack the shelf switch, and rehearse the firewall restore
+on the spare ProDesk — ordered 2026-09-08 — which turns that runbook from a
+hypothesis into something rehearsed.
 The UPS is finished — a pack went into `mjolnir` on 2026-08-28, passed its
 self-test, and the card is set to test itself every fortnight
 ([#93](https://github.com/Gerrrt/HomeLab/issues/93)) — but the switch between
 the monitoring host and the network still has no battery at all, so both laptops
 stay running and go deaf on a mains cut
 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the config export
-itself now leaves the monitoring host nightly, so the spare is what is left
+itself now leaves the monitoring host nightly, so the rehearsal is what is left
 ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
 
 ## License

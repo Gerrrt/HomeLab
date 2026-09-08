@@ -318,11 +318,15 @@ what left this one unfireable for months.
   converge in one run from any divergence. The far side's login shell is zsh,
   where an unmatched glob is fatal rather than literal, so the prune deletes by
   explicit basename and sends no pattern over the wire at all.
-  What remains is the spare — the same ProDesk model, racked on the #110
-  shelf, powered off — and the rehearsal, which is what turns
+  What remains is the rehearsal, which is what turns
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) from a
   hypothesis into a runbook; it now carries the bench procedure to follow and
-  what to record. Writing that procedure found the runbook's own decrypt
+  what to record. **The spare is ordered**, 2026-09-08: the same ProDesk 600 G4
+  model with the same i5-8500T and 32 GB, a 512 GB SSD where `morpheus` has
+  1 TB (a pfSense config is kilobytes, so nothing turns on that), in transit.
+  It still needs a USB NIC of its own for the switch-management LAN, which the
+  runbook calls out. When it arrives: bench rehearsal first, then the #110
+  shelf, powered off. Writing that procedure found the runbook's own decrypt
   command had never been run: it passed `--input-type binary`, which sops
   rejects on the first byte of a real export, so a restore following the
   runbook would have stopped at step one. Fixed, and it is the kind of thing
