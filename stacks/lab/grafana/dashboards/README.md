@@ -17,6 +17,15 @@ What the lab needs is not known yet, because the thing it exists to observe
 does not exist yet. The Windows domain is [#265]; Wazuh is [#266]. Both come
 with their own questions about what is worth drawing.
 
+**[#265] is decided and still ships no dashboard**, which is this file's own
+argument applied to itself. ADR-0029's six guests are not built, so a domain
+panel set would render exactly the rows of empty panels described above — and
+two of the six are meant to be switched off most of the time, so even once it is
+built, "no data" is the correct reading for a third of it rather than a fault.
+The three domain rules in `../../prometheus/rules/lab.rules.yaml` are visible in
+Prometheus's own `/alerts` and in Explore, which is enough for the state the lab
+is actually in.
+
 Until then, `Explore` against the two provisioned datasources is the whole
 interface, and it works from the first `make up STACK=lab` — the provider in
 `../provisioning/dashboards/dashboards.yaml` reads this directory every 30

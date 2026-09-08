@@ -11,11 +11,19 @@
 # input, the second proves it does not produce one for the input production
 # actually supplies.
 #
-# All four rules in lab.rules.yaml are covered here. That is a deliberate
+# All seven rules in lab.rules.yaml are covered here. That is a deliberate
 # difference from the estate's tests, where four of the nine stack rules are
 # syntax-checked only: this file is small enough that "test the ones that were
 # hard" has no advantage over testing all of them, and a new stack has no
 # operational history to lean on when deciding which ones were hard.
+#
+# Three of the cases below are about ADR-0029's domain, and two of them exist
+# for a reason worth naming: they prove a rule stays quiet for a state that is
+# CORRECT rather than merely absent. An endpoint that is switched off is doing
+# what ADR-0029 says it should, and a purchased licence with no grace period
+# reads zero days remaining for the opposite of the reason the alert is about.
+# Both would fire against a rule written without its label selector, and both
+# would fire forever, which is the failure mode ADR-0017 refuses by name.
 rule_files:
   - ../rules/lab.rules.yaml
 
@@ -42,7 +50,9 @@ tests:
               summary: "loki target loki:3100 is down in the lab stack"
               description: >-
                 The lab's Prometheus has failed to scrape loki:3100 (loki) for
-                5 minutes. Nothing outside the lab can see this — see #257.
+                5 minutes. ADR-0028 lets the estate see that a guest stopped,
+                never that something inside one did, so for a container this
+                alert is the only thing that reports it.
       # Quiet while the target is up, including inside the `for:` window.
       - eval_time: 4m
         alertname: InstanceDown
@@ -135,4 +145,158 @@ tests:
     alert_rule_test:
       - eval_time: 70m
         alertname: LokiIngestionStalled
+        exp_alerts: []
+
+  # --- InstanceDown, for a guest that is off on purpose ---------------------
+  # ADR-0029 runs the endpoints per session. An endpoint reading `up == 0` is
+  # not an outage, and a rule that says it is would fire more or less forever.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="carbuncle",job="windows",role="endpoint"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: InstanceDown
+        exp_alerts: []
+
+  # And the same rule must still fire for a server, which is what proves the
+  # selector narrowed the rule rather than disabling it.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="bahamut",job="windows",role="dc"}'
+        values: "1+0x5 0+0x20"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              alertname: InstanceDown
+              instance: bahamut
+              job: windows
+              role: dc
+              component: lab
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "windows target bahamut is down in the lab stack"
+              description: >-
+                The lab's Prometheus has failed to scrape bahamut (windows) for
+                5 minutes. ADR-0028 lets the estate see that a guest stopped,
+                never that something inside one did, so for a container this
+                alert is the only thing that reports it.
+
+  # --- DomainControllerClockDrifting ---------------------------------------
+  # Negative on purpose: a clock that is two minutes SLOW breaks Kerberos
+  # exactly as well as one two minutes fast, and this is what proves the abs()
+  # is doing work rather than decorating the expression.
+  - interval: 1m
+    input_series:
+      - series: 'windows_time_computed_time_offset_seconds{instance="bahamut",job="windows",role="dc"}'
+        values: "0+0x10 -120+0x30"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: DomainControllerClockDrifting
+        exp_alerts:
+          - exp_labels:
+              alertname: DomainControllerClockDrifting
+              instance: bahamut
+              job: windows
+              role: dc
+              component: domain
+              severity: critical
+              category: correctness
+            exp_annotations:
+              summary: "bahamut's clock is more than 60s out"
+              description: >-
+                Kerberos tolerates five minutes. Past that every symptom in the
+                domain points at credentials and none of them point at time.
+      # A synchronised clock is the normal case and must stay quiet.
+      - eval_time: 5m
+        alertname: DomainControllerClockDrifting
+        exp_alerts: []
+
+  # --- DomainControllerTimeSourceIsLocalClock ------------------------------
+  # The failure the rule above cannot see: w32time has given up on its peer and
+  # is synchronised with itself, so the offset reads zero and looks healthy.
+  - interval: 1m
+    input_series:
+      - series: 'windows_time_clock_sync_source{instance="bahamut",job="windows",role="dc",type="Local CMOS Clock"}'
+        values: "1+0x40"
+      - series: 'windows_time_computed_time_offset_seconds{instance="bahamut",job="windows",role="dc"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: DomainControllerTimeSourceIsLocalClock
+        exp_alerts:
+          - exp_labels:
+              alertname: DomainControllerTimeSourceIsLocalClock
+              instance: bahamut
+              job: windows
+              role: dc
+              type: Local CMOS Clock
+              component: domain
+              severity: critical
+              category: correctness
+            exp_annotations:
+              summary: "bahamut has fallen back to its own CMOS clock"
+              description: >-
+                w32time has given up on 10.0.30.1 and is now synchronised with
+                itself, so the drift alert cannot fire. Check that morpheus
+                still serves NTP on the ImaginationLAN interface.
+      # The drift rule is silent for this input, which is the whole point of
+      # there being two rules. If this expectation ever fails, one of them has
+      # become redundant and the pair should be revisited.
+      - eval_time: 30m
+        alertname: DomainControllerClockDrifting
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'windows_time_clock_sync_source{instance="bahamut",job="windows",role="dc",type="Local CMOS Clock"}'
+        values: "0+0x40"
+      - series: 'windows_time_clock_sync_source{instance="bahamut",job="windows",role="dc",type="NTP"}'
+        values: "1+0x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: DomainControllerTimeSourceIsLocalClock
+        exp_alerts: []
+
+  # --- LabWindowsEvaluationExpiring ----------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'windows_eval_grace_days_remaining{instance="titan",job="windows",role="member"}'
+        values: "25+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: LabWindowsEvaluationExpiring
+        exp_alerts:
+          - exp_labels:
+              alertname: LabWindowsEvaluationExpiring
+              instance: titan
+              job: windows
+              role: member
+              component: domain
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "titan's evaluation licence has under 30 days left"
+              description: >-
+                At expiry the machine stops being usable rather than degrading.
+                Rearm it, or rebuild it from the runbook — and record the
+                remaining rearm count, because no published figure agrees with
+                another.
+
+  # A server with most of its evaluation left, and an ENDPOINT reading zero.
+  # The endpoint holds a purchased Pro licence, so GracePeriodRemaining is zero
+  # because there is no grace period — the opposite of the condition this rule
+  # is about. Unscoped, it would fire against both endpoints permanently.
+  - interval: 1m
+    input_series:
+      - series: 'windows_eval_grace_days_remaining{instance="titan",job="windows",role="member"}'
+        values: "150+0x120"
+      - series: 'windows_eval_grace_days_remaining{instance="carbuncle",job="windows",role="endpoint"}'
+        values: "0+0x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: LabWindowsEvaluationExpiring
         exp_alerts: []

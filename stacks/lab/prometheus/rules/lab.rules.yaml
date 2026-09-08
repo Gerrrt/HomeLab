@@ -1,11 +1,13 @@
 ---
 # The lab stack watching itself.
 #
-# Four rules, and the number is the point. The estate has 48; ADR-0007 names
-# giving up "Loki, the dashboards and 40 alert rules" as the price of keeping
-# lab telemetry out of the estate, and this file does not pretend to replace
-# them. What it covers is this stack's own working — the four things that would
-# make every other signal here silently wrong.
+# Seven rules, and the number is still the point. The estate has 48; ADR-0007
+# names giving up "Loki, the dashboards and 40 alert rules" as the price of
+# keeping lab telemetry out of the estate, and this file does not pretend to
+# replace them. Four cover this stack's own working — the things that would make
+# every other signal here silently wrong. Three cover the domain ADR-0029 sized,
+# and they are here rather than in a stack of their own because this Prometheus
+# is the only thing on the segment that scrapes it.
 #
 # NOTHING HERE PAGES. There is no Alertmanager in this stack (ADR-0020), so a
 # firing alert is visible in Prometheus's /alerts and in Grafana and nowhere
@@ -22,18 +24,38 @@
 # What this does NOT cover, and cannot: this Prometheus going down. `up == 0`
 # is evaluated by the thing that would have stopped. The estate answers that
 # for itself with a watcher on `oracle` (ADR-0015) and a heartbeat receiver;
-# the lab has neither available to it, which is #257.
+# the lab has neither available to it.
+#
+# ADR-0028 narrowed that gap without closing it, and the difference is worth
+# holding on to. A guest's RUN STATE now crosses to the estate, read from `qm`
+# on the hypervisor — so `alexander` being powered off is seen on VLAN 99. This
+# Prometheus crashing inside a guest that is still running is not, and neither
+# is anything else in this file.
 groups:
   - name: lab
     interval: 60s
     rules:
-      # Covers every target in prometheus.yaml — itself, loki, grafana, alloy.
-      # `up` is the only one of these four that sees a component which has
-      # stopped publishing altogether; the other three read a metric the
-      # component emits about its own working, which requires it to be working
-      # enough to emit.
+      # Covers every target in prometheus.yaml — itself, loki, grafana, alloy,
+      # and since ADR-0029 the domain's servers. `up` is the only one of these
+      # that sees a component which has stopped publishing altogether; the
+      # others read a metric the component emits about its own working, which
+      # requires it to be working enough to emit.
+      #
+      # `role!="endpoint"` is load-bearing and is not a way of ignoring the
+      # workstations. ADR-0029 runs `carbuncle` and `siren` PER SESSION, so they
+      # are off far more often than they are on, and off is their correct state.
+      # A bare `up == 0` would fire against them continuously — the permanently
+      # firing shape ADR-0017 refuses on `ifrit`, arriving here instead — and an
+      # alert that is always firing is one nobody reads when it means something.
+      # The label is absent on this stack's own four services, and an absent
+      # label matches `!=`, so their behaviour is unchanged.
+      #
+      # What this gives up, stated rather than hidden: nothing notices an
+      # endpoint that fails to come back when you start it. That is a session
+      # you are sitting in front of, which is the one case where a human is
+      # already looking.
       - alert: InstanceDown
-        expr: up == 0
+        expr: up{role!="endpoint"} == 0
         for: 5m
         labels:
           component: lab
@@ -43,8 +65,9 @@ groups:
           summary: "{{ $labels.job }} target {{ $labels.instance }} is down in the lab stack"
           description: >-
             The lab's Prometheus has failed to scrape {{ $labels.instance }}
-            ({{ $labels.job }}) for 5 minutes. Nothing outside the lab can see
-            this — see #257.
+            ({{ $labels.job }}) for 5 minutes. ADR-0028 lets the estate see that
+            a guest stopped, never that something inside one did, so for a
+            container this alert is the only thing that reports it.
 
       - alert: PrometheusConfigReloadFailed
         expr: prometheus_config_last_reload_successful == 0
@@ -92,3 +115,85 @@ groups:
           description: >-
             Either the lab's Alloy is down or the push endpoint is unreachable.
             Logs are being lost, not queued indefinitely.
+
+      # -----------------------------------------------------------------------
+      # The domain (ADR-0029). Scraped, never pushed — publishing a remote-write
+      # receiver on the segment that exists to hold attackers would hand it a
+      # delete-series API pointed at the lab's own evidence.
+      # -----------------------------------------------------------------------
+
+      # ADR-0014 named this failure and did not fix it: "a domain controller
+      # syncing time from time.windows.com drifts once 123/udp is blocked, and
+      # the symptom is Kerberos failing estate-wide five minutes later, with
+      # nothing in the firewall log but w32time events on the DC."
+      #
+      # 60s is derived, not picked. Kerberos' default MaxTolerance is five
+      # minutes, so this is above anything a virtualised clock produces as noise
+      # and four minutes clear of the point at which authentication starts
+      # failing — it fires while the domain still works, which is the whole of
+      # ADR-0014's complaint against the option it rejected.
+      - alert: DomainControllerClockDrifting
+        expr: abs(windows_time_computed_time_offset_seconds{role="dc"}) > 60
+        for: 10m
+        labels:
+          component: domain
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }}'s clock is more than 60s out"
+          description: >-
+            Kerberos tolerates five minutes. Past that every symptom in the
+            domain points at credentials and none of them point at time.
+
+      # The rule the one above cannot replace, and the reason there are two.
+      #
+      # windows_time_computed_time_offset_seconds is the offset against WHICHEVER
+      # SOURCE w32time has chosen. When the configured peer becomes unreachable
+      # and w32time falls back to the local CMOS clock, it is perfectly
+      # synchronised with itself: the offset reads ~0, the rule above stays
+      # quiet, and the domain drifts toward Kerberos failure with nothing
+      # complaining. A single-rule design would reproduce the quiet failure
+      # inside its own detector — which is #62 and #63, and is why this reads the
+      # source instead.
+      #
+      # The `type` label is the collector's own, and its values are AllSync,
+      # Local CMOS Clock, NT5DS, NTP and NoSync. The DCs must read NTP; members
+      # read NT5DS and are deliberately not covered here, because a member
+      # following the domain hierarchy is the correct state.
+      - alert: DomainControllerTimeSourceIsLocalClock
+        expr: windows_time_clock_sync_source{role="dc",type="Local CMOS Clock"} == 1
+        for: 15m
+        labels:
+          component: domain
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has fallen back to its own CMOS clock"
+          description: >-
+            w32time has given up on 10.0.30.1 and is now synchronised with
+            itself, so the drift alert cannot fire. Check that morpheus still
+            serves NTP on the ImaginationLAN interface.
+
+      # The four servers run evaluation media, and ADR-0029's answer to "an
+      # estate that has to be rebuilt every 180 days is one that will not be
+      # rebuilt" is to stop the clock being invisible. The gauge comes from a
+      # weekly scheduled task writing into windows_exporter's textfile
+      # directory, the same mechanism collect-patch-state.sh already uses.
+      #
+      # Scoped to the servers on purpose: the two endpoints hold purchased Pro
+      # licences, where GracePeriodRemaining reads 0 because there is no grace
+      # period rather than because it has run out. Unscoped, this rule would fire
+      # against them permanently and mean nothing.
+      - alert: LabWindowsEvaluationExpiring
+        expr: windows_eval_grace_days_remaining{role=~"dc|member"} < 30
+        for: 1h
+        labels:
+          component: domain
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.instance }}'s evaluation licence has under 30 days left"
+          description: >-
+            At expiry the machine stops being usable rather than degrading.
+            Rearm it, or rebuild it from the runbook — and record the remaining
+            rearm count, because no published figure agrees with another.

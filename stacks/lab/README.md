@@ -92,8 +92,12 @@ thing entirely on this segment.
   both stacks, and `bootstrap.sh` now refuses rather than doing it quietly.
 - **Prometheus and Loki are not published.** ADR-0012 publishes a port only
   when something off-host uses it, and today only Alloy talks to them, over the
-  compose network. `compose.yaml` marks the exact lines to uncomment when [#265]
-  gives them their first real clients.
+  compose network. [#265] was expected to change that and did not:
+  [ADR-0029](../../docs/adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
+  has this Prometheus **scrape** the Windows domain instead, so the connection
+  travels outward and nothing new listens on the segment that exists to hold
+  attackers. `compose.yaml` marks the lines for [#266]'s Wazuh guest, which is
+  the first client with no scrape alternative.
 - **Image tags are pinned here but bumped separately.** `.github/dependabot.yml`
   now watches this directory as well as the estate's, so the two do not drift.
   Versions are deliberately absent from the table above — Dependabot only edits
@@ -128,3 +132,4 @@ matters:
 [#257]: https://github.com/Gerrrt/HomeLab/issues/257
 [#263]: https://github.com/Gerrrt/HomeLab/issues/263
 [#265]: https://github.com/Gerrrt/HomeLab/issues/265
+[#266]: https://github.com/Gerrrt/HomeLab/issues/266
