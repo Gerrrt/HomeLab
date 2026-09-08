@@ -856,3 +856,81 @@ tests:
       - eval_time: 30h
         alertname: GuestStateStopped
         exp_alerts: []
+
+  # --- SmartDriveBadSectorsGrowing: fires when the count rises --------------
+  # interval 5m because Prometheus's lookback is 5m; a coarser fixture leaves
+  # evaluations with no sample in range and `for` never completes.
+  # 7d at 32, then 40. Evaluated at 8d, `offset 7d` lands inside the 32 run.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda"}'
+        values: "32x2016 40x600"
+    alert_rule_test:
+      - eval_time: 8d
+        alertname: SmartDriveBadSectorsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              device: /dev/sda
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "oracle: /dev/sda has gained 8 bad sector(s) in seven days"
+              description: >-
+                The count is rising, which is the difference between a drive that
+                failed once and a drive that is failing now. A static count is
+                expected and is usually silenced; this is not that. Replace the
+                disk rather than waiting for the drive's own assessment to fail —
+                SmartDriveUnhealthy is the firmware conceding, and it concedes
+                late. Check backups first.
+
+  # --- SmartDriveBadSectorsGrowing: QUIET for oracle's real state ----------
+  # 32 reallocated sectors, static. This is the case the whole rule exists to
+  # distinguish: SmartDriveBadSectors fires on it forever and was silenced, and
+  # this one must stay silent so that the silence does not also hide growth.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda"}'
+        values: "32x2600"
+    alert_rule_test:
+      - eval_time: 8d
+        alertname: SmartDriveBadSectorsGrowing
+        exp_alerts: []
+
+  # --- SmartDriveBadSectorsGrowing: the NVMe spelling counts too -----------
+  # A drive fails in whichever vocabulary its firmware uses; without this the
+  # `or` chain could lose every branch after the first and still pass.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_media_errors_total{host="morpheus",device="/dev/nvme0"}'
+        values: "0x2016 3x600"
+    alert_rule_test:
+      - eval_time: 8d
+        alertname: SmartDriveBadSectorsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: morpheus
+              device: /dev/nvme0
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "morpheus: /dev/nvme0 has gained 3 bad sector(s) in seven days"
+              description: >-
+                The count is rising, which is the difference between a drive that
+                failed once and a drive that is failing now. A static count is
+                expected and is usually silenced; this is not that. Replace the
+                disk rather than waiting for the drive's own assessment to fail —
+                SmartDriveUnhealthy is the firmware conceding, and it concedes
+                late. Check backups first.
+
+  # --- SmartDriveBadSectorsGrowing: quiet for a clean drive ----------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="prometheus",device="/dev/sda"}'
+        values: "0x2600"
+    alert_rule_test:
+      - eval_time: 8d
+        alertname: SmartDriveBadSectorsGrowing
+        exp_alerts: []
