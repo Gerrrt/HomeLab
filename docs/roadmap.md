@@ -86,14 +86,6 @@ issues intact. Nothing was summarised away.
   break-glass card already says "where credentials are", a sentence that goes
   false the day Vaultwarden holds anything real. Nothing here is built — the
   preconditions land on #131, #132, #133 and #134.
-- **[#235](https://github.com/Gerrrt/HomeLab/issues/235) Decide whether the
-  iLO stays on the lab segment.** ADR-0014 puts `ifrit`'s attack VM on
-  ImaginationLAN, so `shiva` — the BMC of the box being defended, on firmware
-  that will not get newer — is now layer-2 adjacent to a Kali VM. The only
-  explicit pass on that interface exists because the iLO is there; moving it to
-  Winterfell deletes two rules and the exception, and puts a BMC next to the
-  firewall's admin UI instead. Found writing ADR-0014; recorded there, not
-  decided.
 
 ## Monitoring
 
@@ -558,8 +550,8 @@ what left this one unfireable for months.
   lab joins none of the estate's loops. "After the main network is finished"
   now names issues: #101 first, because an attack VM pointed at an
   uninstrumented estate teaches nothing; #234 before the segment holds
-  attackers; #235 decided either way before this build makes it true. What is
-  left is the purchase itself and the build.
+  attackers; #235 decided — the iLO stays, ADR-0033 — before this build makes
+  it true. What is left is the purchase itself and the build.
   → [runbook](runbooks/build-the-playground.md)
 
 ## Automation
@@ -693,6 +685,19 @@ them name the condition that would change the answer.
 
 ## Done
 
+- [x] **[#235](https://github.com/Gerrrt/HomeLab/issues/235) Decided: the iLO
+      stays on the lab segment.** 2026-09-08.
+      [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md). `shiva` is the
+      BMC of the box being attacked, and a BMC compromise in the lab costs the
+      lab; that is accepted and recorded in `SECURITY.md`. Two facts the issue
+      predated settled it: since ADR-0031 a workstation reaches Winterfell on a
+      named list, so a BMC there would need three more Hicks passes for its web
+      UI and console — the issue's "console access unchanged" no longer held —
+      and the management segment should not accumulate a device whose firmware
+      line has ended. What follows is hardening on the iLO itself, by hand, and
+      one firewall follow-up: the `10.0.30.10 → 10.0.99.20/udp` "return path"
+      rule is redundant with pf state and is the BMC's only path to Alloy's
+      syslog listener, so it goes.
 - [x] **[#228](https://github.com/Gerrrt/HomeLab/issues/228) Decided: Hicks
       reaches management on a named list, and reaches the lab entire.**
       2026-09-08. [ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md).
@@ -1606,7 +1611,8 @@ them name the condition that would change the answer.
       Winterfell interface, written out beside the target, and each is a
       segmentation decision to record in ADR-0013's table when made — the
       pfSense one hands a host with two unauthenticated push ports a path to
-      the firewall's login page, and #235 may move the iLO first.
+      the firewall's login page. #235 kept the iLO on the lab segment
+      (ADR-0033), so the iLO probe still needs its `99 → 30:443` pass.
 
 - [x] **[#126](https://github.com/Gerrrt/HomeLab/issues/126) Notice when the
       house stops filtering DNS.** 2026-09-04. Also the monitoring half of

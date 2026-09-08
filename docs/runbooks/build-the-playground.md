@@ -35,7 +35,7 @@ Three things belong ahead of this work, per ADR-0017:
 | --- | --- |
 | [#101](https://github.com/Gerrrt/HomeLab/issues/101) — `stacks/lab/` on `Saruman` | An attack VM pointed at an estate with no Wazuh, no Velociraptor and no domain teaches nothing. This is the half that carries the value |
 | [#234](https://github.com/Gerrrt/HomeLab/issues/234) — the ImaginationLAN tripwire | The only thing watching the boundary this build creates. It is a no-op until the segment holds attackers, which is what §5 makes it |
-| [#235](https://github.com/Gerrrt/HomeLab/issues/235) — whether `shiva` stays on VLAN 30 | This build is what puts a Kali VM in the iLO's broadcast domain. Decide it before that is true, not after |
+| [#235](https://github.com/Gerrrt/HomeLab/issues/235) — whether `shiva` stays on VLAN 30 | Decided: it stays ([ADR-0033](../adr/0033-keep-the-ilo-on-the-lab-segment.md)). Before §5 puts a Kali VM in its broadcast domain, do the iLO hardening that ADR lists — IPMI-over-LAN and unused services off |
 
 You will also need a free Green access port on `neo` and an outlet on the PDU.
 `ifrit` does **not** hang off the unmanaged shelf switch: that switch is fed
