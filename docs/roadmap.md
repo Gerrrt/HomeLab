@@ -338,25 +338,6 @@ what left this one unfireable for months.
   [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md) sends them to `oracle`
   alongside the firewall exports, which fits — a set is 867 MB of `age`
   ciphertext against 67 GB free — and leaves only the copying to build.
-- **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Rack the shelf switch.**
-  A 1U vented shelf in **U4**, carrying the unmanaged switch `prometheus` and
-  `oracle` hang off. Both shelf machines are laptops, so on a mains cut they stay
-  running and go deaf while the switch between them and the network has no
-  battery at all — the pack in #93 protects the rack, not the monitoring path.
-  **The shelf is on hand; what is left is the rack visit**, to the spec measured
-  at the rack on 2026-08-21: 4-post, square holes, full 1U with rear support
-  rather than a cantilever. The shelf carries the switch and nothing else:
-  the ProDesk from [#92](https://github.com/Gerrrt/HomeLab/issues/92) is the
-  sensitive tier's host ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)), and [#404](https://github.com/Gerrrt/HomeLab/issues/404) decides where that lives.
-  **Reopened 2026-09-08.** GitHub had closed the issue on 2026-08-27, when the
-  commit that wrote the runbook said the switch's power move "is the one that
-  closes #110" and the phrase was read as a close keyword. Nothing was racked;
-  this entry and every document beside it said so the whole time, and only the
-  issue's state was wrong. The lesson is the one ADR-0026 already draws — a
-  state nothing checks against the thing it describes drifts — with a
-  sharper edge: a commit message can close an issue about work it explicitly
-  says it did not do.
-  → [runbook](runbooks/fit-the-ups-battery.md)
 - **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put the wiki on
   `oracle` into the repository, and back up its database.** ADR-0015 ratified a
   host whose main service is not described anywhere here: `wiki` and its
@@ -700,6 +681,18 @@ them name the condition that would change the answer.
 
 ## Done
 
+- [x] **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Racked the shelf
+      switch in U4, on UPS power.** 2026-09-08. The 1U vented shelf, the
+      TP-Link that `prometheus` and `oracle` hang off moved onto it with its
+      uplink back on port 3 of `neo`, and its power onto a UPS-fed outlet —
+      the step that actually closes the gap, since a relocated switch on a
+      wall socket is tidier and no better protected. The two laptops now keep
+      their network on a mains cut as well as their batteries, which is what
+      #93's pack was always half of. Bought with that pack on 2026-08-27 and
+      closed the same day by a commit message that quoted "closes #110" —
+      twice, the second time by the commit documenting the first — while every
+      document said the shelf was on hand and not racked; reopened 2026-09-08
+      and done the same afternoon.
 - [x] **[#234](https://github.com/Gerrrt/HomeLab/issues/234) Armed the lab
       tripwire on ImaginationLAN.** 2026-09-08. The firewall rule arrived on
       2026-09-06 with the untagged-LAN blocks, pointed at `Internal_Segments` —

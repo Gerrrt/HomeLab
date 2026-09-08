@@ -10,15 +10,15 @@ landfill.
 | --- | --- | --- |
 | U1–U2 | APC Smart-UPS[^UPS] | Power |
 | U3 | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox hypervisor (`Saruman`, BMC `shiva`) |
+| U4 | 1U vented shelf, carrying the 8-port unmanaged TP-Link switch[^tp-linkswitch] | Feeds `prometheus` and `oracle`; on UPS power since 2026-09-08 |
 | U5 | HP ProDesk 600 G4 Mini[^ProDesk] | pfSense firewall (`morpheus`) |
 | U6 | MT-VIKI 8-port KVM[^KVM] | Console access |
 | U7 | 10-outlet PDU[^PDU] | Power distribution |
 | U8 | Jadol 24-port patch panel[^Panel] | Cabling |
 | U9 | MokerLink 26-port managed switch[^MokerLink] | Core switching (`neo`) |
 
-Off-rack: two Ubuntu Server laptops on a shelf (`prometheus`, `oracle`), an
-8-port unmanaged TP-Link switch feeding them, and eero Pro 6E units distributed
-through the house.
+Off-rack: two Ubuntu Server laptops on a shelf (`prometheus`, `oracle`), fed
+by the TP-Link in U4, and eero Pro 6E units distributed through the house.
 
 The patch panel and the PDU were listed the other way round here until
 2026-08-29. U8 is the panel and U7 is the PDU, confirmed against the rack.
@@ -76,10 +76,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the card ([#93](https://github.com/Gerrrt/HomeLab/issues/93)). The card's
   `upsBasicBatteryLastReplaceDate` still reads `08/15/2026` and wants resetting
   to the fit date — it is the only record of the pack's age
-- 1U vented rack shelf, 4-post with square-hole mounting — on hand, for U4 and
-  the unmanaged switch that feeds `prometheus` and `oracle`. It is not in the
-  rack table above because it is not yet in the rack
-  ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
+- 1U vented rack shelf, 4-post with square-hole mounting — in U4 since
+  2026-09-08, carrying the unmanaged switch that feeds `prometheus` and
+  `oracle` ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
 - HP ProDesk 600 G4 Micro — i5-8500T, 32 GB, 512 GB SSD, the same model as
   `morpheus` — ordered 2026-09-08, in transit. The sensitive tier's host and
   the firewall's spare hardware in a disaster
@@ -107,6 +106,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)
 [^Panel]: [Jadol 24-port patch panel](https://a.co/d/izggRoK)
 [^PDU]: [10-outlet 1U PDU](https://a.co/d/ibEygxZ)
+[^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^ProDeskRackmount]: [1U rackmount for ProDesk Mini](https://a.co/d/4d7klOL)
 [^Sliderail]: [Sliding rails for ProLiant](https://a.co/d/5d4A4FO)
