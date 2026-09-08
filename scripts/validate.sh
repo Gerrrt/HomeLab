@@ -495,6 +495,20 @@ else
   fail "collect-pkg-state.sh --self-test"
 fi
 
+# And the one written for a host this repository cannot reach at all. VLAN 99
+# cannot open TCP/22 to VLAN 30, so `pveversion`'s output format could not be
+# confirmed before shipping the parse — the fixtures are the only thing standing
+# between a defensive parser and a guessed version number. One of them pins the
+# case that matters: a line carrying BOTH the product and the kernel, where
+# picking the first dotted number would report the kernel as the PVE version,
+# which is the exact confusion #311 exists to remove.
+if "${REPO_ROOT}/scripts/collect-pve-version.sh" --self-test >/dev/null 2>&1; then
+  pass "collect-pve-version.sh --self-test (6 fixtures)"
+else
+  "${REPO_ROOT}/scripts/collect-pve-version.sh" --self-test || true
+  fail "collect-pve-version.sh --self-test"
+fi
+
 head_ "Documentation"
 # ---------------------------------------------------------------------------
 # Asserts the prose still agrees with the configs it describes: rule and panel
