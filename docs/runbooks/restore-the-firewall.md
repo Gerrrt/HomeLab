@@ -171,6 +171,14 @@ different hardware drops you into the interface-assignment dialogue at the
 console, at whatever hour this is happening. `morpheus` also uses a USB NIC for
 the switch-management LAN, so the spare needs one too.
 
+**The spare is the sensitive tier's host**, by
+[ADR-0034](../adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md):
+the same model, running Immich and the rest. Step 0 is therefore wiping it,
+and everything on it is gone until a replacement ProDesk arrives — order one
+the same day (§5). The rehearsal below is done on this box before it holds
+anything ([#404](https://github.com/Gerrrt/HomeLab/issues/404), step 1); until
+it has been, this section is still a hypothesis.
+
 1. Install the same pfSense version the backup came from. **Restoring a config
    onto an older build can fail silently**; check the `<version>` field, which
    `make backup-firewall` prints on every verify.
@@ -264,8 +272,12 @@ And once the denials are verified, verify the thing that watches them.
 ## 5. Afterwards
 
 - Take a fresh backup from the restored box — the old one is now historical.
-- If a spare was consumed, order another. A spare used once and not replaced is
-  a spare you no longer have.
+- If the spare was consumed, order another ProDesk the same day. Since ADR-0034
+  the spare is the sensitive tier's host, so consuming it took the password
+  manager, the photo library and Home Assistant down with the firewall, and
+  they stay down until the replacement is built. A spare used once and not
+  replaced is a spare you no longer have — and here it is also a tier you no
+  longer have.
 - Record what happened in [`roadmap.md`](../roadmap.md) if the cause is
   something the design should prevent.
 
@@ -314,9 +326,10 @@ and to write the answers back into §3.
    power-on to verified, and everything that asked a question. Put it in
    [`roadmap.md`](../roadmap.md) under #92, fix §3, and delete the hypothesis
    sentence above.
-6. Shred the plaintext, power the spare off, and rack it on the U4 shelf
-   ([#110](https://github.com/Gerrrt/HomeLab/issues/110)) beside the switch —
-   **off**. A restored spare on the shelf turns §3 into "move the cables and
-   power on", at the cost of carrying a config that ages from the day it was
-   restored; on the day, still restore the newest export from `oracle` over it
-   before trusting it.
+6. Shred the plaintext and hand the box to
+   [#404](https://github.com/Gerrrt/HomeLab/issues/404): it is wiped and built
+   as the sensitive tier's host (ADR-0034). Nothing on it survives the
+   rehearsal, which is why the rehearsal comes first. The powered-off shelf
+   spare that used to be this step is deferred by that ADR; if it is ever
+   bought, it racks on the U4 shelf beside the switch, **off**, and on the day
+   the newest export from `oracle` is still restored over whatever it carries.
