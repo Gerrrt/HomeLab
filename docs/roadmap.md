@@ -1534,11 +1534,14 @@ them name the condition that would change the answer.
       work whose value is that it is not on the monitoring host. The wiki and
       the firewall export copy it already has; the volume backup sets (#92) and
       the dead man's switch watcher (#67) are added, decided here and built
-      under their own issues. **Rejected:** a second age recipient, because
-      `back-up-the-age-key.md` already answers that gap with an *offline* key
-      and a second person, and because a private key on `oracle` would put the
-      backups and the means to open them on one disk and retire the property
-      the off-host copy exists to have. Also rejected: the ADR-0007 stack, the
+      under their own issues. **Rejected:** a second age recipient *on `oracle`*,
+      because a private key there would put the backups and the means to open
+      them on one disk and retire the property the off-host copy exists to
+      have — narrowed by
+      [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md),
+      which keeps that rejection and makes a second recipient held *off* the
+      estate the design (#106); its holder was decided on 2026-09-08 under
+      [#294](https://github.com/Gerrrt/HomeLab/issues/294). Also rejected: the ADR-0007 stack, the
       ADR-0008 tier, bringing `wlp22s0` up to give the watcher an independent
       path — that dual-homes a VLAN 99 host onto an untrusted segment — and
       switching the machine off, which was never really on offer: the wiki had

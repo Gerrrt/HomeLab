@@ -259,12 +259,17 @@ grep -A3 creation_rules .sops.yaml     # every key that can open the secrets
 ```
 
 If a recipient there is one somebody else holds, the secrets are recoverable and
-this is a phone call rather than a rotation.
+this is a phone call rather than a rotation. Since 2026-09-08 the design is that
+there is one: the **technical second named on the break-glass card** holds a
+recipient of their own ([#294](https://github.com/Gerrrt/HomeLab/issues/294),
+[`back-up-the-age-key.md`](back-up-the-age-key.md)). If `.sops.yaml` lists two
+keys, the second is theirs, and the call is to them.
 
-**A handover is the moment to add one.** ADR-0024 answers the copy and
-deliberately leaves the holder open, which is exactly the question a successor
-is. Generate the keypair where *they* will keep it, and add its public half from
-a host that can already decrypt:
+**A handover is the moment to add yours.** ADR-0024 built the mechanism and
+[#294](https://github.com/Gerrrt/HomeLab/issues/294) named the second holder;
+a successor is a third. Generate the keypair
+where *you* will keep it, and add its public half from a host that can already
+decrypt — theirs, if the one you were handed is gone:
 
 ```bash
 make secrets-add-recipient PUBKEY=age1...
