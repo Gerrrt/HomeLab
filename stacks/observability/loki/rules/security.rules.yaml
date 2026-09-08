@@ -320,7 +320,7 @@ groups:
           sum by (interface) (
             count_over_time(
               {app="filterlog", action="pass"}
-              |~ `,10\.0\.(10|20|40)\.[0-9]+,10\.0\.(30|50|99)\.[0-9]+,` [5m]
+              |~ `,10\.0\.(10|20|40)\.[0-9]+,(10\.0\.(30|50|99)|10\.7\.7)\.[0-9]+,` [5m]
             )
           ) > 0
         for: 0s
@@ -331,9 +331,46 @@ groups:
         annotations:
           summary: "Segmentation breach: terminal VLAN passed to an internal segment on {{ $labels.interface }}"
           description: >-
-            A packet from VLAN 10, 20 or 40 was PASSED toward VLAN 30, 50 or 99.
-            ADR-0002 says that path does not exist. Either a rule was changed or
-            an interface was reassigned. Treat as a live segmentation failure.
+            A packet from VLAN 10, 20 or 40 was PASSED toward VLAN 30, 50 or 99,
+            or the untagged switch LAN. ADR-0002 says that path does not exist.
+            Either a rule was changed or an interface was reassigned. Treat as a
+            live segmentation failure.
+
+      - alert: LabSegmentReachedInternalNetwork
+        # The lab is the other way round: VLAN 30 is a DESTINATION in the rule
+        # above (a terminal segment reaching the lab is a breach) and the SOURCE
+        # here. ADR-0014 puts attack tooling on ImaginationLAN with no egress
+        # filtering, and the one firewall change it decides is a tripwire on
+        # igc0.30 in #223's shape — below the blocks, above `→ any`, log-only.
+        # The tripwire points at House_Segments (every segment but 30) rather
+        # than Internal_Segments, which names 10.0.30.0/24 itself: against that
+        # alias every DNS query from the lab to its own gateway logged as a
+        # crossing — 1,239 lines in three days, none of them real (#234). The
+        # destination class below excludes 30 for the same reason, so this rule
+        # is right even if the alias is ever wrong again.
+        #
+        # 10.7.7.0/24 is the untagged switch-management LAN, in both aliases
+        # since 2026-09-06; a logged block above the tripwire catches it first.
+        expr: |
+          sum by (interface) (
+            count_over_time(
+              {app="filterlog", action="pass"}
+              |~ `,10\.0\.30\.[0-9]+,(10\.0\.(10|20|40|50|99)|10\.7\.7)\.[0-9]+,` [5m]
+            )
+          ) > 0
+        for: 0s
+        labels:
+          component: logs
+          severity: critical
+          category: security
+        annotations:
+          summary: "Segmentation breach: the lab passed to the house on {{ $labels.interface }}"
+          description: >-
+            A packet from VLAN 30 was PASSED toward another segment. ADR-0014
+            puts attackers on that VLAN and says this path does not exist:
+            the segment that holds attack tooling has reached the house. Either
+            a block rule was removed or reordered, or the tripwire's alias
+            gained the wrong subnet. Treat as a live segmentation failure.
 
       - alert: IoTAttemptedLateralMovement
         # The mirror image: correctly BLOCKED attempts out of the IoT segment.

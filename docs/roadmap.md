@@ -640,7 +640,11 @@ months.
 - **[#234](https://github.com/Gerrrt/HomeLab/issues/234)** ADR-0014's tripwire
   on ImaginationLAN — the fourth rule in #223's shape, a Loki rule whose source
   is `10.0.30.0/24`, and the restore runbook expecting four where it expects
-  three. Log-only; a no-op until the segment holds attackers.
+  three. The firewall rule arrived on 2026-09-06 with the untagged-LAN blocks,
+  pointed at `Internal_Segments` — which names the lab's own subnet, so it
+  logged 1,239 DNS queries to the lab gateway in three days and nothing else.
+  The Loki rule, the runbook and the dashboard landed on 2026-09-08; what
+  closes it is the rule moving to a `House_Segments` alias that excludes 30.
 - **[#102](https://github.com/Gerrrt/HomeLab/issues/102)** ADR-0008's sensitive
   tier — the mini PC, its nine services and the four firewall rules. Under
   **Infrastructure** above, because it has a shape now rather than only a

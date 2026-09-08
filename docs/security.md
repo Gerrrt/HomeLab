@@ -16,7 +16,7 @@ What this network is actually built to survive:
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 93 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 94 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -205,18 +205,25 @@ it for as long as it was a number.
 
 Everything else — IoT, media, guest — gets internet and nothing more.
 
-That last sentence is now checked rather than asserted. Three **tripwire** rules
-([#223](https://github.com/Gerrrt/HomeLab/issues/223)) sit on the terminal
-interfaces — `pass` + `log` for `<terminal net> → Internal_Segments`, below the
-block rules that stop that path and above the `→ any` egress rule. They log
-nothing while the design holds, and cost nothing; if one ever logs a line,
-`TerminalSegmentReachedInternalNetwork` fires on it. Before them that alert
-matched `action="pass"` against a firewall that logged only blocks, so it could
-not fire for any input — the control was described here and not actually
-watched. Note that a firewall restore from a backup older than 2026-09-01 drops
-them silently; the restore runbook checks for them. A fourth, on ImaginationLAN,
-is decided by ADR-0014 and lands with `ifrit`
-([#234](https://github.com/Gerrrt/HomeLab/issues/234)).
+That last sentence is now checked rather than asserted. Four **tripwire** rules
+sit below the block rules that stop each cross-segment path and above the
+`→ any` egress rule: three on the terminal interfaces
+([#223](https://github.com/Gerrrt/HomeLab/issues/223)), `pass` + `log` for
+`<terminal net> → Internal_Segments`, and a fourth on ImaginationLAN
+([#234](https://github.com/Gerrrt/HomeLab/issues/234), decided by ADR-0014),
+`pass` + `log` for `<lab net> → House_Segments`. The lab's rule points at a
+different alias on purpose: `Internal_Segments` names the lab itself, so
+against it every DNS query from the lab to its own gateway logs as a crossing
+— 1,239 such lines in the rule's first three days after 2026-09-06, none of
+them real, which is why #234 is not closed by the rule existing. They log
+nothing while
+the design holds, and cost nothing; if one ever logs a line,
+`TerminalSegmentReachedInternalNetwork` or `LabSegmentReachedInternalNetwork`
+fires on it. Before them the first of those alerts matched `action="pass"`
+against a firewall that logged only blocks, so it could not fire for any input
+— the control was described here and not actually watched. Note that a
+firewall restore from a backup older than 2026-09-01 drops them silently; the
+restore runbook checks for them.
 
 Segmentation is doing more work here than it should have to. Prometheus and Loki
 publish unauthenticated ingest ports for `oracle`'s agent to use, so anything

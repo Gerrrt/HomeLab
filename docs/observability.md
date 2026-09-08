@@ -225,7 +225,7 @@ push — which is deliberate: the first is the only one whose `up` can reach 0.
 
 `homelab-security` exists because `syslog.alloy` went to real trouble to extract
 `interface`, `action` and `direction` from pfSense filterlog, and
-`classification` and `priority` from Suricata; five Loki rules fire on them; and
+`classification` and `priority` from Suricata; six Loki rules fire on them; and
 nothing charted any of it ([#82](https://github.com/Gerrrt/HomeLab/issues/82)).
 "Network & Firewall" is SNMP — the pf state table and interface counters — and
 says nothing about what the firewall decided. "Logs" counts lines by level. The
@@ -252,7 +252,7 @@ log-based rule. What can is `SuricataStopped` in
 `prometheus/rules/ids.rules.yaml`, which reads the firewall's process table over
 SNMP and fires per declared interface
 ([#90](https://github.com/Gerrrt/HomeLab/issues/90)); the dashboard's alert
-table lists it alongside the five Loki rules. The text panel at the top still
+table lists it alongside the six Loki rules. The text panel at the top still
 says so, rather than letting a flat line be read as calm.
 
 **And it found that the firewall logged blocks only.** Building the panels
@@ -271,14 +271,20 @@ pass can have a terminal VLAN as its source. Logging the terminal VLANs' own
 `→ any` egress rules would have worked and would have cost about 12.6M lines a
 day — roughly 142× the existing volume, against a 30-day retention on one disk.
 
-Instead there are three **tripwire** rules, one per terminal interface
+Instead there are four **tripwire** rules: one per terminal interface
 (`igc0.10`, `igc0.20`, `igc0.40`), each a `pass` + `log` for
-`<terminal net> → Internal_Segments`, placed *below* the eight block rules that
-already stop that path and *above* the `→ any` egress rule. While segmentation
-holds, the blocks match first and the tripwire logs nothing, so it adds no
-volume. It can only match if those blocks are removed or reordered — the exact
-failure the alert exists for — and in that case the `→ any` rule would have
-passed the packet anyway, so nothing is weakened by it being there.
+`<terminal net> → Internal_Segments`, and one on the lab interface (`igc0.30`),
+a `pass` + `log` for `<lab net> → House_Segments` — every segment but its own,
+because `Internal_Segments` includes the lab and would turn its gateway DNS into
+a logged crossing (#234). Each is placed *below* the block rules that already
+stop that path and *above* the `→ any` egress rule. While segmentation holds,
+the blocks match first and the tripwire logs nothing, so it adds no volume. It
+can only match if those blocks are removed or reordered — the exact failure the
+alert exists for — and in that case the `→ any` rule would have passed the
+packet anyway, so nothing is weakened by it being there. The terminal three feed
+`TerminalSegmentReachedInternalNetwork`; the lab's feeds
+`LabSegmentReachedInternalNetwork`, which reads VLAN 30 as a source rather than
+a destination.
 
 A tripwire that never fires is indistinguishable from a broken one, which is
 this whole family of defect, so the logging path was proven rather than assumed:
@@ -298,7 +304,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-93 rules in total: 77 metric-based in `prometheus/rules/`, and 16 log-based in
+94 rules in total: 77 metric-based in `prometheus/rules/`, and 17 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
