@@ -20,7 +20,7 @@ check it. This does that for `docs/`, following the pattern
 Nine assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
-                           Alloy agents
+                           Alloy agents, ADRs, runbooks
   2. SNMP targets          snmp.yaml <-> docs/network.md
   3. Host and stack table  docs/architecture.md <-> docs/network.md, stacks/
   4. Ports table           docs/architecture.md <-> compose.yaml
@@ -400,6 +400,49 @@ def count_vlans() -> int:
     return sum(1 for row in rows[0] if len(row) > 1 and strip_md(row[1]).isdigit())
 
 
+def count_adrs() -> int:
+    """ADR files in docs/adr/, superseded ones included.
+
+    README.md is the only place this number is asserted and it was wrong by four
+    when this was written — twenty-three against twenty-seven. It had been right
+    once. Nothing failed as 0024 through 0027 landed, because "N ADRs" was a
+    phrasing nobody had thought of, which is the #72 shape this whole file
+    exists to prevent surviving inside the fix for it — exactly as "forty-five
+    rules" did (#367).
+
+    Superseded ADRs count. ADR-0002 and ADR-0013 are marked and not deleted, and
+    ADR-0001 says why: "the history of what was believed and when is the point."
+    A count that skipped them would be counting decisions still in force, which
+    is a different claim from the one the README makes.
+
+    This counts the directory rather than reading the files, and that is the
+    module docstring's scoping rule showing through: docs/adr/ is deliberately
+    outside PROSE, so an ADR stating a count in its own text stays untouched.
+    """
+    return len(list((REPO / "docs/adr").glob("[0-9][0-9][0-9][0-9]-*.md")))
+
+
+def count_runbooks() -> int:
+    """Runbooks in docs/runbooks/.
+
+    THIS COUNT IS CORRECT TODAY, and it is guarded anyway, which needs saying
+    because guarding a true number can look like work for its own sake.
+
+    It is correct the way the ADR count above was correct once. #265 is in
+    review as this lands and adds build-the-lab-domain.md, which makes it wrong
+    — so this is the rare case where the drift can be watched arriving instead
+    of found four ADRs later. Nothing about the change that falsifies it touches
+    README.md, or any file a reviewer of that branch would think to reread: a
+    directory gains a file, and a sentence somewhere else quietly stops being
+    true. An unguarded number that happens to be right is not a number anybody
+    is keeping right.
+
+    Every .md here is a runbook and there is no index file, so the glob is the
+    count. One added later would not be a runbook and would need excluding.
+    """
+    return len(list((REPO / "docs/runbooks").glob("*.md")))
+
+
 def facts() -> dict:
     prom_rules = sorted((STACK / "prometheus/rules").glob("*.rules.yaml"))
     loki_rules = sorted((STACK / "loki/rules").glob("*.rules.yaml"))
@@ -421,6 +464,8 @@ def facts() -> dict:
         "alloy_agents": count_alloy_agents(),
         "receivers": count_notifying_receivers(),
         "vlans": count_vlans(),
+        "adrs": count_adrs(),
+        "runbooks": count_runbooks(),
     }
 
 
@@ -497,6 +542,32 @@ def check_counts(f: dict) -> list[str]:
         # the segment table's tag column, so the untagged switch-management LAN
         # stays uncounted here and "seven internal networks" stays sayable.
         (rf"{COUNT}" + WS + r"VLANs", {f["vlans"]}, "VLANs"),
+        # Two counts in one README sentence and neither was guarded. "23 ADRs"
+        # was stale by four. "19 runbooks" is correct, and is guarded because
+        # #265 is in review and adds one — the same drift, caught on the way in
+        # rather than four ADRs after the fact.
+        #
+        # THE HONEST OBJECTION IS THAT NEITHER NUMBER MEANS ANYTHING, and it is
+        # worth writing down because it nearly won. Every other count above is
+        # load-bearing: alert rules are the coverage ADR-0007 explicitly trades
+        # away, Alloy agents say which hosts are observed, a stale panel count
+        # broke a verification step inside a deploy runbook (#72). An ADR total
+        # says only how long the project has been running. Nothing reads it,
+        # nothing branches on it, and deleting both numbers from the prose would
+        # have ended the obligation rather than automating it.
+        #
+        # Guarded anyway, for what the sentence is doing rather than what it
+        # counts. README.md is where this repository claims its documents are
+        # checked against the things they describe, and a number that is visibly
+        # wrong there is a false claim about the checking rather than a stale
+        # fact about ADRs. The precedent is also settled: #72, #81 and #367 were
+        # each answered by widening the patterns, never once by removing the
+        # number, and "delete the claim" is a fix available to every one of them.
+        #
+        # Plural only, like `receivers` and `VLANs` above. "one ADR" in prose is
+        # a reference and not an inventory.
+        (rf"{COUNT}" + WS + r"ADRs", {f["adrs"]}, "ADRs"),
+        (rf"{COUNT}" + WS + r"runbooks", {f["runbooks"]}, "runbooks"),
     )
     problems = []
     for rel in PROSE:
