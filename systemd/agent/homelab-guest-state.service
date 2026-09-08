@@ -9,9 +9,35 @@
 # It closes "the guest died" and deliberately not "the lab stack inside it died";
 # the ADR says so and names the firewall pass the second half would need.
 #
-# PrivateNetwork, because reading the local guest list has no business on the
-# network. Root only for the textfile directory, which is root-owned on an agent
-# host — `qm list` needs no privilege of its own.
+# HARDENING DELIBERATELY LIGHTER THAN ITS SIBLINGS, and this is a correction.
+# The first version carried ProtectSystem=strict and PrivateNetwork=true, copied
+# from homelab-pve-version.service where they are fine. `pveversion` reads the
+# dpkg database; `qm list` does not. It reads /etc/pve, which is **pmxcfs, a FUSE
+# mount**, and may reach pvedaemon over the loopback API — a private mount
+# namespace can leave the FUSE mount invisible, and PrivateNetwork gives the unit
+# its own loopback that reaches nothing.
+#
+# The first real run on Saruman reported ZERO guests on a hypervisor running
+# `alexander`. So both are dropped here.
+#
+# This is a hypothesis, not a measurement: VLAN 99 cannot reach VLAN 30 and the
+# command cannot be run from where this was written. It is stated that way rather
+# than as a finding — if the next run works, the two directives can be
+# reintroduced one at a time with evidence, and the collector now fails loudly
+# enough to say which one broke it.
+#
+# EVERY REMAINING DIRECTIVE IS ONE THAT DOES NOT CREATE A MOUNT NAMESPACE.
+# ProtectSystem, ProtectHome, PrivateTmp, ReadWritePaths and the ProtectKernel*
+# family all do, and any of them can be what hides a FUSE mount from the unit.
+# Since the cause cannot be confirmed from here, the whole class is removed
+# rather than guessed at one at a time — and they are worth reintroducing
+# individually, with a run to prove each, once this reports guests at all.
+#
+# What is left still bounds the job meaningfully: it cannot gain privileges, it
+# cannot be handed a setuid binary, and it runs one command that reads a list.
+#
+# Root is only for the textfile directory, which is root-owned on an agent host.
+# `qm list` needs no privilege of its own.
 [Unit]
 Description=HomeLab: record which guests this hypervisor is running
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
@@ -30,14 +56,6 @@ NoNewPrivileges=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictRealtime=true
-PrivateTmp=true
-ProtectHome=true
-ProtectSystem=strict
-ReadWritePaths=/var/lib/node_exporter/textfile_collector
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-PrivateNetwork=true
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=homelab-guest-state
