@@ -493,9 +493,9 @@ what left this one unfireable for months.
   cannot be changed later and the library's size is a number nobody has.
 - **[#101](https://github.com/Gerrrt/HomeLab/issues/101) Build ADR-0007's
   defended estate on `Saruman`** — a Windows domain, Wazuh, Velociraptor, PBS
-  and a second observability stack. The umbrella. Nothing of it is built, but
-  the shape is settled and the work is split seven ways, which is what moved it
-  out of *Decided but not built* below.
+  and a second observability stack. The umbrella. The observability half is
+  built and the security half is decided but not yet racked; the work is split
+  seven ways, which is what moved it out of *Decided but not built* below.
   [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
   answered the two questions ADR-0007 left open, and both of them blocked the
   first line of work. `stacks/lab/` runs in a **guest**, not on the hypervisor:
@@ -529,10 +529,37 @@ what left this one unfireable for months.
   cross-stack mode, because "not in this compose file" stopped meaning "in no
   stack at all" the moment there were two.
   [#265](https://github.com/Gerrrt/HomeLab/issues/265) the domain is what
-  everything else is pointed at, and blocks both
-  [#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh — the heaviest
-  component, and the one most likely to be what the spindles run out on — and
-  [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor.
+  everything else is pointed at, and it is sized by
+  [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
+  rather than by taste: six guests on the `.50` decade, because NTLM relay needs
+  a destination that is not the origin and, since Windows 11 24H2 requires
+  inbound SMB signing where Server 2025 does not, the only relayable host in a
+  DC-plus-workstations domain is the DC itself. The servers run continuously and
+  the endpoints per session, because a 7.2K mirror serves about ninety random
+  write IOPS and six idle Windows guests would be most of them. Three things
+  that ADR left explicit because they fail quietly: the DC takes its clock from
+  the gateway, not `time.windows.com` — ADR-0014 named that failure and did not
+  fix it, and the alert reads the *sync source* rather than the offset, because
+  the offset reads zero for exactly the case where w32time has fallen back to
+  the CMOS clock; the domain answers its own names inward only, with no
+  delegation on Unbound, which is the one documented exception to ADR-0010's
+  "clients receive the gateway as their only resolver"; and the domain is
+  **scraped, not published**, reversing four comments in `stacks/lab` that
+  expected the `ports:` block to open here — an unauthenticated remote-write
+  receiver on the segment that exists to hold attackers hands a delete-series
+  API to the thing it is meant to be recording.
+  [#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh and
+  [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor are one
+  decision, and
+  [ADR-0030](adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md)
+  makes it: both in `stacks/soc/` on `odin`, a second guest, because
+  `alexander` is 8 GiB and Wazuh's stated minimums are six before the dashboard
+  — and because a second host means a second directory under `stacks/`, which is
+  what ADR-0004 says rather than something it forbids. It also corrects #266's
+  own premise. Six agents make about 21 GB of alerts a quarter, which the disks
+  do not notice; what runs out is heap-per-shard, at OpenSearch's
+  twenty-five-shards-per-GiB against one daily index each, so retention is
+  thirty days because that is what a 2 GiB heap buys.
   [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS is **decided and
   deferred** by
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md):
@@ -540,7 +567,9 @@ what left this one unfireable for months.
   decided and not yet bought, and PVE already does the snapshots the local-only
   answer needs — so PBS would add a service for a capability that exists. The
   lab has **revert and not backup** until `zion` does, and the ADR names what
-  gets backed up when it arrives. Liveness stays where it already was, with
+  gets backed up when it arrives — which is also why ADR-0029 gives PBS no disk
+  on this pool: there is nothing to give it yet. Liveness stays where it already
+  was, with
   [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0020 decides only
   that no Alertmanager goes *inside* the stack, and the lab is otherwise being
   built to go quiet.
