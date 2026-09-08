@@ -74,6 +74,7 @@ TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
 COLLECTORS=(
   "patch-state scripts/collect-patch-state.sh   apt-patch-state.prom   /usr/bin/apt-get"
   "smart-state scripts/collect-smart-state.sh   smart-state-HOST.prom  /usr/sbin/smartctl"
+  "pve-version scripts/collect-pve-version.sh   pve-version.prom       /usr/bin/pveversion"
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
 )
 
