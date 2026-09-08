@@ -332,7 +332,8 @@ self-test, and the card is set to test itself every fortnight
 ([#93](https://github.com/Gerrrt/HomeLab/issues/93)) — but the switch between
 the monitoring host and the network still has no battery at all, so both laptops
 stay running and go deaf on a mains cut
-([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the config export
+([#110](https://github.com/Gerrrt/HomeLab/issues/110), reopened on 2026-09-08
+after a commit message had closed it by accident); and the config export
 itself now leaves the monitoring host nightly, so the spare is what is left
 ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
 

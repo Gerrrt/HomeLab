@@ -342,6 +342,14 @@ what left this one unfireable for months.
   at the rack on 2026-08-21: 4-post, square holes, full 1U with rear support
   rather than a cantilever. The spare ProDesk from
   [#92](https://github.com/Gerrrt/HomeLab/issues/92) racks here too, powered off.
+  **Reopened 2026-09-08.** GitHub had closed the issue on 2026-08-27, when the
+  commit that wrote the runbook said the switch's power move "is the one that
+  closes #110" and the phrase was read as a close keyword. Nothing was racked;
+  this entry and every document beside it said so the whole time, and only the
+  issue's state was wrong. The lesson is the one ADR-0026 already draws — a
+  state nothing checks against the thing it describes drifts — with a
+  sharper edge: a commit message can close an issue about work it explicitly
+  says it did not do.
   → [runbook](runbooks/fit-the-ups-battery.md)
 - **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put the wiki on
   `oracle` into the repository, and back up its database.** ADR-0015 ratified a
