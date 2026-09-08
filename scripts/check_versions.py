@@ -155,9 +155,19 @@ def running_versions(prom: str) -> dict[str, tuple[str, str]]:
     for series in query(prom, "pve_version_info"):
         metric = series["metric"]
         host = metric.get("host") or metric.get("instance", "")
-        version = metric.get("version", "")
-        if host and version:
-            found[host.lower()] = (f"Proxmox VE {version}", "pve_version_info")
+        # The RELEASE label, not `version`. Proxmox's release line is a single
+        # number — the documents say "Proxmox VE 9" and the host reports 9.2.11 —
+        # so the full version cannot be compared against them. release_line()
+        # cannot reduce it either: it keeps two components because Ubuntu's line
+        # is "24.04", and applied here that would leave "9.2" against a
+        # documented "9" and fail on every point release.
+        #
+        # The collector already computes it, so this reads the fact rather than
+        # re-deriving it. `version` stays on the metric because it is the fact;
+        # `release` is the claim.
+        release = metric.get("release", "")
+        if host and release:
+            found[host.lower()] = (f"Proxmox VE {release}", "pve_version_info")
 
     # sysDescr is one string holding two versions. The FreeBSD half is what the
     # OS columns record; the pfSense half is checked separately below, against
