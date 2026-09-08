@@ -278,12 +278,23 @@ master password, and that takes everything in it at once.
 
 ## What this still does not solve
 
-**One person.** ADR-0024 answers the copy and deliberately does not answer the
-holder: whether somebody else should be able to open the estate's secrets is a
-question about people, not about mechanism. What has changed is that the
-mechanism is now built and exercised — a second holder is the same
-`make secrets-add-recipient` with their public key, not a procedure to work out
-on the day it matters.
+**One person — decided 2026-09-08
+([#294](https://github.com/Gerrrt/HomeLab/issues/294)).** ADR-0024 answered
+the copy and deliberately left the holder open, because whether somebody else
+should be able to open the estate's secrets is a question about people. The
+answer is the **technical second named on the break-glass card**: they hold a
+recipient of their own, generated where they keep it and never on this host,
+which satisfies ADR-0023's off-estate constraint and the handover case in one
+move. The location stays out of this repository, as the first key's does.
+
+Whether their key is in `.sops.yaml` yet is read from the file
+(`grep -A3 creation_rules .sops.yaml`), not from this paragraph. Adding it is
+the procedure above — `make secrets-add-recipient` with their public half — and
+then `make secrets-verify-backup` with *each* key, because a re-key that drops
+a recipient is the failure mode here. What this still does not solve: their
+copy cannot be proved from here on their behalf. `SecretsKeyBackupUnproven`
+names the recipient that is overdue, and clearing it for theirs is a visit with
+the removable medium, not a timer.
 
 **Revocation is still rotation.** Removing a recipient and re-keying protects
 values encrypted from then on. Every historical ciphertext in git stays readable
