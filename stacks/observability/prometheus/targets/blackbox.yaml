@@ -161,9 +161,9 @@
 # one — so it is recorded in ADR-0013's table when made, not just here:
 #
 #   iLO      pass tcp from 10.0.99.20 to 10.0.30.10 port 443
-#            VLAN 99 → 30 passes SNMP and nothing else. #235 is deciding
-#            whether the iLO stays on that segment at all; if it moves to
-#            Winterfell this needs no rule and the address below changes.
+#            VLAN 99 → 30 passes SNMP and nothing else. #235 decided the
+#            iLO stays on that segment (ADR-0033), so the address below is
+#            settled and this probe needs the rule.
 #   pfSense  pass tcp from 10.0.99.20 to 10.0.99.1 port 443
 #            "Block HTTPS to pfSense" on igc0.99 is an explicit rule, not a
 #            default: the GUI is reachable from Hicks only. Opening it to the
