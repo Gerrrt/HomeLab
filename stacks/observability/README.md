@@ -47,7 +47,7 @@ snmp-exporter/
   snmp.yaml                generated, 14k lines, ${PLACEHOLDER} communities
 grafana/
   provisioning/            datasources + dashboard provider
-  dashboards/*.json        7 dashboards, 140 panels
+  dashboards/*.json        7 dashboards, 141 panels
   dashboards/README.md     conventions that hold across all of them
 ```
 

@@ -1,7 +1,7 @@
 {
   "uid": "homelab-security",
   "title": "Security",
-  "description": "The labels config.alloy extracts from pfSense filterlog and Suricata: interface, action and direction; classification and priority. Five Loki rules fire on them and this is where they are drawn. Addresses stay in the log line and are parsed at query time, per ADR-0003.",
+  "description": "The labels config.alloy extracts from pfSense filterlog and Suricata: interface, action and direction; classification and priority. Six Loki rules fire on them and this is where they are drawn. Addresses stay in the log line and are parsed at query time, per ADR-0003.",
   "tags": [
     "homelab",
     "security",
@@ -72,7 +72,7 @@
     {
       "type": "table",
       "title": "Security alerts",
-      "description": "Firing and pending alerts for the five Loki rules this dashboard charts, plus SuricataStopped — the process-table rule that says whether the IDS behind the Suricata panels is running at all — from the ALERTS series Prometheus exposes for its own rules. Scoped by alertname rather than component=logs, which would also pull in the SSH and auth rules that belong to the Logs dashboard. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
+      "description": "Firing and pending alerts for the six Loki rules this dashboard charts, plus SuricataStopped — the process-table rule that says whether the IDS behind the Suricata panels is running at all — from the ALERTS series Prometheus exposes for its own rules. Scoped by alertname rather than component=logs, which would also pull in the SSH and auth rules that belong to the Logs dashboard. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -90,7 +90,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "ALERTS{alertname=~\"TerminalSegmentReachedInternalNetwork|IoTAttemptedLateralMovement|FirewallLogsStopped|SuricataHighPriorityAlert|SuricataAlertStorm|SuricataStopped\",alertstate=~\"firing|pending\"}",
+          "expr": "ALERTS{alertname=~\"TerminalSegmentReachedInternalNetwork|LabSegmentReachedInternalNetwork|IoTAttemptedLateralMovement|FirewallLogsStopped|SuricataHighPriorityAlert|SuricataAlertStorm|SuricataStopped\",alertstate=~\"firing|pending\"}",
           "legendFormat": "",
           "format": "table",
           "range": false,
@@ -225,7 +225,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "- **Suricata watches the Skids (VLAN 20) interface only**, alert-only (`Block Offenders` is off). Guest/VLAN 10 is next — [#89](https://github.com/Gerrrt/HomeLab/issues/89) — the rest of the lab is unwatched and WAN deliberately always will be. Empty Suricata panels mean *nothing was seen on VLAN 20*, not that the lab is quiet.\n- **A quiet IDS and a stopped one produce identical output**, and no panel here can distinguish them. `SuricataStopped` can: it reads the firewall's process table over SNMP and fires per declared interface, and it is listed in the alert table on this dashboard ([#90](https://github.com/Gerrrt/HomeLab/issues/90)). Empty Suricata panels with that alert quiet mean the sensor is running and saw nothing.\n- **Addresses are parsed out of the line at query time, IPv4 only.** `src` and `dst` are not labels — ADR-0003 keeps them out of the index — so the address panels use `| regexp` and skip IPv6 lines.\n- **Passed packets are logged only by the tripwire rules.** Three `pass`+`log` rules on `igc0.10`, `igc0.20` and `igc0.40` match terminal→internal traffic and sit *below* the block rules that stop it, so they log nothing while segmentation holds and add no volume. A line appearing there means the blocks were removed or reordered — ADR-0002 broken — and `TerminalSegmentReachedInternalNetwork` fires on it ([#223](https://github.com/Gerrrt/HomeLab/issues/223)). Ordinary egress is not logged, which is why *Passed (1h)* reads *not logged* rather than counting traffic.\n- **`Interface` is the pfSense device name**, not the VLAN name. On this firewall the VLAN sub-interfaces are `igc0.<vlan id>` — `igc0.20` is Skids, `igc0.10` is Degens — and `em0` is WAN. That mapping is a property of the current interface assignment, not a guarantee; group by the label rather than hardcoding a value. The label has two provenances: filterlog's is parsed from the line, Suricata's is *asserted* from each interface's syslog facility (`local1` → `igc0.20`, `local2` → `igc0.10`, mapped in `syslog.alloy`), because the alert line does not say which interface saw it. A Suricata interface on an unmapped facility carries no `interface` label at all, and because every Suricata panel here filters on `$interface` (whose *All* is `.+`), its alerts do not appear on this dashboard — hidden, not mislabelled. The unfiltered `sum by (interface) (count_over_time({app=\"suricata\"}[10m]))` in runbook §6 is what shows it, as a series with an empty `interface`."
+        "content": "- **Suricata watches the Skids (VLAN 20) interface only**, alert-only (`Block Offenders` is off). Guest/VLAN 10 is next — [#89](https://github.com/Gerrrt/HomeLab/issues/89) — the rest of the lab is unwatched and WAN deliberately always will be. Empty Suricata panels mean *nothing was seen on VLAN 20*, not that the lab is quiet.\n- **A quiet IDS and a stopped one produce identical output**, and no panel here can distinguish them. `SuricataStopped` can: it reads the firewall's process table over SNMP and fires per declared interface, and it is listed in the alert table on this dashboard ([#90](https://github.com/Gerrrt/HomeLab/issues/90)). Empty Suricata panels with that alert quiet mean the sensor is running and saw nothing.\n- **Addresses are parsed out of the line at query time, IPv4 only.** `src` and `dst` are not labels — ADR-0003 keeps them out of the index — so the address panels use `| regexp` and skip IPv6 lines.\n- **Passed packets are logged only by the tripwire rules.** Four `pass`+`log` rules sit *below* the block rules that stop each cross-segment path, so they log nothing while segmentation holds and add no volume: three on `igc0.10`, `igc0.20` and `igc0.40` match terminal→internal traffic ([#223](https://github.com/Gerrrt/HomeLab/issues/223)), and one on `igc0.30` matches the lab reaching any other segment ([#234](https://github.com/Gerrrt/HomeLab/issues/234)). A line appearing there means the blocks were removed or reordered — ADR-0002 broken — and `TerminalSegmentReachedInternalNetwork` or `LabSegmentReachedInternalNetwork` fires on it. Ordinary egress is not logged, which is why *Passed (1h)* reads *not logged* rather than counting traffic. The lab's rule must point at `House_Segments`, not `Internal_Segments`: the latter names the lab itself, and pointed there, as it was when created on 2026-09-06, every DNS query from the lab to its gateway logs as a pass — 1,239 lines in its first three days, which *Passed (1h)* counted and neither alert matched, because their destination classes exclude 30.\n- **`Interface` is the pfSense device name**, not the VLAN name. On this firewall the VLAN sub-interfaces are `igc0.<vlan id>` — `igc0.20` is Skids, `igc0.10` is Degens — and `em0` is WAN. That mapping is a property of the current interface assignment, not a guarantee; group by the label rather than hardcoding a value. The label has two provenances: filterlog's is parsed from the line, Suricata's is *asserted* from each interface's syslog facility (`local1` → `igc0.20`, `local2` → `igc0.10`, mapped in `syslog.alloy`), because the alert line does not say which interface saw it. A Suricata interface on an unmapped facility carries no `interface` label at all, and because every Suricata panel here filters on `$interface` (whose *All* is `.+`), its alerts do not appear on this dashboard — hidden, not mislabelled. The unfiltered `sum by (interface) (count_over_time({app=\"suricata\"}[10m]))` in runbook §6 is what shows it, as a series with an empty `interface`."
       }
     },
     {
@@ -357,7 +357,7 @@
     {
       "type": "stat",
       "title": "Passed (1h)",
-      "description": "Packets the firewall logged as passed in the last hour. Only the three terminal→internal tripwire rules log passes; ordinary egress is not logged, so this reads *not logged* rather than 0, which would claim a measurement never taken.",
+      "description": "Packets the firewall logged as passed in the last hour. Only the four tripwire rules log passes — three terminal→internal, one lab→house; ordinary egress is not logged, so this reads *not logged* rather than 0, which would claim a measurement never taken.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -553,7 +553,7 @@
     {
       "type": "stat",
       "title": "Terminal→internal passes (24h)",
-      "description": "Packets PASSED from VLAN 10/20/40 toward VLAN 30/50/99. ADR-0002 says this path does not exist, so anything but zero is a segmentation failure — this is TerminalSegmentReachedInternalNetwork's own count. The tripwire rules instrument this path, so a number here is real. *none* means the query matched nothing, which is the good state — but check *Firewall log arrival rate* before reading it as one, because a stopped stream looks the same.",
+      "description": "Packets PASSED from VLAN 10/20/40 toward VLAN 30/50/99 or the untagged switch LAN. The lab's own tripwire is charted under *Segmentation* below. ADR-0002 says this path does not exist, so anything but zero is a segmentation failure — this is TerminalSegmentReachedInternalNetwork's own count. The tripwire rules instrument this path, so a number here is real. *none* means the query matched nothing, which is the good state — but check *Firewall log arrival rate* before reading it as one, because a stopped stream looks the same.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -610,7 +610,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({app=\"filterlog\", action=\"pass\"} |~ `,10\\.0\\.(10|20|40)\\.[0-9]+,10\\.0\\.(30|50|99)\\.[0-9]+,` [24h]))",
+          "expr": "sum(count_over_time({app=\"filterlog\", action=\"pass\"} |~ `,10\\.0\\.(10|20|40)\\.[0-9]+,(10\\.0\\.(30|50|99)|10\\.7\\.7)\\.[0-9]+,` [24h]))",
           "legendFormat": "__auto",
           "range": false,
           "instant": true,
@@ -1253,14 +1253,14 @@
     {
       "type": "timeseries",
       "title": "Terminal segment → internal network, by action",
-      "description": "Traffic from the egress-only VLANs (10 Degens, 20 Skids, 40 CasaBonita) aimed at an internal segment (30 ImaginationLAN, 50 Hicks, 99 Winterfell). Passed is the breach ADR-0002 says cannot happen, and is what TerminalSegmentReachedInternalNetwork fires on. Blocked is an attempt the firewall stopped.\n\n**Both series empty is the normal state here, and it is not a broken query.** Measured over 24h on 2026-09-01: terminal-VLAN sources appear in 63 blocked lines and internal destinations in 2058, but never in the same line — nothing on VLANs 10, 20 or 40 is currently aiming at an internal segment at all. If you need to confirm the regex still matches, drop either half of it and check the count is non-zero.\n\n**The passed series is now instrumented.** Three tripwire rules sit below the blocks on the terminal interfaces and log any terminal→internal packet that gets past them, so an empty red line here is evidence rather than a blind spot — which it was not before [#223](https://github.com/Gerrrt/HomeLab/issues/223).",
+      "description": "Traffic from the egress-only VLANs (10 Degens, 20 Skids, 40 CasaBonita) aimed at an internal segment (30 ImaginationLAN, 50 Hicks, 99 Winterfell) or the untagged switch LAN (10.7.7.0/24, in `Internal_Segments` since 2026-09-06). Passed is the breach ADR-0002 says cannot happen, and is what TerminalSegmentReachedInternalNetwork fires on. Blocked is an attempt the firewall stopped.\n\n**Both series empty is the normal state here, and it is not a broken query.** Measured over 24h on 2026-09-01: terminal-VLAN sources appear in 63 blocked lines and internal destinations in 2058, but never in the same line — nothing on VLANs 10, 20 or 40 is currently aiming at an internal segment at all. If you need to confirm the regex still matches, drop either half of it and check the count is non-zero.\n\n**The passed series is now instrumented.** Three tripwire rules sit below the blocks on the terminal interfaces (the lab's own is the panel to the right) and log any terminal→internal packet that gets past them, so an empty red line here is evidence rather than a blind spot — which it was not before [#223](https://github.com/Gerrrt/HomeLab/issues/223).",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
         "h": 9,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 60
       },
@@ -1350,7 +1350,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (interface) (count_over_time({app=\"filterlog\", action=\"pass\"} |~ `,10\\.0\\.(10|20|40)\\.[0-9]+,10\\.0\\.(30|50|99)\\.[0-9]+,` [5m]))",
+          "expr": "sum by (interface) (count_over_time({app=\"filterlog\", action=\"pass\"} |~ `,10\\.0\\.(10|20|40)\\.[0-9]+,(10\\.0\\.(30|50|99)|10\\.7\\.7)\\.[0-9]+,` [5m]))",
           "legendFormat": "passed — {{interface}}",
           "range": true,
           "instant": false,
@@ -1362,7 +1362,127 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (interface) (count_over_time({app=\"filterlog\", action=\"block\"} |~ `,10\\.0\\.(10|20|40)\\.[0-9]+,10\\.0\\.(30|50|99)\\.[0-9]+,` [5m]))",
+          "expr": "sum by (interface) (count_over_time({app=\"filterlog\", action=\"block\"} |~ `,10\\.0\\.(10|20|40)\\.[0-9]+,(10\\.0\\.(30|50|99)|10\\.7\\.7)\\.[0-9]+,` [5m]))",
+          "legendFormat": "blocked — {{interface}}",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Lab segment → house, by action",
+      "description": "Traffic from ImaginationLAN (30) aimed at any other segment — the terminal VLANs, Hicks, Winterfell or the untagged switch LAN. ADR-0014 puts attack tooling on this VLAN with no egress filtering; this is the boundary that matters. Passed is what LabSegmentReachedInternalNetwork fires on. Blocked is an attempt the firewall stopped.\n\n**Both series empty is the normal state**, for the same reason as the panel to the left. The passed series is instrumented by the tripwire on `igc0.30` ([#234](https://github.com/Gerrrt/HomeLab/issues/234)), which points at `House_Segments` — every segment but its own. It must not point at `Internal_Segments`: that alias names 10.0.30.0/24, and pointed there — as it was when created on 2026-09-06 — it logs every DNS query from the lab to its gateway as a pass, 1,239 lines in its first three days. Those lines never reach this panel, whose destination class excludes 30, so a red line here is real.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 60
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "passed —.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "blocked —.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (interface) (count_over_time({app=\"filterlog\", action=\"pass\"} |~ `,10\\.0\\.30\\.[0-9]+,(10\\.0\\.(10|20|40|50|99)|10\\.7\\.7)\\.[0-9]+,` [5m]))",
+          "legendFormat": "passed — {{interface}}",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (interface) (count_over_time({app=\"filterlog\", action=\"block\"} |~ `,10\\.0\\.30\\.[0-9]+,(10\\.0\\.(10|20|40|50|99)|10\\.7\\.7)\\.[0-9]+,` [5m]))",
           "legendFormat": "blocked — {{interface}}",
           "range": true,
           "instant": false,
@@ -1373,15 +1493,15 @@
     {
       "type": "timeseries",
       "title": "Blocked IoT → internal attempts (VLAN 20)",
-      "description": "Segmentation holding against the Skids segment specifically, in the same 10-minute window IoTAttemptedLateralMovement uses. The threshold line is that rule's 20-in-10-minutes. Sustained traffic here means something on VLAN 20 is repeatedly trying to leave it — identify the source address from the log line and decide whether it is misconfigured or compromised.\n\nEmpty is the normal state and the rule has never fired; see the panel to the left for how to tell that apart from a query that stopped matching.",
+      "description": "Segmentation holding against the Skids segment specifically, in the same 10-minute window IoTAttemptedLateralMovement uses. The threshold line is that rule's 20-in-10-minutes. Sustained traffic here means something on VLAN 20 is repeatedly trying to leave it — identify the source address from the log line and decide whether it is misconfigured or compromised.\n\nEmpty is the normal state and the rule has never fired; see the leftmost panel for how to tell that apart from a query that stopped matching.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
         "h": 9,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 16,
         "y": 60
       },
       "fieldConfig": {
@@ -1456,8 +1576,8 @@
     },
     {
       "type": "logs",
-      "title": "Terminal-segment violations — passed to an internal network",
-      "description": "Every line behind the red series above. If this is not empty, either a firewall rule was changed or an interface was reassigned; treat it as a live segmentation failure rather than as noise. The source and destination addresses are in the line body.",
+      "title": "Segment violations — passed across a boundary",
+      "description": "Every line behind the red series above, both directions: a terminal VLAN reaching an internal segment, and the lab reaching any other segment. If this is not empty, either a firewall rule was changed or an interface was reassigned; treat it as a live segmentation failure rather than as noise. The source and destination addresses are in the line body.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -1485,7 +1605,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{app=\"filterlog\", action=\"pass\"} |~ `,10\\.0\\.(10|20|40)\\.[0-9]+,10\\.0\\.(30|50|99)\\.[0-9]+,`",
+          "expr": "{app=\"filterlog\", action=\"pass\"} |~ `,10\\.0\\.(10|20|40)\\.[0-9]+,(10\\.0\\.(30|50|99)|10\\.7\\.7)\\.[0-9]+,|,10\\.0\\.30\\.[0-9]+,(10\\.0\\.(10|20|40|50|99)|10\\.7\\.7)\\.[0-9]+,`",
           "queryType": "range",
           "refId": "A"
         }

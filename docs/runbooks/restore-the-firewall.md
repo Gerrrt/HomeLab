@@ -219,14 +219,20 @@ curl -s http://localhost:9090/api/v1/targets \
 #    legitimately log one day, and a count alone would then pass while a
 #    tripwire was missing.
 ssh root@10.0.99.1 'pfctl -sr | grep -cE \
-  "^pass in log quick on igc0\.(10|20|40) inet from <OPT[0-9]+__NETWORK> to <Internal_Segments>"'
-# expect exactly 3 — one per terminal interface
+  "^pass in log quick on igc0\.(10|20|30|40) inet from <OPT[0-9]+__NETWORK> to <(Internal_Segments|House_Segments)>"'
+# expect exactly 4 — one per terminal interface, plus the lab's (#234)
 
-# And that all three interfaces are represented, not one of them three times:
+# And that all four interfaces are represented, not one of them four times:
 ssh root@10.0.99.1 'pfctl -sr \
-  | sed -nE "s/^pass in log quick on (igc0\.(10|20|40)) .* to <Internal_Segments>.*/\1/p" \
+  | sed -nE "s/^pass in log quick on (igc0\.(10|20|30|40)) .* to <(Internal_Segments|House_Segments)>.*/\1/p" \
   | sort -u'
-# expect igc0.10, igc0.20, igc0.40
+# expect igc0.10, igc0.20, igc0.30, igc0.40
+
+# The lab's rule must point at House_Segments, not Internal_Segments: the
+# latter names 10.0.30.0/24 itself, and against it every DNS query from the lab
+# to its own gateway logs as a crossing.
+ssh root@10.0.99.1 'pfctl -sr | grep -E "^pass in log quick on igc0\.30 " | grep -c "<House_Segments>"'
+# expect 1
 ```
 
 > [!NOTE]
@@ -239,15 +245,19 @@ ssh root@10.0.99.1 'pfctl -sr \
 And once the denials are verified, verify the thing that watches them.
 
 > [!IMPORTANT]
-> Step 5 is the same trap one layer down. The three tripwire rules
-> ([#223](https://github.com/Gerrrt/HomeLab/issues/223)) are what let
-> `TerminalSegmentReachedInternalNetwork` fire at all: they are `pass` + `log`
-> rules for `<terminal net> → Internal_Segments` on `igc0.10`, `igc0.20` and
-> `igc0.40`, sitting below the block rules and above the `→ any` egress rule.
-> They log nothing while segmentation holds, so a restore that drops them looks
-> exactly like a restore that kept them — and the alert goes quietly back to
-> being unable to fire for any input. Re-add them before calling the restore
-> done.
+> Step 5 is the same trap one layer down. The four tripwire rules
+> ([#223](https://github.com/Gerrrt/HomeLab/issues/223),
+> [#234](https://github.com/Gerrrt/HomeLab/issues/234)) are what let
+> `TerminalSegmentReachedInternalNetwork` and `LabSegmentReachedInternalNetwork`
+> fire at all: they are `pass` + `log` rules for
+> `<terminal net> → Internal_Segments` on `igc0.10`, `igc0.20` and `igc0.40`,
+> and `<lab net> → House_Segments` on `igc0.30`, sitting below the block rules
+> and above the `→ any` egress rule. They log nothing while segmentation holds,
+> so a restore that drops them looks exactly like a restore that kept them — and
+> the alerts go quietly back to being unable to fire for any input. Re-add them
+> before calling the restore done. A restore older than 2026-09-06 also brings
+> back `Internal_Segments` without `10.7.7.0/24` and without the
+> `House_Segments` alias at all, so check the aliases, not only the rules.
 
 ---
 
@@ -297,7 +307,7 @@ and to write the answers back into §3.
    shell. Record which one worked and what it asked.
 4. After the reboot, at the console and then in the UI: every interface
    assigned with no assignment prompt, the rule count matching what
-   `make backup-firewall` printed for that export, the three tripwire rules
+   `make backup-firewall` printed for that export, the four tripwire rules
    from §4 step 5, and every DHCP scope present. The segmentation checks in §4
    need the rack and stay for the day.
 5. Write down the date, the pfSense version, the backup stamp, the time from
