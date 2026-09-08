@@ -127,13 +127,15 @@ SSH to the firewall, the enumerated passes from Hicks into management — are
 listed in [`network.md`](network.md) and in
 [ADR-0013](adr/0013-segment-access-as-implemented.md).
 
-**It does not hold for Hicks (50)**, and that is now the only IPv4 exception in
-the estate. Hicks blocks every other segment and then passes to `any`, so it
-reaches **all of ImaginationLAN** on every protocol and port. Nothing denies it,
-and what grants it is the catch-all rather than a decision about that segment —
-the one rule that names ImaginationLAN grants nothing the catch-all was not
-already granting. [#228](https://github.com/Gerrrt/HomeLab/issues/228) is where
-that gets decided.
+**It does not hold for Hicks (50)**, and since 2026-09-08 that is a decision
+rather than an omission. Hicks reaches management on a named list above a
+logged block, and reaches all of ImaginationLAN by a rule that says so — the
+lab is meant to be reachable from trusted workstations, and cannot be narrowed
+until the lab exists and its list does.
+[ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md) records
+both, and the two deviations it deliberately left in place: the lab rule is
+TCP-only, with the catch-all carrying the rest, and the DNS and NTP passes to
+`10.0.99.1` carry nothing because Hicks resolves at its own gateway.
 
 **The switch LAN was the other exception and is not any more.** Since 2026-09-02
 that interface carries six logged blocks — one per VLAN — above an egress rule

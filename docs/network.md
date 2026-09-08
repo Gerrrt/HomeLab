@@ -58,9 +58,10 @@ above CasaBonita, which the spectrum does not. Reasoning in
     50 to 99 is dropped, and the ten are enumerated in the Hicks notes below. It
     is not the only way into 99 — two host-scoped passes carry ImaginationLAN
     to `10.0.99.20`. Going the other
-    way, nothing blocks Hicks from ImaginationLAN, so the catch-all under those
-    rules still grants that segment entire —
-    [#228](https://github.com/Gerrrt/HomeLab/issues/228) owns that half.
+    way, Hicks reaches ImaginationLAN entire, by a TCP rule of its own and the
+    catch-all for the rest — decided, not inherited:
+    [ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)
+    records both halves, and why the lab stays open until the lab exists.
     [ADR-0013](adr/0013-segment-access-as-implemented.md) read the ruleset on
     2026-09-01, the day before the narrowing landed, and describes the wider
     state; it is left as written, per
@@ -222,13 +223,14 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   *Block access to Winterfell* now drops them. Narrower, not gone:
   `10.0.30.110` still has an explicit pass to both ports for `Saruman`'s Alloy
   agent, and nothing stops a host already on Winterfell.
-- **ImaginationLAN is still reached entire**, on every protocol and port,
-  because no rule blocks it and the catch-all below is reached.
-  [#228](https://github.com/Gerrrt/HomeLab/issues/228) is where that gets
-  decided. *Allow Hicks access to ImaginationLAN* now sits on **this** interface
-  — ADR-0013 found it on the ImaginationLAN interface, where a rule can never
-  match traffic that enters on Hicks — and grants nothing the catch-all was not
-  already granting.
+- **ImaginationLAN is reached entire**, on every protocol and port, by
+  decision: [ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)
+  keeps it open until the lab build produces the list of what a workstation
+  needs there. *Allow Hicks access to ImaginationLAN* now sits on **this**
+  interface — ADR-0013 found it on the ImaginationLAN interface, where a rule
+  can never match traffic that enters on Hicks — and is TCP-only, so the
+  catch-all below still carries UDP and ICMP to the lab. Widen it before any
+  block for private ranges lands above the catch-all.
 - The switch LAN is blocked apart from `10.7.7.2:80`, the switch's own web UI;
   the block below that pass is logged.
 

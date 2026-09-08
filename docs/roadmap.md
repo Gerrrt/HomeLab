@@ -15,35 +15,6 @@ issues intact. Nothing was summarised away.
 
 ## Security
 
-- **[#228](https://github.com/Gerrrt/HomeLab/issues/228) Decide whether Hicks
-  should reach all of Winterfell and ImaginationLAN.** **The Winterfell half was
-  answered on the firewall and never written down.** Read on `morpheus`
-  2026-09-04, `pfctl -sr` with the interface tables resolved: the Hicks tab
-  carries ten narrow passes into Winterfell — SSH, the pfSense management UI,
-  the resolver, NTP, ping, the wiki on both ports, Grafana, and `mjolnir`'s card
-  on both ports — above a logged *Block access to Winterfell*; a second logged
-  *Block access to LAN* sits under the pass to the switch's web UI; and only
-  then the catch-all. Nine of those passes and both blocks were created
-  2026-09-02, the day after ADR-0013 was written, which is why that ADR and
-  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)'s
-  aside about "a catch-all nobody wrote" both describe a ruleset one day out of
-  date. It is enforcing rather than decorative: the Winterfell block has dropped
-  22 packets, and the passes above it carry the real traffic — 834,283 through
-  *Allow SSH to Winterfell* alone — with only *Allow NTP* and *Allow HTTP to
-  Mjolnir* still at zero. `network.md` and both security documents described the
-  wider state until they were corrected against this read; the description is no
-  longer the outstanding part, the posture is.
-
-  **ImaginationLAN is the half still open.** No rule blocks it, so the catch-all
-  grants the segment entire, on every protocol and port. *Allow Hicks access to
-  ImaginationLAN* was recreated on the **Hicks** interface in the same batch —
-  ADR-0013's dead rule, fixed — where it matches at last and grants nothing the
-  catch-all was not already granting. What is left is to decide whether 30 gets
-  the treatment 99 just had, and to write down the treatment 99 got. Still worth
-  settling before [#102](https://github.com/Gerrrt/HomeLab/issues/102) and #95
-  add passes to this tab, though the reason has changed: not precedent, which
-  now exists, but position — this is an ordered list in which a pass below the
-  blocks does nothing.
 - **[#229](https://github.com/Gerrrt/HomeLab/issues/229) The switch LAN still
   carries pfSense's stock *Default allow LAN to any*.** `10.7.7.0/24` reaches
   every VLAN; `network.md` said "Nothing". Bounded by that segment holding only
@@ -712,6 +683,21 @@ them name the condition that would change the answer.
 
 ## Done
 
+- [x] **[#228](https://github.com/Gerrrt/HomeLab/issues/228) Decided: Hicks
+      reaches management on a named list, and reaches the lab entire.**
+      2026-09-08. [ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md).
+      Option 3 with the enumeration done: ten host- and port-scoped passes into
+      Winterfell — SSH, the pfSense UI, DNS, NTP, ping, the wiki, Grafana, the
+      UPS card — above a logged *Block access to Winterfell*, applied on
+      `morpheus` 2026-09-02 and read back for the ADR on 2026-09-08 (28 packets
+      dropped by the block, about two million passed by SSH alone). `50 → 30`
+      stays wholesale by a rule on the Hicks interface, because ADR-0014
+      consumes it and the list that would narrow it does not exist until the
+      lab does. Two deviations recorded rather than tidied: the lab pass is
+      TCP-only, and the DNS/NTP passes to `10.0.99.1` carry nothing. The
+      Winterfell half had been on the firewall for six days before any
+      document called it a decision — `architecture.md` still described the
+      catch-all — which is the gap this entry closes.
 - [x] **[#153](https://github.com/Gerrrt/HomeLab/issues/153) Decided: the
       documents stay hand-written, and are checked where the truth is.**
       2026-09-06. [ADR-0026](adr/0026-check-the-documents-where-the-truth-is.md).

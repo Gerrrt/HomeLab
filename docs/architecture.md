@@ -88,10 +88,11 @@ graph TB
 ```
 
 Everything reaches the internet. The dotted lines are the paths that cross a
-segment boundary. Trusted workstations reach all of management and all of the
-lab — wholesale, on every protocol and port, because the Hicks interface blocks
-the terminal segments and then passes to `any`; no rule grants that and none
-denies it ([#228](https://github.com/Gerrrt/HomeLab/issues/228)). The
+segment boundary. Trusted workstations reach management on a named list — SSH
+to every host, the firewall's UI, DNS, NTP, ping, the wiki, Grafana and the UPS
+card — above a logged block that drops the rest, and reach all of the lab by a
+rule that says so ([ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md), decided
+under [#228](https://github.com/Gerrrt/HomeLab/issues/228)). The
 observability host polls the iLO and the switch over SNMP, and each has a
 return path. Everything else is default deny. IoT, media and guest are
 terminal — traffic goes out, nothing comes back in. One path the diagram cannot
