@@ -44,8 +44,9 @@ compose.yaml               four services, one network, health-gated ordering
 .env.example               non-sensitive tunables — edit this, not .env
 prometheus/
   prometheus.yaml          four scrape jobs; no alerting block, no file_sd
-  rules/lab.rules.yaml     4 rules — this stack watching itself, nothing else
-  tests/lab.test.yaml      promtool unit tests; all four rules, firing + quiet
+  rules/lab.rules.yaml     7 rules — four for this stack watching itself,
+                           three for the domain ADR-0029 sized
+  tests/lab.test.yaml      promtool unit tests; all seven rules, firing + quiet
 loki/loki-config.yaml      single-binary, filesystem, 15-day retention, no ruler
 grafana/
   provisioning/            two datasources + dashboard provider
@@ -117,10 +118,13 @@ and their unit tests.
 What `make validate` still does **not** prove about this stack, in the order it
 matters:
 
-- **That it runs.** Nothing here has ever been deployed — the guest is [#262].
-  Every check is static: configs parse, images resolve, healthcheck binaries
-  exist inside their pinned images. None of it says the four services come up
-  and talk to each other.
+- **That it runs.** It has — `alexander` was built and this stack brought up
+  on 2026-09-05 ([#262]) — but nothing in `make validate` knows that. Every
+  check is static: configs parse, images resolve, healthcheck binaries exist
+  inside their pinned images. None of it says the four services come up and
+  talk to each other; that is
+  [`build-the-lab-guest.md`](../../docs/runbooks/build-the-lab-guest.md) §7,
+  by hand.
 - **That its Grafana serves.** `check_dashboard_roundtrip.sh` boots the pinned
   Grafana against the estate's dashboards; this stack has none to round-trip,
   so that check has nothing to say here.
