@@ -41,6 +41,9 @@ HOSTNAME_LABEL="$(hostname)"
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
+STDERR_FILE="$(mktemp)"
+trap 'rm -f "${STDERR_FILE}"' EXIT
+
 # `qm list` and `pct list` print a header and then fixed columns:
 #
 #       VMID NAME          STATUS     MEM(MB)  BOOTDISK(GB) PID
@@ -113,15 +116,44 @@ command -v qm >/dev/null 2>&1 \
   || die "no qm on this host — it is not a Proxmox VE node.
 This collector covers PVE hypervisors only; see the header."
 
-rows="$(qm list 2>/dev/null | parse_guest_list qemu)"
+# ZERO GUESTS AND A BROKEN `qm` MUST NOT LOOK THE SAME, and in the first version
+# of this they did. It ran on Saruman, `qm list` produced nothing, and the
+# collector reported homelab_guests_total=0 — a hypervisor that runs `alexander`
+# saying it runs nothing, with every indicator green. That is the exact silence
+# this collector exists to break, built into the collector.
+#
+# So the command's success is checked, and its HEADER is checked. `qm list`
+# always prints a VMID header, even with no guests; output without one is a
+# failure however it exited.
+qm_raw="$(qm list 2>"${STDERR_FILE}")"
+qm_rc=$?
+if ((qm_rc != 0)); then
+  detail="$(tr -d '\r' < "${STDERR_FILE}" | grep -v '^$' | tail -2 | paste -sd'; ' -)"
+  die "qm list failed (exit ${qm_rc})${detail:+ — ${detail}}
+Guest state cannot be read, which is NOT the same as this hypervisor having no
+guests — reporting zero here would hide a dead guest behind a green metric."
+fi
+if ! printf '%s\n' "$qm_raw" | grep -qE '^\s*VMID'; then
+  die "qm list produced no VMID header, so its output was not understood:
+${qm_raw:-<empty>}
+Refusing to report a guest count from output this does not recognise."
+fi
+
+rows="$(printf '%s\n' "$qm_raw" | parse_guest_list qemu)"
 if command -v pct >/dev/null 2>&1; then
-  rows="${rows}
-$(pct list 2>/dev/null | parse_guest_list lxc)"
+  # Containers are optional: a PVE node with none still exits 0 with a header,
+  # and a pct that fails is not a reason to lose the VM half.
+  pct_raw="$(pct list 2>/dev/null)"
+  if printf '%s\n' "$pct_raw" | grep -qE '^\s*VMID'; then
+    rows="${rows}
+$(printf '%s\n' "$pct_raw" | parse_guest_list lxc)"
+  fi
 fi
 rows="$(printf '%s\n' "$rows" | grep -v '^$' || true)"
 
-# No guests is a legitimate answer and must not look like a broken collector, so
-# the marker below is emitted either way and the count can be zero.
+# Zero guests IS a legitimate answer — but only now that it can be told apart
+# from a failure, which is what the checks above buy. The marker is emitted
+# either way so absence means the collector stopped, not that the host is idle.
 emit() {
   printf '# HELP homelab_guest_running 1 when this hypervisor guest is running.\n'
   printf '# TYPE homelab_guest_running gauge\n'
