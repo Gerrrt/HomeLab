@@ -43,9 +43,11 @@ un-silenced by hand at the right moment.**
 > something that did not happen. Harmless today; wrong in four years, when it is
 > the only record of how old the pack is.
 >
-> The shelf and the switch move (step 2, items 1–4) were not done, so
-> [#110](https://github.com/Gerrrt/HomeLab/issues/110) is untouched and
-> `prometheus` and `oracle` still go deaf on a mains cut.
+> The shelf and the switch move (step 2, items 1–3) were not done that day;
+> they were done on 2026-09-08, which closed
+> [#110](https://github.com/Gerrrt/HomeLab/issues/110): the TP-Link is in U4
+> on a UPS-fed outlet, and `prometheus` and `oracle` keep their network on a
+> mains cut.
 >
 > **One thing to do differently next time.** The silence was deleted at 23:14
 > UTC — *after* the 22:45 self-test, not before it. It cost nothing here because

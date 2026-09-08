@@ -145,7 +145,10 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   Ubuntu Server on it, which is exactly the sort of hardware a homelab should be
   built from.
 - Port 3 of the main switch feeds an 8-port unmanaged switch[^tp-linkswitch]
-  that `prometheus` and `oracle` hang off.
+  that `prometheus` and `oracle` hang off. Since 2026-09-08 it sits on the U4
+  shelf and draws from a UPS-fed outlet, so on a mains cut the two laptops keep
+  their network as well as their batteries
+  ([#110](https://github.com/Gerrrt/HomeLab/issues/110)).
 - pfSense's admin UI is reachable on this interface from Hicks only, by a
   named pass to `10.0.99.1:443`. Winterfell itself is blocked from it: the 99
   interface drops HTTP and HTTPS to `10.0.99.1` above its egress rule.
