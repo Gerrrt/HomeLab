@@ -23,8 +23,14 @@ The one job that genuinely proves off-host recoverability is
 a timer: [`verify-key-backup.sh`](../../scripts/verify-key-backup.sh) refuses the
 live key by device and inode, precisely so that what gets tested is a copy on
 removable media. No timer can mount that. So it is enforced from the other end —
-a successful run records its timestamp, and `SecretsKeyBackupUnproven` fires when
-that proof passes ninety days old.
+a successful run records its timestamp against the recipient it proved, and
+`SecretsKeyBackupUnproven` fires when that proof passes ninety days old. The
+`recipient-state` timer is what makes that series exist at all: it writes one
+row per recipient every day, carrying proofs forward and setting none, because
+a host that had proved its key before the per-recipient series existed had
+nothing else that would ever write it, and the nag was silent for as long as
+that lasted ([#400](https://github.com/Gerrrt/HomeLab/issues/400)).
+`SecretsKeyRecipientsUnrecorded` fires if the file is missing anyway.
 
 One job's output leaves this host: `backup-firewall` copies every export to
 `oracle` and **fails if it cannot**, so its `ScheduledJobFailed` also means "the
@@ -65,6 +71,8 @@ the host.
 | `smart-state` | `make smart-state` | daily 08:30 | 2 days |
 | `smart-state-remote` | `make smart-state-remote` | daily 08:45 | 2 days |
 | `pkg-state` | `make pkg-state` | daily 09:00 | 2 days |
+| `recipient-state` | `make recipient-state` | daily 09:15 | 2 days |
+| `gateway-state` | `make gateway-state` | every 15 minutes | 90 minutes |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
@@ -517,6 +525,7 @@ expected rather than a second fault.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` until you first verify the key. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `SecretsKeyRecipientsUnrecorded` | The ninety-day deadline is declared and no recipient has a proof series, so `SecretsKeyBackupUnproven` cannot fire however stale the proof is | `systemctl start homelab-recipient-state.service`. If that unit does not exist the timers predate [#400](https://github.com/Gerrrt/HomeLab/issues/400): `make install-timers` adds it and primes it. On a host with one recipient the first write inherits the old `verify-key-backup` proof rather than starting from never |
 | `ScheduledJobMetricsAbsent` | Nothing from the textfile directory has reached Prometheus in six hours | This is the whole directory, not one file — check Alloy is up and the directory still exists. A single malformed file shows as `node_textfile_scrape_error 1` and costs only that file |
 | One job's series missing, `node_textfile_scrape_error` is 1 | That job's `.prom` failed to parse — a truncated write, or something wrote it without the temp-then-rename | The other files are unaffected. Re-run the job; if it recurs, something is writing the file directly instead of through `run-scheduled.sh` |
 | Every `homelab_job_*` series missing, no scrape error | The `textfile` block in `config.alloy` is not reading the right path | It must carry the `ALLOY_ROOTFS` prefix (`/rootfs` in the container). `rootfs_path` does **not** apply to that argument, and a wrong path reports an empty directory rather than an error |
@@ -532,7 +541,7 @@ expected rather than a second fault.
 | `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |
-| `ScheduledJobMetricsAbsent` fires and nothing else in `backup.rules.yaml` ever has | This step was never run at all | `systemctl list-unit-files 'homelab*'` reports *0 unit files* and `/var/lib/node_exporter/textfile_collector` does not exist. The four other rules here join against a series `--install` writes, so none of them can fire — that alert is the only one that can, and it is doing its job ([#215](https://github.com/Gerrrt/HomeLab/issues/215)). Run `make install-timers` |
+| `ScheduledJobMetricsAbsent` fires and nothing else in `backup.rules.yaml` ever has | This step was never run at all | `systemctl list-unit-files 'homelab*'` reports *0 unit files* and `/var/lib/node_exporter/textfile_collector` does not exist. The other rules here join against a series `--install` writes, so none of them can fire — that alert is the only one that can, and it is doing its job ([#215](https://github.com/Gerrrt/HomeLab/issues/215)). Run `make install-timers` |
 | `converge` fails every hour with a signature error | GitHub's signing key was never imported into `robo`'s keyring, so nothing on this host can verify | The one-time import in [`converge-the-host.md`](converge-the-host.md) §Set it up. Every other job here is unaffected |
 | `refusing to install from …` | You are in a worktree or a second clone | The units hardcode the deployment path. Install from `/home/robo/code/Gerrrt/HomeLab` |
 | `make validate` fails on the schedule | A cadence and its threshold disagree | `make check-timers` names the job and both numbers. Fix the `JOBS` table or the `.timer`, not the alert |

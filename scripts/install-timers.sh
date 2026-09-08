@@ -102,6 +102,15 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # touching this table, which is the same property every other rule in
 # backup.rules.yaml has and the reason none of them name a job.
 #
+# recipient-state is what makes that series exist (#400). key-recipients.sh
+# used to be run only by a human proof and by add-recipient.sh, so a host that
+# had proved its key before ADR-0024 landed never wrote the per-recipient file
+# at all — and SecretsKeyBackupUnproven, which reads only that file, went quiet
+# the day it was deployed. This row writes the file daily, carrying every
+# existing proof forward and setting none; the priming loop below writes it at
+# install time. SecretsKeyRecipientsUnrecorded is the rule that notices when
+# the file is missing anyway.
+#
 # converge is the only hourly row, and the only one whose threshold is three
 # times its period rather than two. It shares the `backups` lock with the two
 # backup jobs, so a run that collides with the weekly archive can legitimately
@@ -123,6 +132,7 @@ JOBS=(
   "smart-state       homelab-smart-state         172800  smart-state"
   "smart-state-remote homelab-smart-state-remote 172800  smart-state-remote"
   "pkg-state         homelab-pkg-state           172800  pkg-state"
+  "recipient-state   homelab-recipient-state     172800  recipient-state"
   "gateway-state     homelab-gateway-state         5400  gateway-state"
   "verify-key-backup -                          7776000  secrets-verify-backup"
 )
@@ -468,3 +478,4 @@ green "installed — systemctl list-timers 'homelab-*'"
 info "backup-volumes was NOT primed: it stops the stack. Run it when you can watch:"
 info "  sudo systemctl start homelab-backup-volumes.service"
 info "verify-key-backup has no timer and never will — docs/runbooks/back-up-the-age-key.md"
+info "recipient-state was primed, so SecretsKeyBackupUnproven has a series per recipient to read (#400)"

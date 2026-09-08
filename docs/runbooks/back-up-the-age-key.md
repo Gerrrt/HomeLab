@@ -205,9 +205,23 @@ removable media, and no timer can mount that.
 So it is enforced from the other end. `make secrets-verify-backup` records the
 timestamp of a successful run **against the recipient it just proved**, and
 `SecretsKeyBackupUnproven` fires when any recipient's proof passes ninety days
-old — routed to the normal alert channel like any other warning. Until the first
-verification there is no timestamp at all and `ScheduledJobNeverRan` says so
-instead, which is the honest reading of a key backup nobody has ever tested.
+old — routed to the normal alert channel like any other warning. A recipient
+that has never been proved is recorded as `0`, so it fires with an absurd age
+rather than being invisible, which is the honest reading of a key backup nobody
+has ever tested.
+
+That record has to exist for any of it to work, and until
+[#400](https://github.com/Gerrrt/HomeLab/issues/400) nothing guaranteed it did:
+the per-recipient series was written only by a proof run or by adding a
+recipient, so a host that had proved its key *before* the series was invented
+never wrote it, and the nag was silent from the day it was deployed. The
+`recipient-state` timer now writes the recipient list every day — carrying every
+existing proof forward and setting none, since it never touches a key — and
+`SecretsKeyRecipientsUnrecorded` fires if the deadline is declared and the file
+is missing anyway. On a host with exactly one recipient, the first write
+inherits the pre-ADR-0024 proof from the old `verify-key-backup` series rather
+than starting from never; with more than one, the old series cannot say which
+key it was, and every recipient starts at `0`.
 
 The per-recipient part is [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
 and it only starts to matter once there is more than one. With one recipient

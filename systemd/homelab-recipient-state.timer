@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeLab: daily age recipient record
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/back-up-the-age-key.md
+
+[Timer]
+Unit=homelab-recipient-state.service
+# 09:15 daily, last of the morning collectors, a quarter-hour after pkg-state.
+# It reads a committed file and writes one small .prom; the slot only has to
+# not coincide with anything that stops the stack.
+OnCalendar=*-*-* 09:15:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

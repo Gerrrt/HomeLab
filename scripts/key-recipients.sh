@@ -30,6 +30,23 @@
 # "never proved" and "not proved lately" are one alert — the same choice
 # run-scheduled.sh makes and for the same reason.
 #
+# WHO RUNS --record. verify-key-backup.sh after a proof (with --proved),
+# add-recipient.sh after a re-key, and — since #400 — the recipient-state timer
+# every day with neither. That last caller is what guarantees the file exists:
+# the first two only run when a human does something, and a host that proved
+# its key before this script existed had nothing that would ever write it, so
+# the alert that reads it was silent from the day it was deployed.
+#
+# THE FIRST WRITE CARRIES THE OLD PROOF OVER. Before ADR-0024 the only record of
+# a proof was homelab_job_last_success_timestamp_seconds{homelab_job=
+# "verify-key-backup"}, one series whichever key was mounted. With exactly one
+# recipient that series IS that recipient's proof — the ADR says so — so when
+# this file is written for the first time on a host with one recipient and an
+# old proof, the recipient inherits that timestamp rather than starting at 0.
+# Anything else would turn a proof that happened into an alert saying it never
+# did. With two or more recipients the old series cannot say which key it was,
+# and every recipient starts at 0, which is the ADR's own reading.
+#
 # Usage:
 #   scripts/key-recipients.sh --list [--stack <name>]
 #   scripts/key-recipients.sh --record [--stack <name>] [--proved <age1...>]
@@ -140,6 +157,20 @@ prior_for() {
   ' "${PROM}"
 }
 
+# The pre-ADR-0024 proof, read from the job series run-scheduled.sh wrote for
+# the human run. Only consulted on the first write of this file, and only when
+# there is exactly one recipient; see the header.
+legacy_proof() {
+  local f="${TEXTFILE_DIR}/verify-key-backup.prom"
+  [[ -r "${f}" ]] || { printf '0'; return; }
+  awk '
+    $1 ~ /^homelab_job_last_success_timestamp_seconds\{/ { value = $NF }
+    END { print (value ~ /^[0-9]+$/) ? value : "0" }
+  ' "${f}"
+}
+first_write=1
+[[ -r "${PROM}" ]] && first_write=0
+
 # Every recipient of every stack shares one file, because node_exporter merges
 # the directory and a metric name may carry only one HELP string across it. A
 # second stack writing its own file would collide on that, not on the series.
@@ -160,6 +191,10 @@ tmp="${PROM}.$$"
       ts="${NOW}"
     else
       ts="$(prior_for "${recipient}")"
+      if ((first_write)) && ((${#RECIPIENTS[@]} == 1)) && [[ "${ts}" == "0" ]]; then
+        ts="$(legacy_proof)"
+        [[ "${ts}" != "0" ]] && warn "first write: ${recipient} inherits the pre-ADR-0024 proof at ${ts} from verify-key-backup.prom"
+      fi
     fi
     printf 'homelab_key_recipient_last_proof_timestamp_seconds{stack="%s",recipient="%s"} %s\n' \
       "${STACK}" "${recipient}" "${ts}"

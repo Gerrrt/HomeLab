@@ -310,6 +310,16 @@ pkg-state: ## Collect package state from morpheus over SSH (FreeBSD, runs as rob
 	@# `pfSense-upgrade -c`, whose output has no format contract.
 	./scripts/collect-pkg-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
 
+.PHONY: recipient-state
+recipient-state: ## Record which age recipients can open the secrets, and when each was proved (#400)
+	@# Reads the recipient list out of the encrypted file's own metadata and
+	@# writes one series per recipient into the textfile dir, carrying every
+	@# existing proof timestamp forward and setting none. Needs no key: the
+	@# `sops:` block is plaintext. This is what SecretsKeyBackupUnproven reads;
+	@# without it a host that proved its key before ADR-0024 has no series and
+	@# the ninety-day nag is silent. secrets-verify-backup is what sets a proof.
+	./scripts/key-recipients.sh --record --stack $(STACK)
+
 .PHONY: smart-state-remote
 smart-state-remote: ## Collect SMART health from morpheus over SSH (runs as robo)
 	@# morpheus is FreeBSD with no node_exporter and no textfile directory, but
