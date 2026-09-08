@@ -78,9 +78,17 @@ services:
       # against a single mirrored pair of 7.2K disks. The fleet is sized
       # against spindles, not RAM." This volume shares those two spindles with
       # a Windows domain (#265), Wazuh's OpenSearch indexer (#266),
-      # Velociraptor (#267) and PBS (#268) — and Wazuh is the one expected to
-      # be what actually runs out. So this starts small and is meant to be
-      # re-derived, not defended.
+      # Velociraptor (#267) and PBS (#268). So this starts small and is meant to
+      # be re-derived, not defended.
+      #
+      # Two of those now have numbers, and both moved. ADR-0029 puts six Windows
+      # guests here, and found that what binds is not capacity but ~90 random
+      # write IOPS on a 7.2K mirror — which is why its four servers run
+      # continuously and its two endpoints run per session. ADR-0030 sized
+      # Wazuh and corrected the expectation above: six agents make roughly
+      # 21 GB of alerts a quarter, which these disks would not notice. What runs
+      # out there is heap-per-shard, not disk. Wazuh is still the heaviest thing
+      # arriving; it is not going to be the thing that fills this pair.
       #
       # Re-derive it the way the estate's was, once the domain exists and this
       # has run for a fortnight:
@@ -112,16 +120,24 @@ services:
       # browser on Hicks to trust, for no gain.
       - ../../certificates/ca.pem:/etc/prometheus/tls/ca.pem:ro
       - prometheus-data:/prometheus
-    # No `ports:` — deliberately, and this is the line to change when #265
-    # lands. ADR-0012 publishes a port only when something OFF this host uses
-    # it, and today nothing does: the only client is Alloy, on this compose
-    # network. When the Windows endpoints and the Wazuh host get agents they
-    # become real off-host clients, and this becomes:
+    # No `ports:` — and #265 has now landed WITHOUT changing this, which is the
+    # opposite of what this comment used to predict. It said the Windows
+    # endpoints would become off-host clients and push here. ADR-0029 decided
+    # they are scraped instead: this Prometheus dials out to windows_exporter on
+    # six addresses on its own segment, and nothing dials in.
+    #
+    # The reason is the sentence this comment already contained. Publishing it
+    # opens an unauthenticated remote-write receiver on the segment that exists
+    # to hold attackers — and a remote-write receiver is not read-only, so it is
+    # also a delete-series API pointed at the lab's own evidence. Waiting for a
+    # consumer turned out to be the wrong question; the right one was which
+    # direction the connection travels, because that is the control.
+    #
+    # #266's Wazuh guest is the case that will genuinely need this, since Alloy
+    # pushes and there is no scrape alternative for it. That is ADR-0030's port
+    # to open and ADR-0030's argument to make, and the block it wants is:
     #   ports:
     #     - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
-    # Publishing it now would open an unauthenticated remote-write receiver on
-    # the segment that exists to hold attackers, months before anything pushes
-    # to it — "a rule nobody can test", in the shape SECURITY.md keeps finding.
     expose:
       - "9090"
     healthcheck:
@@ -153,7 +169,10 @@ services:
     # the liveness question in #257, not something to half-wire here.
     #
     # Not published, for the same reason as prometheus above: Alloy is the only
-    # client and it is on this network. #265 is when that stops being true.
+    # client and it is on this network. #265 was expected to be when that
+    # stopped being true and was not — the domain is scraped, and it ships no
+    # logs here at all, because Windows Event Log is #266's to collect. If some
+    # of it should also land in this Loki, that is #266's argument to make.
     expose:
       - "3100"
 

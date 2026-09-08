@@ -25,6 +25,11 @@ rule_files:
 # died looks exactly like a lab nobody is using. Adding an alertmanagers: block
 # pointed at 10.0.99.20 would "fix" that by opening the remote-write path
 # ADR-0007 exists to refuse. Whatever #257 settles goes outside this file.
+#
+# ADR-0028 settled it, and outside this file is exactly where it landed: the
+# estate reads guest RUN STATE from `qm` on the hypervisor, so it now sees this
+# guest stop. It still cannot see this Prometheus stop while the guest runs,
+# which is the half that keeps the paragraph above true.
 
 scrape_configs:
   # ---------------------------------------------------------------------------
@@ -63,6 +68,68 @@ scrape_configs:
 # polling them from here as well would be two stacks scraping one device and
 # two answers to "when did it last respond".
 #
-# No remote-write job list either. Agents on the lab's guests do not need one:
-# they push, and a pushed series appears without a target to edit. That is
-# #265's work, and it needs the ports: block in compose.yaml opened first.
+# ---------------------------------------------------------------------------
+# ADR-0029's domain. Uncomment the block below once the six guests exist and
+# windows_exporter is installed on them — build-the-lab-domain.md §8 is the
+# step, and §9 is the check that it is collecting rather than merely running.
+#
+# It lands commented rather than live because a scrape job pointed at six
+# machines that do not exist yields `up == 0` on every one of them, and
+# InstanceDown would fire permanently from the moment this file deployed. That
+# is the shape ADR-0017 refuses by name — "every rule watching it would be
+# permanently firing or permanently silenced" — and it is why the RULES in
+# rules/lab.rules.yaml land live while this does not: promtool proves a rule can
+# fire against synthetic series without needing a machine to exist.
+#
+#   - job_name: windows
+#     static_configs:
+#       - targets: ["10.0.30.50:9182"]
+#         labels: {instance: bahamut, role: dc}
+#       - targets: ["10.0.30.51:9182"]
+#         labels: {instance: leviathan, role: dc}
+#       - targets: ["10.0.30.52:9182"]
+#         labels: {instance: titan, role: member}
+#       - targets: ["10.0.30.53:9182"]
+#         labels: {instance: ramuh, role: member}
+#       - targets: ["10.0.30.54:9182"]
+#         labels: {instance: carbuncle, role: endpoint}
+#       - targets: ["10.0.30.55:9182"]
+#         labels: {instance: siren, role: endpoint}
+#
+# `instance` is set explicitly because the default is the address, and an alert
+# reading "10.0.30.53:9182 has fallen back to its own CMOS clock" is one more
+# lookup than a person mid-incident should have to do.
+#
+# `role` is not decoration. It is what lets InstanceDown exclude the endpoints,
+# which ADR-0029 runs PER SESSION and which are therefore correctly off most of
+# the time; and what scopes the two clock rules to the domain controllers, where
+# members reading NT5DS are behaving properly. Written as a hostname regex
+# instead, all three rules would need editing to add a third DC.
+#
+# ---------------------------------------------------------------------------
+# Scraped, and NOT pushed — which reverses what this file used to say.
+# ---------------------------------------------------------------------------
+#
+# The previous version of this comment said the domain's agents would push, and
+# that #265 "needs the ports: block in compose.yaml opened first". ADR-0029
+# decided the other way, for four reasons:
+#
+#   1. A published remote-write receiver on VLAN 30 is unauthenticated, on the
+#      segment ADR-0014 deliberately fills with attackers. security.md already
+#      calls the estate's published ingest ports a real residual — but there
+#      "anything that can reach them" is a host inside Winterfell, and here it
+#      is a Kali VM sharing the broadcast domain, handed a delete-series API
+#      pointed at the lab's own evidence. The direction the connection travels
+#      is the control.
+#   2. The property architecture.md cites for preferring remote-write does not
+#      hold here. There is no target list to maintain — it is six addresses
+#      fixed by an ADR — and no firewall hole to avoid, because this guest and
+#      the domain share a segment.
+#   3. config.alloy does not port to Windows. It uses prometheus.exporter.unix,
+#      loki.source.journal and file tails of /var/log/auth.log and
+#      /var/log/syslog. ADR-0007's "reused unchanged" is true for this guest and
+#      cannot be true there, so an Alloy path means a third agent config for
+#      machines whose security telemetry is #266's job anyway.
+#   4. Loki's push endpoint stays closed for the same reasons. Windows Event Log
+#      belongs to #266, and if some of it should also land here, that is #266's
+#      port to open and #266's argument to write.
