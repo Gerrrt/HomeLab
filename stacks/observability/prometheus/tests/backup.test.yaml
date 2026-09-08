@@ -92,11 +92,43 @@ tests:
       # And SecretsKeyBackupUnproven does not fire off the JOB series either.
       # It reads the per-recipient series and nothing else, so a host where
       # verify-key-backup has run but key-recipients.sh has not written its file
-      # is covered by ScheduledJobNeverRan, not by a rule that would have to
-      # invent a recipient label it does not have.
+      # gets nothing from it. This case used to say ScheduledJobNeverRan covered
+      # that state; it cannot, because the job series exists — that is #400, and
+      # the next two assertions are the rule that does cover it.
       - eval_time: 2h30m
         alertname: SecretsKeyBackupUnproven
         exp_alerts: []
+
+      # --- SecretsKeyRecipientsUnrecorded: silent inside its `for` ------------
+      - eval_time: 30m
+        alertname: SecretsKeyRecipientsUnrecorded
+        exp_alerts: []
+
+      # --- SecretsKeyRecipientsUnrecorded: the #400 state -------------------
+      #
+      # The deadline row is declared, the job series says a proof happened, and
+      # no per-recipient series exists. Before this rule, nothing fired here.
+      - eval_time: 2h30m
+        alertname: SecretsKeyRecipientsUnrecorded
+        exp_alerts:
+          - exp_labels:
+              alertname: SecretsKeyRecipientsUnrecorded
+              homelab_job: verify-key-backup
+              instance: prometheus
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The age-key deadline is declared but no recipient has a proof series to hold to it"
+              description: >-
+                scripts/install-timers.sh declared the ninety-day deadline for
+                verify-key-backup and nothing has written
+                homelab_key_recipient_last_proof_timestamp_seconds, so
+                SecretsKeyBackupUnproven has nothing to read and cannot fire
+                however stale the proof is. `systemctl start
+                homelab-recipient-state.service` writes it; if that unit does
+                not exist, the timers predate #400 and `make install-timers`
+                adds it. docs/runbooks/back-up-the-age-key.md.
 
   # --- SecretsKeyBackupUnproven: one alert per recipient --------------------
   #
@@ -138,6 +170,15 @@ tests:
                 Proving a DIFFERENT recipient does not clear this one. Get that
                 copy out and run `make secrets-verify-backup KEY=<path>`:
                 docs/runbooks/back-up-the-age-key.md.
+
+      # --- SecretsKeyRecipientsUnrecorded: silent once the file exists --------
+      #
+      # The paired case for the #400 assertion above: the same declaration row,
+      # and this time the per-recipient series is present, so the "no series"
+      # rule has nothing to say even though one recipient is unproved.
+      - eval_time: 2h30m
+        alertname: SecretsKeyRecipientsUnrecorded
+        exp_alerts: []
 
   # --- ScheduledJobFailed: fires on non-zero, silent on zero ---------------
   - interval: 1m

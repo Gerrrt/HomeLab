@@ -304,7 +304,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-94 rules in total: 77 metric-based in `prometheus/rules/`, and 17 log-based in
+95 rules in total: 78 metric-based in `prometheus/rules/`, and 17 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -411,7 +411,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-77 rules across eleven files in `prometheus/rules/`:
+78 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -423,7 +423,7 @@ argument and for what to do when it exits 1.
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http. The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense — a probe sent down the normal resolver path always passes, because Unbound's fallback is doing its job. [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) made losing the filter silent on purpose, and these two rules are what distinguishes "this site was never on a list" from "AdGuard has been dead for three weeks". Warning, not critical: nothing is down and nobody is blocked. The targets are written into `targets/blackbox-dns.yaml` and left disabled until [#102](https://github.com/Gerrrt/HomeLab/issues/102) builds the mini PC ([#126](https://github.com/Gerrrt/HomeLab/issues/126)) |
-| `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, and never-ran |
+| `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, and whether the age-key proof record exists to be held to its deadline |
 | `deploy.rules.yaml` | Whether this host is running what the repository says — an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` the host is. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the process metric `security.rules.yaml` says a log rule cannot be ([#90](https://github.com/Gerrrt/HomeLab/issues/90)) |
 
@@ -434,11 +434,11 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is fifty-six rules of 77 so far — the five
+against the broken rule too. Coverage is fifty-seven rules of 78 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
-[#76](https://github.com/Gerrrt/HomeLab/issues/76), all five in
+[#76](https://github.com/Gerrrt/HomeLab/issues/76), all six in
 `backup.test.yaml`, all five in `deploy.test.yaml`, `RemoteWriteJobStale`,
 `SuricataStopped`, the two gateway rules from
 [#353](https://github.com/Gerrrt/HomeLab/issues/353), and all eighteen in
@@ -593,10 +593,11 @@ a textfile the node exporter already scrapes:
 
 The threshold each job is held to is a *fifth* series,
 `homelab_job_max_age_seconds`, written by `scripts/install-timers.sh` from the
-same table that decides the cadence. That is what lets the five rules in
-`prometheus/rules/backup.rules.yaml` cover every job without naming any of them,
-and what makes `make check-timers` able to assert that a threshold is at least
-twice its timer's real period.
+same table that decides the cadence. That is what lets the rules in
+`prometheus/rules/backup.rules.yaml` cover every job without naming any of them
+— the two that do name one both concern `verify-key-backup`, the human proof,
+below — and what makes `make check-timers` able to assert that a threshold is
+at least twice its timer's real period.
 
 Two things are deliberate and easy to undo by accident:
 
@@ -628,6 +629,17 @@ as it always has. One output does leave: `backup-firewall` copies each export
 to `oracle` and fails if it cannot, so its failure alert doubles as "the config
 has stopped leaving this host". The volume sets do not leave; that is
 [#92](https://github.com/Gerrrt/HomeLab/issues/92).
+
+That series has to exist for the nag to mean anything, and for four days it did
+not ([#400](https://github.com/Gerrrt/HomeLab/issues/400)): it was written only
+by a proof run or by adding a recipient, and this host had proved its key before
+the series was invented, so the rule went quiet the day it was deployed while
+the fallback it named — `ScheduledJobNeverRan` — was satisfied by the old proof.
+The `recipient-state` timer now writes the recipient list daily, carrying proofs
+forward and setting none, and `SecretsKeyRecipientsUnrecorded` fires when the
+deadline row exists and the recipient series does not — an `unless` against the
+declaration row, not an `absent()`, so it carries labels like every other rule
+in the file.
 
 Installing, tuning and troubleshooting all of it:
 [`runbooks/schedule-maintenance.md`](runbooks/schedule-maintenance.md).

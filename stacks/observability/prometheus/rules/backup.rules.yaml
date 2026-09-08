@@ -22,7 +22,9 @@
 # JOBS table that also decides the cadence, so a threshold and a schedule cannot
 # drift apart. It also means NO RULE HERE NAMES A JOB: adding a timer is a row in
 # that table, not an edit to this file. That is deliberate — a rule file listing
-# job names is a list that silently stops growing.
+# job names is a list that silently stops growing. The two rules at the bottom
+# are the one exception, and they name the one job that is not a timer:
+# verify-key-backup, the human proof, whose deadline is applied per recipient.
 #
 # That claim has since been tested rather than merely asserted. #99 added
 # `converge`, an hourly job on a different cadence to everything above, and
@@ -37,8 +39,10 @@
 # "declared but never ran" would need one rule per job with the name hardcoded —
 # exactly the list this file is avoiding — and it reacts to a single missed
 # scrape. `unless on(homelab_job)` against the declaration series says the same
-# thing generically. absent_over_time appears once, at the bottom, for the one
-# question that genuinely has no series to join against.
+# thing generically. absent_over_time appears once, in ScheduledJobMetricsAbsent,
+# for the one question that genuinely has no series to join against. Even the
+# per-recipient file being missing (#400) is asked as an `unless` against the
+# verify-key-backup declaration row rather than as an absent().
 groups:
   - name: backup
     interval: 60s
@@ -195,9 +199,14 @@ groups:
         #
         # A recipient that has never been verified is recorded as 0, not omitted,
         # so it fires here with an absurd duration rather than being invisible.
-        # ScheduledJobNeverRan still speaks for the case before ANY verification
-        # has happened, because key-recipients.sh has not written its file yet
-        # and there are no per-recipient series to fire on.
+        #
+        # That only holds once key-recipients.sh has written its file. This rule
+        # used to claim ScheduledJobNeverRan covered the time before that, and it
+        # does not: NeverRan looks for the JOB series, and a host that proved its
+        # key before ADR-0024 has one — so the fallback was satisfied, this rule
+        # had no left side, and the deadline went unwatched from the day it was
+        # deployed (#400). SecretsKeyRecipientsUnrecorded, below, is the rule
+        # for that state, and the recipient-state timer is what ends it.
         expr: |
           (time() - homelab_key_recipient_last_proof_timestamp_seconds)
             > on(instance) group_left() homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
@@ -215,3 +224,43 @@ groups:
             DIFFERENT recipient does not clear this one. Get that copy out and
             run `make secrets-verify-backup KEY=<path>`:
             docs/runbooks/back-up-the-age-key.md.
+
+      - alert: SecretsKeyRecipientsUnrecorded
+        # The deadline is declared and nothing can be held to it. install-timers
+        # writes the verify-key-backup threshold row; key-recipients.sh writes
+        # the per-recipient series SecretsKeyBackupUnproven compares against it.
+        # If the first exists and the second does not, the ninety-day nag has
+        # no left side and is silent — which is exactly what #400 found: the
+        # host had proved its key under the old single series, ADR-0024 moved
+        # the rule onto a file nothing had yet written, and the fallback that
+        # rule named was satisfied by the old proof.
+        #
+        # An `unless` against the declaration row and not absent(), for the
+        # reason the header gives: absent() would have to invent the labels,
+        # and this way the alert carries homelab_job and instance like every
+        # other rule here. It is keyed on one job by name, which the header
+        # also explains — verify-key-backup is the one job that is not a timer.
+        #
+        # Since #400 the recipient-state timer writes the file daily and the
+        # installer primes it, so in steady state this cannot fire. It fires
+        # for a host installed before that timer existed, for a file removed
+        # from the textfile directory, and for a recipient-state job that has
+        # never run — the last of which ScheduledJobNeverRan also names.
+        expr: |
+          homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
+            unless on(instance) homelab_key_recipient_last_proof_timestamp_seconds
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The age-key deadline is declared but no recipient has a proof series to hold to it"
+          description: >-
+            scripts/install-timers.sh declared the ninety-day deadline for
+            verify-key-backup and nothing has written
+            homelab_key_recipient_last_proof_timestamp_seconds, so
+            SecretsKeyBackupUnproven has nothing to read and cannot fire however
+            stale the proof is. `systemctl start homelab-recipient-state.service`
+            writes it; if that unit does not exist, the timers predate #400 and
+            `make install-timers` adds it. docs/runbooks/back-up-the-age-key.md.

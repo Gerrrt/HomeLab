@@ -1,0 +1,52 @@
+# Daily record of which age recipients can open the secrets, and when each was
+# last proved to (#400).
+#
+# WHY A TIMER WRITES A FILE THAT A HUMAN RUN ALREADY WRITES. ADR-0024 moved
+# SecretsKeyBackupUnproven from the verify-key-backup job series onto one series
+# per recipient, and scripts/key-recipients.sh writes those — but only when
+# called, and until this unit existed it was called by exactly two things: a
+# human proving a key from removable media, and add-recipient.sh. On a host that
+# had proved its key BEFORE the per-recipient series existed, neither ran again,
+# the file was never written, and the ninety-day alert had nothing to read while
+# the fallback it named (ScheduledJobNeverRan) was satisfied by the old proof.
+# Silent, and wrong in the direction that looks clean. This unit is the
+# unconditional statement: the recipient list exists on disk every day, whether
+# or not anyone has mounted a key lately.
+#
+# Needs no root, no network and no private key. key-recipients.sh reads the
+# recipient list out of the plaintext `sops:` metadata of the encrypted file and
+# carries every existing proof timestamp forward; it never decrypts anything and
+# never sets a timestamp of its own except through --proved, which this unit does
+# not pass. So a run here cannot make a recipient look proved — it can only make
+# an unproved one visible.
+#
+# The job is `recipient-state`, not `key-recipients`, on purpose: the wrapper
+# writes <job>.prom and the collector writes key-recipients.prom, and #360 is
+# what happens when those are the same file.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: record which age recipients can open the secrets
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/back-up-the-age-key.md
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job recipient-state -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab recipient-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=true
+PrivateNetwork=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-recipient-state
