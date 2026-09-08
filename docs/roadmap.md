@@ -671,6 +671,20 @@ them name the condition that would change the answer.
   turns any browser session on Hicks into a potential path to every console in
   the estate, and it stores connection credentials to do it. The estate already
   has a KVM in U6 for physical console access. Declined.
+- **Frigate** — locally-processed object detection on camera streams, and the
+  one service on the shortlist that would change the network's shape rather
+  than its population: continuous RTSP from every camera through the `99 → 20`
+  rule ADR-0008 authorised for Home Assistant's occasional control traffic, a
+  clip archive that is the most sensitive data store in the house on the
+  management segment, and a Coral or GPU the sensitive tier does not have.
+  Declined by
+  [ADR-0032](adr/0032-decline-frigate-while-the-cameras-are-ring.md) on a fact
+  that comes before all four: every camera on Skids is a Ring device, and Ring
+  exposes no local stream, so Frigate has nothing to consume. Adopting it is a
+  camera replacement first, which is its own decision. **Reopened by RTSP
+  cameras, an accelerator, and a separate row in ADR-0008's table for the
+  continuous rule** — all three, each decided on its own
+  ([#149](https://github.com/Gerrrt/HomeLab/issues/149)).
 - **Authelia / Authentik** — **already decided, and listed only so the next
   shortlist does not present it as new.** ADR-0008 defers SSO knowingly for two
   users with no external access;
