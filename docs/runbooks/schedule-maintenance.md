@@ -122,6 +122,25 @@ run rather than failing. The skip is self-clearing: the moment
 other host. Failing instead would leave a weekly job red for a known reason
 until somebody is at the Mac, which is how a check stops being read.
 
+**`guest-state` is the collector that crosses a line on purpose.** ADR-0007
+keeps the lab's telemetry in the lab, so a guest that dies takes its own
+monitoring with it and the estate sees a healthy DL360 —
+[#257](https://github.com/Gerrrt/HomeLab/issues/257)'s "the lab is being built
+to go quiet". [ADR-0028](../adr/0028-let-guest-liveness-cross-but-not-guest-telemetry.md)
+decides that a guest's **run state** is hypervisor state rather than guest
+telemetry: read from `qm`/`pct` on the hypervisor, carrying nothing about what
+any guest is *doing*, over a push path that already exists. No firewall change.
+
+It closes "the guest died" and deliberately not "the lab stack inside it died" —
+a guest powered on with a dead Prometheus in it looks healthy, and the ADR names
+the firewall pass the second half would need rather than leaving it to be
+rediscovered.
+
+`HypervisorGuestStopped` is a **warning after an hour, not a page**, because the
+estate cannot tell a deliberate shutdown from a crash and should not pretend to.
+`GuestStateStopped` covers the collector itself going silent, since "no guests"
+is a legitimate answer and therefore a dangerous silence.
+
 **It needs root on the target, which is not the same as needing `sudo`.** The
 estate has both shapes and the installer picks per host, from the login user's
 uid:

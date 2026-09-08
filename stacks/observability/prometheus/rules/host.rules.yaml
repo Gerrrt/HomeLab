@@ -334,3 +334,64 @@ groups:
             window rather than reacting. `pfSense-upgrade -c` on the host
             confirms it independently, and homelab_pkg_upgrades_pending shows how
             many packages in total are behind.
+
+      # --- Hypervisor guests, the half of #257 that can cross ----------------
+      #
+      # ADR-0028 decides that a guest's RUN STATE is hypervisor state rather
+      # than the guest telemetry ADR-0007 keeps in the lab. These two rules are
+      # what that buys, and neither of them can see inside a guest.
+
+      - alert: HypervisorGuestStopped
+        # A guest the hypervisor knows about is not running.
+        #
+        # WARNING AND AN HOUR, because the estate genuinely cannot tell a
+        # deliberate shutdown from a crash and should not pretend to. #257
+        # allows for "a machine that is powered off between sessions", which is
+        # exactly this signal with a different cause. An hour is long enough
+        # that a reboot or a snapshot restore does not page, and short enough
+        # that a lab guest which fell over during an exercise is noticed the
+        # same afternoon.
+        #
+        # The alternative — a table of which guests are expected to be up —
+        # was rejected: it is a second copy of a fact that changes whenever a
+        # VM is created, and this repository has enough of those.
+        expr: homelab_guest_running == 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }} has been stopped for an hour"
+          description: >-
+            The hypervisor reports this guest as not running. If it was powered
+            off deliberately this is expected and there is nothing to do — the
+            estate cannot tell the difference, and says so rather than implying
+            it can. If it was not, the guest is down and anything inside it,
+            including the lab stack on `alexander`, is down with it.
+
+      - alert: GuestStateStopped
+        # The collector itself stopped reporting. Without this, a hypervisor
+        # whose collector died looks exactly like one with no guests — and
+        # "no guests" is a legitimate answer, which is what makes the silence
+        # dangerous. Same shape and same reasoning as PatchStateStopped.
+        #
+        # Stopped, not missing: a hypervisor that never had the collector
+        # installed must stay quiet, or every host without it alerts forever.
+        expr: >-
+          count by (host) (present_over_time(homelab_guests_total[1d] offset 6h))
+          unless
+          count by (host) (present_over_time(homelab_guests_total[6h]))
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting its guests"
+          description: >-
+            It reported within the last day and has not in six hours, so
+            HypervisorGuestStopped is blind to this hypervisor until it comes
+            back. Check homelab-guest-state.timer on the host and that
+            /var/lib/node_exporter/textfile_collector/guest-state.prom is being
+            written and is world-readable.
