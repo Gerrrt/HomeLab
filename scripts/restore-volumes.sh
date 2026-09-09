@@ -63,9 +63,15 @@ STACK_DIR="${REPO_ROOT}/stacks/${STACK}"
 COMPOSE_FILE="${STACK_DIR}/compose.yaml"
 COMPOSE=(docker compose -f "${COMPOSE_FILE}")
 OUT_DIR="${REPO_ROOT}/backups/volumes"
-SOPS_POLICY="${REPO_ROOT}/.sops.yaml"
 AGE_IDENTITY="${SOPS_AGE_KEY_FILE:-${HOME}/.config/sops/age/keys.txt}"
 BACKUP="${REPO_ROOT}/scripts/backup-volumes.sh"
+
+# Which runbook the closing lines point at. The scripts are the same for every
+# stack; what a restore gets wrong operationally is not (#131).
+case "${STACK}" in
+  sensitive) RUNBOOK="docs/runbooks/restore-the-sensitive-tier.md" ;;
+  *)         RUNBOOK="docs/runbooks/restore-the-stack.md" ;;
+esac
 
 umask 077
 
@@ -79,7 +85,16 @@ need() { command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1"; }
 
 human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 
-recipient() { grep -oE 'age1[0-9a-z]{50,}' "${SOPS_POLICY}" | head -1; }
+# The stack's recipients, comma-joined, read the way backup-volumes.sh reads
+# them — its recipients() says why that is the encrypted file's own metadata
+# and not the first key in .sops.yaml (#131). One string, because the two
+# uses here compare it against the manifest and print it into one.
+recipient() {
+  local -a rs
+  mapfile -t rs < <("${REPO_ROOT}/scripts/key-recipients.sh" --list --stack "${STACK}")
+  ((${#rs[@]})) || return 0
+  (IFS=,; printf '%s' "${rs[*]}")
+}
 
 manifest_field() {
   awk -F'\t' -v k="$2" '$1 == k { print $2; exit }' "$1/MANIFEST" 2>/dev/null
@@ -106,10 +121,21 @@ stamp_age() {
 # The uid each service runs as, and therefore the uid its volume's contents must
 # come back owned by. A restore that returns every byte and leaves Grafana
 # unable to write its own database is a restore that failed.
+#
+# The sensitive tier's (#131): Caddy and Vaultwarden run as root, for the
+# measured reason stacks/sensitive/compose.yaml gives — the image's data
+# directory is root-owned and a named volume inherits it — so 0 is what their
+# volumes must come back as. step-ca is the one non-root service there, and
+# the one whose tree was populated by hand; a restore that hands it back
+# root-owned is a CA that cannot open its own key.
 declare -A EXPECT_UID=(
   [prometheus-data]=65534
   [loki-data]=10001
   [grafana-data]=472
+  [caddy-data]=0
+  [caddy-config]=0
+  [step-ca-data]=1000
+  [vaultwarden-data]=0
 )
 
 FROM=""
@@ -194,8 +220,8 @@ SET_RECIPIENT="$(manifest_field "${SET_DIR}" recipient)"
 ARCHIVER="$(manifest_field "${SET_DIR}" archiver)"
 
 if [[ -n ${SET_RECIPIENT} && ${SET_RECIPIENT} != "$(recipient)" ]]; then
-  warn "this set was encrypted to ${SET_RECIPIENT}, which is not the recipient currently in .sops.yaml."
-  warn "the key has been rotated since. Decryption below will tell you whether the old identity is still on this host."
+  warn "this set was encrypted to ${SET_RECIPIENT}, which is not the recipient list secrets/${STACK}.sops.yaml carries now."
+  warn "the keys have changed since. Decryption below will tell you whether an identity that opens it is still on this host."
 fi
 
 # The archiver image is what does the extraction. Prefer the one recorded in the
@@ -267,9 +293,8 @@ if ((DRY)); then
   printf '\n'
   info "That proves the key works, the ciphertext is intact, each archive unpacks to a"
   info "complete tar, and each holds the volume its name claims. It does NOT prove that"
-  info "Prometheus will open the restored TSDB, that Grafana will read the restored"
-  info "grafana.db, or that ownership survives the round trip. See"
-  info "docs/runbooks/restore-the-stack.md."
+  info "the services will open what comes back, or that ownership survives the round"
+  info "trip. See ${RUNBOOK}."
   exit 0
 fi
 
@@ -308,7 +333,11 @@ if ((SAFETY)); then
   SNAP_DIR="${OUT_DIR}/.pre-restore-${STAMP}"
   mkdir -p "${SNAP_DIR}"
   AGE_RECIPIENT="$(recipient)"
-  [[ -n ${AGE_RECIPIENT} ]] || die "no age recipient in ${SOPS_POLICY} — cannot write the safety snapshot"
+  [[ -n ${AGE_RECIPIENT} ]] || die "no age recipients for stack ${STACK} — cannot write the safety snapshot"
+  AGE_ARGS=()
+  IFS=',' read -r -a rs <<<"${AGE_RECIPIENT}"
+  for r in "${rs[@]}"; do AGE_ARGS+=(--recipient "${r}"); done
+  unset rs r
   info "snapshotting the current contents to ${SNAP_DIR#"${REPO_ROOT}"/}"
   snapped=()
   for v in "${TARGETS[@]}"; do
@@ -320,7 +349,7 @@ if ((SAFETY)); then
         --log-driver none --label homelab.logs=off \
         -v "${PROJECT}_${v}:/data:ro" "${ARCHIVER}" \
         tar --numeric-owner -czf - -C /data . 2>/dev/null \
-      | age --recipient "${AGE_RECIPIENT}" --output "${SNAP_DIR}/${v}.tar.gz.age"
+      | age "${AGE_ARGS[@]}" --output "${SNAP_DIR}/${v}.tar.gz.age"
     snapped+=("${v}")
   done
   # The snapshot gets a manifest of its own, in the same shape, so rolling back
@@ -397,15 +426,26 @@ if ((SAFETY)) && [[ -n ${SNAP_DIR} ]]; then
 fi
 info "The stack is STOPPED. Bring it up and then verify:"
 info "  make up"
-info "  docs/runbooks/restore-the-stack.md section 4"
+info "  ${RUNBOOK} section 4"
 printf '\n'
-warn "Four things a restore gets right mechanically and wrong operationally:"
-warn "  Grafana's admin password now comes from the restored grafana.db, not .env —"
-warn "  GF_SECURITY_ADMIN_PASSWORD only applies when the admin user is created."
-warn "  Silences live at ${STAMP} are back and are suppressing alerts nobody remembers silencing."
-warn "  Prometheus ages restored blocks from their own timestamps, so 30d of retention"
-warn "  against a 20-day-old set is 10 days of history, shrinking."
-warn "  Alloy's log positions went back to their old offsets — expect either duplicate"
-warn "  lines in Loki, or a silent gap where the files have since rotated."
+case "${STACK}" in
+  sensitive)
+    warn "Three things a restore gets right mechanically and wrong operationally:"
+    warn "  Every vault item added after ${STAMP} is gone, and only the account holders know what those were."
+    warn "  If rsa_key.pem did not come back identical, every client on every device is logged out"
+    warn "  and needs its second factor again — check the recovery codes are to hand before starting it."
+    warn "  step-ca has no record of any leaf it issued after ${STAMP}; renewals will re-issue, revocations are lost."
+    ;;
+  *)
+    warn "Four things a restore gets right mechanically and wrong operationally:"
+    warn "  Grafana's admin password now comes from the restored grafana.db, not .env —"
+    warn "  GF_SECURITY_ADMIN_PASSWORD only applies when the admin user is created."
+    warn "  Silences live at ${STAMP} are back and are suppressing alerts nobody remembers silencing."
+    warn "  Prometheus ages restored blocks from their own timestamps, so 30d of retention"
+    warn "  against a 20-day-old set is 10 days of history, shrinking."
+    warn "  Alloy's log positions went back to their old offsets — expect either duplicate"
+    warn "  lines in Loki, or a silent gap where the files have since rotated."
+    ;;
+esac
 printf '\n'
 warn "This put data back. It did not verify the data is correct. Run section 4."

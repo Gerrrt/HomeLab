@@ -43,12 +43,13 @@
 # Every other artefact here is encrypted with sops, and backup-firewall.sh pipes
 # straight into it. sops holds the whole document in memory and stores it
 # base64-encoded inside YAML: free for a 6 KB config.xml, a gigabyte of RSS and
-# a 1.4 GB output file for a 1 GB TSDB. `age -r` streams. The recipient is still
-# read from .sops.yaml, so there is still exactly one key — rotating it there
-# rotates it here.
+# a 1.4 GB output file for a 1 GB TSDB. `age -r` streams. The recipients are
+# still the stack's — read from secrets/<STACK>.sops.yaml by way of
+# scripts/key-recipients.sh, see recipients() below — so there is still one
+# set of keys, and re-keying the secrets re-keys the next backup.
 #
-# The recipient is passed in argv and is therefore visible in `ps`. It is a
-# public key; it can only encrypt. Do not "fix" this.
+# The recipients are passed in argv and are therefore visible in `ps`. They
+# are public keys; they can only encrypt. Do not "fix" this.
 #
 # Verification decrypts, so the private key must be on this host. That is no new
 # exposure — render-config.sh already needs it — but it is a choice, and it
@@ -87,7 +88,6 @@ STACK="${STACK:-observability}"
 STACK_DIR="${REPO_ROOT}/stacks/${STACK}"
 COMPOSE_FILE="${STACK_DIR}/compose.yaml"
 OUT_DIR="${REPO_ROOT}/backups/volumes"
-SOPS_POLICY="${REPO_ROOT}/.sops.yaml"
 AGE_IDENTITY="${SOPS_AGE_KEY_FILE:-${HOME}/.config/sops/age/keys.txt}"
 KEEP="${KEEP:-7}"
 STOP_TIMEOUT="${STOP_TIMEOUT:-60}"
@@ -111,10 +111,32 @@ die()   { red "$*"; exit 1; }
 
 need() { command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1"; }
 
-# The age recipient is read from .sops.yaml rather than duplicated here. One
-# source of truth for the key; rotating it in .sops.yaml rotates it here too.
-recipient() {
-  grep -oE 'age1[0-9a-z]{50,}' "${SOPS_POLICY}" | head -1
+# The recipients are the STACK's, read out of its encrypted secrets file by
+# key-recipients.sh — the `sops:` metadata, which is fact, where .sops.yaml is
+# policy; that script's header carries the argument. This used to take the
+# first age1 key in .sops.yaml, whichever rule it sat in, which was right for
+# exactly as long as the estate's was the only real key there. The day
+# `make secrets-init STACK=sensitive` fills trinity's placeholder — which sits
+# ABOVE the catch-all — the estate's weekly backup would have been encrypted
+# to trinity's key, one this host does not hold, and failed at its own verify
+# step after stopping the stack for nothing. And on trinity the same line
+# picked the estate's key, so the tier's backups could never have been opened
+# where they were made (#131).
+#
+# EVERY recipient of the file, not the first. A volume archive holds what the
+# secrets file holds — grafana-data carries the admin password hash and every
+# datasource credential; vaultwarden-data is the vault — so whoever can open
+# the one is exactly who should be able to open the other. For the estate that
+# is ADR-0024's second recipient; for the sensitive tier it is the recipient
+# ADR-0023 requires of the off-estate copy, "the key that opens it cannot be
+# the one only the operator holds". One --recipient each to age; the manifest
+# records them comma-separated.
+#
+# Called on the main path only, after the mode dispatch: --inventory, --list
+# and --verify-only need no recipient and must keep working on a host whose
+# secrets file is not yet there.
+recipients() {
+  "${REPO_ROOT}/scripts/key-recipients.sh" --list --stack "${STACK}"
 }
 
 human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
@@ -144,22 +166,53 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # ./wal is deliberately NOT the sentinel for Prometheus or Loki even though it
 # is the most reliably present entry in both — both have it, so a crossed
 # mapping, the exact failure this exists to catch, would sail through.
+#
+# The table is the union across stacks; load_inventory() takes the entries the
+# selected compose file declares. A nested path is as good a sentinel as a
+# top-level one — the match is the whole listing line — and the two Caddy
+# volumes need that: both hold a single `./caddy` directory, so a top-level
+# entry would be the crossed mapping this exists to catch, present in both.
+#
+# The sensitive tier's four, what each was read from (#131):
+#   caddy-data       instance.uuid, written on first start — measured on the
+#                    pinned image with the stack's Caddyfile
+#   caddy-config     autosave.json, likewise
+#   step-ca-data     the file the image refuses to start without; the tree is
+#                    populated by hand and this is its root
+#   vaultwarden-data the SQLite database, created on first start
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
   [grafana-data]="./grafana.db"
   [alertmanager-data]="./nflog"
   [alloy-data]="./alloy_seed.json"
+  [caddy-data]="./caddy/instance.uuid"
+  [caddy-config]="./caddy/autosave.json"
+  [step-ca-data]="./config/ca.json"
+  [vaultwarden-data]="./db.sqlite3"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
 # the discriminating entry above may not exist yet.
+#
+# rsa_key.pem signs every Vaultwarden session token: a restore without it
+# logs every client out, which is not data loss but is worth seeing in the
+# verify line. attachments, sends and icon_cache appear on first use. The WAL
+# is listed because it is where the last writes ARE: measured on the pinned
+# image, a `docker stop` leaves a 12 KB db.sqlite3-wal holding the account
+# registered a minute earlier, and db.sqlite3 read on its own shows no such
+# user. The quiesced archive carries all three files, so a restore is
+# consistent; a check that copies the main file alone is not.
 declare -A COMPANIONS=(
   [prometheus-data]="./wal ./lock ./queries.active"
   [loki-data]="./wal ./index ./compactor"
   [grafana-data]="./plugins ./dashboards ./png"
   [alertmanager-data]="./silences"
   [alloy-data]="./remotecfg"
+  [caddy-data]="./caddy/locks ./caddy/last_clean.json"
+  [caddy-config]=""
+  [step-ca-data]="./certs ./secrets ./db"
+  [vaultwarden-data]="./rsa_key.pem ./db.sqlite3-wal ./attachments ./sends ./icon_cache"
 )
 
 VOLUMES=()
@@ -539,7 +592,7 @@ archive_one() {
       -v "${PROJECT}_${vol}:/data:ro" \
       "${TAR_IMAGE}" \
       tar --numeric-owner -czf - -C /data . \
-    | age --recipient "${AGE_RECIPIENT}" --output "${out}"
+    | age "${AGE_ARGS[@]}" --output "${out}"
   # Copied in one go: reading PIPESTATUS is itself a command, and the first
   # assignment would reset it before the second could see index 1.
   rcs=("${PIPESTATUS[@]}")
@@ -727,8 +780,14 @@ mkdir -p "${OUT_DIR}"
 exec 9>"${OUT_DIR}/.lock"
 flock -n 9 || die "another $(basename "$0") is already running"
 
-AGE_RECIPIENT="$(recipient)"
-[[ -n ${AGE_RECIPIENT} ]] || die "no age recipient found in ${SOPS_POLICY}"
+# mapfile over a process substitution loses the child's exit status, so the
+# check is on what arrived: key-recipients.sh has already said why on stderr.
+mapfile -t AGE_RECIPIENTS < <(recipients)
+((${#AGE_RECIPIENTS[@]})) || die "no age recipients for stack ${STACK} — nothing to encrypt to"
+AGE_ARGS=()
+for r in "${AGE_RECIPIENTS[@]}"; do AGE_ARGS+=(--recipient "${r}"); done
+AGE_RECIPIENT="$(IFS=,; printf '%s' "${AGE_RECIPIENTS[*]}")"
+unset r
 
 "${COMPOSE[@]}" config -q >/dev/null 2>&1 \
   || die "docker compose config failed — the \${VAR:?} guards need a rendered .env. Run: make render"
@@ -851,4 +910,7 @@ printf '\n'
 info "This is on the same host as everything it protects."
 info "Copy the set to the backup target and offsite — see docs/roadmap.md #92."
 info "On a timer: systemctl list-timers 'homelab-*' — docs/runbooks/schedule-maintenance.md."
-info "Restoring it: docs/runbooks/restore-the-stack.md"
+case "${STACK}" in
+  sensitive) info "Restoring it: docs/runbooks/restore-the-sensitive-tier.md" ;;
+  *)         info "Restoring it: docs/runbooks/restore-the-stack.md" ;;
+esac

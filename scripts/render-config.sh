@@ -311,7 +311,7 @@ fi
 # that names a SOPS value has to be added here, or render passes and `make up`
 # then dies on the unset variable — the guard and this list are two copies of
 # one fact, and scripts/seed-validation-env.sh is the third.
-COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_RENDERER_TOKEN STEPCA_PASSWORD)
+COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_RENDERER_TOKEN STEPCA_PASSWORD VAULTWARDEN_ADMIN_TOKEN)
 ENV_FILE="${STACK_DIR}/.env"
 info "writing $(basename "${STACK_DIR}")/.env"
 
@@ -357,8 +357,18 @@ info "writing $(basename "${STACK_DIR}")/.env"
   # repository. Falls back to 4 only if the file is absent, which on a host with
   # no syslog is the case where the source has nothing to read anyway.
   printf 'LOG_READ_GID=%s\n' "$(stat -c '%g' /var/log/syslog 2>/dev/null || echo 4)"
+  # Every `$` doubled. Compose interpolates .env VALUES, not only compose.yaml,
+  # so a `$` followed by a name is a variable reference there too — and an
+  # Argon2id PHC string, which is what VAULTWARDEN_ADMIN_TOKEN is, has five of
+  # them. Measured on compose v5.5.1: `$argon2id$v=19$m=65540,t=3,p=4$salt$hash`
+  # written raw reaches the container as `=19=65540,t=3,p=4`, behind five
+  # "variable is not set" warnings that `make up` scrolls past, and /admin
+  # then rejects every token. `$$` is compose's escape for a literal `$`; the
+  # same test shows the value arriving intact. This was latent for every name
+  # in the list — a Grafana password containing a `$` was mangled the same way
+  # — so it is applied to all of them, not special-cased (#131).
   for var in "${COMPOSE_VARS[@]}"; do
-    [[ -n "${!var:-}" ]] && printf '%s=%s\n' "${var}" "${!var}"
+    [[ -n "${!var:-}" ]] && printf '%s=%s\n' "${var}" "${!var//\$/\$\$}"
   done
 } > "${ENV_FILE}"
 chmod 600 "${ENV_FILE}"

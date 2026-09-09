@@ -35,14 +35,23 @@ https:// {
 		respond "ok" 200
 	}
 
-	# Nothing is routed yet. Each service from #131 onward adds a block here:
-	#
-	#	@vaultwarden host vaultwarden.matrix.elysium
-	#	handle @vaultwarden {
-	#		reverse_proxy vaultwarden:80
-	#	}
+	# One block per service, routed by Host. The name has to resolve
+	# (docs/runbooks/add-a-host-override.md) and be among the leaf's SANs — the
+	# `make certs` line in compose.yaml — or the browser fails on the
+	# certificate one hop before this file is consulted. The next service adds
+	# its own block above the fallback and touches nothing else.
+	@vaultwarden host vaultwarden.matrix.elysium
+	handle @vaultwarden {
+		# Plain HTTP on the stack network; TLS ends here. Rocket serves the
+		# Bitwarden API, the web vault and the WebSocket notifications hub on
+		# the one port, and reverse_proxy upgrades WebSocket connections
+		# without being told to. 8080 is compose.yaml's ROCKET_PORT.
+		reverse_proxy vaultwarden:8080
+	}
+
+	# Every other Host, the bare trinity.matrix.elysium included.
 	handle {
-		respond "trinity: the sensitive tier. Nothing is routed here yet." 404
+		respond "trinity: the sensitive tier. No such service." 404
 	}
 
 	log {
