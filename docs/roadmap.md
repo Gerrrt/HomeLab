@@ -29,7 +29,7 @@ in the same commit.**
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two 3.5" NAS drives, capacity chosen at the till | `zion`'s ZFS mirror | [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#413](https://github.com/Gerrrt/HomeLab/issues/413) | Before the NAS is built |
-| One USB NIC, the same chipset as `morpheus`'s if it can be found | The ProDesk's switch-management leg, for the firewall rehearsal and any restore onto it | [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3, [#404](https://github.com/Gerrrt/HomeLab/issues/404) | Before the rehearsal |
+| One Intel I226 2.5 GbE card on an M.2 B+M-key adapter — the part `morpheus` has, not a USB NIC | The ProDesk's second port, so a restore onto it comes up as `igc0` and asks nothing; for the rehearsal and any restore after it | [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3, [#404](https://github.com/Gerrrt/HomeLab/issues/404) | Before the rehearsal |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
@@ -386,7 +386,17 @@ what left this one unfireable for months.
   command had never been run: it passed `--input-type binary`, which sops
   rejects on the first byte of a real export, so a restore following the
   runbook would have stopped at step one. Fixed, and it is the kind of thing
-  the rehearsal exists to find. The volume sets `make backup` writes still sit
+  the rehearsal exists to find. Preparing for it found two more on 2026-09-09,
+  by reading `morpheus` rather than the documents: the runbook said the spare
+  needs a USB NIC, and the shopping list had one on it, but the box has none —
+  its second interface is an Intel I226-V on an M.2 adapter, `igc0`, carrying
+  the management LAN and every VLAN, and a USB adapter would have come up
+  under another name and put the restore into the interface-assignment
+  dialogue the same-model rule exists to avoid. And the version the verify
+  prints is the config schema (`24.6`), not the release (pfSense CE 2.9.0);
+  the runbook told the reader to match it to an installer, which cannot be
+  done. Both fixed, the release recorded in `hardware.md`, and the shopping
+  list names the card. The volume sets `make backup` writes still sit
   on the host they protect. Unlike the firewall, they have been restored — the
   whole stack was brought up on a restored set on 2026-08-29 and verified — but
   nothing copies them anywhere. Where they go is no longer open:

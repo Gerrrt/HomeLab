@@ -30,7 +30,7 @@ quietly swapped.
 
 | Host | Hardware | CPU | RAM | Storage | OS |
 | --- | --- | --- | --- | --- | --- |
-| `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB SSD | FreeBSD 16.0 (pfSense) |
+| `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB NVMe SSD | pfSense CE 2.9.0 (FreeBSD 16.0) |
 | `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
@@ -40,6 +40,17 @@ SNMP devices at a 60-second interval, four Alloy agents, and 30 days of metric
 retention without complaint — which is a useful thing to know before spending
 money on a monitoring host. Its RAM is soldered at 8 GB and it has no built-in
 Ethernet, so it reaches the network over a USB NIC.
+
+`morpheus` has two wired interfaces, and the second is not part of the model:
+the onboard Intel I219-LM (`em0`, the WAN) and an Intel I226-V 2.5 GbE card on
+an M.2 B+M-key adapter[^I226] in the G4's second M.2 slot (`igc0`, the
+switch-management LAN and every VLAN). The card is what a restore onto other
+hardware depends on —
+[`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3 — and it was
+recorded as a USB NIC in four documents until 2026-09-09, when the box was
+read directly: `pciconf` shows it on a PCIe root port, and the only USB device
+is the Wi-Fi module's Bluetooth half. The release in the table is
+`/etc/version` on the box, read the same day; 2.9.0 was built 2026-08-17.
 
 `oracle` was previously recorded here as an i5-1235U with 32 GB and a 2 TB SSD.
 It is not: it is a dual-core AMD A6-9200 with 4 GB and a 5400 rpm disk. The
@@ -85,7 +96,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
   It enters the Compute table when
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
-  firewall restore has been rehearsed on it.
+  firewall restore has been rehearsed on it. It ships with the onboard NIC
+  only; the I226 card the restore depends on is a separate purchase, on the
+  roadmap's [list](roadmap.md#everything-still-to-buy).
 - 2 TB USB portable hard drive — on hand, previously a games console's
   storage. Becomes the photo library's disk on `trinity`
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404)): Immich's originals
@@ -136,6 +149,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^ProDeskRackmount]: [1U rackmount for ProDesk Mini](https://a.co/d/4d7klOL)
+[^I226]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N)
 [^Sliderail]: [Sliding rails for ProLiant](https://a.co/d/5d4A4FO)
 [^Rail]: [1U universal rack mount](https://a.co/d/6R0vjHz)
 [^Couplers]: [Cat6 in-line couplers](https://a.co/d/gP3b948)
