@@ -35,14 +35,25 @@ https:// {
 		respond "ok" 200
 	}
 
-	# Nothing is routed yet. Each service from #131 onward adds a block here:
+	# AdGuard Home's UI (#135). Plain HTTP on the compose network; the DNS
+	# side of the same container is published on 53 directly, because DNS is
+	# not something this proxy can carry — compose.yaml, DIFFERENCE 5. The
+	# name needs a host override on morpheus (add-a-host-override.md) and,
+	# until step-ca issues per-name leaves, a `--dns adguard.matrix.elysium`
+	# SAN on trinity's certificate.
+	@adguard host adguard.matrix.elysium
+	handle @adguard {
+		reverse_proxy adguard:80
+	}
+
+	# Each further service adds a block in the same shape:
 	#
 	#	@vaultwarden host vaultwarden.matrix.elysium
 	#	handle @vaultwarden {
 	#		reverse_proxy vaultwarden:80
 	#	}
 	handle {
-		respond "trinity: the sensitive tier. Nothing is routed here yet." 404
+		respond "trinity: the sensitive tier. Nothing is routed at this name." 404
 	}
 
 	log {
