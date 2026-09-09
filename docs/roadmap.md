@@ -596,11 +596,12 @@ what left this one unfireable for months.
   own premise. Six agents make about 21 GB of alerts a quarter, which the disks
   do not notice; what runs out is heap-per-shard, at OpenSearch's
   twenty-five-shards-per-GiB against one daily index each, so retention is
-  thirty days because that is what a 2 GiB heap buys. `stacks/soc/` is not
-  yet authored, and nothing stops it being written and CI-validated ahead of
-  `odin` the way `stacks/lab` was ahead of `alexander`; what it cannot do
-  before #414 is say anything, because an agentless Wazuh has nothing to
-  report.
+  thirty days because that is what a 2 GiB heap buys. `stacks/soc/` is
+  **authored and CI-validated** ahead of `odin`
+  ([#434](https://github.com/Gerrrt/HomeLab/pull/434)), the way `stacks/lab`
+  was ahead of `alexander`, with its runbook and the six indexer-health rules
+  the lab's Prometheus evaluates; what it cannot do before #414 is say
+  anything, because an agentless Wazuh has nothing to report.
   [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS is **decided and
   deferred** by
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md):
