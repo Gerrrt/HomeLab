@@ -17,8 +17,12 @@
 #
 # What this does NOT fix: SNMPv2c still sends the community in cleartext in
 # every packet. Distinct per-device communities limit the blast radius of a
-# captured poll; they do not make the protocol secure. SNMPv3 authPriv is
-# tracked in docs/roadmap.md, blocked on the MokerLink switch not supporting it.
+# captured poll; they do not make the protocol secure. The estate is mixed on
+# purpose (ADR-0035): a device whose auth block in generator.yaml is version 3
+# is probed over SNMPv3 authPriv with the user and passphrases that block
+# names, through the same snmp.conf route — and its --old check is still v2c,
+# because "the old community is refused" is exactly the proof that v1/v2c
+# access is off on a device that has moved.
 #
 # Do not add a --debug flag that passes -d to snmpget: it prints the community
 # in hex. `bash -x` on this script leaks it too, which no amount of care here
@@ -40,6 +44,8 @@ STACK="observability"
 
 # shellcheck source=secrets-env.sh
 source "${REPO_ROOT}/scripts/secrets-env.sh"
+# shellcheck source=snmp-auth.sh
+source "${REPO_ROOT}/scripts/snmp-auth.sh"
 
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 pass() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
@@ -89,9 +95,9 @@ fi
 
 if ((DRY_RUN)); then
   head_ "SNMP inventory (dry run — nothing decrypted, no packets sent)"
-  while IFS=$'\t' read -r ip auth device var; do
+  while IFS=$'\t' read -r ip auth device version keys; do
     [[ -n "${ip}" ]] || continue
-    printf '  %-12s %-16s %-12s %s\n' "${device}" "${ip}" "${auth}" "${var}"
+    printf '  %-12s %-16s %-16s v%-3s %s\n' "${device}" "${ip}" "${auth}" "${version}" "${keys//,/ }"
   done <<< "${INVENTORY}"
   printf '\n'
   exit 0
@@ -134,30 +140,21 @@ umask 077
 
 load_secrets "${STACK}"
 
-# ---------------------------------------------------------------------------
-# write_conf <dir> <community>
-#
-# defCommunity takes the rest of the line, so a community containing whitespace
-# or a '#' is silently truncated or commented out — which presents as the
-# device rejecting a string you know is correct. Refuse instead. The value is
-# never echoed; only the key name that holds it.
-# ---------------------------------------------------------------------------
-write_conf() {
-  local dir="$1" community="$2" label="$3"
-  [[ -n "${community}" ]] || die "${label} is empty in secrets/${STACK}.sops.yaml"
-  [[ "${community}" != *[[:space:]]* && "${community}" != *'#'* ]] || die \
-    "${label} contains whitespace or '#', which net-snmp's snmp.conf parser cannot represent.
-Regenerate it with scripts/gen-secret.sh and set it on the device."
-  mkdir -p "${dir}"
-  printf 'defCommunity %s\n' "${community}" > "${dir}/snmp.conf"
-  chmod 600 "${dir}/snmp.conf"
-}
+# The snmp.conf itself is written by scripts/snmp-auth.sh: defCommunity for a
+# v2c device, defSecurityName and the two passphrases for a v3 one, from the
+# auth block in generator.yaml. Same refusal of whitespace and '#' in a value,
+# same rule that the key is named and the value never is.
 
 # ---------------------------------------------------------------------------
 # probe <ip> <conf_dir> <retries>
 #
-# Sets PROBE_STATUS to ok | noresponse | nosuchobject | error, and PROBE_DETAIL
-# to something safe to print.
+# Sets PROBE_STATUS to ok | noresponse | nosuchobject | rejected | error, and
+# PROBE_DETAIL to something safe to print.
+#
+# The version is not on the command line: the snmp.conf under SNMPCONFPATH
+# carries defVersion, so the same invocation speaks v2c to one device and v3
+# to the next. A -v here would override the file and silently probe a v3
+# device as v2c.
 #
 # GETBULK, not GET. The MokerLink switch answers GETBULK and silently drops both
 # GET and GETNEXT, so a GET-based probe times out against it no matter which
@@ -169,7 +166,12 @@ Regenerate it with scripts/gen-secret.sh and set it on the device."
 #
 # One GETBULK with non-repeaters 0 and max-repetitions 1 is a single round trip
 # returning a single varbind — the same cost as the GET it replaces. All four
-# devices are SNMPv2c and all four answer it.
+# devices answer it, and GETBULK exists in v3 as it does in v2c.
+#
+# `rejected` is new with SNMPv3 and cannot happen over v2c: USM answers a
+# wrong user, passphrase or protocol with a Report PDU, which net-snmp turns
+# into a fixed phrase. Only that phrase is printed — see the note on `out`
+# below. Over v2c a rejection is still a silent drop, i.e. `noresponse`.
 #
 # It is aimed at the sysDescr *node*, not sysDescr.0, because GETBULK is
 # GETNEXT-shaped: asking for 1.3.6.1.2.1.1.1 returns 1.3.6.1.2.1.1.1.0. The
@@ -190,7 +192,7 @@ probe() {
   PROBE_STATUS=""; PROBE_DETAIL=""
 
   out="$(timeout 15 env MIBS= SNMPCONFPATH="${conf_dir}" \
-          snmpbulkget -v2c -t 2 -r "${retries}" -Cn0 -Cr1 -Oqn \
+          snmpbulkget -t 2 -r "${retries}" -Cn0 -Cr1 -Oqn \
           "${ip}${SNMP_VERIFY_PORT:+:${SNMP_VERIFY_PORT}}" \
           "${SYSDESCR_NODE}" 2>&1)" || rc=$?
 
@@ -206,6 +208,8 @@ probe() {
     PROBE_STATUS="nosuchobject"
   elif [[ "${out}" == *"Timeout"* ]]; then
     PROBE_STATUS="noresponse"
+  elif PROBE_DETAIL="$(snmp_classify_rejection "${out}")"; then
+    PROBE_STATUS="rejected"
   else
     PROBE_STATUS="error"
     PROBE_DETAIL="rc=${rc}"
@@ -218,10 +222,10 @@ probe() {
 head_ "Current community"
 
 PASSED_DEVICES=""
-while IFS=$'\t' read -r ip auth device var; do
+while IFS=$'\t' read -r ip auth device version keys; do
   [[ -n "${ip}" ]] || continue
   conf_dir="${WORK}/cur-${device}"
-  write_conf "${conf_dir}" "${!var:-}" "${var}"
+  snmp_write_conf "${conf_dir}" "${auth}"
   probe "${ip}" "${conf_dir}" 1
 
   case "${PROBE_STATUS}" in
@@ -233,7 +237,14 @@ while IFS=$'\t' read -r ip auth device var; do
       fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "answered, but does not implement sysDescr.0")"
       ;;
     noresponse)
-      fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "no response (wrong community, filtered, or down)")"
+      if [[ "${version}" == "3" ]]; then
+        fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "no response (filtered, down, or SNMPv3 not enabled on the device)")"
+      else
+        fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "no response (wrong community, filtered, or down)")"
+      fi
+      ;;
+    rejected)
+      fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "rejected over SNMPv3: ${PROBE_DETAIL} — the user, a passphrase or a protocol differs from the device")"
       ;;
     *)
       fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "unexpected snmpget failure (${PROBE_DETAIL})")"
@@ -267,10 +278,12 @@ head_ "Stock communities (must be refused)"
 
 STOCK_COMMUNITIES=(public private)
 for stock in "${STOCK_COMMUNITIES[@]}"; do
-  write_conf "${WORK}/stock-${stock}" "${stock}" "the stock community ${stock}"
+  # Always v2c, like --old: on a device moved to SNMPv3 with v1 switched off,
+  # "refuses public" over v2c is part of the proof that the move is complete.
+  snmp_write_community_conf "${WORK}/stock-${stock}" "${stock}" "the stock community ${stock}"
 done
 
-while IFS=$'\t' read -r ip auth device var; do
+while IFS=$'\t' read -r ip auth device version keys; do
   [[ -n "${ip}" ]] || continue
 
   if ! grep -qxF "${device}" <<< "${PASSED_DEVICES}"; then
@@ -312,7 +325,7 @@ if ((CHECK_OLD)); then
   printf '  Each device is asked separately. Press Enter to skip one.\n\n' >&2
 
   asked=0
-  while IFS=$'\t' read -r ip auth device var; do
+  while IFS=$'\t' read -r ip auth device version keys; do
     [[ -n "${ip}" ]] || continue
 
     # Only devices that just answered to their current community are checked.
@@ -339,7 +352,10 @@ if ((CHECK_OLD)); then
     fi
     asked=$((asked + 1))
 
-    write_conf "${WORK}/old-${device}" "${old_one}" "the old community for ${device}"
+    # Always v2c, whatever the device speaks now. On a device moved to v3
+    # this is the check that matters: SNMPv1 switched off on the device means
+    # the old community is refused here, and STILL ACCEPTED means it was not.
+    snmp_write_community_conf "${WORK}/old-${device}" "${old_one}" "the old community for ${device}"
     old_one=""
 
     # -r 0: a timeout is the expected outcome, so retrying only doubles the wait.
@@ -347,7 +363,11 @@ if ((CHECK_OLD)); then
 
     case "${PROBE_STATUS}" in
       ok|nosuchobject)
-        fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "STILL ACCEPTED — the device added the new community alongside the old one; delete the old entry")"
+        if [[ "${version}" == "3" ]]; then
+          fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "STILL ACCEPTED over v2c — SNMPv1/v2c access is still enabled on the device; the move to v3 is not complete")"
+        else
+          fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "STILL ACCEPTED — the device added the new community alongside the old one; delete the old entry")"
+        fi
         ;;
       noresponse)
         pass "$(printf '%-10s %-12s %s' "${device}" "${ip}" "rejected")"

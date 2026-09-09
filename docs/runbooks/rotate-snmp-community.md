@@ -1,7 +1,8 @@
 # Runbook: Rotate the SNMP communities
 
 **Target:** four SNMP devices — pfSense, the APC NMC, the MokerLink switch, HPE iLO
-**Time:** ~45 minutes, one device at a time
+**Time:** ~45 minutes, one device at a time; §4, the move of one device to
+SNMPv3, is a separate pass of about 20 minutes
 **You will need:** the age key, physical access to the ProLiant for the iLO step,
 and a way onto `10.7.7.0/24` that does not depend on the switch you are about to
 reconfigure
@@ -103,8 +104,12 @@ indistinguishable — both present as the device refusing you.
 
 Note that SNMPv2c sends these in cleartext on every poll. Distinct communities
 limit the blast radius of a captured packet; they do not make the protocol
-secure. Moving to SNMPv3 authPriv is tracked in [`roadmap.md`](../roadmap.md) —
-the MokerLink switch not supporting it is the blocker.
+secure. The iLO and the UPS card move to SNMPv3 authPriv under
+[ADR-0035](../adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
+— that is [§4](#4-move-a-device-to-snmpv3), a separate pass — and a device
+that has moved has two passphrases here instead of a community.
+`make gen-secret ARGS=--snmp` prints whichever shape each device currently
+has. The firewall and the switch stay on v2c, for reasons the ADR gives.
 
 ## 2. Rotate each device
 
@@ -386,6 +391,161 @@ Record what `snmp-verify` actually printed — which devices passed, which refus
 the old community, which were `SKIP` — on the tracking issue. §2.5's output is
 the only evidence the rotation happened, and it lives in a terminal that closes.
 
+## 4. Move a device to SNMPv3
+
+A separate pass from a rotation, one device at a time, and the same rule:
+**the device first, then the repository.** The repository can hold a v3 auth
+block before the device has a user, and `make render` would then fail on the
+two missing keys — loudly, which is the right failure, and also a stack that
+cannot be re-rendered until the device is done. Do not merge the repository
+half early.
+
+Which devices this applies to is decided, not chosen here
+([ADR-0035](../adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)):
+**`shiva` first, then `mjolnir`.** Not `morpheus` — bsnmpd is the only daemon
+that serves the pf MIB and pfSense writes no v3 user for it. Not `neo` unless
+its UI turns out to have a user page; check that once, at the next login, and
+record the answer in `hardware.md` either way.
+
+What the two devices offer, from their vendors' guides for the firmware each
+one reported over SNMP on 2026-09-09 — the pages themselves are behind logins
+the monitoring host does not have, so the first person through this checks
+the field names against the screen and corrects the table if they differ:
+
+| Device | Where | Users | Auth | Priv | Passphrases | Turn v1 off with |
+| --- | --- | --- | --- | --- | --- | --- |
+| `shiva`, iLO 4 2.82 | **Administration → Management → SNMP Settings** | three | MD5, **SHA** | DES, **AES** | 8–49 characters | *SNMPv1 Request*: Disabled |
+| `mjolnir`, AP9641 (NMC3, AOS 2.0.0.6) | **Configuration → Network → SNMPv3** | four profiles | MD5, **SHA** | DES, **AES** | 15–32 ASCII | **Configuration → Network → SNMPv1 → Access**: disabled |
+
+Bold is what to pick. `make gen-secret` at its default 24 characters fits both.
+
+### 4.1 Generate the two passphrases
+
+```bash
+make gen-secret ARGS="--count 2"
+```
+
+Plain, not `ARGS=--snmp`: that variant prints the keys the inventory
+*currently* has, which for a device that has not moved yet is still its
+community. Two bare strings — the first is the authentication passphrase, the
+second the privacy passphrase. They stay in your scrollback until §4.3.
+
+### 4.2 Create the user on the device — leave the community in place
+
+> **Add, do not replace.** The v2c community is your rollback credential and
+> the exporter is still polling with it. Nothing is removed until §4.5.
+
+**HPE iLO** (`shiva`, 10.0.30.10) — **Administration → Management → SNMP
+Settings**, and the same warning as §2.1: saving can reset the management
+processor and drop your session, so do this with physical access to the
+ProLiant. In **SNMPv3 Users**, fill one of the three slots: security name
+`prometheus`, authentication protocol **SHA** with the first passphrase,
+privacy protocol **AES** with the second. Leave *SNMPv1 Request* enabled for
+now. Apply.
+
+**APC Network Management Card** (`mjolnir`, 10.0.99.10) — **Configuration →
+Network → SNMPv3**. Under **Access**, enable SNMPv3. Under **User Profiles**,
+edit one of the four: user name `prometheus`, authentication **SHA** with the
+first passphrase, privacy **AES** with the second, and enable the profile.
+Under **Access Control**, give that profile one entry for `10.0.99.20` and
+access **Read**. Leave SNMPv1 enabled for now. The card restarts its network
+interface on save, per §*Before you start*; the UPS keeps supplying power.
+
+The user name goes in the repository as a literal, so use the one above or be
+ready to write what you chose into `generator.yaml`.
+
+### 4.3 Update the repository — device first, then these five files
+
+The auth block in `snmp-exporter/generator.yaml` is where the version is
+declared, and every tool reads the device's shape from it. For the iLO:
+
+```yaml
+  auth_ilo:
+    username: prometheus
+    password: ${SNMP_AUTHPASS_ILO}
+    priv_password: ${SNMP_PRIVPASS_ILO}
+    security_level: authPriv
+    auth_protocol: SHA
+    priv_protocol: AES
+    version: 3
+```
+
+Replacing the `community:` line, which must not survive — `make validate`
+refuses a v3 block that still carries one. Then:
+
+```bash
+make snmp-generate      # copies the block into snmp.yaml; needs make snmp-mibs once
+make secrets-edit       # replace SNMP_COMMUNITY_ILO with the two keys:
+                        #   SNMP_AUTHPASS_ILO: <first>
+                        #   SNMP_PRIVPASS_ILO: <second>
+```
+
+Mind the space after the colon, as in §2.2. Then the two plaintext copies of
+the key list: the `REQUIRED` array in `scripts/render-config.sh` — the one
+community line becomes the two passphrase lines — and
+`secrets/observability.example.yaml`, where the two keys replace the one with
+`change-me` values. `make validate` cross-checks all five files and refuses
+the mixed state where one still names the community.
+
+The device name, address and module in `prometheus/targets/snmp.yaml` do not
+change; `auth: auth_ilo` is the same label with a different shape behind it.
+
+### 4.4 Apply and verify
+
+```bash
+make render && make reload
+./scripts/snmp-verify.sh --device shiva
+```
+
+`PASS` with the device's sysDescr, exactly as §2.4 — but this time the check
+went over SNMPv3, which the dry run shows as `v3` against the device. A
+`FAIL` here is more informative than a v2c one: USM answers a wrong user or
+passphrase with a report, so the line says *rejected over SNMPv3: Unknown user
+name* or *Authentication failure* rather than a bare timeout. A timeout
+against a v3 device means SNMPv3 is not enabled on it, or the same firewall
+questions as before.
+
+Then Prometheus: `up{job="snmp",instance="10.0.30.10"}` back to `1` within a
+minute. If it is not, `make logs SERVICE=snmp-exporter` — the exporter's
+phrase for a bad user or passphrase is `incoming packet is not authentic,
+discarding`, measured against the pinned image.
+
+### 4.5 Turn SNMPv1 off, then prove it
+
+Only once §4.4 is green. On the iLO, *SNMPv1 Request* → Disabled; on the
+card, **Configuration → Network → SNMPv1 → Access** → disabled. Then:
+
+```bash
+./scripts/snmp-verify.sh --old
+```
+
+Enter the device's community — the value `SNMP_COMMUNITY_ILO` held — and
+press Enter through the others. `--old` always probes over v2c, whatever the
+device speaks now, so against a device that has moved this is precisely the
+check that v1/v2c access is off. `rejected` is the result you want.
+`STILL ACCEPTED over v2c` means the switch did not take, and the move is not
+complete until it does.
+
+Then a second `./scripts/snmp-verify.sh --device shiva`, because disabling v1
+on the iLO is another save of the SNMP page.
+
+### 4.6 Commit
+
+```bash
+git add secrets/observability.sops.yaml stacks/observability/snmp-exporter/ \
+        scripts/render-config.sh secrets/observability.example.yaml
+git commit -m "feat(snmp): poll shiva over SNMPv3 authPriv (#85)"
+```
+
+The diff shows the community key replaced by two passphrase keys and nothing
+about any value. Then, as §3: the *SNMPv2c* section of
+[`docs/security.md`](../security.md) names which devices have moved, and #85
+gets the `snmp-verify` output — including the `--old` line — because that is
+the only evidence the v1 path is closed. Record the scrape duration too
+(`scrape_duration_seconds{job="snmp",instance="10.0.30.10"}` before and
+after): SNMPv3 adds one discovery round trip per scrape, and ADR-0035 says the
+cost is measured rather than assumed.
+
 ## If something goes wrong
 
 **A device is rotated but the repository is not.** Only that one target is down,
@@ -435,10 +595,15 @@ care how many times you write it.
 | `--old` reports `STILL ACCEPTED` | The device added the new community alongside the old one | Delete the old entry explicitly — some UIs need the row deleted, not blanked. **Not `neo`** — see the next row |
 | `--old` reports `STILL ACCEPTED` on `neo`, after a delete | Expected. This firmware does not persist a removal from the community table, and the attempt has cost you the SNMP agent until reboot | Do not delete it again. Overwrite the row instead — [§2.5's MokerLink route](#the-mokerlink-switch-overwrite-the-row), which needs a window in which the switch can be rebooted |
 | `--old` reports `SKIP` | The current-community check failed for that device, so a timeout proves nothing | Fix the current check first |
+| `rejected over SNMPv3: Unknown user name` | The user in `generator.yaml` does not exist on the device, or SNMPv3 is enabled but the profile is not | Compare the literal `username:` with the device's user list; on the APC card, check the profile is *enabled* and its access-control entry names `10.0.99.20` |
+| `rejected over SNMPv3: Authentication failure` | The authentication passphrase, or the protocol, differs from the device | `make secrets-edit`; check SHA on the device. A wrong *privacy* passphrase reads the same way from net-snmp |
+| A v3 device times out where a v2c one would say `rejected` | SNMPv3 is not enabled on the device at all — the iLO's SNMP page or the card's **SNMPv3 → Access** — or the same firewall questions as any other timeout | Enable it; then the *Only `neo` fails* row's method for telling a filter from a refusal |
+| `--old` reports `STILL ACCEPTED over v2c` on a device moved to v3 | SNMPv1/v2c access is still enabled beside the v3 user, so the community still works | §4.5: switch v1 off on the device, then run `--old` again |
+| `error: ... is version 3 with security_level 'authNoPriv'` | A v3 block that authenticates and sends the tables in clear | `authPriv`, per ADR-0035 — the check refuses anything else on purpose |
 | `error: ... contains whitespace or '#'` | A community was typed with a space or `#` into SOPS | `make secrets-edit`; regenerate with `make gen-secret` |
 | `error: malformed line ... expected 'KEY: value'` | A key was written `KEY:value`, with no space after the colon | `make secrets-edit` |
 | Target still `DOWN` a minute after `make reload` | snmp-exporter reloaded from the *old* rendered file | You skipped `make render`. Run `make render && make reload` |
-| `unsubstituted placeholders remain` | A `SNMP_COMMUNITY_*` key is missing from the secrets file | `make secrets-edit` |
+| `unsubstituted placeholders remain` | An `SNMP_*` credential key is missing from the secrets file — after a move to v3, usually the second of the two | `make secrets-edit` |
 | `error: snmp-exporter is not running` | The container is stopped or crash-looping | `make ps`, then `make up` |
 | `error: snmp-exporter refused the reload` | The rendered `snmp.yaml` does not parse; it is **still serving the old config** | `make snmp-generate` output is bad — inspect it, or `git checkout --` it |
 | Target `UP` but every metric missing | The community works; the module does not match the device | `curl -s 'localhost:9116/snmp?target=<ip>&module=<m>&auth=auth_<m>'` |

@@ -410,21 +410,37 @@ keeps finding, one level up each time.
 ### Why SNMPv2c is still a weak point
 
 The devices are polled with SNMPv2c, which transmits the community string in
-cleartext. Anyone with a port on the management VLAN can read it off a single
-packet. Two mitigations are in place, one only partly, and one is not:
+cleartext, and whoever can see the poll's last hop can read it off a single
+packet. Two mitigations are in place, and the third is decided per device
+rather than for the fleet:
 
 - **Done:** each device has its own community, confirmed live on all four, so
   one captured packet no longer grants read access to the whole fleet. The
   switch does still accept its own previous community as well — an accepted
   residual, recorded in [`SECURITY.md`](../SECURITY.md).
-- **Done:** SNMP is reachable only on the management VLAN and the
-  switch-management LAN, neither of which anything but specific trusted hosts
-  can enter.
-- **Not done:** SNMPv3 with authPriv. The MokerLink switch does not support it.
-  Tracked in [roadmap](roadmap.md).
+- **Done:** SNMP is reachable only on the management VLAN, the
+  switch-management LAN and — for the iLO — the lab segment, and only from
+  the monitoring host.
+- **SNMPv3 authPriv, per poll**
+  ([ADR-0035](adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)).
+  The iLO's poll is the one that matters: it is delivered into ImaginationLAN,
+  where [ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)
+  puts the attack VM on purpose, so a guest there that ARP-spoofs `10.0.30.10`
+  reads the community every minute. `shiva` moves to v3 with SHA and AES and
+  SNMPv1 off, then the UPS card on the same procedure. The firewall **cannot**
+  move without losing what it is polled for: bsnmpd is the only daemon that
+  serves the pf MIB, and pfSense writes no v3 user for it — checked on the box
+  on 2026-09-09. The switch stays on v2c; its agent answers v3 on the wire,
+  and whether its UI can create a user is the unchecked half. Which devices
+  have actually moved is recorded on
+  [#85](https://github.com/Gerrrt/HomeLab/issues/85) and in the
+  [runbook](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 
 These communities are read-only, but "read-only" on a firewall means the
-complete state table and interface topology. They are credentials.
+complete state table and interface topology. They are credentials. The two
+that stay on v2c ride on Winterfell only, where anything that can sniff is
+already on the segment that holds the firewall's admin UI and the monitoring
+host.
 
 ### The switch's management UI is HTTP, and stays that way
 
@@ -446,8 +462,9 @@ What holds it: the password is unique to the device, and only Hicks and
 Winterfell can reach `10.7.7.0/24` at all
 ([ADR-0013](adr/0013-segment-access-as-implemented.md)). What does not hold it:
 anything on the device, which is now carrying its third firmware limit after the
-undeletable community row and the missing SNMPv3. A TLS management interface
-belongs in the selection criteria whenever this switch is replaced.
+undeletable community row and an SNMPv3 user page it may or may not have
+(ADR-0035). A TLS management interface belongs in the selection criteria
+whenever this switch is replaced.
 
 ## Hardening applied to the stack
 
