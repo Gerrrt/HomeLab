@@ -30,7 +30,7 @@ quietly swapped.
 
 | Host | Hardware | CPU | RAM | Storage | OS |
 | --- | --- | --- | --- | --- | --- |
-| `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB NVMe SSD | pfSense CE 2.9.0 (FreeBSD 16.0) |
+| `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB NVMe SSD | FreeBSD 16.0 (pfSense) |
 | `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
@@ -49,8 +49,13 @@ hardware depends on —
 [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3 — and it was
 recorded as a USB NIC in four documents until 2026-09-09, when the box was
 read directly: `pciconf` shows it on a PCIe root port, and the only USB device
-is the Wi-Fi module's Bluetooth half. The release in the table is
-`/etc/version` on the box, read the same day; 2.9.0 was built 2026-08-17.
+is the Wi-Fi module's Bluetooth half. The table records the release line
+only, as [`check_docs.py`](../scripts/check_docs.py) requires, and unlike the
+Linux hosts nothing collects the running release from pfSense — so it is
+written here with its date: **pfSense CE 2.9.0-RELEASE**, build
+`20260817-1836`, from `/etc/version` on 2026-09-09. Restoring the config
+needs a release at least that new
+([`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3).
 
 `oracle` was previously recorded here as an i5-1235U with 32 GB and a 2 TB SSD.
 It is not: it is a dual-core AMD A6-9200 with 4 GB and a 5400 rpm disk. The
