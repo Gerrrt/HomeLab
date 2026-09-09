@@ -275,6 +275,18 @@ jobs:
           done
           exit $fail
 
+      # Same shape for the reverse proxy's config: `caddy validate` and
+      # `caddy fmt --diff` in the pinned image, per stack, so a Caddyfile that
+      # would fail at container start fails here instead (#129). Stacks with
+      # no Caddyfile pass through.
+      - name: Validate Caddyfiles
+        run: |
+          fail=0
+          for stack in $(./scripts/stacks.sh); do
+            ./scripts/check_caddyfile.sh --stack "$stack" || fail=1
+          done
+          exit $fail
+
       # The device list is spread across snmp.yaml, generator.yaml,
       # render-config.sh's REQUIRED array and the example secrets file. Drift
       # between them is invisible until a poll goes out with an empty community,

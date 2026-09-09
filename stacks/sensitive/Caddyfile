@@ -1,0 +1,52 @@
+# The sensitive tier's front door. One file, reviewed like any other config:
+# scripts/check_caddyfile.sh runs `caddy validate` and `caddy fmt` against it
+# in `make validate` and CI, the way promtool checks the alert rules (#129).
+#
+# Routing lives here and nowhere else — not in per-service compose labels —
+# so `git log` on this file is the history of what the tier serves.
+{
+	# No admin API. It would listen on 2019 inside the container, unauthenticated,
+	# reachable by every other service on the `sensitive` network; the price is
+	# that a change here is `make up STACK=sensitive`, not `caddy reload`.
+	admin off
+
+	# The container's own healthcheck connects to https://localhost, whose SNI
+	# matches no site below; without a default, that handshake has no
+	# certificate to offer and the check fails on a proxy that is serving fine.
+	default_sni trinity.matrix.elysium
+}
+
+# Everything the tier serves, under one leaf for now. The certificate comes
+# from scripts/gen-certs.sh (see compose.yaml); when step-ca's ACME provisioner
+# is configured (#130) the `tls` line becomes
+#
+#	tls {
+#		ca https://step-ca:9000/acme/acme/directory
+#		ca_root /etc/caddy/tls/ca.pem
+#	}
+#
+# and each service gets a name of its own beneath matrix.elysium, issued and
+# renewed without a runbook step.
+https:// {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+
+	# What the container's healthcheck asks for, on any Host.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	# Nothing is routed yet. Each service from #131 onward adds a block here:
+	#
+	#	@vaultwarden host vaultwarden.matrix.elysium
+	#	handle @vaultwarden {
+	#		reverse_proxy vaultwarden:80
+	#	}
+	handle {
+		respond "trinity: the sensitive tier. Nothing is routed here yet." 404
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

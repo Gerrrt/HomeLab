@@ -72,6 +72,17 @@ creation_rules:
     age: >-
       REPLACE_WITH_LAB_AGE_PUBLIC_KEY
 
+  # The sensitive tier, for the opposite reason to the lab's: not because the
+  # host is less trusted than the estate, but because it has no use for the
+  # estate's secrets. trinity's key opens secrets/sensitive.sops.yaml — the
+  # tier's own passwords and tokens — and not the SNMP communities or the
+  # Grafana admin password. `make secrets-init STACK=sensitive`, run ON
+  # trinity, fills the placeholder in; the technical second's recipient
+  # (ADR-0024, #294) joins this rule the day the tier holds real data.
+  - path_regex: secrets/sensitive(\..+)?\.sops\.ya?ml$
+    age: >-
+      REPLACE_WITH_SENSITIVE_AGE_PUBLIC_KEY
+
   - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
     age: >-
       age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x,

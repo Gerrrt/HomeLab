@@ -1,0 +1,210 @@
+---
+# The sensitive tier: ADR-0008's household services, behind one reverse proxy.
+#
+# Deployed on: trinity (10.0.99.40, VLAN 99 / Winterfell) — the ProDesk 600 G4
+#              of ADR-0034, after the firewall restore has been rehearsed on it.
+#              NOT BUILT YET. #404 is the build; this file is what it deploys.
+#              Authored before the host exists, as stacks/lab was: #264 landed
+#              the stack a day before #262 built the guest it runs on.
+# Deploy with:  make up STACK=sensitive      (from the repository root)
+#
+# ---------------------------------------------------------------------------
+# What is here, and what is not
+# ---------------------------------------------------------------------------
+# Two services: the foundation. Caddy (#129) is the only thing on the tier
+# that publishes a port, and the whole containment argument in ADR-0008 —
+# "containers sit on private bridge networks with only the reverse proxy
+# publishing a port" — is a property of this file or it is a sentence in an
+# ADR. step-ca (#130) issues the certificates behind it. Vaultwarden, Immich,
+# Paperless-ngx, Home Assistant, AdGuard Home, ntfy and Homepage (#131–#137)
+# land behind Caddy on the network below, each with `expose:` and no `ports:`.
+#
+# ---------------------------------------------------------------------------
+# On the comments in this file
+# ---------------------------------------------------------------------------
+# The settings shared with `stacks/observability/compose.yaml` — why `init:
+# true`, why `pids_limit`, the healthcheck shape, the `${VAR:?}` guards that
+# double as the SOPS required-key list — are argued at length there and are
+# NOT repeated here; two copies of an argument drift the same way two copies
+# of a config do. What IS written out here is every place this stack differs
+# from that one, because those are the only lines a reader cannot get from
+# the sibling file. There are four such places, each marked DIFFERENCE.
+
+name: sensitive
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging: *default-logging
+  networks: [sensitive]
+  init: true
+  pids_limit: 512
+
+services:
+  # ---------------------------------------------------------------------------
+  # Caddy — the one published port (#129)
+  # ---------------------------------------------------------------------------
+  # DIFFERENCE 1: memory limits from day one, where stacks/lab set none. #129
+  # is explicit — "#114 is blocked on data for the existing six services; a
+  # brand-new stack has no such excuse" — and the lab's argument, that copying
+  # the estate's numbers would be a limit derived from a machine this one is
+  # not, does not apply to a proxy whose working set is measured in tens of
+  # megabytes on any machine. 128m is roughly ten times what Caddy holds
+  # serving a handful of upstreams; it exists to bound a leak, not to size.
+  #
+  # DIFFERENCE 2: this container runs as root, with every capability dropped
+  # but one. Every other service in the estate runs as a numeric non-root
+  # user, and the reason this one does not is measured, not assumed: in the
+  # pinned image `/data` and `/config` are owned by root, mode 755, and a named
+  # volume mounted there inherits that ownership on first use — so a non-root
+  # Caddy cannot write its own certificate store. The alternatives are an init
+  # step that chowns the volume (a hand-run command nothing converges) or a
+  # sidecar to do it (a third container for a permissions bit). Root with
+  # `cap_drop: [ALL]` and `no-new-privileges` can bind 443, write the two
+  # directories it owns, and nothing else it could not do as uid 65534 —
+  # DAC applies to root once CAP_DAC_OVERRIDE is gone. NET_BIND_SERVICE is the
+  # one capability kept, because 443 inside the container is what lets the
+  # Caddyfile say `https://` without a port and the published mapping stay
+  # 443:443. Verify the premise, not the argument, when the image moves:
+  #
+  #   docker run --rm --entrypoint stat <caddy image> -c '%u:%g %a' /data
+  #
+  # If that ever prints something other than 0:0 755, revisit the user line.
+  #
+  # `admin off` in the Caddyfile means no admin API on 2019 and no `caddy
+  # reload`; a Caddyfile change is `make up STACK=sensitive`, which recreates
+  # the container. On a tier with a handful of upstreams that is the honest
+  # cost of not running an unauthenticated control socket, and the socket
+  # would have been reachable by every other container on this network.
+  caddy:
+    <<: *service-defaults
+    image: caddy:2.11.4@sha256:df7f1c2fb114453b951de51a98efc010db1655a92c2e86be6706714e2417a78d
+    container_name: sensitive-caddy
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      # The leaf comes from scripts/gen-certs.sh until step-ca issues it
+      # (#129: "initially, replaced by step-ca issuance once that lands"):
+      #   make certs ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity"
+      # Issued on the monitoring host, where the CA key lives and stays; the
+      # three files travel the way the lab's did (build-the-lab-guest.md §5).
+      # render-config.sh refuses to render while any of these is missing, so
+      # `make up` cannot start a Caddy that would fail its first TLS handshake.
+      - ../../certificates/trinity.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
+      - ../../certificates/trinity.matrix.elysium-key.pem:/etc/caddy/tls/key.pem:ro
+      - ../../certificates/ca.pem:/etc/caddy/tls/ca.pem:ro
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    depends_on:
+      step-ca:
+        condition: service_healthy
+    healthcheck:
+      # busybox wget in this image speaks HTTPS (checked against a real
+      # endpoint before this was written); the certificate is for trinity,
+      # not localhost, hence --no-check-certificate on the container's own
+      # loopback — the same shape as Grafana's check in the estate's stack.
+      test: ["CMD", "wget", "--spider", "-q", "--no-check-certificate", "https://localhost:443/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # step-ca — the tier's certificate authority (#130)
+  # ---------------------------------------------------------------------------
+  # An INTERMEDIATE beneath the lab CA, not a new root — decided on #130 and
+  # recorded here: everything that already trusts certificates/ca.pem keeps
+  # trusting what this issues, nothing is re-pointed, and the root key never
+  # leaves the monitoring host. The intermediate is minted there:
+  #
+  #   step ca init --root certificates/ca.pem --key certificates/ca-key.pem ...
+  #
+  # and the resulting tree (config/, certs/, secrets/, db/) is what populates
+  # the step-ca-data volume on trinity — the procedure is #404's runbook. The
+  # image's entrypoint refuses to start without config/ca.json and would
+  # otherwise mint a fresh root of its own on first boot; a populated volume
+  # is what stops that, and DOCKER_STEPCA_INIT_* is deliberately never set.
+  #
+  # DIFFERENCE 3: the key password comes from SOPS by way of the environment
+  # and a tmpfs file. step-ca wants a --password-file; the estate's rule is
+  # that a credential lives in secrets/*.sops.yaml and nowhere else. The
+  # entrypoint below writes ${STEPCA_PASSWORD} to a 0600 file on a 1 MiB
+  # private tmpfs and execs step-ca against it — the same class of exposure
+  # as GRAFANA_ADMIN_PASSWORD in the sibling stack (`docker inspect` can read
+  # the environment of either), and nothing on disk. `$$` is compose's
+  # escape: the container sees `${STEPCA_PASSWORD}`, not this file's value.
+  #
+  # Nothing publishes 9000. Caddy reaches it on this network for ACME once
+  # #130's provisioner is configured; a browser never needs it.
+  step-ca:
+    <<: *service-defaults
+    image: smallstep/step-ca:0.30.2@sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270
+    container_name: sensitive-step-ca
+    mem_limit: 256m
+    memswap_limit: 256m
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /run/step:size=1m,uid=1000,gid=1000,mode=0700
+      - /tmp:size=16m
+    environment:
+      STEPCA_PASSWORD: ${STEPCA_PASSWORD:?set in secrets/sensitive.sops.yaml}
+    command:
+      - /bin/bash
+      - -c
+      - >-
+        umask 077 && printf '%s' "$${STEPCA_PASSWORD}" > /run/step/password
+        && exec step-ca --password-file /run/step/password /home/step/config/ca.json
+    volumes:
+      - step-ca-data:/home/step
+    expose:
+      - "9000"
+    healthcheck:
+      # `step ca health` is the CA asking itself, over TLS, against its own
+      # root — which is the lab CA's root once the tree is populated. The
+      # `step` binary ships in the image; check_compose_health.py --probe
+      # proves that on every run rather than trusting this comment.
+      test:
+        - CMD
+        - step
+        - ca
+        - health
+        - --ca-url
+        - https://localhost:9000
+        - --root
+        - /home/step/certs/root_ca.crt
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+# DIFFERENCE 4: one network, and it is the point. Every later service joins
+# `sensitive` with `expose:` only; Caddy is the sole member with `ports:`.
+# A service that adds `ports:` here is undoing ADR-0008's containment, and
+# the review question for every PR against this file is that one line.
+networks:
+  sensitive:
+    driver: bridge
+
+volumes:
+  caddy-data:
+  caddy-config:
+  step-ca-data:

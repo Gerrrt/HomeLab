@@ -304,7 +304,14 @@ fi
 # own files under alertmanager/.rendered; copying them into .env as well would
 # spread the same secret across two files for no benefit.
 # ---------------------------------------------------------------------------
-COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_RENDERER_TOKEN)
+# The union across stacks, not a per-stack list: a name absent from this
+# stack's SOPS file is simply not written (the loop below skips unset names),
+# so the estate's render never sees STEPCA_PASSWORD and the sensitive tier's
+# never sees the Grafana values. A new `${VAR:?}` guard in any compose.yaml
+# that names a SOPS value has to be added here, or render passes and `make up`
+# then dies on the unset variable — the guard and this list are two copies of
+# one fact, and scripts/seed-validation-env.sh is the third.
+COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_RENDERER_TOKEN STEPCA_PASSWORD)
 ENV_FILE="${STACK_DIR}/.env"
 info "writing $(basename "${STACK_DIR}")/.env"
 
