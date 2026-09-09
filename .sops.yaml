@@ -74,4 +74,5 @@ creation_rules:
 
   - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
     age: >-
-      age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x
+      age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x,
+      age1cutv5qvkwxxy9n5clznnvm2hgseeuw9ecswgnspkmxs6d69hrpqqx2wxp4
