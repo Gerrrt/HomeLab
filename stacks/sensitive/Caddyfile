@@ -35,14 +35,21 @@ https:// {
 		respond "ok" 200
 	}
 
-	# Nothing is routed yet. Each service from #131 onward adds a block here:
-	#
-	#	@vaultwarden host vaultwarden.matrix.elysium
-	#	handle @vaultwarden {
-	#		reverse_proxy vaultwarden:80
-	#	}
+	# One block per service, matched on the name the browser typed. Each
+	# service from #131 onward adds one in this shape; nothing else in the
+	# stack decides what is served.
+
+	# Paperless-ngx (#133). reverse_proxy sets X-Forwarded-For, -Proto and
+	# -Host unasked, and compose.yaml's PAPERLESS_USE_X_FORWARD_HOST and
+	# PAPERLESS_PROXY_SSL_HEADER are what reads them — Django otherwise sees a
+	# plain-http request for the upstream's own name and rejects every POST.
+	@paperless host paperless.matrix.elysium
+	handle @paperless {
+		reverse_proxy paperless:8000
+	}
+
 	handle {
-		respond "trinity: the sensitive tier. Nothing is routed here yet." 404
+		respond "trinity: the sensitive tier. No service is routed under this name." 404
 	}
 
 	log {

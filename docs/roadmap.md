@@ -415,7 +415,14 @@ what left this one unfireable for months.
   exists since 2026-09-09 with its foundation — Caddy as the only published
   port, step-ca as an intermediate beneath the lab CA — authored ahead of the
   hardware the way `stacks/lab` was, and checked by everything `make validate`
-  runs, `caddy validate` included.
+  runs, `caddy validate` included. Paperless-ngx followed the same day
+  ([#133](https://github.com/Gerrrt/HomeLab/issues/133)): the first household
+  service behind Caddy, with a Postgres and a Valkey of its own, running as the
+  operator with every capability dropped and a CPU ceiling — the estate's
+  first — and its archive and database in `backup-volumes.sh`'s inventory.
+  Booted from the pinned images before the file was written, on the
+  monitoring host, since the tier's is not built; the limits are stated as
+  unmeasured on the hardware they are for.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero
