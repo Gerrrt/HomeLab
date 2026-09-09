@@ -93,8 +93,11 @@ to every host, the firewall's UI, DNS, NTP, ping, the wiki, Grafana and the UPS
 card — above a logged block that drops the rest, and reach all of the lab by a
 rule that says so ([ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md), decided
 under [#228](https://github.com/Gerrrt/HomeLab/issues/228)). The
-observability host polls the iLO and the switch over SNMP, and each has a
-return path. Everything else is default deny. IoT, media and guest are
+observability host polls the iLO and the switch over SNMP; the switch has a
+return-path rule, and the iLO's replies ride pf state alone since the rule that
+duplicated it was deleted on 2026-09-09
+([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)). Everything else is
+default deny. IoT, media and guest are
 terminal — traffic goes out, nothing comes back in. One path the diagram cannot
 draw: the switch is plumbing here, not a segment, but its management address
 sits on the untagged LAN (`10.7.7.0/24`), and that interface still carries

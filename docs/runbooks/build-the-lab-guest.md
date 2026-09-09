@@ -250,9 +250,9 @@ Three of the files there go to `alexander`:
 ### Do it from Hicks, because the two hosts cannot reach each other
 
 **`99 → 30` is closed.** An `scp` from `prometheus` to `alexander` does not
-work — there is no rule that would carry it, and the one exception on that
-interface is the iLO's SNMP return path. Hicks reaches both segments, so the
-Mac is the only machine that can see both ends.
+work — there is no rule that would carry it, and the only passes on that
+interface are `Saruman`'s two agent ports into the monitoring host. Hicks
+reaches both segments, so the Mac is the only machine that can see both ends.
 
 From the Mac. The first command matters because `certificates/` is gitignored,
 so a fresh clone on `alexander` does not have it and `scp` would fail into a
