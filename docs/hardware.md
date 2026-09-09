@@ -86,6 +86,14 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   It enters the Compute table when
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it.
+- 2 TB USB portable hard drive — on hand, previously a games console's
+  storage. Becomes the photo library's disk on `trinity`
+  ([#404](https://github.com/Gerrrt/HomeLab/issues/404)): Immich's originals
+  on it, its database on the internal SSD, after a wipe and an `ext4` format.
+  One consumer spinning disk with no mirror, so the off-estate copy
+  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
+  requires is what protects it — the same as would have been true of a bought
+  drive, which this replaces.
 - Lenovo ThinkServer TS150 — Xeon E3-1225 v6 (4 cores, 3.3 GHz, Intel HD P630
   with Quick Sync), 8 GB ECC, four 3.5" bays, no drives, no OS — bought
   2026-09-09, in transit. The NAS `zion` of

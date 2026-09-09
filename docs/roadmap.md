@@ -13,6 +13,61 @@ Detail that used to live here — the trap in the MokerLink walk, the exact orde
 to bring the UPS back, the isolation question `ifrit` defers — moved to the
 issues intact. Nothing was summarised away.
 
+## Everything still to buy
+
+The one list. It exists because purchases kept appearing one at a time in
+issues, ADRs and runbooks, and the person paying for them found out about each
+by surprise — the sensitive tier's host had no line anywhere until one box had
+been bought for two jobs ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
+Compiled on 2026-09-09 from every ADR, runbook, open issue and document in
+this repository. **The rule from here: nothing enters the first list without a
+decision the operator made, and a PR that implies a purchase edits this section
+in the same commit.**
+
+**Buy these, and the estate as decided is fully bought:**
+
+| Item | For | Decided by | When it is needed |
+| --- | --- | --- | --- |
+| Two 3.5" NAS drives, capacity chosen at the till | `zion`'s ZFS mirror | [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#413](https://github.com/Gerrrt/HomeLab/issues/413) | Before the NAS is built |
+| One USB NIC, the same chipset as `morpheus`'s if it can be found | The ProDesk's switch-management leg, for the firewall rehearsal and any restore onto it | [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3, [#404](https://github.com/Gerrrt/HomeLab/issues/404) | Before the rehearsal |
+| Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
+
+**One more, later, and it is the last:** `ifrit`, the range host — a quiet
+SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
+([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
+[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain
+being built; it is the last purchase on this list, not the next.
+
+**Already paid for**, in transit or on hand: the ProDesk 600 G4 (the tier's
+host and the firewall's spare hardware); the TS150 NAS; two SM863a SSDs for
+`Saruman` ([#418](https://github.com/Gerrrt/HomeLab/issues/418)); the pfSense
+installer stick; the 2 TB USB drive that becomes the photo library's disk on
+`trinity`; the removable medium the second age recipient lives on.
+
+**Only if a decision is taken, and none is pending** — these are not on the
+list, and each names what would put it there:
+
+- A dedicated firewall cold spare: deferred by ADR-0034 until the tier holding
+  real data makes an hour of firewall downtime unacceptable.
+- A Zigbee or Z-Wave coordinator for Home Assistant: only if a device needs
+  one, and nothing on Skids does today — Ring is cloud, Hue has its own
+  bridge, the assistants are Wi-Fi ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
+- A memory kit for `ifrit`'s second slot: only if 32 GB proves short.
+- A replacement for the MokerLink switch: named as the thing that would close
+  [#84](https://github.com/Gerrrt/HomeLab/issues/84),
+  [#85](https://github.com/Gerrrt/HomeLab/issues/85) and ADR-0018's residual
+  together; never decided.
+- Off-estate storage for the household's copy: [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
+  deliberately buys nothing and chooses no provider. When it is chosen it is
+  either a drive kept at another address or a subscription — a cost, but a
+  decision first.
+- A Coral TPU and RTSP cameras: declined with Frigate
+  ([ADR-0032](adr/0032-decline-frigate-while-the-cameras-are-ring.md)).
+
+**Never**, and the documents say so: anything for `prometheus` or `oracle`,
+and any disk or memory on account of Wazuh — ADR-0030 sizes it to what
+`Saruman` has.
+
 ## Security
 
 - **[#229](https://github.com/Gerrrt/HomeLab/issues/229) The switch LAN still
