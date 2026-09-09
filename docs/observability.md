@@ -532,30 +532,35 @@ Neither half substitutes for the other. The heartbeat proves delivery to a
 notification travels the identical URL your warnings travel, but nothing
 machine-checks its absence.
 
-**The heartbeat half is configured and is not yet a dead man's switch, and this
-paragraph is the honest version of the table above.** All four receivers point
-at `ntfy.sh`, the heartbeat included. ntfy is a push service: it delivers what it
-is sent and has no notion of an expected interval, so it cannot notice a ping
-that never arrived — and absence is the entire signal. The pings are being
-delivered to a topic nobody is waiting on
-([#359](https://github.com/Gerrrt/HomeLab/issues/359)).
+**The heartbeat half became a dead man's switch on 2026-09-09.** Until then all
+four receivers pointed at `ntfy.sh`, the heartbeat included, and ntfy is a push
+service: it delivers what it is sent and has no notion of an expected interval,
+so it cannot notice a ping that never arrived — and absence is the entire
+signal. The pings were being delivered to a topic nobody was waiting on
+([#359](https://github.com/Gerrrt/HomeLab/issues/359)), and they were also
+spending almost all of ntfy.sh's free daily budget, so real alerts were refused
+at the end of every day ([#407](https://github.com/Gerrrt/HomeLab/issues/407)).
+The heartbeat now pings a healthchecks.io check, period 5m and grace 15m, which
+emails when a ping does not arrive; the three real channels stay on ntfy and
+have the budget to themselves.
 
-So today, if Prometheus stops evaluating, Alertmanager dies, or this host loses
-outbound network, **nothing external notices**. That is the failure
-[#214](https://github.com/Gerrrt/HomeLab/issues/214) lived through from the other
-direction, and the heartbeat is cited as the answer to it in #214's own
-resolution — an answer that is wired up but not yet armed.
+So now, if Prometheus stops evaluating, Alertmanager dies, or this host loses
+outbound network, something external notices — in principle. That is the
+failure [#214](https://github.com/Gerrrt/HomeLab/issues/214) lived through from
+the other direction, and the heartbeat is cited as the answer to it in #214's
+own resolution. It is armed and not yet proven: nobody has watched the check go
+red, which is [#288](https://github.com/Gerrrt/HomeLab/issues/288).
 
-`check_alert_channels.py --live` now reports it on every deploy, classifying the
-heartbeat's destination host as a watcher or a push service. It is a **warning
-rather than a failure** on purpose: it cannot be fixed from this repository — it
-needs an account on a watcher service and a decision about where its notification
-goes — and a deploy-time check that is permanently red for a known reason stops
-being read, which this repository has already written down about
-`.gitleaksignore`. Closing it is four steps in
+`check_alert_channels.py --live` reports the destination on every deploy,
+classifying the heartbeat's host as a watcher or a push service. A push service
+is a **warning rather than a failure** on purpose: it cannot be fixed from this
+repository — it needs an account on a watcher service and a decision about where
+its notification goes — and a deploy-time check that is permanently red for a
+known reason stops being read, which this repository has already written down
+about `.gitleaksignore`. It read `ntfy.sh` and warned from 2026-09-07 to
+2026-09-09; it reads `hc-ping.com` and passes since. That was the four steps in
 [`runbooks/verify-the-alert-path.md`](runbooks/verify-the-alert-path.md), and
-[#288](https://github.com/Gerrrt/HomeLab/issues/288)'s drill becomes runnable
-once it is done.
+[#288](https://github.com/Gerrrt/HomeLab/issues/288)'s drill is runnable now.
 
 The watcher lives off this host by necessity — a watcher here fails at the same
 moment as the thing it is watching. Setting it up, the coupling between

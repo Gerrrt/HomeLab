@@ -33,12 +33,19 @@ travel, but nothing machine-checks its absence — you do.
 
 ## Setting up the external watcher
 
-> **This has not been done.** As of 2026-09-07 the heartbeat URL points at
-> `ntfy.sh` exactly as every other receiver does, and ntfy cannot detect absence — so
-> there is no dead man's switch, only a heartbeat nobody is waiting on
-> ([#359](https://github.com/Gerrrt/HomeLab/issues/359)). `make up` warns about
-> it on every deploy. The steps below are what closes it, and step 2 is the one
-> that matters.
+> **Done 2026-09-09.** One check on healthchecks.io, period 5m, grace 15m,
+> notifying by email — not through this stack's ntfy topics, and not through
+> ntfy.sh at all, since the whole house shares one public address and one free
+> daily budget there ([#407](https://github.com/Gerrrt/HomeLab/issues/407)).
+> The ping URL is in `ALERTMANAGER_HEARTBEAT_URL`; `check_alert_channels.py
+> --live` reads its destination as `hc-ping.com`, a service that watches for
+> absence, and passes. From 2026-09-07 to this date the URL pointed at `ntfy.sh`
+> like every other receiver, and there was no dead man's switch, only a
+> heartbeat nobody was waiting on
+> ([#359](https://github.com/Gerrrt/HomeLab/issues/359)). **The drill below has
+> still not been run** — that is [#288](https://github.com/Gerrrt/HomeLab/issues/288),
+> and until it has, "the check goes red when the stack dies" is a claim, not an
+> observation.
 
 The watcher has to live somewhere other than the monitoring host. A watcher on
 this host fails at the same moment as the thing it is watching, which is not
