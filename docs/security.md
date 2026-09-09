@@ -208,7 +208,21 @@ it for as long as it was a number.
 
 Everything else — IoT, media, guest — gets internet and nothing more.
 
-That last sentence is now checked rather than asserted. Four **tripwire** rules
+That sentence is about what those segments *initiate*, and two decisions now
+reach into them without touching it.
+[ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+writes three passes into CasaBonita for the NAS, and
+[ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) one into
+Skids — `10.0.99.40 → 10.0.20.104:80,443/tcp`, Home Assistant to the Hue
+bridge, the one device on that segment with a local API — above the block
+that has stood between 99 and 20 since the segments existed. Neither is
+created yet; both wait on the host that would use them. The row ADR-0008
+wrote as `99 → 20` is narrower than it read: one host to one device on two
+ports, with the twenty other devices on Skids still unreachable from
+anywhere, and the segment still initiating nothing. The tripwire below is the
+check that the second half holds when the first lands.
+
+That sentence is now checked rather than asserted. Four **tripwire** rules
 sit below the block rules that stop each cross-segment path and above the
 `→ any` egress rule: three on the terminal interfaces
 ([#223](https://github.com/Gerrrt/HomeLab/issues/223)), `pass` + `log` for
@@ -279,6 +293,18 @@ assumption consistent with what they are.
 - CI runs `gitleaks` with rules specifically for SNMP communities, inline
   Grafana passwords, PEM private keys and age secret keys, and separately
   asserts that every `secrets/*.sops.yaml` is genuinely encrypted.
+- **One service on the sensitive tier keeps its credentials outside SOPS, by
+  necessity and on the record.** Home Assistant obtains device credentials
+  through its own pairing flows — the Hue application key, the Ring token —
+  and writes them to its store inside the `home-assistant-config` volume; no
+  environment variable or rendered file is a way to hand them in. So the rule
+  above covers what that stack takes from outside, and the tier's most
+  numerous credentials are protected instead by the disk-encryption decision
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404) makes and by the
+  encrypted volume archive — which therefore carries live credentials, as
+  `grafana-data` already does.
+  [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) records
+  the deviation and what would retire it.
 
 ### Known historical exposure
 
