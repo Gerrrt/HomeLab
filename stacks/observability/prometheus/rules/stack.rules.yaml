@@ -72,6 +72,11 @@ groups:
             PROMETHEUS_RETENTION, so history is shorter than 30 days.
 
       - alert: AlertmanagerNotificationsFailing
+        # The `reason` label is the first thing to read, not the integration.
+        # On 2026-09-08 this fired with reason="rateLimited": every receiver
+        # was reachable and answering, and ntfy.sh was refusing with 429
+        # because the day's free message budget was spent (#407). "The
+        # webhook is unreachable" is what a reader assumes, and it was wrong.
         expr: increase(alertmanager_notifications_failed_total[15m]) > 0
         for: 5m
         labels:
@@ -79,10 +84,15 @@ groups:
           severity: critical
           category: correctness
         annotations:
-          summary: "Alertmanager cannot deliver notifications via {{ $labels.integration }}"
+          summary: "Alertmanager cannot deliver via {{ $labels.integration }}: {{ $labels.reason }}"
           description: >-
             Alerts are firing but not reaching anyone — this makes every other
-            rule in this repository silently useless.
+            rule in this repository silently useless. Read the reason before
+            the URL: rateLimited means the destination answered and refused
+            (ntfy.sh's daily quota, #407), clientError or serverError means it
+            answered with an error, and contextDeadlineExceeded means it did
+            not answer at all. This alert travels the same path it reports on,
+            so if it reached you, at least one receiver still works.
 
       - alert: LokiIngestionStalled
         expr: |
