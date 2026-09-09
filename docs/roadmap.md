@@ -556,6 +556,18 @@ what left this one unfireable for months.
   attackers; #235 decided — the iLO stays, ADR-0033 — before this build makes
   it true. What is left is the purchase itself and the build.
   → [runbook](runbooks/build-the-playground.md)
+- **[#418](https://github.com/Gerrrt/HomeLab/issues/418) Fit the two SSDs in
+  `Saruman`.** Two Samsung SM863a 960 GB SATA enterprise drives, bought
+  2026-09-09, in transit. ADR-0007's constraint — "the fleet
+  is sized against spindles, not RAM" — became a number in ADR-0029, about
+  ninety random write IOPS for the whole machine, and that number sized the
+  lab domain's duty cycle and #266's indexer. The SSDs raise the ceiling; what
+  the issue leaves to the fit is whether they replace the mirror or sit beside
+  it, whether the Smart Array manages them — the drive rules read `cpqida.mib`
+  and a layout the controller does not own falls out of all of them — and
+  what #76's write cache does for the new logical drive. The fit makes
+  ADR-0029's derivation stale on the day, and the issue says so rather than
+  leaving the ADR to be silently edited.
 
 ## Automation
 

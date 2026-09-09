@@ -86,6 +86,16 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   It enters the Compute table when
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it.
+- 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
+  SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
+  for the ProLiant's SFF bays. Bought against the number every sizing
+  decision on `Saruman` starts from: a 7.2K mirror serving about ninety
+  random write IOPS
+  ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
+  Serials go here when they land. The Compute table's Storage column changes
+  when [#418](https://github.com/Gerrrt/HomeLab/issues/418) fits them, and
+  not before — that issue also names the ADRs whose arithmetic the fit makes
+  stale
 - USB stick holding the pfSense installer — **in transit; it belongs in the rack
   beside the KVM once it arrives**, and is not there yet.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
@@ -103,6 +113,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^Shiva]: [HPE ProLiant DL360 Gen9](https://buy.hpe.com/us/en/servers/rack-servers/proliant-dl300-servers/proliant-dl360-server/p/1010026922)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
+[^SM863a]: [Samsung SM863a 960 GB, MZ-7KM960N](https://www.ebay.com/itm/800210578217)
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)
 [^Panel]: [Jadol 24-port patch panel](https://a.co/d/izggRoK)
 [^PDU]: [10-outlet 1U PDU](https://a.co/d/ibEygxZ)
