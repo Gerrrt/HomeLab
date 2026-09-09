@@ -86,6 +86,14 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   It enters the Compute table when
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it.
+- Two SSDs for the ProLiant — purchased 2026-09-09, in transit. Bought
+  against the number every sizing decision on `Saruman` starts from: a 7.2K
+  mirror serving about ninety random write IOPS
+  ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
+  Model, capacity and serials go here when they land. The Compute table's
+  Storage column changes when
+  [#418](https://github.com/Gerrrt/HomeLab/issues/418) fits them, and not
+  before — that issue also names the ADRs whose arithmetic the fit makes stale
 - USB stick holding the pfSense installer — **in transit; it belongs in the rack
   beside the KVM once it arrives**, and is not there yet.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
