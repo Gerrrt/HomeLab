@@ -14,10 +14,14 @@
 # genuinely understands the format is the thing that will run it.
 #
 #   1. `caddy validate` — adapts and provisions the config without starting it.
-#      Provisioning loads the TLS files the Caddyfile names, so a throwaway
-#      keypair is generated into a temp dir and mounted where compose.yaml
-#      mounts the real one. The real leaf never exists on a CI runner and must
-#      not: certificates/ is gitignored and stays that way.
+#      Provisioning loads the PEM files the Caddyfile names — the trusted root
+#      for its ACME issuer — so a throwaway self-signed certificate is
+#      generated into a temp dir and mounted where compose.yaml mounts the
+#      real one. Nothing is dialled: `--network none`, and provisioning an
+#      ACME issuer does not contact the directory; obtaining a certificate
+#      does, and that happens only when the server starts. The real root never
+#      exists on a CI runner and must not: certificates/ is gitignored and
+#      stays that way.
 #   2. `caddy fmt --diff` — the file is formatted the way `caddy fmt` would
 #      write it, so a diff shows a change and not a reindent.
 #
@@ -72,13 +76,13 @@ for stack in "${STACKS[@]}"; do
 
   work="$(mktemp -d)"
   trap 'rm -rf "${work}" 2>/dev/null || true' EXIT
-  # A throwaway pair, one day, unrelated to any CA this estate has ever run.
-  # It exists so `tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem` has files
-  # to load; it proves nothing about the real certificate and is not meant to.
+  # A throwaway certificate, one day, unrelated to any CA this estate has ever
+  # run. It exists so the issuer's `trusted_roots /etc/caddy/tls/ca.pem` has a
+  # PEM to parse; it proves nothing about the real root and is not meant to.
   openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
     -subj '/CN=caddyfile-validation' \
-    -keyout "${work}/key.pem" -out "${work}/cert.pem" >/dev/null 2>&1
-  cp "${work}/cert.pem" "${work}/ca.pem"
+    -keyout "${work}/key.pem" -out "${work}/ca.pem" >/dev/null 2>&1
+  rm -f "${work}/key.pem"
   chmod 644 "${work}"/*.pem
   chmod 755 "${work}"
 
@@ -93,8 +97,6 @@ for stack in "${STACKS[@]}"; do
   # image-for.sh above.
   run=(docker run --rm --network none \
     -v "${work}/Caddyfile:/etc/caddy/Caddyfile:ro" \
-    -v "${work}/cert.pem:/etc/caddy/tls/cert.pem:ro" \
-    -v "${work}/key.pem:/etc/caddy/tls/key.pem:ro" \
     -v "${work}/ca.pem:/etc/caddy/tls/ca.pem:ro" \
     "${image}")
 

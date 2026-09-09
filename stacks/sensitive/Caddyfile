@@ -11,36 +11,48 @@
 	admin off
 
 	# The container's own healthcheck connects to https://localhost, whose SNI
-	# matches no site below; without a default, that handshake has no
-	# certificate to offer and the check fails on a proxy that is serving fine.
+	# matches no site below. default_sni covers a ClientHello with no SNI at
+	# all; fallback_sni covers one whose SNI matches nothing — busybox wget
+	# sends `localhost`, which is the second case. Without both, that
+	# handshake has no certificate to offer and the check fails on a proxy
+	# that is serving fine.
 	default_sni trinity.matrix.elysium
+	fallback_sni trinity.matrix.elysium
+
+	# 80 is not published (ADR-0012, .env.example), so the HTTP→HTTPS redirect
+	# Caddy would otherwise listen for on it is a listener nothing can reach.
+	# Disabled so the container's open ports are the ones compose.yaml says.
+	auto_https disable_redirects
+
+	# Every certificate this file serves comes from step-ca over ACME, from
+	# the tier's own intermediate (ADR-0035, #130). `step-ca` resolves on the
+	# compose network; the directory URL's middle segment is the provisioner
+	# name scripts/tier-ca.sh creates. trusted_roots is the TIER'S root — the
+	# file compose.yaml mounts from certificates/tier-ca.pem — not the estate's
+	# ca.pem, which is a different CA and would reject the directory's
+	# certificate. The http-01 challenge is disabled here as well as at the
+	# CA: 80 is not published (ADR-0012), so leaving it enabled would only add
+	# a failed attempt before the one that works.
+	cert_issuer acme {
+		dir https://step-ca:9000/acme/acme/directory
+		trusted_roots /etc/caddy/tls/ca.pem
+		disable_http_challenge
+	}
 }
 
-# Everything the tier serves, under one leaf for now. The certificate comes
-# from scripts/gen-certs.sh (see compose.yaml); when step-ca's ACME provisioner
-# is configured (#130) the `tls` line becomes
+# Each name served here is ALSO a network alias of the caddy service in
+# compose.yaml — step-ca validates the tls-alpn-01 challenge by dialling the
+# name on 443 from inside the compose network, and Docker's resolver answers
+# with Caddy's address only for names Caddy carries. A block added here
+# without its alias fails its first issuance with a DNS error at the CA.
 #
-#	tls {
-#		ca https://step-ca:9000/acme/acme/directory
-#		ca_root /etc/caddy/tls/ca.pem
+# Nothing is routed yet. Each service from #131 onward gets a block of its
+# own, under its own name and therefore its own certificate:
+#
+#	vaultwarden.matrix.elysium {
+#		reverse_proxy vaultwarden:80
 #	}
-#
-# and each service gets a name of its own beneath matrix.elysium, issued and
-# renewed without a runbook step.
-https:// {
-	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
-
-	# What the container's healthcheck asks for, on any Host.
-	handle /healthz {
-		respond "ok" 200
-	}
-
-	# Nothing is routed yet. Each service from #131 onward adds a block here:
-	#
-	#	@vaultwarden host vaultwarden.matrix.elysium
-	#	handle @vaultwarden {
-	#		reverse_proxy vaultwarden:80
-	#	}
+trinity.matrix.elysium {
 	handle {
 		respond "trinity: the sensitive tier. Nothing is routed here yet." 404
 	}
@@ -48,5 +60,19 @@ https:// {
 	log {
 		output stdout
 		format json
+	}
+}
+
+# Any other name, and the container's own healthcheck. No hostname, so
+# automatic HTTPS obtains nothing for this block; the handshake is served
+# with the fallback certificate above.
+https:// {
+	# What the container's healthcheck asks for, on any Host.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle {
+		respond "trinity: the sensitive tier. No such site." 404
 	}
 }

@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 #
-# Generate the lab's internal CA and the leaf certificates it signs.
+# Generate the ESTATE'S internal CA and the leaf certificates it signs.
+#
+# The estate's, and only the estate's: Grafana on the monitoring host and on
+# the lab guest serve leaves from this CA, and Prometheus and blackbox verify
+# them against it. The sensitive tier on trinity has a certificate authority of
+# its own — step-ca, with a root minted by scripts/tier-ca.sh — and every
+# certificate Caddy serves there is issued over ACME and renewed without a
+# runbook step. Nothing this script issues is for that host, and nothing that
+# host serves comes from here. ADR-0035 says why they are two: the root below
+# carries pathlen:0, so nothing beneath it may be a CA.
 #
 # Everything lands in certificates/, which is gitignored — along with *.pem and
 # *.key — because the previous set of these was committed to a public repository
@@ -122,6 +131,13 @@ that holds it. Pass --force only if that is what you mean."
   fi
 
   info "creating the CA (${CA_DAYS} days)"
+  # pathlen:0 is deliberate and load-bearing: nothing beneath this root may be
+  # a CA, so a leaf key lifted from Grafana cannot be turned into a signer of
+  # anything else. It also means this root CANNOT have an intermediate — a
+  # leaf beneath one fails "path length constraint exceeded" in every client
+  # here — which is why the sensitive tier's step-ca has a root of its own
+  # rather than sitting beneath this one (ADR-0035, measured before deciding).
+  # Lifting it means re-minting this root and re-trusting it everywhere.
   openssl req -x509 -newkey rsa:4096 -sha256 -nodes \
     -keyout "${CA_KEY}" -out "${CA_CRT}" -days "${CA_DAYS}" \
     -subj "${CA_SUBJECT}" \

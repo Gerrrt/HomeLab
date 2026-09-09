@@ -15,9 +15,10 @@
 # that publishes a port, and the whole containment argument in ADR-0008 —
 # "containers sit on private bridge networks with only the reverse proxy
 # publishing a port" — is a property of this file or it is a sentence in an
-# ADR. step-ca (#130) issues the certificates behind it. Vaultwarden, Immich,
-# Paperless-ngx, Home Assistant, AdGuard Home, ntfy and Homepage (#131–#137)
-# land behind Caddy on the network below, each with `expose:` and no `ports:`.
+# ADR. step-ca (#130) issues the certificates behind it, over ACME, from a
+# root of the tier's own (ADR-0035). Vaultwarden, Immich, Paperless-ngx, Home
+# Assistant, AdGuard Home, ntfy and Homepage (#131–#137) land behind Caddy on
+# the network below, each with `expose:` and no `ports:`.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -96,18 +97,31 @@ services:
       - /tmp:size=16m
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # ACME account and every issued leaf live here; disposable, because
+      # each leaf is re-issued within a week anyway (ADR-0035).
       - caddy-data:/data
       - caddy-config:/config
-      # The leaf comes from scripts/gen-certs.sh until step-ca issues it
-      # (#129: "initially, replaced by step-ca issuance once that lands"):
-      #   make certs ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity"
-      # Issued on the monitoring host, where the CA key lives and stays; the
-      # three files travel the way the lab's did (build-the-lab-guest.md §5).
-      # render-config.sh refuses to render while any of these is missing, so
-      # `make up` cannot start a Caddy that would fail its first TLS handshake.
-      - ../../certificates/trinity.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
-      - ../../certificates/trinity.matrix.elysium-key.pem:/etc/caddy/tls/key.pem:ro
-      - ../../certificates/ca.pem:/etc/caddy/tls/ca.pem:ro
+      # No leaf and no key are mounted: Caddy obtains both from step-ca over
+      # ACME (the Caddyfile's cert_issuer block). What it needs from disk is
+      # the TIER'S root certificate — not the estate's ca.pem, which is a
+      # different CA (ADR-0035) — to verify the ACME directory it dials.
+      # `make tier-ca ARGS="--install …"` writes this file on trinity from the
+      # bundle; render-config.sh refuses to render while it is missing, and
+      # its message says so rather than naming `make certs`, which on this host
+      # would mint a third CA nobody asked for.
+      - ../../certificates/tier-ca.pem:/etc/caddy/tls/ca.pem:ro
+    # The compose network's resolver answers a name with a container's address
+    # only if the container carries that name. step-ca validates Caddy's
+    # tls-alpn-01 challenge by dialling the requested NAME on 443 from inside
+    # this network, so every name the Caddyfile serves is listed here too — a
+    # name served without an alias fails its first issuance with a DNS error
+    # at the CA, loudly. One alias per service, added in the same commit as
+    # its Caddyfile block. (`networks:` here overrides the anchor's list form;
+    # the membership is the same, `sensitive`.)
+    networks:
+      sensitive:
+        aliases:
+          - trinity.matrix.elysium
     ports:
       - "${BIND_ADDR:-0.0.0.0}:${HTTPS_PORT:-443}:443"
     depends_on:
@@ -127,18 +141,31 @@ services:
   # ---------------------------------------------------------------------------
   # step-ca — the tier's certificate authority (#130)
   # ---------------------------------------------------------------------------
-  # An INTERMEDIATE beneath the lab CA, not a new root — decided on #130 and
-  # recorded here: everything that already trusts certificates/ca.pem keeps
-  # trusting what this issues, nothing is re-pointed, and the root key never
-  # leaves the monitoring host. The intermediate is minted there:
+  # A ROOT OF THE TIER'S OWN, with an intermediate beneath it — ADR-0035. This
+  # comment used to say "an intermediate beneath the lab CA, so nothing is
+  # re-pointed", and that was written before anyone read the lab root: it is
+  # minted with pathlen:0, so a leaf beneath any intermediate of it fails
+  # "path length constraint exceeded" in every Go client this estate runs. The
+  # ADR has the measurement and the cost of the alternative.
   #
-  #   step ca init --root certificates/ca.pem --key certificates/ca-key.pem ...
+  # Both are minted on the monitoring host, in this image, by
   #
-  # and the resulting tree (config/, certs/, secrets/, db/) is what populates
-  # the step-ca-data volume on trinity — the procedure is #404's runbook. The
-  # image's entrypoint refuses to start without config/ca.json and would
-  # otherwise mint a fresh root of its own on first boot; a populated volume
-  # is what stops that, and DOCKER_STEPCA_INIT_* is deliberately never set.
+  #   make tier-ca ARGS=--mint                (scripts/tier-ca.sh)
+  #
+  # which writes the tree step-ca runs from (config/, certs/, secrets/, db/)
+  # under certificates/ there, and a bundle of it WITHOUT the root key. The
+  # bundle is what populates the step-ca-data volume on trinity, with
+  # `make tier-ca ARGS="--install …"` — docs/runbooks/build-the-tier-ca.md.
+  # The root key stays on the monitoring host, cold: ca.json never references
+  # it (checked by the script), so this service has no use for it. The image's
+  # entrypoint refuses to start without config/ca.json and would otherwise
+  # mint a fresh root of its own on first boot; a populated volume is what
+  # stops that, and DOCKER_STEPCA_INIT_* is deliberately never set.
+  #
+  # The ACME provisioner in that ca.json accepts tls-alpn-01 only, on 443 —
+  # so 80 stays unpublished (ADR-0012) — and issues seven-day leaves. The
+  # lifetime is the outage budget between this container failing and the
+  # tier's handshakes failing; ADR-0035 §3 says why it is not the 24h default.
   #
   # DIFFERENCE 3: the key password comes from SOPS by way of the environment
   # and a tmpfs file. step-ca wants a --password-file; the estate's rule is
@@ -149,8 +176,10 @@ services:
   # the environment of either), and nothing on disk. `$$` is compose's
   # escape: the container sees `${STEPCA_PASSWORD}`, not this file's value.
   #
-  # Nothing publishes 9000. Caddy reaches it on this network for ACME once
-  # #130's provisioner is configured; a browser never needs it.
+  # Nothing publishes 9000. Caddy reaches it on this network for ACME; a
+  # browser never needs it. The day the estate's Grafana renews from here
+  # (ADR-0035's reopen) is the day it gets an off-host consumer and ADR-0012
+  # says to publish it — not before.
   step-ca:
     <<: *service-defaults
     image: smallstep/step-ca:0.30.2@sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270
@@ -159,6 +188,16 @@ services:
     memswap_limit: 256m
     user: "1000:1000"
     cap_drop: [ALL]
+    # Measured on the first boot, which the foundation commit never had: with
+    # every capability dropped, `exec /usr/local/bin/step-ca` fails with
+    # "operation not permitted" before main() runs. The image ships the binary
+    # with the NET_BIND_SERVICE file capability set (so it can bind 443 as a
+    # non-root user), and the kernel refuses to exec a file whose effective
+    # capability is outside the process's bounding set rather than running it
+    # unprivileged. Keeping that one capability in the bounding set is what
+    # makes the exec succeed; the process binds 9000 and would not need it.
+    # Same single capability Caddy keeps, for a different reason.
+    cap_add: [NET_BIND_SERVICE]
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -179,9 +218,12 @@ services:
       - "9000"
     healthcheck:
       # `step ca health` is the CA asking itself, over TLS, against its own
-      # root — which is the lab CA's root once the tree is populated. The
-      # `step` binary ships in the image; check_compose_health.py --probe
-      # proves that on every run rather than trusting this comment.
+      # root — the tier's, out of the installed tree. `localhost` is in the
+      # serving certificate's SANs because tier-ca.sh puts it there at init;
+      # without it this check fails on hostname mismatch against a CA that is
+      # serving fine. The `step` binary ships in the image;
+      # check_compose_health.py --probe proves that on every run rather than
+      # trusting this comment.
       test:
         - CMD
         - step

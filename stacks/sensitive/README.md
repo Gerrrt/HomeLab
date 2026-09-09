@@ -14,7 +14,7 @@ make up STACK=sensitive
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | caddy | `caddy` | 443 (https) | The one published port on the tier. Terminates TLS, routes by name to every service behind it ([#129]) |
-| step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — an intermediate beneath the lab CA, so nothing that trusts `certificates/ca.pem` is re-pointed ([#130]) |
+| step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — a root of its own with an intermediate beneath it, issuing to Caddy over ACME ([#130], [ADR-0035]) |
 
 Two services, and both are plumbing. What is absent is as deliberate as what
 is here:
@@ -41,9 +41,11 @@ Caddyfile                  every route the tier serves; validated in CI
 
 Secrets are `secrets/sensitive.sops.yaml`, encrypted to this stack's own rule
 in `.sops.yaml` — `trinity`'s key opens this file and nothing else of the
-estate's (`secrets/sensitive.example.yaml` says why). Certificates live under
-`certificates/`, untracked, and are issued on the monitoring host where the
-CA key stays.
+estate's (`secrets/sensitive.example.yaml` says why). The one file under
+`certificates/` this stack reads is `tier-ca.pem`, the tier's root
+certificate, written by `make tier-ca ARGS="--install …"` from the bundle
+minted on the monitoring host; every leaf is obtained from step-ca at run
+time and lives in Caddy's `/data` volume, never on disk here.
 
 ## Things worth knowing before editing
 
@@ -52,28 +54,43 @@ CA key stays.
   `/config` are root-owned and a named volume inherits that — and names the
   command that re-checks the premise when the image moves. `cap_drop: [ALL]`
   plus `no-new-privileges` is what makes it acceptable; do not add capabilities
-  to make something else work.
+  to make something else work. step-ca keeps the same one capability for a
+  different, also measured, reason: its binary ships with the
+  `NET_BIND_SERVICE` file capability, and the kernel refuses to exec such a
+  file against a bounding set without it — the first boot failed on
+  `operation not permitted` before the process existed. It still runs as
+  `1000:1000`.
 - **No admin API.** `admin off` in the `Caddyfile` means a routing change is
   `make up STACK=sensitive`, which recreates the container, not `caddy reload`.
   The socket would have been unauthenticated and on the same network as every
   service it fronts.
-- **step-ca is an intermediate, and its tree is not made here.** `step ca init`
-  runs on the monitoring host against `certificates/ca.pem` and its key; the
-  resulting `config/`, `certs/`, `secrets/` and `db/` populate the
-  `step-ca-data` volume on `trinity`. The image's entrypoint will not start
-  without `config/ca.json`, and `DOCKER_STEPCA_INIT_*` is never set, because
-  either would mint a root of its own. The key password is `STEPCA_PASSWORD`
-  in SOPS, written to a private tmpfs at start and nowhere on disk.
-- **The certificate is hand-issued until ACME is wired.** `make certs
-  ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity"` on the
-  monitoring host, three files copied over as `build-the-lab-guest.md` §5
-  does it. `render-config.sh` refuses to render while any of them is missing.
-  The `Caddyfile` carries the `tls { ca … }` block that replaces this once
-  [#130]'s ACME provisioner is configured.
+- **step-ca is a CA of the tier's own, and its tree is not made here.** Not
+  an intermediate beneath the estate's CA, which this file once claimed: that
+  root carries `pathlen:0`, and a leaf beneath any intermediate of it fails
+  `path length constraint exceeded` — measured, and decided in [ADR-0035].
+  `make tier-ca ARGS=--mint` on the monitoring host mints the root and
+  intermediate in this image and writes a bundle *without the root key*;
+  `make tier-ca ARGS="--install …"` here populates the `step-ca-data` volume
+  from it and writes `certificates/tier-ca.pem`. The image's entrypoint will
+  not start without `config/ca.json`, and `DOCKER_STEPCA_INIT_*` is never
+  set, because either would mint a root of its own. The key password is
+  `STEPCA_PASSWORD` in SOPS, written to a private tmpfs at start and nowhere
+  on disk. [`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md)
+  is the procedure.
+- **Every certificate is obtained over ACME, and every name is also an
+  alias.** The `Caddyfile`'s `cert_issuer acme` block points at step-ca's
+  directory and trusts the tier's root; leaves are seven days and Caddy
+  renews them. step-ca validates the `tls-alpn-01` challenge by dialling the
+  requested name on 443 from inside the compose network, so a name served in
+  the `Caddyfile` must also appear under the `caddy` service's network
+  `aliases` in `compose.yaml` — one line each, added together. A name with a
+  block and no alias fails its first issuance with a DNS error at the CA.
 - **80 is not published.** ADR-0012: a port is published when something
   off-host consumes it, and nothing consumes 80 — browsers on Hicks type
-  `https`, and ACME's `tls-alpn-01` challenge runs over 443. A redirect is a
-  later choice, made in `.env.example` and `compose.yaml` together.
+  `https`, and ACME's `tls-alpn-01` challenge runs over 443; the provisioner
+  accepts no other challenge, and the `Caddyfile` disables the redirect
+  listener Caddy would otherwise open on 80. A redirect is a later choice,
+  made in `.env.example`, `compose.yaml` and the `Caddyfile` together.
 - **Nothing converges this stack.** The `homelab-*` timers are the estate's;
   `make validate` notes their absence here as a skip, not a failure. This stack
   is deployed by hand, from a checkout on `trinity`.
@@ -104,13 +121,17 @@ it matters:
   volume, and the volume is populated by a procedure run on two hosts. A fresh
   `make up` on a bare `trinity` fails on `config/ca.json`, loudly and on
   purpose.
-- **That the leaf matches the name.** `caddy validate` loads a throwaway pair;
-  whether the real one carries `trinity.matrix.elysium` in its SANs is checked
-  by the first browser, or by `openssl x509 -noout -ext subjectAltName` on the
-  monitoring host before the files travel.
+- **That ACME issuance works.** `caddy validate` provisions the issuer against
+  a throwaway root and dials nothing. Whether step-ca answers, validates the
+  challenge and signs is proved by the first `make up` — Caddy's log says
+  `certificate obtained successfully` and the served chain verifies against
+  `certificates/tier-ca.pem` — and it was proved once on the monitoring host
+  under a throwaway project before this was written
+  ([`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md) §*Verify*).
 
 [ADR-0007]: ../../docs/adr/0007-defensive-estate-and-offensive-range.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
+[ADR-0035]: ../../docs/adr/0035-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
