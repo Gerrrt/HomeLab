@@ -559,15 +559,21 @@ what left this one unfireable for months.
   measured (#63), and the reload/ABSENT_BINARIES cross-checks gained a
   cross-stack mode, because "not in this compose file" stopped meaning "in no
   stack at all" the moment there were two.
-  [#265](https://github.com/Gerrrt/HomeLab/issues/265) the domain is what
-  everything else is pointed at, and it is sized by
+  [#265](https://github.com/Gerrrt/HomeLab/issues/265) decided the domain and
+  closed on the decision; [#414](https://github.com/Gerrrt/HomeLab/issues/414)
+  is the build, and it is what everything else is pointed at — **not built**
+  as of 2026-09-09: six VMs, the runbook's eleven sections, evenings at
+  `Saruman` from a Hicks workstation, nothing to buy until the endpoints. It is
+  sized by
   [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
   rather than by taste: six guests on the `.50` decade, because NTLM relay needs
   a destination that is not the origin and, since Windows 11 24H2 requires
   inbound SMB signing where Server 2025 does not, the only relayable host in a
   DC-plus-workstations domain is the DC itself. The servers run continuously and
   the endpoints per session, because a 7.2K mirror serves about ninety random
-  write IOPS and six idle Windows guests would be most of them. Three things
+  write IOPS and six idle Windows guests would be most of them — the number
+  #418's SSDs were bought against, and the one their *fit* re-derives; a drive
+  in transit changes no duty cycle. Three things
   that ADR left explicit because they fail quietly: the DC takes its clock from
   the gateway, not `time.windows.com` — ADR-0014 named that failure and did not
   fix it, and the alert reads the *sync source* rather than the offset, because
@@ -590,15 +596,23 @@ what left this one unfireable for months.
   own premise. Six agents make about 21 GB of alerts a quarter, which the disks
   do not notice; what runs out is heap-per-shard, at OpenSearch's
   twenty-five-shards-per-GiB against one daily index each, so retention is
-  thirty days because that is what a 2 GiB heap buys.
+  thirty days because that is what a 2 GiB heap buys. `stacks/soc/` is not
+  yet authored, and nothing stops it being written and CI-validated ahead of
+  `odin` the way `stacks/lab` was ahead of `alexander`; what it cannot do
+  before #414 is say anything, because an agentless Wazuh has nothing to
+  report.
   [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS is **decided and
   deferred** by
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md):
-  a hypervisor backing up its own guests to itself is not a backup, `zion` is
-  decided and not yet bought, and PVE already does the snapshots the local-only
-  answer needs — so PBS would add a service for a capability that exists. The
-  lab has **revert and not backup** until `zion` does, and the ADR names what
-  gets backed up when it arrives — which is also why ADR-0029 gives PBS no disk
+  a hypervisor backing up its own guests to itself is not a backup, `zion` did
+  not exist, and PVE already does the snapshots the local-only answer needs —
+  so PBS would add a service for a capability that exists. `zion` is bought
+  since 2026-09-09 — the TS150 of
+  [#413](https://github.com/Gerrrt/HomeLab/issues/413), in transit, its two
+  drives still to buy — and not built, so the deferral's trigger has moved from
+  a purchase to a build: PBS follows the NAS answering on `10.0.40.30`, not the
+  box arriving. The lab has **revert and not backup** until then, and the ADR
+  names what gets backed up when it arrives — which is also why ADR-0029 gives PBS no disk
   on this pool: there is nothing to give it yet. Liveness stays where it already
   was, with
   [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0020 decides only
