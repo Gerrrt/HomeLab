@@ -47,8 +47,8 @@ and a check that depends on the same path inherits the same blind spot. Every
 assertion here reads a file, and none of them needs a notification to succeed.
 
 The dead man's switch is the other half of the answer and is not this: it is what
-notices when the whole path is down, and whether it actually works has never been
-tested (#288).
+notices when the whole path is down. It was tripped on purpose on 2026-09-09 and
+did (#288); the times are in docs/runbooks/verify-the-alert-path.md.
 
 Usage: scripts/check_alert_channels.py [--files] [--live] [STACK]
 """

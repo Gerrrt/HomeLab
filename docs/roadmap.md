@@ -1080,7 +1080,7 @@ them name the condition that would change the answer.
       deliberately sends no test notification. A check that depends on the
       delivery path inherits the blind spot that made this last ten hours. Every
       assertion reads a file. The dead man's switch is the other half of the
-      answer and remains untested — #288.
+      answer; it was armed and then tripped on purpose on 2026-09-09 — #288.
 
       All three failure paths were exercised rather than assumed: a `url_file`
       with no renderer, a rendered-but-empty file, and a container that cannot

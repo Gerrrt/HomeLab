@@ -548,8 +548,11 @@ So now, if Prometheus stops evaluating, Alertmanager dies, or this host loses
 outbound network, something external notices — in principle. That is the
 failure [#214](https://github.com/Gerrrt/HomeLab/issues/214) lived through from
 the other direction, and the heartbeat is cited as the answer to it in #214's
-own resolution. It is armed and not yet proven: nobody has watched the check go
-red, which is [#288](https://github.com/Gerrrt/HomeLab/issues/288).
+own resolution. It is armed and proven: on 2026-09-09 Alertmanager was stopped
+for 18 minutes, the check went red and emailed, and the first ping after the
+restart landed within two minutes; the daily route was confirmed the same
+sitting ([#288](https://github.com/Gerrrt/HomeLab/issues/288), times in the
+runbook).
 
 `check_alert_channels.py --live` reports the destination on every deploy,
 classifying the heartbeat's host as a watcher or a push service. A push service

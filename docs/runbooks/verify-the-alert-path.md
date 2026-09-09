@@ -42,10 +42,10 @@ travel, but nothing machine-checks its absence — you do.
 > absence, and passes. From 2026-09-07 to this date the URL pointed at `ntfy.sh`
 > like every other receiver, and there was no dead man's switch, only a
 > heartbeat nobody was waiting on
-> ([#359](https://github.com/Gerrrt/HomeLab/issues/359)). **The drill below has
-> still not been run** — that is [#288](https://github.com/Gerrrt/HomeLab/issues/288),
-> and until it has, "the check goes red when the stack dies" is a claim, not an
-> observation.
+> ([#359](https://github.com/Gerrrt/HomeLab/issues/359)). **The drill below was
+> run the same day** — [#288](https://github.com/Gerrrt/HomeLab/issues/288) —
+> so "the check goes red when the stack dies" is an observation, with times,
+> under *Confirming it actually works*.
 
 The watcher has to live somewhere other than the monitoring host. A watcher on
 this host fails at the same moment as the thing it is watching, which is not
@@ -116,6 +116,25 @@ check's period and grace move with it — and `group_interval` has to stay under
 it. Nothing enforces that from here, which is why it is written down.
 
 ## Confirming it actually works
+
+> **Done 2026-09-09**, both halves in one sitting, read off the monitoring host
+> with the phone in hand ([#288](https://github.com/Gerrrt/HomeLab/issues/288)):
+>
+> | | |
+> | --- | --- |
+> | `docker stop alertmanager` | 03:07:37 UTC, seconds after a ping went out |
+> | Check DOWN, email received | 03:25:58 UTC — 18 minutes; period 5m + grace 15m says 20 at most |
+> | `docker start alertmanager` | 03:25:58 UTC, ready 5 s later |
+> | First ping after restart | 03:27:57 UTC — 2 minutes, inside one `repeat_interval` |
+> | Second Watchdog route at 2m, `make reload` | 03:28:29 UTC |
+> | Watchdog on the normal ntfy channel | 03:28 UTC, on the phone |
+> | Route back to 24h, `make reload` | 03:33:16 UTC |
+>
+> Zero delivery failures across the whole window. One thing the daily half
+> showed on the way: a route with `repeat_interval` below the root's
+> `group_interval` (5m) repeats on the 5m tick, not at its own interval — the
+> same coupling the heartbeat route works around above. It does not affect the
+> 24h route, and the first notification still went out immediately.
 
 Do not trust a green check you have never seen go red.
 
