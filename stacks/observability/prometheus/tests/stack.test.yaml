@@ -13,10 +13,11 @@
 # alert for a real input; the quiet case proves it does not produce one for the
 # input production actually supplies.
 #
-# What these do NOT prove: four rules in stack.rules.yaml have no unit test.
-# PrometheusConfigReloadFailed, PrometheusRuleEvaluationFailures,
-# AlertmanagerNotificationsFailing and LokiIngestionStalled are validated for
-# syntax only, which is exactly the standing #63 had.
+# What these do NOT prove: three rules in stack.rules.yaml have no unit test.
+# PrometheusConfigReloadFailed, PrometheusRuleEvaluationFailures and
+# LokiIngestionStalled are validated for syntax only, which is exactly the
+# standing #63 had. AlertmanagerNotificationsFailing gained its test the day
+# after it fired for real with a reason nobody had expected (#407).
 #
 # RemoteWriteJobStale is tested below and needs to be, because the obvious way
 # to write it cannot fire for any input. `time() - timestamp(up) > 300` reads
@@ -54,6 +55,55 @@ tests:
               description: >-
                 Retention is now bounded by PROMETHEUS_RETENTION_SIZE rather
                 than PROMETHEUS_RETENTION, so history is shorter than 30 days.
+
+  # --- AlertmanagerNotificationsFailing: fires, and names the reason ---------
+  # The fixture is the 2026-09-08 incident: the webhook integration reachable
+  # and refusing with 429 for the day's quota. The point of the case is the
+  # rendered summary — `reason` must come through, because it is the label
+  # that told the two failure modes apart on the night and nothing else did.
+  - interval: 1m
+    input_series:
+      - series: 'alertmanager_notifications_failed_total{instance="alertmanager:9093",job="alertmanager",integration="webhook",reason="rateLimited"}'
+        values: "0+0x10 1+1x20"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: AlertmanagerNotificationsFailing
+        exp_alerts:
+          - exp_labels:
+              alertname: AlertmanagerNotificationsFailing
+              instance: alertmanager:9093
+              job: alertmanager
+              integration: webhook
+              reason: rateLimited
+              component: stack
+              severity: critical
+              category: correctness
+            exp_annotations:
+              summary: "Alertmanager cannot deliver via webhook: rateLimited"
+              description: >-
+                Alerts are firing but not reaching anyone — this makes every other
+                rule in this repository silently useless. Read the reason before
+                the URL: rateLimited means the destination answered and refused
+                (ntfy.sh's daily quota, #407), clientError or serverError means it
+                answered with an error, and contextDeadlineExceeded means it did
+                not answer at all. This alert travels the same path it reports on,
+                so if it reached you, at least one receiver still works.
+
+  # --- AlertmanagerNotificationsFailing: quiet on a flat counter ------------
+  # Alertmanager exports this counter for every integration it knows, at zero,
+  # forever. A rule written as `> 0` on the counter itself rather than on its
+  # increase would be fine here and wrong the first time any receiver ever
+  # failed once, months ago; this case is what pins the increase() form.
+  - interval: 1m
+    input_series:
+      - series: 'alertmanager_notifications_failed_total{instance="alertmanager:9093",job="alertmanager",integration="webhook",reason="rateLimited"}'
+        values: "3x40"
+      - series: 'alertmanager_notifications_failed_total{instance="alertmanager:9093",job="alertmanager",integration="email",reason="other"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AlertmanagerNotificationsFailing
+        exp_alerts: []
 
   # --- PrometheusSizeRetentionActive: quiet while the ceiling is not bound --
   # This is the production state and the one the rule must not alert on: the
