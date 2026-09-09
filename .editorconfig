@@ -19,3 +19,8 @@ indent_size = 2
 
 [*.alloy]
 indent_style = tab
+
+# caddy fmt writes tabs and check_caddyfile.sh fails a file it would reformat,
+# so the two tools have to agree — the same treatment the Alloy formatter gets.
+[Caddyfile]
+indent_style = tab
