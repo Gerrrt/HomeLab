@@ -86,6 +86,14 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   It enters the Compute table when
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it.
+- Lenovo ThinkServer TS150 — Xeon E3-1225 v6 (4 cores, 3.3 GHz, Intel HD P630
+  with Quick Sync), 8 GB ECC, four 3.5" bays, no drives, no OS — bought
+  2026-09-09, in transit. The NAS `zion` of
+  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
+  tracked under [#413](https://github.com/Gerrrt/HomeLab/issues/413). A tower,
+  not a rack unit, and a 73 W part where the ADRs pictured an N100; it enters
+  the Compute table when it is racked — or rather placed — addressed and in
+  `network.md`. Two drives for the mirror are still to buy.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
   for the ProLiant's SFF bays. Bought against the number every sizing

@@ -436,9 +436,19 @@ what left this one unfireable for months.
   which puts two things on this build: TOTP enrolled on the three services that
   can carry it, and a disk encryption decision made here rather than inherited.
 - **[#95](https://github.com/Gerrrt/HomeLab/issues/95) Plan and build the NAS on
-  VLAN 40.** Planned;
-  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
-  answers the four questions #95 raised, and nothing is bought or configured.
+  VLAN 40.** [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+  answers the four questions #95 raised. **The box is bought**, 2026-09-09,
+  tracked under [#413](https://github.com/Gerrrt/HomeLab/issues/413) since #95
+  closed on the decision: a Lenovo ThinkServer TS150 — Xeon E3-1225 v6, 8 GB
+  ECC, four 3.5" bays, no drives, no OS. Not the "quiet N100-class" chassis the
+  ADRs pictured, and the difference is worth stating rather than smoothing: a
+  73 W desktop Xeon in a tower against a 6 W part in a shoebox, so it draws and
+  makes more, and it will not rack. What it has that an N100 box does not is
+  ECC memory under a ZFS mirror, four real bays, and a Kaby Lake iGPU whose
+  Quick Sync is what #138's transcoding needs. The drives are the outstanding
+  purchase — chosen at the till on cost per terabyte, per the ADR — and the
+  OS is decided: Ubuntu Server and one compose stack, not an appliance. Nothing
+  is configured.
   Reading the enforced ruleset first changed two of the answers. **50→40 is not
   a rule to add**: Hicks and Winterfell each carry an explicit *Block access to
   CasaBonita* above their catch-all, so the pass has to be ordered in front of a
