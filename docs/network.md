@@ -118,7 +118,7 @@ truth for what a box actually does.
 > Do not re-enable DHCP on this interface. It races the DHCP servers on every
 > tagged interface and takes the whole house offline.
 
-[^adapter]: [USB NIC adapter](https://a.co/d/dJ4BD2N)
+[^adapter]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N) — in the G4's second M.2 slot, `igc0` to FreeBSD. It was labelled "USB NIC adapter" here until 2026-09-09, and the restore runbook and the shopping list had inherited the label.
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 
 ---
