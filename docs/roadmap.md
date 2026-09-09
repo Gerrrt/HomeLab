@@ -719,7 +719,9 @@ them name the condition that would change the answer.
       line has ended. What follows is hardening on the iLO itself, by hand, and
       one firewall follow-up: the `10.0.30.10 → 10.0.99.20/udp` "return path"
       rule is redundant with pf state and is the BMC's only path to Alloy's
-      syslog listener, so it goes.
+      syslog listener, so it goes. Both done 2026-09-09: the rule deleted with
+      the scrape watched through it — one failed scrape at the reload, clean
+      since, zero packets ever matched — and the BMC hardened.
 - [x] **[#228](https://github.com/Gerrrt/HomeLab/issues/228) Decided: Hicks
       reaches management on a named list, and reaches the lab entire.**
       2026-09-08. [ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md).

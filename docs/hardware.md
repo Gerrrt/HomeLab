@@ -60,7 +60,7 @@ version component in either table.
 
 | Host | BMC | Address | Notes |
 | --- | --- | --- | --- |
-| `Saruman` | `shiva` — HPE iLO 4, firmware 2.82 | `10.0.30.10` | iLO Advanced licensed. Dedicated network port. DHCP with a reservation |
+| `Saruman` | `shiva` — HPE iLO 4, firmware 2.82 | `10.0.30.10` | iLO Advanced licensed. Dedicated network port. DHCP with a reservation. Hardened 2026-09-09 per [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md): IPMI-over-LAN, SSH and iLO Federation off; HTTPS, the remote console and SNMP stay on; the account's credential is shared with nothing else; the security log was read for a baseline |
 
 The BMC and the host it manages carry different names and different addresses:
 `shiva` is the iLO, `Saruman` is the hypervisor at `10.0.30.110`. Earlier
