@@ -557,7 +557,8 @@ what left this one unfireable for months.
   it true. What is left is the purchase itself and the build.
   → [runbook](runbooks/build-the-playground.md)
 - **[#418](https://github.com/Gerrrt/HomeLab/issues/418) Fit the two SSDs in
-  `Saruman`.** Bought 2026-09-09, in transit. ADR-0007's constraint — "the fleet
+  `Saruman`.** Two Samsung SM863a 960 GB SATA enterprise drives, bought
+  2026-09-09, in transit. ADR-0007's constraint — "the fleet
   is sized against spindles, not RAM" — became a number in ADR-0029, about
   ninety random write IOPS for the whole machine, and that number sized the
   lab domain's duty cycle and #266's indexer. The SSDs raise the ceiling; what
