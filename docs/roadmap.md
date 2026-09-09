@@ -78,12 +78,16 @@ and any disk or memory on account of Wazuh — ADR-0030 sizes it to what
   costs SNMP polling of `neo`, which is monitored.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
   switch's previous SNMP community.** `neo` still accepts its old one alongside
-  the new; its firmware will not persist a deletion. Accepted residual, recorded
-  in `SECURITY.md`. The method is settled — overwrite the row rather than delete
-  it — so what is left is a window in which the switch can be rebooted. Two rows
-  go that way, not one: the *current* community, exposed in a local transcript
-  and deliberately never rotated because doing so would have added a second stuck
-  row, follows once the first overwrite is proven to survive a reboot. →
+  the new, and the stock `public` and `private` besides (measured 2026-09-06 and
+  2026-09-09; the other three devices refuse both); its firmware will not
+  persist a deletion. Accepted residual, recorded in `SECURITY.md`. The method
+  is settled — overwrite the rows rather than delete them, all in one window —
+  so what is left is a window in which the switch can be rebooted. A fourth row
+  follows the three: the *current* community, exposed in a local transcript and
+  deliberately never rotated because doing so would have added another stuck
+  row, once the first overwrite is proven to survive a reboot. `snmp-verify.sh`
+  now probes every device with the two stock strings weekly, `WARN` in plain
+  mode and `FAIL` under `--old`. →
   [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv.**
   Three of four devices can. The MokerLink switch cannot, which is the blocker
