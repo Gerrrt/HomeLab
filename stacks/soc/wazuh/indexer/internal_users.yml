@@ -1,0 +1,45 @@
+---
+# The indexer's user database — a TEMPLATE. scripts/render-config.sh writes
+# the real file to .rendered/internal_users.yml from two values in
+# secrets/soc.sops.yaml, and that rendered file is what compose.yaml mounts.
+#
+# The placeholders are bcrypt hashes, not passwords, and they are still kept
+# out of git: a hash of a credential in a public repository is a credential
+# for anyone patient. Generate each on odin with the indexer image's own tool
+# (it prompts; nothing lands in shell history):
+#
+#   docker run --rm -it --entrypoint bash \
+#     "$(COMPOSE_FILE=stacks/soc/compose.yaml scripts/image-for.sh wazuh.indexer)" \
+#     /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh
+#
+# Two accounts, where upstream's file ships six. The other four — kibanaro,
+# logstash, readall, snapshotrestore — are demo users with published hashes,
+# and nothing here uses them. A user that exists for no consumer is the
+# ADR-0012 argument applied to accounts.
+#
+# Because this file is in place BEFORE the first start, the security plugin
+# initialises its index from it (`plugins.security.allow_default_init_securityindex`
+# in opensearch.yml) and the demo passwords never exist on this segment. If the
+# index already exists — a second attempt after a failed first start — the
+# runbook has the securityadmin.sh command that reapplies it.
+
+_meta:
+  type: "internalusers"
+  config_version: 2
+
+# The administrative account: the manager's filebeat, the dashboard's queries
+# and this guest's Alloy exporter all sign in as it. INDEXER_PASSWORD in SOPS
+# is the password; this is its hash.
+admin:
+  hash: "${INDEXER_ADMIN_HASH}"
+  reserved: true
+  backend_roles:
+    - "admin"
+  description: "Indexer admin — the manager, the dashboard and Alloy sign in as this"
+
+# The dashboard's own service account. DASHBOARD_PASSWORD in SOPS is the
+# password; this is its hash.
+kibanaserver:
+  hash: "${DASHBOARD_PASSWORD_HASH}"
+  reserved: true
+  description: "The dashboard's service account"

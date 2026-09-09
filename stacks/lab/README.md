@@ -43,10 +43,14 @@ pass ([#88]).
 compose.yaml               four services, one network, health-gated ordering
 .env.example               non-sensitive tunables — edit this, not .env
 prometheus/
-  prometheus.yaml          four scrape jobs; no alerting block, no file_sd
+  prometheus.yaml          four scrape jobs; no alerting block, no file_sd;
+                           the domain's and odin's jobs land commented
   rules/lab.rules.yaml     7 rules — four for this stack watching itself,
                            three for the domain ADR-0029 sized
+  rules/soc.rules.yaml     6 rules — the SOC's indexer on odin, whose health is
+                           pushed here by stacks/soc's Alloy (ADR-0030)
   tests/lab.test.yaml      promtool unit tests; all seven rules, firing + quiet
+  tests/soc.test.yaml      the same for the six
 loki/loki-config.yaml      single-binary, filesystem, 15-day retention, no ruler
 grafana/
   provisioning/            two datasources + dashboard provider
@@ -97,8 +101,13 @@ thing entirely on this segment.
   [ADR-0029](../../docs/adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
   has this Prometheus **scrape** the Windows domain instead, so the connection
   travels outward and nothing new listens on the segment that exists to hold
-  attackers. `compose.yaml` marks the lines for [#266]'s Wazuh guest, which is
-  the first client with no scrape alternative.
+  attackers. That first client with no scrape alternative is now decided:
+  `odin`, [`stacks/soc`](../soc)'s guest
+  ([ADR-0030](../../docs/adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md)),
+  whose Alloy pushes here. `compose.yaml` still carries the two `ports:`
+  blocks commented, and
+  [`build-the-soc-guest.md`](../../docs/runbooks/build-the-soc-guest.md) §7
+  uncomments them on the day, not before.
 - **Image tags are pinned here but bumped separately.** `.github/dependabot.yml`
   now watches this directory as well as the estate's, so the two do not drift.
   Versions are deliberately absent from the table above — Dependabot only edits
@@ -136,4 +145,3 @@ matters:
 [#257]: https://github.com/Gerrrt/HomeLab/issues/257
 [#263]: https://github.com/Gerrrt/HomeLab/issues/263
 [#265]: https://github.com/Gerrrt/HomeLab/issues/265
-[#266]: https://github.com/Gerrrt/HomeLab/issues/266

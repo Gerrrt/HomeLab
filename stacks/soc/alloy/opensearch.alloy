@@ -1,0 +1,66 @@
+// =============================================================================
+// The one crossing between the two stores, running the direction ADR-0030
+// allows: the Wazuh indexer's HEALTH into the lab's Prometheus on alexander.
+//
+// Not its alerts — those stay in the indexer, where the fields are typed, and
+// tailing alerts.json into Loki was refused for duplicating every event into
+// a second store with a second retention. What crosses is cluster status,
+// heap, shard count and indexing rate: what the retention re-derivation in
+// ADR-0030 needs, and what says "the SIEM stopped ingesting". A store that
+// quietly stops ingesting is the #62/#63 shape this repository keeps paying
+// for, and it is the one thing worth alerting on across the boundary. The
+// rules that read these series live in stacks/lab/prometheus/rules/soc.rules.yaml,
+// because the lab's Prometheus is where they arrive.
+//
+// This file lives in stacks/soc/alloy/ and NOT beside config.alloy in
+// stacks/observability/alloy/: the estate's Alloy mounts that whole directory,
+// and a copy there would load on VLAN 99 pointing at an OpenSearch that does
+// not exist — a healthy exporter collecting nothing, one layer along.
+//
+// First-party component, no new image. It speaks to OpenSearch the way it
+// speaks to Elasticsearch; the exporter it wraps documents "reasonable
+// attempts to maintain compatibility with both".
+// =============================================================================
+
+prometheus.exporter.elasticsearch "wazuh_indexer" {
+	address = "https://wazuh.indexer:9200"
+	timeout = "10s"
+
+	// Verified against the indexer's own root CA, mounted by compose.yaml —
+	// the same standard the lab's Prometheus holds its Grafana scrape to.
+	// ssl_skip_verify is deliberately absent.
+	ca = "/etc/alloy/tls/root-ca.pem"
+
+	// Cluster health and node stats only. `indices = true` would add a series
+	// per index per metric — ninety daily alert indices times a few dozen
+	// metrics — for a question (which index is how big) that ADR-0030 answers
+	// with one _cat/indices call a fortnight in. Turn it on if the
+	// re-derivation ever needs a time series rather than a snapshot.
+	basic_auth {
+		username = "admin"
+		password = sys.env("INDEXER_PASSWORD")
+	}
+}
+
+discovery.relabel "wazuh_indexer" {
+	targets = prometheus.exporter.elasticsearch.wazuh_indexer.targets
+
+	// A fixed job name rather than the "<host>-metrics" shape config.alloy
+	// uses: the rules in stacks/lab key on it, and a rule that keys on a
+	// hostname is a rule that breaks when the guest is rebuilt under another.
+	rule {
+		target_label = "job"
+		replacement  = "wazuh-indexer"
+	}
+
+	rule {
+		target_label = "instance"
+		replacement  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname)
+	}
+}
+
+prometheus.scrape "wazuh_indexer" {
+	scrape_interval = "60s"
+	targets         = discovery.relabel.wazuh_indexer.output
+	forward_to      = [prometheus.remote_write.metrics_service.receiver]
+}

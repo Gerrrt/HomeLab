@@ -27,6 +27,18 @@ certificates/
 # ---- Rendered / decrypted config (produced by scripts/render-config.sh) ----
 **/.rendered/
 
+# ---- stacks/soc: generated on odin, never committed ----
+# Velociraptor writes its server config here on first start, and that file
+# holds the internal CA's private key every client is pinned to (ADR-0030).
+stacks/soc/velociraptor/etc/*
+!stacks/soc/velociraptor/etc/.gitkeep
+# The Wazuh mTLS material from the `certs` profile. *.pem and *.key are already
+# ignored above; the directory is listed so nothing else lands in it either.
+stacks/soc/wazuh/certs/*
+!stacks/soc/wazuh/certs/.gitkeep
+# Client installers repacked for GPO deployment are build artefacts.
+*.msi
+
 # ---- Build-time input for `make snmp-generate` (scripts/snmp-mibs.sh) ----
 # Vendor MIBs, several MB of them, needed only to regenerate snmp.yaml. The
 # generated snmp.yaml itself IS committed, so a deploy never needs these.

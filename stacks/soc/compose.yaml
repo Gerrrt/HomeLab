@@ -1,0 +1,497 @@
+---
+# The SOC stack: Wazuh and Velociraptor — the security half of ADR-0007's
+# defended estate, and the thing that turns ADR-0029's domain from six VMs into
+# something that reports what happened to it.
+#
+# Deployed on: odin (10.0.30.60, VLAN 30 / ImaginationLAN) — a SECOND guest on
+#              `Saruman`, beside `alexander`. NOT BUILT YET. Authored ahead of
+#              the guest the way stacks/lab was ahead of alexander (#264 landed
+#              a day before #262) and stacks/sensitive ahead of trinity (#415).
+#              The build is docs/runbooks/build-the-soc-guest.md.
+# Decided by:  docs/adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md
+#              — why a second guest and not alexander (Wazuh's stated minimums
+#              are six gigabytes before the dashboard, on an 8 GiB guest already
+#              running four services with no mem_limit), why one stack and not
+#              two, why the directory is not called `wazuh`, and which of the
+#              ports below are published and which are not.
+# Deploy with: make up STACK=soc      (from the repository root)
+#
+# Two stores, and nothing queries across them (ADR-0030). The indexer here holds
+# the estate's security events; the lab's Loki on alexander holds the lab's own
+# infrastructure logs. Wazuh's alerts.json is deliberately NOT tailed into Loki.
+# The one crossing runs the other way: alloy/opensearch.alloy reads the
+# indexer's health into the lab's Prometheus, which is the thing that says the
+# SIEM stopped ingesting — the #62/#63 shape this repository keeps paying for.
+# Nothing here reaches 10.0.99.20 (ADR-0007).
+#
+# ---------------------------------------------------------------------------
+# On the comments in this file
+# ---------------------------------------------------------------------------
+# The settings shared with `stacks/observability/compose.yaml` — why `init:
+# true`, why `pids_limit`, the healthcheck shape, the `${VAR:?}` guards that
+# double as the SOPS required-key list — are argued at length there and are
+# NOT repeated here; two copies of an argument drift the same way two copies
+# of a config do. What IS written out here is every place this stack differs
+# from that one, because those are the only lines a reader cannot get from
+# the sibling file. Each is marked DIFFERENCE.
+#
+# The Wazuh half is derived from wazuh-docker's single-node compose file — the
+# vendor's own reference for exactly this shape — and every departure from it
+# is marked too, because "the vendor does it this way" is the argument a reader
+# will otherwise assume.
+
+name: soc
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging: *default-logging
+  networks: [soc]
+  init: true
+  pids_limit: 512
+
+# DIFFERENCE 1: memory limits from day one, where stacks/lab set none. The lab's
+# argument — copying the estate's numbers would be a limit derived from a
+# machine this one is not — does not apply to a service whose VENDOR states a
+# minimum. Wazuh's are 4 GiB for the indexer and 2 GiB for the manager, and
+# ADR-0030 rejected co-locating on alexander precisely because "nothing bounds
+# the collision" there. These are bounds, not measurements: re-derive from
+# container_memory_rss in the lab's Prometheus after a fortnight, the way #114
+# did for the estate. No swap, for the reason the estate's file gives.
+
+services:
+  # ---------------------------------------------------------------------------
+  # Wazuh indexer — OpenSearch, the store for the estate's security events.
+  #
+  # Service names carry a dot (`wazuh.indexer`, not `wazuh-indexer`), and that
+  # is forced rather than chosen: wazuh-certs-generator's validator rejects a
+  # bare hostname as "Invalid IP or DNS", and filebeat in the manager verifies
+  # the indexer's certificate in `full` mode, so the SAN and the name the
+  # manager dials have to be the same string. Upstream's names are kept so the
+  # certificates upstream's tool will issue match the names compose resolves.
+  # ---------------------------------------------------------------------------
+  wazuh.indexer:
+    <<: *service-defaults
+    image: wazuh/wazuh-indexer:4.14.7@sha256:3bd92b2ea39b1f0cd979e12af4078ecb34980db3c99e4bbe2763965d56d52363
+    container_name: soc-wazuh-indexer
+    hostname: wazuh.indexer
+    # DIFFERENCE 2: OpenSearch's bootstrap checks want the process able to
+    # create at least 4096 threads, and 512 would fail that check on start.
+    pids_limit: 4096
+    # 2 GiB of heap (below) plus the off-heap the JVM and the security plugin
+    # take. 3.5 GiB is under Wazuh's stated 4 GiB minimum by the margin the
+    # guest's 8 GiB has to give the other four services; if the container is
+    # OOM-killed, this is the number to raise and the guest is the thing to
+    # grow with it.
+    mem_limit: 3584m
+    memswap_limit: 3584m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    environment:
+      # DIFFERENCE from upstream: 2 GiB, not the shipped 1 GiB. ADR-0030's
+      # arithmetic — 25 shards per GiB of heap, one primary shard per daily
+      # index, ~15 shards taken by the monitoring/statistics/states families —
+      # makes 1 GiB a budget spent inside a month. -Xms equal to -Xmx by Wazuh's
+      # own tuning guidance. Half of system RAM (4 GiB) was considered and
+      # declined: it buys shard budget a six-agent estate does not need and
+      # takes page cache from a spinning pair that does.
+      OPENSEARCH_JAVA_OPTS: "-Xms2g -Xmx2g"
+    volumes:
+      - indexer-data:/var/lib/wazuh-indexer
+      # Issued on odin by the `certs` profile at the foot of this file; the
+      # runbook is the step. Each tool keeps its own CA (ADR-0030): this is
+      # the indexer<->manager<->dashboard mTLS, not the lab CA.
+      - ./wazuh/certs/root-ca.pem:/usr/share/wazuh-indexer/config/certs/root-ca.pem:ro
+      - ./wazuh/certs/wazuh.indexer.pem:/usr/share/wazuh-indexer/config/certs/wazuh.indexer.pem:ro
+      - ./wazuh/certs/wazuh.indexer-key.pem:/usr/share/wazuh-indexer/config/certs/wazuh.indexer.key:ro
+      - ./wazuh/certs/admin.pem:/usr/share/wazuh-indexer/config/certs/admin.pem:ro
+      - ./wazuh/certs/admin-key.pem:/usr/share/wazuh-indexer/config/certs/admin-key.pem:ro
+      - ./wazuh/indexer/opensearch.yml:/usr/share/wazuh-indexer/config/opensearch.yml:ro
+      # RENDERED, not tracked: the file holds bcrypt hashes of two passwords,
+      # and a hash of a credential in git is a credential in git for anyone
+      # patient. scripts/render-config.sh writes it from INDEXER_ADMIN_HASH and
+      # DASHBOARD_PASSWORD_HASH in secrets/soc.sops.yaml — the same shape as
+      # the estate's snmp.yaml. The tracked wazuh/indexer/internal_users.yml
+      # keeps the ${PLACEHOLDERS}. Because it is in place BEFORE the first
+      # start, the security plugin initialises its index from it
+      # (allow_default_init_securityindex: true in opensearch.yml) and the demo
+      # passwords never exist on this segment, not even for a minute.
+      - ./wazuh/indexer/.rendered/internal_users.yml:/usr/share/wazuh-indexer/config/opensearch-security/internal_users.yml:ro
+    # Not published (ADR-0030's port table): the only clients are this guest's
+    # manager, dashboard and Alloy, all on this network.
+    expose:
+      - "9200"
+    healthcheck:
+      # The admin client certificate is the credential, so no password sits in
+      # this container's environment. `-k` because the leaf is for
+      # `wazuh.indexer` and this dials localhost — the same loopback trade the
+      # estate's Grafana check makes with --no-check-certificate. `-f` turns a
+      # 503 from a security index that has not initialised into "unhealthy",
+      # which is what gates the manager below.
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsk
+          --cert /usr/share/wazuh-indexer/config/certs/admin.pem
+          --key /usr/share/wazuh-indexer/config/certs/admin-key.pem
+          https://localhost:9200/_cluster/health | grep -q '"status"'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ---------------------------------------------------------------------------
+  # Wazuh manager — the analysis engine the six agents report to.
+  # ---------------------------------------------------------------------------
+  wazuh.manager:
+    <<: *service-defaults
+    image: wazuh/wazuh-manager:4.14.7@sha256:80cada6a192fcb8caa8b415a5b64e2155138dd8df1da3a7b227d7e5e4e7460c0
+    container_name: soc-wazuh-manager
+    hostname: wazuh.manager
+    # DIFFERENCE 3: no docker-init in front of this one. The image's entrypoint
+    # is s6-overlay's /init, which is itself a PID-1 supervisor that reaps
+    # zombies and runs the fifteen wazuh-* daemons plus filebeat. Two init
+    # systems stacked is one more than either expects; s6 is the one the image
+    # was built around. Every other service here keeps `init: true`.
+    init: false
+    # Fifteen daemons, each multi-threaded, plus filebeat: 512 is too few.
+    pids_limit: 1024
+    mem_limit: 2048m
+    memswap_limit: 2048m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 655360
+        hard: 655360
+    environment:
+      # The literal double quotes inside the value are upstream's and are
+      # load-bearing: the init script substitutes this verbatim into
+      # filebeat.yml as `hosts: [$INDEXER_URL]`, and the quotes are what make
+      # that a YAML string rather than a bare scalar with a colon in it.
+      INDEXER_URL: '"https://wazuh.indexer:9200"'
+      INDEXER_USERNAME: admin
+      INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/soc.sops.yaml}
+      FILEBEAT_SSL_VERIFICATION_MODE: full
+      SSL_CERTIFICATE_AUTHORITIES: /etc/ssl/root-ca.pem
+      SSL_CERTIFICATE: /etc/ssl/filebeat.pem
+      SSL_KEY: /etc/ssl/filebeat.key
+      # The API account the dashboard signs in with. The image's init writes
+      # this into the API's user store on first start and never reads it
+      # again; changing it later is done in the dashboard, not here.
+      API_USERNAME: wazuh-wui
+      API_PASSWORD: ${API_PASSWORD:?set in secrets/soc.sops.yaml}
+    volumes:
+      - manager-api-configuration:/var/ossec/api/configuration
+      - manager-etc:/var/ossec/etc
+      - manager-logs:/var/ossec/logs
+      - manager-queue:/var/ossec/queue
+      - manager-var-multigroups:/var/ossec/var/multigroups
+      - manager-integrations:/var/ossec/integrations
+      - manager-active-response:/var/ossec/active-response/bin
+      - manager-agentless:/var/ossec/agentless
+      - manager-wodles:/var/ossec/wodles
+      - filebeat-etc:/etc/filebeat
+      - filebeat-var:/var/lib/filebeat
+      - ./wazuh/certs/root-ca-manager.pem:/etc/ssl/root-ca.pem:ro
+      - ./wazuh/certs/wazuh.manager.pem:/etc/ssl/filebeat.pem:ro
+      - ./wazuh/certs/wazuh.manager-key.pem:/etc/ssl/filebeat.key:ro
+      # The image copies everything under /wazuh-config-mount into /var/ossec
+      # at start. ossec.conf is upstream's single-node file with one change,
+      # marked inside it: enrolment requires a password. authd.pass is that
+      # password, RENDERED by scripts/render-config.sh from
+      # WAZUH_REGISTRATION_PASSWORD — the file the ADR names — so the
+      # enrolment secret is never in a tracked file and never in this
+      # container's environment.
+      - ./wazuh/manager/ossec.conf:/wazuh-config-mount/etc/ossec.conf:ro
+      - ./wazuh/manager/.rendered/authd.pass:/wazuh-config-mount/etc/authd.pass:ro
+    ports:
+      # Agent traffic and enrolment: the six domain machines are the off-host
+      # consumers (ADR-0012), and they share this segment, so no firewall rule.
+      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_AGENT_PORT:-1514}:1514"
+      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_ENROL_PORT:-1515}:1515"
+    # 55000 is the API: the dashboard reaches it on this network and nothing
+    # off-host does. 514/udp, which upstream publishes for syslog, is not
+    # published here at all — nothing on the segment sends syslog to the SIEM,
+    # and an open UDP listener with no sender is the ADR-0012 case exactly.
+    expose:
+      - "55000"
+    depends_on:
+      wazuh.indexer:
+        condition: service_healthy
+    healthcheck:
+      # remoted is the daemon the agents talk to, so "up" means remoted is up:
+      # a manager whose analysis engine runs but whose listener does not is
+      # exactly the kind of healthy-and-collecting-nothing this repository
+      # keeps finding. wazuh-control prints one `<daemon> is running...` line
+      # per daemon and `not running...` otherwise; the probe runs in the
+      # image's own shell, which check_compose_health.py --probe proves exists.
+      test:
+        - CMD-SHELL
+        - /var/ossec/bin/wazuh-control status | grep -q 'wazuh-remoted is running'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ---------------------------------------------------------------------------
+  # Wazuh dashboard — agent enrolment, group management, the ruleset editor,
+  # the vulnerability view and the MITRE mapping. Not a viewer, which is why a
+  # Grafana OpenSearch datasource does not replace it (ADR-0030).
+  # ---------------------------------------------------------------------------
+  wazuh.dashboard:
+    <<: *service-defaults
+    image: wazuh/wazuh-dashboard:4.14.7@sha256:a7b565642dcb88ebfc2fe411169bad1d39fd02de4e5e1fa70f4b441380e62f47
+    container_name: soc-wazuh-dashboard
+    hostname: wazuh.dashboard
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    environment:
+      INDEXER_USERNAME: admin
+      INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/soc.sops.yaml}
+      WAZUH_API_URL: https://wazuh.manager
+      # The dashboard's own service account on the indexer. Its bcrypt hash is
+      # the second placeholder in wazuh/indexer/internal_users.yml.
+      DASHBOARD_USERNAME: kibanaserver
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?set in secrets/soc.sops.yaml}
+      API_USERNAME: wazuh-wui
+      API_PASSWORD: ${API_PASSWORD:?set in secrets/soc.sops.yaml}
+      # The image's entrypoint writes these into its wazuh.yml, so the file
+      # itself is not tracked here and the API password above never lands in
+      # a file in this checkout. One shard, no replica, for the same reason
+      # wazuh/indexer/template-wazuh-alerts.json gives the alert indices
+      # (ADR-0030): on a single node a replica is unassigned forever and the
+      # cluster is permanently yellow.
+      WAZUH_MONITORING_SHARDS: "1"
+      WAZUH_MONITORING_REPLICAS: "0"
+    volumes:
+      - ./wazuh/certs/wazuh.dashboard.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard.pem:ro
+      - ./wazuh/certs/wazuh.dashboard-key.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard-key.pem:ro
+      - ./wazuh/certs/root-ca.pem:/usr/share/wazuh-dashboard/certs/root-ca.pem:ro
+      - ./wazuh/dashboard/opensearch_dashboards.yml:/usr/share/wazuh-dashboard/config/opensearch_dashboards.yml:ro
+      - dashboard-config:/usr/share/wazuh-dashboard/data/wazuh/config
+      - dashboard-custom:/usr/share/wazuh-dashboard/plugins/wazuh/public/assets/custom
+    ports:
+      # A browser on Hicks, over the 50 -> 30 rule that already exists — the
+      # same call stacks/lab made for its Grafana. Self-signed from the
+      # generator for now; a leaf from the lab CA is the named follow-up in
+      # ADR-0030, not a prerequisite.
+      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_DASHBOARD_PORT:-443}:5601"
+    depends_on:
+      wazuh.indexer:
+        condition: service_healthy
+      wazuh.manager:
+        condition: service_started
+    healthcheck:
+      # OpenSearch Dashboards answers 503 on / until it has reached the
+      # indexer, then 302 to the login page. `$$` is compose's escape for the
+      # regex anchor.
+      test:
+        - CMD-SHELL
+        - >-
+          curl -sk -o /dev/null -w '%{http_code}' https://localhost:5601/app/login
+          | grep -qE '^(200|302)$$'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ---------------------------------------------------------------------------
+  # Velociraptor — the other half of the loop: Wazuh says an alert fired,
+  # Velociraptor is how you go and ask the endpoint what actually happened.
+  #
+  # A container and not the native binary, because this repository's whole
+  # verification apparatus applies to images (ADR-0030). The ADR flagged the
+  # one thing to check: whether the registry publishes a versioned tag. It does
+  # — 0.77.2 is pinned below by tag and digest like every other image here —
+  # so the paragraph the ADR said to supersede if not stands.
+  # ---------------------------------------------------------------------------
+  velociraptor:
+    <<: *service-defaults
+    image: ghcr.io/velocidex/velociraptor-server:0.77.2@sha256:fa7ecaee0a2861ed4add94c0aa9fc3e62dad6d320b07de63e08776f9104b33d1
+    container_name: soc-velociraptor
+    pids_limit: 1024
+    # A single Go binary; ADR-0030 sizes it at "a few hundred megabytes of
+    # RSS". 1 GiB bounds a hunt that collects more than it should.
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    # DIFFERENCE 4: root, with every capability dropped — the Caddy argument
+    # from stacks/sensitive. The image's entrypoint writes the generated
+    # config into /etc/velociraptor and the datastore into /datastore, both
+    # root-owned on first use; a numeric user cannot. Nothing below 1024 is
+    # bound, so no capability is kept at all.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      # The address the six clients dial, compiled into every client config
+      # and into the MSI. An ADDRESS and not a name on purpose: the enrolment
+      # path has to survive the exercises the domain exists for, and several
+      # of those — mitm6, LLMNR and DNS poisoning — are attacks on how a
+      # Windows host resolves names. A client that cannot find its server
+      # during the one session that matters teaches nothing.
+      VELOCIRAPTOR_HOSTNAME: ${VELOCIRAPTOR_HOSTNAME:-10.0.30.60}
+      VELOCIRAPTOR_DATASTORE_PATH: /datastore/
+      VELOCIRAPTOR_CONFIG_PATH: /etc/velociraptor/server.config.yaml
+      # Read once, on the first start, when the entrypoint creates the admin
+      # account. Change it in the GUI afterwards; this value is then inert.
+      VELOCIRAPTOR_INITIAL_ADMIN_PASSWORD: ${VELOCIRAPTOR_INITIAL_ADMIN_PASSWORD:?set in secrets/soc.sops.yaml}
+    volumes:
+      # The image generates server.config.yaml on first start by running
+      # /bin/init.vql. This mounts THIS repository's copy of that file over
+      # the image's, with one change marked inside it: the monitoring
+      # listener binds every interface, so the lab's Prometheus on alexander
+      # can scrape 8003 — the image's version binds it to loopback and offers
+      # no environment variable to move it. The cost, stated: a copy of an
+      # upstream file that can drift from the image's on a version bump.
+      - ./velociraptor/init.vql:/bin/init.vql:ro
+      # The generated config lands here — in the checkout, gitignored,
+      # because it holds the internal CA's private key, and every client is
+      # pinned to that CA (ADR-0030: it "cannot be reissued without
+      # redeploying every client"). Back this directory up with the guest.
+      - ./velociraptor/etc:/etc/velociraptor
+      - velociraptor-datastore:/datastore
+    ports:
+      # 8000: the client frontend — the six endpoints. 8889: the GUI — a
+      # browser on Hicks; it authenticates. 8003: metrics — the lab's
+      # Prometheus on alexander, genuinely off-host, and "a residual rather
+      # than a solved problem" in ADR-0030's words: /metrics is unauthenticated
+      # and so is everything else on that listener. 8001, the gRPC API, has no
+      # consumer and stays on the container's loopback.
+      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_FRONTEND_PORT:-8000}:8000"
+      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_GUI_PORT:-8889}:8889"
+      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_METRICS_PORT:-8003}:8003"
+    healthcheck:
+      # The same endpoint the lab scrapes, over plain http, from the busybox
+      # wget the Alpine base ships. If this passes and the scrape from
+      # alexander does not, the difference is the bind address in init.vql.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8003/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # The first start generates the config, creates the admin user and then
+      # builds the client MSI, deb and rpm from the release on GitHub.
+      start_period: 120s
+
+  # ---------------------------------------------------------------------------
+  # Collection agent for this guest — and the first genuine off-host client
+  # the lab's Prometheus and Loki have ever had (ADR-0030).
+  #
+  # config.alloy and docker.alloy are MOUNTED from stacks/observability/alloy/,
+  # unchanged, for the reason stacks/lab/compose.yaml gives at length: a copy
+  # is reused-until-someone-edits-one. What this stack adds is one file of its
+  # own, alloy/opensearch.alloy, which lives HERE and not beside the shared
+  # two — the estate's Alloy mounts that whole directory, and a file placed
+  # there would load on VLAN 99 pointing at an OpenSearch that does not exist:
+  # a healthy exporter collecting nothing, one layer along (ADR-0030).
+  # ---------------------------------------------------------------------------
+  alloy:
+    <<: *service-defaults
+    image: grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839
+    container_name: soc-alloy
+    pids_limit: 1024
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    group_add:
+      - "${LOG_READ_GID:?run make render STACK=soc}"
+      # The image's own `alloy` group; alloy-data is 0770 473:473. Re-derive
+      # after an image bump — the estate's compose file has the command.
+      - "473"
+    cgroup: host
+    environment:
+      # ADR-0007's "the two *_URL variables are the only difference", and here
+      # they finally point OFF the host: at alexander, the lab's stores. That
+      # is the line stacks/lab/compose.yaml was written waiting for, and it
+      # only works once the lab's ports: blocks are uncommented — the runbook
+      # does both on the same day. Still nothing remote-writes to 10.0.99.20.
+      LOKI_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_LOKI_PORT:-3100}/loki/api/v1/push
+      PROMETHEUS_REMOTE_WRITE_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_PROMETHEUS_PORT:-9090}/api/v1/write
+      ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-alloy}
+      # For the exporter in opensearch.alloy. Read through sys.env() there, so
+      # the credential is in this container's environment (the same class of
+      # exposure as GRAFANA_ADMIN_PASSWORD) and in no file.
+      INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/soc.sops.yaml}
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy
+    # No depends_on, unlike the lab's Alloy. This is the guest's own collector
+    # as well as the exporter's host; an indexer that will not come up is
+    # precisely when the guest's node metrics and container logs are wanted on
+    # alexander.
+    volumes:
+      - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
+      - ./alloy/opensearch.alloy:/etc/alloy/opensearch.alloy:ro
+      # The indexer's root CA, so the exporter verifies `wazuh.indexer` rather
+      # than skipping verification — the same standard the lab's Prometheus
+      # holds its Grafana scrape to.
+      - ./wazuh/certs/root-ca.pem:/etc/alloy/tls/root-ca.pem:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+      - /:/rootfs:ro
+    ports:
+      # Debug UI, loopback only. No syslog receiver: syslog.alloy is not
+      # mounted above, for the reason stacks/lab gives.
+      - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+
+  # ---------------------------------------------------------------------------
+  # The certificate generator, behind a profile: `make up` neither starts nor
+  # pulls it. Run once on odin, before the first start — build-the-soc-guest.md
+  # is the step — and again only to reissue. It is a service here rather than
+  # a bare `docker run` in the runbook because every image this repository
+  # runs must come from a compose.yaml (check_image_pins.py, #65).
+  #
+  # CERT_TOOL_VERSION is the major.minor of the wazuh/* images above and the
+  # one thing Dependabot cannot keep in step: it names the script the generator
+  # downloads at run time. A bump to 4.15 changes this line in the same PR.
+  # ---------------------------------------------------------------------------
+  wazuh.certs-generator:
+    image: wazuh/wazuh-certs-generator:0.0.4@sha256:369b4d58509aab074b188596870c81584f7120e653d9ef83c591f0f785dcf325
+    container_name: soc-wazuh-certs-generator
+    profiles: ["certs"]
+    logging: *default-logging
+    environment:
+      CERT_TOOL_VERSION: "4.14"
+    volumes:
+      - ./wazuh/certs:/certificates
+      - ./wazuh/certs.yml:/config/certs.yml:ro
+
+# One network. Everything that talks to the indexer does so here; the only
+# things published are the ones with a client on the other side of the
+# container boundary, listed per service above.
+networks:
+  soc:
+    driver: bridge
+
+volumes:
+  indexer-data:
+  manager-api-configuration:
+  manager-etc:
+  manager-logs:
+  manager-queue:
+  manager-var-multigroups:
+  manager-integrations:
+  manager-active-response:
+  manager-agentless:
+  manager-wodles:
+  filebeat-etc:
+  filebeat-var:
+  dashboard-config:
+  dashboard-custom:
+  velociraptor-datastore:
+  alloy-data:
