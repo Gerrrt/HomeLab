@@ -41,6 +41,20 @@ updates:
       prometheus-stack:
         patterns: ["prom/*"]
 
+  # The sensitive tier. Its two images share nothing with the other stacks, so
+  # no groups; each bump is its own PR, and each is a deploy to a host the
+  # operator has to be sitting in front of. Present before the host is, for
+  # the reason the lab entry gives: pins rot from the day they are written.
+  - package-ecosystem: docker-compose
+    directory: /stacks/sensitive
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "sensitive"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

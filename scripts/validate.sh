@@ -404,6 +404,25 @@ done
 SKIPPED=$((SKIPPED + $(wc -l < "${LOKI_SKIPS}")))
 
 # ---------------------------------------------------------------------------
+head_ "Caddyfiles"
+# ---------------------------------------------------------------------------
+# A stack that fronts its services with Caddy carries a Caddyfile, and a
+# Caddyfile with a typo fails at container start behind a healthcheck that
+# never goes green — not at `docker compose config`, which never reads it.
+# check_caddyfile.sh runs `caddy validate` and `caddy fmt --diff` in the
+# stack's pinned image, the way promtool checks the rules (#129). Stacks
+# without a Caddyfile pass through; a run without docker is a recorded skip.
+CADDY_SKIPS="$(mktemp)"
+for stack in "${STACKS[@]}"; do
+  if ./scripts/check_caddyfile.sh --stack "${stack}" --skips-file "${CADDY_SKIPS}"; then
+    :
+  else
+    FAILED=1
+  fi
+done
+SKIPPED=$((SKIPPED + $(wc -l < "${CADDY_SKIPS}")))
+
+# ---------------------------------------------------------------------------
 head_ "Grafana dashboards"
 # ---------------------------------------------------------------------------
 if have python3; then

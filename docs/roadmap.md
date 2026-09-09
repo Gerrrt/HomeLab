@@ -355,8 +355,12 @@ what left this one unfireable for months.
   issue split; [#404](https://github.com/Gerrrt/HomeLab/issues/404) is the tracker it lost. The placement is not the
   outstanding part — ADR-0008 settled it, and
   [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) has since been
-  decided on top of it. What is outstanding is the build under #404, a stack,
-  and four firewall rules the ADR counted as two.
+  decided on top of it. What is outstanding is the build under #404, the rest
+  of a stack, and four firewall rules the ADR counted as two. `stacks/sensitive/`
+  exists since 2026-09-09 with its foundation — Caddy as the only published
+  port, step-ca as an intermediate beneath the lab CA — authored ahead of the
+  hardware the way `stacks/lab` was, and checked by everything `make validate`
+  runs, `caddy validate` included.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero
