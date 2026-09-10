@@ -18,7 +18,7 @@
 # What this does NOT fix: SNMPv2c still sends the community in cleartext in
 # every packet. Distinct per-device communities limit the blast radius of a
 # captured poll; they do not make the protocol secure. The estate is mixed on
-# purpose (ADR-0035): a device whose auth block in generator.yaml is version 3
+# purpose (ADR-0036): a device whose auth block in generator.yaml is version 3
 # is probed over SNMPv3 authPriv with the user and passphrases that block
 # names, through the same snmp.conf route — and its --old check is still v2c,
 # because "the old community is refused" is exactly the proof that v1/v2c

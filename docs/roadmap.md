@@ -91,7 +91,7 @@ and any disk or memory on account of Wazuh — ADR-0030 sizes it to what
   [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv
   where the hardware supports it.** Decided by
-  [ADR-0035](adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md):
+  [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md):
   per poll, by where the poll travels, and mixed on purpose. The iLO first —
   its poll is delivered into the lab segment, layer-2 adjacent to the attack
   VM, so its community is the one an adversary is meant to be able to try for
@@ -750,7 +750,7 @@ months.
   decision.
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85)** SNMPv3 on the iLO and
   the UPS card, decided by
-  [ADR-0035](adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
+  [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
   with the repository side built and the device side not yet done. Under
   **Security** above, because it has a procedure now rather than only a
   decision.
