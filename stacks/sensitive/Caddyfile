@@ -102,6 +102,20 @@ paperless.matrix.elysium {
 	}
 }
 
+# Vaultwarden (#131). Plain HTTP on the stack network; TLS ends here. Rocket
+# serves the Bitwarden API, the web vault and the WebSocket notifications hub
+# on the one port, and reverse_proxy upgrades WebSocket connections without
+# being told to. 8080 is compose.yaml's ROCKET_PORT; X-Forwarded-For is what
+# its IP_HEADER reads.
+vaultwarden.matrix.elysium {
+	reverse_proxy vaultwarden:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

@@ -24,11 +24,12 @@ make up STACK=sensitive
 | paperless | `ghcr.io/paperless-ngx/paperless-ngx` | *internal* (8000) | The document archive: scan, OCR, index. On this tier by content — tax returns, passports, medical records — and the service [ADR-0023] classes as *durable* ([#133]) |
 | paperless-db | `postgres` | *internal* (5432) | Paperless-ngx's own database. Metadata about documents; the documents themselves are files under `paperless-media` |
 | paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
+| vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
 
-Eleven services. Two are plumbing; Home Assistant is the first household
-service and the shape every later one takes; AdGuard is the one the household
-uses without ever knowing it; four are Immich, the service [ADR-0008] names as
-the price of putting the tier on Winterfell at all; and three are
+Twelve services. Two are plumbing; Home Assistant and Vaultwarden are the first
+household services and the shape every later one takes; AdGuard is the one the
+household uses without ever knowing it; four are Immich, the service [ADR-0008]
+names as the price of putting the tier on Winterfell at all; and three are
 Paperless-ngx, the archive of what the household cannot get back. What is
 absent is as deliberate as what is here:
 
@@ -38,13 +39,14 @@ absent is as deliberate as what is here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No other services yet.** Vaultwarden, ntfy and Homepage ([#131], [#136],
-  [#137]) each arrive as Home Assistant, Immich and Paperless-ngx did: a
-  service with `expose:`, a block in the `Caddyfile`, a name on the leaf and
-  in the resolver. A service in this file with `ports:` of its own is the one
-  thing a review of it should refuse — AdGuard is the single argued exception,
-  and `compose.yaml` makes the argument at DIFFERENCE 7 so that the next one
-  has to be made too.
+- **No other services yet.** ntfy and Homepage ([#136], [#137]) each arrive as
+  Home Assistant, Immich, Paperless-ngx and Vaultwarden did: a service with
+  `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
+  its credential in SOPS where it takes one from outside, and a sentinel for its
+  volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
+  of its own is the one thing a review of it should refuse — AdGuard is the
+  single argued exception, and `compose.yaml` makes the argument at DIFFERENCE 7
+  so that the next one has to be made too.
 - **No shared database.** Immich and Paperless-ngx each run a Postgres of
   their own — Immich's needs the vector extension and therefore a different
   image — and one database per service is what lets `backup-volumes.sh`
@@ -60,7 +62,7 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               eleven services, one network, health-gated ordering
+compose.yaml               twelve services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -163,7 +165,7 @@ time and lives in Caddy's `/data` volume, never on disk here.
   listener Caddy would otherwise open on 80. A redirect is a later choice,
   made in `.env.example`, `compose.yaml` and the `Caddyfile` together.
 - **Every routed name needs a host override.** `homeassistant.matrix.elysium`
-  — and each name after it, `paperless.matrix.elysium` included — has to be
+  — and each name after it, `vaultwarden.matrix.elysium` included — has to be
   in `morpheus`'s resolver, pointed at `10.0.99.40`
   ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)) —
   a name the resolver does not know never arrives. The certificate side is
@@ -230,6 +232,11 @@ time and lives in Caddy's `/data` volume, never on disk here.
   from the pinned images: 747 MiB working set idle, 825 MiB consuming a
   one-page 200 dpi scan, 22 processes. Re-derive from `container_memory_rss`
   once `trinity` has run a month.
+- **Caddy joins the operator's group.** `gen-certs.sh` writes the leaf's key
+  `0640`, owned by whoever ran it, and root inside a container that has dropped
+  `CAP_DAC_OVERRIDE` is bound by that mode like any other uid — measured: the
+  pinned image died on `key.pem: permission denied` until `group_add` carried
+  `RENDER_GID`, the way the estate's Grafana already does ([#131]).
 
 ### Paperless-ngx in particular
 
@@ -279,9 +286,9 @@ both halves [#133] asks for, and it needed two things to do so: an entry per
 volume in its sentinel table — the string that proves an archive holds *that*
 volume, read off the volumes after the boot above — and one for every other
 volume in this stack, none of which had one, so a stack backup here refused
-on the first of them ([#428]'s first half; the second, the age recipient the
-script picks, is still open there — do not trust a run until it lands). On
-`trinity`:
+on the first of them — [#428]'s first half, landed the same day as its second,
+the age recipient the script picks, which [#131] moved to the stack's own
+secrets file. On `trinity`:
 
 ```bash
 STACK=sensitive make backup
@@ -293,9 +300,9 @@ rebuilt), `paperless-db-data` (the database: tags, correspondents, every
 document's metadata), `paperless-data` (the index and the classifier, both
 rebuildable) and `paperless-broker-data` (the queue, disposable), verifies
 each by its sentinel, and starts them again. A restore is
-[`restore-the-stack.md`](../../docs/runbooks/restore-the-stack.md) with
-`STACK=sensitive`; the Postgres sentinel carries the major version in its
-path, so a bump from 18 has to move it, loudly.
+[`restore-the-sensitive-tier.md`](../../docs/runbooks/restore-the-sensitive-tier.md);
+the Postgres sentinel carries the major version in its path, so a bump from 18
+has to move it, loudly.
 
 The version-portable form is the exporter — `docker compose exec paperless
 document_exporter ../export`, into `export/` — which writes every document with
@@ -311,6 +318,94 @@ arrives with the host under [#404]. And **nothing here is the off-estate copy**
 second holder, with visible freshness. That is the precondition on the data
 arriving, not on the container starting, and it is still open.
 
+## Vaultwarden
+
+The vault, and the service [#131] was mostly not about deploying: *"a
+password vault
+is the one service here where 'it is running' and 'it is recoverable' are
+entirely different claims, and only the second one counts on the day it
+matters."* What the service does is in `compose.yaml`; what has to be true
+around it is here.
+
+- **Every capability dropped, and root.** The same measurement Caddy records —
+  `/data` is root-owned in the image and a named volume inherits it — with one
+  difference: `ROCKET_PORT` is `8080`, so there is no privileged bind and
+  nothing to keep. Started under exactly the compose file's options before this
+  was written: healthy, `/alive` and `/admin` answering, nothing written outside
+  `/data`, under 10 MiB resident.
+- **Sign-up is off from the first start.** [#131] said "after the two accounts
+  exist"; there is no such window. Accounts are created by invitation from
+  `/admin`, and with no SMTP configured the invited address registers itself at
+  the vault — so no SMTP credential exists to protect, and nothing on Hicks can
+  ever open an account of its own.
+- **The admin token is a hash.** `VAULTWARDEN_ADMIN_TOKEN` in SOPS is an
+  Argon2id PHC string, so `docker inspect` shows a hash where on Grafana it
+  shows the password. Generate it from the pinned image, on any machine with
+  docker:
+
+  ```bash
+  docker run --rm -it "$(COMPOSE_FILE=stacks/sensitive/compose.yaml ./scripts/image-for.sh vaultwarden)" /vaultwarden hash --preset owasp
+  ```
+
+  The string is five `$`-delimited fields, and compose reads a `$` in `.env`
+  as a variable reference — written raw, the value reaches the container as
+  `=19=65540,t=3,p=4` behind five warnings `make up` scrolls past.
+  `render-config.sh` doubles every `$` on the way in; that was latent for every
+  secret it writes, a Grafana password with a `$` in it included, and is fixed
+  for all of them. The token itself is held nowhere in the estate. Keep it with
+  the operator's other credentials: it is precisely the thing this vault cannot
+  hold for you.
+- **The name has its own certificate, and needs a host override.** The browser
+  checks the certificate's SANs before Caddy sees a Host header, and
+  `vaultwarden.matrix.elysium` gets a leaf of its own from step-ca because it
+  is a site block in the `Caddyfile` and an alias on Caddy in `compose.yaml`
+  (the alias bullet above). What it still needs from outside this stack is
+  the host override
+  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
+- **TOTP on both accounts at first login.** [ADR-0022]'s floor — the thing
+  [ADR-0008] offered *in place of* SSO, and the one service in the tier where
+  that substitute exists and matters most. Settings → Security → Two-step login
+  in the web vault, and the recovery code goes where the admin token goes.
+- **Before it holds anything real, three things fall due at once**, and they
+  are the same moment observed three times:
+  1. A verified restore — [`restore-the-sensitive-tier.md`](../../docs/runbooks/restore-the-sensitive-tier.md),
+     which also records what has already been rehearsed and what has not.
+  2. [ADR-0022]'s decision recorded: an identity provider, or the deferral
+     re-accepted with reasons.
+  3. [ADR-0023]'s *Independent* class met: the household's own credentials
+     recoverable without this vault, and opened once from the other person's
+     device without the operator present. The recommendation there is that the
+     family's vault is hosted Bitwarden and this one keeps the operator's.
+
+## Backup and restore
+
+```bash
+make backup STACK=sensitive
+make restore STACK=sensitive ARGS="--dry-run --from latest"
+```
+
+`backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
+volume it cannot verify, so each of the eleven volumes it archives has a
+sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
+pinned image, beside the entries [#133] read off boots of every other — and
+`restore-volumes.sh` knows the uid each must come back owned by where that
+uid is a constant. The twelfth, `immich-model-cache`, is skipped by name: a
+downloadable cache is not data, and a fresh host whose models have not been
+fetched yet would otherwise fail the whole run on an empty archive. Both
+scripts encrypt to **every recipient of
+`secrets/sensitive.sops.yaml`**, read from the file itself: `trinity`'s key,
+and the technical second's once it joins the rule. Until [#131] they took the
+first key in `.sops.yaml` whichever rule it belonged to, which would have
+encrypted the estate's weekly backup to `trinity`'s key the day the placeholder
+was filled — the two defects [#428] describes.
+
+What this does **not** do, and [#404] step 5 still owes: nothing schedules
+`make backup STACK=sensitive` on `trinity` — the `homelab-*` timers are the
+estate's — and nothing copies a set off the host, let alone off the estate,
+which is the copy [ADR-0023] requires before Immich or Paperless-ngx hold a
+real file. A set in `backups/volumes/` on `trinity` protects against a bad
+upgrade and a mistyped command, and against nothing that happens to `trinity`.
+
 ## What backs Immich up, and what does not yet
 
 The photographs are the household data most likely to be irreplaceable, and
@@ -323,7 +418,7 @@ three different mechanisms — two of which do not exist yet.
 | --- | --- | --- |
 | The originals, thumbnails and transcodes | `IMMICH_UPLOAD_LOCATION` — the USB disk | The off-estate copy [ADR-0023] requires. **Not built**: it needs a destination chosen and paid for, and it is the precondition on the first real photo, not on the container starting |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | The same copy — it is on the same disk, on purpose, so one copy of the disk is a copy of the metadata beside the originals |
-| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive` — **half-built**: `scripts/backup-volumes.sh` now has a sentinel for every volume in this stack, and still picks the estate's age key rather than `trinity`'s ([#428]) |
+| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients. Immich's dump on the USB disk is the second route to the same metadata |
 
 The restore that [#132] asks to see proven once is Immich's own: a fresh
 install, the library tree back on its disk, and the newest dump fed to
@@ -352,12 +447,15 @@ What `make validate` still does **not** prove about this stack, in the order
 it matters:
 
 - **That it runs on `trinity`.** Nothing here has been deployed there — the
-  host is [#404]. The Immich services were booted on the monitoring host on
-  2026-09-09 with these exact settings, an admin created, an upload made and
-  the ML models fetched, which is how the read-only findings in `compose.yaml`
-  were made; that is a rehearsal of the file, not of the host. Paperless-ngx
-  and its two dependencies were booted the same way, a scan consumed and
-  deleted as the operator's uid — the same class of rehearsal.
+  host is [#404]. What has been run is the pieces in isolation, on the
+  monitoring host: the Immich services on 2026-09-09 with these exact
+  settings, an admin created, an upload made and the ML models fetched, which
+  is how the read-only findings in `compose.yaml` were made; Paperless-ngx and
+  its two dependencies the same way, a scan consumed and deleted as the
+  operator's uid; Caddy with this `Caddyfile` under the compose file's options;
+  Vaultwarden likewise; and a full `make backup` / `make restore` round trip of
+  four of the volumes with a seeded account in the vault — the runbook says
+  exactly what that proved. That is a rehearsal of the file, not of the host.
 - **That the CA tree exists.** `step-ca` starts only against a populated
   volume, and the volume is populated by a procedure run on two hosts. A fresh
   `make up` on a bare `trinity` fails on `config/ca.json`, loudly and on

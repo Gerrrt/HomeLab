@@ -49,6 +49,7 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "PAPERLESS_SECRET_KEY=validation-only"
   echo "PAPERLESS_DBPASS=validation-only"
   echo "PAPERLESS_ADMIN_PASSWORD=validation-only"
+  echo "VAULTWARDEN_ADMIN_TOKEN=validation-only"
   # RENDER_UID/GID are written to .env by render-config.sh from the deploying
   # user, so they are host-specific and deliberately absent from .env.example.
   echo "RENDER_UID=65534"

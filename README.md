@@ -82,7 +82,7 @@ documents for different readers.
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
 - **Documented decisions and runbooks.** 37 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 22
+  and what was rejected — including the costs accepted knowingly; 23
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
 
@@ -185,9 +185,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │                             #   runs on a guest on Saruman, never remote-writes
 │                             #   to VLAN 99. See its README and ADR-0020
 ├── stacks/sensitive/         # the household's tier — Caddy, step-ca, Home
-│                             #   Assistant, AdGuard Home, Immich and Paperless-ngx
-│                             #   so far; its own CA, leaves over ACME (ADR-0037);
-│                             #   for a host not yet built (ADR-0034, #404)
+│                             #   Assistant, AdGuard Home, Immich, Paperless-ngx
+│                             #   and Vaultwarden so far; its own CA, leaves over
+│                             #   ACME (ADR-0037); for a host not yet built (ADR-0034, #404)
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
 ├── scripts/                  # bootstrap, render, validate, pin-digests, purge
 ├── SECURITY.md               # disclosure policy and known exposure

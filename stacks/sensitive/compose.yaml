@@ -11,7 +11,7 @@
 # ---------------------------------------------------------------------------
 # What is here, and what is not
 # ---------------------------------------------------------------------------
-# The foundation, and the first two household services on it. Caddy (#129)
+# The foundation, and the first household services on it. Caddy (#129)
 # is the reverse proxy that publishes the tier's HTTPS port, and the whole
 # containment argument in ADR-0008 — "containers sit on private bridge
 # networks with only the reverse proxy publishing a port" — is a property of
@@ -23,9 +23,10 @@
 # AdGuard Home (#135) is the second, and the one service that, by design,
 # publishes a port of its own — argued at DIFFERENCE 7 below. Immich (#132)
 # is the third, as four services — server, machine learning, Postgres,
-# Valkey — each in Home Assistant's shape, and Paperless-ngx (#133) the
-# fourth, as three. Vaultwarden, ntfy and Homepage (#131, #136, #137) land
-# the way Home Assistant did.
+# Valkey — each in Home Assistant's shape, Paperless-ngx (#133) the fourth,
+# as three, and Vaultwarden (#131) the fifth — the one whose volume is the
+# vault, and the reason scripts/backup-volumes.sh learned this stack. ntfy
+# and Homepage (#136, #137) land the way Home Assistant did.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -116,10 +117,22 @@ services:
           - adguard.matrix.elysium
           - immich.matrix.elysium
           - paperless.matrix.elysium
+          - vaultwarden.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
+    # The operator's gid as a supplementary group, the way the estate's Grafana
+    # gets it. gen-certs.sh writes the leaf's key 0640, owned by whoever ran
+    # it, on purpose — its comment says why — and root in this container is
+    # not exempt from that mode: with CAP_DAC_OVERRIDE dropped, uid 0 is
+    # subject to the permission bits like any other uid. Without this line the
+    # first start on trinity ends in `open /etc/caddy/tls/key.pem: permission
+    # denied`, measured against the pinned image and a 0640 key before the
+    # line was added (#131). RENDER_GID is written by render-config.sh from
+    # `id -g` for every stack, so it is set wherever `make up` runs.
+    group_add:
+      - "${RENDER_GID:?run make render}"
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -478,6 +491,89 @@ services:
       # container unhealthy for a WAN fault. Whether it ANSWERS is the
       # blackbox probe's question, asked from where the firewall asks it.
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Vaultwarden — the household's password manager (#131)
+  # ---------------------------------------------------------------------------
+  # Behind Caddy like Home Assistant, in the shape every later service copies:
+  # `expose:` and no `ports:`, so a browser on Hicks reaches it only through
+  # the one published 443, by name, at https://vaultwarden.matrix.elysium.
+  # Bitwarden's own clients and browser extensions are pointed at that URL
+  # unchanged, which is the whole reason #131 chose it over upstream Bitwarden.
+  #
+  # Runs as root with EVERY capability dropped — DIFFERENCE 2's argument, and
+  # the same measurement: in the pinned image /data is 0:0 755, a named volume
+  # mounted there inherits that, and a non-root Vaultwarden cannot create its
+  # own database. Unlike Caddy it keeps nothing: ROCKET_PORT is 8080 rather
+  # than the image's 80, so there is no privileged bind and no NET_BIND_SERVICE
+  # to keep. Root without CAP_DAC_OVERRIDE writes the one directory it owns and
+  # nothing else. Checked before this was written, on the pinned image with
+  # exactly these options: it came up healthy, answered /alive and /admin, and
+  # `docker diff` showed nothing of its own written outside /data. Re-check
+  # the premise when the image moves, as for Caddy:
+  #
+  #   docker run --rm --entrypoint stat <vaultwarden image> -c '%u:%g %a' /data
+  #
+  # SIGNUPS_ALLOWED is false from the FIRST start, not "after the two accounts
+  # exist" as #131 wrote it. There is no window: the two accounts are created
+  # by invitation from /admin, and with no SMTP configured an invited address
+  # simply registers itself at the vault — Vaultwarden's documented path for
+  # exactly this. So no SMTP credential to hold, and not a minute in which
+  # anything on Hicks could open an account of its own.
+  #
+  # ADMIN_TOKEN is an Argon2id PHC string, never the token itself — generated
+  # by `vaultwarden hash` (the README has the command) and pasted into SOPS.
+  # `docker inspect` on this container then shows a hash, where on Grafana it
+  # shows the password. The string is five `$`-delimited fields, and compose
+  # reads a `$` in .env as a variable reference and quietly hollows the value
+  # out; render-config.sh doubles them on the way in, and this is why.
+  #
+  # IP_HEADER: Caddy sets X-Forwarded-For, not the X-Real-IP the image defaults
+  # to. Nothing but Caddy can reach 8080, so the header is trusted — it is what
+  # lets the login rate limit and the admin log see the client on Hicks rather
+  # than the proxy's address on the bridge.
+  #
+  # No `depends_on` from Caddy to this service, deliberately: a proxy that
+  # waits for every upstream is a proxy that stays down while one of them is
+  # broken. Caddy answers 502 for a vault that is not up yet, which is true.
+  #
+  # 256m: the process idles under 10 MiB RSS on the pinned image, and checking
+  # the admin token at an /admin login costs the Argon2 memory parameter once
+  # — 19 MiB with the OWASP preset, 64 MiB with Bitwarden's. Four times the
+  # larger, to bound a leak rather than to size.
+  vaultwarden:
+    <<: *service-defaults
+    image: vaultwarden/server:1.37.2@sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912
+    container_name: sensitive-vaultwarden
+    mem_limit: 256m
+    memswap_limit: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    environment:
+      DOMAIN: https://vaultwarden.matrix.elysium
+      ROCKET_PORT: "8080"
+      SIGNUPS_ALLOWED: "false"
+      INVITATIONS_ALLOWED: "true"
+      SHOW_PASSWORD_HINT: "false"
+      IP_HEADER: X-Forwarded-For
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - vaultwarden-data:/data
+    expose:
+      - "8080"
+    healthcheck:
+      # The image's own script: curl against its own ROCKET_PORT and the base
+      # path DOMAIN implies, which here is /alive. curl ships in the image, and
+      # check_compose_health.py --probe proves that on every run.
+      test: ["CMD", "/healthcheck.sh"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -1008,9 +1104,15 @@ volumes:
   # Downloaded ML models and huggingface_hub's chunk cache, about a gigabyte
   # once CLIP and the face model have been fetched. Re-downloadable, so it is
   # the one volume here whose loss costs a few minutes and an internet
-  # connection rather than anything.
+  # connection rather than anything — and the one scripts/backup-volumes.sh
+  # skips by name, for that reason.
   immich-model-cache:
   paperless-data:
   paperless-media:
   paperless-db-data:
   paperless-broker-data:
+  # The database, the RSA key that signs every session token, attachments,
+  # Sends and the icon cache. With home-assistant-config, immich-db and
+  # paperless-media, one of the volumes here whose loss is a loss of function
+  # rather than of a record — docs/runbooks/restore-the-sensitive-tier.md.
+  vaultwarden-data:

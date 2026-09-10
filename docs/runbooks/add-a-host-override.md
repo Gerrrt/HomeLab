@@ -162,6 +162,17 @@ The same steps. Two things worth doing at the same time:
   inventory. A name that only exists in the firewall's configuration is a name
   nobody will find when it stops working.
 
+The sensitive tier brings the next ones, all at `10.0.99.40`: `trinity` for the
+host, and one per service the [`stacks/sensitive/Caddyfile`](../../stacks/sensitive/Caddyfile)
+routes by Host — `homeassistant` and `vaultwarden` to begin with
+([#134](https://github.com/Gerrrt/HomeLab/issues/134),
+[#131](https://github.com/Gerrrt/HomeLab/issues/131)). They land with the
+build ([#404](https://github.com/Gerrrt/HomeLab/issues/404)), not before: an
+override for a host that does not answer moves the failure from *no such host*
+to *no route*, and a name on the break-glass card is the one thing
+[ADR-0023](../adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
+says these must never be. Add `trinity` first, for the reverse entry.
+
 Reaching the MokerLink management interface by name
 ([#97](https://github.com/Gerrrt/HomeLab/issues/97)) is this procedure and
 nothing more — `neo` is in the table above. This paragraph used to say the

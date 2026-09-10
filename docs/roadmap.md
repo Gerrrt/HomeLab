@@ -461,24 +461,30 @@ what left this one unfireable for months.
   off. The half on `morpheus` waits for the host:
   [`forward-dns-to-adguard.md`](runbooks/forward-dns-to-adguard.md) is the
   forwarding-mode change below, its verification, and the deliberate-failure
-  test ADR-0010 asks for.
+  test ADR-0010 asks for. So did Vaultwarden
+  ([#131](https://github.com/Gerrrt/HomeLab/issues/131)) — the service whose
+  restore path mattered more than its deployment: `make backup` and
+  `make restore` learned the tier's volumes and now encrypt to the stack's own
+  recipients rather than the first key in `.sops.yaml`, which is the pair of
+  defects [#428](https://github.com/Gerrrt/HomeLab/issues/428) names, and the
+  round trip was rehearsed on the monitoring host with a seeded vault before
+  the host exists
+  ([`restore-the-sensitive-tier.md`](runbooks/restore-the-sensitive-tier.md)).
   Immich followed the same day as well
   ([#132](https://github.com/Gerrrt/HomeLab/issues/132)): four containers
   behind Caddy, pinned by digest, each under a memory limit, booted once on
   the monitoring host to find where the images write. What that landing
-  turned up is that `make backup` cannot yet take this stack's volumes at
-  all ([#428](https://github.com/Gerrrt/HomeLab/issues/428)), and that the
-  off-estate copy ADR-0023 makes the precondition on the first real photo
-  still has no destination — #132 stays open for both halves of that.
+  turned up is that the off-estate copy ADR-0023 makes the precondition on
+  the first real photo still has no destination — #132 stays open for it.
   Paperless-ngx followed ([#133](https://github.com/Gerrrt/HomeLab/issues/133)):
   the document archive behind Caddy, with a Postgres and a Valkey of its own,
   running as the operator with every capability dropped and a CPU ceiling —
   the estate's first — and its volumes in `backup-volumes.sh`'s sentinel
   table, alongside entries for the foundation's, Home Assistant's, AdGuard's
-  and Immich's, which had none; #428's recipient half is still open. Booted
-  from the pinned images before the file was written, on the monitoring
-  host, since the tier's is not built; the limits are stated as unmeasured on
-  the hardware they are for.
+  and Immich's, which had none; #428's recipient half landed with Vaultwarden
+  the same day. Booted from the pinned images before the file was written, on
+  the monitoring host, since the tier's is not built; the limits are stated as
+  unmeasured on the hardware they are for.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero

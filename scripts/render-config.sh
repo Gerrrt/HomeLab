@@ -400,6 +400,7 @@ COMPOSE_VARS=(
   PAPERLESS_SECRET_KEY
   PAPERLESS_DBPASS
   PAPERLESS_ADMIN_PASSWORD
+  VAULTWARDEN_ADMIN_TOKEN
 )
 ENV_FILE="${STACK_DIR}/.env"
 info "writing $(basename "${STACK_DIR}")/.env"
@@ -415,7 +416,10 @@ info "writing $(basename "${STACK_DIR}")/.env"
 # is the first value here guaranteed to carry one; the Grafana and step-ca
 # passwords are free-form and were exposed to the same mangling silently.
 # gen-secret.sh's alphabet excludes `$` for a different consumer, and that is
-# why nothing had noticed.
+# why nothing had noticed. VAULTWARDEN_ADMIN_TOKEN is the second such value,
+# an Argon2id PHC string of five `$`-delimited fields, and #131 measured the
+# same mangling independently on compose v5.5.1: written raw it reached the
+# container as `=19=65540,t=3,p=4` behind five "variable is not set" warnings.
 #
 # patsub_replacement is disabled (again — the snmp block above does it too,
 # inside a conditional this stack may not enter) so the replacement is
