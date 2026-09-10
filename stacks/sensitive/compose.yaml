@@ -11,15 +11,15 @@
 # ---------------------------------------------------------------------------
 # What is here, and what is not
 # ---------------------------------------------------------------------------
-# Five services, two of them the foundation. Caddy (#129) is the only thing on
-# the tier that publishes a port, and the whole containment argument in
-# ADR-0008 — "containers sit on private bridge networks with only the reverse
-# proxy publishing a port" — is a property of this file or it is a sentence in
-# an ADR. step-ca (#130) issues the certificates behind it. Paperless-ngx
-# (#133) is the first household service behind them, with the Postgres and
-# Valkey it needs; Vaultwarden, Immich, Home Assistant, AdGuard Home, ntfy and
-# Homepage (#131, #132, #134–#137) land the same way, each with `expose:` and
-# no `ports:`.
+# The foundation, and the first two household services on it. Caddy (#129)
+# is the only thing on the tier that publishes a port, and the whole
+# containment argument in ADR-0008 — "containers sit on private bridge
+# networks with only the reverse proxy publishing a port" — is a property of
+# this file or it is a sentence in an ADR. step-ca (#130) issues the
+# certificates behind it. Home Assistant (#134) and Paperless-ngx (#133, with
+# the Postgres and Valkey it needs) are behind them, and the shape every later
+# one takes: `expose:` and no `ports:`. Vaultwarden, Immich, AdGuard Home, ntfy
+# and Homepage (#131, #132, #135–#137) land the same way.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -30,7 +30,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are six such places, each marked DIFFERENCE.
+# the sibling file. There are eight such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -87,6 +87,15 @@ services:
     <<: *service-defaults
     image: caddy:2.11.4@sha256:df7f1c2fb114453b951de51a98efc010db1655a92c2e86be6706714e2417a78d
     container_name: sensitive-caddy
+    # A fixed address, for one reader: Home Assistant's `trusted_proxies`
+    # names the proxy it will believe X-Forwarded-For from, and "whatever
+    # Docker handed Caddy this boot" is not a name. The mapping form replaces
+    # the anchor's `networks: [sensitive]`; the subnet is declared at the
+    # bottom of this file. `.1` is the bridge's own address, so `.2` is the
+    # first a container can hold.
+    networks:
+      sensitive:
+        ipv4_address: 172.28.99.2
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -102,9 +111,13 @@ services:
       - caddy-config:/config
       # The leaf comes from scripts/gen-certs.sh until step-ca issues it
       # (#129: "initially, replaced by step-ca issuance once that lands"):
-      #   make certs ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity"
-      # Issued on the monitoring host, where the CA key lives and stays; the
-      # three files travel the way the lab's did (build-the-lab-guest.md §5).
+      #   make certs ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 \
+      #                    --dns trinity --dns homeassistant.matrix.elysium \
+      #                    --dns paperless.matrix.elysium"
+      # One --dns per name the Caddyfile routes by, until step-ca issues each
+      # its own; a Host the leaf does not carry fails the handshake, not the
+      # route. Issued on the monitoring host, where the CA key lives and stays;
+      # the three files travel the way the lab's did (build-the-lab-guest.md §5).
       # render-config.sh refuses to render while any of these is missing, so
       # `make up` cannot start a Caddy that would fail its first TLS handshake.
       - ../../certificates/trinity.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
@@ -199,6 +212,128 @@ services:
       start_period: 30s
 
   # ---------------------------------------------------------------------------
+  # Home Assistant — the automation hub, and what the 99 → 20 rule is for (#134)
+  # ---------------------------------------------------------------------------
+  # Home Assistant CONTAINER, not Supervised and not OS: no Supervisor, so no
+  # add-ons — and that is the point rather than the price. An add-on is a
+  # second package manager operating outside this file and outside digest
+  # pinning, the objection roadmap.md records against Nextcloud's app store.
+  # Anything an add-on would have supplied — an MQTT broker, a Zigbee bridge —
+  # arrives as its own pinned service in this file, on the day a device needs
+  # it. None does today: Ring is cloud, the Hue bridge is its own radio, the
+  # speakers are Wi-Fi (roadmap.md, "Everything still to buy"). So there is no
+  # `devices:` line, no USB coordinator, and where trinity physically sits is
+  # not constrained by this service — the question ADR-0034 left to #404,
+  # answered for #134's part: a rack in a closet is fine.
+  #
+  # Upstream's compose example is `network_mode: host` and `privileged: true`.
+  # Neither is here, and this estate is the one place refusing them costs
+  # nothing. Host networking exists for discovery — mDNS and SSDP — and
+  # discovery is link-local: every device this controls is on Skids (VLAN 20),
+  # a broadcast domain away, so nothing on 20 would be found from 99 however
+  # the container were networked. Devices are added by address, through the
+  # one pass ADR-0035 scopes. `privileged` exists for USB radios and Bluetooth,
+  # and there are none. So this is an ordinary member of the `sensitive`
+  # network with `expose:` and no `ports:`, behind Caddy like everything else,
+  # and ADR-0008's containment sentence stays true of it.
+  #
+  # DIFFERENCE 5: `init: false`. The image's entrypoint is s6-overlay v3, an
+  # init in its own right, and it refuses to be anything but PID 1 — measured
+  # on the pinned image, not read: with `init: true` the container exits at
+  # once on `s6-overlay-suexec: fatal: can only run as pid 1`. Every other
+  # service here takes tini from x-service-defaults; this one brings its own.
+  #
+  # DIFFERENCE 6: root, like Caddy, and for a worse reason — the image has no
+  # other mode. s6 starts as root and runs Home Assistant as root; there is no
+  # PUID, and a `user:` line breaks the supervision tree before it starts. What
+  # bounds that is the same set as Caddy's, minus the capability: everything
+  # dropped, no-new-privileges, a read-only root with two tmpfs mounts (s6
+  # needs /run and Home Assistant needs /tmp; S6_READ_ONLY_ROOT tells stage 2
+  # to stage its scripts under /run instead of /etc), and one writable path,
+  # the config volume. Booted exactly so on the monitoring host on 2026-09-09
+  # from the pinned digest, on an internal Docker network with no route out:
+  # onboarding served in about twenty seconds, zero read-only errors, CapEff 0
+  # for PID 1 and for the Home Assistant process. Root with no capabilities and
+  # a read-only root writes /config and nothing else. Two things that boot
+  # taught, both kept: /run has to be mounted `exec` — Docker's tmpfs default
+  # is noexec and s6 stages its own binaries there, so without it stage 0 dies
+  # on `Permission denied` — and one error line is logged on every start,
+  # `aiodhcpwatcher: Cannot watch for dhcp packets: Operation not permitted`.
+  # That is default_config's `dhcp` discovery wanting CAP_NET_RAW to sniff
+  # for devices; on a bridge network a VLAN away from every device it would
+  # sniff nothing, so the capability stays dropped and the line is expected.
+  #
+  # WHERE THE CREDENTIALS ARE, because this service accumulates more of them
+  # than anything else on the tier and the estate's rule is `secrets/*.sops.yaml`
+  # or nowhere. Home Assistant does not take device credentials from the
+  # environment or from any file this repository could render: the Hue
+  # application key, the Ring refresh token and everything else a config flow
+  # produces is written by Home Assistant into /config/.storage/ — in the
+  # volume, on trinity's disk, in the volume archive. So the rule holds for
+  # what this file can hold, which today is nothing — there is no `${VAR:?}`
+  # guard because there is no secret this service takes from outside — and
+  # the deviation is written down rather than papered over: the tier's most
+  # numerous credentials live in an application store, protected by #404's
+  # disk-encryption decision and by the volume backup, not by SOPS. ADR-0035
+  # records that. Two rules follow from it. A long-lived access token minted
+  # in the UI for another service to use is that service's secret and goes in
+  # ITS SOPS file — none exists yet, and #98's would-be consumer was declined
+  # by ADR-0019. And the first YAML-configured integration that needs a
+  # credential is the day /config/secrets.yaml gets rendered from SOPS the way
+  # alertmanager's URL files are; not before, because a rendered file with
+  # nothing to hold is a mount nothing reads.
+  home-assistant:
+    <<: *service-defaults
+    image: ghcr.io/home-assistant/home-assistant:2026.9.1@sha256:612d76760b544cb40b7ba01387fdac964c59a6a550a50a4d30b4773c822d2918
+    container_name: sensitive-home-assistant
+    init: false
+    # A ceiling to catch a leak, not a measurement: #114's method — median and
+    # peak over a fortnight of real use — replaces it once the tier runs. The
+    # only number there is: 316 MiB RSS at the end of a first boot on the
+    # pinned image, with default_config loaded and no devices, and 35
+    # tasks against the anchor's pids_limit of 512. Python threads count as
+    # tasks and Home Assistant is thread-heavy — its executor alone may hold
+    # 64 — so the margin under 512 is stated rather than assumed.
+    mem_limit: 1g
+    memswap_limit: 1g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      - /run:size=16m,exec
+    environment:
+      S6_READ_ONLY_ROOT: "1"
+    volumes:
+      - home-assistant-config:/config
+      # The config is the repository's; the volume is the application's. A
+      # single-file mount over a volume works — Docker mounts the deeper path
+      # last — and it is pinned to an inode like every other single-file mount
+      # here, so `make up` runs check_mounted_config.py --fix for it (#355).
+      - ./home-assistant/configuration.yaml:/config/configuration.yaml:ro
+      - ./home-assistant/packages:/config/packages:ro
+    expose:
+      - "8123"
+    # The recorder flushes on shutdown; cut it off at compose's default 10s
+    # and the next start replays or repairs the database. Upstream's example
+    # sets the same figure.
+    stop_grace_period: 60s
+    healthcheck:
+      # /manifest.json answers 200 with no session. `/` answers 302 — to
+      # onboarding, then to the login page — which --spider would also pass,
+      # but a redirect is a weaker claim than a document. busybox wget, as in
+      # Caddy's check; --probe proves the binary is there.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/manifest.json"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # A first boot on the i5-8500T is well under this; the figure covers a
+      # recorder repair after an unclean stop, which is the slow start that
+      # matters.
+      start_period: 90s
+
+  # ---------------------------------------------------------------------------
   # Paperless-ngx — the document archive (#133)
   # ---------------------------------------------------------------------------
   # Tax returns, insurance, medical records, passports and payslips: on this
@@ -213,11 +348,10 @@ services:
   # Reached as https://paperless.matrix.elysium through Caddy, on the existing
   # 50→99 pass for 443 and no new rule. Two things outside this file have to be
   # true first, and both belong to #404's build rather than to this file: the
-  # name needs a host override on morpheus (ADR-0010 counts six; this is a
-  # seventh, to 10.0.99.40), and until step-ca's ACME provisioner issues a
-  # leaf per service, the hand-issued one needs the name as a SAN:
-  #
-  #   make certs ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity --dns paperless.matrix.elysium"
+  # name needs a host override on morpheus (docs/runbooks/add-a-host-override.md)
+  # and, until step-ca's ACME provisioner issues a leaf per service, a SAN on
+  # the hand-issued one — the `make certs` line on Caddy's mounts above
+  # carries it.
   #
   # ROOTLESS, as the operator. The image is s6-overlay over Django and
   # ordinarily starts as root, maps to uid 1000 through USERMAP_UID and drops
@@ -231,7 +365,7 @@ services:
   # whoever ran `make up`; a scan dropped there by that user over SSH is
   # readable, and removable once consumed, only if the consumer runs as them.
   #
-  # DIFFERENCE 5: a CPU ceiling, the first in the estate. #133 is explicit —
+  # DIFFERENCE 7: a CPU ceiling, the first in the estate. #133 is explicit —
   # OCR "will use everything it is given for minutes at a time" — and a backlog
   # scan is the one workload on this box that saturates rather than leaks.
   # `cpus: 4` of the i5-8500T's six is the enforcement; TASK_WORKERS and
@@ -240,7 +374,7 @@ services:
   # and Postgres are not throttled by a consumer that is. Throttling is not
   # silent: ContainerCpuThrottled reads the same cgroup counters.
   #
-  # DIFFERENCE 6: NOT read_only, where every other long-running container in
+  # DIFFERENCE 8: NOT read_only, where every other long-running container in
   # the estate is. OCR is scratch-heavy — ocrmypdf renders every page to an
   # image under PAPERLESS_SCRATCH_DIR, /tmp by default, and the working set
   # scales with the document — and a tmpfs there is charged to this cgroup's
@@ -265,12 +399,9 @@ services:
     <<: *service-defaults
     image: ghcr.io/paperless-ngx/paperless-ngx:3.1.3@sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a
     container_name: sensitive-paperless
-    # The one service in either stack that turns the shared `init: true` OFF.
-    # The estate's reason for a real init as PID 1 is an image whose PID 1
-    # never calls wait() (grafana, #71); this image's PID 1 is s6-overlay,
-    # which is an init and does. It also refuses to be anything else — booted
-    # with the default, the container exits at once with "s6-overlay-suexec:
-    # fatal: can only run as pid 1", because docker-init has taken the slot.
+    # DIFFERENCE 5 again: s6-overlay as PID 1, and the same measured refusal
+    # as home-assistant's — booted with the shared default, the container
+    # exits at once with "s6-overlay-suexec: fatal: can only run as pid 1".
     init: false
     user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
     mem_limit: 3072m
@@ -411,10 +542,10 @@ services:
     <<: *service-defaults
     image: valkey/valkey:9.1.2-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b
     container_name: sensitive-paperless-broker
-    # Off for the same reason as paperless above, one step removed: the
-    # image's entrypoint is `tini -- docker-entrypoint.sh`, an init of its
-    # own, and under docker-init it runs as PID 2 and logs on every start
-    # that zombies "will not be re-parented to Tini". One init is enough.
+    # DIFFERENCE 5 one step removed: the image's entrypoint is `tini --
+    # docker-entrypoint.sh`, an init of its own, and under docker-init it runs
+    # as PID 2 and logs on every start that zombies "will not be re-parented
+    # to Tini". One init is enough.
     init: false
     user: "999:999"
     mem_limit: 128m
@@ -439,14 +570,25 @@ services:
 # `sensitive` with `expose:` only; Caddy is the sole member with `ports:`.
 # A service that adds `ports:` here is undoing ADR-0008's containment, and
 # the review question for every PR against this file is that one line.
+#
+# The subnet is fixed so that one address on it can be: Caddy's, which Home
+# Assistant's `trusted_proxies` names. 172.28.99.0/24 is inside Docker's
+# default 172.16/12 pool, so nothing else on trinity changes; outside the two
+# subnets the estate routes; and outside the 172.30.30.0/24 ADR-0017 keeps
+# unrouted on ifrit, so a 172.28.99.x source in a firewall log still means
+# what that ADR says a 172.30.30.x one means — a leak reporting itself.
 networks:
   sensitive:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.99.0/24
 
 volumes:
   caddy-data:
   caddy-config:
   step-ca-data:
+  home-assistant-config:
   paperless-data:
   paperless-media:
   paperless-db-data:

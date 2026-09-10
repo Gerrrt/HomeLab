@@ -15,12 +15,14 @@ make up STACK=sensitive
 | --- | --- | --- | --- |
 | caddy | `caddy` | 443 (https) | The one published port on the tier. Terminates TLS, routes by name to every service behind it ([#129]) |
 | step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — an intermediate beneath the lab CA, so nothing that trusts `certificates/ca.pem` is re-pointed ([#130]) |
+| home-assistant | `ghcr.io/home-assistant/home-assistant` | *internal* (8123) | Home automation, and what the `99 → 20` rule exists for — one pass, to the Hue bridge, scoped by [ADR-0035] ([#134]) |
 | paperless | `ghcr.io/paperless-ngx/paperless-ngx` | *internal* (8000) | The document archive: scan, OCR, index. On this tier by content — tax returns, passports, medical records — and the service [ADR-0023] classes as *durable* ([#133]) |
 | paperless-db | `postgres` | *internal* (5432) | Paperless-ngx's own database. Metadata about documents; the documents themselves are files under `paperless-media` |
 | paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
 
-Five services: two are plumbing, three are the first household service. What is
-absent is as deliberate as what is here:
+Six services. Two are plumbing; Home Assistant and Paperless-ngx (with its
+database and broker) are the first two household services, and the shape
+every later one takes. What is absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
   telemetry must never reach VLAN 99 ([ADR-0007]); this host *is* on VLAN 99,
@@ -28,24 +30,32 @@ absent is as deliberate as what is here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No `ports:` on anything but Caddy.** Paperless-ngx is reached as
-  `https://paperless.matrix.elysium`, through Caddy, on the pass for 443 that
-  Hicks already has into Winterfell. Vaultwarden, Immich, Home Assistant,
-  AdGuard Home, ntfy and Homepage ([#131], [#132], [#134]–[#137]) each arrive
-  the same way — a service with `expose:` and a block in the `Caddyfile` — and
-  only after the foundation runs. A service in this file with `ports:` of its
-  own is the one thing a review of it should refuse.
+- **No other services yet, and no `ports:` on anything but Caddy.**
+  Vaultwarden, Immich, AdGuard Home, ntfy and Homepage ([#131], [#132],
+  [#135]–[#137]) each arrive as Home Assistant and Paperless-ngx did: a service
+  with `expose:`, a block in the `Caddyfile`, a name on the leaf and in the
+  resolver. A service in this file with `ports:` of its own is the one thing a
+  review of it should refuse.
 - **No shared database.** Paperless-ngx has a Postgres of its own rather than
   one the tier shares, and Immich will too: it needs the vector extension and
   therefore a different image, and one database per service is what lets
   `backup-volumes.sh` attribute every volume to the one service that owns it
   and stop only that.
+- **No Supervisor, no add-ons, no MQTT broker, no Zigbee coordinator.** Home
+  Assistant *Container* has no add-on store, which is why it was chosen: an
+  add-on is a second package manager outside `compose.yaml` and outside digest
+  pinning. What an add-on would have supplied becomes a pinned service here
+  on the day a device needs it, and today none does — Ring is cloud, the Hue
+  bridge is its own radio, the speakers are Wi-Fi. No USB radio means where
+  `trinity` sits is not this service's concern.
 
 ## Layout
 
 ```text
-compose.yaml               five services, one network, health-gated ordering
+compose.yaml               six services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
+home-assistant/            configuration.yaml and packages/, mounted read-only
+                           over the volume Home Assistant writes its state to
 .env.example               non-sensitive tunables — edit this, not .env
 consume/                   untracked: drop a scan here and Paperless-ngx imports
                            and deletes it. Created by render-config.sh
@@ -77,23 +87,54 @@ monitoring host where the CA key stays.
   without `config/ca.json`, and `DOCKER_STEPCA_INIT_*` is never set, because
   either would mint a root of its own. The key password is `STEPCA_PASSWORD`
   in SOPS, written to a private tmpfs at start and nowhere on disk.
-- **The certificate is hand-issued until ACME is wired, and it needs every
-  name.** `make certs ARGS="--host trinity.matrix.elysium --ip 10.0.99.40
-  --dns trinity --dns paperless.matrix.elysium"` on the monitoring host, three
-  files copied over as `build-the-lab-guest.md` §5 does it — one `--dns` per
-  service routed by name, or the browser refuses the handshake for the names
-  that are missing. `render-config.sh` refuses to render while any of the
-  files is missing. The `Caddyfile` carries the `tls { ca … }` block that
-  replaces this once [#130]'s ACME provisioner is configured.
-- **Each name needs a host override on `morpheus`.** Caddy routes on the
-  `Host` the browser sent, so `paperless.matrix.elysium` has to resolve to
-  `10.0.99.40` before anything is served under it — a seventh entry in the
-  list [ADR-0010] counts six of, made on the firewall and recorded here, not
-  the other way round. Without it the stack is healthy and unreachable.
+- **The certificate is hand-issued until ACME is wired.** `make certs
+  ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity --dns
+  homeassistant.matrix.elysium --dns paperless.matrix.elysium"` on the
+  monitoring host, three files copied over as `build-the-lab-guest.md` §5 does
+  it. `render-config.sh` refuses to render while any of them is missing. The
+  `Caddyfile` carries the `tls { ca … }` block that replaces this once
+  [#130]'s ACME provisioner is configured.
 - **80 is not published.** ADR-0012: a port is published when something
   off-host consumes it, and nothing consumes 80 — browsers on Hicks type
   `https`, and ACME's `tls-alpn-01` challenge runs over 443. A redirect is a
   later choice, made in `.env.example` and `compose.yaml` together.
+- **Every routed name needs a SAN and a host override.** The `Caddyfile`
+  matches on Host, so `homeassistant.matrix.elysium` and
+  `paperless.matrix.elysium` have to be on the leaf
+  (`compose.yaml`'s `make certs` line carries one `--dns` per name) and in
+  `morpheus`'s resolver, pointed at `10.0.99.40`
+  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
+  A name missing from the leaf fails the handshake; one missing from the
+  resolver never arrives.
+- **Home Assistant is an ordinary member of the network, not `network_mode:
+  host`.** Upstream's example uses host networking and `privileged` for
+  discovery and USB. Discovery is mDNS and SSDP, which are link-local, and
+  every device it controls is on Skids, a VLAN away — nothing on 20 would be
+  found from 99 however the container were attached. Devices are added by
+  address, through the one pass [ADR-0035] writes down. It runs with every
+  capability dropped, a read-only root and two tmpfs mounts, as root because
+  the image has no other mode; `compose.yaml` numbers the differences.
+- **Home Assistant's credentials are not in SOPS, and cannot be.** The Hue
+  application key, the Ring token and everything else a config flow produces
+  are written by Home Assistant into `/config/.storage`, inside the
+  `home-assistant-config` volume. Nothing this repository renders can hand
+  them in, so the volume is where the tier's most numerous credentials live,
+  protected by [#404]'s disk-encryption decision and by the encrypted volume
+  archive rather than by SOPS. [ADR-0035] records the deviation. A long-lived
+  access token minted for another service goes in *that* service's SOPS file
+  — none exists yet — and TOTP is enrolled at first login, as [#404] step 6
+  says.
+- **Automations are YAML in `home-assistant/packages/`, not the UI editor.**
+  `configuration.yaml` is mounted read-only from this directory and loads the
+  packages directory beside it; there is no `automations.yaml`, because the
+  UI editor's include fails hard on a file that does not exist and the file
+  is one Home Assistant writes rather than one this repository ships. The
+  packages README says the rest. Integrations and devices are still added
+  through the UI: a config flow has no YAML form.
+- **Caddy has a fixed address, `172.28.99.2`, for one reader.** Home
+  Assistant's `trusted_proxies` names the proxy it will believe
+  `X-Forwarded-For` from, and a Docker-assigned address is not a name. The
+  network's subnet is fixed for that one line and nothing else.
 - **Nothing converges this stack.** The `homelab-*` timers are the estate's;
   `make validate` notes their absence here as a skip, not a failure. This stack
   is deployed by hand, from a checkout on `trinity`.
@@ -195,32 +236,44 @@ make validate
 Every checker in `scripts/validate.sh` iterates `scripts/stacks.sh`, so this
 stack is covered by everything the estate's is: `docker compose config`, the
 image-pin and digest checks, `check_compose_health.py --probe` (which execs
-each healthcheck binary inside the pinned image — `wget` in Caddy's, `step` in
-step-ca's, `curl`, `pg_isready` and `valkey-cli` in Paperless-ngx's three),
-and `check_caddyfile.sh`, which runs `caddy validate` and `caddy fmt --diff`
-against the `Caddyfile` in the pinned image with a throwaway keypair where the
-real one will be mounted.
+each healthcheck binary inside the pinned image — `wget` in Caddy's and Home
+Assistant's, `step` in step-ca's, `curl`, `pg_isready` and `valkey-cli` in
+Paperless-ngx's three), and `check_caddyfile.sh`, which runs `caddy validate` and
+`caddy fmt --diff` against the `Caddyfile` in the pinned image with a
+throwaway keypair where the real one will be mounted.
 
 What `make validate` still does **not** prove about this stack, in the order
 it matters:
 
-- **That it runs on `trinity`.** The host is [#404]. Paperless-ngx and its two
-  dependencies were booted from the pinned images on the monitoring host and
-  consumed a document; Caddy and step-ca have not been started against a real
-  certificate or a real CA tree anywhere. Every check here is static.
+- **That it runs on `trinity`.** The host is [#404]. Home Assistant, and
+  Paperless-ngx with its two dependencies, were each booted from the pinned
+  images on the monitoring host; Caddy and step-ca have not been started
+  against a real certificate or a real CA tree anywhere. Every check here is
+  static.
 - **That the CA tree exists.** `step-ca` starts only against a populated
   volume, and the volume is populated by a procedure run on two hosts. A fresh
   `make up` on a bare `trinity` fails on `config/ca.json`, loudly and on
   purpose.
-- **That the names resolve, or that the leaf carries them.** The host override
-  is a firewall change; the SANs are checked by the first browser, or by
-  `openssl x509 -noout -ext subjectAltName` on the monitoring host before the
-  files travel.
+- **That the names resolve, or that the leaf carries them.** The host
+  overrides are a firewall change; `caddy validate` loads a throwaway pair,
+  and whether the real one carries `trinity.matrix.elysium`,
+  `homeassistant.matrix.elysium` *and* `paperless.matrix.elysium` in its SANs
+  is checked by the first browser, or by `openssl x509 -noout -ext
+  subjectAltName` on the monitoring host before the files travel.
 - **That the limits fit the workload.** 4 cores and 3 GiB for OCR are a
   statement about the ProDesk made on a different machine.
+- **That Home Assistant keeps booting under its hardening.** It was booted
+  once, on the monitoring host on 2026-09-09, from the pinned digest with the
+  exact `compose.yaml` settings — read-only root, every capability dropped,
+  the two tmpfs mounts, this directory's `configuration.yaml` — on an
+  internal Docker network with no route out. It served onboarding, wrote only
+  to `/config`, and logged one error it will log on every start: the `dhcp`
+  discovery integration wants `CAP_NET_RAW` to sniff for devices, which on a
+  bridge network a VLAN away from every device would sniff nothing, so the
+  capability stays dropped and the line is expected. That was one boot of one
+  digest. Dependabot moves the digest monthly; nothing here re-runs the boot.
 
 [ADR-0007]: ../../docs/adr/0007-defensive-estate-and-offensive-range.md
-[ADR-0010]: ../../docs/adr/0010-keep-the-resolver-on-the-gateway.md
 [ADR-0022]: ../../docs/adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md
 [ADR-0023]: ../../docs/adr/0023-keep-the-household-recovery-path-outside-the-estate.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
@@ -230,5 +283,7 @@ it matters:
 [#132]: https://github.com/Gerrrt/HomeLab/issues/132
 [#133]: https://github.com/Gerrrt/HomeLab/issues/133
 [#134]: https://github.com/Gerrrt/HomeLab/issues/134
+[#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404

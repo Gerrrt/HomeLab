@@ -154,7 +154,11 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # every start, admin API or not. step-ca's is the one entry here written from
 # construction rather than a boot: the image's entrypoint refuses to start
 # without config/ca.json, so a step-ca-data that lacks it is a volume that
-# never held a CA. Paperless: paperless-data holds the Tantivy index the
+# never held a CA. Home Assistant writes ./.HA_VERSION at the top of /config on
+# every start (read off a boot of the pinned image on 2026-09-10; the volume
+# also carries .storage/ and the recorder's home-assistant_v2.db, and the
+# bind-mounted configuration.yaml appears in it as an empty placeholder).
+# Paperless: paperless-data holds the Tantivy index the
 # container rebuilds at every start, so ./index is there from the first boot;
 # paperless-media is ./documents/{originals,archive,thumbnails} from the first
 # consume and ./documents alone before it; Postgres 18 lays its cluster out
@@ -172,6 +176,7 @@ declare -A SENTINEL=(
   [caddy-data]="./caddy/instance.uuid"
   [caddy-config]="./caddy/autosave.json"
   [step-ca-data]="./config/ca.json"
+  [home-assistant-config]="./.HA_VERSION"
   [paperless-data]="./index"
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
@@ -189,6 +194,7 @@ declare -A COMPANIONS=(
   [caddy-data]="./caddy/locks ./caddy/last_clean.json"
   [caddy-config]=""
   [step-ca-data]="./certs ./secrets ./db"
+  [home-assistant-config]="./.storage ./home-assistant_v2.db"
   [paperless-data]="./log ./celerybeat-schedule.db"
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
   [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
