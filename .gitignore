@@ -52,6 +52,13 @@ data/
 **/data/
 *.db
 *.wal
+# Paperless-ngx's ingest and export directories (stacks/sensitive). Created by
+# scripts/render-config.sh, written to by scans and by document_exporter, and
+# the export holds every document in the archive — never tracked. render-config
+# asks `git check-ignore` about the path before creating it, which is how it
+# tells a runtime directory from a tracked file the checkout has lost.
+stacks/*/consume/
+stacks/*/export/
 
 # ---- Local tooling ----
 .venv/

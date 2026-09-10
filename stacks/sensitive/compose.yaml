@@ -23,8 +23,9 @@
 # AdGuard Home (#135) is the second, and the one service that, by design,
 # publishes a port of its own — argued at DIFFERENCE 7 below. Immich (#132)
 # is the third, as four services — server, machine learning, Postgres,
-# Valkey — each in Home Assistant's shape. Vaultwarden, Paperless-ngx, ntfy
-# and Homepage (#131, #133, #136, #137) land the way Home Assistant did.
+# Valkey — each in Home Assistant's shape, and Paperless-ngx (#133) the
+# fourth, as three. Vaultwarden, ntfy and Homepage (#131, #136, #137) land
+# the way Home Assistant did.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -35,7 +36,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are nine such places, each marked DIFFERENCE.
+# the sibling file. There are eleven such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -114,6 +115,7 @@ services:
           - homeassistant.matrix.elysium
           - adguard.matrix.elysium
           - immich.matrix.elysium
+          - paperless.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -742,6 +744,239 @@ services:
       retries: 3
       start_period: 10s
 
+  # ---------------------------------------------------------------------------
+  # Paperless-ngx — the document archive (#133)
+  # ---------------------------------------------------------------------------
+  # Tax returns, insurance, medical records, passports and payslips: on this
+  # tier by content rather than by size, and the service ADR-0023 classes as
+  # DURABLE — an OCR index can be rebuilt from the originals, and the originals
+  # cannot be rebuilt from anything. Three containers: the application, a
+  # Postgres of its own and a Valkey broker. Not shared with Immich's (#132),
+  # which needs the vector extension and therefore a different image — and one
+  # database per service is what lets backup-volumes.sh attribute every volume
+  # to the one service that owns it, and stop only that.
+  #
+  # Reached as https://paperless.matrix.elysium through Caddy, on the existing
+  # 50→99 pass for 443 and no new rule. One thing outside this file has to be
+  # true first, and it belongs to #404's build rather than to this file: the
+  # name needs a host override on morpheus (docs/runbooks/add-a-host-override.md).
+  # The certificate is step-ca's, obtained over ACME for the site block of
+  # this name in the Caddyfile; the alias on Caddy's network block above is
+  # what lets the CA validate it.
+  #
+  # ROOTLESS, as the operator. The image is s6-overlay over Django and
+  # ordinarily starts as root, maps to uid 1000 through USERMAP_UID and drops
+  # privilege per process. Upstream also supports `user:` outright — "the
+  # container process starts directly as that user with no internal privilege
+  # remapping" — and that is the form here, with every capability dropped
+  # because nothing is left that would use one. The uid is ${RENDER_UID}, the
+  # choice alertmanager and snmp-exporter make in the sibling stack, for the
+  # same reason turned around: they READ files render-config.sh wrote, this
+  # DELETES files the operator wrote. ./consume below is a bind mount owned by
+  # whoever ran `make up`; a scan dropped there by that user over SSH is
+  # readable, and removable once consumed, only if the consumer runs as them.
+  #
+  # DIFFERENCE 10: a CPU ceiling, the first in the estate. #133 is explicit —
+  # OCR "will use everything it is given for minutes at a time" — and a backlog
+  # scan is the one workload on this box that saturates rather than leaks.
+  # `cpus: 4` of the i5-8500T's six is the enforcement; TASK_WORKERS and
+  # THREADS_PER_WORKER in .env.example are what Paperless is asked to use, and
+  # their product (3) sits under the ceiling so the webserver, the scheduler
+  # and Postgres are not throttled by a consumer that is. Throttling is not
+  # silent: ContainerCpuThrottled reads the same cgroup counters.
+  #
+  # DIFFERENCE 11: NOT read_only, where every other long-running container in
+  # the estate is. OCR is scratch-heavy — ocrmypdf renders every page to an
+  # image under PAPERLESS_SCRATCH_DIR, /tmp by default, and the working set
+  # scales with the document — and a tmpfs there is charged to this cgroup's
+  # memory.max, so a long scan would arrive as an OOM kill rather than as a
+  # slow consume. The writable layer costs nothing to keep, and read_only
+  # would have bought a property the memory limit then takes back. Booted from
+  # the pinned image as ${RENDER_UID} with cap_drop before this was written;
+  # the README carries what that run showed.
+  #
+  # Memory: 3072m, unmeasured on the hardware and stated as such. The estate
+  # sizes from fourteen days of RSS; this box does not exist. Upstream's floor
+  # is 2 GB for the whole install; this is that plus room for one document's
+  # OCR, on a box with 32 GB. Re-derive from container_memory_rss once trinity
+  # has run a month, the way stacks/observability did for its seven.
+  #
+  # The healthcheck is the image's own (curl against 8000, which ALLOWED_HOSTS
+  # always admits for localhost), written out so check_compose_health.py
+  # --probe proves curl is still in the image after a Dependabot bump.
+  # start_period covers the migrations and the `document_index reindex
+  # --if-needed` the container runs before the webserver listens.
+  paperless:
+    <<: *service-defaults
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.1.3@sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a
+    container_name: sensitive-paperless
+    # DIFFERENCE 5 again: s6-overlay as PID 1, and the same measured refusal
+    # as home-assistant's — booted with the shared default, the container
+    # exits at once with "s6-overlay-suexec: fatal: can only run as pid 1".
+    init: false
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    mem_limit: 3072m
+    memswap_limit: 3072m
+    cpus: 4
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+      paperless-broker:
+        condition: service_healthy
+    environment:
+      PAPERLESS_REDIS: redis://paperless-broker:6379
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      # The same SOPS value paperless-db reads as POSTGRES_PASSWORD, so the
+      # two cannot drift.
+      PAPERLESS_DBPASS: ${PAPERLESS_DBPASS:?set in secrets/sensitive.sops.yaml}
+      # Signs sessions and tokens; rotating it logs everyone out and nothing
+      # worse. Paperless refuses to start without it, and the guard turns
+      # that refusal into a message naming the file.
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:?set in secrets/sensitive.sops.yaml}
+      # The superuser, created on first start and never touched again by
+      # this variable — the GRAFANA_ADMIN_* shape, with the same exposure
+      # (`docker inspect` reads it) accepted for the same reason: the
+      # alternative is a hand-run createsuperuser nothing converges. TOTP on
+      # this account at first login is ADR-0022's floor; the README has the
+      # step.
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      # Behind Caddy. The URL sets ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS in
+      # one go, and the two proxy settings let Django see https and the
+      # browser's Host rather than the proxy's — without them every form POST
+      # is a CSRF 403. Caddy sets the X-Forwarded-* headers unasked.
+      PAPERLESS_URL: ${PAPERLESS_URL:-https://paperless.matrix.elysium}
+      PAPERLESS_USE_X_FORWARD_HOST: "true"
+      PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
+      PAPERLESS_TIME_ZONE: ${PAPERLESS_TIME_ZONE:-America/Los_Angeles}
+      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-eng}
+      PAPERLESS_TASK_WORKERS: ${PAPERLESS_TASK_WORKERS:-1}
+      PAPERLESS_THREADS_PER_WORKER: ${PAPERLESS_THREADS_PER_WORKER:-3}
+    volumes:
+      # data: the search index, the classifier, the logs — rebuildable. media:
+      # the originals, the archived PDF/A copies and the thumbnails — not.
+      # Separate volumes so the backup verifies each by its own sentinel and
+      # a restore can bring back the one that matters without the other.
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      # Two directories the repository does not track and render-config.sh
+      # creates, owned by the operator: consume is the ingest path — a file
+      # dropped here is imported and then deleted — and export is where
+      # document_exporter writes the version-portable copy the README's
+      # backup section describes. Docker would create both as root if render
+      # did not, and a consumer running as ${RENDER_UID} could then delete
+      # nothing it consumed.
+      - ./consume:/usr/src/paperless/consume
+      - ./export:/usr/src/paperless/export
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-S", "-L", "--max-time", "2", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ---------------------------------------------------------------------------
+  # Postgres for Paperless-ngx
+  # ---------------------------------------------------------------------------
+  # Postgres 18, the major upstream's own compose pins, and the one that moved
+  # the data directory: it is /var/lib/postgresql/18/docker now, under a
+  # volume mounted one level up at /var/lib/postgresql — so a major-version
+  # upgrade gets a sibling directory and pg_upgrade has somewhere to write.
+  # Mount the parent, as upstream does; mounting .../data is the pre-18 layout
+  # and the image warns about it. backup-volumes.sh's sentinel for this volume
+  # carries the major version in its path for that reason, and a bump to 19
+  # has to move it — loudly, since the script refuses to write an archive it
+  # cannot verify.
+  #
+  # Runs as 999 — the image's postgres user — from the start, not through the
+  # entrypoint's root-then-gosu step, so `cap_drop: [ALL]` has nothing left to
+  # take away. A fresh named volume inherits the image's ownership of
+  # /var/lib/postgresql (999:999), which is what makes the non-root start
+  # work; the two tmpfs mounts are the socket directory and sort scratch, the
+  # only places it writes outside the volume. read_only booted and proven on
+  # the pinned image, the way the sibling stack's were.
+  #
+  # 512m for a database whose whole content is metadata about documents — the
+  # documents are files under media, not rows. Unmeasured, like the
+  # application's: shared_buffers defaults to 128 MB and this is four times it.
+  paperless-db:
+    <<: *service-defaults
+    image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+    container_name: sensitive-paperless-db
+    user: "999:999"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:size=1m,uid=999,gid=999,mode=0755
+      - /tmp:size=64m
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DBPASS:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - paperless-db-data:/var/lib/postgresql
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "paperless", "-d", "paperless"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Valkey for Paperless-ngx — the task broker
+  # ---------------------------------------------------------------------------
+  # Valkey rather than Redis because upstream's compose moved to it; the
+  # variable is still PAPERLESS_REDIS and the protocol is the same. It carries
+  # the Celery queue and the cache and nothing else, so it is the one volume in
+  # this stack whose loss costs nothing — a consume that was queued is found
+  # again on the next start, because the consumer re-scans its directory.
+  # `--save 60 1` keeps an RDB anyway, so that SIGTERM — which is what a
+  # quiesced backup sends — leaves a dump.rdb for the archive's sentinel.
+  #
+  # 999 is the image's valkey user; the entrypoint would drop to it from root
+  # regardless, so `user:` only makes the drop unnecessary.
+  paperless-broker:
+    <<: *service-defaults
+    image: valkey/valkey:9.1.2-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b
+    container_name: sensitive-paperless-broker
+    # DIFFERENCE 5 and 8 again: the image's entrypoint is `tini --
+    # docker-entrypoint.sh`, an init of its own, and under docker-init it runs
+    # as PID 2 and logs on every start that zombies "will not be re-parented
+    # to Tini". One init is enough.
+    init: false
+    user: "999:999"
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    command: ["valkey-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - paperless-broker-data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 # DIFFERENCE 4: one network, and it is the point. Every later service joins
 # `sensitive` with `expose:` only. Two members have `ports:` — Caddy, and
 # AdGuard for the reason DIFFERENCE 7 gives — and a third is undoing
@@ -775,3 +1010,7 @@ volumes:
   # the one volume here whose loss costs a few minutes and an internet
   # connection rather than anything.
   immich-model-cache:
+  paperless-data:
+  paperless-media:
+  paperless-db-data:
+  paperless-broker-data:
