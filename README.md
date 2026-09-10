@@ -81,7 +81,7 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 34 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 36 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 21
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
@@ -186,15 +186,16 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │                             #   VLAN 99. See its README and ADR-0020
 ├── stacks/soc/               # Wazuh and Velociraptor for a second guest, odin —
 │                             #   authored ahead of it (ADR-0030, #266, #267)
-├── stacks/sensitive/         # the household's tier — Caddy and step-ca so far,
-│                             #   authored for a host not yet built (ADR-0034, #404)
+├── stacks/sensitive/         # the household's tier — Caddy, step-ca and Home
+│                             #   Assistant so far, authored for a host not yet
+│                             #   built (ADR-0034, #404)
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
 ├── scripts/                  # bootstrap, render, validate, pin-digests, purge
 ├── SECURITY.md               # disclosure policy and known exposure
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # architecture decision records, numbered
+│   ├── adr/                  # 36 architecture decision records
 │   └── runbooks/             # successor handover (start here), deploy, converge,
 │                             #   add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, restore the stack,

@@ -35,14 +35,25 @@ https:// {
 		respond "ok" 200
 	}
 
-	# Nothing is routed yet. Each service from #131 onward adds a block here:
+	# One block per service, matched on Host. Each name needs two things
+	# outside this file: a SAN on the leaf (compose.yaml's `make certs` line)
+	# and a host override on morpheus pointing it at 10.0.99.40
+	# (docs/runbooks/add-a-host-override.md) — a Host the leaf does not carry
+	# fails the handshake, and a name the resolver does not know never arrives.
 	#
-	#	@vaultwarden host vaultwarden.matrix.elysium
-	#	handle @vaultwarden {
-	#		reverse_proxy vaultwarden:80
-	#	}
+	# Home Assistant (#134). Its frontend runs over a websocket, which
+	# reverse_proxy upgrades without being told; nothing here needs a header
+	# Caddy does not already set — X-Forwarded-For is what its
+	# `trusted_proxies` line reads, and Caddy's fixed address is what it trusts.
+	@homeassistant host homeassistant.matrix.elysium
+	handle @homeassistant {
+		reverse_proxy home-assistant:8123
+	}
+
+	# Vaultwarden, Immich, Paperless-ngx and the rest (#131–#137) add a block
+	# of the same shape above this line. What matches nothing lands here.
 	handle {
-		respond "trinity: the sensitive tier. Nothing is routed here yet." 404
+		respond "trinity: the sensitive tier. Nothing is routed under this name." 404
 	}
 
 	log {
