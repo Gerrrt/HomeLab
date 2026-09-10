@@ -17,7 +17,7 @@
 # tool reads it from here (scripts/snmp-auth.sh): the sops key names, the
 # snmp.conf that snmp-verify.sh and snmp-walk.sh hand to net-snmp, and the -e
 # flags `make snmp-generate` passes through. A v2c device is one community
-# placeholder. A device moved to SNMPv3 authPriv (ADR-0035) looks like this —
+# placeholder. A device moved to SNMPv3 authPriv (ADR-0036) looks like this —
 # the user name a literal, because USM sends it in the clear header of every
 # message, and the two passphrases placeholders:
 #

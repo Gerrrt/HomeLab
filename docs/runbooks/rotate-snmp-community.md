@@ -105,7 +105,7 @@ indistinguishable — both present as the device refusing you.
 Note that SNMPv2c sends these in cleartext on every poll. Distinct communities
 limit the blast radius of a captured packet; they do not make the protocol
 secure. The iLO and the UPS card move to SNMPv3 authPriv under
-[ADR-0035](../adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
+[ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
 — that is [§4](#4-move-a-device-to-snmpv3), a separate pass — and a device
 that has moved has two passphrases here instead of a community.
 `make gen-secret ARGS=--snmp` prints whichever shape each device currently
@@ -401,7 +401,7 @@ cannot be re-rendered until the device is done. Do not merge the repository
 half early.
 
 Which devices this applies to is decided, not chosen here
-([ADR-0035](../adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)):
+([ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)):
 **`shiva` first, then `mjolnir`.** Not `morpheus` — bsnmpd is the only daemon
 that serves the pf MIB and pfSense writes no v3 user for it. Not `neo` unless
 its UI turns out to have a user page; check that once, at the next login, and
@@ -543,7 +543,7 @@ about any value. Then, as §3: the *SNMPv2c* section of
 gets the `snmp-verify` output — including the `--old` line — because that is
 the only evidence the v1 path is closed. Record the scrape duration too
 (`scrape_duration_seconds{job="snmp",instance="10.0.30.10"}` before and
-after): SNMPv3 adds one discovery round trip per scrape, and ADR-0035 says the
+after): SNMPv3 adds one discovery round trip per scrape, and ADR-0036 says the
 cost is measured rather than assumed.
 
 ## If something goes wrong
@@ -599,7 +599,7 @@ care how many times you write it.
 | `rejected over SNMPv3: Authentication failure` | The authentication passphrase, or the protocol, differs from the device | `make secrets-edit`; check SHA on the device. A wrong *privacy* passphrase reads the same way from net-snmp |
 | A v3 device times out where a v2c one would say `rejected` | SNMPv3 is not enabled on the device at all — the iLO's SNMP page or the card's **SNMPv3 → Access** — or the same firewall questions as any other timeout | Enable it; then the *Only `neo` fails* row's method for telling a filter from a refusal |
 | `--old` reports `STILL ACCEPTED over v2c` on a device moved to v3 | SNMPv1/v2c access is still enabled beside the v3 user, so the community still works | §4.5: switch v1 off on the device, then run `--old` again |
-| `error: ... is version 3 with security_level 'authNoPriv'` | A v3 block that authenticates and sends the tables in clear | `authPriv`, per ADR-0035 — the check refuses anything else on purpose |
+| `error: ... is version 3 with security_level 'authNoPriv'` | A v3 block that authenticates and sends the tables in clear | `authPriv`, per ADR-0036 — the check refuses anything else on purpose |
 | `error: ... contains whitespace or '#'` | A community was typed with a space or `#` into SOPS | `make secrets-edit`; regenerate with `make gen-secret` |
 | `error: malformed line ... expected 'KEY: value'` | A key was written `KEY:value`, with no space after the colon | `make secrets-edit` |
 | Target still `DOWN` a minute after `make reload` | snmp-exporter reloaded from the *old* rendered file | You skipped `make render`. Run `make render && make reload` |
