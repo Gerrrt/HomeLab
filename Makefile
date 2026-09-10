@@ -572,6 +572,14 @@ certs: ## Create the internal CA / issue a leaf (ARGS="--host x.matrix.elysium -
 	@# refuses to render until they exist.
 	./scripts/gen-certs.sh $(ARGS)
 
+.PHONY: tier-ca
+tier-ca: ## The sensitive tier's own CA — mint it here, install it on trinity (ARGS="--mint" | "--install FILE" | "--list")
+	@# Not `certs`: that is the estate's CA and this is the tier's, and they are
+	@# deliberately two — the estate's root carries pathlen:0, so nothing beneath
+	@# it may be a CA (ADR-0037). The step binary runs from the pinned image, the
+	@# way promtool and caddy do; nothing is installed on the host.
+	./scripts/tier-ca.sh $(ARGS)
+
 .PHONY: gen-secret
 gen-secret: ## Generate a random secret (ARGS=--snmp for one per SNMP device)
 	./scripts/gen-secret.sh $(ARGS)

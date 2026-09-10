@@ -11,74 +11,113 @@
 	admin off
 
 	# The container's own healthcheck connects to https://localhost, whose SNI
-	# matches no site below; without a default, that handshake has no
-	# certificate to offer and the check fails on a proxy that is serving fine.
+	# matches no site below. default_sni covers a ClientHello with no SNI at
+	# all; fallback_sni covers one whose SNI matches nothing — busybox wget
+	# sends `localhost`, which is the second case. Without both, that
+	# handshake has no certificate to offer and the check fails on a proxy
+	# that is serving fine.
 	default_sni trinity.matrix.elysium
+	fallback_sni trinity.matrix.elysium
+
+	# 80 is not published (ADR-0012, .env.example), so the HTTP→HTTPS redirect
+	# Caddy would otherwise listen for on it is a listener nothing can reach.
+	# Disabled so the container's open ports are the ones compose.yaml says.
+	auto_https disable_redirects
+
+	# Every certificate this file serves comes from step-ca over ACME, from
+	# the tier's own intermediate (ADR-0035, #130). `step-ca` resolves on the
+	# compose network; the directory URL's middle segment is the provisioner
+	# name scripts/tier-ca.sh creates. trusted_roots is the TIER'S root — the
+	# file compose.yaml mounts from certificates/tier-ca.pem — not the estate's
+	# ca.pem, which is a different CA and would reject the directory's
+	# certificate. The http-01 challenge is disabled here as well as at the
+	# CA: 80 is not published (ADR-0012), so leaving it enabled would only add
+	# a failed attempt before the one that works.
+	cert_issuer acme {
+		dir https://step-ca:9000/acme/acme/directory
+		trusted_roots /etc/caddy/tls/ca.pem
+		disable_http_challenge
+	}
 }
 
-# Everything the tier serves, under one leaf for now. The certificate comes
-# from scripts/gen-certs.sh (see compose.yaml); when step-ca's ACME provisioner
-# is configured (#130) the `tls` line becomes
+# Each name served here is ALSO a network alias of the caddy service in
+# compose.yaml — step-ca validates the tls-alpn-01 challenge by dialling the
+# name on 443 from inside the compose network, and Docker's resolver answers
+# with Caddy's address only for names Caddy carries. A block added here
+# without its alias fails its first issuance with a DNS error at the CA.
 #
-#	tls {
-#		ca https://step-ca:9000/acme/acme/directory
-#		ca_root /etc/caddy/tls/ca.pem
-#	}
+# One site block per service, under its own name and therefore its own
+# certificate. The next service adds a block of the same shape, its alias in
+# compose.yaml, and a host override on morpheus pointing the name at
+# 10.0.99.40 (docs/runbooks/add-a-host-override.md) — a name the resolver
+# does not know never arrives.
 #
-# and each service gets a name of its own beneath matrix.elysium, issued and
-# renewed without a runbook step.
-https:// {
-	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+# Home Assistant (#134). Its frontend runs over a websocket, which
+# reverse_proxy upgrades without being told; nothing here needs a header
+# Caddy does not already set — X-Forwarded-For is what its `trusted_proxies`
+# line reads, and Caddy's fixed address is what it trusts.
+homeassistant.matrix.elysium {
+	reverse_proxy home-assistant:8123
 
-	# What the container's healthcheck asks for, on any Host.
-	handle /healthz {
-		respond "ok" 200
+	log {
+		output stdout
+		format json
 	}
+}
 
-	# One block per service, matched on Host. Each name needs two things
-	# outside this file: a SAN on the leaf (compose.yaml's `make certs` line)
-	# and a host override on morpheus pointing it at 10.0.99.40
-	# (docs/runbooks/add-a-host-override.md) — a Host the leaf does not carry
-	# fails the handshake, and a name the resolver does not know never arrives.
-	#
-	# Home Assistant (#134). Its frontend runs over a websocket, which
-	# reverse_proxy upgrades without being told; nothing here needs a header
-	# Caddy does not already set — X-Forwarded-For is what its
-	# `trusted_proxies` line reads, and Caddy's fixed address is what it trusts.
-	@homeassistant host homeassistant.matrix.elysium
-	handle @homeassistant {
-		reverse_proxy home-assistant:8123
+# AdGuard Home's UI (#135). Plain HTTP on the compose network; the DNS side
+# of the same container is published on 53 directly, because DNS is not
+# something this proxy can carry — compose.yaml, DIFFERENCE 7.
+adguard.matrix.elysium {
+	reverse_proxy adguard:80
+
+	log {
+		output stdout
+		format json
 	}
+}
 
-	# AdGuard Home's UI (#135). Plain HTTP on the compose network; the DNS
-	# side of the same container is published on 53 directly, because DNS is
-	# not something this proxy can carry — compose.yaml, DIFFERENCE 7.
-	@adguard host adguard.matrix.elysium
-	handle @adguard {
-		reverse_proxy adguard:80
+# Immich (#132). The mobile app and the browser both talk to this name; the
+# server takes uploads on the same port, and reverse_proxy imposes no body
+# limit of its own.
+immich.matrix.elysium {
+	reverse_proxy immich-server:2283
+
+	log {
+		output stdout
+		format json
 	}
+}
 
-	# Paperless-ngx (#133). reverse_proxy sets X-Forwarded-For, -Proto and
-	# -Host unasked, and compose.yaml's PAPERLESS_USE_X_FORWARD_HOST and
-	# PAPERLESS_PROXY_SSL_HEADER are what reads them — Django otherwise sees a
-	# plain-http request for the upstream's own name and rejects every POST.
-	@paperless host paperless.matrix.elysium
-	handle @paperless {
-		reverse_proxy paperless:8000
+# Paperless-ngx (#133). reverse_proxy sets X-Forwarded-For, -Proto and -Host
+# unasked, and compose.yaml's PAPERLESS_USE_X_FORWARD_HOST and
+# PAPERLESS_PROXY_SSL_HEADER are what reads them — Django otherwise sees a
+# plain-http request for the upstream's own name and rejects every POST.
+paperless.matrix.elysium {
+	reverse_proxy paperless:8000
+
+	log {
+		output stdout
+		format json
 	}
+}
 
-	# Vaultwarden (#131). Plain HTTP on the stack network; TLS ends here. Rocket
-	# serves the Bitwarden API, the web vault and the WebSocket notifications
-	# hub on the one port, and reverse_proxy upgrades WebSocket connections
-	# without being told to. 8080 is compose.yaml's ROCKET_PORT; X-Forwarded-For
-	# is what its IP_HEADER reads.
-	@vaultwarden host vaultwarden.matrix.elysium
-	handle @vaultwarden {
-		reverse_proxy vaultwarden:8080
+# Vaultwarden (#131). Plain HTTP on the stack network; TLS ends here. Rocket
+# serves the Bitwarden API, the web vault and the WebSocket notifications hub
+# on the one port, and reverse_proxy upgrades WebSocket connections without
+# being told to. 8080 is compose.yaml's ROCKET_PORT; X-Forwarded-For is what
+# its IP_HEADER reads.
+vaultwarden.matrix.elysium {
+	reverse_proxy vaultwarden:8080
+
+	log {
+		output stdout
+		format json
 	}
+}
 
-	# ntfy and Homepage (#136, #137) add a block of the same
-	# shape above this line. What matches nothing lands here.
+# The host's own name: nothing is served under it yet.
+trinity.matrix.elysium {
 	handle {
 		respond "trinity: the sensitive tier. Nothing is routed under this name." 404
 	}
@@ -86,5 +125,19 @@ https:// {
 	log {
 		output stdout
 		format json
+	}
+}
+
+# Any other name, and the container's own healthcheck. No hostname, so
+# automatic HTTPS obtains nothing for this block; the handshake is served
+# with the fallback certificate above.
+https:// {
+	# What the container's healthcheck asks for, on any Host.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle {
+		respond "trinity: the sensitive tier. No such site." 404
 	}
 }

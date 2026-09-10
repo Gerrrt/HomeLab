@@ -85,8 +85,28 @@ report \"already exists\" and refuse — and --force would not help either.
 Then issue them — see docs/runbooks/generate-certificates.md."
 fi
 
+# The fix depends on which stack, because the estate's CA is issued HERE and
+# every other stack's certificates arrive from somewhere else. One message
+# naming `make certs ARGS=--ca` for all of them is how a second — or, on
+# trinity, a third — certificate authority gets minted by someone following
+# the error text (build-the-lab-guest.md §5 carries the warning; this is the
+# message it warns about).
 if ((${#absent[@]})); then
-  die "compose.yaml mounts these certificates, which are missing or empty:
+  case "${STACK}" in
+    sensitive)
+      die "compose.yaml mounts these certificates, which are missing or empty:
+$(printf '  %s\n' "${absent[@]}")
+
+Caddy verifies step-ca's ACME directory against the tier's own root (ADR-0037).
+That file is written on this host from the bundle minted on the monitoring
+host — do NOT run \`make certs ARGS=--ca\` here, which would mint a CA nothing
+trusts:
+
+  make tier-ca ARGS=\"--install certificates/tier-ca-bundle.tar\"
+
+Full procedure in docs/runbooks/build-the-tier-ca.md." ;;
+    observability)
+      die "compose.yaml mounts these certificates, which are missing or empty:
 $(printf '  %s\n' "${absent[@]}")
 
 Grafana serves https from the leaf and Prometheus verifies it with the CA, so
@@ -95,7 +115,15 @@ the stack cannot start without them. Generate them with:
   make certs ARGS=--ca
   make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\"
 
-Full procedure in docs/runbooks/generate-certificates.md."
+Full procedure in docs/runbooks/generate-certificates.md." ;;
+    *)
+      die "compose.yaml mounts these certificates, which are missing or empty:
+$(printf '  %s\n' "${absent[@]}")
+
+This stack's certificates are issued on the monitoring host and copied here —
+do NOT run \`make certs ARGS=--ca\` on this host, which would mint a second CA.
+See the stack's README and docs/runbooks/generate-certificates.md." ;;
+  esac
 fi
 unset absent clobbered cert
 

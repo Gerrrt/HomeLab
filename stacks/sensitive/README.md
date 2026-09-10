@@ -14,7 +14,7 @@ make up STACK=sensitive
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | caddy | `caddy` | 443 (https) | The tier's published HTTPS port. Terminates TLS, routes by name to every service behind it ([#129]) |
-| step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — an intermediate beneath the lab CA, so nothing that trusts `certificates/ca.pem` is re-pointed ([#130]) |
+| step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — a root of its own with an intermediate beneath it, issuing to Caddy over ACME ([#130], [ADR-0037]) |
 | home-assistant | `ghcr.io/home-assistant/home-assistant` | *internal* (8123) | Home automation, and what the `99 → 20` rule exists for — one pass, to the Hue bridge, scoped by [ADR-0035] ([#134]) |
 | adguard | `adguard/adguardhome` | 53 (dns), on `10.0.99.40` only | The DNS filter Unbound on `morpheus` forwards to under [ADR-0010] — never a client-facing resolver. The one port besides Caddy's, published to the firewall's forwarder and the blackbox prober and answered for nothing else; the UI is behind Caddy at `adguard.matrix.elysium` ([#135]) |
 | immich-server | `ghcr.io/immich-app/immich-server` | *internal* (2283) | The photo library — API and job workers in one container, reached as `https://immich.matrix.elysium` through Caddy ([#132]) |
@@ -76,9 +76,11 @@ export/                    untracked: where document_exporter writes. Likewise
 
 Secrets are `secrets/sensitive.sops.yaml`, encrypted to this stack's own rule
 in `.sops.yaml` — `trinity`'s key opens this file and nothing else of the
-estate's (`secrets/sensitive.example.yaml` says why, and lists the six keys). Certificates live under
-`certificates/`, untracked, and are issued on the monitoring host where the
-CA key stays.
+estate's (`secrets/sensitive.example.yaml` says why, and lists the six keys). The one file under
+`certificates/` this stack reads is `tier-ca.pem`, the tier's root
+certificate, written by `make tier-ca ARGS="--install …"` from the bundle
+minted on the monitoring host; every leaf is obtained from step-ca at run
+time and lives in Caddy's `/data` volume, never on disk here.
 
 ## Things worth knowing before editing
 
@@ -87,36 +89,48 @@ CA key stays.
   `/config` are root-owned and a named volume inherits that — and names the
   command that re-checks the premise when the image moves. `cap_drop: [ALL]`
   plus `no-new-privileges` is what makes it acceptable; do not add capabilities
-  to make something else work.
+  to make something else work. step-ca keeps the same one capability for a
+  different, also measured, reason: its binary ships with the
+  `NET_BIND_SERVICE` file capability, and the kernel refuses to exec such a
+  file against a bounding set without it — the first boot failed on
+  `operation not permitted` before the process existed. It still runs as
+  `1000:1000`.
 - **No admin API.** `admin off` in the `Caddyfile` means a routing change is
   `make up STACK=sensitive`, which recreates the container, not `caddy reload`.
   The socket would have been unauthenticated and on the same network as every
   service it fronts.
-- **step-ca is an intermediate, and its tree is not made here.** `step ca init`
-  runs on the monitoring host against `certificates/ca.pem` and its key; the
-  resulting `config/`, `certs/`, `secrets/` and `db/` populate the
-  `step-ca-data` volume on `trinity`. The image's entrypoint will not start
-  without `config/ca.json`, and `DOCKER_STEPCA_INIT_*` is never set, because
-  either would mint a root of its own. The key password is `STEPCA_PASSWORD`
-  in SOPS, written to a private tmpfs at start and nowhere on disk.
-- **The certificate is hand-issued until ACME is wired.** `make certs
-  ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity --dns
-  homeassistant.matrix.elysium --dns adguard.matrix.elysium --dns
-  immich.matrix.elysium --dns paperless.matrix.elysium --dns
-  vaultwarden.matrix.elysium"` on the monitoring host, three files copied over
-  as `build-the-lab-guest.md` §5 does it. `render-config.sh` refuses to render
-  while any of them is missing.
-  The `Caddyfile` carries the `tls { ca … }` block that replaces this once
-  [#130]'s ACME provisioner is configured, and per-service names stop being
-  a step.
-- **The phones have to trust the lab CA.** The mobile app is the whole reason
-  Immich was chosen over PhotoPrism ([#132]), and it talks to
+- **step-ca is a CA of the tier's own, and its tree is not made here.** Not
+  an intermediate beneath the estate's CA, which this file once claimed: that
+  root carries `pathlen:0`, and a leaf beneath any intermediate of it fails
+  `path length constraint exceeded` — measured, and decided in [ADR-0037].
+  `make tier-ca ARGS=--mint` on the monitoring host mints the root and
+  intermediate in this image and writes a bundle *without the root key*;
+  `make tier-ca ARGS="--install …"` here populates the `step-ca-data` volume
+  from it and writes `certificates/tier-ca.pem`. The image's entrypoint will
+  not start without `config/ca.json`, and `DOCKER_STEPCA_INIT_*` is never
+  set, because either would mint a root of its own. The key password is
+  `STEPCA_PASSWORD` in SOPS, written to a private tmpfs at start and nowhere
+  on disk. [`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md)
+  is the procedure.
+- **Every certificate is obtained over ACME, and every name is also an
+  alias.** The `Caddyfile`'s `cert_issuer acme` block points at step-ca's
+  directory and trusts the tier's root; leaves are seven days and Caddy
+  renews them. step-ca validates the `tls-alpn-01` challenge by dialling the
+  requested name on 443 from inside the compose network, so a name served in
+  the `Caddyfile` must also appear under the `caddy` service's network
+  `aliases` in `compose.yaml` — one line each, added together. A name with a
+  block and no alias fails its first issuance with a DNS error at the CA.
+- **The phones have to trust the tier's root.** The mobile app is the whole
+  reason Immich was chosen over PhotoPrism ([#132]), and it talks to
   `https://immich.matrix.elysium` on a certificate a phone has never heard
-  of. `certificates/ca.pem` goes onto each phone as a user-installed root
-  before the app is pointed at the server; Android's Immich app honours a
-  user root, iOS needs the profile installed and then *enabled* under
-  Certificate Trust Settings, which is the step people miss. Nothing about
-  this changes when step-ca issues the leaf — the root is the same one.
+  of. `certificates/tier-ca.pem` — the tier's root, not the estate's
+  `ca.pem`, which vouches for nothing here ([ADR-0037]) — goes onto each
+  phone as a user-installed root before the app is pointed at the server;
+  Android's Immich app honours a user root, iOS needs the profile installed
+  and then *enabled* under Certificate Trust Settings, which is the step
+  people miss ([`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md)
+  §6). Nothing about this changes when a leaf renews — the root is the same
+  one.
 - **Immich runs as the deploying user, and the library disk has to be owned
   by that user.** `immich-server` carries `${RENDER_UID}:${RENDER_GID}` the
   way Alertmanager does in the estate's stack, and writes only under
@@ -146,16 +160,16 @@ CA key stays.
   says so beside the key.
 - **80 is not published.** ADR-0012: a port is published when something
   off-host consumes it, and nothing consumes 80 — browsers on Hicks type
-  `https`, and ACME's `tls-alpn-01` challenge runs over 443. A redirect is a
-  later choice, made in `.env.example` and `compose.yaml` together.
-- **Every routed name needs a SAN and a host override.** The `Caddyfile`
-  matches on Host, so `homeassistant.matrix.elysium` — and each name after
-  it, `vaultwarden.matrix.elysium` included — has to be on the leaf
-  (`compose.yaml`'s `make certs` line carries one `--dns` per name) and in
-  `morpheus`'s resolver, pointed at `10.0.99.40`
-  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
-  A name missing from the leaf fails the handshake; one missing from the
-  resolver never arrives.
+  `https`, and ACME's `tls-alpn-01` challenge runs over 443; the provisioner
+  accepts no other challenge, and the `Caddyfile` disables the redirect
+  listener Caddy would otherwise open on 80. A redirect is a later choice,
+  made in `.env.example`, `compose.yaml` and the `Caddyfile` together.
+- **Every routed name needs a host override.** `homeassistant.matrix.elysium`
+  — and each name after it, `vaultwarden.matrix.elysium` included — has to be
+  in `morpheus`'s resolver, pointed at `10.0.99.40`
+  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)) —
+  a name the resolver does not know never arrives. The certificate side is
+  the alias bullet above, not a SAN: there is no leaf to put one on.
 - **Home Assistant is an ordinary member of the network, not `network_mode:
   host`.** Upstream's example uses host networking and `privileged` for
   discovery and USB. Discovery is mDNS and SSDP, which are link-local, and
@@ -341,12 +355,13 @@ around it is here.
   for all of them. The token itself is held nowhere in the estate. Keep it with
   the operator's other credentials: it is precisely the thing this vault cannot
   hold for you.
-- **The name has to be in the leaf.** The browser checks the certificate's SANs
-  before Caddy sees a Host header, so `vaultwarden.matrix.elysium` is on the
-  `make certs` line in `compose.yaml` and needs a host override
-  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)). Each
-  service adds its name there until step-ca's ACME provisioner issues per-name
-  leaves.
+- **The name has its own certificate, and needs a host override.** The browser
+  checks the certificate's SANs before Caddy sees a Host header, and
+  `vaultwarden.matrix.elysium` gets a leaf of its own from step-ca because it
+  is a site block in the `Caddyfile` and an alias on Caddy in `compose.yaml`
+  (the alias bullet above). What it still needs from outside this stack is
+  the host override
+  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
 - **TOTP on both accounts at first login.** [ADR-0022]'s floor — the thing
   [ADR-0008] offered *in place of* SSO, and the one service in the tier where
   that substitute exists and matters most. Settings → Security → Two-step login
@@ -445,13 +460,13 @@ it matters:
   volume, and the volume is populated by a procedure run on two hosts. A fresh
   `make up` on a bare `trinity` fails on `config/ca.json`, loudly and on
   purpose.
-- **That the names resolve, or that the leaf carries them.** The host
-  overrides are a firewall change; `caddy validate` loads a throwaway pair,
-  and whether the real one carries `trinity.matrix.elysium` and every routed
-  name — `homeassistant`, `adguard`, `immich`, `paperless` and `vaultwarden`,
-  all under `matrix.elysium` — in its SANs is checked by the first browser, or
-  by `openssl x509 -noout -ext subjectAltName` on the monitoring host before
-  the files travel.
+- **That ACME issuance works.** `caddy validate` provisions the issuer against
+  a throwaway root and dials nothing. Whether step-ca answers, validates the
+  challenge and signs is proved by the first `make up` — Caddy's log says
+  `certificate obtained successfully` and the served chain verifies against
+  `certificates/tier-ca.pem` — and it was proved once on the monitoring host
+  under a throwaway project before this was written
+  ([`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md) §*Verify*).
 - **That the limits fit the workload.** 4 cores and 3 GiB for OCR are a
   statement about the ProDesk made on a different machine.
 - **That Home Assistant keeps booting under its hardening.** It was booted
@@ -478,6 +493,7 @@ it matters:
 [ADR-0022]: ../../docs/adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md
 [ADR-0023]: ../../docs/adr/0023-keep-the-household-recovery-path-outside-the-estate.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
+[ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131

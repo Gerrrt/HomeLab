@@ -439,9 +439,19 @@ what left this one unfireable for months.
   decided on top of it. What is outstanding is the build under #404, the rest
   of a stack, and four firewall rules the ADR counted as two. `stacks/sensitive/`
   exists since 2026-09-09 with its foundation — Caddy as the only published
-  port, step-ca as an intermediate beneath the lab CA — authored ahead of the
-  hardware the way `stacks/lab` was, and checked by everything `make validate`
-  runs, `caddy validate` included. AdGuard Home joined it the same day
+  port, step-ca as a certificate authority of the tier's own issuing to Caddy
+  over ACME — authored ahead of the hardware the way `stacks/lab` was, and
+  checked by everything `make validate` runs, `caddy validate` included. The
+  foundation first claimed step-ca would be an intermediate beneath the lab
+  CA; that root carries `pathlen:0` and cannot have one, which
+  [ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
+  measured before deciding, along with where the root key lives (the
+  monitoring host, never `trinity`) and why the leaves are seven days. The
+  ACME path was proved on the monitoring host under a throwaway project;
+  what remains for [#130](https://github.com/Gerrrt/HomeLab/issues/130) is
+  the mint and install on the real host, under #404, and a TLS-expiry rule
+  sized for seven-day leaves ([#426](https://github.com/Gerrrt/HomeLab/issues/426)).
+  AdGuard Home joined it the same day
   ([#135](https://github.com/Gerrrt/HomeLab/issues/135)), in the shape
   ADR-0010 decided and not the one the service assumes: the blocklist set is
   a tracked file copied in on every start, the admin hash is in SOPS, port 53
