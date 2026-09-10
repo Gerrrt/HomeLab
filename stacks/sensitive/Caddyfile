@@ -67,7 +67,17 @@ https:// {
 		reverse_proxy paperless:8000
 	}
 
-	# Vaultwarden and the rest (#131, #136, #137) add a block of the same
+	# Vaultwarden (#131). Plain HTTP on the stack network; TLS ends here. Rocket
+	# serves the Bitwarden API, the web vault and the WebSocket notifications
+	# hub on the one port, and reverse_proxy upgrades WebSocket connections
+	# without being told to. 8080 is compose.yaml's ROCKET_PORT; X-Forwarded-For
+	# is what its IP_HEADER reads.
+	@vaultwarden host vaultwarden.matrix.elysium
+	handle @vaultwarden {
+		reverse_proxy vaultwarden:8080
+	}
+
+	# ntfy and Homepage (#136, #137) add a block of the same
 	# shape above this line. What matches nothing lands here.
 	handle {
 		respond "trinity: the sensitive tier. Nothing is routed under this name." 404

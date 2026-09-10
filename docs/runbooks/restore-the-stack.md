@@ -35,8 +35,10 @@ make backup ARGS=--list
 ```
 
 The output lands in `backups/volumes/<STAMP>/`, which is gitignored. Each
-archive is age-encrypted to the same recipient as everything else in
-[`.sops.yaml`](../../.sops.yaml). A set is complete only when it has a
+archive is age-encrypted to every recipient of
+[`secrets/observability.sops.yaml`](../../secrets/observability.sops.yaml) —
+whoever can open the stack's secrets can open its volumes, and the manifest
+records which keys those were. A set is complete only when it has a
 `MANIFEST`; the backup writes that last, and a set without one is the wreckage
 of a failed run.
 

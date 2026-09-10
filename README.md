@@ -83,7 +83,7 @@ documents for different readers.
   at all.
 - **Documented decisions and runbooks.** 36 ADRs covering what was chosen
 - **Documented decisions and runbooks.** 36 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 22
+  and what was rejected — including the costs accepted knowingly; 23
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
 
@@ -188,8 +188,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── stacks/soc/               # Wazuh and Velociraptor for a second guest, odin —
 │                             #   authored ahead of it (ADR-0030, #266, #267)
 ├── stacks/sensitive/         # the household's tier — Caddy, step-ca, Home
-│                             #   Assistant, AdGuard Home, Immich and Paperless-ngx
-│                             #   so far, for a host not yet built (ADR-0034, #404)
+│                             #   Assistant, AdGuard Home, Immich, Paperless-ngx
+│                             #   and Vaultwarden so far, for a host not yet
+│                             #   built (ADR-0034, #404)
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
 ├── scripts/                  # bootstrap, render, validate, pin-digests, purge
 ├── SECURITY.md               # disclosure policy and known exposure
