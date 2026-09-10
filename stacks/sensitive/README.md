@@ -14,10 +14,12 @@ make up STACK=sensitive
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | caddy | `caddy` | 443 (https) | The one published port on the tier. Terminates TLS, routes by name to every service behind it ([#129]) |
-| step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — a root of its own with an intermediate beneath it, issuing to Caddy over ACME ([#130], [ADR-0035]) |
+| step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — a root of its own with an intermediate beneath it, issuing to Caddy over ACME ([#130], [ADR-0037]) |
+| home-assistant | `ghcr.io/home-assistant/home-assistant` | *internal* (8123) | Home automation, and what the `99 → 20` rule exists for — one pass, to the Hue bridge, scoped by [ADR-0035] ([#134]) |
 
-Two services, and both are plumbing. What is absent is as deliberate as what
-is here:
+Two of the three are plumbing; the third is the first household service and
+the shape every later one takes. What is absent is as deliberate as what is
+here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
   telemetry must never reach VLAN 99 ([ADR-0007]); this host *is* on VLAN 99,
@@ -25,17 +27,26 @@ is here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No services yet.** Vaultwarden, Immich, Paperless-ngx, Home Assistant,
-  AdGuard Home, ntfy and Homepage ([#131]–[#137]) each arrive as a service with
-  `expose:` and a block in the `Caddyfile`, in that order of build, and only
-  after the foundation runs. A service in this file with `ports:` of its own is
-  the one thing a review of it should refuse.
+- **No other services yet.** Vaultwarden, Immich, Paperless-ngx, AdGuard Home,
+  ntfy and Homepage ([#131]–[#133], [#135]–[#137]) each arrive as Home
+  Assistant did: a service with `expose:`, a block in the `Caddyfile`, a name
+  on the leaf. A service in this file with `ports:` of its own is the one thing
+  a review of it should refuse.
+- **No Supervisor, no add-ons, no MQTT broker, no Zigbee coordinator.** Home
+  Assistant *Container* has no add-on store, which is why it was chosen: an
+  add-on is a second package manager outside `compose.yaml` and outside digest
+  pinning. What an add-on would have supplied becomes a pinned service here
+  on the day a device needs it, and today none does — Ring is cloud, the Hue
+  bridge is its own radio, the speakers are Wi-Fi. No USB radio means where
+  `trinity` sits is not this service's concern.
 
 ## Layout
 
 ```text
-compose.yaml               two services, one network, health-gated ordering
+compose.yaml               three services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
+home-assistant/            configuration.yaml and packages/, mounted read-only
+                           over the volume Home Assistant writes its state to
 .env.example               non-sensitive tunables — edit this, not .env
 ```
 
@@ -67,7 +78,7 @@ time and lives in Caddy's `/data` volume, never on disk here.
 - **step-ca is a CA of the tier's own, and its tree is not made here.** Not
   an intermediate beneath the estate's CA, which this file once claimed: that
   root carries `pathlen:0`, and a leaf beneath any intermediate of it fails
-  `path length constraint exceeded` — measured, and decided in [ADR-0035].
+  `path length constraint exceeded` — measured, and decided in [ADR-0037].
   `make tier-ca ARGS=--mint` on the monitoring host mints the root and
   intermediate in this image and writes a bundle *without the root key*;
   `make tier-ca ARGS="--install …"` here populates the `step-ca-data` volume
@@ -91,6 +102,40 @@ time and lives in Caddy's `/data` volume, never on disk here.
   accepts no other challenge, and the `Caddyfile` disables the redirect
   listener Caddy would otherwise open on 80. A redirect is a later choice,
   made in `.env.example`, `compose.yaml` and the `Caddyfile` together.
+- **Every routed name needs a host override.** `homeassistant.matrix.elysium`
+  has to be in `morpheus`'s resolver, pointed at `10.0.99.40`
+  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)) —
+  a name the resolver does not know never arrives. The certificate side is
+  the alias bullet above, not a SAN: there is no leaf to put one on.
+- **Home Assistant is an ordinary member of the network, not `network_mode:
+  host`.** Upstream's example uses host networking and `privileged` for
+  discovery and USB. Discovery is mDNS and SSDP, which are link-local, and
+  every device it controls is on Skids, a VLAN away — nothing on 20 would be
+  found from 99 however the container were attached. Devices are added by
+  address, through the one pass [ADR-0035] writes down. It runs with every
+  capability dropped, a read-only root and two tmpfs mounts, as root because
+  the image has no other mode; `compose.yaml` numbers the differences.
+- **Home Assistant's credentials are not in SOPS, and cannot be.** The Hue
+  application key, the Ring token and everything else a config flow produces
+  are written by Home Assistant into `/config/.storage`, inside the
+  `home-assistant-config` volume. Nothing this repository renders can hand
+  them in, so the volume is where the tier's most numerous credentials live,
+  protected by [#404]'s disk-encryption decision and by the encrypted volume
+  archive rather than by SOPS. [ADR-0035] records the deviation. A long-lived
+  access token minted for another service goes in *that* service's SOPS file
+  — none exists yet — and TOTP is enrolled at first login, as [#404] step 6
+  says.
+- **Automations are YAML in `home-assistant/packages/`, not the UI editor.**
+  `configuration.yaml` is mounted read-only from this directory and loads the
+  packages directory beside it; there is no `automations.yaml`, because the
+  UI editor's include fails hard on a file that does not exist and the file
+  is one Home Assistant writes rather than one this repository ships. The
+  packages README says the rest. Integrations and devices are still added
+  through the UI: a config flow has no YAML form.
+- **Caddy has a fixed address, `172.28.99.2`, for one reader.** Home
+  Assistant's `trusted_proxies` names the proxy it will believe
+  `X-Forwarded-For` from, and a Docker-assigned address is not a name. The
+  network's subnet is fixed for that one line and nothing else.
 - **Nothing converges this stack.** The `homelab-*` timers are the estate's;
   `make validate` notes their absence here as a skip, not a failure. This stack
   is deployed by hand, from a checkout on `trinity`.
@@ -128,12 +173,26 @@ it matters:
   `certificates/tier-ca.pem` — and it was proved once on the monitoring host
   under a throwaway project before this was written
   ([`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md) §*Verify*).
+- **That Home Assistant keeps booting under its hardening.** It was booted
+  once, on the monitoring host on 2026-09-09, from the pinned digest with the
+  exact `compose.yaml` settings — read-only root, every capability dropped,
+  the two tmpfs mounts, this directory's `configuration.yaml` — on an
+  internal Docker network with no route out. It served onboarding, wrote only
+  to `/config`, and logged one error it will log on every start: the `dhcp`
+  discovery integration wants `CAP_NET_RAW` to sniff for devices, which on a
+  bridge network a VLAN away from every device would sniff nothing, so the
+  capability stays dropped and the line is expected. That was one boot of one
+  digest. Dependabot moves the digest monthly; nothing here re-runs the boot.
 
 [ADR-0007]: ../../docs/adr/0007-defensive-estate-and-offensive-range.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
-[ADR-0035]: ../../docs/adr/0035-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
+[ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
+[#133]: https://github.com/Gerrrt/HomeLab/issues/133
+[#134]: https://github.com/Gerrrt/HomeLab/issues/134
+[#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # The sensitive tier's certificate authority: mint it on the monitoring host,
-# install it on trinity. ADR-0035 is the decision; this is the mechanism.
+# install it on trinity. ADR-0037 is the decision; this is the mechanism.
 #
 # The tier has a root of its own rather than an intermediate beneath the
 # estate's CA, because the estate's root is minted with pathlen:0 and a leaf
@@ -71,12 +71,12 @@ CA_NAME="Matrix Elysium Sensitive Tier"
 # Every name the CA's own serving certificate carries. `step-ca` is what Caddy
 # dials on the compose network; `localhost` is what the container's healthcheck
 # dials; the FQDN and the address are there so a future off-host client (the
-# estate's Grafana renewing with `step ca renew`, ADR-0035's reopen) verifies
+# estate's Grafana renewing with `step ca renew`, ADR-0037's reopen) verifies
 # without a re-mint. SANs are set at init and cost nothing to include.
 CA_DNS=(step-ca localhost trinity.matrix.elysium 10.0.99.40)
 CA_ADDRESS=":9000"
 # One challenge type, and it is the one that runs over 443, the tier's only
-# published port. 168h is the outage budget, not a labour cost — ADR-0035 §3.
+# published port. 168h is the outage budget, not a labour cost — ADR-0037 §3.
 ACME_CHALLENGE="tls-alpn-01"
 LEAF_DEFAULT="168h"
 LEAF_MAX="168h"
@@ -226,7 +226,7 @@ that is what you mean."
   # The ACME provisioner, added against the file rather than with `--acme` at
   # init, so the challenge and lifetime claims are in ca.json before the CA
   # ever starts — the default provisioner accepts every challenge type and
-  # issues 24h leaves, and neither is what ADR-0035 decided.
+  # issues 24h leaves, and neither is what ADR-0037 decided.
   info "adding the ACME provisioner (${ACME_CHALLENGE} only, leaves ${LEAF_DEFAULT})"
   docker run --rm --network none \
     --user "$(id -u):$(id -g)" \

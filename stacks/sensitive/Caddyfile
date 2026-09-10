@@ -54,7 +54,7 @@
 #	}
 trinity.matrix.elysium {
 	handle {
-		respond "trinity: the sensitive tier. Nothing is routed here yet." 404
+		respond "trinity: the sensitive tier. Nothing is routed under this name." 404
 	}
 
 	log {

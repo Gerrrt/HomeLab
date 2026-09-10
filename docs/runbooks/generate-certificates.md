@@ -21,7 +21,7 @@
 > They are two on purpose and cannot be one: this root carries `pathlen:0`,
 > so nothing beneath it may be a CA, and a leaf beneath any intermediate of
 > it fails `path length constraint exceeded` in every client here.
-> [ADR-0035](../adr/0035-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
+> [ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
 > measured that and decided the rest. Nothing this runbook issues is for
 > `trinity`; a `make certs` run there mints a third CA nothing trusts, and
 > `make render STACK=sensitive` says so if the tier's root is missing.
@@ -146,7 +146,7 @@ That sentence is about *this* CA. The tier's certificates renew themselves —
 Caddy re-issues each seven-day leaf from step-ca at a third of the way from
 expiry, and nothing in this runbook applies to them. The day Grafana renews
 from step-ca too, with `step ca renew` on a timer, this section and this
-script retire together; that is ADR-0035's reopen condition, and it waits on
+script retire together; that is ADR-0037's reopen condition, and it waits on
 publishing step-ca's port to its first off-host consumer
 ([ADR-0012](../adr/0012-publish-only-ports-with-an-off-host-consumer.md)).
 blackbox-exporter probes Grafana by name and by address, verifies the chain
@@ -221,7 +221,7 @@ an omission: `pathlen:0` is what keeps a leaf key lifted from Grafana from
 ever signing anything else. It is also why the sensitive tier's step-ca is a
 root of its own instead of sitting beneath this one — a decision made after
 the alternative was built and measured to fail
-([ADR-0035](../adr/0035-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)).
+([ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)).
 Lifting it means `--ca --force`, re-issuing every leaf, and re-trusting the
 new `ca.pem` on every device that holds the old one.
 

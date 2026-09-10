@@ -8,7 +8,7 @@
 # its own — step-ca, with a root minted by scripts/tier-ca.sh — and every
 # certificate Caddy serves there is issued over ACME and renewed without a
 # runbook step. Nothing this script issues is for that host, and nothing that
-# host serves comes from here. ADR-0035 says why they are two: the root below
+# host serves comes from here. ADR-0037 says why they are two: the root below
 # carries pathlen:0, so nothing beneath it may be a CA.
 #
 # Everything lands in certificates/, which is gitignored — along with *.pem and
@@ -136,7 +136,7 @@ that holds it. Pass --force only if that is what you mean."
   # anything else. It also means this root CANNOT have an intermediate — a
   # leaf beneath one fails "path length constraint exceeded" in every client
   # here — which is why the sensitive tier's step-ca has a root of its own
-  # rather than sitting beneath this one (ADR-0035, measured before deciding).
+  # rather than sitting beneath this one (ADR-0037, measured before deciding).
   # Lifting it means re-minting this root and re-trusting it everywhere.
   openssl req -x509 -newkey rsa:4096 -sha256 -nodes \
     -keyout "${CA_KEY}" -out "${CA_CRT}" -days "${CA_DAYS}" \

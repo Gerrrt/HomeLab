@@ -1,4 +1,4 @@
-# ADR-0035: Give the sensitive tier its own root, and issue beneath it over ACME
+# ADR-0037: Give the sensitive tier its own root, and issue beneath it over ACME
 
 **Status:** Accepted · 2026-09
 

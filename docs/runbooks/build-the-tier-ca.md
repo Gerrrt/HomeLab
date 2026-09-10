@@ -9,7 +9,7 @@ and `secrets/sensitive.sops.yaml` already created on `trinity`
 This is the tier's own CA — **not** the estate's, and not beneath it.
 [`generate-certificates.md`](generate-certificates.md) opens with the table
 that tells the two apart, and
-[ADR-0035](../adr/0035-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
+[ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
 is why they are two: the estate's root carries `pathlen:0`, so a leaf beneath
 any intermediate of it fails `path length constraint exceeded` in every client
 this estate runs. Once this runbook is done, no certificate on the tier is
@@ -56,7 +56,7 @@ Omit `--password-file` to be prompted instead. The script runs `step ca init`
 in the pinned step-ca image — nothing is installed on the host — against
 `certificates/tier-ca/`, mounted where the service will later run from, and
 then adds the ACME provisioner against the resulting `config/ca.json` with
-the three restrictions ADR-0035 decided: `tls-alpn-01` only, seven-day
+the three restrictions ADR-0037 decided: `tls-alpn-01` only, seven-day
 leaves, nothing longer. It refuses to run over an existing tree without
 `--force`, because a new root invalidates every device that trusts the old
 one.
@@ -220,7 +220,7 @@ No certificate step. That is the point of this runbook.
 | Situation | What to do |
 | --- | --- |
 | `trinity` is rebuilt, or its disk is lost | Step 4 again with the bundle still on `prometheus`; step 5 to confirm. The ACME accounts and issued leaves in step-ca's database are disposable — every leaf is re-issued within a week regardless |
-| The intermediate is suspected compromised | On `prometheus`, `make tier-ca ARGS="--mint --force"` mints a new root **and** intermediate — the root changes too, so every device re-trusts. Re-minting only the intermediate beneath the existing root is `step certificate create` against `certificates/tier-ca/` and is not scripted; ADR-0035 leaves it to the day it is needed |
+| The intermediate is suspected compromised | On `prometheus`, `make tier-ca ARGS="--mint --force"` mints a new root **and** intermediate — the root changes too, so every device re-trusts. Re-minting only the intermediate beneath the existing root is `step certificate create` against `certificates/tier-ca/` and is not scripted; ADR-0037 leaves it to the day it is needed |
 | The root key on `prometheus` is lost | Nothing stops. The intermediate issues until 2036 without it. Before then, a new root: `--mint --force`, step 3 onward, and a re-trust on every household device |
 | `STEPCA_PASSWORD` is lost | Both keys are unrecoverable; treat as the row above |
 | step-ca is down | Caddy keeps serving each leaf until it expires, at least two days and at most seven after the CA stopped answering. Nothing pages on it yet ([#426](https://github.com/Gerrrt/HomeLab/issues/426)) — `docker ps` on `trinity` is the check until it does |
