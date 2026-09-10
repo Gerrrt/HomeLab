@@ -257,7 +257,7 @@ it prompts, and it is recoverable from a backup set — see
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `GRAFANA_ADMIN_PASSWORD: unset` | `.env` not rendered | `make render` |
-| `unsubstituted placeholders remain` | A `SNMP_COMMUNITY_*` key is missing from the secrets file | `make secrets-edit` |
+| `unsubstituted placeholders remain` | An `SNMP_*` credential key is missing from the secrets file | `make secrets-edit` |
 | `compose.yaml mounts these certificates, which are missing or empty` | `make certs` was never run | [`generate-certificates.md`](generate-certificates.md) |
 | `a previous run of the stack created these as directories` | A `make up` predating the guard bind-mounted the absent certificates and Docker created directories | `rmdir` the paths it lists, then issue the certificates |
 | SNMP targets `DOWN` | Community mismatch, or the device is not reachable from VLAN 99 | `make snmp-verify` (keeps the community out of your shell history) |

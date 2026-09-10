@@ -54,7 +54,7 @@ list, and each names what would put it there:
   bridge, the assistants are Wi-Fi ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
 - A memory kit for `ifrit`'s second slot: only if 32 GB proves short.
 - A replacement for the MokerLink switch: named as the thing that would close
-  [#84](https://github.com/Gerrrt/HomeLab/issues/84),
+  [#84](https://github.com/Gerrrt/HomeLab/issues/84), the switch half of
   [#85](https://github.com/Gerrrt/HomeLab/issues/85) and ADR-0018's residual
   together; never decided.
 - Off-estate storage for the household's copy: [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
@@ -74,7 +74,7 @@ and any disk or memory on account of Wazuh — ADR-0030 sizes it to what
   carries pfSense's stock *Default allow LAN to any*.** `10.7.7.0/24` reaches
   every VLAN; `network.md` said "Nothing". Bounded by that segment holding only
   the switch — which is also the device that still answers its previous SNMP
-  community (#84) and cannot do v3 (#85). Lower risk than #228: getting it wrong
+  community (#84) and stays on v2c (#85). Lower risk than #228: getting it wrong
   costs SNMP polling of `neo`, which is monitored.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
   switch's previous SNMP community.** `neo` still accepts its old one alongside
@@ -89,9 +89,21 @@ and any disk or memory on account of Wazuh — ADR-0030 sizes it to what
   now probes every device with the two stock strings weekly, `WARN` in plain
   mode and `FAIL` under `--old`. →
   [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
-- **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv.**
-  Three of four devices can. The MokerLink switch cannot, which is the blocker
-  for doing it uniformly.
+- **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv
+  where the hardware supports it.** Decided by
+  [ADR-0035](adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md):
+  per poll, by where the poll travels, and mixed on purpose. The iLO first —
+  its poll is delivered into the lab segment, layer-2 adjacent to the attack
+  VM, so its community is the one an adversary is meant to be able to try for
+  — then the UPS card on the same procedure. The firewall stays on v2c
+  because bsnmpd is the only daemon that serves the pf MIB and pfSense writes
+  no v3 user for it; that was the issue's "three can", checked on the box on
+  2026-09-09, and the switch was never what blocked it. The switch stays on
+  v2c and its UI gets checked once for a v3 user page — its agent answers v3
+  on the wire, which ADR-0018 did not know. The tooling is done: a device's
+  version and key names come from its auth block in `generator.yaml`, and
+  `snmp-verify.sh` speaks v3. What is left is the device side, one at a time,
+  device first — [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
   Prometheus and Loki ingest ports.** Both are published and unauthenticated, so
   anything that can route to `10.0.99.20` can read every metric and log line,
@@ -735,6 +747,12 @@ months.
   ADR-0008 takes knowingly, given an expiry by
   [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md).
   Under **Security** above, because it has a condition now rather than only a
+  decision.
+- **[#85](https://github.com/Gerrrt/HomeLab/issues/85)** SNMPv3 on the iLO and
+  the UPS card, decided by
+  [ADR-0035](adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
+  with the repository side built and the device side not yet done. Under
+  **Security** above, because it has a procedure now rather than only a
   decision.
 
 ## Considered and declined

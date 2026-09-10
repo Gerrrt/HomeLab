@@ -83,10 +83,16 @@ gen_secret() {
 
 if ((SNMP)); then
   # Key names come from the device inventory, so a fifth device produces a
-  # fifth line here without this script being touched.
-  while IFS=$'\t' read -r _ip _auth _device var; do
-    [[ -n "${var}" ]] || continue
-    printf '%s: %s\n' "${var}" "$(gen_secret "${LENGTH}")"
+  # fifth line here without this script being touched — and a device moved to
+  # SNMPv3 produces two lines, its authentication and privacy passphrases,
+  # because the inventory names both. The default length fits every device
+  # in the estate: the APC card wants 15-32 characters and iLO 4 wants 8-49.
+  while IFS=$'\t' read -r _ip _auth _device _version keys; do
+    [[ -n "${keys}" ]] || continue
+    IFS=, read -ra key_list <<< "${keys}"
+    for var in "${key_list[@]}"; do
+      printf '%s: %s\n' "${var}" "$(gen_secret "${LENGTH}")"
+    done
   done < <("${REPO_ROOT}/scripts/snmp-targets.sh")
 
   printf '\n\033[0;33mThese are now in your terminal scrollback.\033[0m They are not in your
