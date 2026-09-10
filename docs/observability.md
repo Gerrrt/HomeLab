@@ -10,8 +10,15 @@ this Loki, and none of the alert rules or dashboards below can see it. That is
 ADR-0007's decision — lab telemetry stays in the lab, so that deliberately
 hostile data never lands in the store the estate is actually run from — and
 [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
-settles its shape. It is built but not yet deployed; the guest that runs it is
-[#262](https://github.com/Gerrrt/HomeLab/issues/262).
+settles its shape. It runs on `alexander`, the guest
+[#262](https://github.com/Gerrrt/HomeLab/issues/262) built on 2026-09-05.
+
+There is a third, and it reports to the second. [`stacks/soc`](../stacks/soc)
+is Wazuh and Velociraptor on `odin`, another guest on `Saruman`
+([ADR-0030](adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md)),
+authored ahead of the guest and not yet built. Its Alloy pushes that guest's
+telemetry and the Wazuh indexer's health to the lab's stores on `alexander`;
+nothing of it reaches here either.
 
 The one path that does cross belongs to the hypervisor and not to any guest:
 `Saruman`'s own agent remote-writes here over a single unlogged pass

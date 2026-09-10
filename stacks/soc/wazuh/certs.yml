@@ -1,0 +1,23 @@
+---
+# Input to wazuh-certs-generator — the `certs` profile in compose.yaml, run
+# once on odin before the first start (build-the-soc-guest.md). Output lands in
+# ./certs/, which is gitignored: these are private keys for the indexer <->
+# manager <-> dashboard mTLS, and ADR-0030 keeps this CA separate from the lab
+# CA on purpose. The lab CA issues server leaves browsers verify; this one
+# issues the identities three containers use to trust each other.
+#
+# The names are the compose SERVICE names, dots included. The generator
+# validates each `ip:` as an IP address or a dotted DNS name and refuses a bare
+# hostname outright ("Invalid IP or DNS"), and filebeat in the manager verifies
+# the indexer's certificate in `full` mode, so the SAN here and the name the
+# manager dials must be the same string. That is why the services carry dots.
+nodes:
+  indexer:
+    - name: wazuh.indexer
+      ip: wazuh.indexer
+  server:
+    - name: wazuh.manager
+      ip: wazuh.manager
+  dashboard:
+    - name: wazuh.dashboard
+      ip: wazuh.dashboard

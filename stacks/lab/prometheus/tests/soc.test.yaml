@@ -1,0 +1,215 @@
+---
+# Unit tests for soc.rules.yaml — the lab's Prometheus watching the SOC's
+# indexer on odin (ADR-0030).
+#
+# Firing case AND quiet case for every rule, for the reason lab.test.yaml
+# gives: a case that only ever expects silence passes against a rule that can
+# never fire (#63). All six are covered; two of the quiet cases prove a rule
+# stays quiet for a state that is CORRECT rather than merely absent — a green
+# cluster is not yellow, and a heap that sawtooths under the line is a JVM
+# working as designed.
+#
+# The label set on every input series is the one opensearch.alloy produces:
+# job fixed to wazuh-indexer, instance from ALLOY_HOSTNAME, and the exporter's
+# own cluster label. host="odin" is the remote-write external label and is
+# omitted here because the rules never read it.
+rule_files:
+  - ../rules/soc.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- WazuhIndexerUnreachable ------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_clusterinfo_up{job="wazuh-indexer",instance="odin"}'
+        values: "1+0x5 0+0x30"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: WazuhIndexerUnreachable
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhIndexerUnreachable
+              job: wazuh-indexer
+              instance: odin
+              component: soc
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "odin's Alloy cannot reach the Wazuh indexer"
+              description: >-
+                The exporter on odin has failed to reach https://wazuh.indexer:9200
+                for 10 minutes. The manager's filebeat is failing the same way, so
+                alerts are queuing on the manager rather than being recorded.
+      # Quiet while reachable, and inside the for: window after it drops.
+      - eval_time: 4m
+        alertname: WazuhIndexerUnreachable
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: WazuhIndexerUnreachable
+        exp_alerts: []
+
+  # --- WazuhIndexerClusterRed ------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_cluster_health_status{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",color="red"}'
+        values: "0+0x5 1+0x20"
+      - series: 'elasticsearch_cluster_health_status{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",color="green"}'
+        values: "1+0x5 0+0x20"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WazuhIndexerClusterRed
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhIndexerClusterRed
+              job: wazuh-indexer
+              instance: odin
+              cluster: wazuh-cluster
+              color: red
+              component: soc
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "The Wazuh indexer's cluster health is red"
+              description: >-
+                A primary shard is unassigned. Check disk first — opensearch.yml
+                disables the disk watermark, so a full volume arrives here rather
+                than as a read-only index.
+      - eval_time: 4m
+        alertname: WazuhIndexerClusterRed
+        exp_alerts: []
+
+  # --- WazuhIndexerClusterYellow ---------------------------------------------
+  # The quiet case is a GREEN cluster with the yellow series present and zero,
+  # which is what the exporter actually emits: one series per colour, one of
+  # them 1. A test with the yellow series absent would prove less.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_cluster_health_status{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",color="yellow"}'
+        values: "0+0x10 1+0x60"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: WazuhIndexerClusterYellow
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhIndexerClusterYellow
+              job: wazuh-indexer
+              instance: odin
+              cluster: wazuh-cluster
+              color: yellow
+              component: soc
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The Wazuh indexer has an unassigned replica shard"
+              description: >-
+                Every index here is meant to carry no replica, so yellow means one
+                was created outside the settings in
+                stacks/soc/wazuh/indexer/template-wazuh-alerts.json. Find it with
+                _cat/indices?v&h=index,pri,rep and fix the template it came from.
+      # Green, and then yellow for less than the window — a fresh index passes
+      # through yellow on creation, and that must not fire.
+      - eval_time: 8m
+        alertname: WazuhIndexerClusterYellow
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: WazuhIndexerClusterYellow
+        exp_alerts: []
+
+  # --- WazuhIndexerHeapPressure ----------------------------------------------
+  # Max is 2 GiB, as compose.yaml sets it. The firing case holds at 90%; the
+  # quiet case sawtooths between 40% and 80%, which is a JVM collecting on
+  # schedule and is the shape a healthy indexer shows.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_jvm_memory_max_bytes{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",area="heap"}'
+        values: "2147483648+0x40"
+      - series: 'elasticsearch_jvm_memory_used_bytes{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",area="heap"}'
+        values: >-
+          858993459 1717986918 858993459 1717986918 858993459 1717986918
+          858993459 1717986918 858993459 1717986918 1932735283+0x30
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: WazuhIndexerHeapPressure
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhIndexerHeapPressure
+              job: wazuh-indexer
+              instance: odin
+              cluster: wazuh-cluster
+              area: heap
+              component: soc
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "The Wazuh indexer's JVM heap is over 85% for 15 minutes"
+              description: >-
+                The retention bound in ADR-0030 is heap-per-shard. Count the shards
+                (_cat/shards) before raising the heap: the fix for too many small
+                shards is rollover indices, not a bigger JVM.
+      # Inside the sawtooth: peaks at 80% never cross the line.
+      - eval_time: 9m
+        alertname: WazuhIndexerHeapPressure
+        exp_alerts: []
+
+  # --- WazuhIndexerShardBudgetNearlySpent ------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_cluster_health_active_shards{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster"}'
+        values: "40+0x10 48+0x80"
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: WazuhIndexerShardBudgetNearlySpent
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhIndexerShardBudgetNearlySpent
+              job: wazuh-indexer
+              instance: odin
+              cluster: wazuh-cluster
+              component: soc
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "The Wazuh indexer holds more than 45 shards"
+              description: >-
+                The 2 GiB heap buys about 50. Check that the 30-day ISM policy in
+                stacks/soc/wazuh/indexer/ism-wazuh-alerts.json is attached and
+                deleting; if it is, the fix is rollover indices, not a larger
+                number in the policy.
+      # Forty shards is the steady state ADR-0030 sized for: quiet.
+      - eval_time: 9m
+        alertname: WazuhIndexerShardBudgetNearlySpent
+        exp_alerts: []
+
+  # --- WazuhIngestionStalled -------------------------------------------------
+  # A counter that climbs for the first hour and then holds still. The rule
+  # needs an hour of zero increase and then an hour of `for:`, so it fires from
+  # about the third hour; the quiet case is checked while the counter is still
+  # climbing AND during the first hour of stillness, when the window still
+  # sees the climb.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_indices_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",name="wazuh.indexer"}'
+        values: "0+10x60 600+0x200"
+    alert_rule_test:
+      - eval_time: 200m
+        alertname: WazuhIngestionStalled
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhIngestionStalled
+              cluster: wazuh-cluster
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "The Wazuh indexer has indexed nothing for an hour"
+              description: >-
+                The cluster answers and its health is fine; it is simply not being
+                written to. Check the manager first — filebeat on it is what
+                writes — then whether any agent is connected at all.
+      - eval_time: 50m
+        alertname: WazuhIngestionStalled
+        exp_alerts: []
+      - eval_time: 100m
+        alertname: WazuhIngestionStalled
+        exp_alerts: []

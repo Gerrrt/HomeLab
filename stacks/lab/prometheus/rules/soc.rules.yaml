@@ -1,0 +1,151 @@
+---
+# The SOC's indexer, watched from the lab (ADR-0030).
+#
+# These rules live HERE, in the lab's Prometheus on alexander, and not in
+# stacks/soc: the series they read are produced by odin's Alloy
+# (stacks/soc/alloy/opensearch.alloy) and remote-written to this Prometheus,
+# which is the only thing on the segment that evaluates rules. Six rules, and
+# the reason there are six rather than the estate's forty-odd is the same as
+# lab.rules.yaml's: an alert nobody is paged for is only useful to someone
+# already looking, so these are scoped to "the SIEM is not doing its one job"
+# — the #62/#63 shape, a store that quietly stops — and to the two numbers
+# ADR-0030 says will run out first, heap and shards.
+#
+# NOTHING HERE PAGES. Same limit as lab.rules.yaml, same reason (ADR-0020).
+#
+# What this does NOT cover, and cannot: odin going away. Every series here
+# arrives by push, so a guest that stops pushing simply goes stale — no rule
+# reads absence, because before odin exists absence is the correct state and
+# an absent() rule would fire permanently from the day this file deploys, the
+# shape ADR-0017 refuses by name. ADR-0028 gives the estate odin's RUN STATE
+# from the hypervisor, which is what reports the guest itself stopping.
+#
+# Every label these key on is set by opensearch.alloy: `job="wazuh-indexer"`
+# is fixed there deliberately, so a rebuilt guest under another hostname does
+# not silently orphan these rules.
+groups:
+  - name: soc
+    interval: 60s
+    rules:
+      # The exporter is running on odin and cannot reach the indexer. The
+      # exporter emits nothing else about a cluster it cannot reach, so this
+      # is the only one of these that sees "the indexer is down"; the rest
+      # read a metric the indexer emits about its own working, which requires
+      # it to be working enough to emit. The collector retries every five
+      # minutes, hence the window.
+      - alert: WazuhIndexerUnreachable
+        expr: elasticsearch_clusterinfo_up{job="wazuh-indexer"} == 0
+        for: 10m
+        labels:
+          component: soc
+          severity: critical
+          category: availability
+        annotations:
+          summary: "odin's Alloy cannot reach the Wazuh indexer"
+          description: >-
+            The exporter on odin has failed to reach https://wazuh.indexer:9200
+            for 10 minutes. The manager's filebeat is failing the same way, so
+            alerts are queuing on the manager rather than being recorded.
+
+      # Red means a primary shard is unassigned: the index that holds today's
+      # alerts may be the one that cannot be written.
+      - alert: WazuhIndexerClusterRed
+        expr: elasticsearch_cluster_health_status{job="wazuh-indexer",color="red"} == 1
+        for: 5m
+        labels:
+          component: soc
+          severity: critical
+          category: availability
+        annotations:
+          summary: "The Wazuh indexer's cluster health is red"
+          description: >-
+            A primary shard is unassigned. Check disk first — opensearch.yml
+            disables the disk watermark, so a full volume arrives here rather
+            than as a read-only index.
+
+      # Yellow is a signal here PRECISELY BECAUSE the settings make it one.
+      # With number_of_replicas 0 on every index, a single node is green; a
+      # yellow cluster means an index was created with a replica the template
+      # did not reach — ADR-0030's "a health signal that is always yellow is
+      # not a health signal", turned into the alert that says the settings
+      # stopped applying. The window is long because a fresh index goes
+      # through yellow for seconds on creation.
+      - alert: WazuhIndexerClusterYellow
+        expr: elasticsearch_cluster_health_status{job="wazuh-indexer",color="yellow"} == 1
+        for: 30m
+        labels:
+          component: soc
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The Wazuh indexer has an unassigned replica shard"
+          description: >-
+            Every index here is meant to carry no replica, so yellow means one
+            was created outside the settings in
+            stacks/soc/wazuh/indexer/template-wazuh-alerts.json. Find it with
+            _cat/indices?v&h=index,pri,rep and fix the template it came from.
+
+      # Heap is what runs out first (ADR-0030): 25 shards per GiB, 2 GiB
+      # configured. Sustained occupancy above 85% is the JVM failing to free
+      # after collection, which precedes the circuit breaker tripping on the
+      # bulk indexing path — at which point ingestion stops with the cluster
+      # still green. The `area` label is the exporter's; the two series carry
+      # the same label set, so the division needs no matching clause.
+      - alert: WazuhIndexerHeapPressure
+        expr: |
+          elasticsearch_jvm_memory_used_bytes{job="wazuh-indexer",area="heap"}
+            / elasticsearch_jvm_memory_max_bytes{job="wazuh-indexer",area="heap"} > 0.85
+        for: 15m
+        labels:
+          component: soc
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "The Wazuh indexer's JVM heap is over 85% for 15 minutes"
+          description: >-
+            The retention bound in ADR-0030 is heap-per-shard. Count the shards
+            (_cat/shards) before raising the heap: the fix for too many small
+            shards is rollover indices, not a bigger JVM.
+
+      # The shard budget is ~50 at 2 GiB of heap (ADR-0030). Thirty daily alert
+      # indices plus the monitoring, statistics, vulnerability and inventory
+      # families are meant to sit near 45; above it the ISM delete policy is
+      # not firing, or something is creating indices the arithmetic did not
+      # count. _plugins/_ism/explain/wazuh-alerts-* says which.
+      - alert: WazuhIndexerShardBudgetNearlySpent
+        expr: elasticsearch_cluster_health_active_shards{job="wazuh-indexer"} > 45
+        for: 1h
+        labels:
+          component: soc
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "The Wazuh indexer holds more than 45 shards"
+          description: >-
+            The 2 GiB heap buys about 50. Check that the 30-day ISM policy in
+            stacks/soc/wazuh/indexer/ism-wazuh-alerts.json is attached and
+            deleting; if it is, the fix is rollover indices, not a larger
+            number in the policy.
+
+      # The one the whole crossing exists for. Wazuh indexes continuously
+      # while the four servers run — agent status into wazuh-monitoring every
+      # fifteen minutes, statistics on a schedule, and the servers' own
+      # events — so an hour with no index calls is the SIEM having stopped
+      # ingesting while everything about it still reports healthy. The
+      # window is an hour rather than the lab Loki's thirty minutes because
+      # the endpoints run per session and a quiet domain is quieter than a
+      # quiet guest.
+      - alert: WazuhIngestionStalled
+        expr: |
+          sum by (cluster) (increase(elasticsearch_indices_indexing_index_total{job="wazuh-indexer"}[1h])) == 0
+        for: 1h
+        labels:
+          component: soc
+          severity: warning
+          category: availability
+        annotations:
+          summary: "The Wazuh indexer has indexed nothing for an hour"
+          description: >-
+            The cluster answers and its health is fine; it is simply not being
+            written to. Check the manager first — filebeat on it is what
+            writes — then whether any agent is connected at all.
