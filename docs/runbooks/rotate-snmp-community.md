@@ -143,7 +143,8 @@ credential and should not survive this.
 > Expect those deletions not to stick. This firmware does not persist a removal
 > from the community table: the row can be deleted, applied and saved, and it is
 > still there after a restart — and each attempt drops the SNMP agent until the
-> switch is rebooted. Retiring an entry here means overwriting it, which is
+> switch is rebooted. On `neo` they did not stick: both `public` and `private`
+> still answer, measured from the monitoring host on 2026-09-06 and 2026-09-09. Retiring an entry here means overwriting it, which is
 > [§2.5's MokerLink route](#the-mokerlink-switch-overwrite-the-row). Nothing in
 > this step depends on the deletion succeeding, so add the new community, try the
 > defaults once, and carry on.
@@ -198,6 +199,14 @@ Or `make snmp-verify` for all four at once. Each device must report `PASS` with
 its sysDescr string — that is also how you confirm you reached the box you meant
 to.
 
+The same run then probes every device that passed with the stock `public` and
+`private`. A device that answers either is reported `WARN` — not a failure in
+plain mode, for the reason the script's comment gives: the weekly timer runs
+plain mode into an alert that would otherwise stay lit for the weeks it takes
+to get a reboot window on `neo`, hiding any other failure behind it. Under
+`--old` the same finding is a `FAIL`. Today `neo` is the device that warns;
+[§2.5](#the-mokerlink-switch-overwrite-the-row) is where that gets fixed.
+
 The community never appears in an argument vector. The block this replaced put it
 into your shell history and, for the life of the process, into
 `/proc/<pid>/cmdline`, which is world-readable — any local user running `ps` gets
@@ -238,18 +247,32 @@ is rebooted, so retrying is not free — this is the residual recorded in
 [`SECURITY.md`](../../SECURITY.md) and tracked as
 [#84](https://github.com/Gerrrt/HomeLab/issues/84).
 
+There is more than one row to retire. Besides the previous community, the
+switch still answers the stock `public` and `private` — the defaults §2.1
+deletes, whose deletion did not persist either. Measured from the monitoring
+host on 2026-09-06 and 2026-09-09, one GETBULK of `sysDescr` per string, with
+the other three devices refusing both as the control. Whether the `private`
+row is read-write, as it ships on most switches, is not known: the only test
+from the monitoring host is a SET, which is a change to the device, so read it
+off the row's access column while you are in the UI. Every stale row goes in
+the same window. The reboot is the only test there is, and there will not be
+another window soon.
+
 **Do this only in a window where the switch can be rebooted**, ideally one it is
 already going down for. `neo` carries every VLAN: the reboot stops layer 2, not
 just SNMP. This is not a drive-by change at the end of a rotation.
 
-1. **Overwrite the row, do not delete it.** Web UI at `http://10.7.7.2`,
-   **SNMP → Community.** Edit the row holding the *old* community in place and
-   write the **current** community into it — the value already in
-   `SNMP_COMMUNITY_MOKERLINK`. If the firmware accepts the duplicate, the switch
-   ends up answering exactly one string, nothing in this repository changes, and
-   there is no `make render` or `make reload` to do.
+1. **Overwrite the rows, do not delete them.** Web UI at `http://10.7.7.2`,
+   **SNMP → Community.** Edit each stale row in place — the *old* community,
+   `public`, `private` — and write the **current** community into it, the value
+   already in `SNMP_COMMUNITY_MOKERLINK`. Note the access column of the
+   `private` row before you overwrite it; if it is read-write, that is the
+   worst of the three and the one to do first. If the firmware accepts the
+   duplicates, the switch ends up answering exactly one string, nothing in this
+   repository changes, and there is no `make render` or `make reload` to do.
 
-2. **If it rejects a duplicate entry**, write a fresh value instead:
+2. **If it rejects a duplicate entry**, write a fresh value instead — one per
+   row, because a table that refuses one duplicate will refuse the next:
 
    ```bash
    make gen-secret
@@ -260,11 +283,13 @@ just SNMP. This is not a drive-by change at the end of a rotation.
    this value is. You want one bare 24-character string, and it does not go into
    SOPS.
 
-   Understand what that leaves you with: a second live read-only community on the
-   switch that is not in SOPS and is not polled by anything. That is a worse
-   record than step 1 and it must be written into `SECURITY.md` if you take it.
-   It is still a large improvement, because the value it displaces is the shared
-   string that was published to a public repository.
+   Understand what that leaves you with: extra live communities on the switch
+   that are not in SOPS and are not polled by anything — one per row you had to
+   do this way, and if the `private` row's access could not be changed either,
+   one of them read-write. That is a worse record than step 1 and it must be
+   written into `SECURITY.md` if you take it. It is still a large improvement,
+   because the values it displaces are the shared string that was published to
+   a public repository and the two defaults every scanner tries first.
 
 3. **Reboot the switch.** This is the test, not housekeeping. The deletion that
    started all this looked like it had worked until a restart, so an un-rebooted
@@ -279,17 +304,19 @@ just SNMP. This is not a drive-by change at the end of a rotation.
    This must be `PASS`. If it is not, the overwrite hit the wrong row and `neo`
    is unmonitored — fix that first. It is also the precondition for the next
    step: `--old` reports `SKIP` for a device that failed here, and a `SKIP` would
-   tell you nothing.
+   tell you nothing. The stock-community line underneath it is the first
+   verdict on the reboot: `refuses public private` means the two default rows
+   are gone, `STOCK COMMUNITY ACCEPTED` means they came back.
 
 5. **Then** go to [**Prove it**](#prove-it), answering for `neo` and pressing
    Enter through the other three.
 
-If it still reports `STILL ACCEPTED` after a reboot, the overwrite did not
-persist either. **Stop — do not retry.** Each attempt costs another agent outage
-for a firmware behaviour you have now tested twice. Leave the switch polling on
-its current community and write what the overwrite actually did into
-`SECURITY.md`, replacing the "overwrite rather than delete" sentence, which will
-have been disproved.
+If it still reports `STILL ACCEPTED` after a reboot — or the stock line still
+says a default answers — the overwrite did not persist either. **Stop — do not
+retry.** Each attempt costs another agent outage for a firmware behaviour you
+have now tested twice. Leave the switch polling on its current community and
+write what the overwrite actually did into `SECURITY.md`, replacing the
+"overwrite rather than delete" sentence, which will have been disproved.
 
 #### Prove it
 
@@ -302,6 +329,13 @@ each one now refuses it. Press Enter to skip a device — the usual case is
 checking the one you just rotated, and a single string tested against all four
 proves nothing about the three it never belonged to. It refuses to report
 success if you skip everything.
+
+Before it asks for anything it has already tried `public` and `private`
+against every device that answered its current community. Those are not
+secrets, so nothing is typed and nothing is skipped: under `--old` a device
+that answers either is a `FAIL`, the same verdict as `STILL ACCEPTED`, because
+a rotation that leaves a default row live has not retired anything a scanner
+would try.
 
 It requires a terminal and refuses a pipe on purpose — `echo "$old" | ...` would
 put the old community into your shell history, which is the leak this tooling

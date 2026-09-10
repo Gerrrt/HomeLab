@@ -165,11 +165,32 @@ console or SSH and reboot. The file must be owned by `root` and mode `0600`.
 ## 3. Rebuild onto a spare
 
 **The spare should be the same model as `morpheus`** — an HP ProDesk 600 G4
-Mini. This is not fussiness. pfSense stores interface assignments by device
-name (`igb0`, `em0`, …), so identical hardware restores straight through, while
-different hardware drops you into the interface-assignment dialogue at the
-console, at whatever hour this is happening. `morpheus` also uses a USB NIC for
-the switch-management LAN, so the spare needs one too.
+Mini — **with the same second NIC fitted.** This is not fussiness. pfSense
+stores interface assignments by device name, so identical hardware restores
+straight through, while different hardware drops you into the
+interface-assignment dialogue at the console, at whatever hour this is
+happening. What `morpheus` actually has, read off the box on 2026-09-09:
+
+| Device | Hardware | Carries |
+| --- | --- | --- |
+| `em0` | The onboard Intel I219-LM | WAN |
+| `igc0` | An Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter, in the G4's second M.2 slot ([`network.md`](../network.md#lan)) | The untagged switch-management LAN, and every VLAN (`igc0.10` … `igc0.99`) |
+
+There is no USB NIC. This runbook said there was until 2026-09-09, borrowing
+the label from the footnote in `network.md` that called the M.2 card a "USB
+NIC adapter", and [#404](https://github.com/Gerrrt/HomeLab/issues/404) put one
+on the shopping list on the strength of it. A USB adapter comes up as `ure0`
+or `axge0`, a Realtek card as `re0`; either way the config's `igc0` does not
+exist at boot, and pfSense stops at the console to ask which interface is
+which — the exact outcome the same-model rule exists to avoid. The card is
+the part that makes the restore go straight through; the box only has to
+have a slot for it. Any card the `igc` driver claims (an I225 or I226) will
+do, because a single such card is `igc0` whichever slot it sits in.
+
+The same model does not give you the WAN MAC. Nothing in the config pins a
+MAC to any interface, so the spare presents its own onboard MAC to the ISP;
+if the lease `morpheus` held is tied to it, expect to power-cycle the modem
+and expect a different public address.
 
 **The spare is the sensitive tier's host**, by
 [ADR-0034](../adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md):
@@ -179,14 +200,20 @@ the same day (§5). The rehearsal below is done on this box before it holds
 anything ([#404](https://github.com/Gerrrt/HomeLab/issues/404), step 1); until
 it has been, this section is still a hypothesis.
 
-1. Install the same pfSense version the backup came from. **Restoring a config
-   onto an older build can fail silently**; check the `<version>` field, which
-   `make backup-firewall` prints on every verify.
+1. Install a pfSense release at least as new as the one the backup came from.
+   **Restoring a config onto an older build can fail silently.** The
+   `<version>` that `make backup-firewall` prints on every verify is the
+   *config schema* — `24.6` on 2026-09-09 — not the release, and no installer
+   is labelled with it. The release is `/etc/version` on `morpheus`:
+   **pfSense CE 2.9.0-RELEASE**, build `20260817-1836`, on the same day, and
+   recorded in [`hardware.md`](../hardware.md#compute) for the day `morpheus`
+   cannot be asked. 2.9.0's own schema is `24.6`, so 2.9.0 is the floor for
+   that export; check what is on the stick before booting from it.
 2. Complete the installer with defaults. Do not configure interfaces or VLANs —
    the restore supplies all of it.
 3. Restore per §2.
-4. Move the cables: ISP gateway to WAN, trunk to the switch, USB NIC to switch
-   port 1.
+4. Move the cables — there are two: ISP gateway to the onboard port (`em0`,
+   WAN), and the trunk from switch port 1 to the I226 card's port (`igc0`).
 
 ---
 
@@ -299,9 +326,23 @@ the spare — and until that has been done once, this runbook is a hypothesis.
 ## Rehearse the restore on the spare
 
 Nobody has done this yet. Its purpose is to find the questions §3 does not
-answer — what a fresh install assigns to the one onboard NIC, whether the USB
-NIC comes back under the same device name, how long the whole thing takes —
-and to write the answers back into §3.
+answer — which of the two ports a fresh install makes WAN and which LAN,
+whether the I226 card comes back as `igc0` on the spare, how long the whole
+thing takes — and to write the answers back into §3.
+
+**Before the box arrives**, so the rehearsal does not stall on day one. All of
+it was measured on 2026-09-09:
+
+- **The I226 card** — on the roadmap's
+  [shopping list](../roadmap.md#everything-still-to-buy). The spare is a
+  stock refurbished G4 with the onboard NIC only. If its 512 GB SSD turns out
+  to be a 2.5" drive, the drive carrier and a card in the second M.2 slot
+  contend for the same space; an M.2 SSD does not.
+- **An installer for 2.9.0 or newer** — §3 step 1. The stick in transit is
+  whatever version it is; read it before the day.
+- **The newest export on `oracle`**, and the age key's offline copy.
+- **The numbers to check against**: `make backup-firewall ARGS=--verify-only`
+  prints the schema and the rule count — `24.6` and 92 rules on 2026-09-09.
 
 > [!CAUTION]
 > Bench, not rack. The spare must never be on the production switch or on the
@@ -311,9 +352,13 @@ and to write the answers back into §3.
 
 1. Take the copy from `oracle`, not from `prometheus`: the rehearsal should
    exercise the copy that will matter on the day. Decrypt it per §2.
-2. Spare on the bench, a laptop cabled directly to its onboard NIC, nothing
-   else connected. Install pfSense from the USB stick, the same version as the
-   backup's `<version>`, defaults throughout.
+2. Spare on the bench with the I226 card fitted, a laptop cabled to the
+   card's port, nothing on the onboard port. After the restore the onboard
+   port is WAN, which blocks everything inbound, and the card's port is LAN,
+   which carries the anti-lockout rule — so the card's port is the only one
+   the UI can be reached on. The fresh install may have chosen them the other
+   way round; that is one of the questions. Install pfSense from the USB
+   stick, a release no older than §3 step 1's floor, defaults throughout.
 3. Restore per §2 — through the UI if the fresh install put a reachable LAN on
    that NIC, otherwise by writing `/cf/conf/config.xml` from the console
    shell. Record which one worked and what it asked.

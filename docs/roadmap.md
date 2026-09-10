@@ -29,7 +29,7 @@ in the same commit.**
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two 3.5" NAS drives, capacity chosen at the till | `zion`'s ZFS mirror | [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#413](https://github.com/Gerrrt/HomeLab/issues/413) | Before the NAS is built |
-| One USB NIC, the same chipset as `morpheus`'s if it can be found | The ProDesk's switch-management leg, for the firewall rehearsal and any restore onto it | [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3, [#404](https://github.com/Gerrrt/HomeLab/issues/404) | Before the rehearsal |
+| One Intel I226 2.5 GbE card on an M.2 B+M-key adapter — the part `morpheus` has, not a USB NIC | The ProDesk's second port, so a restore onto it comes up as `igc0` and asks nothing; for the rehearsal and any restore after it | [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3, [#404](https://github.com/Gerrrt/HomeLab/issues/404) | Before the rehearsal |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
@@ -78,12 +78,16 @@ and any disk or memory on account of Wazuh — ADR-0030 sizes it to what
   costs SNMP polling of `neo`, which is monitored.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
   switch's previous SNMP community.** `neo` still accepts its old one alongside
-  the new; its firmware will not persist a deletion. Accepted residual, recorded
-  in `SECURITY.md`. The method is settled — overwrite the row rather than delete
-  it — so what is left is a window in which the switch can be rebooted. Two rows
-  go that way, not one: the *current* community, exposed in a local transcript
-  and deliberately never rotated because doing so would have added a second stuck
-  row, follows once the first overwrite is proven to survive a reboot. →
+  the new, and the stock `public` and `private` besides (measured 2026-09-06 and
+  2026-09-09; the other three devices refuse both); its firmware will not
+  persist a deletion. Accepted residual, recorded in `SECURITY.md`. The method
+  is settled — overwrite the rows rather than delete them, all in one window —
+  so what is left is a window in which the switch can be rebooted. A fourth row
+  follows the three: the *current* community, exposed in a local transcript and
+  deliberately never rotated because doing so would have added another stuck
+  row, once the first overwrite is proven to survive a reboot. `snmp-verify.sh`
+  now probes every device with the two stock strings weekly, `WARN` in plain
+  mode and `FAIL` under `--old`. →
   [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv.**
   Three of four devices can. The MokerLink switch cannot, which is the blocker
@@ -386,7 +390,17 @@ what left this one unfireable for months.
   command had never been run: it passed `--input-type binary`, which sops
   rejects on the first byte of a real export, so a restore following the
   runbook would have stopped at step one. Fixed, and it is the kind of thing
-  the rehearsal exists to find. The volume sets `make backup` writes still sit
+  the rehearsal exists to find. Preparing for it found two more on 2026-09-09,
+  by reading `morpheus` rather than the documents: the runbook said the spare
+  needs a USB NIC, and the shopping list had one on it, but the box has none —
+  its second interface is an Intel I226-V on an M.2 adapter, `igc0`, carrying
+  the management LAN and every VLAN, and a USB adapter would have come up
+  under another name and put the restore into the interface-assignment
+  dialogue the same-model rule exists to avoid. And the version the verify
+  prints is the config schema (`24.6`), not the release (pfSense CE 2.9.0);
+  the runbook told the reader to match it to an installer, which cannot be
+  done. Both fixed, the release recorded in `hardware.md`, and the shopping
+  list names the card. The volume sets `make backup` writes still sit
   on the host they protect. Unlike the firewall, they have been restored — the
   whole stack was brought up on a restored set on 2026-08-29 and verified — but
   nothing copies them anywhere. Where they go is no longer open:
@@ -577,15 +591,21 @@ what left this one unfireable for months.
   measured (#63), and the reload/ABSENT_BINARIES cross-checks gained a
   cross-stack mode, because "not in this compose file" stopped meaning "in no
   stack at all" the moment there were two.
-  [#265](https://github.com/Gerrrt/HomeLab/issues/265) the domain is what
-  everything else is pointed at, and it is sized by
+  [#265](https://github.com/Gerrrt/HomeLab/issues/265) decided the domain and
+  closed on the decision; [#414](https://github.com/Gerrrt/HomeLab/issues/414)
+  is the build, and it is what everything else is pointed at — **not built**
+  as of 2026-09-09: six VMs, the runbook's eleven sections, evenings at
+  `Saruman` from a Hicks workstation, nothing to buy until the endpoints. It is
+  sized by
   [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
   rather than by taste: six guests on the `.50` decade, because NTLM relay needs
   a destination that is not the origin and, since Windows 11 24H2 requires
   inbound SMB signing where Server 2025 does not, the only relayable host in a
   DC-plus-workstations domain is the DC itself. The servers run continuously and
   the endpoints per session, because a 7.2K mirror serves about ninety random
-  write IOPS and six idle Windows guests would be most of them. Three things
+  write IOPS and six idle Windows guests would be most of them — the number
+  #418's SSDs were bought against, and the one their *fit* re-derives; a drive
+  in transit changes no duty cycle. Three things
   that ADR left explicit because they fail quietly: the DC takes its clock from
   the gateway, not `time.windows.com` — ADR-0014 named that failure and did not
   fix it, and the alert reads the *sync source* rather than the offset, because
@@ -608,15 +628,23 @@ what left this one unfireable for months.
   own premise. Six agents make about 21 GB of alerts a quarter, which the disks
   do not notice; what runs out is heap-per-shard, at OpenSearch's
   twenty-five-shards-per-GiB against one daily index each, so retention is
-  thirty days because that is what a 2 GiB heap buys.
+  thirty days because that is what a 2 GiB heap buys. `stacks/soc/` is not
+  yet authored, and nothing stops it being written and CI-validated ahead of
+  `odin` the way `stacks/lab` was ahead of `alexander`; what it cannot do
+  before #414 is say anything, because an agentless Wazuh has nothing to
+  report.
   [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS is **decided and
   deferred** by
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md):
-  a hypervisor backing up its own guests to itself is not a backup, `zion` is
-  decided and not yet bought, and PVE already does the snapshots the local-only
-  answer needs — so PBS would add a service for a capability that exists. The
-  lab has **revert and not backup** until `zion` does, and the ADR names what
-  gets backed up when it arrives — which is also why ADR-0029 gives PBS no disk
+  a hypervisor backing up its own guests to itself is not a backup, `zion` did
+  not exist, and PVE already does the snapshots the local-only answer needs —
+  so PBS would add a service for a capability that exists. `zion` is bought
+  since 2026-09-09 — the TS150 of
+  [#413](https://github.com/Gerrrt/HomeLab/issues/413), in transit, its two
+  drives still to buy — and not built, so the deferral's trigger has moved from
+  a purchase to a build: PBS follows the NAS answering on `10.0.40.30`, not the
+  box arriving. The lab has **revert and not backup** until then, and the ADR
+  names what gets backed up when it arrives — which is also why ADR-0029 gives PBS no disk
   on this pool: there is nothing to give it yet. Liveness stays where it already
   was, with
   [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0020 decides only
