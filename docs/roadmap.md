@@ -452,6 +452,14 @@ what left this one unfireable for months.
   [`forward-dns-to-adguard.md`](runbooks/forward-dns-to-adguard.md) is the
   forwarding-mode change below, its verification, and the deliberate-failure
   test ADR-0010 asks for.
+  Immich followed the same day as well
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132)): four containers
+  behind Caddy, pinned by digest, each under a memory limit, booted once on
+  the monitoring host to find where the images write. What that landing
+  turned up is that `make backup` cannot yet take this stack's volumes at
+  all ([#428](https://github.com/Gerrrt/HomeLab/issues/428)), and that the
+  off-estate copy ADR-0023 makes the precondition on the first real photo
+  still has no destination — #132 stays open for both halves of that.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero

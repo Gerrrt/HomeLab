@@ -19,9 +19,10 @@
 # certificates behind it. Home Assistant (#134) is the first service behind
 # them, and the shape every later one takes: `expose:` and no `ports:`.
 # AdGuard Home (#135) is the second, and the one service that, by design,
-# publishes a port of its own — argued at DIFFERENCE 7 below. Vaultwarden,
-# Immich, Paperless-ngx, ntfy and Homepage (#131–#133, #136, #137) land the
-# way Home Assistant did.
+# publishes a port of its own — argued at DIFFERENCE 7 below. Immich (#132)
+# is the third, as four services — server, machine learning, Postgres,
+# Valkey — each in Home Assistant's shape. Vaultwarden, Paperless-ngx, ntfy
+# and Homepage (#131, #133, #136, #137) land the way Home Assistant did.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -32,7 +33,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are seven such places, each marked DIFFERENCE.
+# the sibling file. There are nine such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -115,11 +116,13 @@ services:
       # (#129: "initially, replaced by step-ca issuance once that lands"):
       #   make certs ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 \
       #                    --dns trinity --dns homeassistant.matrix.elysium \
-      #                    --dns adguard.matrix.elysium"
+      #                    --dns adguard.matrix.elysium \
+      #                    --dns immich.matrix.elysium"
       # One --dns per name the Caddyfile routes by, until step-ca issues each
       # its own; a Host the leaf does not carry fails the handshake, not the
-      # route. Issued on the monitoring host, where the CA key lives and stays;
-      # the three files travel the way the lab's did (build-the-lab-guest.md §5).
+      # route. Add a --dns here in the same commit as a route there. Issued on
+      # the monitoring host, where the CA key lives and stays; the three files
+      # travel the way the lab's did (build-the-lab-guest.md §5).
       # render-config.sh refuses to render while any of these is missing, so
       # `make up` cannot start a Caddy that would fail its first TLS handshake.
       - ../../certificates/trinity.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
@@ -440,6 +443,267 @@ services:
       retries: 3
       start_period: 30s
 
+  # ---------------------------------------------------------------------------
+  # Immich — the service ADR-0008 named as the cost of the decision (#132)
+  # ---------------------------------------------------------------------------
+  # "A large, rapidly-moving codebase with an upload endpoint" on the segment
+  # where compromise is total. ADR-0008 accepted that on four conditions, and
+  # each of them is a line in this block rather than a sentence in the ADR:
+  # nothing is exposed to the internet (no `ports:` on any of the four
+  # services — Caddy above is the one door); the realistic threat is a
+  # supply-chain compromise in an image, which the tag-and-digest pins bound
+  # (Dependabot moves them, CI validates them, and Immich ships roughly
+  # monthly, so this is the stack where the pin earns its keep); the
+  # containers sit on a private bridge; and a memory limit on every one of
+  # them, because the machine learning is the most memory-hungry thing that
+  # will run in the estate and #114 exists because nothing used to bound a
+  # leak.
+  #
+  # Four services because that is what Immich is: a Node server that is both
+  # the API and the job workers, a Python inference service it calls over
+  # HTTP, a Postgres with the VectorChord extension, and a Redis-compatible
+  # queue. Upstream's own compose file is the reference for the shape; every
+  # departure from it below is a hardening step this estate applies to
+  # everything, and each was booted and exercised on the monitoring host on
+  # 2026-09-09 before it was written down — an admin created, an upload made,
+  # thumbnails generated, the ML models fetched — because a read-only root
+  # filesystem is a crash loop that `restart: unless-stopped` retries
+  # forever, and the two places these images write outside their volumes
+  # were found by running, not by reading.
+  #
+  # DIFFERENCE 8: two of these services turn `init: true` back off, as Home
+  # Assistant does (DIFFERENCE 5) and for the same shape of reason. Both
+  # Immich images ship tini as their entrypoint, and under docker-init tini
+  # starts as PID 2 and warns on every boot that it will not reap. docker-init
+  # reaps regardless, so nothing was broken — but a warning at every start is
+  # a log line nobody reads twice, and the image's own init is the init.
+  #
+  # DIFFERENCE 9: the library is a bind mount, not a named volume. A phone
+  # library is tens to hundreds of gigabytes and grows without asking, so it
+  # lives on the 2 TB USB disk docs/hardware.md assigns to it, not on the
+  # 512 GB SSD beside the database. That has a consequence for
+  # scripts/backup-volumes.sh, which archives NAMED volumes and would not fit
+  # this one on the SSD if it did: the library is protected by ADR-0023's
+  # off-estate copy and by nothing on this host. Immich writes its own nightly
+  # database dump into the library tree (`backups/`, fourteen kept), so the
+  # disk carries the metadata beside the originals and the off-estate copy of
+  # the disk is a copy of both. The `immich-db` volume is the second route to
+  # the metadata, for `make backup STACK=sensitive` once that script has
+  # sentinels for this stack's volumes and picks the tier's recipient (#428).
+  #
+  # ON THE MEMORY LIMITS. Ceilings, not measurements — the same standing as
+  # Caddy's 128m above and unlike the estate's, which #114 derived from a
+  # fortnight of RSS. What was measured is the floor: on the monitoring host,
+  # 2026-09-09, docker stats through first boot, one upload and the ML model
+  # fetch — server 413–699 MiB, Postgres 134–313 MiB, machine learning 235–340
+  # MiB idle and 1.02 GiB with CLIP and the face model both loaded, Valkey
+  # under 8 MiB. The ceilings sit well above those and below anything that
+  # would let one container take the 32 GB host down; they exist to turn a
+  # leak into an OOM kill of one service, which ContainerOomKilled then
+  # names. Re-derive them the way #114
+  # did once trinity has run a fortnight with real uploads and a transcode or
+  # two — `max_over_time(container_memory_rss{name=~"sensitive-immich.*"}[14d])`
+  # — and move the number and this paragraph together.
+  immich-server:
+    <<: *service-defaults
+    image: ghcr.io/immich-app/immich-server:v3.1.0@sha256:b434cb9287eea1471c9974845914d4dd328c9c2d652e446ed4930f99944f0ceb
+    container_name: sensitive-immich-server
+    init: false
+    # 3 GiB: the server transcodes video with ffmpeg inside this container,
+    # and a 4K clip is the largest single working set anything here will have.
+    mem_limit: 3072m
+    memswap_limit: 3072m
+    # The deploying user, as Alertmanager and snmp-exporter run in the
+    # estate's stack: the library on the USB disk is owned by whoever
+    # formatted it, and the container writes there as that uid and nowhere
+    # else. The image runs as root by default and needs none of root's
+    # capabilities — 2283 is unprivileged — so the whole set is dropped.
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root proved by `docker diff` after an upload: nothing outside
+    # /data and /tmp. /tmp is where Node puts its temporaries; uploads stream
+    # straight to /data/upload and transcodes to /data/encoded-video, so 256m
+    # is headroom rather than a working figure.
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    environment:
+      DB_HOSTNAME: immich-db
+      DB_USERNAME: postgres
+      DB_DATABASE_NAME: immich
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      REDIS_HOSTNAME: immich-valkey
+      # Caddy's fixed address (see its `networks:` block), so the client
+      # address Immich records against a session is the phone's and not the
+      # proxy's. The same reader Home Assistant's `trusted_proxies` has.
+      IMMICH_TRUSTED_PROXIES: 172.28.99.2
+    volumes:
+      # Long form so that `create_host_path: false` can be said: a missing
+      # source directory refuses the deploy instead of becoming an empty
+      # directory on the SSD that a whole library then lands in. See
+      # .env.example for the mount point and for the case this cannot catch.
+      - type: bind
+        source: ${IMMICH_UPLOAD_LOCATION:-/srv/immich}
+        target: /data
+        bind:
+          create_host_path: false
+      - /etc/localtime:/etc/localtime:ro
+    expose:
+      - "2283"
+    depends_on:
+      immich-db:
+        condition: service_healthy
+      immich-valkey:
+        condition: service_healthy
+    healthcheck:
+      # The image's own HEALTHCHECK, written out so check_compose_health.py
+      # --probe can exec it: a bash script on the image's PATH that curls
+      # /api/server/ping on the API worker.
+      test: ["CMD", "immich-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # First boot imports ~228k geodata rows before the API answers — 35 s on
+      # the monitoring host, comfortably inside this.
+      start_period: 120s
+
+  immich-machine-learning:
+    <<: *service-defaults
+    image: ghcr.io/immich-app/immich-machine-learning:v3.1.0@sha256:5a0839dc5303cd7215bcd2180a26aed3af41675aefb3e75e5157e9f10ad16e6e
+    container_name: sensitive-immich-machine-learning
+    # Behind a profile so that .env.example's COMPOSE_PROFILES line is the
+    # switch (#132: "consider disabling the machine-learning container
+    # initially"). It is ON by default: ADR-0034 chose the ProDesk because
+    # 32 GB fits this, and the limit below is what makes running it
+    # acceptable before there is data on what it costs.
+    profiles: ["ml"]
+    init: false
+    # 4 GiB: CLIP and the face-recognition model load to roughly a gigabyte
+    # each and unload after five idle minutes; a batch of both at once, with
+    # the ONNX arenas, is the ceiling this is set against.
+    mem_limit: 4096m
+    memswap_limit: 4096m
+    # Root, with every capability dropped — the Caddy argument (DIFFERENCE 2,
+    # and Home Assistant's DIFFERENCE 6) for the same measured reason: the
+    # image has no /cache directory, so the named volume mounted there is
+    # created root-owned, mode 755, and a non-root process cannot fetch a
+    # model into it. Re-check when the image moves:
+    #
+    #   docker run --rm --entrypoint stat <ml image> -c '%u:%g %a' /cache
+    #
+    # "No such file or directory" is the answer that keeps this as root.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root, and the two writes outside /cache it needed redirected
+    # (both found by running): huggingface_hub's xet download cache and its
+    # logs go under $HF_HOME, which defaults to /root/.cache/huggingface and
+    # is what made every model fetch fail with EROFS; matplotlib wants a
+    # config directory under $HOME and warns on every start without one.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      HF_HOME: /cache/huggingface
+      MPLCONFIGDIR: /tmp/matplotlib
+    volumes:
+      - immich-model-cache:/cache
+    expose:
+      - "3003"
+    healthcheck:
+      # The image's own HEALTHCHECK: healthcheck.py in the WORKDIR, GETting
+      # /ping. python3 is the venv's, on PATH.
+      test: ["CMD", "python3", "healthcheck.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  immich-db:
+    <<: *service-defaults
+    # Upstream's image — Postgres with VectorChord preloaded and its own
+    # entrypoint choosing an SSD or HDD tuning profile. Major 17 rather than
+    # the 14 upstream's compose still defaults to: 14 leaves support in
+    # November 2026, upstream states >= 14 and < 20 all work, and a library
+    # born on a major that needs a dump-and-restore within months would be
+    # choosing the migration on purpose. The tag carries the extension
+    # version, so Dependabot bumps both halves together.
+    image: ghcr.io/immich-app/postgres:17-vectorchord0.4.3@sha256:79b95b795f0911e95ffa4d092a2162c4d81a984d5629bc8f786afe0bc0657671
+    container_name: sensitive-immich-db
+    # 2 GiB: upstream's stated floor for a Postgres under a container limit.
+    mem_limit: 2048m
+    memswap_limit: 2048m
+    # postgres, by uid. The image's data directory is 999:999 and a named
+    # volume inherits that, so the entrypoint's root-then-drop dance is not
+    # needed and no capability is either.
+    user: "999:999"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Postgres's shared memory. Docker's default /dev/shm is 64 MiB, which
+    # parallel query workers exhaust; upstream sets this and so does this.
+    shm_size: 128m
+    # Read-only root. The entrypoint copies its tuning profile to
+    # /etc/postgresql at every start — the one write outside the data
+    # directory, and the reason for the second tmpfs. The socket directory
+    # is the first; the healthcheck connects through it.
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:size=4m,uid=999,gid=999,mode=0700
+      - /etc/postgresql:size=1m,uid=999,gid=999,mode=0700
+      - /tmp:size=64m
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: immich
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      # Page checksums from the first initdb: this is the one database in the
+      # estate whose corruption would be noticed years later, by someone
+      # looking for a photograph.
+      POSTGRES_INITDB_ARGS: --data-checksums
+      # The database is on the internal SSD, which is the default profile;
+      # written out so that moving it to the spinning disk is a one-line
+      # change that reads as a decision.
+      DB_STORAGE_TYPE: SSD
+    volumes:
+      - immich-db:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "--dbname=immich", "--username=postgres"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  immich-valkey:
+    <<: *service-defaults
+    # Immich's job queue, and nothing else: BullMQ state that is rebuilt from
+    # the database on restart, which is why upstream gives it no volume and
+    # why /data here is a tmpfs. A full semver tag where upstream pins the
+    # major alone, so that Dependabot has something to move.
+    image: valkey/valkey:9.1.2@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
+    container_name: sensitive-immich-valkey
+    mem_limit: 256m
+    memswap_limit: 256m
+    user: "999:999"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /data:size=64m,uid=999,gid=999
+      - /tmp:size=16m
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 # DIFFERENCE 4: one network, and it is the point. Every later service joins
 # `sensitive` with `expose:` only. Two members have `ports:` — Caddy, and
 # AdGuard for the reason DIFFERENCE 7 gives — and a third is undoing
@@ -465,3 +729,11 @@ volumes:
   step-ca-data:
   home-assistant-config:
   adguard-work:
+  # Immich's metadata: every album, face, tag and the path of every original.
+  # The originals are on the USB disk (DIFFERENCE 9); this is the SSD half.
+  immich-db:
+  # Downloaded ML models and huggingface_hub's chunk cache, about a gigabyte
+  # once CLIP and the face model have been fetched. Re-downloadable, so it is
+  # the one volume here whose loss costs a few minutes and an internet
+  # connection rather than anything.
+  immich-model-cache:
