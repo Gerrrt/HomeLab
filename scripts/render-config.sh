@@ -311,7 +311,7 @@ fi
 # that names a SOPS value has to be added here, or render passes and `make up`
 # then dies on the unset variable — the guard and this list are two copies of
 # one fact, and scripts/seed-validation-env.sh is the third.
-COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_RENDERER_TOKEN STEPCA_PASSWORD)
+COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_RENDERER_TOKEN STEPCA_PASSWORD IMMICH_DB_PASSWORD)
 ENV_FILE="${STACK_DIR}/.env"
 info "writing $(basename "${STACK_DIR}")/.env"
 

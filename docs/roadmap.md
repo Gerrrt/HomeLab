@@ -429,7 +429,14 @@ what left this one unfireable for months.
   exists since 2026-09-09 with its foundation — Caddy as the only published
   port, step-ca as an intermediate beneath the lab CA — authored ahead of the
   hardware the way `stacks/lab` was, and checked by everything `make validate`
-  runs, `caddy validate` included.
+  runs, `caddy validate` included. Immich followed the same day
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132)): four containers
+  behind Caddy, pinned by digest, each under a memory limit, booted once on
+  the monitoring host to find where the images write. What that landing
+  turned up is that `make backup` cannot yet take this stack's volumes at
+  all ([#428](https://github.com/Gerrrt/HomeLab/issues/428)), and that the
+  off-estate copy ADR-0023 makes the precondition on the first real photo
+  still has no destination — #132 stays open for both halves of that.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero
