@@ -1,4 +1,4 @@
-# ADR-0035: Poll the iLO and the UPS card over SNMPv3, and keep the firewall on bsnmpd
+# ADR-0036: Poll the iLO and the UPS card over SNMPv3, and keep the firewall on bsnmpd
 
 **Status:** Accepted · 2026-09
 

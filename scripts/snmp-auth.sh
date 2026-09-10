@@ -4,7 +4,7 @@
 # writer for the net-snmp snmp.conf that carries a device's credential.
 # Sourced, not executed.
 #
-# This exists because the estate is mixed on purpose (ADR-0035): two devices
+# This exists because the estate is mixed on purpose (ADR-0036): two devices
 # are polled over SNMPv3 authPriv and two over SNMPv2c, and a device's shape —
 # one community, or a user with two passphrases — is declared in exactly one
 # place, the auth block the exporter itself reads. Every tool that needs to
@@ -207,7 +207,7 @@ snmp_write_conf() {
   case "${SNMP_AUTH_VERSION}" in
     3)
       [[ "${SNMP_AUTH_LEVEL}" == "authPriv" ]] || _snmp_auth_die \
-        "'${auth}' is version 3 with security_level '${SNMP_AUTH_LEVEL}'; ADR-0035 allows authPriv only"
+        "'${auth}' is version 3 with security_level '${SNMP_AUTH_LEVEL}'; ADR-0036 allows authPriv only"
       [[ "${SNMP_AUTH_USERNAME}" =~ ^[A-Za-z0-9_.-]+$ ]] || _snmp_auth_die \
         "'${auth}' has a username snmp.conf cannot carry ('${SNMP_AUTH_USERNAME}'): letters, digits, '_', '.' and '-' only"
       authproto="$(_snmp_netsnmp_proto "${SNMP_AUTH_AUTHPROTO}")"

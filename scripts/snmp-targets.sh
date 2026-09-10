@@ -18,7 +18,7 @@
 # The secret key names are derived, not stored: auth_pfsense -> SNMP_COMMUNITY_PFSENSE,
 # and for a v3 device auth_ilo -> SNMP_AUTHPASS_ILO,SNMP_PRIVPASS_ILO. Which of
 # the two shapes applies is read out of the auth block in generator.yaml, the
-# file the exporter itself reads (scripts/snmp-auth.sh, ADR-0035). That is
+# file the exporter itself reads (scripts/snmp-auth.sh, ADR-0036). That is
 # what lets a fifth device be added, or a device moved to v3, without editing
 # snmp-verify.sh or gen-secret.sh at all.
 #
@@ -130,11 +130,11 @@ while IFS=$'\t' read -r ip auth dev version keys; do
 
   snmp_auth_read "${auth}"
   if [[ "${version}" == "3" ]]; then
-    # authPriv or nothing (ADR-0035). A v3 block that authenticates and then
+    # authPriv or nothing (ADR-0036). A v3 block that authenticates and then
     # sends the tables in clear has kept the cost of the move and given up
     # the benefit; a v3 block with no auth at all is v2c with more packets.
     [[ "${SNMP_AUTH_LEVEL}" == "authPriv" ]] \
-      || note "${dev} (${ip}): ${auth} is version 3 with security_level '${SNMP_AUTH_LEVEL}'; ADR-0035 allows authPriv only"
+      || note "${dev} (${ip}): ${auth} is version 3 with security_level '${SNMP_AUTH_LEVEL}'; ADR-0036 allows authPriv only"
     [[ -n "${SNMP_AUTH_USERNAME}" && "${SNMP_AUTH_USERNAME}" != "\${"* ]] \
       || note "${dev} (${ip}): ${auth} has no literal 'username:' — the USM user name is not a secret and belongs in generator.yaml"
     [[ "${SNMP_AUTH_AUTHPROTO}" =~ ^(MD5|SHA|SHA224|SHA256|SHA384|SHA512)$ ]] \
