@@ -584,6 +584,22 @@ tier-ca: ## The sensitive tier's own CA — mint it here, install it on trinity 
 gen-secret: ## Generate a random secret (ARGS=--snmp for one per SNMP device)
 	./scripts/gen-secret.sh $(ARGS)
 
+.PHONY: hash-password
+hash-password: ## Bcrypt a password for AdGuard Home's admin account (prompted, never an argument)
+	@# AdGuard Home keeps its admin password as a bcrypt hash, and the hash is
+	@# what secrets/sensitive.sops.yaml holds as ADGUARD_ADMIN_PASSWORD_HASH —
+	@# so the plaintext is typed once, here, and lives in the password manager.
+	@# `caddy hash-password` prompts without echo on a terminal and reads one
+	@# line from stdin without one, so `-t` is passed only when there is a tty
+	@# to pass; either way the password is never an argument, never in shell
+	@# history and never in `ps`. Caddy's image rather than AdGuard's because
+	@# AdGuard's ships no hashing tool and Caddy's is pinned in the same stack.
+	@# The output starts `$$2a$$` — paste it whole into `make secrets-edit
+	@# STACK=sensitive`; render-config.sh escapes it for compose's .env.
+	@tty=""; [ -t 0 ] && tty="-t"; \
+	img="$$(COMPOSE_FILE=stacks/sensitive/compose.yaml ./scripts/image-for.sh caddy)"; \
+	docker run --rm -i $$tty "$$img" caddy hash-password
+
 .PHONY: screenshots
 screenshots: ## Render the dashboards to docs/images/ (stack must be up)
 	@# Under Maintenance, not Validation, for the same reason as snmp-verify and

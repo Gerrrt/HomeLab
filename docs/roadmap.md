@@ -451,6 +451,25 @@ what left this one unfireable for months.
   what remains for [#130](https://github.com/Gerrrt/HomeLab/issues/130) is
   the mint and install on the real host, under #404, and a TLS-expiry rule
   sized for seven-day leaves ([#426](https://github.com/Gerrrt/HomeLab/issues/426)).
+  AdGuard Home joined it the same day
+  ([#135](https://github.com/Gerrrt/HomeLab/issues/135)), in the shape
+  ADR-0010 decided and not the one the service assumes: the blocklist set is
+  a tracked file copied in on every start, the admin hash is in SOPS, port 53
+  is published on the host's own address and answered for the firewall and
+  the blackbox prober only, and the default 20 qps per-client rate limit —
+  which would have throttled the whole house through its one client — is
+  off. The half on `morpheus` waits for the host:
+  [`forward-dns-to-adguard.md`](runbooks/forward-dns-to-adguard.md) is the
+  forwarding-mode change below, its verification, and the deliberate-failure
+  test ADR-0010 asks for.
+  Immich followed the same day as well
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132)): four containers
+  behind Caddy, pinned by digest, each under a memory limit, booted once on
+  the monitoring host to find where the images write. What that landing
+  turned up is that `make backup` cannot yet take this stack's volumes at
+  all ([#428](https://github.com/Gerrrt/HomeLab/issues/428)), and that the
+  off-estate copy ADR-0023 makes the precondition on the first real photo
+  still has no destination — #132 stays open for both halves of that.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero
