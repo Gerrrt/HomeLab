@@ -24,19 +24,39 @@ this repository. **The rule from here: nothing enters the first list without a
 decision the operator made, and a PR that implies a purchase edits this section
 in the same commit.**
 
+Revised 2026-09-10 against a costed shopping list, which is what the rule above
+is for: it found four things this section had wrong or missing — `zion`'s boot
+disk was never listed, two deferred items had been decided, ADR-0017's 32 GB is
+not what the candidate machines ship with, and the *Never* line forbade a
+battery it was never written about.
+
 **Buy these, and the estate as decided is fully bought:**
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two 3.5" NAS drives, capacity chosen at the till | `zion`'s ZFS mirror | [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#413](https://github.com/Gerrrt/HomeLab/issues/413) | Before the NAS is built |
+| A 240–256 GB 2.5" SATA SSD, and a bracket for the optical bay | `zion`'s boot disk. ADR-0016 chose Ubuntu Server and one compose stack rather than an appliance, so the OS wants a disk that is not the mirror — and that never got written down | [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#413](https://github.com/Gerrrt/HomeLab/issues/413) | With the drives |
 | One Intel I226 2.5 GbE card on an M.2 B+M-key adapter — the part `morpheus` has, not a USB NIC | The ProDesk's second port, so a restore onto it comes up as `igc0` and asks nothing; for the rehearsal and any restore after it | [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3, [#404](https://github.com/Gerrrt/HomeLab/issues/404) | Before the rehearsal |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
+| A managed switch with a TLS management interface | Replacing `neo`, whose firmware will not persist a community deletion ([#84](https://github.com/Gerrrt/HomeLab/issues/84)) and which serves its admin UI over plain HTTP — through the device the password protects, and that credential is read-write. **SNMPv3 is no longer the argument**: [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) found the switch's agent answers v3 on the wire and was never what blocked #85, so TLS management is what a replacement is actually bought for | [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), [#444](https://github.com/Gerrrt/HomeLab/issues/444) | Whenever a cabling window suits — it is independent of everything else here |
+| An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
+| A replacement battery cell for `prometheus` | The estate's mains-cut path depends on it and nothing watches it — see the exception to *Never* below | [`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), [#454](https://github.com/Gerrrt/HomeLab/issues/454) | Soon. It is thirteen years old, and a swollen cell is a rack fire |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
 ([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
 [#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain
 being built; it is the last purchase on this list, not the next.
+
+**32 GB is a spec the candidate machines do not meet as shipped**, which was
+found by pricing them rather than by reading the ADR. The SFF boxes in the
+class ADR-0017 describes — ThinkCentre Tiny, EliteDesk Mini and their
+relatives — ship with 16 GB in two slots at this price. So a SO-DIMM kit is
+**part of that purchase and not a later contingency**, and the bullet below
+that used to say otherwise has been corrected. The model, the CPU and the disk
+capacity are still chosen at the till and recorded in
+[`hardware.md`](hardware.md) afterwards, per the ADR — nothing is named here
+before it is bought.
 
 **Already paid for**, in transit or on hand: the ProDesk 600 G4 (the tier's
 host and the firewall's spare hardware); the TS150 NAS; two SM863a SSDs for
@@ -52,21 +72,46 @@ list, and each names what would put it there:
 - A Zigbee or Z-Wave coordinator for Home Assistant: only if a device needs
   one, and nothing on Skids does today — Ring is cloud, Hue has its own
   bridge, the assistants are Wi-Fi ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
-- A memory kit for `ifrit`'s second slot: only if 32 GB proves short.
-- A replacement for the MokerLink switch: named as the thing that would close
-  [#84](https://github.com/Gerrrt/HomeLab/issues/84), the switch half of
-  [#85](https://github.com/Gerrrt/HomeLab/issues/85) and ADR-0018's residual
-  together; never decided.
-- Off-estate storage for the household's copy: [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
-  deliberately buys nothing and chooses no provider. When it is chosen it is
-  either a drive kept at another address or a subscription — a cost, but a
-  decision first.
+- **More** memory for `ifrit` than ADR-0017's 32 GB: only if 32 GB proves
+  short. Reaching 32 GB is above, in the purchase itself — this bullet used to
+  read "a memory kit for the second slot, only if 32 GB proves short", which
+  assumed the box arrives with 32 GB fitted and none of them do.
 - A Coral TPU and RTSP cameras: declined with Frigate
   ([ADR-0032](adr/0032-decline-frigate-while-the-cameras-are-ring.md)).
+- Plex Pass: [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+  builds Jellyfin alone and adds Plex only if a client on CasaBonita turns out
+  to need it — a test nobody has run. Its headline feature is hardware
+  transcoding, and [`hardware.md`](hardware.md) already records that the
+  TS150's Quick Sync is what [#138](https://github.com/Gerrrt/HomeLab/issues/138)
+  needs, so Jellyfin has it for nothing.
 
-**Never**, and the documents say so: anything for `prometheus` or `oracle`,
-and any disk or memory on account of Wazuh — ADR-0030 sizes it to what
-`Saruman` has.
+Two things left this list because the decision got taken: the **MokerLink
+replacement**, now [#444](https://github.com/Gerrrt/HomeLab/issues/444), and
+**off-estate storage**, now [#455](https://github.com/Gerrrt/HomeLab/issues/455).
+Both are in the first table above. Neither is deleted from the record — moving
+up is what taking the decision looks like.
+
+The switch's row is narrower than the bullet it replaces, and deliberately.
+That bullet named #84, the switch half of #85 and ADR-0018's residual as three
+things one purchase would close;
+[ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
+has since removed the middle one — the switch answers v3 on the wire and was
+never the blocker. **A purchase justified by three residuals when one of them
+has gone is the shape this section exists to prevent**, so it is bought for the
+TLS management interface, and #84 rides along.
+
+**Never**, and the documents say so: anything to make `prometheus` or `oracle`
+faster or bigger, and any disk or memory on account of Wazuh — ADR-0030 sizes
+it to what `Saruman` has. A 2012 MacBook running the whole observability stack
+is the point, not a problem to spend money on.
+
+**The one exception, and it narrows this line rather than reversing it:** a
+**consumable whose failure is a safety or availability event** is not an
+upgrade. `prometheus`'s battery is the worked example
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)) — the estate's
+mains-cut path depends on it, nothing measures it, and the failure mode of a
+thirteen-year-old cell is a fire on a shelf. `oracle` has the same cell and the
+same absent metric, second in line. Nothing else about either machine is bought.
 
 ## Security
 
