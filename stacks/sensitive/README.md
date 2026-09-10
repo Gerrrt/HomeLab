@@ -21,13 +21,16 @@ make up STACK=sensitive
 | immich-machine-learning | `ghcr.io/immich-app/immich-machine-learning` | *internal* (3003) | Smart search, face detection and OCR for the server above. Behind the `ml` profile, on by default ([#132]) |
 | immich-db | `ghcr.io/immich-app/postgres` | *internal* (5432) | Immich's Postgres, with VectorChord preloaded, on the internal SSD ([#132]) |
 | immich-valkey | `valkey/valkey` | *internal* (6379) | Immich's job queue. Nothing durable — a tmpfs, rebuilt from the database on restart ([#132]) |
+| paperless | `ghcr.io/paperless-ngx/paperless-ngx` | *internal* (8000) | The document archive: scan, OCR, index. On this tier by content — tax returns, passports, medical records — and the service [ADR-0023] classes as *durable* ([#133]) |
+| paperless-db | `postgres` | *internal* (5432) | Paperless-ngx's own database. Metadata about documents; the documents themselves are files under `paperless-media` |
+| paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
 
-Eight services. Two are plumbing; Home Assistant is the first household
+Eleven services. Two are plumbing; Home Assistant is the first household
 service and the shape every later one takes; AdGuard is the one the household
-uses without ever knowing it; and four are Immich, the service [ADR-0008]
-names as the price of putting the tier on Winterfell at all. What is absent is
-as deliberate as what is
-here:
+uses without ever knowing it; four are Immich, the service [ADR-0008] names as
+the price of putting the tier on Winterfell at all; and three are
+Paperless-ngx, the archive of what the household cannot get back. What is
+absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
   telemetry must never reach VLAN 99 ([ADR-0007]); this host *is* on VLAN 99,
@@ -35,12 +38,17 @@ here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No other services yet.** Vaultwarden, Paperless-ngx, ntfy and Homepage
-  ([#131], [#133], [#136], [#137]) each arrive as Home Assistant and Immich
-  did: a service with `expose:`, a block in the `Caddyfile`, a name on the leaf. A
-  service in this file with `ports:` of its own is the one thing a review of it
-  should refuse — AdGuard is the single argued exception, and `compose.yaml`
-  makes the argument at DIFFERENCE 7 so that the next one has to be made too.
+- **No other services yet.** Vaultwarden, ntfy and Homepage ([#131], [#136],
+  [#137]) each arrive as Home Assistant, Immich and Paperless-ngx did: a
+  service with `expose:`, a block in the `Caddyfile`, a name on the leaf and
+  in the resolver. A service in this file with `ports:` of its own is the one
+  thing a review of it should refuse — AdGuard is the single argued exception,
+  and `compose.yaml` makes the argument at DIFFERENCE 7 so that the next one
+  has to be made too.
+- **No shared database.** Immich and Paperless-ngx each run a Postgres of
+  their own — Immich's needs the vector extension and therefore a different
+  image — and one database per service is what lets `backup-volumes.sh`
+  attribute every volume to the one service that owns it and stop only that.
 - **No Supervisor, no add-ons, no MQTT broker, no Zigbee coordinator.** Home
   Assistant *Container* has no add-on store, which is why it was chosen: an
   add-on is a second package manager outside `compose.yaml` and outside digest
@@ -52,18 +60,21 @@ here:
 ## Layout
 
 ```text
-compose.yaml               eight services, one network, health-gated ordering
+compose.yaml               eleven services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
 .env.example               non-sensitive tunables — edit this, not .env:
                              the library's mount point, and the ML switch
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
+consume/                   untracked: drop a scan here and Paperless-ngx imports
+                           and deletes it. Created by render-config.sh
+export/                    untracked: where document_exporter writes. Likewise
 ```
 
 Secrets are `secrets/sensitive.sops.yaml`, encrypted to this stack's own rule
 in `.sops.yaml` — `trinity`'s key opens this file and nothing else of the
-estate's (`secrets/sensitive.example.yaml` says why). Certificates live under
+estate's (`secrets/sensitive.example.yaml` says why, and lists the six keys). Certificates live under
 `certificates/`, untracked, and are issued on the monitoring host where the
 CA key stays.
 
@@ -89,7 +100,8 @@ CA key stays.
 - **The certificate is hand-issued until ACME is wired.** `make certs
   ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity --dns
   homeassistant.matrix.elysium --dns adguard.matrix.elysium --dns
-  immich.matrix.elysium"` on the monitoring host, three files copied over as
+  immich.matrix.elysium --dns paperless.matrix.elysium"` on the monitoring
+  host, three files copied over as
   `build-the-lab-guest.md` §5 does it. `render-config.sh` refuses to render
   while any of them is missing.
   The `Caddyfile` carries the `tls { ca … }` block that replaces this once
@@ -135,7 +147,8 @@ CA key stays.
   `https`, and ACME's `tls-alpn-01` challenge runs over 443. A redirect is a
   later choice, made in `.env.example` and `compose.yaml` together.
 - **Every routed name needs a SAN and a host override.** The `Caddyfile`
-  matches on Host, so `homeassistant.matrix.elysium` has to be on the leaf
+  matches on Host, so `homeassistant.matrix.elysium` — and each name after
+  it, `paperless.matrix.elysium` included — has to be on the leaf
   (`compose.yaml`'s `make certs` line carries one `--dns` per name) and in
   `morpheus`'s resolver, pointed at `10.0.99.40`
   ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
@@ -191,11 +204,98 @@ CA key stays.
 - **Nothing converges this stack.** The `homelab-*` timers are the estate's;
   `make validate` notes their absence here as a skip, not a failure. This stack
   is deployed by hand, from a checkout on `trinity`.
-- **Memory limits are set from day one.** [#129]'s ask, and the one place this
-  file departs from the lab's reasoning — a proxy and a CA have working sets a
-  limit can be stated for without a machine to measure. Immich's four are
-  ceilings rather than derivations, and `compose.yaml` says what was measured
-  underneath them and when to re-derive.
+- **Memory limits are set from day one, and now a CPU ceiling too.** [#129]'s
+  ask, and the one place this file departs from the lab's reasoning — a proxy
+  and a CA have working sets a limit can be stated for without a machine to
+  measure. Immich's four are ceilings rather than derivations, and
+  `compose.yaml` says what was measured underneath them and when to
+  re-derive. Paperless-ngx's numbers are stated as *unmeasured on the hardware
+  they are for*: `cpus: 4` of the ProDesk's six because OCR takes every core
+  it is given for minutes, and `3072m` because upstream's floor is 2 GB for
+  the whole install. What was measured, on the monitoring host on 2026-09-09
+  from the pinned images: 747 MiB working set idle, 825 MiB consuming a
+  one-page 200 dpi scan, 22 processes. Re-derive from `container_memory_rss`
+  once `trinity` has run a month.
+
+### Paperless-ngx in particular
+
+- **It runs as the operator, with nothing left to escalate to.** Upstream's
+  rootless form — `user:` set, no `USERMAP_*` — as `${RENDER_UID}`, the uid
+  that ran `make up`, with `cap_drop: [ALL]`. Measured on the boot above:
+  `CapEff` and `CapBnd` both zero, `NoNewPrivs` set, the migrations and the
+  index rebuild ran, a scan dropped into `consume/` was OCR'd to PDF/A and
+  deleted afterwards as that uid. That last step is why the uid is the
+  operator's: `consume/` is a bind mount owned by whoever runs the stack, and
+  a file put there over SSH by that user is removable only by them.
+- **`init: false`, twice, in a stack whose default is `init: true`.** The
+  estate's reason for a real init as PID 1 is an image whose PID 1 never calls
+  `wait()`; Paperless-ngx's PID 1 is s6-overlay, which is an init, and refuses
+  to be anything else — with `docker-init` in the slot the container exits at
+  once with `s6-overlay-suexec: fatal: can only run as pid 1`. Valkey's
+  entrypoint is `tini` for the same reason. One init each is enough.
+- **Not `read_only`, on purpose.** OCR renders every page to an image under
+  `/tmp/paperless` and the working set scales with the document; a tmpfs there
+  is charged to the container's memory limit, so a long scan would arrive as
+  an OOM kill instead of a slow consume. What the container writes outside its
+  volumes, from `docker diff`: s6's state under `/run/s6` and that scratch
+  directory, and nothing else.
+- **The ingest path is the existing one.** The web UI and the mobile apps
+  upload over 443, on the pass Hicks already has. A backlog goes in over SSH,
+  which the same named list carries — `rsync` into `stacks/sensitive/consume/`
+  on `trinity` and the consumer picks it up on inotify. No share is exported
+  and no port is published for it, and a scanner's scan-to-folder would need
+  both: [#133] flags that as a device with hard-coded credentials on this
+  segment, worth its own decision before it is a `ports:` line here.
+- **The superuser is created from the environment, once.** `PAPERLESS_ADMIN_USER`
+  in `.env.example` and its password in SOPS, the `GRAFANA_ADMIN_*` shape. The
+  variable never changes an existing account, so a rotation is done in the UI
+  first and recorded in SOPS after. **Enrol TOTP on that account at first
+  login** — Paperless-ngx carries its own, under the user's profile in the
+  web UI — before a single real document arrives; that is [ADR-0022]'s floor
+  for this service, and it is the floor the SSO deferral rests on.
+- **Storage is not the constraint; the photo library is.** A scanned page is
+  a few hundred kilobytes, stored twice — the original and a PDF/A copy — plus
+  a thumbnail, so ten thousand pages is on the order of 5–10 GB. The ProDesk's
+  512 GB holds that many times over; ADR-0034's second drive is for Immich.
+
+### Backing Paperless-ngx up
+
+An OCR index can be rebuilt; the originals cannot. `backup-volumes.sh` covers
+both halves [#133] asks for, and it needed two things to do so: an entry per
+volume in its sentinel table — the string that proves an archive holds *that*
+volume, read off the volumes after the boot above — and one for every other
+volume in this stack, none of which had one, so a stack backup here refused
+on the first of them ([#428]'s first half; the second, the age recipient the
+script picks, is still open there — do not trust a run until it lands). On
+`trinity`:
+
+```bash
+STACK=sensitive make backup
+```
+
+That stops the three Paperless containers, archives `paperless-media` (the
+originals, the PDF/A copies, the thumbnails — the part that cannot be
+rebuilt), `paperless-db-data` (the database: tags, correspondents, every
+document's metadata), `paperless-data` (the index and the classifier, both
+rebuildable) and `paperless-broker-data` (the queue, disposable), verifies
+each by its sentinel, and starts them again. A restore is
+[`restore-the-stack.md`](../../docs/runbooks/restore-the-stack.md) with
+`STACK=sensitive`; the Postgres sentinel carries the major version in its
+path, so a bump from 18 has to move it, loudly.
+
+The version-portable form is the exporter — `docker compose exec paperless
+document_exporter ../export`, into `export/` — which writes every document with
+a `manifest.json` that a fresh install of the *same* version re-imports.
+Upstream is explicit that an export does not cross versions, so it is the
+form to send off-estate rather than the form to rely on across an upgrade.
+
+Two things this does **not** do, stated rather than implied. **Nothing
+schedules it**: the `homelab-backup-volumes` unit carries
+`STACK=observability` and the timers are the estate's; a timer for this stack
+arrives with the host under [#404]. And **nothing here is the off-estate copy**
+[ADR-0023] requires before the first real document — encrypted, keyed to a
+second holder, with visible freshness. That is the precondition on the data
+arriving, not on the container starting, and it is still open.
 
 ## What backs Immich up, and what does not yet
 
@@ -209,7 +309,7 @@ three different mechanisms — two of which do not exist yet.
 | --- | --- | --- |
 | The originals, thumbnails and transcodes | `IMMICH_UPLOAD_LOCATION` — the USB disk | The off-estate copy [ADR-0023] requires. **Not built**: it needs a destination chosen and paid for, and it is the precondition on the first real photo, not on the container starting |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | The same copy — it is on the same disk, on purpose, so one copy of the disk is a copy of the metadata beside the originals |
-| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive` — **which does not run today**: `scripts/backup-volumes.sh` refuses any volume it has no sentinel for and would encrypt to the estate's key rather than `trinity`'s ([#428]) |
+| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive` — **half-built**: `scripts/backup-volumes.sh` now has a sentinel for every volume in this stack, and still picks the estate's age key rather than `trinity`'s ([#428]) |
 
 The restore that [#132] asks to see proven once is Immich's own: a fresh
 install, the library tree back on its disk, and the newest dump fed to
@@ -229,7 +329,8 @@ Every checker in `scripts/validate.sh` iterates `scripts/stacks.sh`, so this
 stack is covered by everything the estate's is: `docker compose config`, the
 image-pin and digest checks, `check_compose_health.py --probe` (which execs
 each healthcheck binary inside the pinned image — `wget` in Caddy's, `step` in
-step-ca's), and `check_caddyfile.sh`, which runs `caddy validate` and
+step-ca's, `curl`, `pg_isready` and `valkey-cli` in Paperless-ngx's three), and
+`check_caddyfile.sh`, which runs `caddy validate` and
 `caddy fmt --diff` against the `Caddyfile` in the pinned image with a
 throwaway keypair where the real one will be mounted.
 
@@ -240,16 +341,22 @@ it matters:
   host is [#404]. The Immich services were booted on the monitoring host on
   2026-09-09 with these exact settings, an admin created, an upload made and
   the ML models fetched, which is how the read-only findings in `compose.yaml`
-  were made; that is a rehearsal of the file, not of the host.
+  were made; that is a rehearsal of the file, not of the host. Paperless-ngx
+  and its two dependencies were booted the same way, a scan consumed and
+  deleted as the operator's uid — the same class of rehearsal.
 - **That the CA tree exists.** `step-ca` starts only against a populated
   volume, and the volume is populated by a procedure run on two hosts. A fresh
   `make up` on a bare `trinity` fails on `config/ca.json`, loudly and on
   purpose.
-- **That the leaf matches the names.** `caddy validate` loads a throwaway
-  pair; whether the real one carries `trinity.matrix.elysium`,
-  `homeassistant.matrix.elysium` *and* `adguard.matrix.elysium` in its SANs is checked by the first browser,
-  or by `openssl x509 -noout -ext subjectAltName` on the monitoring host
-  before the files travel.
+- **That the names resolve, or that the leaf carries them.** The host
+  overrides are a firewall change; `caddy validate` loads a throwaway pair,
+  and whether the real one carries `trinity.matrix.elysium` and every routed
+  name — `homeassistant`, `adguard`, `immich` and `paperless`, all under
+  `matrix.elysium` — in its SANs is checked by the first browser, or by
+  `openssl x509 -noout -ext subjectAltName` on the monitoring host before the
+  files travel.
+- **That the limits fit the workload.** 4 cores and 3 GiB for OCR are a
+  statement about the ProDesk made on a different machine.
 - **That Home Assistant keeps booting under its hardening.** It was booted
   once, on the monitoring host on 2026-09-09, from the pinned digest with the
   exact `compose.yaml` settings — read-only root, every capability dropped,

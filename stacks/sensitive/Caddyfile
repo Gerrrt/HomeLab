@@ -58,8 +58,17 @@ https:// {
 		reverse_proxy adguard:80
 	}
 
-	# Vaultwarden, Paperless-ngx and the rest (#131, #133, #136, #137) add a
-	# block of the same shape above this line. What matches nothing lands here.
+	# Paperless-ngx (#133). reverse_proxy sets X-Forwarded-For, -Proto and
+	# -Host unasked, and compose.yaml's PAPERLESS_USE_X_FORWARD_HOST and
+	# PAPERLESS_PROXY_SSL_HEADER are what reads them — Django otherwise sees a
+	# plain-http request for the upstream's own name and rejects every POST.
+	@paperless host paperless.matrix.elysium
+	handle @paperless {
+		reverse_proxy paperless:8000
+	}
+
+	# Vaultwarden and the rest (#131, #136, #137) add a block of the same
+	# shape above this line. What matches nothing lands here.
 	handle {
 		respond "trinity: the sensitive tier. Nothing is routed under this name." 404
 	}
