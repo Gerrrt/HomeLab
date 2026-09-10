@@ -50,8 +50,16 @@ https:// {
 		reverse_proxy home-assistant:8123
 	}
 
-	# Vaultwarden, Immich, Paperless-ngx and the rest (#131–#137) add a block
-	# of the same shape above this line. What matches nothing lands here.
+	# AdGuard Home's UI (#135). Plain HTTP on the compose network; the DNS
+	# side of the same container is published on 53 directly, because DNS is
+	# not something this proxy can carry — compose.yaml, DIFFERENCE 7.
+	@adguard host adguard.matrix.elysium
+	handle @adguard {
+		reverse_proxy adguard:80
+	}
+
+	# Vaultwarden, Immich, Paperless-ngx and the rest (#131–#133, #136, #137)
+	# add a block of the same shape above this line. What matches nothing lands here.
 	handle {
 		respond "trinity: the sensitive tier. Nothing is routed under this name." 404
 	}

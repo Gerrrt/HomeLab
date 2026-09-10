@@ -13,12 +13,14 @@ make up STACK=sensitive
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| caddy | `caddy` | 443 (https) | The one published port on the tier. Terminates TLS, routes by name to every service behind it ([#129]) |
+| caddy | `caddy` | 443 (https) | The tier's published HTTPS port. Terminates TLS, routes by name to every service behind it ([#129]) |
 | step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — an intermediate beneath the lab CA, so nothing that trusts `certificates/ca.pem` is re-pointed ([#130]) |
 | home-assistant | `ghcr.io/home-assistant/home-assistant` | *internal* (8123) | Home automation, and what the `99 → 20` rule exists for — one pass, to the Hue bridge, scoped by [ADR-0035] ([#134]) |
+| adguard | `adguard/adguardhome` | 53 (dns), on `10.0.99.40` only | The DNS filter Unbound on `morpheus` forwards to under [ADR-0010] — never a client-facing resolver. The one port besides Caddy's, published to the firewall's forwarder and the blackbox prober and answered for nothing else; the UI is behind Caddy at `adguard.matrix.elysium` ([#135]) |
 
-Two of the three are plumbing; the third is the first household service and
-the shape every later one takes. What is absent is as deliberate as what is
+Four services. Two are plumbing; Home Assistant is the first household
+service and the shape every later one takes; AdGuard is the one the household
+uses without ever knowing it. What is absent is as deliberate as what is
 here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -27,11 +29,12 @@ here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No other services yet.** Vaultwarden, Immich, Paperless-ngx, AdGuard Home,
-  ntfy and Homepage ([#131]–[#133], [#135]–[#137]) each arrive as Home
-  Assistant did: a service with `expose:`, a block in the `Caddyfile`, a name
-  on the leaf. A service in this file with `ports:` of its own is the one thing
-  a review of it should refuse.
+- **No other services yet.** Vaultwarden, Immich, Paperless-ngx, ntfy and
+  Homepage ([#131]–[#133], [#136], [#137]) each arrive as Home Assistant did:
+  a service with `expose:`, a block in the `Caddyfile`, a name on the leaf. A
+  service in this file with `ports:` of its own is the one thing a review of it
+  should refuse — AdGuard is the single argued exception, and `compose.yaml`
+  makes the argument at DIFFERENCE 7 so that the next one has to be made too.
 - **No Supervisor, no add-ons, no MQTT broker, no Zigbee coordinator.** Home
   Assistant *Container* has no add-on store, which is why it was chosen: an
   add-on is a second package manager outside `compose.yaml` and outside digest
@@ -48,6 +51,7 @@ Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
 .env.example               non-sensitive tunables — edit this, not .env
+adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
 ```
 
 Secrets are `secrets/sensitive.sops.yaml`, encrypted to this stack's own rule
@@ -77,8 +81,9 @@ CA key stays.
   in SOPS, written to a private tmpfs at start and nowhere on disk.
 - **The certificate is hand-issued until ACME is wired.** `make certs
   ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity --dns
-  homeassistant.matrix.elysium"` on the monitoring host, three files copied
-  over as `build-the-lab-guest.md` §5 does it. `render-config.sh` refuses to render while any of them is missing.
+  homeassistant.matrix.elysium --dns adguard.matrix.elysium"` on the
+  monitoring host, three files copied over as `build-the-lab-guest.md` §5 does
+  it. `render-config.sh` refuses to render while any of them is missing.
   The `Caddyfile` carries the `tls { ca … }` block that replaces this once
   [#130]'s ACME provisioner is configured.
 - **80 is not published.** ADR-0012: a port is published when something
@@ -121,6 +126,24 @@ CA key stays.
   Assistant's `trusted_proxies` names the proxy it will believe
   `X-Forwarded-For` from, and a Docker-assigned address is not a name. The
   network's subnet is fixed for that one line and nothing else.
+- **AdGuard's configuration is the tracked file, every time.** `compose.yaml`
+  copies `adguard/AdGuardHome.yaml` into a tmpfs on each start, with the admin
+  hash substituted from `ADGUARD_ADMIN_PASSWORD_HASH`. A blocklist enabled in
+  the UI is enabled until the next restart; the one that lasts is a commit —
+  the same rule the estate's dashboards live by ([ADR-0004]). Two settings in
+  that file are the ones to know before touching it: `ratelimit: 0`, because
+  every query arrives from one address and the default 20 qps would throttle
+  the whole house; and `allowed_clients`, which is `morpheus` and the blackbox
+  prober on `prometheus` and drops everything else without a reply.
+- **The admin password is a bcrypt hash, made once.** `make hash-password`
+  prompts for it — never an argument, never in history — and the hash is what
+  goes into `secrets/sensitive.sops.yaml`. AdGuard cannot carry a second
+  factor ([ADR-0022]), which `security.md` already records.
+- **Port 53 is published on `10.0.99.40`, not `0.0.0.0`.** `.env.example`
+  says why: the host's own stub resolver holds `127.0.0.53:53`, and a wildcard
+  bind fails on it. The forwarder edit on `morpheus` that makes any of this
+  matter is [`forward-dns-to-adguard.md`](../../docs/runbooks/forward-dns-to-adguard.md),
+  and it is the whole client-side change.
 - **Nothing converges this stack.** The `homelab-*` timers are the estate's;
   `make validate` notes their absence here as a skip, not a failure. This stack
   is deployed by hand, from a checkout on `trinity`.
@@ -152,8 +175,8 @@ it matters:
   `make up` on a bare `trinity` fails on `config/ca.json`, loudly and on
   purpose.
 - **That the leaf matches the names.** `caddy validate` loads a throwaway
-  pair; whether the real one carries `trinity.matrix.elysium` *and*
-  `homeassistant.matrix.elysium` in its SANs is checked by the first browser,
+  pair; whether the real one carries `trinity.matrix.elysium`,
+  `homeassistant.matrix.elysium` *and* `adguard.matrix.elysium` in its SANs is checked by the first browser,
   or by `openssl x509 -noout -ext subjectAltName` on the monitoring host
   before the files travel.
 - **That Home Assistant keeps booting under its hardening.** It was booted
@@ -166,8 +189,17 @@ it matters:
   bridge network a VLAN away from every device would sniff nothing, so the
   capability stays dropped and the line is expected. That was one boot of one
   digest. Dependabot moves the digest monthly; nothing here re-runs the boot.
+- **That AdGuard filters.** Its blocklists are downloaded on first start and
+  live in the `adguard-work` volume from then on, so the first `make up` needs
+  the internet and every later one does not. `make validate` checks the file
+  parses as YAML and nothing about what it says; the blackbox filtering probe
+  from `prometheus` is what checks the service actually blocks the canary, and
+  enabling it is a step in the forwarder runbook.
 
+[ADR-0004]: ../../docs/adr/0004-one-compose-stack-per-host.md
 [ADR-0007]: ../../docs/adr/0007-defensive-estate-and-offensive-range.md
+[ADR-0010]: ../../docs/adr/0010-keep-the-resolver-on-the-gateway.md
+[ADR-0022]: ../../docs/adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
@@ -175,6 +207,7 @@ it matters:
 [#133]: https://github.com/Gerrrt/HomeLab/issues/133
 [#134]: https://github.com/Gerrrt/HomeLab/issues/134
 [#135]: https://github.com/Gerrrt/HomeLab/issues/135
+[#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
