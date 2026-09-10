@@ -471,6 +471,24 @@ what left this one unfireable for months.
   link-local and does not cross a VLAN boundary, so nothing on 20 appears by
   itself however the pass is written.
 
+  **Settled 2026-09-09, and narrower than the row read.**
+  [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) read the
+  Skids inventory for what Home Assistant would actually open a connection to
+  and found one device: the Hue bridge. Ring, the Echos, the HomePods, the
+  litter robot and the white-noise machine are all reached through a vendor's
+  cloud or not at all. So the pass is `10.0.99.40 → 10.0.20.104:80,443/tcp` —
+  the two ports the `aiohue` code uses, 80 once at pairing and 443 after —
+  above *Block access to Skids*, and it waits on two things: `trinity`, and a
+  Kea reservation for the bridge, because Skids has none and its pool holds
+  every address on the segment. **Home Assistant itself is authored**
+  ([#134](https://github.com/Gerrrt/HomeLab/issues/134)): the Container
+  flavour, no Supervisor and no add-ons, as an ordinary member of the tier's
+  network behind Caddy — not `network_mode: host`, which exists for discovery
+  that cannot cross a VLAN anyway — booted read-only with every capability
+  dropped against the pinned image before it was committed. Its credentials
+  are the one place the tier steps outside SOPS, and the ADR says why. No
+  USB radio, so where the box sits is not this service's concern.
+
   **Two of the three things said to be waiting on this tier are not waiting on
   it.** [#67](https://github.com/Gerrrt/HomeLab/issues/67)'s watcher went to
   `oracle` under ADR-0015 and needs no self-hosted ntfy;

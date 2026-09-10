@@ -152,6 +152,20 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 - pfSense's admin UI is reachable on this interface from Hicks only, by a
   named pass to `10.0.99.1:443`. Winterfell itself is blocked from it: the 99
   interface drops HTTP and HTTPS to `10.0.99.1` above its egress rule.
+- **One pass into Skids is decided and not yet created:**
+  `10.0.99.40 → 10.0.20.104` on `80,443/tcp` — `trinity`'s Home Assistant to
+  `bifrost`, the Hue bridge, and nothing else on 20 — inserted **above**
+  *Block access to Skids*, beside the two SNMP passes that already sit above
+  that block. Read on 2026-09-09: every other device on Skids is reached
+  through a vendor's cloud or not at all, so the segment-wide row ADR-0008
+  wrote as `99 → 20` narrows to one host on two ports, and a second device
+  with a local API is a second row rather than a wider one.
+  [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) records
+  the reading and the reasons. It is created under
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404), in the same sitting as
+  the reservation that pins `bifrost` — Skids has none today — and once there
+  is a `trinity` to test it from. The *Reaches* column above gains "named
+  ports on 20" that day, not before.
 - DHCP enabled, with static reservations for everything listed.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
@@ -387,6 +401,23 @@ the least trusted.
 - Internet only. No device here can initiate a connection to any other segment,
   which is the entire reason this VLAN exists. A camera or a $20 Tuya device
   with a hardcoded credential is a foothold, not a light switch.
+- **Inbound, one exception is decided and not yet in force.** `trinity`'s Home
+  Assistant reaches `bifrost` on `80,443/tcp` — the Hue bridge's local API,
+  the only one on this segment; everything else here is reached through its
+  vendor's cloud or not at all
+  ([ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md)). The
+  rule sits on Winterfell's interface, so nothing here changes: the blocks
+  above, the [#223](https://github.com/Gerrrt/HomeLab/issues/223) tripwire and
+  the egress rule stay as they are, and the tripwire's counter — zero — is
+  the test that the return traffic rides state and never reaches them. Skids
+  stays terminal outbound; the day the rule lands it is no longer terminal
+  inbound, for one host on two ports.
+- **No address here is reserved.** The pool is `.100–.200` and every device
+  above sits inside it by lease, so a row in this table is what a device had
+  when it was read, not what it will have. That is fine for a segment nothing
+  initiates into and stops being fine for `bifrost` the day a firewall rule
+  names it: the reservation is the precondition ADR-0035 puts before the
+  rule, and the first this segment will carry.
 - Device addresses and rooms are collapsed above deliberately. The exact
   camera-to-room mapping is not something a public repository needs to carry.
 
