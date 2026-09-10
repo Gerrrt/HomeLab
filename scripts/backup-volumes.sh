@@ -160,8 +160,14 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # bind-mounted configuration.yaml appears in it as an empty placeholder).
 # AdGuard's ./data/sessions.db is there ten seconds into a first start, beside
 # stats.db and the filters directory (read off a boot of the pinned image on
-# 2026-09-10, ports unpublished). Paperless: paperless-data holds the Tantivy
-# index the
+# 2026-09-10, ports unpublished). Immich's Postgres (17, mounted at .../data)
+# has ./PG_VERSION at the top, where Paperless's 18 nests it under ./18/docker;
+# its model cache gains ./huggingface — huggingface_hub's own store — on the
+# first fetch of either model, beside ./clip or ./facial-recognition (one CLIP
+# text model fetched into the pinned image on 2026-09-10). Before that fetch
+# the cache is EMPTY, and an empty archive is fatal in verify() by design, so
+# a stack backup taken before the first search or face job refuses on it;
+# #428 carries that. Paperless: paperless-data holds the Tantivy index the
 # container rebuilds at every start, so ./index is there from the first boot;
 # paperless-media is ./documents/{originals,archive,thumbnails} from the first
 # consume and ./documents alone before it; Postgres 18 lays its cluster out
@@ -181,6 +187,8 @@ declare -A SENTINEL=(
   [step-ca-data]="./config/ca.json"
   [home-assistant-config]="./.HA_VERSION"
   [adguard-work]="./data/sessions.db"
+  [immich-db]="./PG_VERSION"
+  [immich-model-cache]="./huggingface"
   [paperless-data]="./index"
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
@@ -200,6 +208,8 @@ declare -A COMPANIONS=(
   [step-ca-data]="./certs ./secrets ./db"
   [home-assistant-config]="./.storage ./home-assistant_v2.db"
   [adguard-work]="./data/stats.db ./data/filters"
+  [immich-db]="./base ./pg_wal ./postgresql.conf"
+  [immich-model-cache]="./clip ./facial-recognition"
   [paperless-data]="./log ./celerybeat-schedule.db"
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
   [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"

@@ -451,15 +451,24 @@ what left this one unfireable for months.
   off. The half on `morpheus` waits for the host:
   [`forward-dns-to-adguard.md`](runbooks/forward-dns-to-adguard.md) is the
   forwarding-mode change below, its verification, and the deliberate-failure
-  test ADR-0010 asks for. Paperless-ngx followed
-  ([#133](https://github.com/Gerrrt/HomeLab/issues/133)): the document
-  archive behind Caddy, with a Postgres and a Valkey of its own, running as
-  the operator with every capability dropped and a CPU ceiling — the estate's
-  first — and its archive and database in `backup-volumes.sh`'s inventory,
-  alongside sentinels for the foundation's, Home Assistant's and AdGuard's
-  volumes, which had none. Booted from the pinned images before the file was
-  written, on the monitoring host, since the tier's is not built; the limits
-  are stated as unmeasured on the hardware they are for.
+  test ADR-0010 asks for.
+  Immich followed the same day as well
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132)): four containers
+  behind Caddy, pinned by digest, each under a memory limit, booted once on
+  the monitoring host to find where the images write. What that landing
+  turned up is that `make backup` cannot yet take this stack's volumes at
+  all ([#428](https://github.com/Gerrrt/HomeLab/issues/428)), and that the
+  off-estate copy ADR-0023 makes the precondition on the first real photo
+  still has no destination — #132 stays open for both halves of that.
+  Paperless-ngx followed ([#133](https://github.com/Gerrrt/HomeLab/issues/133)):
+  the document archive behind Caddy, with a Postgres and a Valkey of its own,
+  running as the operator with every capability dropped and a CPU ceiling —
+  the estate's first — and its volumes in `backup-volumes.sh`'s sentinel
+  table, alongside entries for the foundation's, Home Assistant's, AdGuard's
+  and Immich's, which had none; #428's recipient half is still open. Booted
+  from the pinned images before the file was written, on the monitoring
+  host, since the tier's is not built; the limits are stated as unmeasured on
+  the hardware they are for.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero
