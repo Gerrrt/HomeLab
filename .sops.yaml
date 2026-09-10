@@ -83,6 +83,17 @@ creation_rules:
     age: >-
       REPLACE_WITH_SENSITIVE_AGE_PUBLIC_KEY
 
+  # The SOC guest, for the lab's reason with more force behind it: odin sits
+  # on the segment that exists to hold attackers and runs the SIEM those
+  # attackers are meant to be caught by. Its key opens secrets/soc.sops.yaml —
+  # the indexer, dashboard and API passwords, the enrolment password and
+  # Velociraptor's first admin — and neither the lab's Grafana password nor
+  # anything of the estate's (ADR-0030, and ADR-0020 for the shape). `make
+  # secrets-init STACK=soc`, run ON odin, fills the placeholder in.
+  - path_regex: secrets/soc(\..+)?\.sops\.ya?ml$
+    age: >-
+      REPLACE_WITH_SOC_AGE_PUBLIC_KEY
+
   - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
     age: >-
       age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x,

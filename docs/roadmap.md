@@ -38,7 +38,7 @@ battery it was never written about.
 | A 240–256 GB 2.5" SATA SSD, and a bracket for the optical bay | `zion`'s boot disk. ADR-0016 chose Ubuntu Server and one compose stack rather than an appliance, so the OS wants a disk that is not the mirror — and that never got written down | [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#413](https://github.com/Gerrrt/HomeLab/issues/413) | With the drives |
 | One Intel I226 2.5 GbE card on an M.2 B+M-key adapter — the part `morpheus` has, not a USB NIC | The ProDesk's second port, so a restore onto it comes up as `igc0` and asks nothing; for the rehearsal and any restore after it | [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3, [#404](https://github.com/Gerrrt/HomeLab/issues/404) | Before the rehearsal |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
-| A managed switch with a TLS management interface and SNMPv3 | Replacing `neo`, whose firmware will not persist a community deletion, cannot do v3, and serves its admin UI over plain HTTP through the device the password protects | [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), [#444](https://github.com/Gerrrt/HomeLab/issues/444) | Whenever a cabling window suits — it is independent of everything else here |
+| A managed switch with a TLS management interface | Replacing `neo`, whose firmware will not persist a community deletion ([#84](https://github.com/Gerrrt/HomeLab/issues/84)) and which serves its admin UI over plain HTTP — through the device the password protects, and that credential is read-write. **SNMPv3 is no longer the argument**: [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) found the switch's agent answers v3 on the wire and was never what blocked #85, so TLS management is what a replacement is actually bought for | [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), [#444](https://github.com/Gerrrt/HomeLab/issues/444) | Whenever a cabling window suits — it is independent of everything else here |
 | An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
 | A replacement battery cell for `prometheus` | The estate's mains-cut path depends on it and nothing watches it — see the exception to *Never* below | [`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), [#454](https://github.com/Gerrrt/HomeLab/issues/454) | Soon. It is thirteen years old, and a swollen cell is a rack fire |
 
@@ -91,6 +91,15 @@ replacement**, now [#444](https://github.com/Gerrrt/HomeLab/issues/444), and
 Both are in the first table above. Neither is deleted from the record — moving
 up is what taking the decision looks like.
 
+The switch's row is narrower than the bullet it replaces, and deliberately.
+That bullet named #84, the switch half of #85 and ADR-0018's residual as three
+things one purchase would close;
+[ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
+has since removed the middle one — the switch answers v3 on the wire and was
+never the blocker. **A purchase justified by three residuals when one of them
+has gone is the shape this section exists to prevent**, so it is bought for the
+TLS management interface, and #84 rides along.
+
 **Never**, and the documents say so: anything to make `prometheus` or `oracle`
 faster or bigger, and any disk or memory on account of Wazuh — ADR-0030 sizes
 it to what `Saruman` has. A 2012 MacBook running the whole observability stack
@@ -110,7 +119,7 @@ same absent metric, second in line. Nothing else about either machine is bought.
   carries pfSense's stock *Default allow LAN to any*.** `10.7.7.0/24` reaches
   every VLAN; `network.md` said "Nothing". Bounded by that segment holding only
   the switch — which is also the device that still answers its previous SNMP
-  community (#84) and cannot do v3 (#85). Lower risk than #228: getting it wrong
+  community (#84) and stays on v2c (#85). Lower risk than #228: getting it wrong
   costs SNMP polling of `neo`, which is monitored.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
   switch's previous SNMP community.** `neo` still accepts its old one alongside
@@ -125,9 +134,21 @@ same absent metric, second in line. Nothing else about either machine is bought.
   now probes every device with the two stock strings weekly, `WARN` in plain
   mode and `FAIL` under `--old`. →
   [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
-- **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv.**
-  Three of four devices can. The MokerLink switch cannot, which is the blocker
-  for doing it uniformly.
+- **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv
+  where the hardware supports it.** Decided by
+  [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md):
+  per poll, by where the poll travels, and mixed on purpose. The iLO first —
+  its poll is delivered into the lab segment, layer-2 adjacent to the attack
+  VM, so its community is the one an adversary is meant to be able to try for
+  — then the UPS card on the same procedure. The firewall stays on v2c
+  because bsnmpd is the only daemon that serves the pf MIB and pfSense writes
+  no v3 user for it; that was the issue's "three can", checked on the box on
+  2026-09-09, and the switch was never what blocked it. The switch stays on
+  v2c and its UI gets checked once for a v3 user page — its agent answers v3
+  on the wire, which ADR-0018 did not know. The tooling is done: a device's
+  version and key names come from its auth block in `generator.yaml`, and
+  `snmp-verify.sh` speaks v3. What is left is the device side, one at a time,
+  device first — [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
   Prometheus and Loki ingest ports.** Both are published and unauthenticated, so
   anything that can route to `10.0.99.20` can read every metric and log line,
@@ -463,9 +484,52 @@ what left this one unfireable for months.
   decided on top of it. What is outstanding is the build under #404, the rest
   of a stack, and four firewall rules the ADR counted as two. `stacks/sensitive/`
   exists since 2026-09-09 with its foundation — Caddy as the only published
-  port, step-ca as an intermediate beneath the lab CA — authored ahead of the
-  hardware the way `stacks/lab` was, and checked by everything `make validate`
-  runs, `caddy validate` included.
+  port, step-ca as a certificate authority of the tier's own issuing to Caddy
+  over ACME — authored ahead of the hardware the way `stacks/lab` was, and
+  checked by everything `make validate` runs, `caddy validate` included. The
+  foundation first claimed step-ca would be an intermediate beneath the lab
+  CA; that root carries `pathlen:0` and cannot have one, which
+  [ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
+  measured before deciding, along with where the root key lives (the
+  monitoring host, never `trinity`) and why the leaves are seven days. The
+  ACME path was proved on the monitoring host under a throwaway project;
+  what remains for [#130](https://github.com/Gerrrt/HomeLab/issues/130) is
+  the mint and install on the real host, under #404, and a TLS-expiry rule
+  sized for seven-day leaves ([#426](https://github.com/Gerrrt/HomeLab/issues/426)).
+  AdGuard Home joined it the same day
+  ([#135](https://github.com/Gerrrt/HomeLab/issues/135)), in the shape
+  ADR-0010 decided and not the one the service assumes: the blocklist set is
+  a tracked file copied in on every start, the admin hash is in SOPS, port 53
+  is published on the host's own address and answered for the firewall and
+  the blackbox prober only, and the default 20 qps per-client rate limit —
+  which would have throttled the whole house through its one client — is
+  off. The half on `morpheus` waits for the host:
+  [`forward-dns-to-adguard.md`](runbooks/forward-dns-to-adguard.md) is the
+  forwarding-mode change below, its verification, and the deliberate-failure
+  test ADR-0010 asks for. So did Vaultwarden
+  ([#131](https://github.com/Gerrrt/HomeLab/issues/131)) — the service whose
+  restore path mattered more than its deployment: `make backup` and
+  `make restore` learned the tier's volumes and now encrypt to the stack's own
+  recipients rather than the first key in `.sops.yaml`, which is the pair of
+  defects [#428](https://github.com/Gerrrt/HomeLab/issues/428) names, and the
+  round trip was rehearsed on the monitoring host with a seeded vault before
+  the host exists
+  ([`restore-the-sensitive-tier.md`](runbooks/restore-the-sensitive-tier.md)).
+  Immich followed the same day as well
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132)): four containers
+  behind Caddy, pinned by digest, each under a memory limit, booted once on
+  the monitoring host to find where the images write. What that landing
+  turned up is that the off-estate copy ADR-0023 makes the precondition on
+  the first real photo still has no destination — #132 stays open for it.
+  Paperless-ngx followed ([#133](https://github.com/Gerrrt/HomeLab/issues/133)):
+  the document archive behind Caddy, with a Postgres and a Valkey of its own,
+  running as the operator with every capability dropped and a CPU ceiling —
+  the estate's first — and its volumes in `backup-volumes.sh`'s sentinel
+  table, alongside entries for the foundation's, Home Assistant's, AdGuard's
+  and Immich's, which had none; #428's recipient half landed with Vaultwarden
+  the same day. Booted from the pinned images before the file was written, on
+  the monitoring host, since the tier's is not built; the limits are stated as
+  unmeasured on the hardware they are for.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero
@@ -506,6 +570,24 @@ what left this one unfireable for months.
   the same sitting: Home Assistant discovers devices over mDNS, which is
   link-local and does not cross a VLAN boundary, so nothing on 20 appears by
   itself however the pass is written.
+
+  **Settled 2026-09-09, and narrower than the row read.**
+  [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) read the
+  Skids inventory for what Home Assistant would actually open a connection to
+  and found one device: the Hue bridge. Ring, the Echos, the HomePods, the
+  litter robot and the white-noise machine are all reached through a vendor's
+  cloud or not at all. So the pass is `10.0.99.40 → 10.0.20.104:80,443/tcp` —
+  the two ports the `aiohue` code uses, 80 once at pairing and 443 after —
+  above *Block access to Skids*, and it waits on two things: `trinity`, and a
+  Kea reservation for the bridge, because Skids has none and its pool holds
+  every address on the segment. **Home Assistant itself is authored**
+  ([#134](https://github.com/Gerrrt/HomeLab/issues/134)): the Container
+  flavour, no Supervisor and no add-ons, as an ordinary member of the tier's
+  network behind Caddy — not `network_mode: host`, which exists for discovery
+  that cannot cross a VLAN anyway — booted read-only with every capability
+  dropped against the pinned image before it was committed. Its credentials
+  are the one place the tier steps outside SOPS, and the ADR says why. No
+  USB radio, so where the box sits is not this service's concern.
 
   **Two of the three things said to be waiting on this tier are not waiting on
   it.** [#67](https://github.com/Gerrrt/HomeLab/issues/67)'s watcher went to
@@ -753,6 +835,12 @@ months.
   ADR-0008 takes knowingly, given an expiry by
   [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md).
   Under **Security** above, because it has a condition now rather than only a
+  decision.
+- **[#85](https://github.com/Gerrrt/HomeLab/issues/85)** SNMPv3 on the iLO and
+  the UPS card, decided by
+  [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
+  with the repository side built and the device side not yet done. Under
+  **Security** above, because it has a procedure now rather than only a
   decision.
 
 ## Considered and declined

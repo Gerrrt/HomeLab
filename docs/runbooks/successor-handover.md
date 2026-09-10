@@ -195,6 +195,7 @@ inherits without knowing.
 | **The external heartbeat watcher** — a free-tier cron-monitor on somebody else's account | Whenever that account lapses | Nothing here can tell you. A watcher on this host would fail with the thing it watches, which is why it is off-host and therefore outside anything this repository can check |
 | **The age key backup goes unproven** | 90 days after the last verification, *per recipient* | `SecretsKeyBackupUnproven`, routed to the normal alert channel, naming the recipient — proving one copy does not clear another ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)). A recipient never proved is recorded as never, and fires; `SecretsKeyRecipientsUnrecorded` fires instead if the record itself is missing ([#400](https://github.com/Gerrrt/HomeLab/issues/400)) |
 | **Grafana's leaf certificate** | 825 days from issue; the APC card's own certificate expires on its own clock | `TlsCertificateExpiringSoon` at 30 days, `TlsCertificateExpiryImminent` at 7 — read off the served handshake by `blackbox-exporter`, not off a file. Let it lapse and `up{job="grafana"}` goes to 0 as well |
+| **The sensitive tier's certificates**, once `trinity` exists | Seven days after step-ca last answered Caddy — every leaf there is renewed automatically and lives a week, so the tier stays up for as long as its CA does ([ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)) | Nothing pages on it yet: the estate's expiry rules are sized for 825-day leaves and would fire permanently on seven-day ones, so the tier is deliberately outside them until [#426](https://github.com/Gerrrt/HomeLab/issues/426) lands. Until then a dead step-ca is found by a browser refusing the handshake, a week late |
 | **The UPS battery pack** | A pack was fitted 2026-08-28 and passed its self-test; packs are consumables and this one is on a biweekly test schedule | `UpsSelfTestFailed` and `UpsBatteryUnproven` key on the self-test result, which is the single honest signal this card emits — every charge, runtime and alarm value it reports was fabricated while the bay was empty. Two things remain open: the card's test *schedule* is unwatched ([#249](https://github.com/Gerrrt/HomeLab/issues/249)), and `upsBasicBatteryLastReplaceDate` still reads a pre-fit date, so it is not a usable record of the pack's age |
 | **Mains power to the monitoring path** | Any cut | The rack is on the UPS; the switch carrying `prometheus` and `oracle` is not, so both laptops keep running and go deaf. Stated in [`security.md`](../security.md#threat-model) |
 | **Container images going stale** | Continuously, once nobody merges | Dependabot proposes bumps and CI validates them, and convergence deploys a merge within the hour. An unattended estate simply stops receiving updates — nothing alerts on it |
@@ -234,10 +235,15 @@ outgoing operator directly:
 
 - The pfSense, MokerLink, iLO and APC network-card **admin passwords**. None of
   them are in this repository in any form.
-- The internal CA's private key. `certificates/` is gitignored and host-local, so
-  a clean clone has no CA at all — reissuing is
+- The internal CAs' private keys — there are two, and both live only on
+  `prometheus`. `certificates/` is gitignored and host-local, so a clean clone
+  has no CA at all. The estate's: reissuing is
   [`generate-certificates.md`](generate-certificates.md) step 1, and the cost is
-  re-trusting the new `ca.pem` everywhere it was trusted.
+  re-trusting the new `ca.pem` everywhere it was trusted. The sensitive
+  tier's: its root key is cold on `prometheus` and its intermediate runs on
+  `trinity`, so nothing stops until the intermediate needs re-minting;
+  [`build-the-tier-ca.md`](build-the-tier-ca.md) covers both the rebuild and
+  the re-root, and the re-root costs a re-trust on every household device.
 - Access to whatever holds the alert webhooks and the heartbeat check.
 
 ### If you do not have the age key

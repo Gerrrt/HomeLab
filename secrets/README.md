@@ -96,7 +96,7 @@ file, exports the values as environment variables, and:
 
 - writes `stacks/observability/.env` with only the values compose interpolates
   (the Grafana credentials);
-- renders `snmp-exporter/snmp.yaml`'s `${SNMP_COMMUNITY_*}` placeholders into
+- renders `snmp-exporter/snmp.yaml`'s `${SNMP_*}` credential placeholders into
   `snmp-exporter/.rendered/snmp.yaml`, which is what the container mounts;
 - writes one file per notification channel into `alertmanager/.rendered/` —
   `webhook_url`, `urgent_url`, `security_url` and `heartbeat_url` — because

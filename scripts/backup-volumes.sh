@@ -43,12 +43,13 @@
 # Every other artefact here is encrypted with sops, and backup-firewall.sh pipes
 # straight into it. sops holds the whole document in memory and stores it
 # base64-encoded inside YAML: free for a 6 KB config.xml, a gigabyte of RSS and
-# a 1.4 GB output file for a 1 GB TSDB. `age -r` streams. The recipient is still
-# read from .sops.yaml, so there is still exactly one key — rotating it there
-# rotates it here.
+# a 1.4 GB output file for a 1 GB TSDB. `age -r` streams. The recipients are
+# still the stack's — read from secrets/<STACK>.sops.yaml by way of
+# scripts/key-recipients.sh, see recipients() below — so there is still one
+# set of keys, and re-keying the secrets re-keys the next backup.
 #
-# The recipient is passed in argv and is therefore visible in `ps`. It is a
-# public key; it can only encrypt. Do not "fix" this.
+# The recipients are passed in argv and are therefore visible in `ps`. They
+# are public keys; they can only encrypt. Do not "fix" this.
 #
 # Verification decrypts, so the private key must be on this host. That is no new
 # exposure — render-config.sh already needs it — but it is a choice, and it
@@ -87,7 +88,6 @@ STACK="${STACK:-observability}"
 STACK_DIR="${REPO_ROOT}/stacks/${STACK}"
 COMPOSE_FILE="${STACK_DIR}/compose.yaml"
 OUT_DIR="${REPO_ROOT}/backups/volumes"
-SOPS_POLICY="${REPO_ROOT}/.sops.yaml"
 AGE_IDENTITY="${SOPS_AGE_KEY_FILE:-${HOME}/.config/sops/age/keys.txt}"
 KEEP="${KEEP:-7}"
 STOP_TIMEOUT="${STOP_TIMEOUT:-60}"
@@ -111,10 +111,32 @@ die()   { red "$*"; exit 1; }
 
 need() { command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1"; }
 
-# The age recipient is read from .sops.yaml rather than duplicated here. One
-# source of truth for the key; rotating it in .sops.yaml rotates it here too.
-recipient() {
-  grep -oE 'age1[0-9a-z]{50,}' "${SOPS_POLICY}" | head -1
+# The recipients are the STACK's, read out of its encrypted secrets file by
+# key-recipients.sh — the `sops:` metadata, which is fact, where .sops.yaml is
+# policy; that script's header carries the argument. This used to take the
+# first age1 key in .sops.yaml, whichever rule it sat in, which was right for
+# exactly as long as the estate's was the only real key there. The day
+# `make secrets-init STACK=sensitive` fills trinity's placeholder — which sits
+# ABOVE the catch-all — the estate's weekly backup would have been encrypted
+# to trinity's key, one this host does not hold, and failed at its own verify
+# step after stopping the stack for nothing. And on trinity the same line
+# picked the estate's key, so the tier's backups could never have been opened
+# where they were made (#131).
+#
+# EVERY recipient of the file, not the first. A volume archive holds what the
+# secrets file holds — grafana-data carries the admin password hash and every
+# datasource credential; vaultwarden-data is the vault — so whoever can open
+# the one is exactly who should be able to open the other. For the estate that
+# is ADR-0024's second recipient; for the sensitive tier it is the recipient
+# ADR-0023 requires of the off-estate copy, "the key that opens it cannot be
+# the one only the operator holds". One --recipient each to age; the manifest
+# records them comma-separated.
+#
+# Called on the main path only, after the mode dispatch: --inventory, --list
+# and --verify-only need no recipient and must keep working on a host whose
+# secrets file is not yet there.
+recipients() {
+  "${REPO_ROOT}/scripts/key-recipients.sh" --list --stack "${STACK}"
 }
 
 human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
@@ -144,22 +166,106 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # ./wal is deliberately NOT the sentinel for Prometheus or Loki even though it
 # is the most reliably present entry in both — both have it, so a crossed
 # mapping, the exact failure this exists to catch, would sail through.
+#
+# The table is the union across stacks; load_inventory() takes the entries the
+# selected compose file declares. A nested path is as good a sentinel as a
+# top-level one — the match is the whole listing line — and the two Caddy
+# volumes need that: both hold a single `./caddy` directory, so a top-level
+# entry would be the crossed mapping this exists to catch, present in both.
+#
+# The sensitive tier's (STACK=sensitive) were read off the volumes after a
+# boot of the pinned images, not guessed — and this table is the reason a
+# stack backup on trinity works at all: load_inventory() below dies on the
+# first declared volume with no entry here, and the foundation's three had
+# none until Vaultwarden (#131) and Paperless-ngx (#133) each needed the
+# mechanism on the same day. Caddy writes ./caddy/instance.uuid to /data and
+# ./caddy/autosave.json to /config on every start, admin API or not. step-ca's
+# is the one entry here written from construction rather than a boot: the
+# image's entrypoint refuses to start without config/ca.json, so a
+# step-ca-data that lacks it is a volume that never held a CA. Vaultwarden
+# creates ./db.sqlite3 and ./rsa_key.pem on first start (read off a boot of
+# the pinned image on 2026-09-09; the WAL beside the database is where a
+# stopped container's last writes sit, see COMPANIONS). Home Assistant writes
+# ./.HA_VERSION at the top of /config on every start (read off a boot of the
+# pinned image on 2026-09-10; the volume also carries .storage/ and the
+# recorder's home-assistant_v2.db, and the bind-mounted configuration.yaml
+# appears in it as an empty placeholder). AdGuard's ./data/sessions.db is
+# there ten seconds into a first start, beside stats.db and the filters
+# directory (read off a boot of the pinned image on 2026-09-10, ports
+# unpublished). Immich's Postgres (17, mounted at .../data) has ./PG_VERSION
+# at the top, where Paperless's 18 nests it under ./18/docker; its model cache
+# gains ./huggingface — huggingface_hub's own store — on the first fetch of
+# either model, beside ./clip or ./facial-recognition (one CLIP text model
+# fetched into the pinned image on 2026-09-10). Before that fetch the cache is
+# EMPTY, and an empty archive is fatal in verify() by design — which is why
+# the cache is not archived at all: DISPOSABLE, below. Paperless:
+# paperless-data holds the Tantivy index the container rebuilds at every
+# start, so ./index is there from the first boot; paperless-media is
+# ./documents/{originals,archive,thumbnails} from the first consume and
+# ./documents alone before it; Postgres 18 lays its cluster out one level down
+# as ./18/docker, so the sentinel carries the major and a bump to 19 has to
+# move it here — loudly, since the script refuses to write an archive it
+# cannot verify; and Valkey's ./dump.rdb is written by `--save 60 1` and again
+# on the SIGTERM a quiesce sends, which is the case that was checked.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
   [grafana-data]="./grafana.db"
   [alertmanager-data]="./nflog"
   [alloy-data]="./alloy_seed.json"
+  [caddy-data]="./caddy/instance.uuid"
+  [caddy-config]="./caddy/autosave.json"
+  [step-ca-data]="./config/ca.json"
+  [vaultwarden-data]="./db.sqlite3"
+  [home-assistant-config]="./.HA_VERSION"
+  [adguard-work]="./data/sessions.db"
+  [immich-db]="./PG_VERSION"
+  [paperless-data]="./index"
+  [paperless-media]="./documents"
+  [paperless-db-data]="./18/docker/PG_VERSION"
+  [paperless-broker-data]="./dump.rdb"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
 # the discriminating entry above may not exist yet.
+#
+# rsa_key.pem signs every Vaultwarden session token: a restore without it
+# logs every client out, which is not data loss but is worth seeing in the
+# verify line. attachments, sends and icon_cache appear on first use. The WAL
+# is listed because it is where the last writes ARE: measured on the pinned
+# image, a `docker stop` leaves a 12 KB db.sqlite3-wal holding the account
+# registered a minute earlier, and db.sqlite3 read on its own shows no such
+# user. The quiesced archive carries all three files, so a restore is
+# consistent; a check that copies the main file alone is not.
 declare -A COMPANIONS=(
   [prometheus-data]="./wal ./lock ./queries.active"
   [loki-data]="./wal ./index ./compactor"
   [grafana-data]="./plugins ./dashboards ./png"
   [alertmanager-data]="./silences"
   [alloy-data]="./remotecfg"
+  [caddy-data]="./caddy/locks ./caddy/last_clean.json"
+  [caddy-config]=""
+  [step-ca-data]="./certs ./secrets ./db"
+  [vaultwarden-data]="./rsa_key.pem ./db.sqlite3-wal ./attachments ./sends ./icon_cache"
+  [home-assistant-config]="./.storage ./home-assistant_v2.db"
+  [adguard-work]="./data/stats.db ./data/filters"
+  [immich-db]="./base ./pg_wal ./postgresql.conf"
+  [paperless-data]="./log ./celerybeat-schedule.db"
+  [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
+  [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
+  [paperless-broker-data]=""
+)
+
+# Volumes archived by NOTHING, each with the reason — the third table, and
+# the only way a declared volume leaves a set without the run failing. A
+# cache the service re-fetches on first use is not data: archiving Immich's
+# model cache would add a gigabyte of downloadable weights to every set and,
+# worse, fail the run on a host where the models have not been fetched yet,
+# because an empty archive is refused above and rightly so. Listed by name so
+# the omission is a decision recorded here rather than a volume that fell
+# through; a volume in neither this table nor SENTINEL is still fatal (#131).
+declare -A DISPOSABLE=(
+  [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
 )
 
 VOLUMES=()
@@ -237,6 +343,11 @@ load_inventory() {
     # how alloy-data went missing.
     [[ -n ${VOL_SERVICE[$v]:-} ]] \
       || die "volume ${v} is declared in ${COMPOSE_FILE} but no service mounts it — refusing to run"
+    # To stderr: --inventory's stdout is a table restore-volumes.sh parses.
+    if [[ -n ${DISPOSABLE[$v]:-} ]]; then
+      printf '\033[0;34m--\033[0m not archiving %s: %s\n' "${v}" "${DISPOSABLE[$v]}" >&2
+      continue
+    fi
     # Derivation solves one inventory; the sentinel table is a second one.
     # Making its absence fatal means adding a sixth volume produces a named
     # error rather than an archive nothing can verify.
@@ -245,7 +356,12 @@ load_inventory() {
     VOLUMES+=("${v}")
   done
 
-  mapfile -t SERVICES < <(printf '%s\n' "${VOL_SERVICE[@]}" | sort -u)
+  ((${#VOLUMES[@]} > 0)) || die "every volume ${COMPOSE_FILE} declares is listed as disposable — nothing to archive"
+
+  # The services stopped are the owners of what is ARCHIVED, not of every
+  # mount: immich-machine-learning owns only a cache nobody is copying, and
+  # quiescing it would cost the tier its search for the length of the run.
+  mapfile -t SERVICES < <(for v in "${VOLUMES[@]}"; do printf '%s\n' "${VOL_SERVICE[$v]}"; done | sort -u)
 }
 
 print_inventory() {
@@ -539,7 +655,7 @@ archive_one() {
       -v "${PROJECT}_${vol}:/data:ro" \
       "${TAR_IMAGE}" \
       tar --numeric-owner -czf - -C /data . \
-    | age --recipient "${AGE_RECIPIENT}" --output "${out}"
+    | age "${AGE_ARGS[@]}" --output "${out}"
   # Copied in one go: reading PIPESTATUS is itself a command, and the first
   # assignment would reset it before the second could see index 1.
   rcs=("${PIPESTATUS[@]}")
@@ -727,8 +843,14 @@ mkdir -p "${OUT_DIR}"
 exec 9>"${OUT_DIR}/.lock"
 flock -n 9 || die "another $(basename "$0") is already running"
 
-AGE_RECIPIENT="$(recipient)"
-[[ -n ${AGE_RECIPIENT} ]] || die "no age recipient found in ${SOPS_POLICY}"
+# mapfile over a process substitution loses the child's exit status, so the
+# check is on what arrived: key-recipients.sh has already said why on stderr.
+mapfile -t AGE_RECIPIENTS < <(recipients)
+((${#AGE_RECIPIENTS[@]})) || die "no age recipients for stack ${STACK} — nothing to encrypt to"
+AGE_ARGS=()
+for r in "${AGE_RECIPIENTS[@]}"; do AGE_ARGS+=(--recipient "${r}"); done
+AGE_RECIPIENT="$(IFS=,; printf '%s' "${AGE_RECIPIENTS[*]}")"
+unset r
 
 "${COMPOSE[@]}" config -q >/dev/null 2>&1 \
   || die "docker compose config failed — the \${VAR:?} guards need a rendered .env. Run: make render"
@@ -851,4 +973,7 @@ printf '\n'
 info "This is on the same host as everything it protects."
 info "Copy the set to the backup target and offsite — see docs/roadmap.md #92."
 info "On a timer: systemctl list-timers 'homelab-*' — docs/runbooks/schedule-maintenance.md."
-info "Restoring it: docs/runbooks/restore-the-stack.md"
+case "${STACK}" in
+  sensitive) info "Restoring it: docs/runbooks/restore-the-sensitive-tier.md" ;;
+  *)         info "Restoring it: docs/runbooks/restore-the-stack.md" ;;
+esac

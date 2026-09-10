@@ -1,0 +1,68 @@
+// The VQL the Velociraptor server image runs on FIRST start, when no
+// server.config.yaml exists yet, to generate one. This is the image's own
+// /bin/init.vql with two changes, marked below; compose.yaml mounts it over the
+// image's copy. On every later start the config exists and this file is not
+// read — so an edit here changes nothing until ./etc/server.config.yaml is
+// deleted, which also discards the internal CA and orphans every client.
+//
+// The cost of the copy, stated: the image's version can move on a bump and this
+// one will not. Diff against the image after each Dependabot PR:
+//
+//   docker run --rm --entrypoint cat \
+//     "$(COMPOSE_FILE=stacks/soc/compose.yaml scripts/image-for.sh velociraptor)" \
+//     /bin/init.vql | diff - stacks/soc/velociraptor/init.vql
+
+LET _Exe <= SELECT * FROM info()
+LET Exe <= _Exe[0].Exe
+LET Hostname <= environ(var="VELOCIRAPTOR_HOSTNAME") || "localhost"
+LET Datastore <= environ(var="VELOCIRAPTOR_DATASTORE_PATH") || "/datastore/"
+LET ConfFile <= environ(var="VELOCIRAPTOR_CONFIG_PATH") || "/etc/velociraptor/server.config.yaml"
+LET InitArtifacts <= if(condition=NOT environ(var="VELOCIRAPTOR_NO_INITIALIZE"),
+  then=["Container.InitializeServer",])
+
+// CHANGE 1: the ports are fixed at 8000 (frontend), 8889 (GUI) and 8003
+// (monitoring) rather than read from the environment. compose.yaml maps the
+// host-side numbers in .env.example onto these, so the two cannot disagree.
+//
+// CHANGE 2: `Monitoring.bind_address` is 0.0.0.0. The image binds the metrics
+// listener to loopback and offers no variable to move it, and the lab's
+// Prometheus on alexander scrapes it (ADR-0030's port table). The API on 8001
+// keeps the image's loopback bind — nothing off-host uses it.
+LET JsonPatch <= dict(
+Client=dict(
+   server_urls= [
+     url(scheme="wss", host=Hostname + ":8000").String + "/",
+     url(scheme="https", host=Hostname + ":8000").String + "/",
+   ]
+),
+Frontend=dict(
+  bind_address="0.0.0.0",
+  bind_port=8000,
+  initial_server_artifacts=InitArtifacts
+),
+GUI=dict(
+  bind_address="0.0.0.0",
+  bind_port=8889,
+  public_url= url(scheme="https",
+    host=Hostname + ":8889").String + "/app/index.html"
+  ),
+Monitoring=dict(
+  bind_address="0.0.0.0",
+  bind_port=8003
+),
+Datastore=dict(
+  location=Datastore,
+  filestore_directory=Datastore
+  ),
+defaults=dict(
+    artifact_definitions_directories=["/custom_artifacts/",]
+  )
+)
+
+SELECT JsonPatch FROM scope()
+
+// Generate a new base configuration
+SELECT Hostname, write_file(data=Stdout,
+    dest=ConfFile, create_directories=TRUE) AS OutputConfig
+FROM execve(argv=[Exe, "config", "generate",
+   "--merge", JsonPatch], length=100000)

@@ -85,8 +85,28 @@ report \"already exists\" and refuse — and --force would not help either.
 Then issue them — see docs/runbooks/generate-certificates.md."
 fi
 
+# The fix depends on which stack, because the estate's CA is issued HERE and
+# every other stack's certificates arrive from somewhere else. One message
+# naming `make certs ARGS=--ca` for all of them is how a second — or, on
+# trinity, a third — certificate authority gets minted by someone following
+# the error text (build-the-lab-guest.md §5 carries the warning; this is the
+# message it warns about).
 if ((${#absent[@]})); then
-  die "compose.yaml mounts these certificates, which are missing or empty:
+  case "${STACK}" in
+    sensitive)
+      die "compose.yaml mounts these certificates, which are missing or empty:
+$(printf '  %s\n' "${absent[@]}")
+
+Caddy verifies step-ca's ACME directory against the tier's own root (ADR-0037).
+That file is written on this host from the bundle minted on the monitoring
+host — do NOT run \`make certs ARGS=--ca\` here, which would mint a CA nothing
+trusts:
+
+  make tier-ca ARGS=\"--install certificates/tier-ca-bundle.tar\"
+
+Full procedure in docs/runbooks/build-the-tier-ca.md." ;;
+    observability)
+      die "compose.yaml mounts these certificates, which are missing or empty:
 $(printf '  %s\n' "${absent[@]}")
 
 Grafana serves https from the leaf and Prometheus verifies it with the CA, so
@@ -95,9 +115,63 @@ the stack cannot start without them. Generate them with:
   make certs ARGS=--ca
   make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\"
 
-Full procedure in docs/runbooks/generate-certificates.md."
+Full procedure in docs/runbooks/generate-certificates.md." ;;
+    *)
+      die "compose.yaml mounts these certificates, which are missing or empty:
+$(printf '  %s\n' "${absent[@]}")
+
+This stack's certificates are issued on the monitoring host and copied here —
+do NOT run \`make certs ARGS=--ca\` on this host, which would mint a second CA.
+See the stack's README and docs/runbooks/generate-certificates.md." ;;
+  esac
 fi
 unset absent clobbered cert
+
+# ---------------------------------------------------------------------------
+# Runtime directories a service writes into must exist before compose runs
+#
+# The other half of the Docker behaviour above. stacks/sensitive bind-mounts
+# ./consume, where scans are dropped for Paperless-ngx to ingest, and
+# ./export, where its exporter writes — directories the repository deliberately
+# does not track. Docker creates a missing bind-mount source as root:root 755,
+# so a service running as the operator's uid (Paperless runs as RENDER_UID for
+# exactly this reason) finds a directory it cannot write, and the first symptom
+# is the consumer logging a permission error on a file it cannot delete, inside
+# a container, on the first real scan. Retried forever, reads as a fault in
+# something other than the step that was missed — the certificate argument,
+# unchanged.
+#
+# Scraped from compose.yaml like the certificate list, anchored on the mount
+# item, and gated on the repository's own opinion of the path: a source that
+# is gitignored is a runtime directory and is created here, owned by whoever
+# runs this script, which is the uid the container runs as. One that is NOT
+# gitignored is a tracked path the checkout is missing, and creating a
+# directory over it would hide exactly the Docker behaviour this block exists
+# to pre-empt — so that dies instead. Asked with a trailing slash, because a
+# directory-only pattern (`stacks/*/consume/`) cannot match a bare path that
+# does not exist yet, and the whole point is that it does not exist yet.
+# ---------------------------------------------------------------------------
+untracked=()
+while read -r src; do
+  [[ -n "${src}" ]] || continue
+  [[ -e "${STACK_DIR}/${src}" ]] && continue
+  if git -C "${REPO_ROOT}" check-ignore -q "stacks/${STACK}/${src}/"; then
+    info "creating stacks/${STACK}/${src}/ (runtime directory, gitignored)"
+    mkdir -p "${STACK_DIR}/${src}"
+  else
+    untracked+=("stacks/${STACK}/${src}")
+  fi
+done < <(grep -oE '^[[:space:]]*-[[:space:]]*\./[^:]+:' "${STACK_DIR}/compose.yaml" 2>/dev/null \
+         | sed 's|^[^.]*\./||; s|:$||' | sort -u)
+if ((${#untracked[@]})); then
+  die "compose.yaml mounts these paths, which the checkout does not have:
+$(printf '  %s\n' "${untracked[@]}")
+
+They are tracked by git, so a missing one means the checkout is incomplete —
+\`git status\` will say what happened. Docker would silently create a directory
+in their place, which is the failure this check exists to prevent."
+fi
+unset untracked src
 
 # ---------------------------------------------------------------------------
 # Decrypt. Keep the plaintext in a variable, never in a file.
@@ -162,13 +236,18 @@ while read -r var; do
   REQUIRED+=("${var}")
 done <<< "${GUARDS}"
 
-# The SNMP community names stay written out rather than derived from the
+# The SNMP key names stay written out rather than derived from the
 # placeholders in snmp.yaml, and that is deliberate. scripts/snmp-targets.sh
 # --check asserts this array against the device inventory by grepping for each
 # name on a line of its own — it is one of the five copies of the device list
 # that check exists to hold together, and deriving it here would remove the
 # copy rather than the drift, leaving --check asserting nothing. Keep the
 # one-name-per-line shape.
+#
+# A device polled over SNMPv2c is one line, its community. A device moved to
+# SNMPv3 (ADR-0036) is two: SNMP_AUTHPASS_<X> and SNMP_PRIVPASS_<X>, the
+# passphrases its auth block in generator.yaml names. The user name is not a
+# secret and is not rendered — it is a literal in generator.yaml.
 if [[ -f "${SNMP_SRC}" ]]; then
   REQUIRED+=(
     SNMP_COMMUNITY_PFSENSE
@@ -186,6 +265,20 @@ if [[ -f "${AM_CONFIG}" ]]; then
     ALERTMANAGER_URGENT_WEBHOOK_URL
     ALERTMANAGER_SECURITY_WEBHOOK_URL
     ALERTMANAGER_HEARTBEAT_URL
+  )
+fi
+
+# The SOC stack renders two files of its own (ADR-0030): the indexer's user
+# database, which holds bcrypt hashes, and the manager's agent-enrolment
+# password. Driven by the directory existing, the way SNMP_SRC and AM_CONFIG
+# are above. The passwords the compose file interpolates are already in the
+# list from its guards; these three are the ones that go into files instead.
+WAZUH_DIR="${STACK_DIR}/wazuh"
+if [[ -d "${WAZUH_DIR}" ]]; then
+  REQUIRED+=(
+    INDEXER_ADMIN_HASH
+    DASHBOARD_PASSWORD_HASH
+    WAZUH_REGISTRATION_PASSWORD
   )
 fi
 
@@ -207,7 +300,7 @@ if [[ -f "${SNMP_SRC}" ]]; then
   # Substitution is done with bash parameter expansion rather than envsubst or
   # sed. envsubst lives in gettext-base, which is not guaranteed on a minimal
   # server install, and sed would mangle any community string containing / & or
-  # a backslash. This also touches only the four SNMP_COMMUNITY_* names, so no
+  # a backslash. This also touches only the SNMP_* names in REQUIRED, so no
   # other ${...} sequence in 14k lines of OID definitions can be affected.
   #
   # bash 5.2 enables patsub_replacement by default, which makes an unescaped '&'
@@ -220,12 +313,12 @@ if [[ -f "${SNMP_SRC}" ]]; then
   # The substitution list is derived from REQUIRED rather than repeated, so
   # adding a device means editing one list instead of two that silently drift.
   # The prefix filter is what makes that safe: a REQUIRED entry that is not an
-  # SNMP community has no ${...} placeholder in snmp.yaml, so substituting it
+  # SNMP credential has no ${...} placeholder in snmp.yaml, so substituting it
   # is a no-op. And a name in REQUIRED whose placeholder is misspelled in
   # snmp.yaml is still caught by the independent grep below.
   snmp_content="$(cat "${SNMP_SRC}")"
   for var in "${REQUIRED[@]}"; do
-    [[ "${var}" == SNMP_COMMUNITY_* ]] || continue
+    [[ "${var}" == SNMP_* ]] || continue
     snmp_content="${snmp_content//\$\{${var}\}/${!var}}"
   done
 
@@ -234,8 +327,8 @@ if [[ -f "${SNMP_SRC}" ]]; then
   unset snmp_content
   chmod 600 "${SNMP_OUT_DIR}/snmp.yaml"
 
-  # shellcheck disable=SC2016  # matching the literal text "${SNMP_COMMUNITY..."
-  if grep -q '\${SNMP_COMMUNITY' "${SNMP_OUT_DIR}/snmp.yaml"; then
+  # shellcheck disable=SC2016  # matching the literal text "${SNMP_..."
+  if grep -q '\${SNMP_' "${SNMP_OUT_DIR}/snmp.yaml"; then
     die "unsubstituted placeholders remain in the rendered snmp.yaml"
   fi
 fi
@@ -297,6 +390,47 @@ if [[ -f "${AM_CONFIG}" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Render the SOC stack's two files
+#
+# internal_users.yml is the indexer's user database and carries the bcrypt
+# hash of two passwords; the tracked copy keeps ${PLACEHOLDERS} for the same
+# reason snmp.yaml does. authd.pass is what an agent presents to enrol
+# (ossec.conf: <use_password>yes) — the manager reads the first line of the
+# file, and nothing else does. Both are 0600, like everything else rendered
+# here, and the containers that mount them run as this uid: the indexer image
+# runs as 1000, so the deploying user on odin must be uid 1000 — the first
+# user Ubuntu creates — or the indexer cannot read its own user database and
+# fails its healthcheck with a permission error two layers down.
+# ---------------------------------------------------------------------------
+if [[ -d "${WAZUH_DIR}" ]]; then
+  if [[ "$(id -u)" != "1000" ]]; then
+    die "rendering ${STACK} as uid $(id -u): the indexer image runs as uid 1000 and
+mounts the 0600 file this writes, so it has to be rendered by uid 1000. On odin
+that is the first user the installer created; run this as that user."
+  fi
+  info "rendering internal_users.yml and authd.pass"
+  for dir in "${WAZUH_DIR}/indexer/.rendered" "${WAZUH_DIR}/manager/.rendered"; do
+    mkdir -p "${dir}"
+    chmod 700 "${dir}"
+  done
+  shopt -u patsub_replacement 2>/dev/null || true
+  users_content="$(cat "${WAZUH_DIR}/indexer/internal_users.yml")"
+  for var in INDEXER_ADMIN_HASH DASHBOARD_PASSWORD_HASH; do
+    users_content="${users_content//\$\{${var}\}/${!var}}"
+  done
+  umask 077
+  printf '%s\n' "${users_content}" > "${WAZUH_DIR}/indexer/.rendered/internal_users.yml"
+  unset users_content
+  chmod 600 "${WAZUH_DIR}/indexer/.rendered/internal_users.yml"
+  # shellcheck disable=SC2016  # matching the literal text "${"
+  if grep -q '\${' "${WAZUH_DIR}/indexer/.rendered/internal_users.yml"; then
+    die "unsubstituted placeholders remain in the rendered internal_users.yml"
+  fi
+  printf '%s\n' "${WAZUH_REGISTRATION_PASSWORD}" > "${WAZUH_DIR}/manager/.rendered/authd.pass"
+  chmod 600 "${WAZUH_DIR}/manager/.rendered/authd.pass"
+fi
+
+# ---------------------------------------------------------------------------
 # Write .env for compose interpolation
 #
 # Only the values compose actually interpolates are written here. The SNMP
@@ -311,9 +445,46 @@ fi
 # that names a SOPS value has to be added here, or render passes and `make up`
 # then dies on the unset variable — the guard and this list are two copies of
 # one fact, and scripts/seed-validation-env.sh is the third.
-COMPOSE_VARS=(GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD GRAFANA_RENDERER_TOKEN STEPCA_PASSWORD)
+COMPOSE_VARS=(
+  GRAFANA_ADMIN_USER
+  GRAFANA_ADMIN_PASSWORD
+  GRAFANA_RENDERER_TOKEN
+  STEPCA_PASSWORD
+  ADGUARD_ADMIN_PASSWORD_HASH
+  IMMICH_DB_PASSWORD
+  PAPERLESS_SECRET_KEY
+  PAPERLESS_DBPASS
+  PAPERLESS_ADMIN_PASSWORD
+  VAULTWARDEN_ADMIN_TOKEN
+  INDEXER_PASSWORD
+  DASHBOARD_PASSWORD
+  API_PASSWORD
+  VELOCIRAPTOR_INITIAL_ADMIN_PASSWORD
+)
 ENV_FILE="${STACK_DIR}/.env"
 info "writing $(basename "${STACK_DIR}")/.env"
+
+# A `$` in a value has to be written as `$$`, because compose interpolates .env
+# values before the container ever sees them: `$NAME` and `${NAME}` inside a
+# value are expanded against the environment, and an unset name becomes the
+# empty string with a warning nobody reads at `make up`. Measured 2026-09-09
+# with a bcrypt hash — `$2a$14$abcDEF/ghi` arrived in the container as
+# `$2a$14/ghi`, the `$abcDEF` having been looked up as a variable and found
+# unset. `$$` is compose's escape for a literal `$`, and it survives both the
+# unquoted and the quoted forms of a .env value. ADGUARD_ADMIN_PASSWORD_HASH
+# is the first value here guaranteed to carry one; the Grafana and step-ca
+# passwords are free-form and were exposed to the same mangling silently.
+# gen-secret.sh's alphabet excludes `$` for a different consumer, and that is
+# why nothing had noticed. VAULTWARDEN_ADMIN_TOKEN is the second such value,
+# an Argon2id PHC string of five `$`-delimited fields, and #131 measured the
+# same mangling independently on compose v5.5.1: written raw it reached the
+# container as `=19=65540,t=3,p=4` behind five "variable is not set" warnings.
+#
+# patsub_replacement is disabled (again — the snmp block above does it too,
+# inside a conditional this stack may not enter) so the replacement is
+# literal on bash 5.2, where an unescaped `&` in it would expand to the match.
+shopt -u patsub_replacement 2>/dev/null || true
+env_escape() { printf '%s' "${1//\$/\$\$}"; }
 
 {
   echo "# Generated by scripts/render-config.sh — do not edit, do not commit."
@@ -358,7 +529,7 @@ info "writing $(basename "${STACK_DIR}")/.env"
   # no syslog is the case where the source has nothing to read anyway.
   printf 'LOG_READ_GID=%s\n' "$(stat -c '%g' /var/log/syslog 2>/dev/null || echo 4)"
   for var in "${COMPOSE_VARS[@]}"; do
-    [[ -n "${!var:-}" ]] && printf '%s=%s\n' "${var}" "${!var}"
+    [[ -n "${!var:-}" ]] && printf '%s=%s\n' "${var}" "$(env_escape "${!var}")"
   done
 } > "${ENV_FILE}"
 chmod 600 "${ENV_FILE}"

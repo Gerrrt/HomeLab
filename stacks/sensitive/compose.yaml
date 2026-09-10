@@ -11,13 +11,22 @@
 # ---------------------------------------------------------------------------
 # What is here, and what is not
 # ---------------------------------------------------------------------------
-# Two services: the foundation. Caddy (#129) is the only thing on the tier
-# that publishes a port, and the whole containment argument in ADR-0008 —
-# "containers sit on private bridge networks with only the reverse proxy
-# publishing a port" — is a property of this file or it is a sentence in an
-# ADR. step-ca (#130) issues the certificates behind it. Vaultwarden, Immich,
-# Paperless-ngx, Home Assistant, AdGuard Home, ntfy and Homepage (#131–#137)
-# land behind Caddy on the network below, each with `expose:` and no `ports:`.
+# The foundation, and the first household services on it. Caddy (#129)
+# is the reverse proxy that publishes the tier's HTTPS port, and the whole
+# containment argument in ADR-0008 — "containers sit on private bridge
+# networks with only the reverse proxy publishing a port" — is a property of
+# this file or it is a sentence in an ADR. step-ca (#130) issues the
+# certificates behind it over ACME, from a root of the tier's own (ADR-0037).
+# Home Assistant (#134) is the first service behind them, and the shape every
+# later one takes: `expose:` and no `ports:`, a site block of its own in the
+# Caddyfile, and its name as an alias on Caddy.
+# AdGuard Home (#135) is the second, and the one service that, by design,
+# publishes a port of its own — argued at DIFFERENCE 7 below. Immich (#132)
+# is the third, as four services — server, machine learning, Postgres,
+# Valkey — each in Home Assistant's shape, Paperless-ngx (#133) the fourth,
+# as three, and Vaultwarden (#131) the fifth — the one whose volume is the
+# vault, and the reason scripts/backup-volumes.sh learned this stack. ntfy
+# and Homepage (#136, #137) land the way Home Assistant did.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -28,7 +37,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are four such places, each marked DIFFERENCE.
+# the sibling file. There are eleven such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -83,12 +92,47 @@ services:
   # would have been reachable by every other container on this network.
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.4@sha256:df7f1c2fb114453b951de51a98efc010db1655a92c2e86be6706714e2417a78d
+    image: caddy:2.11.4@sha256:13ba145cba2f3e28fa801994876e4c086d1b95d5aa2a520a734765ffb6b12017
     container_name: sensitive-caddy
+    # A fixed address, for one reader: Home Assistant's `trusted_proxies`
+    # names the proxy it will believe X-Forwarded-For from, and "whatever
+    # Docker handed Caddy this boot" is not a name. The mapping form replaces
+    # the anchor's `networks: [sensitive]`; the subnet is declared at the
+    # bottom of this file. `.1` is the bridge's own address, so `.2` is the
+    # first a container can hold.
+    #
+    # And the aliases, for another reader: the compose network's resolver
+    # answers a name with a container's address only if the container carries
+    # that name. step-ca validates Caddy's tls-alpn-01 challenge by dialling
+    # the requested NAME on 443 from inside this network, so every name the
+    # Caddyfile serves is listed here too — a name served without an alias
+    # fails its first issuance with a DNS error at the CA, loudly. One alias
+    # per service, added in the same commit as its Caddyfile block (ADR-0037).
+    networks:
+      sensitive:
+        ipv4_address: 172.28.99.2
+        aliases:
+          - trinity.matrix.elysium
+          - homeassistant.matrix.elysium
+          - adguard.matrix.elysium
+          - immich.matrix.elysium
+          - paperless.matrix.elysium
+          - vaultwarden.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
+    # The operator's gid as a supplementary group, the way the estate's Grafana
+    # gets it. gen-certs.sh writes the leaf's key 0640, owned by whoever ran
+    # it, on purpose — its comment says why — and root in this container is
+    # not exempt from that mode: with CAP_DAC_OVERRIDE dropped, uid 0 is
+    # subject to the permission bits like any other uid. Without this line the
+    # first start on trinity ends in `open /etc/caddy/tls/key.pem: permission
+    # denied`, measured against the pinned image and a 0640 key before the
+    # line was added (#131). RENDER_GID is written by render-config.sh from
+    # `id -g` for every stack, so it is set wherever `make up` runs.
+    group_add:
+      - "${RENDER_GID:?run make render}"
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -96,18 +140,19 @@ services:
       - /tmp:size=16m
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # ACME account and every issued leaf live here; disposable, because
+      # each leaf is re-issued within a week anyway (ADR-0037).
       - caddy-data:/data
       - caddy-config:/config
-      # The leaf comes from scripts/gen-certs.sh until step-ca issues it
-      # (#129: "initially, replaced by step-ca issuance once that lands"):
-      #   make certs ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity"
-      # Issued on the monitoring host, where the CA key lives and stays; the
-      # three files travel the way the lab's did (build-the-lab-guest.md §5).
-      # render-config.sh refuses to render while any of these is missing, so
-      # `make up` cannot start a Caddy that would fail its first TLS handshake.
-      - ../../certificates/trinity.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
-      - ../../certificates/trinity.matrix.elysium-key.pem:/etc/caddy/tls/key.pem:ro
-      - ../../certificates/ca.pem:/etc/caddy/tls/ca.pem:ro
+      # No leaf and no key are mounted: Caddy obtains both from step-ca over
+      # ACME (the Caddyfile's cert_issuer block). What it needs from disk is
+      # the TIER'S root certificate — not the estate's ca.pem, which is a
+      # different CA (ADR-0037) — to verify the ACME directory it dials.
+      # `make tier-ca ARGS="--install …"` writes this file on trinity from the
+      # bundle; render-config.sh refuses to render while it is missing, and
+      # its message says so rather than naming `make certs`, which on this host
+      # would mint a third CA nobody asked for.
+      - ../../certificates/tier-ca.pem:/etc/caddy/tls/ca.pem:ro
     ports:
       - "${BIND_ADDR:-0.0.0.0}:${HTTPS_PORT:-443}:443"
     depends_on:
@@ -127,18 +172,31 @@ services:
   # ---------------------------------------------------------------------------
   # step-ca — the tier's certificate authority (#130)
   # ---------------------------------------------------------------------------
-  # An INTERMEDIATE beneath the lab CA, not a new root — decided on #130 and
-  # recorded here: everything that already trusts certificates/ca.pem keeps
-  # trusting what this issues, nothing is re-pointed, and the root key never
-  # leaves the monitoring host. The intermediate is minted there:
+  # A ROOT OF THE TIER'S OWN, with an intermediate beneath it — ADR-0037. This
+  # comment used to say "an intermediate beneath the lab CA, so nothing is
+  # re-pointed", and that was written before anyone read the lab root: it is
+  # minted with pathlen:0, so a leaf beneath any intermediate of it fails
+  # "path length constraint exceeded" in every Go client this estate runs. The
+  # ADR has the measurement and the cost of the alternative.
   #
-  #   step ca init --root certificates/ca.pem --key certificates/ca-key.pem ...
+  # Both are minted on the monitoring host, in this image, by
   #
-  # and the resulting tree (config/, certs/, secrets/, db/) is what populates
-  # the step-ca-data volume on trinity — the procedure is #404's runbook. The
-  # image's entrypoint refuses to start without config/ca.json and would
-  # otherwise mint a fresh root of its own on first boot; a populated volume
-  # is what stops that, and DOCKER_STEPCA_INIT_* is deliberately never set.
+  #   make tier-ca ARGS=--mint                (scripts/tier-ca.sh)
+  #
+  # which writes the tree step-ca runs from (config/, certs/, secrets/, db/)
+  # under certificates/ there, and a bundle of it WITHOUT the root key. The
+  # bundle is what populates the step-ca-data volume on trinity, with
+  # `make tier-ca ARGS="--install …"` — docs/runbooks/build-the-tier-ca.md.
+  # The root key stays on the monitoring host, cold: ca.json never references
+  # it (checked by the script), so this service has no use for it. The image's
+  # entrypoint refuses to start without config/ca.json and would otherwise
+  # mint a fresh root of its own on first boot; a populated volume is what
+  # stops that, and DOCKER_STEPCA_INIT_* is deliberately never set.
+  #
+  # The ACME provisioner in that ca.json accepts tls-alpn-01 only, on 443 —
+  # so 80 stays unpublished (ADR-0012) — and issues seven-day leaves. The
+  # lifetime is the outage budget between this container failing and the
+  # tier's handshakes failing; ADR-0037 §3 says why it is not the 24h default.
   #
   # DIFFERENCE 3: the key password comes from SOPS by way of the environment
   # and a tmpfs file. step-ca wants a --password-file; the estate's rule is
@@ -149,8 +207,10 @@ services:
   # the environment of either), and nothing on disk. `$$` is compose's
   # escape: the container sees `${STEPCA_PASSWORD}`, not this file's value.
   #
-  # Nothing publishes 9000. Caddy reaches it on this network for ACME once
-  # #130's provisioner is configured; a browser never needs it.
+  # Nothing publishes 9000. Caddy reaches it on this network for ACME; a
+  # browser never needs it. The day the estate's Grafana renews from here
+  # (ADR-0037's reopen) is the day it gets an off-host consumer and ADR-0012
+  # says to publish it — not before.
   step-ca:
     <<: *service-defaults
     image: smallstep/step-ca:0.30.2@sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270
@@ -159,6 +219,16 @@ services:
     memswap_limit: 256m
     user: "1000:1000"
     cap_drop: [ALL]
+    # Measured on the first boot, which the foundation commit never had: with
+    # every capability dropped, `exec /usr/local/bin/step-ca` fails with
+    # "operation not permitted" before main() runs. The image ships the binary
+    # with the NET_BIND_SERVICE file capability set (so it can bind 443 as a
+    # non-root user), and the kernel refuses to exec a file whose effective
+    # capability is outside the process's bounding set rather than running it
+    # unprivileged. Keeping that one capability in the bounding set is what
+    # makes the exec succeed; the process binds 9000 and would not need it.
+    # Same single capability Caddy keeps, for a different reason.
+    cap_add: [NET_BIND_SERVICE]
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -179,9 +249,12 @@ services:
       - "9000"
     healthcheck:
       # `step ca health` is the CA asking itself, over TLS, against its own
-      # root — which is the lab CA's root once the tree is populated. The
-      # `step` binary ships in the image; check_compose_health.py --probe
-      # proves that on every run rather than trusting this comment.
+      # root — the tier's, out of the installed tree. `localhost` is in the
+      # serving certificate's SANs because tier-ca.sh puts it there at init;
+      # without it this check fails on hostname mismatch against a CA that is
+      # serving fine. The `step` binary ships in the image;
+      # check_compose_health.py --probe proves that on every run rather than
+      # trusting this comment.
       test:
         - CMD
         - step
@@ -196,15 +269,850 @@ services:
       retries: 3
       start_period: 30s
 
+  # ---------------------------------------------------------------------------
+  # Home Assistant — the automation hub, and what the 99 → 20 rule is for (#134)
+  # ---------------------------------------------------------------------------
+  # Home Assistant CONTAINER, not Supervised and not OS: no Supervisor, so no
+  # add-ons — and that is the point rather than the price. An add-on is a
+  # second package manager operating outside this file and outside digest
+  # pinning, the objection roadmap.md records against Nextcloud's app store.
+  # Anything an add-on would have supplied — an MQTT broker, a Zigbee bridge —
+  # arrives as its own pinned service in this file, on the day a device needs
+  # it. None does today: Ring is cloud, the Hue bridge is its own radio, the
+  # speakers are Wi-Fi (roadmap.md, "Everything still to buy"). So there is no
+  # `devices:` line, no USB coordinator, and where trinity physically sits is
+  # not constrained by this service — the question ADR-0034 left to #404,
+  # answered for #134's part: a rack in a closet is fine.
+  #
+  # Upstream's compose example is `network_mode: host` and `privileged: true`.
+  # Neither is here, and this estate is the one place refusing them costs
+  # nothing. Host networking exists for discovery — mDNS and SSDP — and
+  # discovery is link-local: every device this controls is on Skids (VLAN 20),
+  # a broadcast domain away, so nothing on 20 would be found from 99 however
+  # the container were networked. Devices are added by address, through the
+  # one pass ADR-0035 scopes. `privileged` exists for USB radios and Bluetooth,
+  # and there are none. So this is an ordinary member of the `sensitive`
+  # network with `expose:` and no `ports:`, behind Caddy like everything else,
+  # and ADR-0008's containment sentence stays true of it.
+  #
+  # DIFFERENCE 5: `init: false`. The image's entrypoint is s6-overlay v3, an
+  # init in its own right, and it refuses to be anything but PID 1 — measured
+  # on the pinned image, not read: with `init: true` the container exits at
+  # once on `s6-overlay-suexec: fatal: can only run as pid 1`. Every other
+  # service here takes tini from x-service-defaults; this one brings its own.
+  #
+  # DIFFERENCE 6: root, like Caddy, and for a worse reason — the image has no
+  # other mode. s6 starts as root and runs Home Assistant as root; there is no
+  # PUID, and a `user:` line breaks the supervision tree before it starts. What
+  # bounds that is the same set as Caddy's, minus the capability: everything
+  # dropped, no-new-privileges, a read-only root with two tmpfs mounts (s6
+  # needs /run and Home Assistant needs /tmp; S6_READ_ONLY_ROOT tells stage 2
+  # to stage its scripts under /run instead of /etc), and one writable path,
+  # the config volume. Booted exactly so on the monitoring host on 2026-09-09
+  # from the pinned digest, on an internal Docker network with no route out:
+  # onboarding served in about twenty seconds, zero read-only errors, CapEff 0
+  # for PID 1 and for the Home Assistant process. Root with no capabilities and
+  # a read-only root writes /config and nothing else. Two things that boot
+  # taught, both kept: /run has to be mounted `exec` — Docker's tmpfs default
+  # is noexec and s6 stages its own binaries there, so without it stage 0 dies
+  # on `Permission denied` — and one error line is logged on every start,
+  # `aiodhcpwatcher: Cannot watch for dhcp packets: Operation not permitted`.
+  # That is default_config's `dhcp` discovery wanting CAP_NET_RAW to sniff
+  # for devices; on a bridge network a VLAN away from every device it would
+  # sniff nothing, so the capability stays dropped and the line is expected.
+  #
+  # WHERE THE CREDENTIALS ARE, because this service accumulates more of them
+  # than anything else on the tier and the estate's rule is `secrets/*.sops.yaml`
+  # or nowhere. Home Assistant does not take device credentials from the
+  # environment or from any file this repository could render: the Hue
+  # application key, the Ring refresh token and everything else a config flow
+  # produces is written by Home Assistant into /config/.storage/ — in the
+  # volume, on trinity's disk, in the volume archive. So the rule holds for
+  # what this file can hold, which today is nothing — there is no `${VAR:?}`
+  # guard because there is no secret this service takes from outside — and
+  # the deviation is written down rather than papered over: the tier's most
+  # numerous credentials live in an application store, protected by #404's
+  # disk-encryption decision and by the volume backup, not by SOPS. ADR-0035
+  # records that. Two rules follow from it. A long-lived access token minted
+  # in the UI for another service to use is that service's secret and goes in
+  # ITS SOPS file — none exists yet, and #98's would-be consumer was declined
+  # by ADR-0019. And the first YAML-configured integration that needs a
+  # credential is the day /config/secrets.yaml gets rendered from SOPS the way
+  # alertmanager's URL files are; not before, because a rendered file with
+  # nothing to hold is a mount nothing reads.
+  home-assistant:
+    <<: *service-defaults
+    image: ghcr.io/home-assistant/home-assistant:2026.9.1@sha256:612d76760b544cb40b7ba01387fdac964c59a6a550a50a4d30b4773c822d2918
+    container_name: sensitive-home-assistant
+    init: false
+    # A ceiling to catch a leak, not a measurement: #114's method — median and
+    # peak over a fortnight of real use — replaces it once the tier runs. The
+    # only number there is: 316 MiB RSS at the end of a first boot on the
+    # pinned image, with default_config loaded and no devices, and 35
+    # tasks against the anchor's pids_limit of 512. Python threads count as
+    # tasks and Home Assistant is thread-heavy — its executor alone may hold
+    # 64 — so the margin under 512 is stated rather than assumed.
+    mem_limit: 1g
+    memswap_limit: 1g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      - /run:size=16m,exec
+    environment:
+      S6_READ_ONLY_ROOT: "1"
+    volumes:
+      - home-assistant-config:/config
+      # The config is the repository's; the volume is the application's. A
+      # single-file mount over a volume works — Docker mounts the deeper path
+      # last — and it is pinned to an inode like every other single-file mount
+      # here, so `make up` runs check_mounted_config.py --fix for it (#355).
+      - ./home-assistant/configuration.yaml:/config/configuration.yaml:ro
+      - ./home-assistant/packages:/config/packages:ro
+    expose:
+      - "8123"
+    # The recorder flushes on shutdown; cut it off at compose's default 10s
+    # and the next start replays or repairs the database. Upstream's example
+    # sets the same figure.
+    stop_grace_period: 60s
+    healthcheck:
+      # /manifest.json answers 200 with no session. `/` answers 302 — to
+      # onboarding, then to the login page — which --spider would also pass,
+      # but a redirect is a weaker claim than a document. busybox wget, as in
+      # Caddy's check; --probe proves the binary is there.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/manifest.json"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # A first boot on the i5-8500T is well under this; the figure covers a
+      # recorder repair after an unclean stop, which is the slow start that
+      # matters.
+      start_period: 90s
+
+  # ---------------------------------------------------------------------------
+  # AdGuard Home — the DNS filter Unbound forwards to (#135, ADR-0010)
+  # ---------------------------------------------------------------------------
+  # Not a client-facing resolver. Every DHCP scope keeps handing out pfSense;
+  # Unbound on morpheus forwards to this address with the public upstreams
+  # listed beside it, so a dead AdGuard costs filtering and never connectivity.
+  # docs/runbooks/forward-dns-to-adguard.md is the change on morpheus, and it
+  # is the entire client-side change — one config file, no DHCP edit, no lease
+  # TTL to wait out, which is what makes ADR-0010 cheap to reverse.
+  #
+  # DIFFERENCE 7: this service publishes a port, and it is the only one
+  # besides Caddy that ever should. ADR-0012's test is a named off-host
+  # consumer, and this one has two: Unbound on morpheus, which is what the
+  # service exists for, and the blackbox exporter on prometheus, which probes
+  # 53 directly because a probe through the normal path always passes (#126).
+  # Caddy cannot carry it — DNS is not HTTP and the stock image has no
+  # layer-4 proxy — so the containment argument in the header holds for HTTP
+  # and this is the one hole cut in it, sized to a port and an address:
+  # published on trinity's own address rather than 0.0.0.0 (.env.example says
+  # why), and answered for two source addresses only (adguard/AdGuardHome.yaml
+  # `allowed_clients`). The client VLANs never reach it at all; default deny
+  # sees to that, and the Hicks named list (ADR-0031) does not include it.
+  #
+  # Runs as `nobody`, which the image's own files are owned by, with every
+  # capability dropped but NET_BIND_SERVICE — and that one is in the bounding
+  # set only. The binary carries `cap_net_bind_service=eip` as a file
+  # capability (getcap in the pinned image, 2026-09-09), which is what lets a
+  # non-root process bind 53 and 80; the container's own CapEff reads 0. The
+  # image refuses a FIRST launch as non-root ("you must run it as
+  # administrator") because the setup wizard wants to write its config; with
+  # the config already present, as below, it never runs the wizard.
+  #
+  # The config is adguard/AdGuardHome.yaml, tracked, and copied into a tmpfs
+  # on every start with the admin hash substituted from the environment — so
+  # what runs is what the repository says, and a change made in the UI lasts
+  # until the next restart. The hash passes through the environment rather
+  # than a rendered file for a permissions reason worth writing down: a file
+  # render-config.sh writes is 0600 to the rendering user, and the one
+  # process that could read it — a container running as that user — cannot
+  # write the `work` volume, which inherits `nobody` from the image. Same
+  # exposure class as STEPCA_PASSWORD above, and it is a bcrypt hash rather
+  # than a password. awk with index()/substr() rather than sed or gsub(): a
+  # bcrypt hash is `$`, `.`, `/` and alphanumerics, and every one of the
+  # obvious substitution tools treats at least one of those specially.
+  #
+  # `work` is where the downloaded blocklists, the query log and the
+  # statistics live — a volume, so a restart does not need the internet to
+  # filter again. Nothing else is writable.
+  adguard:
+    <<: *service-defaults
+    image: adguard/adguardhome:v0.107.79@sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0
+    container_name: sensitive-adguard
+    # 5x the measured 95 MiB RSS with both blocklists loaded (433k rules,
+    # 2026-09-09). A list refresh briefly holds the old and new copies, and
+    # the bound is for a leak, not a budget.
+    mem_limit: 512m
+    memswap_limit: 512m
+    user: "65534:65534"
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /opt/adguardhome/conf:size=1m,uid=65534,gid=65534,mode=0700
+    environment:
+      ADGUARD_ADMIN_PASSWORD_HASH: ${ADGUARD_ADMIN_PASSWORD_HASH:?make hash-password, then secrets-edit STACK=sensitive}
+    # `$$` is compose's escape, as for step-ca: the container sees `$0` and
+    # `${ADGUARD_ADMIN_PASSWORD_HASH}`, not this file's values. The chmod
+    # quietens AdGuard's own permission check on the volume, which Docker
+    # creates 0755; the directory is ours to tighten.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        umask 077 && chmod 700 /opt/adguardhome/work
+        && awk -v hash="$${ADGUARD_ADMIN_PASSWORD_HASH}"
+        '{ i = index($$0, "__ADGUARD_ADMIN_PASSWORD_HASH__");
+        if (i) $$0 = substr($$0, 1, i - 1) hash substr($$0, i + 31);
+        print }'
+        /opt/adguardhome/template/AdGuardHome.yaml
+        > /opt/adguardhome/conf/AdGuardHome.yaml
+        && exec /opt/adguardhome/AdGuardHome --no-check-update
+        -c /opt/adguardhome/conf/AdGuardHome.yaml -w /opt/adguardhome/work
+    volumes:
+      - ./adguard/AdGuardHome.yaml:/opt/adguardhome/template/AdGuardHome.yaml:ro
+      - adguard-work:/opt/adguardhome/work
+    ports:
+      - "${DNS_BIND_ADDR:-10.0.99.40}:53:53/udp"
+      - "${DNS_BIND_ADDR:-10.0.99.40}:53:53/tcp"
+    # The UI, for Caddy only.
+    expose:
+      - "80"
+    healthcheck:
+      # The login page, unauthenticated: 302 then 200, which busybox wget
+      # follows. HTTP rather than a DNS query on purpose — a query from inside
+      # the container arrives from 127.0.0.1, which `allowed_clients` drops,
+      # and a healthcheck that depended on the upstreams would mark the
+      # container unhealthy for a WAN fault. Whether it ANSWERS is the
+      # blackbox probe's question, asked from where the firewall asks it.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Vaultwarden — the household's password manager (#131)
+  # ---------------------------------------------------------------------------
+  # Behind Caddy like Home Assistant, in the shape every later service copies:
+  # `expose:` and no `ports:`, so a browser on Hicks reaches it only through
+  # the one published 443, by name, at https://vaultwarden.matrix.elysium.
+  # Bitwarden's own clients and browser extensions are pointed at that URL
+  # unchanged, which is the whole reason #131 chose it over upstream Bitwarden.
+  #
+  # Runs as root with EVERY capability dropped — DIFFERENCE 2's argument, and
+  # the same measurement: in the pinned image /data is 0:0 755, a named volume
+  # mounted there inherits that, and a non-root Vaultwarden cannot create its
+  # own database. Unlike Caddy it keeps nothing: ROCKET_PORT is 8080 rather
+  # than the image's 80, so there is no privileged bind and no NET_BIND_SERVICE
+  # to keep. Root without CAP_DAC_OVERRIDE writes the one directory it owns and
+  # nothing else. Checked before this was written, on the pinned image with
+  # exactly these options: it came up healthy, answered /alive and /admin, and
+  # `docker diff` showed nothing of its own written outside /data. Re-check
+  # the premise when the image moves, as for Caddy:
+  #
+  #   docker run --rm --entrypoint stat <vaultwarden image> -c '%u:%g %a' /data
+  #
+  # SIGNUPS_ALLOWED is false from the FIRST start, not "after the two accounts
+  # exist" as #131 wrote it. There is no window: the two accounts are created
+  # by invitation from /admin, and with no SMTP configured an invited address
+  # simply registers itself at the vault — Vaultwarden's documented path for
+  # exactly this. So no SMTP credential to hold, and not a minute in which
+  # anything on Hicks could open an account of its own.
+  #
+  # ADMIN_TOKEN is an Argon2id PHC string, never the token itself — generated
+  # by `vaultwarden hash` (the README has the command) and pasted into SOPS.
+  # `docker inspect` on this container then shows a hash, where on Grafana it
+  # shows the password. The string is five `$`-delimited fields, and compose
+  # reads a `$` in .env as a variable reference and quietly hollows the value
+  # out; render-config.sh doubles them on the way in, and this is why.
+  #
+  # IP_HEADER: Caddy sets X-Forwarded-For, not the X-Real-IP the image defaults
+  # to. Nothing but Caddy can reach 8080, so the header is trusted — it is what
+  # lets the login rate limit and the admin log see the client on Hicks rather
+  # than the proxy's address on the bridge.
+  #
+  # No `depends_on` from Caddy to this service, deliberately: a proxy that
+  # waits for every upstream is a proxy that stays down while one of them is
+  # broken. Caddy answers 502 for a vault that is not up yet, which is true.
+  #
+  # 256m: the process idles under 10 MiB RSS on the pinned image, and checking
+  # the admin token at an /admin login costs the Argon2 memory parameter once
+  # — 19 MiB with the OWASP preset, 64 MiB with Bitwarden's. Four times the
+  # larger, to bound a leak rather than to size.
+  vaultwarden:
+    <<: *service-defaults
+    image: vaultwarden/server:1.37.2@sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912
+    container_name: sensitive-vaultwarden
+    mem_limit: 256m
+    memswap_limit: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    environment:
+      DOMAIN: https://vaultwarden.matrix.elysium
+      ROCKET_PORT: "8080"
+      SIGNUPS_ALLOWED: "false"
+      INVITATIONS_ALLOWED: "true"
+      SHOW_PASSWORD_HINT: "false"
+      IP_HEADER: X-Forwarded-For
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - vaultwarden-data:/data
+    expose:
+      - "8080"
+    healthcheck:
+      # The image's own script: curl against its own ROCKET_PORT and the base
+      # path DOMAIN implies, which here is /alive. curl ships in the image, and
+      # check_compose_health.py --probe proves that on every run.
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Immich — the service ADR-0008 named as the cost of the decision (#132)
+  # ---------------------------------------------------------------------------
+  # "A large, rapidly-moving codebase with an upload endpoint" on the segment
+  # where compromise is total. ADR-0008 accepted that on four conditions, and
+  # each of them is a line in this block rather than a sentence in the ADR:
+  # nothing is exposed to the internet (no `ports:` on any of the four
+  # services — Caddy above is the one door); the realistic threat is a
+  # supply-chain compromise in an image, which the tag-and-digest pins bound
+  # (Dependabot moves them, CI validates them, and Immich ships roughly
+  # monthly, so this is the stack where the pin earns its keep); the
+  # containers sit on a private bridge; and a memory limit on every one of
+  # them, because the machine learning is the most memory-hungry thing that
+  # will run in the estate and #114 exists because nothing used to bound a
+  # leak.
+  #
+  # Four services because that is what Immich is: a Node server that is both
+  # the API and the job workers, a Python inference service it calls over
+  # HTTP, a Postgres with the VectorChord extension, and a Redis-compatible
+  # queue. Upstream's own compose file is the reference for the shape; every
+  # departure from it below is a hardening step this estate applies to
+  # everything, and each was booted and exercised on the monitoring host on
+  # 2026-09-09 before it was written down — an admin created, an upload made,
+  # thumbnails generated, the ML models fetched — because a read-only root
+  # filesystem is a crash loop that `restart: unless-stopped` retries
+  # forever, and the two places these images write outside their volumes
+  # were found by running, not by reading.
+  #
+  # DIFFERENCE 8: two of these services turn `init: true` back off, as Home
+  # Assistant does (DIFFERENCE 5) and for the same shape of reason. Both
+  # Immich images ship tini as their entrypoint, and under docker-init tini
+  # starts as PID 2 and warns on every boot that it will not reap. docker-init
+  # reaps regardless, so nothing was broken — but a warning at every start is
+  # a log line nobody reads twice, and the image's own init is the init.
+  #
+  # DIFFERENCE 9: the library is a bind mount, not a named volume. A phone
+  # library is tens to hundreds of gigabytes and grows without asking, so it
+  # lives on the 2 TB USB disk docs/hardware.md assigns to it, not on the
+  # 512 GB SSD beside the database. That has a consequence for
+  # scripts/backup-volumes.sh, which archives NAMED volumes and would not fit
+  # this one on the SSD if it did: the library is protected by ADR-0023's
+  # off-estate copy and by nothing on this host. Immich writes its own nightly
+  # database dump into the library tree (`backups/`, fourteen kept), so the
+  # disk carries the metadata beside the originals and the off-estate copy of
+  # the disk is a copy of both. The `immich-db` volume is the second route to
+  # the metadata, for `make backup STACK=sensitive` once that script has
+  # sentinels for this stack's volumes and picks the tier's recipient (#428).
+  #
+  # ON THE MEMORY LIMITS. Ceilings, not measurements — the same standing as
+  # Caddy's 128m above and unlike the estate's, which #114 derived from a
+  # fortnight of RSS. What was measured is the floor: on the monitoring host,
+  # 2026-09-09, docker stats through first boot, one upload and the ML model
+  # fetch — server 413–699 MiB, Postgres 134–313 MiB, machine learning 235–340
+  # MiB idle and 1.02 GiB with CLIP and the face model both loaded, Valkey
+  # under 8 MiB. The ceilings sit well above those and below anything that
+  # would let one container take the 32 GB host down; they exist to turn a
+  # leak into an OOM kill of one service, which ContainerOomKilled then
+  # names. Re-derive them the way #114
+  # did once trinity has run a fortnight with real uploads and a transcode or
+  # two — `max_over_time(container_memory_rss{name=~"sensitive-immich.*"}[14d])`
+  # — and move the number and this paragraph together.
+  immich-server:
+    <<: *service-defaults
+    image: ghcr.io/immich-app/immich-server:v3.1.0@sha256:b434cb9287eea1471c9974845914d4dd328c9c2d652e446ed4930f99944f0ceb
+    container_name: sensitive-immich-server
+    init: false
+    # 3 GiB: the server transcodes video with ffmpeg inside this container,
+    # and a 4K clip is the largest single working set anything here will have.
+    mem_limit: 3072m
+    memswap_limit: 3072m
+    # The deploying user, as Alertmanager and snmp-exporter run in the
+    # estate's stack: the library on the USB disk is owned by whoever
+    # formatted it, and the container writes there as that uid and nowhere
+    # else. The image runs as root by default and needs none of root's
+    # capabilities — 2283 is unprivileged — so the whole set is dropped.
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root proved by `docker diff` after an upload: nothing outside
+    # /data and /tmp. /tmp is where Node puts its temporaries; uploads stream
+    # straight to /data/upload and transcodes to /data/encoded-video, so 256m
+    # is headroom rather than a working figure.
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    environment:
+      DB_HOSTNAME: immich-db
+      DB_USERNAME: postgres
+      DB_DATABASE_NAME: immich
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      REDIS_HOSTNAME: immich-valkey
+      # Caddy's fixed address (see its `networks:` block), so the client
+      # address Immich records against a session is the phone's and not the
+      # proxy's. The same reader Home Assistant's `trusted_proxies` has.
+      IMMICH_TRUSTED_PROXIES: 172.28.99.2
+    volumes:
+      # Long form so that `create_host_path: false` can be said: a missing
+      # source directory refuses the deploy instead of becoming an empty
+      # directory on the SSD that a whole library then lands in. See
+      # .env.example for the mount point and for the case this cannot catch.
+      - type: bind
+        source: ${IMMICH_UPLOAD_LOCATION:-/srv/immich}
+        target: /data
+        bind:
+          create_host_path: false
+      - /etc/localtime:/etc/localtime:ro
+    expose:
+      - "2283"
+    depends_on:
+      immich-db:
+        condition: service_healthy
+      immich-valkey:
+        condition: service_healthy
+    healthcheck:
+      # The image's own HEALTHCHECK, written out so check_compose_health.py
+      # --probe can exec it: a bash script on the image's PATH that curls
+      # /api/server/ping on the API worker.
+      test: ["CMD", "immich-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # First boot imports ~228k geodata rows before the API answers — 35 s on
+      # the monitoring host, comfortably inside this.
+      start_period: 120s
+
+  immich-machine-learning:
+    <<: *service-defaults
+    image: ghcr.io/immich-app/immich-machine-learning:v3.1.0@sha256:5a0839dc5303cd7215bcd2180a26aed3af41675aefb3e75e5157e9f10ad16e6e
+    container_name: sensitive-immich-machine-learning
+    # Behind a profile so that .env.example's COMPOSE_PROFILES line is the
+    # switch (#132: "consider disabling the machine-learning container
+    # initially"). It is ON by default: ADR-0034 chose the ProDesk because
+    # 32 GB fits this, and the limit below is what makes running it
+    # acceptable before there is data on what it costs.
+    profiles: ["ml"]
+    init: false
+    # 4 GiB: CLIP and the face-recognition model load to roughly a gigabyte
+    # each and unload after five idle minutes; a batch of both at once, with
+    # the ONNX arenas, is the ceiling this is set against.
+    mem_limit: 4096m
+    memswap_limit: 4096m
+    # Root, with every capability dropped — the Caddy argument (DIFFERENCE 2,
+    # and Home Assistant's DIFFERENCE 6) for the same measured reason: the
+    # image has no /cache directory, so the named volume mounted there is
+    # created root-owned, mode 755, and a non-root process cannot fetch a
+    # model into it. Re-check when the image moves:
+    #
+    #   docker run --rm --entrypoint stat <ml image> -c '%u:%g %a' /cache
+    #
+    # "No such file or directory" is the answer that keeps this as root.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root, and the two writes outside /cache it needed redirected
+    # (both found by running): huggingface_hub's xet download cache and its
+    # logs go under $HF_HOME, which defaults to /root/.cache/huggingface and
+    # is what made every model fetch fail with EROFS; matplotlib wants a
+    # config directory under $HOME and warns on every start without one.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      HF_HOME: /cache/huggingface
+      MPLCONFIGDIR: /tmp/matplotlib
+    volumes:
+      - immich-model-cache:/cache
+    expose:
+      - "3003"
+    healthcheck:
+      # The image's own HEALTHCHECK: healthcheck.py in the WORKDIR, GETting
+      # /ping. python3 is the venv's, on PATH.
+      test: ["CMD", "python3", "healthcheck.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  immich-db:
+    <<: *service-defaults
+    # Upstream's image — Postgres with VectorChord preloaded and its own
+    # entrypoint choosing an SSD or HDD tuning profile. Major 17 rather than
+    # the 14 upstream's compose still defaults to: 14 leaves support in
+    # November 2026, upstream states >= 14 and < 20 all work, and a library
+    # born on a major that needs a dump-and-restore within months would be
+    # choosing the migration on purpose. The tag carries the extension
+    # version, so Dependabot bumps both halves together.
+    image: ghcr.io/immich-app/postgres:17-vectorchord0.4.3@sha256:79b95b795f0911e95ffa4d092a2162c4d81a984d5629bc8f786afe0bc0657671
+    container_name: sensitive-immich-db
+    # 2 GiB: upstream's stated floor for a Postgres under a container limit.
+    mem_limit: 2048m
+    memswap_limit: 2048m
+    # postgres, by uid. The image's data directory is 999:999 and a named
+    # volume inherits that, so the entrypoint's root-then-drop dance is not
+    # needed and no capability is either.
+    user: "999:999"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Postgres's shared memory. Docker's default /dev/shm is 64 MiB, which
+    # parallel query workers exhaust; upstream sets this and so does this.
+    shm_size: 128m
+    # Read-only root. The entrypoint copies its tuning profile to
+    # /etc/postgresql at every start — the one write outside the data
+    # directory, and the reason for the second tmpfs. The socket directory
+    # is the first; the healthcheck connects through it.
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:size=4m,uid=999,gid=999,mode=0700
+      - /etc/postgresql:size=1m,uid=999,gid=999,mode=0700
+      - /tmp:size=64m
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: immich
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      # Page checksums from the first initdb: this is the one database in the
+      # estate whose corruption would be noticed years later, by someone
+      # looking for a photograph.
+      POSTGRES_INITDB_ARGS: --data-checksums
+      # The database is on the internal SSD, which is the default profile;
+      # written out so that moving it to the spinning disk is a one-line
+      # change that reads as a decision.
+      DB_STORAGE_TYPE: SSD
+    volumes:
+      - immich-db:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "--dbname=immich", "--username=postgres"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  immich-valkey:
+    <<: *service-defaults
+    # Immich's job queue, and nothing else: BullMQ state that is rebuilt from
+    # the database on restart, which is why upstream gives it no volume and
+    # why /data here is a tmpfs. A full semver tag where upstream pins the
+    # major alone, so that Dependabot has something to move.
+    image: valkey/valkey:9.1.2@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
+    container_name: sensitive-immich-valkey
+    mem_limit: 256m
+    memswap_limit: 256m
+    user: "999:999"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /data:size=64m,uid=999,gid=999
+      - /tmp:size=16m
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Paperless-ngx — the document archive (#133)
+  # ---------------------------------------------------------------------------
+  # Tax returns, insurance, medical records, passports and payslips: on this
+  # tier by content rather than by size, and the service ADR-0023 classes as
+  # DURABLE — an OCR index can be rebuilt from the originals, and the originals
+  # cannot be rebuilt from anything. Three containers: the application, a
+  # Postgres of its own and a Valkey broker. Not shared with Immich's (#132),
+  # which needs the vector extension and therefore a different image — and one
+  # database per service is what lets backup-volumes.sh attribute every volume
+  # to the one service that owns it, and stop only that.
+  #
+  # Reached as https://paperless.matrix.elysium through Caddy, on the existing
+  # 50→99 pass for 443 and no new rule. One thing outside this file has to be
+  # true first, and it belongs to #404's build rather than to this file: the
+  # name needs a host override on morpheus (docs/runbooks/add-a-host-override.md).
+  # The certificate is step-ca's, obtained over ACME for the site block of
+  # this name in the Caddyfile; the alias on Caddy's network block above is
+  # what lets the CA validate it.
+  #
+  # ROOTLESS, as the operator. The image is s6-overlay over Django and
+  # ordinarily starts as root, maps to uid 1000 through USERMAP_UID and drops
+  # privilege per process. Upstream also supports `user:` outright — "the
+  # container process starts directly as that user with no internal privilege
+  # remapping" — and that is the form here, with every capability dropped
+  # because nothing is left that would use one. The uid is ${RENDER_UID}, the
+  # choice alertmanager and snmp-exporter make in the sibling stack, for the
+  # same reason turned around: they READ files render-config.sh wrote, this
+  # DELETES files the operator wrote. ./consume below is a bind mount owned by
+  # whoever ran `make up`; a scan dropped there by that user over SSH is
+  # readable, and removable once consumed, only if the consumer runs as them.
+  #
+  # DIFFERENCE 10: a CPU ceiling, the first in the estate. #133 is explicit —
+  # OCR "will use everything it is given for minutes at a time" — and a backlog
+  # scan is the one workload on this box that saturates rather than leaks.
+  # `cpus: 4` of the i5-8500T's six is the enforcement; TASK_WORKERS and
+  # THREADS_PER_WORKER in .env.example are what Paperless is asked to use, and
+  # their product (3) sits under the ceiling so the webserver, the scheduler
+  # and Postgres are not throttled by a consumer that is. Throttling is not
+  # silent: ContainerCpuThrottled reads the same cgroup counters.
+  #
+  # DIFFERENCE 11: NOT read_only, where every other long-running container in
+  # the estate is. OCR is scratch-heavy — ocrmypdf renders every page to an
+  # image under PAPERLESS_SCRATCH_DIR, /tmp by default, and the working set
+  # scales with the document — and a tmpfs there is charged to this cgroup's
+  # memory.max, so a long scan would arrive as an OOM kill rather than as a
+  # slow consume. The writable layer costs nothing to keep, and read_only
+  # would have bought a property the memory limit then takes back. Booted from
+  # the pinned image as ${RENDER_UID} with cap_drop before this was written;
+  # the README carries what that run showed.
+  #
+  # Memory: 3072m, unmeasured on the hardware and stated as such. The estate
+  # sizes from fourteen days of RSS; this box does not exist. Upstream's floor
+  # is 2 GB for the whole install; this is that plus room for one document's
+  # OCR, on a box with 32 GB. Re-derive from container_memory_rss once trinity
+  # has run a month, the way stacks/observability did for its seven.
+  #
+  # The healthcheck is the image's own (curl against 8000, which ALLOWED_HOSTS
+  # always admits for localhost), written out so check_compose_health.py
+  # --probe proves curl is still in the image after a Dependabot bump.
+  # start_period covers the migrations and the `document_index reindex
+  # --if-needed` the container runs before the webserver listens.
+  paperless:
+    <<: *service-defaults
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.1.3@sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a
+    container_name: sensitive-paperless
+    # DIFFERENCE 5 again: s6-overlay as PID 1, and the same measured refusal
+    # as home-assistant's — booted with the shared default, the container
+    # exits at once with "s6-overlay-suexec: fatal: can only run as pid 1".
+    init: false
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    mem_limit: 3072m
+    memswap_limit: 3072m
+    cpus: 4
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+      paperless-broker:
+        condition: service_healthy
+    environment:
+      PAPERLESS_REDIS: redis://paperless-broker:6379
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      # The same SOPS value paperless-db reads as POSTGRES_PASSWORD, so the
+      # two cannot drift.
+      PAPERLESS_DBPASS: ${PAPERLESS_DBPASS:?set in secrets/sensitive.sops.yaml}
+      # Signs sessions and tokens; rotating it logs everyone out and nothing
+      # worse. Paperless refuses to start without it, and the guard turns
+      # that refusal into a message naming the file.
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:?set in secrets/sensitive.sops.yaml}
+      # The superuser, created on first start and never touched again by
+      # this variable — the GRAFANA_ADMIN_* shape, with the same exposure
+      # (`docker inspect` reads it) accepted for the same reason: the
+      # alternative is a hand-run createsuperuser nothing converges. TOTP on
+      # this account at first login is ADR-0022's floor; the README has the
+      # step.
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      # Behind Caddy. The URL sets ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS in
+      # one go, and the two proxy settings let Django see https and the
+      # browser's Host rather than the proxy's — without them every form POST
+      # is a CSRF 403. Caddy sets the X-Forwarded-* headers unasked.
+      PAPERLESS_URL: ${PAPERLESS_URL:-https://paperless.matrix.elysium}
+      PAPERLESS_USE_X_FORWARD_HOST: "true"
+      PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
+      PAPERLESS_TIME_ZONE: ${PAPERLESS_TIME_ZONE:-America/Los_Angeles}
+      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-eng}
+      PAPERLESS_TASK_WORKERS: ${PAPERLESS_TASK_WORKERS:-1}
+      PAPERLESS_THREADS_PER_WORKER: ${PAPERLESS_THREADS_PER_WORKER:-3}
+    volumes:
+      # data: the search index, the classifier, the logs — rebuildable. media:
+      # the originals, the archived PDF/A copies and the thumbnails — not.
+      # Separate volumes so the backup verifies each by its own sentinel and
+      # a restore can bring back the one that matters without the other.
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      # Two directories the repository does not track and render-config.sh
+      # creates, owned by the operator: consume is the ingest path — a file
+      # dropped here is imported and then deleted — and export is where
+      # document_exporter writes the version-portable copy the README's
+      # backup section describes. Docker would create both as root if render
+      # did not, and a consumer running as ${RENDER_UID} could then delete
+      # nothing it consumed.
+      - ./consume:/usr/src/paperless/consume
+      - ./export:/usr/src/paperless/export
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-S", "-L", "--max-time", "2", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ---------------------------------------------------------------------------
+  # Postgres for Paperless-ngx
+  # ---------------------------------------------------------------------------
+  # Postgres 18, the major upstream's own compose pins, and the one that moved
+  # the data directory: it is /var/lib/postgresql/18/docker now, under a
+  # volume mounted one level up at /var/lib/postgresql — so a major-version
+  # upgrade gets a sibling directory and pg_upgrade has somewhere to write.
+  # Mount the parent, as upstream does; mounting .../data is the pre-18 layout
+  # and the image warns about it. backup-volumes.sh's sentinel for this volume
+  # carries the major version in its path for that reason, and a bump to 19
+  # has to move it — loudly, since the script refuses to write an archive it
+  # cannot verify.
+  #
+  # Runs as 999 — the image's postgres user — from the start, not through the
+  # entrypoint's root-then-gosu step, so `cap_drop: [ALL]` has nothing left to
+  # take away. A fresh named volume inherits the image's ownership of
+  # /var/lib/postgresql (999:999), which is what makes the non-root start
+  # work; the two tmpfs mounts are the socket directory and sort scratch, the
+  # only places it writes outside the volume. read_only booted and proven on
+  # the pinned image, the way the sibling stack's were.
+  #
+  # 512m for a database whose whole content is metadata about documents — the
+  # documents are files under media, not rows. Unmeasured, like the
+  # application's: shared_buffers defaults to 128 MB and this is four times it.
+  paperless-db:
+    <<: *service-defaults
+    image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+    container_name: sensitive-paperless-db
+    user: "999:999"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:size=1m,uid=999,gid=999,mode=0755
+      - /tmp:size=64m
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DBPASS:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - paperless-db-data:/var/lib/postgresql
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "paperless", "-d", "paperless"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Valkey for Paperless-ngx — the task broker
+  # ---------------------------------------------------------------------------
+  # Valkey rather than Redis because upstream's compose moved to it; the
+  # variable is still PAPERLESS_REDIS and the protocol is the same. It carries
+  # the Celery queue and the cache and nothing else, so it is the one volume in
+  # this stack whose loss costs nothing — a consume that was queued is found
+  # again on the next start, because the consumer re-scans its directory.
+  # `--save 60 1` keeps an RDB anyway, so that SIGTERM — which is what a
+  # quiesced backup sends — leaves a dump.rdb for the archive's sentinel.
+  #
+  # 999 is the image's valkey user; the entrypoint would drop to it from root
+  # regardless, so `user:` only makes the drop unnecessary.
+  paperless-broker:
+    <<: *service-defaults
+    image: valkey/valkey:9.1.2-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b
+    container_name: sensitive-paperless-broker
+    # DIFFERENCE 5 and 8 again: the image's entrypoint is `tini --
+    # docker-entrypoint.sh`, an init of its own, and under docker-init it runs
+    # as PID 2 and logs on every start that zombies "will not be re-parented
+    # to Tini". One init is enough.
+    init: false
+    user: "999:999"
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    command: ["valkey-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - paperless-broker-data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 # DIFFERENCE 4: one network, and it is the point. Every later service joins
-# `sensitive` with `expose:` only; Caddy is the sole member with `ports:`.
-# A service that adds `ports:` here is undoing ADR-0008's containment, and
-# the review question for every PR against this file is that one line.
+# `sensitive` with `expose:` only. Two members have `ports:` — Caddy, and
+# AdGuard for the reason DIFFERENCE 7 gives — and a third is undoing
+# ADR-0008's containment. The review question for every PR against this file
+# is that one line.
+#
+# The subnet is fixed so that one address on it can be: Caddy's, which Home
+# Assistant's `trusted_proxies` names. 172.28.99.0/24 is inside Docker's
+# default 172.16/12 pool, so nothing else on trinity changes; outside the two
+# subnets the estate routes; and outside the 172.30.30.0/24 ADR-0017 keeps
+# unrouted on ifrit, so a 172.28.99.x source in a firewall log still means
+# what that ADR says a 172.30.30.x one means — a leak reporting itself.
 networks:
   sensitive:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.99.0/24
 
 volumes:
   caddy-data:
   caddy-config:
   step-ca-data:
+  home-assistant-config:
+  adguard-work:
+  # Immich's metadata: every album, face, tag and the path of every original.
+  # The originals are on the USB disk (DIFFERENCE 9); this is the SSD half.
+  immich-db:
+  # Downloaded ML models and huggingface_hub's chunk cache, about a gigabyte
+  # once CLIP and the face model have been fetched. Re-downloadable, so it is
+  # the one volume here whose loss costs a few minutes and an internet
+  # connection rather than anything — and the one scripts/backup-volumes.sh
+  # skips by name, for that reason.
+  immich-model-cache:
+  paperless-data:
+  paperless-media:
+  paperless-db-data:
+  paperless-broker-data:
+  # The database, the RSA key that signs every session token, attachments,
+  # Sends and the icon cache. With home-assistant-config, immich-db and
+  # paperless-media, one of the volumes here whose loss is a loss of function
+  # rather than of a record — docs/runbooks/restore-the-sensitive-tier.md.
+  vaultwarden-data:

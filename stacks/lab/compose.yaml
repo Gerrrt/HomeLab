@@ -133,9 +133,12 @@ services:
     # consumer turned out to be the wrong question; the right one was which
     # direction the connection travels, because that is the control.
     #
-    # #266's Wazuh guest is the case that will genuinely need this, since Alloy
-    # pushes and there is no scrape alternative for it. That is ADR-0030's port
-    # to open and ADR-0030's argument to make, and the block it wants is:
+    # ADR-0030 made that argument, and stacks/soc is the client: `odin`'s Alloy
+    # pushes here, and there is no scrape alternative for it. The block still
+    # lands COMMENTED, and build-the-soc-guest.md §7 uncomments it — here and
+    # on loki below — in the same change that brings odin up. A receiver
+    # published with no client yet is exactly the ADR-0012 case, on the
+    # segment where it matters most.
     #   ports:
     #     - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
     expose:
@@ -171,8 +174,14 @@ services:
     # Not published, for the same reason as prometheus above: Alloy is the only
     # client and it is on this network. #265 was expected to be when that
     # stopped being true and was not — the domain is scraped, and it ships no
-    # logs here at all, because Windows Event Log is #266's to collect. If some
-    # of it should also land in this Loki, that is #266's argument to make.
+    # logs here at all, because Windows Event Log is #266's to collect. ADR-0030
+    # answered the rest the other way round: Wazuh's alerts stay in its own
+    # indexer and are never copied here, and what odin's Alloy ships to this
+    # Loki is that GUEST's own logs — journal, auth.log, containers — the way
+    # every other host's agent does. That is the client this opens for, on the
+    # same day and by the same runbook step as prometheus above:
+    #   ports:
+    #     - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
     expose:
       - "3100"
 

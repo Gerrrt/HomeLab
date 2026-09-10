@@ -437,9 +437,10 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml (needs make snmp-mibs
 	@# than duplicated — see scripts/image-for.sh.
 	@# --tag-only: the exporter's digest does not belong to the generator.
 	@#
-	@# Each -e sets a community variable to its own literal ${PLACEHOLDER} text,
-	@# so the generator writes the placeholder back into snmp.yaml rather than
-	@# baking in a real community.
+	@# Each -e sets a credential variable — a community, or a v3 device's two
+	@# passphrases — to its own literal ${PLACEHOLDER} text, so the generator
+	@# writes the placeholder back into snmp.yaml rather than baking in a real
+	@# value.
 	@#
 	@# The flags are derived from the device inventory rather than listed here,
 	@# because this list used to be a fifth copy of the device list and the only
@@ -468,10 +469,13 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml (needs make snmp-mibs
 	gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
 	printf 'using %s\n' "$$gen"; \
 	vars=(); flags=(); \
-	while IFS=$$'\t' read -r _ip _auth _device var; do \
-		[[ -n "$$var" ]] || continue; \
-		vars+=("$$var"); \
-		flags+=(-e "$$var=\$${$$var}"); \
+	while IFS=$$'\t' read -r _ip _auth _device _version keys; do \
+		[[ -n "$$keys" ]] || continue; \
+		IFS=, read -ra key_list <<< "$$keys"; \
+		for var in "$${key_list[@]}"; do \
+			vars+=("$$var"); \
+			flags+=(-e "$$var=\$${$$var}"); \
+		done; \
 	done < <(./scripts/snmp-targets.sh); \
 	(($${#vars[@]} > 0)) || { printf '\033[0;31merror:\033[0m no SNMP devices in the inventory\n' >&2; exit 1; }; \
 	printf 'placeholders: %s\n' "$${vars[*]}"; \
@@ -568,9 +572,33 @@ certs: ## Create the internal CA / issue a leaf (ARGS="--host x.matrix.elysium -
 	@# refuses to render until they exist.
 	./scripts/gen-certs.sh $(ARGS)
 
+.PHONY: tier-ca
+tier-ca: ## The sensitive tier's own CA — mint it here, install it on trinity (ARGS="--mint" | "--install FILE" | "--list")
+	@# Not `certs`: that is the estate's CA and this is the tier's, and they are
+	@# deliberately two — the estate's root carries pathlen:0, so nothing beneath
+	@# it may be a CA (ADR-0037). The step binary runs from the pinned image, the
+	@# way promtool and caddy do; nothing is installed on the host.
+	./scripts/tier-ca.sh $(ARGS)
+
 .PHONY: gen-secret
 gen-secret: ## Generate a random secret (ARGS=--snmp for one per SNMP device)
 	./scripts/gen-secret.sh $(ARGS)
+
+.PHONY: hash-password
+hash-password: ## Bcrypt a password for AdGuard Home's admin account (prompted, never an argument)
+	@# AdGuard Home keeps its admin password as a bcrypt hash, and the hash is
+	@# what secrets/sensitive.sops.yaml holds as ADGUARD_ADMIN_PASSWORD_HASH —
+	@# so the plaintext is typed once, here, and lives in the password manager.
+	@# `caddy hash-password` prompts without echo on a terminal and reads one
+	@# line from stdin without one, so `-t` is passed only when there is a tty
+	@# to pass; either way the password is never an argument, never in shell
+	@# history and never in `ps`. Caddy's image rather than AdGuard's because
+	@# AdGuard's ships no hashing tool and Caddy's is pinned in the same stack.
+	@# The output starts `$$2a$$` — paste it whole into `make secrets-edit
+	@# STACK=sensitive`; render-config.sh escapes it for compose's .env.
+	@tty=""; [ -t 0 ] && tty="-t"; \
+	img="$$(COMPOSE_FILE=stacks/sensitive/compose.yaml ./scripts/image-for.sh caddy)"; \
+	docker run --rm -i $$tty "$$img" caddy hash-password
 
 .PHONY: screenshots
 screenshots: ## Render the dashboards to docs/images/ (stack must be up)

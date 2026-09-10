@@ -1,8 +1,30 @@
 # Runbook: Generate the internal CA and leaf certificates
 
-**Target:** the lab's own PKI, under `certificates/`
+**Target:** the **estate's** PKI, under `certificates/` on the monitoring host
 **Time:** a couple of minutes
 **You will need:** nothing but `openssl` and this repository
+
+> **There are two certificate authorities in this estate, and this runbook is
+> one of them.** Check the table before issuing anything.
+>
+> | | The estate's CA (this runbook) | The sensitive tier's CA |
+> | --- | --- | --- |
+> | Issues for | Grafana on `prometheus` and on the lab guest | Everything Caddy serves on `trinity` |
+> | Minted by | `make certs ARGS=--ca` — `openssl` | `make tier-ca ARGS=--mint` — step-ca, in its pinned image |
+> | Leaves issued by | You, by hand, with `make certs` | step-ca over ACME; Caddy asks and renews on its own |
+> | Leaf lifetime | 825 days | 7 days |
+> | Root certificate | `certificates/ca.pem` | `certificates/tier-ca.pem` |
+> | Root key lives | `prometheus`, and nowhere else | `prometheus`, and nowhere else — never on `trinity` |
+> | Who trusts it | The operator's browsers; Prometheus and blackbox by `ca_file` | The household's devices, and the operator's |
+> | Runbook | This one | [`build-the-tier-ca.md`](build-the-tier-ca.md) |
+>
+> They are two on purpose and cannot be one: this root carries `pathlen:0`,
+> so nothing beneath it may be a CA, and a leaf beneath any intermediate of
+> it fails `path length constraint exceeded` in every client here.
+> [ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
+> measured that and decided the rest. Nothing this runbook issues is for
+> `trinity`; a `make certs` run there mints a third CA nothing trusts, and
+> `make render STACK=sensitive` says so if the tier's root is missing.
 
 The previous CA and leaf keys were committed to this public repository and had
 to be removed by rewriting every commit — see
@@ -119,6 +141,14 @@ Firefox keeps its own store and will not read the system one; import it under
 Leaves expire in 825 days. There is no automation and deliberately no cron: a
 lab with one certificate is better served by a reminder than by a renewal
 daemon nobody maintains. The reminder is an alert, not a calendar entry.
+
+That sentence is about *this* CA. The tier's certificates renew themselves —
+Caddy re-issues each seven-day leaf from step-ca at a third of the way from
+expiry, and nothing in this runbook applies to them. The day Grafana renews
+from step-ca too, with `step ca renew` on a timer, this section and this
+script retire together; that is ADR-0037's reopen condition, and it waits on
+publishing step-ca's port to its first off-host consumer
+([ADR-0012](../adr/0012-publish-only-ports-with-an-off-host-consumer.md)).
 blackbox-exporter probes Grafana by name and by address, verifies the chain
 against `ca.pem`, and reads the expiry off the handshake — so what is watched
 is the certificate actually being served, not a file on disk.
@@ -185,6 +215,15 @@ rmdir certificates/*.pem
 Then issue them from step 1.
 
 ## Also worth knowing
+
+**This root cannot have an intermediate**, and that is a property rather than
+an omission: `pathlen:0` is what keeps a leaf key lifted from Grafana from
+ever signing anything else. It is also why the sensitive tier's step-ca is a
+root of its own instead of sitting beneath this one — a decision made after
+the alternative was built and measured to fail
+([ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)).
+Lifting it means `--ca --force`, re-issuing every leaf, and re-trusting the
+new `ca.pem` on every device that holds the old one.
 
 The CA key is **not** passphrase-protected, which is a deliberate trade. A
 passphrase is what made the previous leak survivable, but it also makes every
