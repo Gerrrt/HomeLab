@@ -15,14 +15,16 @@ make up STACK=sensitive
 | --- | --- | --- | --- |
 | caddy | `caddy` | 443 (https) | The one published port on the tier. Terminates TLS, routes by name to every service behind it ([#129]) |
 | step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — an intermediate beneath the lab CA, so nothing that trusts `certificates/ca.pem` is re-pointed ([#130]) |
+| home-assistant | `ghcr.io/home-assistant/home-assistant` | *internal* (8123) | Home automation, and what the `99 → 20` rule exists for — one pass, to the Hue bridge, scoped by [ADR-0035] ([#134]) |
 | immich-server | `ghcr.io/immich-app/immich-server` | *internal* (2283) | The photo library — API and job workers in one container, reached as `https://immich.matrix.elysium` through Caddy ([#132]) |
 | immich-machine-learning | `ghcr.io/immich-app/immich-machine-learning` | *internal* (3003) | Smart search, face detection and OCR for the server above. Behind the `ml` profile, on by default ([#132]) |
 | immich-db | `ghcr.io/immich-app/postgres` | *internal* (5432) | Immich's Postgres, with VectorChord preloaded, on the internal SSD ([#132]) |
 | immich-valkey | `valkey/valkey` | *internal* (6379) | Immich's job queue. Nothing durable — a tmpfs, rebuilt from the database on restart ([#132]) |
 
-Two of these are plumbing and four are Immich — the service [ADR-0008] names
-as the price of putting the tier on Winterfell at all, and the first
-household service in the file. What is absent is as deliberate as what is
+Two of these are plumbing; the other five are the first two household
+services — Home Assistant, the shape every later one takes, and Immich, the
+service [ADR-0008] names as the price of putting the tier on Winterfell at
+all. What is absent is as deliberate as what is
 here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -31,17 +33,26 @@ here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No other service yet.** Vaultwarden, Paperless-ngx, Home Assistant,
-  AdGuard Home, ntfy and Homepage ([#131], [#133]–[#137]) each arrive as
-  Immich did: a service with `expose:`, a block in the `Caddyfile`, and a
-  `--dns` on the leaf. A service in this file with `ports:` of its own is the
-  one thing a review of it should refuse.
+- **No other services yet.** Vaultwarden, Paperless-ngx, AdGuard Home, ntfy
+  and Homepage ([#131], [#133], [#135]–[#137]) each arrive as Home Assistant
+  and Immich did: a service with `expose:`, a block in the `Caddyfile`, a name
+  on the leaf. A service in this file with `ports:` of its own is the one thing
+  a review of it should refuse.
+- **No Supervisor, no add-ons, no MQTT broker, no Zigbee coordinator.** Home
+  Assistant *Container* has no add-on store, which is why it was chosen: an
+  add-on is a second package manager outside `compose.yaml` and outside digest
+  pinning. What an add-on would have supplied becomes a pinned service here
+  on the day a device needs it, and today none does — Ring is cloud, the Hue
+  bridge is its own radio, the speakers are Wi-Fi. No USB radio means where
+  `trinity` sits is not this service's concern.
 
 ## Layout
 
 ```text
-compose.yaml               six services, one network, health-gated ordering
+compose.yaml               seven services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
+home-assistant/            configuration.yaml and packages/, mounted read-only
+                           over the volume Home Assistant writes its state to
 .env.example               non-sensitive tunables — edit this, not .env:
                              the library's mount point, and the ML switch
 ```
@@ -71,19 +82,14 @@ CA key stays.
   without `config/ca.json`, and `DOCKER_STEPCA_INIT_*` is never set, because
   either would mint a root of its own. The key password is `STEPCA_PASSWORD`
   in SOPS, written to a private tmpfs at start and nowhere on disk.
-- **The certificate is hand-issued until ACME is wired, and it carries every
-  routed name.** `make certs ARGS="--host trinity.matrix.elysium --ip
-  10.0.99.40 --dns trinity --dns immich.matrix.elysium"` on the monitoring
-  host, three files copied over as `build-the-lab-guest.md` §5 does it.
-  Immich cannot live under a path — upstream says so — so it is routed by
-  name, and a name a browser types has to be in the leaf's SANs and has to
-  resolve: one `--dns` here per `host` matcher in the `Caddyfile`, and one
-  host override on `morpheus` per name
-  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
-  `render-config.sh` refuses to render while any of the three files is
-  missing. The `Caddyfile` carries the `tls { ca … }` block that replaces
-  this once [#130]'s ACME provisioner is configured, and per-service names
-  stop being a step.
+- **The certificate is hand-issued until ACME is wired.** `make certs
+  ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 --dns trinity --dns
+  homeassistant.matrix.elysium --dns immich.matrix.elysium"` on the
+  monitoring host, three files copied over as `build-the-lab-guest.md` §5
+  does it. `render-config.sh` refuses to render while any of them is missing.
+  The `Caddyfile` carries the `tls { ca … }` block that replaces this once
+  [#130]'s ACME provisioner is configured, and per-service names stop being
+  a step.
 - **The phones have to trust the lab CA.** The mobile app is the whole reason
   Immich was chosen over PhotoPrism ([#132]), and it talks to
   `https://immich.matrix.elysium` on a certificate a phone has never heard
@@ -123,6 +129,42 @@ CA key stays.
   off-host consumes it, and nothing consumes 80 — browsers on Hicks type
   `https`, and ACME's `tls-alpn-01` challenge runs over 443. A redirect is a
   later choice, made in `.env.example` and `compose.yaml` together.
+- **Every routed name needs a SAN and a host override.** The `Caddyfile`
+  matches on Host, so `homeassistant.matrix.elysium` has to be on the leaf
+  (`compose.yaml`'s `make certs` line carries one `--dns` per name) and in
+  `morpheus`'s resolver, pointed at `10.0.99.40`
+  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
+  A name missing from the leaf fails the handshake; one missing from the
+  resolver never arrives.
+- **Home Assistant is an ordinary member of the network, not `network_mode:
+  host`.** Upstream's example uses host networking and `privileged` for
+  discovery and USB. Discovery is mDNS and SSDP, which are link-local, and
+  every device it controls is on Skids, a VLAN away — nothing on 20 would be
+  found from 99 however the container were attached. Devices are added by
+  address, through the one pass [ADR-0035] writes down. It runs with every
+  capability dropped, a read-only root and two tmpfs mounts, as root because
+  the image has no other mode; `compose.yaml` numbers the differences.
+- **Home Assistant's credentials are not in SOPS, and cannot be.** The Hue
+  application key, the Ring token and everything else a config flow produces
+  are written by Home Assistant into `/config/.storage`, inside the
+  `home-assistant-config` volume. Nothing this repository renders can hand
+  them in, so the volume is where the tier's most numerous credentials live,
+  protected by [#404]'s disk-encryption decision and by the encrypted volume
+  archive rather than by SOPS. [ADR-0035] records the deviation. A long-lived
+  access token minted for another service goes in *that* service's SOPS file
+  — none exists yet — and TOTP is enrolled at first login, as [#404] step 6
+  says.
+- **Automations are YAML in `home-assistant/packages/`, not the UI editor.**
+  `configuration.yaml` is mounted read-only from this directory and loads the
+  packages directory beside it; there is no `automations.yaml`, because the
+  UI editor's include fails hard on a file that does not exist and the file
+  is one Home Assistant writes rather than one this repository ships. The
+  packages README says the rest. Integrations and devices are still added
+  through the UI: a config flow has no YAML form.
+- **Caddy has a fixed address, `172.28.99.2`, for one reader.** Home
+  Assistant's `trusted_proxies` names the proxy it will believe
+  `X-Forwarded-For` from, and a Docker-assigned address is not a name. The
+  network's subnet is fixed for that one line and nothing else.
 - **Nothing converges this stack.** The `homelab-*` timers are the estate's;
   `make validate` notes their absence here as a skip, not a failure. This stack
   is deployed by hand, from a checkout on `trinity`.
@@ -180,10 +222,21 @@ it matters:
   volume, and the volume is populated by a procedure run on two hosts. A fresh
   `make up` on a bare `trinity` fails on `config/ca.json`, loudly and on
   purpose.
-- **That the leaf matches the name.** `caddy validate` loads a throwaway pair;
-  whether the real one carries `trinity.matrix.elysium` in its SANs is checked
-  by the first browser, or by `openssl x509 -noout -ext subjectAltName` on the
-  monitoring host before the files travel.
+- **That the leaf matches the names.** `caddy validate` loads a throwaway
+  pair; whether the real one carries `trinity.matrix.elysium` *and*
+  `homeassistant.matrix.elysium` in its SANs is checked by the first browser,
+  or by `openssl x509 -noout -ext subjectAltName` on the monitoring host
+  before the files travel.
+- **That Home Assistant keeps booting under its hardening.** It was booted
+  once, on the monitoring host on 2026-09-09, from the pinned digest with the
+  exact `compose.yaml` settings — read-only root, every capability dropped,
+  the two tmpfs mounts, this directory's `configuration.yaml` — on an
+  internal Docker network with no route out. It served onboarding, wrote only
+  to `/config`, and logged one error it will log on every start: the `dhcp`
+  discovery integration wants `CAP_NET_RAW` to sniff for devices, which on a
+  bridge network a VLAN away from every device would sniff nothing, so the
+  capability stays dropped and the line is expected. That was one boot of one
+  digest. Dependabot moves the digest monthly; nothing here re-runs the boot.
 
 [ADR-0007]: ../../docs/adr/0007-defensive-estate-and-offensive-range.md
 [ADR-0008]: ../../docs/adr/0008-place-services-by-data-trust.md
@@ -194,6 +247,9 @@ it matters:
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
 [#132]: https://github.com/Gerrrt/HomeLab/issues/132
 [#133]: https://github.com/Gerrrt/HomeLab/issues/133
+[#134]: https://github.com/Gerrrt/HomeLab/issues/134
+[#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
 [#428]: https://github.com/Gerrrt/HomeLab/issues/428

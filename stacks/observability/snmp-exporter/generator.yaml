@@ -8,10 +8,31 @@
 #
 # Regenerate with:  make snmp-generate
 #
-# Community strings are ${PLACEHOLDERS} resolved at deploy time by
-# scripts/render-config.sh. Each device has its own credential: a single shared
-# community is a read credential for every device at once, and SNMPv2c sends it
-# in cleartext. See docs/runbooks/rotate-snmp-community.md.
+# Credentials are ${PLACEHOLDERS} resolved at deploy time by
+# scripts/render-config.sh. Each device has its own: a single shared community
+# is a read credential for every device at once, and SNMPv2c sends it in
+# cleartext. See docs/runbooks/rotate-snmp-community.md.
+#
+# The auth block is also where a device's SNMP version is declared, and every
+# tool reads it from here (scripts/snmp-auth.sh): the sops key names, the
+# snmp.conf that snmp-verify.sh and snmp-walk.sh hand to net-snmp, and the -e
+# flags `make snmp-generate` passes through. A v2c device is one community
+# placeholder. A device moved to SNMPv3 authPriv (ADR-0036) looks like this —
+# the user name a literal, because USM sends it in the clear header of every
+# message, and the two passphrases placeholders:
+#
+#   auth_ilo:
+#     username: prometheus
+#     password: ${SNMP_AUTHPASS_ILO}
+#     priv_password: ${SNMP_PRIVPASS_ILO}
+#     security_level: authPriv
+#     auth_protocol: SHA
+#     priv_protocol: AES
+#     version: 3
+#
+# authPriv only — snmp-targets.sh --check refuses the other two levels — and
+# the device is changed BEFORE this file is, per the runbook's order. Which
+# devices are v3 today is the version: line below, nothing else.
 
 auths:
   auth_apc:

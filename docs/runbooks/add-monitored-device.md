@@ -164,7 +164,7 @@ Three steps, no restart. They touch five files:
 | File | What goes in it |
 | --- | --- |
 | `snmp-exporter/generator.yaml` | the auth block and the module (step 1) |
-| `secrets/observability.sops.yaml` | the real community, via `make secrets-edit` (step 2) |
+| `secrets/observability.sops.yaml` | the real community — or the two v3 passphrases — via `make secrets-edit` (step 2) |
 | `scripts/render-config.sh` | the key name, in the `REQUIRED` array (step 2) |
 | `secrets/observability.example.yaml` | the key name and a `change-me` placeholder (step 2) |
 | `prometheus/targets/snmp.yaml` | the target and its labels (step 3) |
@@ -188,6 +188,28 @@ modules:
     walk:
       - 1.3.6.1.2.1.2.2      # IF-MIB::ifTable
 ```
+
+If the device does SNMPv3, poll it that way from the start — authPriv, SHA,
+AES — and the auth block is the v3 shape instead, with the user name a literal
+and two placeholders in place of the community
+([ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)):
+
+```yaml
+auths:
+  auth_newdevice:
+    username: prometheus
+    password: ${SNMP_AUTHPASS_NEWDEVICE}
+    priv_password: ${SNMP_PRIVPASS_NEWDEVICE}
+    security_level: authPriv
+    auth_protocol: SHA
+    priv_protocol: AES
+    version: 3
+```
+
+Everything below reads the version out of this block — the key names, the
+`make snmp-generate` flags, what `snmp-verify.sh` hands net-snmp — so the
+rest of the procedure is the same, with two keys where it says one.
+`make validate` refuses a v3 block that is not `authPriv`.
 
 Keep the OID list tight. The `ilo` module walks the HP Insight tree and produces
 ~1,600 metrics from one device; that is fine once and a cardinality problem if
@@ -215,7 +237,8 @@ not something you can eyeball in a diff.
 ### 2. Add the credential
 
 ```bash
-make secrets-edit      # add SNMP_COMMUNITY_NEWDEVICE
+make secrets-edit      # add SNMP_COMMUNITY_NEWDEVICE — or, for SNMPv3,
+                       # SNMP_AUTHPASS_NEWDEVICE and SNMP_PRIVPASS_NEWDEVICE
 ```
 
 Add the same key name to [`secrets/observability.example.yaml`](../../secrets/observability.example.yaml)
@@ -225,14 +248,14 @@ decryption key.
 Give it its own community. Reusing one across devices means a single captured
 SNMPv2c packet — which is cleartext — grants read access to all of them.
 
-Then add the variable to the `REQUIRED` array in `scripts/render-config.sh`.
-That array is the single list — the substitution loop below it is derived from
-`REQUIRED`, filtered to `SNMP_COMMUNITY_*`, so there is no second place to
-forget.
+Then add the variable — both, for a v3 device — to the `REQUIRED` array in
+`scripts/render-config.sh`. That array is the single list — the substitution
+loop below it is derived from `REQUIRED`, filtered to `SNMP_*`, so there is no
+second place to forget.
 
 Forgetting it fails closed: `render-config.sh` greps the rendered file for any
-surviving `${SNMP_COMMUNITY` and refuses to continue, so you get an error at
-render time rather than an exporter polling with an empty community.
+surviving `${SNMP_` and refuses to continue, so you get an error at render
+time rather than an exporter polling with an empty credential.
 `make validate` also checks that every device in `targets/snmp.yaml` has a
 matching key here, in `secrets/observability.example.yaml`, and in
 `generator.yaml`.

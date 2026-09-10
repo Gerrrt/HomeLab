@@ -162,13 +162,18 @@ while read -r var; do
   REQUIRED+=("${var}")
 done <<< "${GUARDS}"
 
-# The SNMP community names stay written out rather than derived from the
+# The SNMP key names stay written out rather than derived from the
 # placeholders in snmp.yaml, and that is deliberate. scripts/snmp-targets.sh
 # --check asserts this array against the device inventory by grepping for each
 # name on a line of its own — it is one of the five copies of the device list
 # that check exists to hold together, and deriving it here would remove the
 # copy rather than the drift, leaving --check asserting nothing. Keep the
 # one-name-per-line shape.
+#
+# A device polled over SNMPv2c is one line, its community. A device moved to
+# SNMPv3 (ADR-0036) is two: SNMP_AUTHPASS_<X> and SNMP_PRIVPASS_<X>, the
+# passphrases its auth block in generator.yaml names. The user name is not a
+# secret and is not rendered — it is a literal in generator.yaml.
 if [[ -f "${SNMP_SRC}" ]]; then
   REQUIRED+=(
     SNMP_COMMUNITY_PFSENSE
@@ -207,7 +212,7 @@ if [[ -f "${SNMP_SRC}" ]]; then
   # Substitution is done with bash parameter expansion rather than envsubst or
   # sed. envsubst lives in gettext-base, which is not guaranteed on a minimal
   # server install, and sed would mangle any community string containing / & or
-  # a backslash. This also touches only the four SNMP_COMMUNITY_* names, so no
+  # a backslash. This also touches only the SNMP_* names in REQUIRED, so no
   # other ${...} sequence in 14k lines of OID definitions can be affected.
   #
   # bash 5.2 enables patsub_replacement by default, which makes an unescaped '&'
@@ -220,12 +225,12 @@ if [[ -f "${SNMP_SRC}" ]]; then
   # The substitution list is derived from REQUIRED rather than repeated, so
   # adding a device means editing one list instead of two that silently drift.
   # The prefix filter is what makes that safe: a REQUIRED entry that is not an
-  # SNMP community has no ${...} placeholder in snmp.yaml, so substituting it
+  # SNMP credential has no ${...} placeholder in snmp.yaml, so substituting it
   # is a no-op. And a name in REQUIRED whose placeholder is misspelled in
   # snmp.yaml is still caught by the independent grep below.
   snmp_content="$(cat "${SNMP_SRC}")"
   for var in "${REQUIRED[@]}"; do
-    [[ "${var}" == SNMP_COMMUNITY_* ]] || continue
+    [[ "${var}" == SNMP_* ]] || continue
     snmp_content="${snmp_content//\$\{${var}\}/${!var}}"
   done
 
@@ -234,8 +239,8 @@ if [[ -f "${SNMP_SRC}" ]]; then
   unset snmp_content
   chmod 600 "${SNMP_OUT_DIR}/snmp.yaml"
 
-  # shellcheck disable=SC2016  # matching the literal text "${SNMP_COMMUNITY..."
-  if grep -q '\${SNMP_COMMUNITY' "${SNMP_OUT_DIR}/snmp.yaml"; then
+  # shellcheck disable=SC2016  # matching the literal text "${SNMP_..."
+  if grep -q '\${SNMP_' "${SNMP_OUT_DIR}/snmp.yaml"; then
     die "unsubstituted placeholders remain in the rendered snmp.yaml"
   fi
 fi
