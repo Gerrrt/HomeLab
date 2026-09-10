@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the six Docker data volumes on `trinity` (10.0.99.40), VLAN 99
+**Target:** the eight Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — seven of which the backup archives
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -11,18 +11,20 @@ not repeated here: the scripts are the same, the phases are the same, and the
 reasons a restore is verified before anything is destroyed are argued there.
 What is different is what the volumes hold. On the observability host, four of
 five volumes are a *record* — metrics and logs that refill on their own. Here,
-four of six are rebuildable from somewhere else and two are not:
+five of eight are rebuildable or re-fetched from somewhere else and three are not:
 
 | Volume | What it holds | If it is lost |
 | --- | --- | --- |
 | `vaultwarden-data` | The vault: every account, every item, every TOTP secret, the RSA key that signs every session | **Lost.** Nothing in git, nothing on another host, nothing regenerates it. This is the one the tier exists to protect |
 | `home-assistant-config` | Home Assistant's own store: every login, every device credential a config flow produced, the recorder's history. `configuration.yaml` is the repository's and is mounted over it | **Lost**, and re-created by hand: every integration paired again, every credential re-issued by its vendor. ADR-0035 says why these live here and not in SOPS |
+| `immich-db` | Immich's metadata: every album, face, tag and the path of every original. The originals are on the USB disk, outside these volumes | **Lost**, unless Immich's own nightly dump beside the originals is intact — the stack README's Immich section has that route, and it is the one to prefer for a database older than the library |
+| `immich-model-cache` | Downloaded ML models | Re-fetched on first use. **Not archived at all** — skipped by name in `backup-volumes.sh`, so it is never in a set and `make up` creates it empty |
 | `step-ca-data` | The intermediate CA's tree | Re-minted on the monitoring host from the lab CA's key — [#404](https://github.com/Gerrrt/HomeLab/issues/404)'s procedure. Costs a runbook step, not data |
 | `caddy-data` | Caddy's storage: `instance.uuid`, the lock directory, later the ACME state | Recreated on the next start. Nothing here is worth a restore until step-ca issues leaves into it |
 | `caddy-config` | `autosave.json`, Caddy's copy of its last loaded config | Recreated on the next start from the `Caddyfile` |
 | `adguard-work` | AdGuard's blocklists, query log, statistics and UI sessions | Re-downloaded and re-accumulated. The query log is the household's browsing history, which is a reason to protect the archive, not to restore it |
 
-So this runbook is mostly about two volumes, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
+So this runbook is mostly about three volumes, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
 said why it had to exist before that volume held anything: *"a password vault
 is the one service here where 'it is running' and 'it is recoverable' are
 entirely different claims, and only the second one counts on the day it
@@ -125,7 +127,7 @@ archive into it. It asks you to type the stamp, and it needs a terminal to ask
 owning uid against the one the service needs: `0` for `vaultwarden-data`,
 `home-assistant-config`, `caddy-data` and `caddy-config`, because those
 services run as root for the reasons `compose.yaml` measures; `1000` for
-`step-ca-data`; `65534` for `adguard-work`. A mismatch is
+`step-ca-data`; `65534` for `adguard-work`; `999` for `immich-db`. A mismatch is
 reported and never silently corrected.
 
 It leaves the stack **stopped**. Bring it up and then run §4:
@@ -244,11 +246,14 @@ Then from a client on Hicks — the checks a shell cannot do:
 
 The round trip was rehearsed on 2026-09-09 on the monitoring host, before
 `trinity` exists, with the scripts as they are in this repository and four of
-the six volumes seeded to look like the tier's — `home-assistant-config` and
-`adguard-work` did not exist yet ([#134](https://github.com/Gerrrt/HomeLab/issues/134)
-and [#135](https://github.com/Gerrrt/HomeLab/issues/135) landed the same day);
-their sentinels and expected owners were read off a boot of each pinned image,
-and their restore has not been rehearsed:
+the eight volumes seeded to look like the tier's — `home-assistant-config`,
+`adguard-work` and Immich's two did not exist yet
+([#134](https://github.com/Gerrrt/HomeLab/issues/134),
+[#135](https://github.com/Gerrrt/HomeLab/issues/135) and
+[#132](https://github.com/Gerrrt/HomeLab/issues/132) landed the same day).
+Their sentinels and expected owners were read off a boot of each pinned image,
+Postgres's from its documented layout, and their restore has not been
+rehearsed:
 
 - Caddy from the pinned image, started under `compose.yaml`'s options with the
   real `Caddyfile` and a throwaway leaf, populated `caddy-data` and

@@ -68,8 +68,8 @@ https:// {
 		reverse_proxy vaultwarden:8080
 	}
 
-	# Immich, Paperless-ngx and the rest (#132, #133, #136, #137) add a block of
-	# the same shape above this line. What matches nothing lands here.
+	# Paperless-ngx and the rest (#133, #136, #137) add a block of the same
+	# shape above this line. What matches nothing lands here.
 	handle {
 		respond "trinity: the sensitive tier. Nothing is routed under this name." 404
 	}

@@ -455,9 +455,17 @@ what left this one unfireable for months.
   ([#131](https://github.com/Gerrrt/HomeLab/issues/131)) — the service whose
   restore path mattered more than its deployment: `make backup` and
   `make restore` learned the tier's volumes and now encrypt to the stack's own
-  recipients rather than the first key in `.sops.yaml`, and the round trip was
-  rehearsed on the monitoring host with a seeded vault before the host exists
+  recipients rather than the first key in `.sops.yaml`, which is the pair of
+  defects [#428](https://github.com/Gerrrt/HomeLab/issues/428) names, and the
+  round trip was rehearsed on the monitoring host with a seeded vault before
+  the host exists
   ([`restore-the-sensitive-tier.md`](runbooks/restore-the-sensitive-tier.md)).
+  Immich followed the same day as well
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132)): four containers
+  behind Caddy, pinned by digest, each under a memory limit, booted once on
+  the monitoring host to find where the images write. What that landing
+  turned up is that the off-estate copy ADR-0023 makes the precondition on
+  the first real photo still has no destination — #132 stays open for it.
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
   Unbound on `morpheus` is recursive and DNSSEC-validating with zero

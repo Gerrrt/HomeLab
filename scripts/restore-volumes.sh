@@ -140,6 +140,8 @@ declare -A EXPECT_UID=(
   [home-assistant-config]=0
   # AdGuard runs as nobody and its work directory is nobody's in the image.
   [adguard-work]=65534
+  # Postgres, as the image's own postgres user.
+  [immich-db]=999
 )
 
 FROM=""

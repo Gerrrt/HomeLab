@@ -173,7 +173,7 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # volumes need that: both hold a single `./caddy` directory, so a top-level
 # entry would be the crossed mapping this exists to catch, present in both.
 #
-# The sensitive tier's six, what each was read from (#131):
+# The sensitive tier's seven, what each was read from (#131):
 #   caddy-data            instance.uuid, written on first start — measured on
 #                         the pinned image with the stack's Caddyfile
 #   caddy-config          autosave.json, likewise
@@ -190,6 +190,10 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 #                         measured on the pinned image booted with the stack's
 #                         config on an isolated network; the blocklists under
 #                         data/filters/ arrive only once it can download them
+#   immich-db             PG_VERSION, which initdb writes before anything
+#                         else and Postgres refuses to start without — the
+#                         same reading #428 gave, on the image's documented
+#                         layout rather than a boot here
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -202,6 +206,7 @@ declare -A SENTINEL=(
   [vaultwarden-data]="./db.sqlite3"
   [home-assistant-config]="./home-assistant_v2.db"
   [adguard-work]="./data/stats.db"
+  [immich-db]="./PG_VERSION"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -230,6 +235,19 @@ declare -A COMPANIONS=(
   # vaultwarden-data lists it (589 KB after a first boot, the recorder's).
   [home-assistant-config]="./.storage ./.HA_VERSION ./home-assistant_v2.db-wal"
   [adguard-work]="./data/filters ./data/sessions.db ./data/querylog.json"
+  [immich-db]="./base ./global ./pg_wal"
+)
+
+# Volumes archived by NOTHING, each with the reason — the third table, and
+# the only way a declared volume leaves a set without the run failing. A
+# cache the service re-fetches on first use is not data: archiving Immich's
+# model cache would add a gigabyte of downloadable weights to every set and,
+# worse, fail the run on a host where the models have not been fetched yet,
+# because an empty archive is refused above and rightly so. Listed by name so
+# the omission is a decision recorded here rather than a volume that fell
+# through; a volume in neither this table nor SENTINEL is still fatal (#131).
+declare -A DISPOSABLE=(
+  [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
 )
 
 VOLUMES=()
@@ -307,6 +325,11 @@ load_inventory() {
     # how alloy-data went missing.
     [[ -n ${VOL_SERVICE[$v]:-} ]] \
       || die "volume ${v} is declared in ${COMPOSE_FILE} but no service mounts it — refusing to run"
+    # To stderr: --inventory's stdout is a table restore-volumes.sh parses.
+    if [[ -n ${DISPOSABLE[$v]:-} ]]; then
+      printf '\033[0;34m--\033[0m not archiving %s: %s\n' "${v}" "${DISPOSABLE[$v]}" >&2
+      continue
+    fi
     # Derivation solves one inventory; the sentinel table is a second one.
     # Making its absence fatal means adding a sixth volume produces a named
     # error rather than an archive nothing can verify.
@@ -315,7 +338,12 @@ load_inventory() {
     VOLUMES+=("${v}")
   done
 
-  mapfile -t SERVICES < <(printf '%s\n' "${VOL_SERVICE[@]}" | sort -u)
+  ((${#VOLUMES[@]} > 0)) || die "every volume ${COMPOSE_FILE} declares is listed as disposable — nothing to archive"
+
+  # The services stopped are the owners of what is ARCHIVED, not of every
+  # mount: immich-machine-learning owns only a cache nobody is copying, and
+  # quiescing it would cost the tier its search for the length of the run.
+  mapfile -t SERVICES < <(for v in "${VOLUMES[@]}"; do printf '%s\n' "${VOL_SERVICE[$v]}"; done | sort -u)
 }
 
 print_inventory() {
