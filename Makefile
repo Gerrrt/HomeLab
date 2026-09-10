@@ -437,9 +437,10 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml (needs make snmp-mibs
 	@# than duplicated — see scripts/image-for.sh.
 	@# --tag-only: the exporter's digest does not belong to the generator.
 	@#
-	@# Each -e sets a community variable to its own literal ${PLACEHOLDER} text,
-	@# so the generator writes the placeholder back into snmp.yaml rather than
-	@# baking in a real community.
+	@# Each -e sets a credential variable — a community, or a v3 device's two
+	@# passphrases — to its own literal ${PLACEHOLDER} text, so the generator
+	@# writes the placeholder back into snmp.yaml rather than baking in a real
+	@# value.
 	@#
 	@# The flags are derived from the device inventory rather than listed here,
 	@# because this list used to be a fifth copy of the device list and the only
@@ -468,10 +469,13 @@ snmp-generate: ## Regenerate snmp.yaml from generator.yaml (needs make snmp-mibs
 	gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
 	printf 'using %s\n' "$$gen"; \
 	vars=(); flags=(); \
-	while IFS=$$'\t' read -r _ip _auth _device var; do \
-		[[ -n "$$var" ]] || continue; \
-		vars+=("$$var"); \
-		flags+=(-e "$$var=\$${$$var}"); \
+	while IFS=$$'\t' read -r _ip _auth _device _version keys; do \
+		[[ -n "$$keys" ]] || continue; \
+		IFS=, read -ra key_list <<< "$$keys"; \
+		for var in "$${key_list[@]}"; do \
+			vars+=("$$var"); \
+			flags+=(-e "$$var=\$${$$var}"); \
+		done; \
 	done < <(./scripts/snmp-targets.sh); \
 	(($${#vars[@]} > 0)) || { printf '\033[0;31merror:\033[0m no SNMP devices in the inventory\n' >&2; exit 1; }; \
 	printf 'placeholders: %s\n' "$${vars[*]}"; \

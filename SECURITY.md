@@ -59,13 +59,28 @@ saved, and the entry is still there after a restart. Each attempt also drops
 the SNMP agent until the switch is rebooted, and it is the switch the whole
 network runs through.
 
-The residual risk is accepted rather than overlooked. The community is
+It is not only the previous community. The switch also answers SNMP reads to
+the stock `public` and `private` — measured from the monitoring host on
+2026-09-06 and again on 2026-09-09, one GETBULK of `sysDescr` per string, with
+pfSense, the APC NMC and iLO refusing both as the control. Those are the
+default rows the rotation runbook deletes in passing, and that deletion did not
+persist either. Whether the `private` row is read-write, as it ships on most
+switches, has not been established: the only test from the monitoring host is
+a SET, which is a change to the device, so it will be read off the row's access
+column in the UI at the next window instead. `scripts/snmp-verify.sh` now
+probes every device with both strings on every run, the weekly timer included,
+and reports a device that answers as `WARN` — deliberately non-fatal there, so
+the alert on the weekly job is not lit for weeks by a residual this file
+already records, and fatal under `--old`, which is the check that closes #84.
+
+The residual risk is accepted rather than overlooked. The previous community is
 read-only, and reaching UDP/161 on `10.7.7.2` requires both a foothold on the
 management VLAN and the specific pfSense rule that permits `10.0.99.20` to
 reach it — it is not exposed beyond the management segment. The way to close it
-without fighting the firmware is to overwrite that row rather than delete it, on
-some future pass when the switch is already being taken down for something else.
-That is now written out as a procedure — [§2.5, *The MokerLink switch: overwrite
+without fighting the firmware is to overwrite those rows rather than delete
+them, all in one window, on some future pass when the switch is already being
+taken down for something else. That is now written out as a procedure — [§2.5,
+*The MokerLink switch: overwrite
 the row*](docs/runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
 — including what to record here if the overwrite does not persist either.
 

@@ -1,0 +1,41 @@
+---
+# Home Assistant's core configuration (#134).
+#
+# Mounted read-only at /config/configuration.yaml, over the volume that holds
+# everything Home Assistant writes for itself — .storage/, the recorder
+# database, ip_bans.yaml, .HA_VERSION. So this file is the config that runs,
+# reviewed and checked like every other config here, and the volume is state.
+#
+# What is deliberately NOT here — the container's shape, where the credentials
+# live, why there is no `automation: !include automations.yaml` — is argued in
+# compose.yaml beside the service, not repeated.
+
+# The standard set: onboarding, the frontend, the automation and script
+# engines, the recorder, history, logbook, mobile_app, and the rest.
+default_config:
+
+homeassistant:
+  # Everything beyond this file lives in packages/, a directory mounted
+  # read-only beside it. An empty directory loads as nothing, which is why the
+  # split is packages rather than `!include automations.yaml`: that include
+  # fails hard when its file is missing, and the file is one Home Assistant
+  # writes for its own editor, not one this repository ships. Automations are
+  # YAML in that directory, in git, or they do not exist — the UI editor is
+  # not used here, for the reason the README gives.
+  packages: !include_dir_named packages
+
+http:
+  # Home Assistant refuses proxied requests unless told who the proxy is —
+  # "A request from a reverse proxy was received from …, but your HTTP
+  # integration is not set-up for reverse proxies". Caddy is the only thing
+  # that reaches 8123 (`expose:`, no `ports:`), and compose.yaml gives it a
+  # fixed address on the `sensitive` network for exactly this line. One
+  # address rather than the network's subnet, so a sibling container cannot
+  # forge X-Forwarded-For and have Home Assistant believe it.
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.28.99.2
+  # Five failed logins from one address bans it. The ban list is written to
+  # /config/ip_bans.yaml, in the volume; lifting one is editing that file.
+  ip_ban_enabled: true
+  login_attempts_threshold: 5
