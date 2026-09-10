@@ -142,6 +142,11 @@ declare -A EXPECT_UID=(
   [adguard-work]=65534
   # Postgres, as the image's own postgres user.
   [immich-db]=999
+  # Paperless-ngx's Postgres and Valkey run as 999 too. Its other two volumes
+  # belong to the operator's uid — whatever ran `make up` — which is not a
+  # constant this table can carry, so they are not checked here.
+  [paperless-db-data]=999
+  [paperless-broker-data]=999
 )
 
 FROM=""

@@ -100,6 +100,52 @@ fi
 unset absent clobbered cert
 
 # ---------------------------------------------------------------------------
+# Runtime directories a service writes into must exist before compose runs
+#
+# The other half of the Docker behaviour above. stacks/sensitive bind-mounts
+# ./consume, where scans are dropped for Paperless-ngx to ingest, and
+# ./export, where its exporter writes — directories the repository deliberately
+# does not track. Docker creates a missing bind-mount source as root:root 755,
+# so a service running as the operator's uid (Paperless runs as RENDER_UID for
+# exactly this reason) finds a directory it cannot write, and the first symptom
+# is the consumer logging a permission error on a file it cannot delete, inside
+# a container, on the first real scan. Retried forever, reads as a fault in
+# something other than the step that was missed — the certificate argument,
+# unchanged.
+#
+# Scraped from compose.yaml like the certificate list, anchored on the mount
+# item, and gated on the repository's own opinion of the path: a source that
+# is gitignored is a runtime directory and is created here, owned by whoever
+# runs this script, which is the uid the container runs as. One that is NOT
+# gitignored is a tracked path the checkout is missing, and creating a
+# directory over it would hide exactly the Docker behaviour this block exists
+# to pre-empt — so that dies instead. Asked with a trailing slash, because a
+# directory-only pattern (`stacks/*/consume/`) cannot match a bare path that
+# does not exist yet, and the whole point is that it does not exist yet.
+# ---------------------------------------------------------------------------
+untracked=()
+while read -r src; do
+  [[ -n "${src}" ]] || continue
+  [[ -e "${STACK_DIR}/${src}" ]] && continue
+  if git -C "${REPO_ROOT}" check-ignore -q "stacks/${STACK}/${src}/"; then
+    info "creating stacks/${STACK}/${src}/ (runtime directory, gitignored)"
+    mkdir -p "${STACK_DIR}/${src}"
+  else
+    untracked+=("stacks/${STACK}/${src}")
+  fi
+done < <(grep -oE '^[[:space:]]*-[[:space:]]*\./[^:]+:' "${STACK_DIR}/compose.yaml" 2>/dev/null \
+         | sed 's|^[^.]*\./||; s|:$||' | sort -u)
+if ((${#untracked[@]})); then
+  die "compose.yaml mounts these paths, which the checkout does not have:
+$(printf '  %s\n' "${untracked[@]}")
+
+They are tracked by git, so a missing one means the checkout is incomplete —
+\`git status\` will say what happened. Docker would silently create a directory
+in their place, which is the failure this check exists to prevent."
+fi
+unset untracked src
+
+# ---------------------------------------------------------------------------
 # Decrypt. Keep the plaintext in a variable, never in a file.
 #
 # The decrypt-and-parse lives in scripts/secrets-env.sh because snmp-verify.sh
@@ -323,6 +369,9 @@ COMPOSE_VARS=(
   STEPCA_PASSWORD
   ADGUARD_ADMIN_PASSWORD_HASH
   IMMICH_DB_PASSWORD
+  PAPERLESS_SECRET_KEY
+  PAPERLESS_DBPASS
+  PAPERLESS_ADMIN_PASSWORD
   VAULTWARDEN_ADMIN_TOKEN
 )
 ENV_FILE="${STACK_DIR}/.env"

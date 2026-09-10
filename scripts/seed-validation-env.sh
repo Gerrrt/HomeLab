@@ -46,6 +46,9 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "STEPCA_PASSWORD=validation-only"
   echo "ADGUARD_ADMIN_PASSWORD_HASH=validation-only"
   echo "IMMICH_DB_PASSWORD=validation-only"
+  echo "PAPERLESS_SECRET_KEY=validation-only"
+  echo "PAPERLESS_DBPASS=validation-only"
+  echo "PAPERLESS_ADMIN_PASSWORD=validation-only"
   echo "VAULTWARDEN_ADMIN_TOKEN=validation-only"
   # RENDER_UID/GID are written to .env by render-config.sh from the deploying
   # user, so they are host-specific and deliberately absent from .env.example.

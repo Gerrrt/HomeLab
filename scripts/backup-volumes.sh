@@ -173,27 +173,40 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # volumes need that: both hold a single `./caddy` directory, so a top-level
 # entry would be the crossed mapping this exists to catch, present in both.
 #
-# The sensitive tier's seven, what each was read from (#131):
-#   caddy-data            instance.uuid, written on first start — measured on
-#                         the pinned image with the stack's Caddyfile
-#   caddy-config          autosave.json, likewise
-#   step-ca-data          the file the image refuses to start without; the
-#                         tree is populated by hand and this is its root
-#   vaultwarden-data      the SQLite database, created on first start
-#   home-assistant-config the recorder's SQLite database, created on first
-#                         start — measured on the pinned image booted with
-#                         compose.yaml's options on an isolated network.
-#                         Not configuration.yaml: the stack bind-mounts the
-#                         repository's over it, and a name two volumes could
-#                         carry is no sentinel
-#   adguard-work          the statistics database, created on first start —
-#                         measured on the pinned image booted with the stack's
-#                         config on an isolated network; the blocklists under
-#                         data/filters/ arrive only once it can download them
-#   immich-db             PG_VERSION, which initdb writes before anything
-#                         else and Postgres refuses to start without — the
-#                         same reading #428 gave, on the image's documented
-#                         layout rather than a boot here
+# The sensitive tier's (STACK=sensitive) were read off the volumes after a
+# boot of the pinned images, not guessed — and this table is the reason a
+# stack backup on trinity works at all: load_inventory() below dies on the
+# first declared volume with no entry here, and the foundation's three had
+# none until Vaultwarden (#131) and Paperless-ngx (#133) each needed the
+# mechanism on the same day. Caddy writes ./caddy/instance.uuid to /data and
+# ./caddy/autosave.json to /config on every start, admin API or not. step-ca's
+# is the one entry here written from construction rather than a boot: the
+# image's entrypoint refuses to start without config/ca.json, so a
+# step-ca-data that lacks it is a volume that never held a CA. Vaultwarden
+# creates ./db.sqlite3 and ./rsa_key.pem on first start (read off a boot of
+# the pinned image on 2026-09-09; the WAL beside the database is where a
+# stopped container's last writes sit, see COMPANIONS). Home Assistant writes
+# ./.HA_VERSION at the top of /config on every start (read off a boot of the
+# pinned image on 2026-09-10; the volume also carries .storage/ and the
+# recorder's home-assistant_v2.db, and the bind-mounted configuration.yaml
+# appears in it as an empty placeholder). AdGuard's ./data/sessions.db is
+# there ten seconds into a first start, beside stats.db and the filters
+# directory (read off a boot of the pinned image on 2026-09-10, ports
+# unpublished). Immich's Postgres (17, mounted at .../data) has ./PG_VERSION
+# at the top, where Paperless's 18 nests it under ./18/docker; its model cache
+# gains ./huggingface — huggingface_hub's own store — on the first fetch of
+# either model, beside ./clip or ./facial-recognition (one CLIP text model
+# fetched into the pinned image on 2026-09-10). Before that fetch the cache is
+# EMPTY, and an empty archive is fatal in verify() by design — which is why
+# the cache is not archived at all: DISPOSABLE, below. Paperless:
+# paperless-data holds the Tantivy index the container rebuilds at every
+# start, so ./index is there from the first boot; paperless-media is
+# ./documents/{originals,archive,thumbnails} from the first consume and
+# ./documents alone before it; Postgres 18 lays its cluster out one level down
+# as ./18/docker, so the sentinel carries the major and a bump to 19 has to
+# move it here — loudly, since the script refuses to write an archive it
+# cannot verify; and Valkey's ./dump.rdb is written by `--save 60 1` and again
+# on the SIGTERM a quiesce sends, which is the case that was checked.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -204,9 +217,13 @@ declare -A SENTINEL=(
   [caddy-config]="./caddy/autosave.json"
   [step-ca-data]="./config/ca.json"
   [vaultwarden-data]="./db.sqlite3"
-  [home-assistant-config]="./home-assistant_v2.db"
-  [adguard-work]="./data/stats.db"
+  [home-assistant-config]="./.HA_VERSION"
+  [adguard-work]="./data/sessions.db"
   [immich-db]="./PG_VERSION"
+  [paperless-data]="./index"
+  [paperless-media]="./documents"
+  [paperless-db-data]="./18/docker/PG_VERSION"
+  [paperless-broker-data]="./dump.rdb"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -230,12 +247,13 @@ declare -A COMPANIONS=(
   [caddy-config]=""
   [step-ca-data]="./certs ./secrets ./db"
   [vaultwarden-data]="./rsa_key.pem ./db.sqlite3-wal ./attachments ./sends ./icon_cache"
-  # .storage is where every device credential and every login lives — the
-  # part of this volume that cannot be re-derived; the WAL for the reason
-  # vaultwarden-data lists it (589 KB after a first boot, the recorder's).
-  [home-assistant-config]="./.storage ./.HA_VERSION ./home-assistant_v2.db-wal"
-  [adguard-work]="./data/filters ./data/sessions.db ./data/querylog.json"
-  [immich-db]="./base ./global ./pg_wal"
+  [home-assistant-config]="./.storage ./home-assistant_v2.db"
+  [adguard-work]="./data/stats.db ./data/filters"
+  [immich-db]="./base ./pg_wal ./postgresql.conf"
+  [paperless-data]="./log ./celerybeat-schedule.db"
+  [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
+  [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
+  [paperless-broker-data]=""
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and

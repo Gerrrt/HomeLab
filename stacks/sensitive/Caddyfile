@@ -58,6 +58,15 @@ https:// {
 		reverse_proxy adguard:80
 	}
 
+	# Paperless-ngx (#133). reverse_proxy sets X-Forwarded-For, -Proto and
+	# -Host unasked, and compose.yaml's PAPERLESS_USE_X_FORWARD_HOST and
+	# PAPERLESS_PROXY_SSL_HEADER are what reads them — Django otherwise sees a
+	# plain-http request for the upstream's own name and rejects every POST.
+	@paperless host paperless.matrix.elysium
+	handle @paperless {
+		reverse_proxy paperless:8000
+	}
+
 	# Vaultwarden (#131). Plain HTTP on the stack network; TLS ends here. Rocket
 	# serves the Bitwarden API, the web vault and the WebSocket notifications
 	# hub on the one port, and reverse_proxy upgrades WebSocket connections
@@ -68,7 +77,7 @@ https:// {
 		reverse_proxy vaultwarden:8080
 	}
 
-	# Paperless-ngx and the rest (#133, #136, #137) add a block of the same
+	# ntfy and Homepage (#136, #137) add a block of the same
 	# shape above this line. What matches nothing lands here.
 	handle {
 		respond "trinity: the sensitive tier. Nothing is routed under this name." 404
