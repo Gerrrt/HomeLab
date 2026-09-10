@@ -192,7 +192,7 @@ modules:
 If the device does SNMPv3, poll it that way from the start — authPriv, SHA,
 AES — and the auth block is the v3 shape instead, with the user name a literal
 and two placeholders in place of the community
-([ADR-0035](../adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)):
+([ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)):
 
 ```yaml
 auths:
