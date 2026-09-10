@@ -138,6 +138,8 @@ declare -A EXPECT_UID=(
   [step-ca-data]=1000
   [vaultwarden-data]=0
   [home-assistant-config]=0
+  # AdGuard runs as nobody and its work directory is nobody's in the image.
+  [adguard-work]=65534
 )
 
 FROM=""

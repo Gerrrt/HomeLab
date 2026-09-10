@@ -173,7 +173,7 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # volumes need that: both hold a single `./caddy` directory, so a top-level
 # entry would be the crossed mapping this exists to catch, present in both.
 #
-# The sensitive tier's five, what each was read from (#131):
+# The sensitive tier's six, what each was read from (#131):
 #   caddy-data            instance.uuid, written on first start — measured on
 #                         the pinned image with the stack's Caddyfile
 #   caddy-config          autosave.json, likewise
@@ -186,6 +186,10 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 #                         Not configuration.yaml: the stack bind-mounts the
 #                         repository's over it, and a name two volumes could
 #                         carry is no sentinel
+#   adguard-work          the statistics database, created on first start —
+#                         measured on the pinned image booted with the stack's
+#                         config on an isolated network; the blocklists under
+#                         data/filters/ arrive only once it can download them
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -197,6 +201,7 @@ declare -A SENTINEL=(
   [step-ca-data]="./config/ca.json"
   [vaultwarden-data]="./db.sqlite3"
   [home-assistant-config]="./home-assistant_v2.db"
+  [adguard-work]="./data/stats.db"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -224,6 +229,7 @@ declare -A COMPANIONS=(
   # part of this volume that cannot be re-derived; the WAL for the reason
   # vaultwarden-data lists it (589 KB after a first boot, the recorder's).
   [home-assistant-config]="./.storage ./.HA_VERSION ./home-assistant_v2.db-wal"
+  [adguard-work]="./data/filters ./data/sessions.db ./data/querylog.json"
 )
 
 VOLUMES=()

@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the five Docker data volumes on `trinity` (10.0.99.40), VLAN 99
+**Target:** the six Docker data volumes on `trinity` (10.0.99.40), VLAN 99
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -11,7 +11,7 @@ not repeated here: the scripts are the same, the phases are the same, and the
 reasons a restore is verified before anything is destroyed are argued there.
 What is different is what the volumes hold. On the observability host, four of
 five volumes are a *record* — metrics and logs that refill on their own. Here,
-three of five are rebuildable from somewhere else and two are not:
+four of six are rebuildable from somewhere else and two are not:
 
 | Volume | What it holds | If it is lost |
 | --- | --- | --- |
@@ -20,6 +20,7 @@ three of five are rebuildable from somewhere else and two are not:
 | `step-ca-data` | The intermediate CA's tree | Re-minted on the monitoring host from the lab CA's key — [#404](https://github.com/Gerrrt/HomeLab/issues/404)'s procedure. Costs a runbook step, not data |
 | `caddy-data` | Caddy's storage: `instance.uuid`, the lock directory, later the ACME state | Recreated on the next start. Nothing here is worth a restore until step-ca issues leaves into it |
 | `caddy-config` | `autosave.json`, Caddy's copy of its last loaded config | Recreated on the next start from the `Caddyfile` |
+| `adguard-work` | AdGuard's blocklists, query log, statistics and UI sessions | Re-downloaded and re-accumulated. The query log is the household's browsing history, which is a reason to protect the archive, not to restore it |
 
 So this runbook is mostly about two volumes, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
 said why it had to exist before that volume held anything: *"a password vault
@@ -124,7 +125,7 @@ archive into it. It asks you to type the stamp, and it needs a terminal to ask
 owning uid against the one the service needs: `0` for `vaultwarden-data`,
 `home-assistant-config`, `caddy-data` and `caddy-config`, because those
 services run as root for the reasons `compose.yaml` measures; `1000` for
-`step-ca-data`. A mismatch is
+`step-ca-data`; `65534` for `adguard-work`. A mismatch is
 reported and never silently corrected.
 
 It leaves the stack **stopped**. Bring it up and then run §4:
@@ -243,10 +244,11 @@ Then from a client on Hicks — the checks a shell cannot do:
 
 The round trip was rehearsed on 2026-09-09 on the monitoring host, before
 `trinity` exists, with the scripts as they are in this repository and four of
-the five volumes seeded to look like the tier's — `home-assistant-config` did
-not exist yet ([#134](https://github.com/Gerrrt/HomeLab/issues/134) landed the
-same day); its sentinel and expected owner were read off a boot of the pinned
-image, and its restore has not been rehearsed:
+the six volumes seeded to look like the tier's — `home-assistant-config` and
+`adguard-work` did not exist yet ([#134](https://github.com/Gerrrt/HomeLab/issues/134)
+and [#135](https://github.com/Gerrrt/HomeLab/issues/135) landed the same day);
+their sentinels and expected owners were read off a boot of each pinned image,
+and their restore has not been rehearsed:
 
 - Caddy from the pinned image, started under `compose.yaml`'s options with the
   real `Caddyfile` and a throwaway leaf, populated `caddy-data` and

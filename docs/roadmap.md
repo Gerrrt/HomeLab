@@ -441,13 +441,22 @@ what left this one unfireable for months.
   exists since 2026-09-09 with its foundation — Caddy as the only published
   port, step-ca as an intermediate beneath the lab CA — authored ahead of the
   hardware the way `stacks/lab` was, and checked by everything `make validate`
-  runs, `caddy validate` included. Vaultwarden joined it the same day
-  ([#131](https://github.com/Gerrrt/HomeLab/issues/131)) — the first household
-  service behind Caddy, and the one whose restore path mattered more than its
-  deployment: `make backup` and `make restore` learned the tier's volumes and
-  now encrypt to the stack's own recipients rather than the first key in
-  `.sops.yaml`, and the round trip was rehearsed on the monitoring host with a
-  seeded vault before the host exists
+  runs, `caddy validate` included. AdGuard Home joined it the same day
+  ([#135](https://github.com/Gerrrt/HomeLab/issues/135)), in the shape
+  ADR-0010 decided and not the one the service assumes: the blocklist set is
+  a tracked file copied in on every start, the admin hash is in SOPS, port 53
+  is published on the host's own address and answered for the firewall and
+  the blackbox prober only, and the default 20 qps per-client rate limit —
+  which would have throttled the whole house through its one client — is
+  off. The half on `morpheus` waits for the host:
+  [`forward-dns-to-adguard.md`](runbooks/forward-dns-to-adguard.md) is the
+  forwarding-mode change below, its verification, and the deliberate-failure
+  test ADR-0010 asks for. So did Vaultwarden
+  ([#131](https://github.com/Gerrrt/HomeLab/issues/131)) — the service whose
+  restore path mattered more than its deployment: `make backup` and
+  `make restore` learned the tier's volumes and now encrypt to the stack's own
+  recipients rather than the first key in `.sops.yaml`, and the round trip was
+  rehearsed on the monitoring host with a seeded vault before the host exists
   ([`restore-the-sensitive-tier.md`](runbooks/restore-the-sensitive-tier.md)).
 
   **ADR-0010 costs more to implement than it reads, measured 2026-09-04.**
