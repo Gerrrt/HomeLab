@@ -24,11 +24,12 @@
 #     walk overshoots into whatever comes next, and the exporter has to decode
 #     those varbinds too. They are the ones that bite; you want to see them.
 #
-# The community reaches net-snmp through a defCommunity line in an snmp.conf
-# under SNMPCONFPATH, exactly as scripts/snmp-verify.sh does, so it is never in
-# argv, shell history or /proc/<pid>/cmdline. stderr is captured to a file and
-# classified, never printed: on a config parse error net-snmp echoes the
-# offending line, and that line is the community.
+# The credential reaches net-snmp through an snmp.conf under SNMPCONFPATH,
+# written by scripts/snmp-auth.sh exactly as scripts/snmp-verify.sh has it —
+# defCommunity for a v2c device, the USM user and passphrases for a v3 one —
+# so it is never in argv, shell history or /proc/<pid>/cmdline. stderr is
+# captured to a file and classified, never printed: on a config parse error
+# net-snmp echoes the offending line, and that line is the credential.
 #
 # Do not add a --debug flag that passes -d to snmpbulkget: it prints the
 # community in hex. `bash -x` on this script leaks it too.
@@ -45,6 +46,8 @@ STACK="observability"
 
 # shellcheck source=secrets-env.sh
 source "${REPO_ROOT}/scripts/secrets-env.sh"
+# shellcheck source=snmp-auth.sh
+source "${REPO_ROOT}/scripts/snmp-auth.sh"
 
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[0;34m--\033[0m %s\n' "$*" >&2; }
@@ -90,11 +93,11 @@ INVENTORY="$(awk -F'\t' -v d="${ONLY_DEVICE}" '$1 == d || $3 == d' <<< "${INVENT
 [[ -n "${INVENTORY}" ]] || die "no SNMP device matches '${ONLY_DEVICE}' (try a device name or IP from prometheus/targets/snmp.yaml)"
 [[ "$(wc -l <<< "${INVENTORY}")" -eq 1 ]] || die "'${ONLY_DEVICE}' matches more than one device"
 
-IFS=$'\t' read -r IP AUTH DEVICE VAR <<< "${INVENTORY}"
+IFS=$'\t' read -r IP AUTH DEVICE VERSION KEYS <<< "${INVENTORY}"
 
 if ((DRY_RUN)); then
   printf '\n\033[1m%s\033[0m\n' "SNMP walk (dry run — nothing decrypted, no packets sent)"
-  printf '  %-12s %-16s %-16s %s\n' "${DEVICE}" "${IP}" "${AUTH}" "${VAR}"
+  printf '  %-12s %-16s %-16s v%-3s %s\n' "${DEVICE}" "${IP}" "${AUTH}" "${VERSION}" "${KEYS//,/ }"
   printf '  oid %s  max-repetitions %s  timeout %ss  retries %s\n\n' \
     "${ROOT}" "${MAX_REPETITIONS}" "${TIMEOUT}" "${RETRIES}"
   exit 0
@@ -120,13 +123,7 @@ umask 077
 
 load_secrets "${STACK}"
 
-COMMUNITY="${!VAR:-}"
-[[ -n "${COMMUNITY}" ]] || die "${VAR} is empty in secrets/${STACK}.sops.yaml"
-[[ "${COMMUNITY}" != *[[:space:]]* && "${COMMUNITY}" != *'#'* ]] || die \
-  "${VAR} contains whitespace or '#', which net-snmp's snmp.conf parser cannot represent."
-printf 'defCommunity %s\n' "${COMMUNITY}" > "${WORK}/snmp.conf"
-chmod 600 "${WORK}/snmp.conf"
-unset COMMUNITY
+snmp_write_conf "${WORK}" "${AUTH}"
 
 # ---------------------------------------------------------------------------
 # The walk. Each request asks for the varbinds after `next`; the reply is
@@ -135,8 +132,9 @@ unset COMMUNITY
 # has nothing more, or when it stops answering.
 #
 # stderr goes to a file and is classified by substring, never printed and never
-# passed to sed — either would put the defCommunity line into an argument
-# vector or the terminal on a parse error.
+# passed to sed — either would put the credential line into an argument
+# vector or the terminal on a parse error. The version comes from that same
+# file's defVersion, so no -v is passed: it would override the file.
 # ---------------------------------------------------------------------------
 info "${DEVICE} (${IP}) GETBULK ${ROOT} max-repetitions ${MAX_REPETITIONS} timeout ${TIMEOUT}s retries ${RETRIES}"
 
@@ -151,7 +149,7 @@ while ((requests < MAX_REQUESTS)); do
   requests=$((requests + 1))
   rc=0
   out="$(timeout $(( (RETRIES + 1) * TIMEOUT + 5 )) env MIBS= SNMPCONFPATH="${WORK}" \
-          snmpbulkget -v2c -t "${TIMEOUT}" -r "${RETRIES}" -Cn0 -Cr"${MAX_REPETITIONS}" -Oqn \
+          snmpbulkget -t "${TIMEOUT}" -r "${RETRIES}" -Cn0 -Cr"${MAX_REPETITIONS}" -Oqn \
           "${IP}" "${next}" 2>"${WORK}/err")" || rc=$?
 
   if ((rc != 0)); then
@@ -159,6 +157,9 @@ while ((requests < MAX_REQUESTS)); do
       ended="timeout"
     elif ((rc == 124)); then
       ended="timeout (outer)"
+    elif phrase="$(snmp_classify_rejection "$(cat "${WORK}/err")")"; then
+      # A USM Report: only the fixed phrase is kept, per the note above.
+      ended="rejected over SNMPv3: ${phrase}"
     else
       ended="error rc=${rc}"
     fi

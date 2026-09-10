@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the four Docker data volumes on `trinity` (10.0.99.40), VLAN 99
+**Target:** the five Docker data volumes on `trinity` (10.0.99.40), VLAN 99
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -11,16 +11,17 @@ not repeated here: the scripts are the same, the phases are the same, and the
 reasons a restore is verified before anything is destroyed are argued there.
 What is different is what the volumes hold. On the observability host, four of
 five volumes are a *record* — metrics and logs that refill on their own. Here,
-three of four are rebuildable from somewhere else and one is not:
+three of five are rebuildable from somewhere else and two are not:
 
 | Volume | What it holds | If it is lost |
 | --- | --- | --- |
 | `vaultwarden-data` | The vault: every account, every item, every TOTP secret, the RSA key that signs every session | **Lost.** Nothing in git, nothing on another host, nothing regenerates it. This is the one the tier exists to protect |
+| `home-assistant-config` | Home Assistant's own store: every login, every device credential a config flow produced, the recorder's history. `configuration.yaml` is the repository's and is mounted over it | **Lost**, and re-created by hand: every integration paired again, every credential re-issued by its vendor. ADR-0035 says why these live here and not in SOPS |
 | `step-ca-data` | The intermediate CA's tree | Re-minted on the monitoring host from the lab CA's key — [#404](https://github.com/Gerrrt/HomeLab/issues/404)'s procedure. Costs a runbook step, not data |
 | `caddy-data` | Caddy's storage: `instance.uuid`, the lock directory, later the ACME state | Recreated on the next start. Nothing here is worth a restore until step-ca issues leaves into it |
 | `caddy-config` | `autosave.json`, Caddy's copy of its last loaded config | Recreated on the next start from the `Caddyfile` |
 
-So this runbook is mostly about one volume, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
+So this runbook is mostly about two volumes, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
 said why it had to exist before that volume held anything: *"a password vault
 is the one service here where 'it is running' and 'it is recoverable' are
 entirely different claims, and only the second one counts on the day it
@@ -89,6 +90,7 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 | Caddy answers 502 for the vault | The container is not up. Not a volume problem — `make logs STACK=sensitive SERVICE=vaultwarden` | — |
 | Browser refuses the certificate | The leaf, not a volume — the name is not in its SANs, or it expired | `compose.yaml`'s `make certs` line |
 | step-ca will not start, log says `config/ca.json` | `step-ca-data` empty or replaced | §2, or re-mint from the monitoring host |
+| Home Assistant offers onboarding instead of a login | `home-assistant-config` empty or replaced — `.storage/auth` is gone | §2, `home-assistant-config` |
 | The host's disk is gone | Hardware | §3, after rebuilding the host |
 | Files under `/var/lib/docker/volumes` deleted or encrypted | Ransomware, or a mis-aimed `rm -rf` | §3 — and **not** from a set on this host |
 
@@ -120,8 +122,9 @@ It stops the stack, snapshots the current contents to
 archive into it. It asks you to type the stamp, and it needs a terminal to ask
 — it will not run from a script or a timer, deliberately. It then reports the
 owning uid against the one the service needs: `0` for `vaultwarden-data`,
-`caddy-data` and `caddy-config`, because those services run as root for the
-reason `compose.yaml` measures; `1000` for `step-ca-data`. A mismatch is
+`home-assistant-config`, `caddy-data` and `caddy-config`, because those
+services run as root for the reasons `compose.yaml` measures; `1000` for
+`step-ca-data`. A mismatch is
 reported and never silently corrected.
 
 It leaves the stack **stopped**. Bring it up and then run §4:
@@ -148,8 +151,10 @@ Same, without `--only`. On a rebuilt host, in this order:
 > Restore **before** the first `make up`, not after. Started against an empty
 > volume, Vaultwarden mints a fresh `rsa_key.pem` and an empty database, and the
 > restore then discards both — merely wasteful, but the log line it leaves
-> behind is the one §4 step 3 looks for, so it also spoils the check. step-ca
-> is the safe one: on an empty volume it refuses to start at all.
+> behind is the one §4 step 3 looks for, so it also spoils the check. Home
+> Assistant on an empty volume writes a fresh store and offers onboarding, the
+> same waste. step-ca is the safe one: on an empty volume it refuses to start
+> at all.
 
 `step-ca-data` has a second route: re-mint the intermediate on the monitoring
 host and populate the volume by hand, as the build does. Prefer that over a set
@@ -198,6 +203,12 @@ docker exec sensitive-vaultwarden curl -s -o /dev/null -w '%{http_code}\n' \
 #    container's own healthcheck asks it to:
 docker exec sensitive-step-ca step ca health --ca-url https://localhost:9000 \
   --root /home/step/certs/root_ca.crt
+
+# 6. home-assistant-config — the login page, not onboarding. Onboarding is
+#    what a fresh store offers, and it means .storage/auth did not come back.
+docker exec sensitive-home-assistant wget -q -O - http://localhost:8123/api/onboarding \
+  | grep -c '"done": false'
+#    Must be 0: every onboarding step is already done in a restored store.
 ```
 
 Then from a client on Hicks — the checks a shell cannot do:
@@ -231,8 +242,11 @@ Then from a client on Hicks — the checks a shell cannot do:
 ## What is proven, and what is not
 
 The round trip was rehearsed on 2026-09-09 on the monitoring host, before
-`trinity` exists, with the scripts as they are in this repository and the four
-volumes seeded to look like the tier's:
+`trinity` exists, with the scripts as they are in this repository and four of
+the five volumes seeded to look like the tier's — `home-assistant-config` did
+not exist yet ([#134](https://github.com/Gerrrt/HomeLab/issues/134) landed the
+same day); its sentinel and expected owner were read off a boot of the pinned
+image, and its restore has not been rehearsed:
 
 - Caddy from the pinned image, started under `compose.yaml`'s options with the
   real `Caddyfile` and a throwaway leaf, populated `caddy-data` and
@@ -248,7 +262,7 @@ restored volume by hand.
 
 **What it established.**
 
-- **All four archive, verify against their sentinels, and restore**, and each
+- **All four that existed archive, verify against their sentinels, and restore**, and each
   comes back owned by the uid its service needs — `0`, `0`, `1000`, `0`.
 - **The vault comes back.** Vaultwarden started on the restored volume without
   minting a key — no `created correctly` line — answered `/alive`, refused a

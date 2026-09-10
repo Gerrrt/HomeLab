@@ -173,13 +173,19 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # volumes need that: both hold a single `./caddy` directory, so a top-level
 # entry would be the crossed mapping this exists to catch, present in both.
 #
-# The sensitive tier's four, what each was read from (#131):
-#   caddy-data       instance.uuid, written on first start — measured on the
-#                    pinned image with the stack's Caddyfile
-#   caddy-config     autosave.json, likewise
-#   step-ca-data     the file the image refuses to start without; the tree is
-#                    populated by hand and this is its root
-#   vaultwarden-data the SQLite database, created on first start
+# The sensitive tier's five, what each was read from (#131):
+#   caddy-data            instance.uuid, written on first start — measured on
+#                         the pinned image with the stack's Caddyfile
+#   caddy-config          autosave.json, likewise
+#   step-ca-data          the file the image refuses to start without; the
+#                         tree is populated by hand and this is its root
+#   vaultwarden-data      the SQLite database, created on first start
+#   home-assistant-config the recorder's SQLite database, created on first
+#                         start — measured on the pinned image booted with
+#                         compose.yaml's options on an isolated network.
+#                         Not configuration.yaml: the stack bind-mounts the
+#                         repository's over it, and a name two volumes could
+#                         carry is no sentinel
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -190,6 +196,7 @@ declare -A SENTINEL=(
   [caddy-config]="./caddy/autosave.json"
   [step-ca-data]="./config/ca.json"
   [vaultwarden-data]="./db.sqlite3"
+  [home-assistant-config]="./home-assistant_v2.db"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -213,6 +220,10 @@ declare -A COMPANIONS=(
   [caddy-config]=""
   [step-ca-data]="./certs ./secrets ./db"
   [vaultwarden-data]="./rsa_key.pem ./db.sqlite3-wal ./attachments ./sends ./icon_cache"
+  # .storage is where every device credential and every login lives — the
+  # part of this volume that cannot be re-derived; the WAL for the reason
+  # vaultwarden-data lists it (589 KB after a first boot, the recorder's).
+  [home-assistant-config]="./.storage ./.HA_VERSION ./home-assistant_v2.db-wal"
 )
 
 VOLUMES=()

@@ -35,23 +35,35 @@ https:// {
 		respond "ok" 200
 	}
 
-	# One block per service, routed by Host. The name has to resolve
-	# (docs/runbooks/add-a-host-override.md) and be among the leaf's SANs — the
-	# `make certs` line in compose.yaml — or the browser fails on the
-	# certificate one hop before this file is consulted. The next service adds
-	# its own block above the fallback and touches nothing else.
+	# One block per service, matched on Host. Each name needs two things
+	# outside this file: a SAN on the leaf (compose.yaml's `make certs` line)
+	# and a host override on morpheus pointing it at 10.0.99.40
+	# (docs/runbooks/add-a-host-override.md) — a Host the leaf does not carry
+	# fails the handshake, and a name the resolver does not know never arrives.
+	#
+	# Home Assistant (#134). Its frontend runs over a websocket, which
+	# reverse_proxy upgrades without being told; nothing here needs a header
+	# Caddy does not already set — X-Forwarded-For is what its
+	# `trusted_proxies` line reads, and Caddy's fixed address is what it trusts.
+	@homeassistant host homeassistant.matrix.elysium
+	handle @homeassistant {
+		reverse_proxy home-assistant:8123
+	}
+
+	# Vaultwarden (#131). Plain HTTP on the stack network; TLS ends here. Rocket
+	# serves the Bitwarden API, the web vault and the WebSocket notifications
+	# hub on the one port, and reverse_proxy upgrades WebSocket connections
+	# without being told to. 8080 is compose.yaml's ROCKET_PORT; X-Forwarded-For
+	# is what its IP_HEADER reads.
 	@vaultwarden host vaultwarden.matrix.elysium
 	handle @vaultwarden {
-		# Plain HTTP on the stack network; TLS ends here. Rocket serves the
-		# Bitwarden API, the web vault and the WebSocket notifications hub on
-		# the one port, and reverse_proxy upgrades WebSocket connections
-		# without being told to. 8080 is compose.yaml's ROCKET_PORT.
 		reverse_proxy vaultwarden:8080
 	}
 
-	# Every other Host, the bare trinity.matrix.elysium included.
+	# Immich, Paperless-ngx and the rest (#132, #133, #135–#137) add a block of
+	# the same shape above this line. What matches nothing lands here.
 	handle {
-		respond "trinity: the sensitive tier. No such service." 404
+		respond "trinity: the sensitive tier. Nothing is routed under this name." 404
 	}
 
 	log {

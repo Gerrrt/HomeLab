@@ -127,7 +127,8 @@ stamp_age() {
 # directory is root-owned and a named volume inherits it — so 0 is what their
 # volumes must come back as. step-ca is the one non-root service there, and
 # the one whose tree was populated by hand; a restore that hands it back
-# root-owned is a CA that cannot open its own key.
+# root-owned is a CA that cannot open its own key. Home Assistant's image has
+# no non-root mode at all (DIFFERENCE 6 there), so its volume is root's too.
 declare -A EXPECT_UID=(
   [prometheus-data]=65534
   [loki-data]=10001
@@ -136,6 +137,7 @@ declare -A EXPECT_UID=(
   [caddy-config]=0
   [step-ca-data]=1000
   [vaultwarden-data]=0
+  [home-assistant-config]=0
 )
 
 FROM=""
