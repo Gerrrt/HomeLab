@@ -50,6 +50,14 @@ https:// {
 		reverse_proxy home-assistant:8123
 	}
 
+	# AdGuard Home's UI (#135). Plain HTTP on the compose network; the DNS
+	# side of the same container is published on 53 directly, because DNS is
+	# not something this proxy can carry — compose.yaml, DIFFERENCE 7.
+	@adguard host adguard.matrix.elysium
+	handle @adguard {
+		reverse_proxy adguard:80
+	}
+
 	# Paperless-ngx (#133). reverse_proxy sets X-Forwarded-For, -Proto and
 	# -Host unasked, and compose.yaml's PAPERLESS_USE_X_FORWARD_HOST and
 	# PAPERLESS_PROXY_SSL_HEADER are what reads them — Django otherwise sees a
@@ -59,7 +67,7 @@ https:// {
 		reverse_proxy paperless:8000
 	}
 
-	# Vaultwarden, Immich and the rest (#131, #132, #135–#137) add a block of
+	# Vaultwarden, Immich and the rest (#131, #132, #136, #137) add a block of
 	# the same shape above this line. What matches nothing lands here.
 	handle {
 		respond "trinity: the sensitive tier. Nothing is routed under this name." 404

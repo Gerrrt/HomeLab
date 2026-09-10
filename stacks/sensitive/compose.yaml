@@ -12,14 +12,17 @@
 # What is here, and what is not
 # ---------------------------------------------------------------------------
 # The foundation, and the first two household services on it. Caddy (#129)
-# is the only thing on the tier that publishes a port, and the whole
+# is the reverse proxy that publishes the tier's HTTPS port, and the whole
 # containment argument in ADR-0008 — "containers sit on private bridge
 # networks with only the reverse proxy publishing a port" — is a property of
 # this file or it is a sentence in an ADR. step-ca (#130) issues the
-# certificates behind it. Home Assistant (#134) and Paperless-ngx (#133, with
-# the Postgres and Valkey it needs) are behind them, and the shape every later
-# one takes: `expose:` and no `ports:`. Vaultwarden, Immich, AdGuard Home, ntfy
-# and Homepage (#131, #132, #135–#137) land the same way.
+# certificates behind it. Home Assistant (#134) is the first service behind
+# them, and the shape every later one takes: `expose:` and no `ports:`.
+# AdGuard Home (#135) is the second, and the one service that, by design,
+# publishes a port of its own — argued at DIFFERENCE 7 below. Paperless-ngx
+# (#133), with the Postgres and Valkey it needs, is the third, in Home
+# Assistant's shape. Vaultwarden, Immich, ntfy and Homepage (#131, #132,
+# #136, #137) land the same way.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -30,7 +33,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are eight such places, each marked DIFFERENCE.
+# the sibling file. There are nine such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -113,7 +116,7 @@ services:
       # (#129: "initially, replaced by step-ca issuance once that lands"):
       #   make certs ARGS="--host trinity.matrix.elysium --ip 10.0.99.40 \
       #                    --dns trinity --dns homeassistant.matrix.elysium \
-      #                    --dns paperless.matrix.elysium"
+      #                    --dns adguard.matrix.elysium --dns paperless.matrix.elysium"
       # One --dns per name the Caddyfile routes by, until step-ca issues each
       # its own; a Host the leaf does not carry fails the handshake, not the
       # route. Issued on the monitoring host, where the CA key lives and stays;
@@ -334,6 +337,111 @@ services:
       start_period: 90s
 
   # ---------------------------------------------------------------------------
+  # AdGuard Home — the DNS filter Unbound forwards to (#135, ADR-0010)
+  # ---------------------------------------------------------------------------
+  # Not a client-facing resolver. Every DHCP scope keeps handing out pfSense;
+  # Unbound on morpheus forwards to this address with the public upstreams
+  # listed beside it, so a dead AdGuard costs filtering and never connectivity.
+  # docs/runbooks/forward-dns-to-adguard.md is the change on morpheus, and it
+  # is the entire client-side change — one config file, no DHCP edit, no lease
+  # TTL to wait out, which is what makes ADR-0010 cheap to reverse.
+  #
+  # DIFFERENCE 7: this service publishes a port, and it is the only one
+  # besides Caddy that ever should. ADR-0012's test is a named off-host
+  # consumer, and this one has two: Unbound on morpheus, which is what the
+  # service exists for, and the blackbox exporter on prometheus, which probes
+  # 53 directly because a probe through the normal path always passes (#126).
+  # Caddy cannot carry it — DNS is not HTTP and the stock image has no
+  # layer-4 proxy — so the containment argument in the header holds for HTTP
+  # and this is the one hole cut in it, sized to a port and an address:
+  # published on trinity's own address rather than 0.0.0.0 (.env.example says
+  # why), and answered for two source addresses only (adguard/AdGuardHome.yaml
+  # `allowed_clients`). The client VLANs never reach it at all; default deny
+  # sees to that, and the Hicks named list (ADR-0031) does not include it.
+  #
+  # Runs as `nobody`, which the image's own files are owned by, with every
+  # capability dropped but NET_BIND_SERVICE — and that one is in the bounding
+  # set only. The binary carries `cap_net_bind_service=eip` as a file
+  # capability (getcap in the pinned image, 2026-09-09), which is what lets a
+  # non-root process bind 53 and 80; the container's own CapEff reads 0. The
+  # image refuses a FIRST launch as non-root ("you must run it as
+  # administrator") because the setup wizard wants to write its config; with
+  # the config already present, as below, it never runs the wizard.
+  #
+  # The config is adguard/AdGuardHome.yaml, tracked, and copied into a tmpfs
+  # on every start with the admin hash substituted from the environment — so
+  # what runs is what the repository says, and a change made in the UI lasts
+  # until the next restart. The hash passes through the environment rather
+  # than a rendered file for a permissions reason worth writing down: a file
+  # render-config.sh writes is 0600 to the rendering user, and the one
+  # process that could read it — a container running as that user — cannot
+  # write the `work` volume, which inherits `nobody` from the image. Same
+  # exposure class as STEPCA_PASSWORD above, and it is a bcrypt hash rather
+  # than a password. awk with index()/substr() rather than sed or gsub(): a
+  # bcrypt hash is `$`, `.`, `/` and alphanumerics, and every one of the
+  # obvious substitution tools treats at least one of those specially.
+  #
+  # `work` is where the downloaded blocklists, the query log and the
+  # statistics live — a volume, so a restart does not need the internet to
+  # filter again. Nothing else is writable.
+  adguard:
+    <<: *service-defaults
+    image: adguard/adguardhome:v0.107.79@sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0
+    container_name: sensitive-adguard
+    # 5x the measured 95 MiB RSS with both blocklists loaded (433k rules,
+    # 2026-09-09). A list refresh briefly holds the old and new copies, and
+    # the bound is for a leak, not a budget.
+    mem_limit: 512m
+    memswap_limit: 512m
+    user: "65534:65534"
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /opt/adguardhome/conf:size=1m,uid=65534,gid=65534,mode=0700
+    environment:
+      ADGUARD_ADMIN_PASSWORD_HASH: ${ADGUARD_ADMIN_PASSWORD_HASH:?make hash-password, then secrets-edit STACK=sensitive}
+    # `$$` is compose's escape, as for step-ca: the container sees `$0` and
+    # `${ADGUARD_ADMIN_PASSWORD_HASH}`, not this file's values. The chmod
+    # quietens AdGuard's own permission check on the volume, which Docker
+    # creates 0755; the directory is ours to tighten.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        umask 077 && chmod 700 /opt/adguardhome/work
+        && awk -v hash="$${ADGUARD_ADMIN_PASSWORD_HASH}"
+        '{ i = index($$0, "__ADGUARD_ADMIN_PASSWORD_HASH__");
+        if (i) $$0 = substr($$0, 1, i - 1) hash substr($$0, i + 31);
+        print }'
+        /opt/adguardhome/template/AdGuardHome.yaml
+        > /opt/adguardhome/conf/AdGuardHome.yaml
+        && exec /opt/adguardhome/AdGuardHome --no-check-update
+        -c /opt/adguardhome/conf/AdGuardHome.yaml -w /opt/adguardhome/work
+    volumes:
+      - ./adguard/AdGuardHome.yaml:/opt/adguardhome/template/AdGuardHome.yaml:ro
+      - adguard-work:/opt/adguardhome/work
+    ports:
+      - "${DNS_BIND_ADDR:-10.0.99.40}:53:53/udp"
+      - "${DNS_BIND_ADDR:-10.0.99.40}:53:53/tcp"
+    # The UI, for Caddy only.
+    expose:
+      - "80"
+    healthcheck:
+      # The login page, unauthenticated: 302 then 200, which busybox wget
+      # follows. HTTP rather than a DNS query on purpose — a query from inside
+      # the container arrives from 127.0.0.1, which `allowed_clients` drops,
+      # and a healthcheck that depended on the upstreams would mark the
+      # container unhealthy for a WAN fault. Whether it ANSWERS is the
+      # blackbox probe's question, asked from where the firewall asks it.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
   # Paperless-ngx — the document archive (#133)
   # ---------------------------------------------------------------------------
   # Tax returns, insurance, medical records, passports and payslips: on this
@@ -365,7 +473,7 @@ services:
   # whoever ran `make up`; a scan dropped there by that user over SSH is
   # readable, and removable once consumed, only if the consumer runs as them.
   #
-  # DIFFERENCE 7: a CPU ceiling, the first in the estate. #133 is explicit —
+  # DIFFERENCE 8: a CPU ceiling, the first in the estate. #133 is explicit —
   # OCR "will use everything it is given for minutes at a time" — and a backlog
   # scan is the one workload on this box that saturates rather than leaks.
   # `cpus: 4` of the i5-8500T's six is the enforcement; TASK_WORKERS and
@@ -374,7 +482,7 @@ services:
   # and Postgres are not throttled by a consumer that is. Throttling is not
   # silent: ContainerCpuThrottled reads the same cgroup counters.
   #
-  # DIFFERENCE 8: NOT read_only, where every other long-running container in
+  # DIFFERENCE 9: NOT read_only, where every other long-running container in
   # the estate is. OCR is scratch-heavy — ocrmypdf renders every page to an
   # image under PAPERLESS_SCRATCH_DIR, /tmp by default, and the working set
   # scales with the document — and a tmpfs there is charged to this cgroup's
@@ -567,9 +675,10 @@ services:
       start_period: 10s
 
 # DIFFERENCE 4: one network, and it is the point. Every later service joins
-# `sensitive` with `expose:` only; Caddy is the sole member with `ports:`.
-# A service that adds `ports:` here is undoing ADR-0008's containment, and
-# the review question for every PR against this file is that one line.
+# `sensitive` with `expose:` only. Two members have `ports:` — Caddy, and
+# AdGuard for the reason DIFFERENCE 7 gives — and a third is undoing
+# ADR-0008's containment. The review question for every PR against this file
+# is that one line.
 #
 # The subnet is fixed so that one address on it can be: Caddy's, which Home
 # Assistant's `trusted_proxies` names. 172.28.99.0/24 is inside Docker's
@@ -589,6 +698,7 @@ volumes:
   caddy-config:
   step-ca-data:
   home-assistant-config:
+  adguard-work:
   paperless-data:
   paperless-media:
   paperless-db-data:

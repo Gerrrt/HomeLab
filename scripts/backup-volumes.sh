@@ -158,7 +158,10 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # every start (read off a boot of the pinned image on 2026-09-10; the volume
 # also carries .storage/ and the recorder's home-assistant_v2.db, and the
 # bind-mounted configuration.yaml appears in it as an empty placeholder).
-# Paperless: paperless-data holds the Tantivy index the
+# AdGuard's ./data/sessions.db is there ten seconds into a first start, beside
+# stats.db and the filters directory (read off a boot of the pinned image on
+# 2026-09-10, ports unpublished). Paperless: paperless-data holds the Tantivy
+# index the
 # container rebuilds at every start, so ./index is there from the first boot;
 # paperless-media is ./documents/{originals,archive,thumbnails} from the first
 # consume and ./documents alone before it; Postgres 18 lays its cluster out
@@ -177,6 +180,7 @@ declare -A SENTINEL=(
   [caddy-config]="./caddy/autosave.json"
   [step-ca-data]="./config/ca.json"
   [home-assistant-config]="./.HA_VERSION"
+  [adguard-work]="./data/sessions.db"
   [paperless-data]="./index"
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
@@ -195,6 +199,7 @@ declare -A COMPANIONS=(
   [caddy-config]=""
   [step-ca-data]="./certs ./secrets ./db"
   [home-assistant-config]="./.storage ./home-assistant_v2.db"
+  [adguard-work]="./data/stats.db ./data/filters"
   [paperless-data]="./log ./celerybeat-schedule.db"
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
   [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
