@@ -448,7 +448,7 @@ rather than for the fleet:
   switch-management LAN and — for the iLO — the lab segment, and only from
   the monitoring host.
 - **SNMPv3 authPriv, per poll**
-  ([ADR-0035](adr/0035-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)).
+  ([ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)).
   The iLO's poll is the one that matters: it is delivered into ImaginationLAN,
   where [ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)
   puts the attack VM on purpose, so a guest there that ARP-spoofs `10.0.30.10`
@@ -489,7 +489,7 @@ Winterfell can reach `10.7.7.0/24` at all
 ([ADR-0013](adr/0013-segment-access-as-implemented.md)). What does not hold it:
 anything on the device, which is now carrying its third firmware limit after the
 undeletable community row and an SNMPv3 user page it may or may not have
-(ADR-0035). A TLS management interface belongs in the selection criteria
+(ADR-0036). A TLS management interface belongs in the selection criteria
 whenever this switch is replaced.
 
 ## Hardening applied to the stack

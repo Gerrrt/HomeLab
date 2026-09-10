@@ -199,7 +199,7 @@ done <<< "${GUARDS}"
 # one-name-per-line shape.
 #
 # A device polled over SNMPv2c is one line, its community. A device moved to
-# SNMPv3 (ADR-0037) is two: SNMP_AUTHPASS_<X> and SNMP_PRIVPASS_<X>, the
+# SNMPv3 (ADR-0036) is two: SNMP_AUTHPASS_<X> and SNMP_PRIVPASS_<X>, the
 # passphrases its auth block in generator.yaml names. The user name is not a
 # secret and is not rendered — it is a literal in generator.yaml.
 if [[ -f "${SNMP_SRC}" ]]; then
