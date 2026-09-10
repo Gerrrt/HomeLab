@@ -268,6 +268,20 @@ if [[ -f "${AM_CONFIG}" ]]; then
   )
 fi
 
+# The SOC stack renders two files of its own (ADR-0030): the indexer's user
+# database, which holds bcrypt hashes, and the manager's agent-enrolment
+# password. Driven by the directory existing, the way SNMP_SRC and AM_CONFIG
+# are above. The passwords the compose file interpolates are already in the
+# list from its guards; these three are the ones that go into files instead.
+WAZUH_DIR="${STACK_DIR}/wazuh"
+if [[ -d "${WAZUH_DIR}" ]]; then
+  REQUIRED+=(
+    INDEXER_ADMIN_HASH
+    DASHBOARD_PASSWORD_HASH
+    WAZUH_REGISTRATION_PASSWORD
+  )
+fi
+
 missing=()
 for var in "${REQUIRED[@]}"; do
   [[ -n "${!var:-}" ]] || missing+=("${var}")
@@ -376,6 +390,47 @@ if [[ -f "${AM_CONFIG}" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Render the SOC stack's two files
+#
+# internal_users.yml is the indexer's user database and carries the bcrypt
+# hash of two passwords; the tracked copy keeps ${PLACEHOLDERS} for the same
+# reason snmp.yaml does. authd.pass is what an agent presents to enrol
+# (ossec.conf: <use_password>yes) — the manager reads the first line of the
+# file, and nothing else does. Both are 0600, like everything else rendered
+# here, and the containers that mount them run as this uid: the indexer image
+# runs as 1000, so the deploying user on odin must be uid 1000 — the first
+# user Ubuntu creates — or the indexer cannot read its own user database and
+# fails its healthcheck with a permission error two layers down.
+# ---------------------------------------------------------------------------
+if [[ -d "${WAZUH_DIR}" ]]; then
+  if [[ "$(id -u)" != "1000" ]]; then
+    die "rendering ${STACK} as uid $(id -u): the indexer image runs as uid 1000 and
+mounts the 0600 file this writes, so it has to be rendered by uid 1000. On odin
+that is the first user the installer created; run this as that user."
+  fi
+  info "rendering internal_users.yml and authd.pass"
+  for dir in "${WAZUH_DIR}/indexer/.rendered" "${WAZUH_DIR}/manager/.rendered"; do
+    mkdir -p "${dir}"
+    chmod 700 "${dir}"
+  done
+  shopt -u patsub_replacement 2>/dev/null || true
+  users_content="$(cat "${WAZUH_DIR}/indexer/internal_users.yml")"
+  for var in INDEXER_ADMIN_HASH DASHBOARD_PASSWORD_HASH; do
+    users_content="${users_content//\$\{${var}\}/${!var}}"
+  done
+  umask 077
+  printf '%s\n' "${users_content}" > "${WAZUH_DIR}/indexer/.rendered/internal_users.yml"
+  unset users_content
+  chmod 600 "${WAZUH_DIR}/indexer/.rendered/internal_users.yml"
+  # shellcheck disable=SC2016  # matching the literal text "${"
+  if grep -q '\${' "${WAZUH_DIR}/indexer/.rendered/internal_users.yml"; then
+    die "unsubstituted placeholders remain in the rendered internal_users.yml"
+  fi
+  printf '%s\n' "${WAZUH_REGISTRATION_PASSWORD}" > "${WAZUH_DIR}/manager/.rendered/authd.pass"
+  chmod 600 "${WAZUH_DIR}/manager/.rendered/authd.pass"
+fi
+
+# ---------------------------------------------------------------------------
 # Write .env for compose interpolation
 #
 # Only the values compose actually interpolates are written here. The SNMP
@@ -401,6 +456,10 @@ COMPOSE_VARS=(
   PAPERLESS_DBPASS
   PAPERLESS_ADMIN_PASSWORD
   VAULTWARDEN_ADMIN_TOKEN
+  INDEXER_PASSWORD
+  DASHBOARD_PASSWORD
+  API_PASSWORD
+  VELOCIRAPTOR_INITIAL_ADMIN_PASSWORD
 )
 ENV_FILE="${STACK_DIR}/.env"
 info "writing $(basename "${STACK_DIR}")/.env"

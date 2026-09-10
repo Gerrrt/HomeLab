@@ -1,0 +1,35 @@
+{
+  "policy": {
+    "description": "Delete wazuh-alerts-* thirty days after creation. Wazuh ships no retention policy at all, so without this the answer is 'forever' and the shard budget is spent inside a month. Thirty days is what a 2 GiB heap buys at one primary shard per daily index (ADR-0030); it is a bound and not a measurement, re-derived from _plugins/_ism/explain/wazuh-alerts-* once the lab has run a fortnight.",
+    "default_state": "hot",
+    "states": [
+      {
+        "name": "hot",
+        "actions": [],
+        "transitions": [
+          {
+            "state_name": "delete",
+            "conditions": {
+              "min_index_age": "30d"
+            }
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "actions": [
+          {
+            "delete": {}
+          }
+        ],
+        "transitions": []
+      }
+    ],
+    "ism_template": [
+      {
+        "index_patterns": ["wazuh-alerts-*"],
+        "priority": 100
+      }
+    ]
+  }
+}

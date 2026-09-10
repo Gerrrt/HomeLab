@@ -55,6 +55,27 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "sensitive"]
 
+  # The SOC stack, on odin. Three wazuh/* images that move together and are
+  # grouped so one PR carries a release — the indexer, manager and dashboard
+  # must match to the patch version, and three separate bumps would be three
+  # deploys of a half-upgraded SIEM. Velociraptor and Alloy bump alone. Present
+  # before the host is, for the reason the entries above give: pins rot from
+  # the day they are written. One thing Dependabot cannot bump is
+  # CERT_TOOL_VERSION in compose.yaml, which tracks the wazuh/* major.minor —
+  # the compose file says so where it is set.
+  - package-ecosystem: docker-compose
+    directory: /stacks/soc
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "soc"]
+    groups:
+      wazuh:
+        patterns: ["wazuh/*"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -133,3 +133,19 @@ scrape_configs:
 #   4. Loki's push endpoint stays closed for the same reasons. Windows Event Log
 #      belongs to #266, and if some of it should also land here, that is #266's
 #      port to open and #266's argument to write.
+
+# ---------------------------------------------------------------------------
+# ADR-0030's SOC guest, `odin`. Two things arrive from it and only one is a
+# scrape. Its Alloy PUSHES — that guest's node and container telemetry, and
+# the Wazuh indexer's health from stacks/soc/alloy/opensearch.alloy — through
+# the remote-write receiver above, which is why compose.yaml's `ports:` block
+# opens on the day odin does. The rules that read those series are in
+# rules/soc.rules.yaml. The scrape is Velociraptor's metrics listener, and it
+# lands commented for the reason the windows job does: a target that does not
+# exist yet is InstanceDown firing from the moment this deploys.
+# build-the-soc-guest.md §9 uncomments it.
+#
+#   - job_name: velociraptor
+#     static_configs:
+#       - targets: ["10.0.30.60:8003"]
+#         labels: {instance: odin, role: soc}

@@ -331,6 +331,15 @@ Where things get broken on purpose.
   stack remote-writes off the segment, so nothing outside the lab sees it — and
   nothing outside the lab can tell it apart from a lab nobody is using
   ([#257](https://github.com/Gerrrt/HomeLab/issues/257)).
+- A second guest, `odin`, is planned at `10.0.30.60` — a static below `.100`,
+  continuing the decade spacing — for [`stacks/soc`](../stacks/soc): Wazuh and
+  Velociraptor, the security half of ADR-0007, placed there by
+  [ADR-0030](adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md).
+  **Not built**; it enters the table above when it is
+  ([`build-the-soc-guest.md`](runbooks/build-the-soc-guest.md)). Its Alloy
+  pushes to `alexander` and not to Winterfell — "guests get no such rule"
+  covers it — and ADR-0029's six machines report to it as agents. Every path
+  it needs is intra-segment, so it adds no firewall rule.
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
   into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
