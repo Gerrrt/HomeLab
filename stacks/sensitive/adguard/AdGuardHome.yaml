@@ -1,0 +1,203 @@
+---
+# AdGuard Home's configuration — the whole of it, reviewed here and nowhere else.
+#
+# AdGuard Home keeps its state in this one file and rewrites it from the UI, so
+# left to itself the blocklist set would exist only inside the container: the
+# failure mode ADR-0004 named for Grafana dashboards, and #135 asks for "a
+# record of which lists are enabled" for that reason. So the file is tracked,
+# and compose.yaml copies it into the container's config directory ON EVERY
+# START — a tmpfs, deliberately, so that what the container runs is what this
+# file says. A change made in the UI works until the next restart and is then
+# gone; the change that lasts is a commit here. That is the same trade the
+# estate's dashboards make, and it is the intended one.
+#
+# One value is not in this file. `users[0].password` is a bcrypt hash, and it
+# lives in secrets/sensitive.sops.yaml as ADGUARD_ADMIN_PASSWORD_HASH; the
+# entrypoint in compose.yaml substitutes it for the placeholder below at start.
+# Everything else here is a setting, not a secret.
+#
+# Every non-default value below says why it is set. The defaults it inherits —
+# AdGuard fills in what a key omits — were read out of a first run of the
+# pinned image on 2026-09-09; `schema_version` at the foot is that version's,
+# and the image upgrades an older schema in place rather than refusing it.
+
+http:
+  # Inside the container, on the `sensitive` network, behind Caddy. Nothing
+  # publishes 80; the UI is https://adguard.matrix.elysium/ through the proxy.
+  address: 0.0.0.0:80
+  session_ttl: 30d
+  pprof:
+    enabled: false
+
+users:
+  # One account, password only — ADR-0022 records that AdGuard cannot carry a
+  # second factor and security.md carries the consequence. The hash comes from
+  # `make hash-password`; the plaintext lives in the password manager.
+  - name: admin
+    password: __ADGUARD_ADMIN_PASSWORD_HASH__
+auth_attempts: 5
+block_auth_min: 15
+theme: auto
+
+dns:
+  bind_hosts:
+    - 0.0.0.0
+  port: 53
+
+  # THE ONE SETTING THAT WOULD HAVE BROKEN THE HOUSE. The default is 20
+  # queries per second PER CLIENT ADDRESS, and under ADR-0010 there is exactly
+  # one client: every query in the estate arrives from 10.0.99.1. Left at the
+  # default, the whole household shares a 20 qps budget and anything over it is
+  # silently dropped — which Unbound reads as a slow forwarder and routes
+  # around, so the symptom is filtering quietly leaking rather than anything
+  # anyone would report. 0 disables the limit.
+  ratelimit: 0
+  refuse_any: true
+
+  # Who may ask. The firewall, which is the forwarder ADR-0010 puts in front of
+  # this; and `prometheus`, whose blackbox exporter probes port 53 directly
+  # because a probe through the normal path always passes (#126). Anything
+  # else on Winterfell gets no answer at all — AdGuard drops rather than
+  # refuses, measured 2026-09-09 — and the client VLANs never reach the port in
+  # the first place (see .env.example). "Port 53 reachable from the firewall
+  # only" is a property of this list plus the firewall, not of either alone.
+  allowed_clients:
+    - 10.0.99.1
+    - 10.0.99.20
+
+  # Where the queries go next. ADR-0010 accepted, deliberately, that
+  # forwarding hands a query stream that today reaches no third party to
+  # "AdGuard, Cloudflare and Google" — Cloudflare and Google being the two
+  # public resolvers pfSense already names as its own fallback and the ones
+  # Unbound keeps in its forwarder list beside this service. Using the same two
+  # here, over DNS-over-HTTPS, keeps the set of third parties at exactly the
+  # two the ADR named and encrypts the hop that leaves the house. The bootstrap
+  # addresses resolve the two hostnames and nothing else.
+  upstream_dns:
+    - https://dns.cloudflare.com/dns-query
+    - https://dns.google/dns-query
+  bootstrap_dns:
+    - 1.1.1.1
+    - 8.8.8.8
+  upstream_mode: load_balance
+  upstream_timeout: 10s
+
+  cache_enabled: true
+  cache_size: 4194304
+
+  # Unbound on morpheus validates DNSSEC and stays that way (ADR-0010's
+  # verification: "a forwarder that strips DNSSEC records turns every signed
+  # zone into SERVFAIL, and the symptom is indistinguishable from the outage
+  # this ADR exists to prevent"). Measured 2026-09-09 against the pinned image
+  # with this setting: a query carrying the DO bit gets RRSIG, DNSKEY and DS
+  # records back through this service, and a query without it gets none. That
+  # is what lets Unbound keep validating behind it.
+  enable_dnssec: true
+  edns_client_subnet:
+    enabled: false
+
+  # No reverse lookups of clients against private resolvers, no reading the
+  # container's own /etc/hosts as an answer source. There is one client, and
+  # every internal name is answered by Unbound before a query ever gets here.
+  use_private_ptr_resolvers: false
+  hostsfile_enabled: false
+  blocked_hosts:
+    - version.bind
+    - id.server
+    - hostname.bind
+  serve_plain_dns: true
+
+tls:
+  # Caddy terminates TLS for the UI; DNS from the firewall is plain on VLAN 99.
+  enabled: false
+
+querylog:
+  # Kept, because "what did the filter do with that name" is the question this
+  # log answers and the dashboard cannot. Seven days rather than the default
+  # ninety: with every query attributed to 10.0.99.1 the log is a list of
+  # domains and verdicts, useful for a week of "why is this site broken" and
+  # not for anything longer.
+  enabled: true
+  file_enabled: true
+  interval: 7d
+
+statistics:
+  enabled: true
+  interval: 1d
+
+# The blocklists. This list IS the record #135 asks for: a list enabled here is
+# enabled, a list absent from here is not, and `git log` on this file is the
+# history of what the house filters.
+#
+# Two, chosen for a household rather than for coverage:
+#
+#   AdGuard DNS filter   the default, maintained by the same project. The
+#                        blackbox filtering probe's canary (doubleclick.net,
+#                        stacks/observability/blackbox/blackbox.yaml) was
+#                        verified against THIS list — disabling it makes
+#                        AdGuardNotFiltering fire on a healthy service.
+#   OISD Big             broad, and curated explicitly for no false positives:
+#                        its stated goal is that nothing on it breaks a site a
+#                        person is trying to use, which is the right bias for
+#                        a filter the household never sees and cannot bypass.
+#
+# Both are served from AdGuard's own hostlists registry rather than their
+# upstream URLs, so one host is contacted for updates and a moved upstream
+# does not silently stop the list refreshing. `id` is local to this file.
+# Update interval is 24h (`filters_update_interval` below); the probe's
+# `for: 30m` is what tolerates the refresh.
+filters:
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt
+    name: AdGuard DNS filter
+    id: 1
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_27.txt
+    name: OISD Blocklist Big
+    id: 2
+whitelist_filters: []
+# Custom rules belong here, as a commit, not in the UI. An exception for a
+# site a list breaks is one `@@||example.com^` line.
+user_rules: []
+
+dhcp:
+  # pfSense is the DHCP server on every VLAN (ADR-0019). Never here.
+  enabled: false
+
+filtering:
+  # `default` answers a blocked name with 0.0.0.0, and the filtering probe
+  # asserts exactly that answer: changing this to NXDOMAIN or a custom IP
+  # without changing blackbox.yaml is a change the monitoring reports rather
+  # than absorbs, which blackbox.yaml says is a feature.
+  blocking_mode: default
+  protection_enabled: true
+  filtering_enabled: true
+  # Both would send every queried name to AdGuard's own service for a verdict.
+  # The blocklists are the whole of what this filter does.
+  safebrowsing_enabled: false
+  parental_enabled: false
+  filters_update_interval: 24
+  # Internal names are answered by Unbound's host overrides on morpheus and
+  # stay there (ADR-0010). Nothing is rewritten here.
+  rewrites: []
+
+clients:
+  # Every one of these discovers per-client identity — reverse DNS, WHOIS on
+  # the source address, ARP, DHCP leases — and there is one client, whose
+  # identity is known. Off, so this service never looks the firewall up on the
+  # internet.
+  runtime_sources:
+    whois: false
+    arp: false
+    rdns: false
+    dhcp: false
+    hosts: false
+  persistent: []
+
+log:
+  # To stdout, where compose's json-file driver has it and Alloy ships it.
+  enabled: true
+  file: ""
+  verbose: false
+
+schema_version: 34
