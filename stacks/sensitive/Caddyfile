@@ -25,7 +25,7 @@
 	auto_https disable_redirects
 
 	# Every certificate this file serves comes from step-ca over ACME, from
-	# the tier's own intermediate (ADR-0035, #130). `step-ca` resolves on the
+	# the tier's own intermediate (ADR-0037, #130). `step-ca` resolves on the
 	# compose network; the directory URL's middle segment is the provisioner
 	# name scripts/tier-ca.sh creates. trusted_roots is the TIER'S root — the
 	# file compose.yaml mounts from certificates/tier-ca.pem — not the estate's

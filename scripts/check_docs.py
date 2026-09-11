@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Nine assertions, each comparing prose against something machine-readable:
+Ten assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents, ADRs, runbooks
@@ -37,6 +37,10 @@ Nine assertions, each comparing prose against something machine-readable:
   9. Guest claims          a host that says it runs no guests, while another
                            row says it is a guest on it. Checkable only against
                            its siblings, which is why it is its own assertion.
+ 10. Outstanding buys     README.md <-> the buy table in docs/roadmap.md. The
+                           roadmap is a source here, not a target: that table
+                           is the one place a purchase may enter or leave, so
+                           it is what README's count answers to.
 
 Only present-tense documents are checked. `docs/roadmap.md` and `docs/adr/`
 record what was true when the work landed — `roadmap.md` still says "(34 rules)"
@@ -84,6 +88,7 @@ ALERTMANAGER = STACK / "alertmanager/alertmanager.yaml"
 NETWORK_MD = REPO / "docs/network.md"
 ARCH_MD = REPO / "docs/architecture.md"
 HARDWARE_MD = REPO / "docs/hardware.md"
+ROADMAP_MD = REPO / "docs/roadmap.md"
 
 # Present-tense documents. See the module docstring for why roadmap.md and
 # adr/ are deliberately absent — they are records, not claims about now.
@@ -1175,6 +1180,69 @@ def check_firewall_posture() -> list[str]:
     return problems
 
 
+def check_buy_list() -> list[str]:
+    """README's count of outstanding purchases against the roadmap's table.
+
+    `roadmap.md` is a record and not checked as prose — see the module
+    docstring. This assertion reads it as a *source* instead: the buy table is
+    the one place a purchase is allowed to enter or leave, by that section's
+    own rule, so it is the only thing README's count can honestly be checked
+    against.
+
+    It exists because the count went stale inside a day. The reconciliation on
+    2026-09-10 grew the table from three rows to seven and left README saying
+    "three items now", in the sentence that exists *because* a purchase had
+    been missed once already. Every other count in this repository is asserted
+    here; this one was prose on both ends, so nothing caught it.
+
+    The "one later" half is checked too. `ifrit` is a paragraph rather than a
+    row, and a second such paragraph would make the word wrong in exactly the
+    same silent way.
+    """
+    problems: list[str] = []
+    roadmap = ROADMAP_MD.read_text()
+
+    tables = tables_under(roadmap, re.compile(r"^## Everything still to buy\b"))
+    if not tables:
+        return [
+            "docs/roadmap.md has no table under 'Everything still to buy' — "
+            "README's count of outstanding purchases has nothing to check "
+            "against"
+        ]
+
+    # The section's first table is the "Buy these" list; rows[0] is its header.
+    rows_now = len(tables[0]) - 1
+    rows_later = len(re.findall(r"\*\*One more, later", roadmap))
+
+    num = "|".join(["[0-9]+", *NUMBER_WORDS])
+    pattern = re.compile(
+        rf"({num}){WS}items?{WS}now,{WS}({num}){WS}later", re.IGNORECASE
+    )
+    text = (REPO / "README.md").read_text()
+    match = pattern.search(text)
+    if not match:
+        return [
+            "README.md no longer says 'N items now, M later' of the roadmap's "
+            "outstanding purchases — the claim moved or was reworded, and this "
+            "assertion cannot follow it. Update the pattern or drop the check "
+            "deliberately"
+        ]
+
+    line = text[: match.start()].count("\n") + 1
+    said_now, said_later = number(match.group(1)), number(match.group(2))
+    if said_now != rows_now:
+        problems.append(
+            f"README.md:{line} says {match.group(1)} outstanding purchase(s), "
+            f"but docs/roadmap.md's buy table has {rows_now} row(s)"
+        )
+    if said_later != rows_later:
+        problems.append(
+            f"README.md:{line} says {match.group(2)} purchase(s) later, but "
+            f"docs/roadmap.md has {rows_later} 'One more, later' paragraph(s)"
+        )
+    return problems
+
+
 def main() -> int:
     f = facts()
     checks = (
@@ -1188,6 +1256,8 @@ def main() -> int:
         ("firewall posture prose against docs/firewall-claims.yaml",
          check_firewall_posture),
         ("guest claims against each other", check_guest_claims),
+        ("README's outstanding-purchase count against the roadmap's table",
+         check_buy_list),
     )
 
     total = 0
