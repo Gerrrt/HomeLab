@@ -333,8 +333,8 @@ thing takes — and to write the answers back into §3.
 **Before the box arrives**, so the rehearsal does not stall on day one. All of
 it was measured on 2026-09-09:
 
-- **The I226 card** — on the roadmap's
-  [shopping list](../roadmap.md#everything-still-to-buy). The spare is a
+- **The I226 card** — bought 2026-09-11, in transit
+  ([`hardware.md`](../hardware.md)). The spare is a
   stock refurbished G4 with the onboard NIC only. If its 512 GB SSD turns out
   to be a 2.5" drive, the drive carrier and a card in the second M.2 slot
   contend for the same space; an M.2 SSD does not.
