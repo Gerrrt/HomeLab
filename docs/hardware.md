@@ -120,8 +120,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   not a rack unit, and a 73 W part where the ADRs pictured an N100; it enters
   the Compute table when it is racked — or rather placed — addressed and in
   `network.md`. The two drives for the mirror were bought 2026-09-11 and are
-  the entry below; the boot disk ADR-0016's Ubuntu Server install wants is
-  still to buy, on the roadmap's [list](roadmap.md#everything-still-to-buy).
+  the entry below, as is the boot disk ADR-0016's Ubuntu Server install
+  wants. Only a bracket to carry that disk in the optical bay is still to
+  buy, on the roadmap's [list](roadmap.md#everything-still-to-buy).
 - 2× Seagate Exos X20 18 TB (`ST18000NM003D`), 3.5" SATA — bought
   2026-09-11, in transit. `zion`'s ZFS mirror
   ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
@@ -131,6 +132,17 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `smartctl -a` on arrival and record what the drives actually report here,
   before the mirror is built on them. Serials go here when they land. They
   enter the Compute table with the NAS, which is not built.
+- Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
+  protection — bought 2026-09-11, in transit. `zion`'s boot disk, carrying
+  ADR-0016's Ubuntu Server and its one compose stack, deliberately not the
+  mirror. A data-centre part where the roadmap asked only for "a 240–256 GB
+  2.5" SATA SSD": the endurance is beside the point for a boot disk, but
+  the power-loss protection is the same property the SM863a pair was bought
+  for, and a boot disk that survives a power cut is worth more here than one
+  that is merely fast. **It has no bracket** — the TS150's optical bay is
+  5.25" and this is a 2.5" drive, so an adapter is outstanding and the drive
+  cannot be fitted without it. Model, part number and serial go here when it
+  lands, with SMART read back before the install.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
   for the ProLiant's SFF bays. Bought against the number every sizing
