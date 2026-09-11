@@ -119,7 +119,18 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   tracked under [#413](https://github.com/Gerrrt/HomeLab/issues/413). A tower,
   not a rack unit, and a 73 W part where the ADRs pictured an N100; it enters
   the Compute table when it is racked — or rather placed — addressed and in
-  `network.md`. Two drives for the mirror are still to buy.
+  `network.md`. The two drives for the mirror were bought 2026-09-11 and are
+  the entry below; the boot disk ADR-0016's Ubuntu Server install wants is
+  still to buy, on the roadmap's [list](roadmap.md#everything-still-to-buy).
+- 2× Seagate Exos X20 18 TB (`ST18000NM003D`), 3.5" SATA — bought
+  2026-09-11, in transit. `zion`'s ZFS mirror
+  ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
+  [#413](https://github.com/Gerrrt/HomeLab/issues/413)). A mirror of two is
+  one drive's capacity, so this is 18 TB usable, not 36. The listing's
+  **zero power-on hours is a claim, not a fact** — read it back with
+  `smartctl -a` on arrival and record what the drives actually report here,
+  before the mirror is built on them. Serials go here when they land. They
+  enter the Compute table with the NAS, which is not built.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
   for the ProLiant's SFF bays. Bought against the number every sizing

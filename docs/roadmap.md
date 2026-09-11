@@ -34,7 +34,6 @@ battery it was never written about.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
-| Two 3.5" NAS drives, capacity chosen at the till | `zion`'s ZFS mirror | [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#413](https://github.com/Gerrrt/HomeLab/issues/413) | Before the NAS is built |
 | A 240–256 GB 2.5" SATA SSD, and a bracket for the optical bay | `zion`'s boot disk. ADR-0016 chose Ubuntu Server and one compose stack rather than an appliance, so the OS wants a disk that is not the mirror — and that never got written down | [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#413](https://github.com/Gerrrt/HomeLab/issues/413) | With the drives |
 | One Intel I226 2.5 GbE card on an M.2 B+M-key adapter — the part `morpheus` has, not a USB NIC | The ProDesk's second port, so a restore onto it comes up as `igc0` and asks nothing; for the rehearsal and any restore after it | [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3, [#404](https://github.com/Gerrrt/HomeLab/issues/404) | Before the rehearsal |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
@@ -59,7 +58,9 @@ capacity are still chosen at the till and recorded in
 before it is bought.
 
 **Already paid for**, in transit or on hand: the ProDesk 600 G4 (the tier's
-host and the firewall's spare hardware); the TS150 NAS; two SM863a SSDs for
+host and the firewall's spare hardware); the TS150 NAS and the two Exos X20
+18 TB drives for its mirror ([#413](https://github.com/Gerrrt/HomeLab/issues/413));
+two SM863a SSDs for
 `Saruman` ([#418](https://github.com/Gerrrt/HomeLab/issues/418)); the pfSense
 installer stick; the 2 TB USB drive that becomes the photo library's disk on
 `trinity`; the removable medium the second age recipient lives on.
@@ -632,8 +633,9 @@ what left this one unfireable for months.
   73 W desktop Xeon in a tower against a 6 W part in a shoebox, so it draws and
   makes more, and it will not rack. What it has that an N100 box does not is
   ECC memory under a ZFS mirror, four real bays, and a Kaby Lake iGPU whose
-  Quick Sync is what #138's transcoding needs. The drives are the outstanding
-  purchase — chosen at the till on cost per terabyte, per the ADR — and the
+  Quick Sync is what #138's transcoding needs. The drives were bought on
+  2026-09-11 — two Seagate Exos X20 18 TB, chosen on cost per terabyte per
+  the ADR — leaving the boot disk as the outstanding purchase, and the
   OS is decided: Ubuntu Server and one compose stack, not an appliance. Nothing
   is configured.
   Reading the enforced ruleset first changed two of the answers. **50→40 is not
@@ -741,7 +743,7 @@ what left this one unfireable for months.
   so PBS would add a service for a capability that exists. `zion` is bought
   since 2026-09-09 — the TS150 of
   [#413](https://github.com/Gerrrt/HomeLab/issues/413), in transit, its two
-  drives still to buy — and not built, so the deferral's trigger has moved from
+  drives bought on 2026-09-11 — and not built, so the deferral's trigger has moved from
   a purchase to a build: PBS follows the NAS answering on `10.0.40.30`, not the
   box arriving. The lab has **revert and not backup** until then, and the ADR
   names what gets backed up when it arrives — which is also why ADR-0029 gives PBS no disk
