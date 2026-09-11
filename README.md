@@ -81,7 +81,7 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 37 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 38 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 24
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
@@ -334,7 +334,7 @@ why it is in that order.
 The current top items: rehearse the firewall restore on the ProDesk bought on
 2026-09-08, and then build the sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
 roadmap's [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-six items now, one later, and a rule that nothing joins them without a
+four items now, one later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs.

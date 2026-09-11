@@ -96,14 +96,31 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   2026-09-08, carrying the unmanaged switch that feeds `prometheus` and
   `oracle` ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
 - HP ProDesk 600 G4 Micro — i5-8500T, 32 GB, 512 GB SSD, the same model as
-  `morpheus` — ordered 2026-09-08, in transit. The sensitive tier's host and
+  `morpheus` — ordered 2026-09-08, in transit. This is `trinity`, and it is
+  **one box with two jobs, not two boxes**: the sensitive tier's host, and
   the firewall's spare hardware in a disaster
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
+  The documents call it "the tier's host" in one place and "the spare" in
+  another, which is how it came to be read as two machines ([ADR-0038](adr/0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md));
+  a second ProDesk is deferred, not ordered.
   It enters the Compute table when
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it. It ships with the onboard NIC
-  only; the I226 card the restore depends on is a separate purchase, on the
-  roadmap's [list](roadmap.md#everything-still-to-buy).
+  only; the I226 card the restore depends on was a separate purchase, made
+  2026-09-11 and the entry below.
+- Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
+  in transit. The second port on the ProDesk Micro above, matching the card
+  in `morpheus` so a pfSense restore onto the spare brings the LAN up as
+  `igc0` and asks nothing
+  ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md),
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404)). It is the one
+  entry on that runbook's prerequisite list that was still unbought, and it
+  is deliberately not a USB NIC: a USB
+  adapter comes up as `ure0`, which is the one thing a restore must not be
+  asked about. It goes in the G4 Micro's second M.2 slot — **and if that
+  machine's 512 GB SSD turns out to be a 2.5" drive rather than M.2, the
+  drive carrier and this card contend for the same space.** Checked on
+  arrival, not assumed. Part number and the port's MAC go here when it lands.
 - 2 TB USB portable hard drive — on hand, previously a games console's
   storage. Becomes the photo library's disk on `trinity`
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404)): Immich's originals
@@ -114,17 +131,19 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   drive, which this replaces.
 - Lenovo ThinkServer TS150 — Xeon E3-1225 v6 (4 cores, 3.3 GHz, Intel HD P630
   with Quick Sync), 8 GB ECC, four 3.5" bays, no drives, no OS — bought
-  2026-09-09, in transit. The NAS `zion` of
+  2026-09-09, in transit. The NAS `smaug` of
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
   tracked under [#413](https://github.com/Gerrrt/HomeLab/issues/413). A tower,
   not a rack unit, and a 73 W part where the ADRs pictured an N100; it enters
   the Compute table when it is racked — or rather placed — addressed and in
   `network.md`. The two drives for the mirror were bought 2026-09-11 and are
-  the entry below, as is the boot disk ADR-0016's Ubuntu Server install
-  wants. Only a bracket to carry that disk in the optical bay is still to
-  buy, on the roadmap's [list](roadmap.md#everything-still-to-buy).
+  the entry below, as are the boot disk ADR-0016's Ubuntu Server install
+  wants and the bracket that carries it in the optical bay. Nothing for this
+  machine is outstanding on the roadmap's
+  [list](roadmap.md#everything-still-to-buy) any more; what is left is a
+  build.
 - 2× Seagate Exos X20 18 TB (`ST18000NM003D`), 3.5" SATA — bought
-  2026-09-11, in transit. `zion`'s ZFS mirror
+  2026-09-11, in transit. `smaug`'s ZFS mirror
   ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
   [#413](https://github.com/Gerrrt/HomeLab/issues/413)). A mirror of two is
   one drive's capacity, so this is 18 TB usable, not 36. The listing's
@@ -133,16 +152,18 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   before the mirror is built on them. Serials go here when they land. They
   enter the Compute table with the NAS, which is not built.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
-  protection — bought 2026-09-11, in transit. `zion`'s boot disk, carrying
+  protection — bought 2026-09-11, in transit. `smaug`'s boot disk, carrying
   ADR-0016's Ubuntu Server and its one compose stack, deliberately not the
   mirror. A data-centre part where the roadmap asked only for "a 240–256 GB
   2.5" SATA SSD": the endurance is beside the point for a boot disk, but
   the power-loss protection is the same property the SM863a pair was bought
   for, and a boot disk that survives a power cut is worth more here than one
-  that is merely fast. **It has no bracket** — the TS150's optical bay is
-  5.25" and this is a 2.5" drive, so an adapter is outstanding and the drive
-  cannot be fitted without it. Model, part number and serial go here when it
-  lands, with SMART read back before the install.
+  that is merely fast. The TS150's optical bay is 5.25" and this is a 2.5"
+  drive, so it cannot be fitted bare: **a bracket for the bay and
+  double-sided tape to mount it were bought 2026-09-11**, alongside the drive.
+  Neither is named here yet, for the same reason the drive's serial is not —
+  nothing is recorded before it is in hand. Model, part number and serial go
+  here when it lands, with SMART read back before the install.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
   for the ProLiant's SFF bays. Bought against the number every sizing

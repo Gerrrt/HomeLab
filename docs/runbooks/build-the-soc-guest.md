@@ -41,7 +41,7 @@ than carrying a second copy that drifts.
 
 > [!IMPORTANT]
 > **`odin` holds the evidence, and has revert rather than backup.**
-> ADR-0027 defers PBS until `zion` answers on `10.0.40.30`; until then a lost
+> ADR-0027 defers PBS until `smaug` answers on `10.0.40.30`; until then a lost
 > mirrored pair loses the record of what the estate saw, which cannot be
 > rebuilt from a runbook the way a domain controller can. Snapshot the guest
 > in Proxmox before each exercise, and treat the store as practice rather than

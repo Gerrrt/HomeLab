@@ -25,17 +25,28 @@ decision the operator made, and a PR that implies a purchase edits this section
 in the same commit.**
 
 Revised 2026-09-10 against a costed shopping list, which is what the rule above
-is for: it found four things this section had wrong or missing — `zion`'s boot
+is for: it found four things this section had wrong or missing — `smaug`'s boot
 disk was never listed, two deferred items had been decided, ADR-0017's 32 GB is
 not what the candidate machines ship with, and the *Never* line forbade a
 battery it was never written about.
+
+**2026-09-11 emptied the hardware half of this list.** The two NAS drives, the
+boot SSD, the bracket and the double-sided tape that carry it in the TS150's
+5.25" optical bay, and the I226 card the firewall rehearsal needs were all
+bought that day — the table goes from seven rows to four. Nothing left on it is
+a part for a machine: two licences, a switch, a drive kept at another address
+and a battery. So **neither [#413](https://github.com/Gerrrt/HomeLab/issues/413)
+nor the rehearsal in [#404](https://github.com/Gerrrt/HomeLab/issues/404) is
+blocked on money any more** — each is waiting on parts landing and a
+build. The tape was never a
+row and does not get one now; it is part of the bracket purchase, recorded in
+[`hardware.md`](hardware.md) with it, because the rule is that a purchase edits
+this section and not that only listed purchases do.
 
 **Buy these, and the estate as decided is fully bought:**
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
-| A bracket to carry a 2.5" SSD in the optical bay | Mounting `zion`'s boot disk. ADR-0016 chose Ubuntu Server and one compose stack rather than an appliance, so the OS wants a disk that is not the mirror — and that never got written down. The SSD itself was bought 2026-09-11; this row is what is left of it | [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#413](https://github.com/Gerrrt/HomeLab/issues/413) | With the drives |
-| One Intel I226 2.5 GbE card on an M.2 B+M-key adapter — the part `morpheus` has, not a USB NIC | The ProDesk's second port, so a restore onto it comes up as `igc0` and asks nothing; for the rehearsal and any restore after it | [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3, [#404](https://github.com/Gerrrt/HomeLab/issues/404) | Before the rehearsal |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 | A managed switch with a TLS management interface | Replacing `neo`, whose firmware will not persist a community deletion ([#84](https://github.com/Gerrrt/HomeLab/issues/84)) and which serves its admin UI over plain HTTP — through the device the password protects, and that credential is read-write. **SNMPv3 is no longer the argument**: [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) found the switch's agent answers v3 on the wire and was never what blocked #85, so TLS management is what a replacement is actually bought for | [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), [#444](https://github.com/Gerrrt/HomeLab/issues/444) | Whenever a cabling window suits — it is independent of everything else here |
 | An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
@@ -58,8 +69,11 @@ capacity are still chosen at the till and recorded in
 before it is bought.
 
 **Already paid for**, in transit or on hand: the ProDesk 600 G4 (the tier's
-host and the firewall's spare hardware); the TS150 NAS and the two Exos X20
-18 TB drives for its mirror, and its boot SSD
+host and the firewall's spare hardware), and the I226 card on its M.2 adapter
+that a restore onto it needs
+([#404](https://github.com/Gerrrt/HomeLab/issues/404)); the TS150 NAS, the two
+Exos X20 18 TB drives for its mirror, and its boot SSD with the bracket and
+tape that mount it in the optical bay
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413));
 two SM863a SSDs for
 `Saruman` ([#418](https://github.com/Gerrrt/HomeLab/issues/418)); the pfSense
@@ -69,8 +83,12 @@ installer stick; the 2 TB USB drive that becomes the photo library's disk on
 **Only if a decision is taken, and none is pending** — these are not on the
 list, and each names what would put it there:
 
-- A dedicated firewall cold spare: deferred by ADR-0034 until the tier holding
-  real data makes an hour of firewall downtime unacceptable.
+- A dedicated firewall cold spare: deferred by ADR-0034 until the tier
+  holding real data makes an hour of firewall downtime unacceptable.
+  **There is one ProDesk, not two** — `trinity` is the tier's host *and* the
+  firewall's spare hardware, which is what ADR-0034 decided and what this
+  bullet is the deferral of. The reserved name `zion` belongs to the box
+  this bullet would buy, and no host answers to it ([ADR-0038](adr/0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md)).
 - A Zigbee or Z-Wave coordinator for Home Assistant: only if a device needs
   one, and nothing on Skids does today — Ring is cloud, Hue has its own
   bridge, the assistants are Wi-Fi ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
@@ -740,9 +758,9 @@ what left this one unfireable for months.
   [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS is **decided and
   deferred** by
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md):
-  a hypervisor backing up its own guests to itself is not a backup, `zion` did
-  not exist, and PVE already does the snapshots the local-only answer needs —
-  so PBS would add a service for a capability that exists. `zion` is bought
+  a hypervisor backing up its own guests to itself is not a backup, `smaug`
+  did not exist, and PVE already does the snapshots the local-only answer needs
+  — so PBS would add a service for a capability that exists. `smaug` is bought
   since 2026-09-09 — the TS150 of
   [#413](https://github.com/Gerrrt/HomeLab/issues/413), in transit, its two
   drives bought on 2026-09-11 — and not built, so the deferral's trigger has moved from
