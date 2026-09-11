@@ -2,6 +2,13 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> The host this ADR calls `zion` is named **`smaug`** since 2026-09
+> ([ADR-0038](0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md)).
+> The address, the rules and the decision are unchanged — only the label. The
+> text here is left as written, per ADR-0001. `zion` is now reserved for the
+> dedicated firewall cold spare ADR-0034 defers, which does not exist.
+
 ## Context
 
 [ADR-0007](0007-defensive-estate-and-offensive-range.md) put Wazuh and

@@ -25,7 +25,7 @@ decision the operator made, and a PR that implies a purchase edits this section
 in the same commit.**
 
 Revised 2026-09-10 against a costed shopping list, which is what the rule above
-is for: it found four things this section had wrong or missing — `zion`'s boot
+is for: it found four things this section had wrong or missing — `smaug`'s boot
 disk was never listed, two deferred items had been decided, ADR-0017's 32 GB is
 not what the candidate machines ship with, and the *Never* line forbade a
 battery it was never written about.
@@ -83,8 +83,12 @@ installer stick; the 2 TB USB drive that becomes the photo library's disk on
 **Only if a decision is taken, and none is pending** — these are not on the
 list, and each names what would put it there:
 
-- A dedicated firewall cold spare: deferred by ADR-0034 until the tier holding
-  real data makes an hour of firewall downtime unacceptable.
+- A dedicated firewall cold spare: deferred by ADR-0034 until the tier
+  holding real data makes an hour of firewall downtime unacceptable.
+  **There is one ProDesk, not two** — `trinity` is the tier's host *and* the
+  firewall's spare hardware, which is what ADR-0034 decided and what this
+  bullet is the deferral of. The reserved name `zion` belongs to the box
+  this bullet would buy, and no host answers to it ([ADR-0038](adr/0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md)).
 - A Zigbee or Z-Wave coordinator for Home Assistant: only if a device needs
   one, and nothing on Skids does today — Ring is cloud, Hue has its own
   bridge, the assistants are Wi-Fi ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
@@ -754,9 +758,9 @@ what left this one unfireable for months.
   [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS is **decided and
   deferred** by
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md):
-  a hypervisor backing up its own guests to itself is not a backup, `zion` did
-  not exist, and PVE already does the snapshots the local-only answer needs —
-  so PBS would add a service for a capability that exists. `zion` is bought
+  a hypervisor backing up its own guests to itself is not a backup, `smaug`
+  did not exist, and PVE already does the snapshots the local-only answer needs
+  — so PBS would add a service for a capability that exists. `smaug` is bought
   since 2026-09-09 — the TS150 of
   [#413](https://github.com/Gerrrt/HomeLab/issues/413), in transit, its two
   drives bought on 2026-09-11 — and not built, so the deferral's trigger has moved from

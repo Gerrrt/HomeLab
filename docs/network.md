@@ -283,7 +283,7 @@ Televisions and consoles. Internet only.
 - Internet only, no path to any other segment. Smart TVs run unauditable
   firmware with a permanent internet connection and no patch guarantee, so they
   get the same trust level as a guest.
-- The planned NAS lands here — `zion` at `10.0.40.30`, decided by
+- The planned NAS lands here — `smaug` at `10.0.40.30`, decided by
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
   bought 2026-09-09 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)) and
   not yet built. It does not change the *Reaches* column: nothing on this

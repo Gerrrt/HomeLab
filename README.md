@@ -81,7 +81,7 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 37 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 38 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 24
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.

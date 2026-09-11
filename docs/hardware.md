@@ -96,9 +96,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   2026-09-08, carrying the unmanaged switch that feeds `prometheus` and
   `oracle` ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
 - HP ProDesk 600 G4 Micro — i5-8500T, 32 GB, 512 GB SSD, the same model as
-  `morpheus` — ordered 2026-09-08, in transit. The sensitive tier's host and
+  `morpheus` — ordered 2026-09-08, in transit. This is `trinity`, and it is
+  **one box with two jobs, not two boxes**: the sensitive tier's host, and
   the firewall's spare hardware in a disaster
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
+  The documents call it "the tier's host" in one place and "the spare" in
+  another, which is how it came to be read as two machines ([ADR-0038](adr/0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md));
+  a second ProDesk is deferred, not ordered.
   It enters the Compute table when
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it. It ships with the onboard NIC
@@ -127,7 +131,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   drive, which this replaces.
 - Lenovo ThinkServer TS150 — Xeon E3-1225 v6 (4 cores, 3.3 GHz, Intel HD P630
   with Quick Sync), 8 GB ECC, four 3.5" bays, no drives, no OS — bought
-  2026-09-09, in transit. The NAS `zion` of
+  2026-09-09, in transit. The NAS `smaug` of
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
   tracked under [#413](https://github.com/Gerrrt/HomeLab/issues/413). A tower,
   not a rack unit, and a 73 W part where the ADRs pictured an N100; it enters
@@ -139,7 +143,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [list](roadmap.md#everything-still-to-buy) any more; what is left is a
   build.
 - 2× Seagate Exos X20 18 TB (`ST18000NM003D`), 3.5" SATA — bought
-  2026-09-11, in transit. `zion`'s ZFS mirror
+  2026-09-11, in transit. `smaug`'s ZFS mirror
   ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
   [#413](https://github.com/Gerrrt/HomeLab/issues/413)). A mirror of two is
   one drive's capacity, so this is 18 TB usable, not 36. The listing's
@@ -148,7 +152,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   before the mirror is built on them. Serials go here when they land. They
   enter the Compute table with the NAS, which is not built.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
-  protection — bought 2026-09-11, in transit. `zion`'s boot disk, carrying
+  protection — bought 2026-09-11, in transit. `smaug`'s boot disk, carrying
   ADR-0016's Ubuntu Server and its one compose stack, deliberately not the
   mirror. A data-centre part where the roadmap asked only for "a 240–256 GB
   2.5" SATA SSD": the endurance is beside the point for a boot disk, but
