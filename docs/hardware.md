@@ -19,6 +19,12 @@ landfill.
 
 Off-rack: two Ubuntu Server laptops on a shelf (`prometheus`, `oracle`), fed
 by the TP-Link in U4, and eero Pro 6E units distributed through the house.
+Both laptops ride a mains cut out on their own cells, so each cell is a
+dependency of the mains-cut path and is watched as one: Alloy's node collector
+exports `node_power_supply_*` from both, and `host.rules.yaml` alerts when the
+shelf is off mains, when a cell falls below 80 % of its design capacity, and
+when a laptop reports no cell at all
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
 
 The patch panel and the PDU were listed the other way round here until
 2026-08-29. U8 is the panel and U7 is the PDU, confirmed against the rack.

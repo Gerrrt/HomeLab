@@ -440,3 +440,116 @@ groups:
             rather than waiting for the drive's own assessment to fail —
             SmartDriveUnhealthy is the firmware conceding, and it concedes late.
             Check backups first.
+
+      # --- Laptop batteries, the mains-cut path nobody was watching (#454) ---
+      #
+      # prometheus and oracle are laptops on a shelf. fit-the-ups-battery.md
+      # states the design: on a mains cut they stay RUNNING on their own cells
+      # and go deaf, and #93/#110 fixed the deaf half by putting their switch on
+      # the UPS. The running half rested on two thirteen-year-old cells that
+      # nothing measured and no document named as a dependency. A dead cell
+      # turns "the monitoring host survives the event it exists to observe"
+      # back into "it dies with it", silently — the UPS card fabricating a
+      # healthy pack, one shelf over.
+      #
+      # NO COLLECTOR. #454 proposed a textfile collector for
+      # /sys/class/power_supply; it is not needed, because Alloy's
+      # prometheus.exporter.unix already exports node_power_supply_* from both
+      # hosts, and has all along. Read on 2026-09-12: prometheus BAT0 108
+      # cycles, charge_full 6.196 Ah of 6.6 Ah design (94 %); oracle BAT0
+      # 2.021 Ah of 2.8 Ah (72 %), cycle count reported as 0 by that firmware.
+      # The attribute family is charge_* on both — the issue wrote energy_*,
+      # and a collector written to that text would have emitted nothing. The
+      # `or` in HostBatteryHealthLow keeps the energy_* spelling for a future
+      # machine whose driver reports watt-hours instead.
+      #
+      # THREE RULES, THREE QUESTIONS. Is the shelf on mains right now; is the
+      # cell still worth relying on; is there a cell at all. Only the last
+      # needs to know which hosts are laptops, and that list lives in its
+      # expression and nowhere else.
+
+      - alert: HostOnBattery
+        # The mains adapter reports online=0, joined to the info series so that
+        # only a supply of type Mains can fire — the adapter is ADP1 on the
+        # MacBook and AC on the Dell, and the name is not worth matching on.
+        # Two minutes filters a brick being reseated.
+        #
+        # On a real cut this fires beside UpsOnBattery, and both are right: the
+        # rack and the shelf lost power together. It keeps firing after the UPS
+        # is back if a laptop's brick has failed, which is otherwise reported
+        # hours later as InstanceDown with no cause attached.
+        expr: >-
+          node_power_supply_online == 0
+          and on (instance, power_supply)
+          node_power_supply_info{type="Mains"}
+        for: 2m
+        labels:
+          component: host
+          severity: critical
+          category: power
+        annotations:
+          summary: "{{ $labels.instance }} is running on its own battery"
+          description: >-
+            The mains adapter ({{ $labels.power_supply }}) reports no input.
+            Either the shelf has lost power — check UpsOnBattery, and the
+            TP-Link the laptops hang off — or this host's brick has failed.
+            node_power_supply_capacity says how much runtime is left; the
+            monitoring host going dark is the estate going blind.
+
+      - alert: HostBatteryHealthLow
+        # ACPI exposes no verdict for a battery the way SMART does for a disk,
+        # so this is the firmware's own measured full capacity against its own
+        # design figure — the same two numbers Apple's "Service Recommended"
+        # reads, and 80 % is where it draws the line. Warning, an hour, the
+        # hardware route: the action is ordering a cell, not waking anyone.
+        #
+        # oracle reads 72 % and fires the day this lands. That is the finding,
+        # not a fault in the rule: #454 ranked prometheus first on age alone,
+        # and the measurement puts oracle's cell in worse shape. It stays
+        # firing until the cell is replaced, and a silence on it is fine.
+        expr: >-
+          (
+            node_power_supply_charge_full / node_power_supply_charge_full_design
+            or
+            node_power_supply_energy_full / node_power_supply_energy_full_design
+          ) < 0.8
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: >-
+            {{ $labels.instance }}: {{ $labels.power_supply }} holds
+            {{ $value | humanizePercentage }} of its design capacity
+          description: >-
+            The cell's full charge as its firmware measures it, against the
+            capacity it was built with. Below 80 % the runtime on a mains cut
+            is a guess, and a cell this far into its life is also the one that
+            swells. Order the replacement — docs/runbooks/fit-the-ups-battery.md
+            says what to check after the swap.
+
+      - alert: HostBatteryNotReported
+        # A laptop that should have a battery and reports none: the cell was
+        # pulled, the kernel stopped seeing it, or the collector is gone. The
+        # `up` on the left is what keeps this quiet for a host that is simply
+        # down — that is InstanceDown's job — and the job regex is the one
+        # place the fact "these two hosts are laptops" is written. A present=0
+        # series fails the `== 1` and fires here too, on purpose.
+        expr: >-
+          up{job=~"(prometheus|oracle)-metrics"} == 1
+          unless on (instance)
+          node_power_supply_present{power_supply=~"BAT.*"} == 1
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "{{ $labels.instance }} reports no battery"
+          description: >-
+            This host is a laptop and its mains-cut survival depends on a cell
+            the kernel no longer reports. HostOnBattery and HostBatteryHealthLow
+            are both blind to it until it comes back. Check
+            /sys/class/power_supply/ on the host, and whether the cell was
+            removed on purpose.

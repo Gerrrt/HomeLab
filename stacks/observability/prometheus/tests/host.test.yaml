@@ -934,3 +934,217 @@ tests:
       - eval_time: 8d
         alertname: SmartDriveBadSectorsGrowing
         exp_alerts: []
+
+  # --- HostOnBattery: fires when the mains adapter reports no input ---------
+  # prometheus's adapter is ADP1. The info series is what admits it as Mains.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_online{instance="prometheus",job="prometheus-metrics",power_supply="ADP1"}'
+        values: "1x5 0x15"
+      - series: 'node_power_supply_info{instance="prometheus",job="prometheus-metrics",power_supply="ADP1",type="Mains"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostOnBattery
+        exp_alerts:
+          - exp_labels:
+              instance: prometheus
+              job: prometheus-metrics
+              power_supply: ADP1
+              component: host
+              severity: critical
+              category: power
+            exp_annotations:
+              summary: "prometheus is running on its own battery"
+              description: >-
+                The mains adapter (ADP1) reports no input. Either the shelf has
+                lost power — check UpsOnBattery, and the TP-Link the laptops
+                hang off — or this host's brick has failed.
+                node_power_supply_capacity says how much runtime is left; the
+                monitoring host going dark is the estate going blind.
+
+  # --- HostOnBattery: the Dell spells its adapter AC, and fires the same ----
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_online{instance="oracle",job="oracle-metrics",power_supply="AC"}'
+        values: "0x10"
+      - series: 'node_power_supply_info{instance="oracle",job="oracle-metrics",power_supply="AC",type="Mains"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HostOnBattery
+        exp_alerts:
+          - exp_labels:
+              instance: oracle
+              job: oracle-metrics
+              power_supply: AC
+              component: host
+              severity: critical
+              category: power
+            exp_annotations:
+              summary: "oracle is running on its own battery"
+              description: >-
+                The mains adapter (AC) reports no input. Either the shelf has
+                lost power — check UpsOnBattery, and the TP-Link the laptops
+                hang off — or this host's brick has failed.
+                node_power_supply_capacity says how much runtime is left; the
+                monitoring host going dark is the estate going blind.
+
+  # --- HostOnBattery: quiet on mains, and quiet for a non-Mains supply -------
+  # A battery series with online=0 must not fire: only type="Mains" joins.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_online{instance="prometheus",job="prometheus-metrics",power_supply="ADP1"}'
+        values: "1x10"
+      - series: 'node_power_supply_info{instance="prometheus",job="prometheus-metrics",power_supply="ADP1",type="Mains"}'
+        values: "1x10"
+      - series: 'node_power_supply_online{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "0x10"
+      - series: 'node_power_supply_info{instance="prometheus",job="prometheus-metrics",power_supply="BAT0",type="Battery"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HostOnBattery
+        exp_alerts: []
+
+  # --- HostBatteryHealthLow: fires at 75 % of design, after an hour ---------
+  # 2.1 Ah of 2.8 Ah is the shape of oracle's real reading (2.021 of 2.8).
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_charge_full{instance="oracle",job="oracle-metrics",power_supply="BAT0"}'
+        values: "2.1x100"
+      - series: 'node_power_supply_charge_full_design{instance="oracle",job="oracle-metrics",power_supply="BAT0"}'
+        values: "2.8x100"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: HostBatteryHealthLow
+        exp_alerts:
+          - exp_labels:
+              instance: oracle
+              job: oracle-metrics
+              power_supply: BAT0
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "oracle: BAT0 holds 75% of its design capacity"
+              description: >-
+                The cell's full charge as its firmware measures it, against the
+                capacity it was built with. Below 80 % the runtime on a mains
+                cut is a guess, and a cell this far into its life is also the
+                one that swells. Order the replacement —
+                docs/runbooks/fit-the-ups-battery.md says what to check after
+                the swap.
+
+  # --- HostBatteryHealthLow: the energy_* spelling counts too ---------------
+  # A driver reporting watt-hours instead of amp-hours. 30 of 50 is 60 %.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_energy_full{instance="future",job="future-metrics",power_supply="BAT0"}'
+        values: "30x100"
+      - series: 'node_power_supply_energy_full_design{instance="future",job="future-metrics",power_supply="BAT0"}'
+        values: "50x100"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: HostBatteryHealthLow
+        exp_alerts:
+          - exp_labels:
+              instance: future
+              job: future-metrics
+              power_supply: BAT0
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "future: BAT0 holds 60% of its design capacity"
+              description: >-
+                The cell's full charge as its firmware measures it, against the
+                capacity it was built with. Below 80 % the runtime on a mains
+                cut is a guess, and a cell this far into its life is also the
+                one that swells. Order the replacement —
+                docs/runbooks/fit-the-ups-battery.md says what to check after
+                the swap.
+
+  # --- HostBatteryHealthLow: QUIET for prometheus's real reading -------------
+  # 6.196 Ah of 6.6 Ah is 94 %, read on 2026-09-12 after 108 cycles. Without
+  # this the threshold could be deleted and the firing tests would still pass.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_charge_full{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "6.196x100"
+      - series: 'node_power_supply_charge_full_design{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "6.6x100"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: HostBatteryHealthLow
+        exp_alerts: []
+
+  # --- HostBatteryNotReported: fires when a laptop reports no battery -------
+  # up is 1 and no BAT series exists at all — the cell is gone, or the kernel
+  # stopped seeing it.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="prometheus",job="prometheus-metrics"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HostBatteryNotReported
+        exp_alerts:
+          - exp_labels:
+              instance: prometheus
+              job: prometheus-metrics
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "prometheus reports no battery"
+              description: >-
+                This host is a laptop and its mains-cut survival depends on a
+                cell the kernel no longer reports. HostOnBattery and
+                HostBatteryHealthLow are both blind to it until it comes back.
+                Check /sys/class/power_supply/ on the host, and whether the cell
+                was removed on purpose.
+
+  # --- HostBatteryNotReported: present=0 fires too ---------------------------
+  # The series exists and says the bay is empty. That is the same fact.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="oracle",job="oracle-metrics"}'
+        values: "1x30"
+      - series: 'node_power_supply_present{instance="oracle",job="oracle-metrics",power_supply="BAT0"}'
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HostBatteryNotReported
+        exp_alerts:
+          - exp_labels:
+              instance: oracle
+              job: oracle-metrics
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "oracle reports no battery"
+              description: >-
+                This host is a laptop and its mains-cut survival depends on a
+                cell the kernel no longer reports. HostOnBattery and
+                HostBatteryHealthLow are both blind to it until it comes back.
+                Check /sys/class/power_supply/ on the host, and whether the cell
+                was removed on purpose.
+
+  # --- HostBatteryNotReported: quiet for a laptop with its cell, and for a --
+  # --- host that is down, and for a host that is not a laptop --------------
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="prometheus",job="prometheus-metrics"}'
+        values: "1x30"
+      - series: 'node_power_supply_present{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "1x30"
+      - series: 'up{instance="oracle",job="oracle-metrics"}'
+        values: "0x30"
+      - series: 'up{instance="Saruman",job="saruman-metrics"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HostBatteryNotReported
+        exp_alerts: []

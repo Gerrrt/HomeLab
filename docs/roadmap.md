@@ -50,7 +50,7 @@ this section and not that only listed purchases do.
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 | A managed switch with a TLS management interface | Replacing `neo`, whose firmware will not persist a community deletion ([#84](https://github.com/Gerrrt/HomeLab/issues/84)) and which serves its admin UI over plain HTTP — through the device the password protects, and that credential is read-write. **SNMPv3 is no longer the argument**: [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) found the switch's agent answers v3 on the wire and was never what blocked #85, so TLS management is what a replacement is actually bought for | [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), [#444](https://github.com/Gerrrt/HomeLab/issues/444) | Whenever a cabling window suits — it is independent of everything else here |
 | An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
-| A replacement battery cell for `prometheus` | The estate's mains-cut path depends on it and nothing watches it — see the exception to *Never* below | [`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), [#454](https://github.com/Gerrrt/HomeLab/issues/454) | Soon. It is thirteen years old, and a swollen cell is a rack fire |
+| A replacement battery cell for `prometheus` | The estate's mains-cut path depends on it; watched since 2026-09-12 and reading 94 % of design — see the exception to *Never* below | [`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), [#454](https://github.com/Gerrrt/HomeLab/issues/454) | Soon. It is thirteen years old, and a swollen cell is a rack fire |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
@@ -129,9 +129,12 @@ is the point, not a problem to spend money on.
 **consumable whose failure is a safety or availability event** is not an
 upgrade. `prometheus`'s battery is the worked example
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)) — the estate's
-mains-cut path depends on it, nothing measures it, and the failure mode of a
-thirteen-year-old cell is a fire on a shelf. `oracle` has the same cell and the
-same absent metric, second in line. Nothing else about either machine is bought.
+mains-cut path depends on it, `host.rules.yaml` measures it since 2026-09-12
+(94 % of design after 108 cycles), and the failure mode of a thirteen-year-old
+cell is a fire on a shelf. `oracle` has the same kind of cell and it measures
+worse, 72 %, so `HostBatteryHealthLow` fires for it first; it stays second in
+line only because `prometheus` is the host whose death is the estate going
+blind. Nothing else about either machine is bought.
 
 ## Security
 
