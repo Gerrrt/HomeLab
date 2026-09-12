@@ -594,25 +594,37 @@ groups:
   # time precisely so that noise is attributable, and an alert that summed them
   # would throw that away at the moment it matters.
   #
-  # NO LOG-BASED "SuricataStopped" RULE, DELIBERATELY.
+  # THE LOG-BASED STOPPED RULE, AND WHY ITS WINDOW IS NINE HOURS.
   #
-  # The firewall group above has FirewallLogsStopped because morpheus passes
-  # traffic for the whole house and is never silent for thirty minutes — so
-  # silence there means the pipeline broke. Suricata is the opposite: a quiet
-  # IDS is the expected state on a healthy network, and absence of alerts is
-  # indistinguishable from absence of the service. No threshold over this
-  # stream can tell them apart, and inventing one would produce exactly the
-  # sort of alert that cannot fire while looking like one that can.
+  # The firewall group above has FirewallLogsStopped at thirty minutes because
+  # morpheus passes traffic for the whole house and is never silent that long.
+  # Suricata is different: a quiet IDS is the expected state on a healthy
+  # network, and for an hour at a time absence of alerts is indistinguishable
+  # from absence of the service. This block used to say that no threshold over
+  # the stream could tell them apart, and it was written before anyone looked.
+  # Measured on 2026-09-12 over the stream's whole life in Loki (2026-08-21 to
+  # 2026-09-12, 22 days, five-minute buckets): the longest silence across both
+  # interfaces was 75 minutes; 54 gaps exceeded thirty minutes, two exceeded an
+  # hour, none exceeded two. The thirty-minute guess #441 started from would
+  # have paged about twice a day. Nine hours — seven times the worst gap, the
+  # ratio DhcpLeaseLogsStopped settled on — has never happened.
   #
-  # The SuricataStopped that exists is a process metric, not a log rule (#90):
-  # bsnmpd on morpheus serves HOST-RESOURCES-MIB hrSWRunTable, the pfsense SNMP
-  # module fetches the rows named "suricata", and ids.rules.yaml fires when a
-  # declared interface has no running process behind it. That is the shape
-  # prometheus/rules/watchdog.rules.yaml uses for the notification path (#67):
-  # something that reports in when healthy, and an observer that acts on the
-  # silence. What it cannot see is a process that is running and inspecting
-  # nothing; the plaintext test alert in the runbook is still the only proof
-  # of detection.
+  # Per interface the answer is different, and it is why the rule is aggregate.
+  # igc0.20 (Skids) chatters all night; its worst gap was an hour. igc0.10
+  # (Degens) is a guest segment with nobody on it most of the time; its worst
+  # gap was 47 hours, and a rule on it alone would fire most days. So
+  # SuricataLogsStopped fires only when BOTH interfaces have been silent, and a
+  # Degens-only silence is invisible to it by design.
+  #
+  # Two rules, two questions. SuricataStopped in prometheus/rules/ids.rules.yaml
+  # reads the firewall's process table over SNMP (#90) — bsnmpd serves
+  # HOST-RESOURCES-MIB hrSWRunTable, the pfsense module fetches the rows named
+  # "suricata" — and answers "is the process running on each declared
+  # interface" within ten minutes. The rule below answers "is the sensor still
+  # emitting anything at all", slowly: a Suricata bound to the wrong interface,
+  # a hung capture thread or a rule reload that produced an empty set is alive
+  # to the process table and silent here. Neither proves detection; the
+  # plaintext test alert in the runbook is still the only proof of that.
   # ---------------------------------------------------------------------------
   - name: ids
     interval: 1m
@@ -678,3 +690,32 @@ groups:
             ordinary traffic. Check which signature dominates before tuning —
             silencing a noisy rule that is actually correct is how an IDS
             becomes decorative.
+
+      - alert: SuricataLogsStopped
+        # The window is measured, not chosen — the block comment at the top of
+        # this group has the numbers. Nine hours is seven times the longest
+        # silence ever seen across both interfaces, which is the ratio
+        # DhcpLeaseLogsStopped uses. Aggregate, not per interface, because the
+        # guest segment alone is silent for days at a time.
+        #
+        # Read it together with SuricataStopped. Both firing: the process is
+        # dead, and the process-table rule said so hours ago. This one alone:
+        # the process is up and inspecting nothing, which is the case nothing
+        # else in the stack can see (#441).
+        expr: |
+          absent_over_time({app="suricata"}[9h])
+        for: 0s
+        labels:
+          component: logs
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "No Suricata alerts from either interface for 9 hours"
+          description: >-
+            Both igc0.20 and igc0.10 have been silent for nine hours, which has
+            not happened since the stream began. If SuricataStopped is also
+            firing the process is dead — docs/runbooks/enable-suricata.md. If it
+            is not, Suricata is running and inspecting nothing: check which
+            interfaces the processes are bound to on pfSense, that the last rule
+            update left a non-empty set, and that syslog still leaves morpheus
+            for UDP 1514 (FirewallLogsStopped would be firing too if it did not).

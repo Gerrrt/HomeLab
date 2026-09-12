@@ -175,8 +175,8 @@ that looks like nothing is wrong.
 
 - `prometheus/rules/watchdog.rules.yaml` — the rule, and why `severity: none` is
   load-bearing rather than a placeholder
-- `loki/rules/security.rules.yaml` — `FirewallLogsStopped`, and the comment
-  explaining why Suricata has no log-based equivalent;
-  `prometheus/rules/ids.rules.yaml` is the process-table rule that answers it.
-  Same reasoning, applied to a different silent component
+- `loki/rules/security.rules.yaml` — `FirewallLogsStopped` and
+  `SuricataLogsStopped`, and the comment on why the second waits nine hours;
+  `prometheus/rules/ids.rules.yaml` is the process-table rule that answers the
+  fast half. Same reasoning, applied to a different silent component
 - [`docs/observability.md`](../observability.md#routing) — the full routing table
