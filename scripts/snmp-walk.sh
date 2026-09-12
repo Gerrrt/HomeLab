@@ -11,7 +11,10 @@
 #
 # What "the request shape the exporter will use" means here:
 #
-#   * GETBULK, never GET or GETNEXT. The switch drops both silently, and
+#   * GETBULK, never GET or GETNEXT — for the walk's sake, not the switch's.
+#     (This used to say the switch drops GET; measured 2026-09-12 it answers
+#     GET with the right community and, unlike GETBULK, refuses it with a
+#     wrong one — snmp-verify.sh has the numbers.)
 #     net-snmp's snmpbulkwalk falls back to a plain GET when a subtree comes
 #     back empty — so an OID the switch does not implement would present as a
 #     21-second timeout, indistinguishable from the switch having wedged. This

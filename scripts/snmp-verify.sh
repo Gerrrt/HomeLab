@@ -30,7 +30,8 @@
 #
 # Usage:
 #   scripts/snmp-verify.sh                  every device: current community
-#                                           answers, stock ones are refused
+#                                           answers, a junk one and the stock
+#                                           ones are refused
 #   scripts/snmp-verify.sh --device neo     one device (name or IP)
 #   scripts/snmp-verify.sh --old            also check the old ones are refused;
 #                                           a stock community answering is FAIL
@@ -54,7 +55,7 @@ skip() { printf '\033[0;33m  SKIP\033[0m %s\n' "$*"; }
 warn() { printf '\033[0;33m  WARN\033[0m %s\n' "$*"; WARNED=$((WARNED + 1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
-# sysDescr, as a node and as the instance GETBULK returns for it.
+# sysDescr, as the instance GET asks for and as the node GETBULK walks to it.
 SYSDESCR_NODE='1.3.6.1.2.1.1.1'
 SYSDESCR_OID='.1.3.6.1.2.1.1.1.0'
 
@@ -156,28 +157,39 @@ load_secrets "${STACK}"
 # to the next. A -v here would override the file and silently probe a v3
 # device as v2c.
 #
-# GETBULK, not GET. The MokerLink switch answers GETBULK and silently drops both
-# GET and GETNEXT, so a GET-based probe times out against it no matter which
-# community is used. That is not merely a cosmetic FAIL: --old infers "rejected"
-# from a timeout, so a probe the device never answers would report every
-# community as refused, including one that still works. The check would agree
-# with the operator instead of testing them, which is the one thing this script
-# exists not to do.
+# GET, not GETBULK — reversed on 2026-09-12 (#84). This probe was GETBULK
+# because an earlier version of this comment said the MokerLink switch drops
+# GET and GETNEXT. Measured against the switch with its current community:
+# GET, GETNEXT and GETBULK all answer. Measured with a junk string: only
+# GETBULK answers, and it answers a full walk of every table — the agent does
+# not check the community on GETBULK at all, on any row. So a GETBULK probe
+# passes with any string on that device, and every verdict this script gave
+# about `neo` before this date — the current community answering, the stock
+# `public` and `private` answering, an old string STILL ACCEPTED — was the
+# same unauthenticated answer. GET is what the switch authenticates, so GET is
+# what proves a community. The exporter scrapes with GETBULK and therefore
+# proves nothing about the community either; that is a residual for
+# SECURITY.md, not something this script can change.
 #
-# One GETBULK with non-repeaters 0 and max-repetitions 1 is a single round trip
-# returning a single varbind — the same cost as the GET it replaces. All four
-# devices answer it, and GETBULK exists in v3 as it does in v2c.
+# The "unauthenticated GETBULK" section below is the control that catches
+# this shape: a junk string over GETBULK and over GET, per device. A device
+# that answers the GET is not checking communities at all, and every other
+# verdict for it is withdrawn.
+#
+# The fourth argument selects the PDU: empty for GET, `bulk` for one GETBULK
+# with non-repeaters 0 and max-repetitions 1 — a single varbind either way.
 #
 # `rejected` is new with SNMPv3 and cannot happen over v2c: USM answers a
 # wrong user, passphrase or protocol with a Report PDU, which net-snmp turns
 # into a fixed phrase. Only that phrase is printed — see the note on `out`
 # below. Over v2c a rejection is still a silent drop, i.e. `noresponse`.
 #
-# It is aimed at the sysDescr *node*, not sysDescr.0, because GETBULK is
-# GETNEXT-shaped: asking for 1.3.6.1.2.1.1.1 returns 1.3.6.1.2.1.1.1.0. The
-# returned OID is then asserted, because unlike GET, a GETBULK against a device
-# with no sysDescr does not raise an error — it just returns whatever comes
-# next, which would otherwise be reported as a pass carrying the wrong value.
+# GET asks for sysDescr.0 by instance. The bulk form asks for the sysDescr
+# *node*, because GETBULK is GETNEXT-shaped: asking for 1.3.6.1.2.1.1.1 returns
+# 1.3.6.1.2.1.1.1.0. Either way the returned OID is asserted, because a
+# GETBULK against a device with no sysDescr does not raise an error — it
+# returns whatever comes next, which would otherwise pass carrying the wrong
+# value.
 #
 # MIBS= disables MIB loading: the OID is numeric, and a partial MIB directory
 # on the operator's host otherwise prints twenty lines of parse warnings that
@@ -188,13 +200,20 @@ load_secrets "${STACK}"
 # is belt and braces for snmpget wedging on something other than the exchange.
 # ---------------------------------------------------------------------------
 probe() {
-  local ip="$1" conf_dir="$2" retries="$3" out rc=0
+  local ip="$1" conf_dir="$2" retries="$3" pdu="${4:-}" out rc=0
   PROBE_STATUS=""; PROBE_DETAIL=""
 
-  out="$(timeout 15 env MIBS= SNMPCONFPATH="${conf_dir}" \
-          snmpbulkget -t 2 -r "${retries}" -Cn0 -Cr1 -Oqn \
-          "${ip}${SNMP_VERIFY_PORT:+:${SNMP_VERIFY_PORT}}" \
-          "${SYSDESCR_NODE}" 2>&1)" || rc=$?
+  if [[ "${pdu}" == "bulk" ]]; then
+    out="$(timeout 15 env MIBS= SNMPCONFPATH="${conf_dir}" \
+            snmpbulkget -t 2 -r "${retries}" -Cn0 -Cr1 -Oqn \
+            "${ip}${SNMP_VERIFY_PORT:+:${SNMP_VERIFY_PORT}}" \
+            "${SYSDESCR_NODE}" 2>&1)" || rc=$?
+  else
+    out="$(timeout 15 env MIBS= SNMPCONFPATH="${conf_dir}" \
+            snmpget -t 2 -r "${retries}" -Oqn \
+            "${ip}${SNMP_VERIFY_PORT:+:${SNMP_VERIFY_PORT}}" \
+            "${SYSDESCR_OID}" 2>&1)" || rc=$?
+  fi
 
   # net-snmp can echo an offending config line on a parse error, and that line
   # is the defCommunity line. So `out` is classified and then discarded — it is
@@ -253,15 +272,92 @@ while IFS=$'\t' read -r ip auth device version keys; do
 done <<< "${INVENTORY}"
 
 # ---------------------------------------------------------------------------
+# Unauthenticated PDUs
+#
+# The control for everything else in this file. Two strings no device holds —
+# one short, one 24 characters like the ones gen-secret makes — are sent over
+# GETBULK and over GET, to every device that just answered its current
+# community. A refusal of all four is what makes the PASS above mean "the
+# community was checked". An answer to GETBULK is what `neo` does (#84,
+# measured 2026-09-12): its agent serves a full walk of every table over that
+# PDU to ANY community of sixteen characters or fewer, and checks longer ones.
+# Both lengths are tried because a single long junk string passes on that
+# switch, and a single short one would miss a device with the opposite
+# defect. An answer to GET would mean the device checks nothing at all, and
+# every other verdict for it is void.
+#
+# GETBULK answering is WARN in both modes. It is a firmware limit that no row
+# in the community table changes — the overwrite in rotate-snmp-community.md
+# §2.5 cannot touch it — so a FAIL under --old would block proving a
+# retirement that did happen, and a FAIL in plain mode would keep the weekly
+# job's alert lit for as long as the switch is this switch. It is recorded in
+# SECURITY.md instead, and the line here is what keeps that record honest.
+# GET answering is FAIL in both modes: nothing else in this run can be
+# believed for that device.
+#
+# The devices that answer GETBULK to a junk string are also the devices the
+# exporter's scrape proves nothing about, because the exporter walks with
+# GETBULK. That is worth knowing when a scrape "works" after a rotation.
+# ---------------------------------------------------------------------------
+head_ "Unauthenticated PDUs (junk community must be refused)"
+
+# Short: under the sixteen-character line `neo` draws. Long: the shape of a
+# real one, so a device that only checks long strings is not mistaken for one
+# that checks all of them. Neither is a secret; both are deliberately not
+# words a scanner's list would contain, because `public` and `private` have
+# their own section.
+snmp_write_community_conf "${WORK}/junk-short" "junk$$" "the short junk community"
+snmp_write_community_conf "${WORK}/junk-long" "junkjunkjunkjunkjunk$$" "the long junk community"
+
+UNAUTHENTICATED_DEVICES=""
+while IFS=$'\t' read -r ip auth device version keys; do
+  [[ -n "${ip}" ]] || continue
+
+  if ! grep -qxF "${device}" <<< "${PASSED_DEVICES}"; then
+    skip "$(printf '%-10s %-12s %s' "${device}" "${ip}" "current-community check failed; a timeout here would prove nothing")"
+    continue
+  fi
+
+  get_answered=""; bulk_answered=""; odd=""
+  for junk in short long; do
+    probe "${ip}" "${WORK}/junk-${junk}" 0
+    case "${PROBE_STATUS}" in
+      ok|nosuchobject) get_answered+="${junk} " ;;
+      noresponse) ;;
+      *) odd+="GET/${junk} ${PROBE_STATUS} " ;;
+    esac
+    probe "${ip}" "${WORK}/junk-${junk}" 0 bulk
+    case "${PROBE_STATUS}" in
+      ok|nosuchobject) bulk_answered+="${junk} " ;;
+      noresponse) ;;
+      *) odd+="GETBULK/${junk} ${PROBE_STATUS} " ;;
+    esac
+  done
+
+  if [[ -n "${odd}" ]]; then
+    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "unexpected snmpget failure probing a junk community (${odd% })")"
+  elif [[ -n "${get_answered}" ]]; then
+    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "ANY COMMUNITY ACCEPTED over GET (${get_answered% }) — the device is not checking communities; nothing else in this run proves anything about it")"
+    UNAUTHENTICATED_DEVICES+="${device}"$'\n'
+  elif [[ -n "${bulk_answered}" ]]; then
+    warn "$(printf '%-10s %-12s %s' "${device}" "${ip}" "GETBULK UNAUTHENTICATED (${bulk_answered% } junk answered) — refused over GET; a firmware limit recorded in SECURITY.md (#84)")"
+  else
+    pass "$(printf '%-10s %-12s %s' "${device}" "${ip}" "refuses a junk community over GET and GETBULK, short and long")"
+  fi
+done <<< "${INVENTORY}"
+
+# ---------------------------------------------------------------------------
 # Stock communities
 #
 # `public` and `private` are what every scanner tries first, and what a switch
-# ships with. Found on `neo` on 2026-09-06 (#84): a test config rendered with
-# an empty community — which gosnmp turns into `public` — returned a full
-# scrape of the switch while the same config timed out against pfSense. Both
-# strings answer there; the other three devices refuse both. Neither string is
-# a secret, so unlike --old this needs no terminal and the weekly timer covers
-# it.
+# ships with. Reported answering on `neo` on 2026-09-06 and 2026-09-09 (#84),
+# through the GETBULK probe this script used at the time — which `neo` answers
+# for any string, see the section above. Over GET, on 2026-09-12 after the
+# stale rows were overwritten and the switch rebooted, both are refused. The
+# check stays, because a stock row that genuinely answers is still the first
+# thing a scanner finds, and now that it probes with GET it can tell. Neither
+# string is a secret, so unlike --old this needs no terminal and the weekly
+# timer covers it.
 #
 # WARN in plain mode, FAIL under --old. The weekly run exits non-zero into
 # ScheduledJobFailed, which stays firing until the job next succeeds — and
@@ -288,6 +384,10 @@ while IFS=$'\t' read -r ip auth device version keys; do
 
   if ! grep -qxF "${device}" <<< "${PASSED_DEVICES}"; then
     skip "$(printf '%-10s %-12s %s' "${device}" "${ip}" "current-community check failed; a timeout here would prove nothing")"
+    continue
+  fi
+  if grep -qxF "${device}" <<< "${UNAUTHENTICATED_DEVICES}"; then
+    skip "$(printf '%-10s %-12s %s' "${device}" "${ip}" "answers any community over GET; a stock string answering means nothing")"
     continue
   fi
 
@@ -340,6 +440,10 @@ if ((CHECK_OLD)); then
       skip "$(printf '%-10s %-12s %s' "${device}" "${ip}" "current-community check failed; a timeout here would prove nothing")"
       continue
     fi
+    if grep -qxF "${device}" <<< "${UNAUTHENTICATED_DEVICES}"; then
+      skip "$(printf '%-10s %-12s %s' "${device}" "${ip}" "answers any community over GET; an old string answering means nothing")"
+      continue
+    fi
 
     # Read from the terminal explicitly: this loop's stdin is the inventory.
     printf '  old community for %-10s (not echoed, Enter to skip): ' "${device}" >&2
@@ -389,7 +493,7 @@ fi
 if ((WARNED)); then
   # Not a clean pass and not reported as one: the exit code is 0 for the reason
   # the stock-community comment gives, but the last line says what was found.
-  printf '\033[0;33mall SNMP targets answer their community; %d stock-community warning(s) above\033[0m\n' "${WARNED}"
+  printf '\033[0;33mall SNMP targets answer their community; %d warning(s) above\033[0m\n' "${WARNED}"
   exit 0
 fi
 printf '\033[0;32mall SNMP targets verified\033[0m\n'

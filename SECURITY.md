@@ -38,7 +38,7 @@ is a very different thing from an overlooked one. Full detail in
 
 | What | Status |
 | --- | --- |
-| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated on all four devices; each answers to its own new community. The firewall, the UPS and the BMC additionally refuse the old one. **The switch still accepts its previous community alongside the new one** — see below. The original shared string has been purged from git history, though it must still be treated as public — it was reachable in a public repository and cannot be un-seen. |
+| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated on all four devices; each answers to its own new community. The firewall, the UPS and the BMC additionally refuse the old one. **The switch serves GETBULK to any short community without checking, so whether it still holds the previous one is unverified** — see below. The original shared string has been purged from git history, though it must still be treated as public — it was reachable in a public repository and cannot be un-seen. |
 | Grafana `admin`/`admin` with anonymous Admin access enabled | Fixed — anonymous auth off, password from SOPS |
 | Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD` and purged from history. A new CA and leaf have been generated with [`scripts/gen-certs.sh`](scripts/gen-certs.sh); the old keys are superseded and should be treated as compromised wherever they were ever trusted. |
 | Decrypted secrets in editor undo files, written by `make secrets-edit` | Found 2026-08-20: three files under `~/.local/state/nvim/undodir/` holding the live pfSense, APC and iLO SNMP communities in plaintext, mode 664. Shredded. `make secrets-edit` now hardens `$EDITOR` before handing it plaintext, so it cannot recur. Never committed and never left the host, so those three communities were not rotated on that basis. |
@@ -51,38 +51,55 @@ is a very different thing from an overlooked one. Full detail in
 | The hypervisor's BMC shares a broadcast domain with the attack VM | **Accepted residual, not a fix in progress.** `shiva`, the iLO 4 at `10.0.30.10` on firmware 2.82, sits on ImaginationLAN, the segment [ADR-0014](docs/adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md) gives to `ifrit`'s Kali VM, and a BMC does not get patched the way a guest does. [ADR-0033](docs/adr/0033-keep-the-ilo-on-the-lab-segment.md) keeps it there on purpose: the iLO is part of the estate under attack, and a BMC compromise in the lab costs the lab. Moving it to Winterfell would put an end-of-line BMC beside the firewall's admin UI and open three more ports on the Hicks list to reach its console. Controls: the BMC's own hardening (IPMI-over-LAN and unused services off, a credential shared with nothing in the house), and the lab tripwire — anything the BMC initiates toward another segment is a logged pass and a `LabSegmentReachedInternalNetwork` alert. Both done 2026-09-09: IPMI-over-LAN, SSH and iLO Federation off on the BMC, its account's credential shared with nothing in the house, its security log read for a baseline; and the `10.0.30.10 → 10.0.99.20/udp` "return path" rule deleted from `morpheus` — it had been evaluated 7.4 million times and matched zero packets, because pf state carries the scrape's replies, and it was the BMC's only path to the monitoring host's syslog listener. The scrape failed once at the reload and has been clean since; the lab interface now passes nothing across a segment except `Saruman`'s two agent ports. |
 
 The switch is the honest gap, and it is a deliberate one. `neo` (10.7.7.2) is
-rotated and polling, but it also still accepts the community it held before the
-rotation, verified after a reboot so the result reflects its saved
-configuration rather than a stale agent. Its firmware does not persist a
-deletion from the SNMP community table: the row can be removed, applied and
-saved, and the entry is still there after a restart. Each attempt also drops
-the SNMP agent until the switch is rebooted, and it is the switch the whole
-network runs through.
+rotated and polling. Its firmware does not persist a deletion from the SNMP
+community table: the row can be removed, applied and saved, and the entry is
+still there after a restart. Each attempt also drops the SNMP agent until the
+switch is rebooted, and it is the switch the whole network runs through. Until
+2026-09-12 this section said the switch still accepted the community it held
+before the rotation, "verified after a reboot"; that verification was a
+GETBULK probe, and the paragraph after this one is why it proved nothing.
 
-It is not only the previous community. The switch also answers SNMP reads to
-the stock `public` and `private` — measured from the monitoring host on
-2026-09-06 and again on 2026-09-09, one GETBULK of `sysDescr` per string, with
-pfSense, the APC NMC and iLO refusing both as the control. Those are the
-default rows the rotation runbook deletes in passing, and that deletion did not
-persist either. Whether the `private` row is read-write, as it ships on most
-switches, has not been established: the only test from the monitoring host is
-a SET, which is a change to the device, so it will be read off the row's access
-column in the UI at the next window instead. `scripts/snmp-verify.sh` now
-probes every device with both strings on every run, the weekly timer included,
-and reports a device that answers as `WARN` — deliberately non-fatal there, so
-the alert on the weekly job is not lit for weeks by a residual this file
-already records, and fatal under `--old`, which is the check that closes #84.
+**The larger finding, measured on 2026-09-12: the switch does not check the
+community on GETBULK at all when the string is sixteen characters or fewer.**
+Any such string — `public`, `private`, `asdf`, a single letter — is served a
+full walk of every table over that PDU, from any host that can reach UDP/161.
+Strings of seventeen characters or more are checked, and GET and GETNEXT are
+checked at every length: with the current community all three PDUs answer,
+with a wrong one only a short GETBULK does. The other three devices refuse a
+junk string over every PDU. This explains every earlier sighting: the
+2026-09-06 and 2026-09-09 measurements that found the stock `public` and
+`private` answering were GETBULK probes, the empty-community scrape that first
+surfaced it was the same thing, and so was every `STILL ACCEPTED` for the old
+community. Whether any of those rows ever existed cannot be told from here.
+Over GET, after the stale rows were overwritten and the switch rebooted on
+2026-09-12, `public`, `private` and a junk string are refused. The previous
+community's row is the one thing still unmeasured over GET, because the
+string — the shared value purged from history — was not to hand in the
+window; it is recorded as unverified rather than as retired.
 
-The residual risk is accepted rather than overlooked. The previous community is
-read-only, and reaching UDP/161 on `10.7.7.2` requires both a foothold on the
-management VLAN and the specific pfSense rule that permits `10.0.99.20` to
-reach it — it is not exposed beyond the management segment. The way to close it
-without fighting the firmware is to overwrite those rows rather than delete
-them, all in one window, on some future pass when the switch is already being
-taken down for something else. That is now written out as a procedure — [§2.5,
+`scripts/snmp-verify.sh` probes with GET since that date, because GET is what
+the switch authenticates. It also sends a short and a long junk string over
+both PDUs to every device on every run: a GETBULK answer is `WARN` — a
+firmware limit no row in the table changes, so a failure would keep the weekly
+job's alert lit for as long as this is the switch — and a GET answer would be
+`FAIL`, because nothing else in the run could then be believed for that
+device. The exporter scrapes with GETBULK, so a scrape that works after a
+rotation proves nothing about the community on this switch either.
+
+The residual risk is accepted rather than overlooked, and it is larger than
+the one this section used to describe: read access to the switch's whole MIB
+with any short community over GETBULK, rather than one stale read-only row.
+What bounds it is unchanged. Reaching UDP/161 on `10.7.7.2` requires both a
+foothold on the management VLAN and the specific pfSense rule that permits
+`10.0.99.20` to reach it, or a port on the switch LAN itself — it is not
+exposed beyond those. What would close it is a switch whose firmware checks
+what it serves, which is the replacement
+[ADR-0018](docs/adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
+already names and the roadmap's buy list carries. SET was not tested, because
+a SET is a change to the device. The overwrite procedure stays at [§2.5,
 *The MokerLink switch: overwrite
 the row*](docs/runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
-— including what to record here if the overwrite does not persist either.
+for the rows that are real.
 
 Remediation is tracked in [`docs/roadmap.md`](docs/roadmap.md), with procedures
 in [`docs/runbooks/rotate-snmp-community.md`](docs/runbooks/rotate-snmp-community.md)

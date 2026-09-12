@@ -467,7 +467,9 @@ rather than for the fleet:
   [runbook](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 
 These communities are read-only, but "read-only" on a firewall means the
-complete state table and interface topology. They are credentials. The two
+complete state table and interface topology. They are credentials — except on
+the switch, where the agent does not check a short one on GETBULK at all
+(`SECURITY.md` has the measurement). The two
 that stay on v2c ride on Winterfell only, where anything that can sniff is
 already on the segment that holds the firewall's admin UI and the monitoring
 host.
@@ -491,8 +493,11 @@ a sharper version of it, because this credential is read-write.
 What holds it: the password is unique to the device, and only Hicks and
 Winterfell can reach `10.7.7.0/24` at all
 ([ADR-0013](adr/0013-segment-access-as-implemented.md)). What does not hold it:
-anything on the device, which is now carrying its third firmware limit after the
-undeletable community row and an SNMPv3 user page it may or may not have
+anything on the device, which is now carrying its fourth firmware limit after the
+undeletable community row, an SNMP agent that serves GETBULK to any community of
+sixteen characters or fewer (measured 2026-09-12,
+[#84](https://github.com/Gerrrt/HomeLab/issues/84)), and an SNMPv3 user page it
+may or may not have
 (ADR-0036). A TLS management interface belongs in the selection criteria
 whenever this switch is replaced.
 
