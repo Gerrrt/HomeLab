@@ -72,7 +72,7 @@
     {
       "type": "table",
       "title": "Security alerts",
-      "description": "Firing and pending alerts for the six Loki rules this dashboard charts, plus SuricataStopped — the process-table rule that says whether the IDS behind the Suricata panels is running at all — from the ALERTS series Prometheus exposes for its own rules. Scoped by alertname rather than component=logs, which would also pull in the SSH and auth rules that belong to the Logs dashboard. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
+      "description": "Firing and pending alerts for the six Loki rules this dashboard charts, plus SuricataStopped and SuricataLogsStopped — the process-table rule that says whether the IDS behind the Suricata panels is running at all, and the nine-hour absence rule that says whether it is still emitting — from the ALERTS series Prometheus exposes for its own rules. Scoped by alertname rather than component=logs, which would also pull in the SSH and auth rules that belong to the Logs dashboard. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -90,7 +90,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "ALERTS{alertname=~\"TerminalSegmentReachedInternalNetwork|LabSegmentReachedInternalNetwork|IoTAttemptedLateralMovement|FirewallLogsStopped|SuricataHighPriorityAlert|SuricataAlertStorm|SuricataStopped\",alertstate=~\"firing|pending\"}",
+          "expr": "ALERTS{alertname=~\"TerminalSegmentReachedInternalNetwork|LabSegmentReachedInternalNetwork|IoTAttemptedLateralMovement|FirewallLogsStopped|SuricataHighPriorityAlert|SuricataAlertStorm|SuricataStopped|SuricataLogsStopped\",alertstate=~\"firing|pending\"}",
           "legendFormat": "",
           "format": "table",
           "range": false,

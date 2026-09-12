@@ -682,3 +682,6 @@ The `ids` rule group in Loki stays loaded and simply has nothing to match, which
 is harmless. A quiet IDS and a dead IDS produce identical log output, which is
 why the stopped-process rule reads the firewall's process table over SNMP
 rather than these logs ([#90](https://github.com/Gerrrt/HomeLab/issues/90)).
+Unticking one interface never trips `SuricataLogsStopped`, which is aggregate
+on purpose; unticking both trips it nine hours later
+([#441](https://github.com/Gerrrt/HomeLab/issues/441)).

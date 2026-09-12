@@ -17,7 +17,7 @@ What this network is actually built to survive:
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 95 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 96 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, no.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the switch carrying `prometheus` and `oracle` still has no battery — see below |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -91,14 +91,18 @@ Three limits, stated rather than implied:
   signal is DNS, SNI, JA3 and the diminishing share of traffic still in the
   clear.
 
-**Suricata dying is detected as of 2026-09-03.** A quiet IDS and a stopped
-one produce identical log output, so no log rule can separate them;
-`SuricataStopped` in `prometheus/rules/ids.rules.yaml` reads the firewall's
-process table over SNMP instead, and fires per declared interface
-([#90](https://github.com/Gerrrt/HomeLab/issues/90)). It proves the process is
-alive, not that it is inspecting anything: a silent `ids` alert group is now
-evidence that the sensor is running, and the runbook's test alert is still the
-only proof that it detects.
+**Suricata dying is detected as of 2026-09-03, and Suricata going mute as of
+2026-09-12.** A quiet IDS and a stopped one produce identical log output for an
+hour at a time, so `SuricataStopped` in `prometheus/rules/ids.rules.yaml` reads
+the firewall's process table over SNMP and fires per declared interface within
+ten minutes ([#90](https://github.com/Gerrrt/HomeLab/issues/90)). It proves the
+process is alive, not that it is inspecting anything. `SuricataLogsStopped` in
+`loki/rules/security.rules.yaml` covers the rest of that gap slowly: it fires
+once both interfaces have been silent for nine hours, a window read from 22 days
+of the stream whose longest silence was 75 minutes, and it cannot see one
+interface going quiet on its own — the guest segment is silent for days at a
+time ([#441](https://github.com/Gerrrt/HomeLab/issues/441)). The runbook's test
+alert is still the only proof that it detects.
 
 **Device joins are detected as of 2026-09-04**, from the DHCP server rather
 than from the wireless. `morpheus` ships Kea's lease log to Loki, and the first

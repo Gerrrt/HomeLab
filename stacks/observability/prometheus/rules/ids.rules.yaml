@@ -1,10 +1,11 @@
 ---
 # Whether Suricata is actually running on the interfaces it is declared for.
 #
-# loki/rules/security.rules.yaml explains why there is no log-based
-# SuricataStopped, and the explanation still holds: a quiet IDS and a dead one
-# produce identical log output, so no rule over the alerts can tell them apart.
-# This file is the process metric that comment asks for (#90). bsnmpd on
+# loki/rules/security.rules.yaml carries SuricataLogsStopped, the log-based
+# half: a quiet IDS and a dead one produce identical log output for an hour at
+# a time, so that rule waits nine hours and fires only once both interfaces
+# have gone silent together (#441). This file is the per-interface half, the
+# process metric that comment asked for (#90). bsnmpd on
 # morpheus serves HOST-RESOURCES-MIB hrSWRunTable, and the pfsense module in
 # snmp-exporter/generator.yaml fetches the rows named "suricata" with their
 # arguments carried in hrSWRunParameters — "-i igc0.20 ..." — because pfSense
