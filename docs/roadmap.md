@@ -927,6 +927,20 @@ them name the condition that would change the answer.
   cameras, an accelerator, and a separate row in ADR-0008's table for the
   continuous rule** — all three, each decided on its own
   ([#149](https://github.com/Gerrrt/HomeLab/issues/149)).
+- **Proxmox clustering** — joining `Saruman` and `ifrit` into one cluster once
+  [#421](https://github.com/Gerrrt/HomeLab/issues/421) makes them two Proxmox
+  hosts on VLAN 30: one pane of glass, guest migration, shared storage. The
+  first entry here that is a capability rather than a service, and declined by
+  [ADR-0039](adr/0039-decline-proxmox-clustering-while-ifrit-is-the-range.md)
+  because a cluster is one `/etc/pve`, one realm and one quorum across exactly
+  the boundary ADR-0007 draws — root on the attacker's host becomes root on the
+  estate's — and cannot be built without the second NIC or VLAN-aware bridge
+  ADR-0014 names as grounds to reopen it, on a host that is off between
+  sessions by design and would take the estate's hypervisor's quorum down with
+  it. **Reopened by a third host that is neither attacker nor defended estate,
+  a live-migration need that snapshot-and-rebuild does not serve, or `ifrit`
+  ceasing to hold attack tooling** — each its own decision
+  ([#443](https://github.com/Gerrrt/HomeLab/issues/443)).
 - **Authelia / Authentik** — **already decided, and listed only so the next
   shortlist does not present it as new.** ADR-0008 defers SSO knowingly for two
   users with no external access;

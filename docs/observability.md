@@ -254,13 +254,16 @@ stated limit rather than an oversight.
 **Its panels cannot tell you the IDS is alive.** Suricata watches Skids (VLAN
 20) and Degens (VLAN 10), one process each, and a quiet IDS and a stopped one
 produce identical log output, so empty Suricata panels are not evidence of
-anything, and `security.rules.yaml` still declines to paper over that with a
-log-based rule. What can is `SuricataStopped` in
+anything on their own. What is: `SuricataStopped` in
 `prometheus/rules/ids.rules.yaml`, which reads the firewall's process table over
 SNMP and fires per declared interface
-([#90](https://github.com/Gerrrt/HomeLab/issues/90)); the dashboard's alert
-table lists it alongside the six Loki rules. The text panel at the top still
-says so, rather than letting a flat line be read as calm.
+([#90](https://github.com/Gerrrt/HomeLab/issues/90)), and `SuricataLogsStopped`
+in `security.rules.yaml`, which fires only once both interfaces have been silent
+for nine hours — a window read from the stream rather than chosen
+([#441](https://github.com/Gerrrt/HomeLab/issues/441)); the dashboard's alert
+table lists both alongside the six Loki rules that fire on the parsed labels.
+The text panel at the top still says so, rather than letting a flat line be
+read as calm.
 
 **And it found that the firewall logged blocks only.** Building the panels
 turned up something the alerts had not: across the full 30-day retention the
@@ -311,7 +314,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-98 rules in total: 81 metric-based in `prometheus/rules/`, and 17 log-based in
+99 rules in total: 81 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -432,7 +435,7 @@ argument and for what to do when it exits 1.
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense — a probe sent down the normal resolver path always passes, because Unbound's fallback is doing its job. [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) made losing the filter silent on purpose, and these two rules are what distinguishes "this site was never on a list" from "AdGuard has been dead for three weeks". Warning, not critical: nothing is down and nobody is blocked. The targets are written into `targets/blackbox-dns.yaml` and left disabled until [#102](https://github.com/Gerrrt/HomeLab/issues/102) builds the mini PC ([#126](https://github.com/Gerrrt/HomeLab/issues/126)) |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, and whether the age-key proof record exists to be held to its deadline |
 | `deploy.rules.yaml` | Whether this host is running what the repository says — an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` the host is. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
-| `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the process metric `security.rules.yaml` says a log rule cannot be ([#90](https://github.com/Gerrrt/HomeLab/issues/90)) |
+| `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the fast, per-interface half; `SuricataLogsStopped` in `loki/rules/security.rules.yaml` is the slow, aggregate half ([#90](https://github.com/Gerrrt/HomeLab/issues/90), [#441](https://github.com/Gerrrt/HomeLab/issues/441)) |
 
 `promtool check rules` validates that these parse. It does not — and cannot —
 tell you whether a rule can ever be true: `ContainerHighMemory` passed it for
@@ -581,12 +584,13 @@ which half went quiet are in
 [`runbooks/verify-the-alert-path.md`](runbooks/verify-the-alert-path.md).
 
 This is the same reasoning `loki/rules/security.rules.yaml` already applies to
-the firewall with `FirewallLogsStopped`, and the reason it gives for deliberately
-*not* writing a log-based `SuricataStopped` rule: absence of alerts is
-indistinguishable from absence of the service, and detecting that needs a
-heartbeat rather than a threshold — which `prometheus/rules/ids.rules.yaml` now
-reads from the firewall's process table. The notification path was the one
-place that argument had not been turned on itself.
+the firewall with `FirewallLogsStopped`, and the reason `SuricataLogsStopped`
+waits nine hours where the firewall's rule waits thirty minutes: absence of
+alerts is indistinguishable from absence of the service for an hour at a time,
+so the fast answer is a heartbeat — which `prometheus/rules/ids.rules.yaml`
+reads from the firewall's process table — and the log rule is the slow one. The
+notification path was the one place that argument had not been turned on
+itself.
 
 ### Scheduled jobs
 

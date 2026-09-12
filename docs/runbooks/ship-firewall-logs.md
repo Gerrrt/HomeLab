@@ -362,10 +362,11 @@ volume and little of the signal.
 Untick **Enable Remote Logging** on pfSense. That stops the source instantly and
 needs no change on the monitoring host.
 
-`FirewallLogsStopped` will fire 30 minutes later, and `DhcpLeaseLogsStopped`
-two hours later if the DHCP class was on. Both are correct — they exist
-precisely so that a silent pipeline is distinguishable from a quiet network.
-Silence them if the stop was deliberate.
+`FirewallLogsStopped` will fire 30 minutes later, `DhcpLeaseLogsStopped` two
+hours later if the DHCP class was on, and `SuricataLogsStopped` nine hours later
+if System Events was. All three are correct — they exist precisely so that a
+silent pipeline is distinguishable from a quiet network. Silence them if the
+stop was deliberate.
 
 Unticking **DHCP Events** alone is the narrower rollback, and it is the one
 `FirewallLogsStopped` cannot see: filterlog keeps arriving while the lease
