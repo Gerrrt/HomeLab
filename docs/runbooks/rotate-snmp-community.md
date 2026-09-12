@@ -148,11 +148,14 @@ credential and should not survive this.
 > Expect those deletions not to stick. This firmware does not persist a removal
 > from the community table: the row can be deleted, applied and saved, and it is
 > still there after a restart — and each attempt drops the SNMP agent until the
-> switch is rebooted. On `neo` they did not stick: both `public` and `private`
-> still answer, measured from the monitoring host on 2026-09-06 and 2026-09-09. Retiring an entry here means overwriting it, which is
-> [§2.5's MokerLink route](#the-mokerlink-switch-overwrite-the-row). Nothing in
-> this step depends on the deletion succeeding, so add the new community, try the
-> defaults once, and carry on.
+> switch is rebooted. Whether the defaults ever survived on `neo` is unknown:
+> they appeared to answer on 2026-09-06 and 2026-09-09, but those probes were
+> GETBULK, which this switch answers for *any* community of sixteen characters
+> or fewer — see `SECURITY.md`. Over GET, which it does check, both are refused
+> since 2026-09-12. Retiring an entry that is really there means overwriting
+> it, which is [§2.5's MokerLink route](#the-mokerlink-switch-overwrite-the-row).
+> Nothing in this step depends on the deletion succeeding, so add the new
+> community, try the defaults once, and carry on.
 
 **HPE iLO** (`shiva`, 10.0.30.10) — **Administration → Management → SNMP
 Settings.** Set the read community.
@@ -204,13 +207,16 @@ Or `make snmp-verify` for all four at once. Each device must report `PASS` with
 its sysDescr string — that is also how you confirm you reached the box you meant
 to.
 
-The same run then probes every device that passed with the stock `public` and
-`private`. A device that answers either is reported `WARN` — not a failure in
-plain mode, for the reason the script's comment gives: the weekly timer runs
-plain mode into an alert that would otherwise stay lit for the weeks it takes
-to get a reboot window on `neo`, hiding any other failure behind it. Under
-`--old` the same finding is a `FAIL`. Today `neo` is the device that warns;
-[§2.5](#the-mokerlink-switch-overwrite-the-row) is where that gets fixed.
+The same run then sends every device that passed a short and a long junk
+community over GET and over GETBULK, and then the stock `public` and `private`
+over GET. The junk line is the control that makes the `PASS` above mean the
+community was checked: `neo` answers a short junk string over GETBULK and
+refuses it over GET, which is reported `WARN` in both modes because no row in
+its table changes it (`SECURITY.md`, #84). A device answering junk over GET
+would be `FAIL`, and its stock and old-community lines are skipped as
+meaningless. A stock string answering is `WARN` in plain mode — the weekly
+timer runs plain mode into an alert that would otherwise stay lit for the
+weeks it takes to get a reboot window on `neo` — and `FAIL` under `--old`.
 
 The community never appears in an argument vector. The block this replaced put it
 into your shell history and, for the life of the process, into
@@ -252,16 +258,16 @@ is rebooted, so retrying is not free — this is the residual recorded in
 [`SECURITY.md`](../../SECURITY.md) and tracked as
 [#84](https://github.com/Gerrrt/HomeLab/issues/84).
 
-There is more than one row to retire. Besides the previous community, the
-switch still answers the stock `public` and `private` — the defaults §2.1
-deletes, whose deletion did not persist either. Measured from the monitoring
-host on 2026-09-06 and 2026-09-09, one GETBULK of `sysDescr` per string, with
-the other three devices refusing both as the control. Whether the `private`
-row is read-write, as it ships on most switches, is not known: the only test
-from the monitoring host is a SET, which is a change to the device, so read it
-off the row's access column while you are in the UI. Every stale row goes in
-the same window. The reboot is the only test there is, and there will not be
-another window soon.
+Retire every stale row in the same window: the previous community, and any
+`public` or `private` row the table still shows. Read the access column of the
+`private` row while you are in the UI; if it says read-write, it is the worst
+of them. Do not expect a probe from the monitoring host to tell you whether
+those rows exist. This switch answers GETBULK to any community of sixteen
+characters or fewer without consulting the table (measured 2026-09-12,
+`SECURITY.md`), which is why the stock strings appeared to answer on
+2026-09-06 and 2026-09-09: the probe was GETBULK. Only GET is checked, and
+`snmp-verify.sh` uses GET since that date. The reboot is the only test there
+is, and there will not be another window soon.
 
 **Do this only in a window where the switch can be rebooted**, ideally one it is
 already going down for. `neo` carries every VLAN: the reboot stops layer 2, not
@@ -335,12 +341,16 @@ checking the one you just rotated, and a single string tested against all four
 proves nothing about the three it never belonged to. It refuses to report
 success if you skip everything.
 
-Before it asks for anything it has already tried `public` and `private`
-against every device that answered its current community. Those are not
-secrets, so nothing is typed and nothing is skipped: under `--old` a device
-that answers either is a `FAIL`, the same verdict as `STILL ACCEPTED`, because
-a rotation that leaves a default row live has not retired anything a scanner
-would try.
+Before it asks for anything it has already tried a short and a long junk
+string, and then `public` and `private`, against every device that answered
+its current community — all over GET, which is the PDU every device here
+checks. Those are not secrets, so nothing is typed and nothing is skipped:
+under `--old` a device that answers a stock string is a `FAIL`, the same
+verdict as `STILL ACCEPTED`, because a rotation that leaves a default row
+live has not retired anything a scanner would try. `neo`'s `GETBULK
+UNAUTHENTICATED` warning is not that: it is the firmware serving GETBULK to
+any short string regardless of the table, and it stays a `WARN` here because
+the retirement being proved is real even though that is not fixed.
 
 It requires a terminal and refuses a pipe on purpose — `echo "$old" | ...` would
 put the old community into your shell history, which is the leak this tooling

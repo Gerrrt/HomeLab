@@ -141,21 +141,22 @@ blind. Nothing else about either machine is bought.
 - **[#229](https://github.com/Gerrrt/HomeLab/issues/229) The switch LAN still
   carries pfSense's stock *Default allow LAN to any*.** `10.7.7.0/24` reaches
   every VLAN; `network.md` said "Nothing". Bounded by that segment holding only
-  the switch — which is also the device that still answers its previous SNMP
-  community (#84) and stays on v2c (#85). Lower risk than #228: getting it wrong
+  the switch — which is also the device whose SNMP agent serves GETBULK to any
+  short community (#84) and stays on v2c (#85). Lower risk than #228: getting it wrong
   costs SNMP polling of `neo`, which is monitored.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
-  switch's previous SNMP community.** `neo` still accepts its old one alongside
-  the new, and the stock `public` and `private` besides (measured 2026-09-06 and
-  2026-09-09; the other three devices refuse both); its firmware will not
-  persist a deletion. Accepted residual, recorded in `SECURITY.md`. The method
-  is settled — overwrite the rows rather than delete them, all in one window —
-  so what is left is a window in which the switch can be rebooted. A fourth row
-  follows the three: the *current* community, exposed in a local transcript and
-  deliberately never rotated because doing so would have added another stuck
-  row, once the first overwrite is proven to survive a reboot. `snmp-verify.sh`
-  now probes every device with the two stock strings weekly, `WARN` in plain
-  mode and `FAIL` under `--old`. →
+  switch's previous SNMP community.** The rows were overwritten and the
+  switch rebooted on 2026-09-12, and the measurement that followed changed the
+  issue: `neo` serves GETBULK to *any* community of sixteen characters or
+  fewer without checking the table, which is what every earlier sighting of
+  the stock `public` and `private` answering had been — and every `STILL
+  ACCEPTED` for the old one. Over GET, which it does check, both stock
+  strings and a junk string are refused; the previous community's row is
+  unverified rather than retired, because the string was not to hand in the
+  window. `snmp-verify.sh` probes with GET since that date and sends junk
+  strings over both PDUs weekly, `WARN` for the switch. Accepted residual,
+  larger than before and recorded in `SECURITY.md`; what closes it is the
+  replacement switch on the buy list, not another window. →
   [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv
   where the hardware supports it.** Decided by
