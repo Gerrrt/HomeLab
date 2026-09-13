@@ -43,12 +43,21 @@ row and does not get one now; it is part of the bracket purchase, recorded in
 [`hardware.md`](hardware.md) with it, because the rule is that a purchase edits
 this section and not that only listed purchases do.
 
+**2026-09-13: the switch is bought.** A used MikroTik CRS326-24G-2S+RM,
+recorded in [`hardware.md`](hardware.md) — bought for the TLS management
+interface, which is the one argument the correction on
+[#444](https://github.com/Gerrrt/HomeLab/issues/444) left standing, with
+[#84](https://github.com/Gerrrt/HomeLab/issues/84) riding along. The table
+goes from four rows to three, and nothing on it now touches the rack: two
+licences, a drive kept at another address and a battery. What closes #84 and
+ADR-0018's residual is a cabling window, not money — `neo` carries every VLAN,
+so the swap waits for a rack visit it can share.
+
 **Buy these, and the estate as decided is fully bought:**
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
-| A managed switch with a TLS management interface | Replacing `neo`, whose firmware will not persist a community deletion ([#84](https://github.com/Gerrrt/HomeLab/issues/84)) and which serves its admin UI over plain HTTP — through the device the password protects, and that credential is read-write. **SNMPv3 is no longer the argument**: [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) found the switch's agent answers v3 on the wire and was never what blocked #85, so TLS management is what a replacement is actually bought for | [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), [#444](https://github.com/Gerrrt/HomeLab/issues/444) | Whenever a cabling window suits — it is independent of everything else here |
 | An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
 | A replacement battery cell for `prometheus` | The estate's mains-cut path depends on it; watched since 2026-09-12 and reading 94 % of design — see the exception to *Never* below | [`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), [#454](https://github.com/Gerrrt/HomeLab/issues/454) | Soon. It is thirteen years old, and a swollen cell is a rack fire |
 
@@ -71,7 +80,9 @@ before it is bought.
 **Already paid for**, in transit or on hand: the ProDesk 600 G4 (the tier's
 host and the firewall's spare hardware), and the I226 card on its M.2 adapter
 that a restore onto it needs
-([#404](https://github.com/Gerrrt/HomeLab/issues/404)); the TS150 NAS, the two
+([#404](https://github.com/Gerrrt/HomeLab/issues/404)); the CRS326 that
+replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); the
+TS150 NAS, the two
 Exos X20 18 TB drives for its mirror, and its boot SSD with the bracket and
 tape that mount it in the optical bay
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413));
@@ -108,17 +119,19 @@ list, and each names what would put it there:
 Two things left this list because the decision got taken: the **MokerLink
 replacement**, now [#444](https://github.com/Gerrrt/HomeLab/issues/444), and
 **off-estate storage**, now [#455](https://github.com/Gerrrt/HomeLab/issues/455).
-Both are in the first table above. Neither is deleted from the record — moving
-up is what taking the decision looks like.
+Both moved into the first table above; the switch has since left it by being
+bought, on 2026-09-13, and the drive is still there. Neither is deleted from
+the record — moving up is what taking the decision looks like, and leaving is
+what buying looks like.
 
-The switch's row is narrower than the bullet it replaces, and deliberately.
+The switch's row was narrower than the bullet it replaced, and deliberately.
 That bullet named #84, the switch half of #85 and ADR-0018's residual as three
 things one purchase would close;
 [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
 has since removed the middle one — the switch answers v3 on the wire and was
 never the blocker. **A purchase justified by three residuals when one of them
-has gone is the shape this section exists to prevent**, so it is bought for the
-TLS management interface, and #84 rides along.
+has gone is the shape this section exists to prevent**, so it was bought for
+the TLS management interface, and #84 rides along.
 
 **Never**, and the documents say so: anything to make `prometheus` or `oracle`
 faster or bigger, and any disk or memory on account of Wazuh — ADR-0030 sizes
@@ -156,7 +169,8 @@ blind. Nothing else about either machine is bought.
   window. `snmp-verify.sh` probes with GET since that date and sends junk
   strings over both PDUs weekly, `WARN` for the switch. Accepted residual,
   larger than before and recorded in `SECURITY.md`; what closes it is the
-  replacement switch on the buy list, not another window. →
+  replacement switch — bought 2026-09-13 and in transit — and the window
+  that racks it, not another window on this one. →
   [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv
   where the hardware supports it.** Decided by

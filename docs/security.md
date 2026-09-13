@@ -499,7 +499,10 @@ sixteen characters or fewer (measured 2026-09-12,
 [#84](https://github.com/Gerrrt/HomeLab/issues/84)), and an SNMPv3 user page it
 may or may not have
 (ADR-0036). A TLS management interface belongs in the selection criteria
-whenever this switch is replaced.
+whenever this switch is replaced — and the replacement that has one, a
+MikroTik CRS326, was bought 2026-09-13 ([`hardware.md`](hardware.md),
+[#444](https://github.com/Gerrrt/HomeLab/issues/444)). This section changes
+when it is racked, not before.
 
 ## Hardening applied to the stack
 
