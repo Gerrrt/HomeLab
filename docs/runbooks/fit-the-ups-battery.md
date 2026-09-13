@@ -88,9 +88,11 @@ needed: Alloy's node collector already exports `node_power_supply_*` from both
 hosts, and `host.rules.yaml` reads it — `HostBatteryHealthLow` when a cell's
 `charge_full` falls below 80 % of `charge_full_design` (`prometheus` read 94 %
 after 108 cycles, `oracle` 72 %), `HostOnBattery` when the mains adapter loses
-input, `HostBatteryNotReported` when a laptop stops reporting a cell. After a
-cell is swapped, `charge_full` should sit at or near `charge_full_design` and
-the cycle count read low. Then pull that laptop's mains and confirm the host
+input, `HostBatteryNotReported` when a laptop stops reporting a cell. The cell
+for `prometheus`, an A1437, was bought 2026-09-13 and is recorded in
+[`hardware.md`](../hardware.md#accessories). After a cell is swapped,
+`charge_full` should sit at or near `charge_full_design` and the cycle count
+read low. Then pull that laptop's mains and confirm the host
 stays up and `HostOnBattery` fires: that is the property the cell is there for,
 and it had not been tested since the machine was commissioned.
 
