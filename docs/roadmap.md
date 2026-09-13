@@ -53,13 +53,25 @@ licences, a drive kept at another address and a battery. What closes #84 and
 ADR-0018's residual is a cabling window, not money — `neo` carries every VLAN,
 so the swap waits for a rack visit it can share.
 
+**2026-09-13, later the same day: the battery is bought.** An A1437 cell for
+`prometheus`, new, recorded in [`hardware.md`](hardware.md) — the consumable
+the exception to *Never* below was written for, and the one row on this list
+whose case was safety before availability
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)). The table goes from
+three rows to two, and neither of them is a part: two licences and a drive
+kept at another address. What closes #454 is not the cell landing but the fit
+and the test after it — `charge_full` at or near design, a low cycle count,
+and mains pulled with the host staying up — which
+[`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) names. `oracle`'s
+cell, the one that measures worse, stays unbought and second in line, as that
+issue ranked it.
+
 **Buy these, and the estate as decided is fully bought:**
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 | An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
-| A replacement battery cell for `prometheus` | The estate's mains-cut path depends on it; watched since 2026-09-12 and reading 94 % of design — see the exception to *Never* below | [`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md), [#454](https://github.com/Gerrrt/HomeLab/issues/454) | Soon. It is thirteen years old, and a swollen cell is a rack fire |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
@@ -89,7 +101,9 @@ tape that mount it in the optical bay
 two SM863a SSDs for
 `Saruman` ([#418](https://github.com/Gerrrt/HomeLab/issues/418)); the pfSense
 installer stick; the 2 TB USB drive that becomes the photo library's disk on
-`trinity`; the removable medium the second age recipient lives on.
+`trinity`; the removable medium the second age recipient lives on; and the A1437 cell
+that replaces `prometheus`'s thirteen-year-old one
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
 
 **Only if a decision is taken, and none is pending** — these are not on the
 list, and each names what would put it there:
@@ -147,7 +161,8 @@ mains-cut path depends on it, `host.rules.yaml` measures it since 2026-09-12
 cell is a fire on a shelf. `oracle` has the same kind of cell and it measures
 worse, 72 %, so `HostBatteryHealthLow` fires for it first; it stays second in
 line only because `prometheus` is the host whose death is the estate going
-blind. Nothing else about either machine is bought.
+blind. The cell for `prometheus` was bought on 2026-09-13; nothing else about
+either machine is.
 
 ## Security
 

@@ -282,26 +282,48 @@ def docker_unavailable() -> str | None:
     )
 
 
+# Pauses, in seconds, between pull attempts when the registry answers
+# `toomanyrequests`. Three retries, 85 s in all, is bounded enough for CI and
+# long enough to outlast a per-minute throttle.
+PULL_RETRY_PAUSES = (5, 20, 60)
+
+
 def ensure_image(image: str) -> str | None:
     """Pull the image if it is not local. An error line, or None on success.
 
     Pulled in its own pass so a registry failure is reported as a registry
     failure. The probe itself then runs with --pull never, which makes every
     non-zero exit attributable to the binary rather than to the network.
+
+    A registry answering `toomanyrequests` is retried after a pause before it
+    is reported. ghcr.io throttles a GitHub runner's shared egress by the
+    minute — one image in the sensitive stack failed that way on a docs-only
+    PR, twice, eight minutes apart, while the same manifest fetched clean from
+    anywhere else — so one attempt is not a verdict on the healthcheck the
+    pull exists to probe. Anything else the registry says is reported on the
+    first attempt: a bad digest or a missing tag does not get better by
+    waiting.
     """
     if not subprocess.run(
         ["docker", "image", "inspect", image], capture_output=True, check=False
     ).returncode:
         return None
     note(f"pulling {image}")
-    proc = subprocess.run(
-        ["docker", "pull", "--quiet", image],
-        capture_output=True, text=True, check=False,
-    )
-    if not proc.returncode:
-        return None
-    detail = (proc.stderr or proc.stdout or "").strip().splitlines()
-    return detail[-1] if detail else f"docker pull exited {proc.returncode}"
+    for pause in (*PULL_RETRY_PAUSES, None):
+        proc = subprocess.run(
+            ["docker", "pull", "--quiet", image],
+            capture_output=True, text=True, check=False,
+        )
+        if not proc.returncode:
+            return None
+        output = (proc.stderr or proc.stdout or "").strip()
+        detail = output.splitlines()
+        last = detail[-1] if detail else f"docker pull exited {proc.returncode}"
+        if pause is None or "toomanyrequests" not in output.lower():
+            return last
+        note(f"{image}: registry said toomanyrequests, retrying in {pause}s")
+        time.sleep(pause)
+    return last  # not reached: the final attempt returns above
 
 
 def probe_binary(

@@ -212,6 +212,24 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   Array re-enabled its write cache on the first scrape after the fit; the
   cache ratio it reports is still open
   ([#76](https://github.com/Gerrrt/HomeLab/issues/76))
+- A1437 battery cell for `prometheus`[^A1437] — the pack that fits the
+  `A1425`, the late-2012 Retina 13" in the Compute table — bought new
+  2026-09-13, in transit. A consumable and not an upgrade: it is the one
+  exception the roadmap's *Never* line names, bought because the estate's
+  mains-cut path rests on this cell and the failure mode of a
+  thirteen-year-old lithium cell on a shelf is swelling
+  ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). The listing calls
+  it genuine and its brand field says unbranded, so it is recorded as a
+  compatible cell, not an Apple part, until it is in hand. The cell it
+  replaces read 94 % of design capacity after 108 cycles on 2026-09-12, which
+  is above `HostBatteryHealthLow`'s 80 % — it is bought on age, not on the
+  alert. Nothing in the Compute table changes; a cell is not a spec.
+  **Checked at the fit, not assumed:** `charge_full` at or near
+  `charge_full_design` and a cycle count reading low, then mains pulled and
+  the host staying up with `HostOnBattery` firing — the property the cell is
+  there for, and untested since the machine was commissioned
+  ([`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md)). `oracle`'s
+  cell reads 72 % and is second in line, unbought.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]
@@ -226,6 +244,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446)
+[^A1437]: [A1437 battery for the MacBook Pro 13" A1425 Retina](https://www.ebay.com/itm/356174101017)
 [^ProDeskRackmount]: [1U rackmount for ProDesk Mini](https://a.co/d/4d7klOL)
 [^I226]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N)
 [^Sliderail]: [Sliding rails for ProLiant](https://a.co/d/5d4A4FO)
