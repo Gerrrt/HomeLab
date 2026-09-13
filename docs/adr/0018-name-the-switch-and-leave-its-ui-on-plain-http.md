@@ -2,6 +2,15 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> The replacement the last consequence below asks for was bought on
+> 2026-09-13: a MikroTik CRS326-24G-2S+RM, chosen for the TLS management
+> interface ([`hardware.md`](../hardware.md),
+> [#444](https://github.com/Gerrrt/HomeLab/issues/444)). Nothing here changes
+> until it is racked — `neo` is still the switch, still on plain HTTP. The ADR
+> that names the new switch and decides its OS and management posture is
+> written then. The text here is left as written, per ADR-0001.
+
 ## Context
 
 [#97](https://github.com/Gerrrt/HomeLab/issues/97) asks for two things about the

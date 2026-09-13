@@ -180,6 +180,28 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   when [#418](https://github.com/Gerrrt/HomeLab/issues/418) fits them, and
   not before — that issue also names the ADRs whose arithmetic the fit makes
   stale
+- MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
+  RouterOS / SwOS — bought used 2026-09-13, in transit. The replacement for
+  `neo` that
+  [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
+  asked for in its last consequence and
+  [#444](https://github.com/Gerrrt/HomeLab/issues/444) decided. It is bought
+  for **one property, a TLS management interface**: RouterOS serves its UI
+  over `www-ssl` and imports a certificate, so the switch admin credential
+  stops crossing the wire in clear through the device it protects.
+  [#84](https://github.com/Gerrrt/HomeLab/issues/84)'s GETBULK residual rides
+  along; SNMPv3 is not the argument, because
+  [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
+  found the switch in the rack already answers v3 on the wire. It enters the
+  Rack table at U9 and [`network.md`](network.md) when it is racked — `neo`
+  carries every VLAN, so the swap is a house-wide outage and shares a rack
+  visit rather than getting its own — and until then `neo` is the switch in
+  every document and every target. **Checked on arrival, not assumed:** which
+  OS it boots and the version on it (`/system resource`), the serial and the
+  management MAC, that the rack ears and the power supply are in the box, and
+  a netinstall or factory reset before it touches the network — a used
+  RouterOS device arrives with whatever its last owner left on it, users
+  included. Those go here when it lands.
 - USB stick holding the pfSense installer — **in transit; it belongs in the rack
   beside the KVM once it arrives**, and is not there yet.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
@@ -203,6 +225,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^PDU]: [10-outlet 1U PDU](https://a.co/d/ibEygxZ)
 [^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
+[^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446)
 [^ProDeskRackmount]: [1U rackmount for ProDesk Mini](https://a.co/d/4d7klOL)
 [^I226]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N)
 [^Sliderail]: [Sliding rails for ProLiant](https://a.co/d/5d4A4FO)

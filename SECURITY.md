@@ -95,7 +95,9 @@ foothold on the management VLAN and the specific pfSense rule that permits
 exposed beyond those. What would close it is a switch whose firmware checks
 what it serves, which is the replacement
 [ADR-0018](docs/adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
-already names and the roadmap's buy list carries. SET was not tested, because
+names — a MikroTik CRS326, bought 2026-09-13 and recorded in
+[`docs/hardware.md`](docs/hardware.md); this residual closes when that switch
+is racked, not before. SET was not tested, because
 a SET is a change to the device. The overwrite procedure stays at [§2.5,
 *The MokerLink switch: overwrite
 the row*](docs/runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
