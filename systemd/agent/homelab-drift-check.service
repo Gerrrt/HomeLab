@@ -1,0 +1,57 @@
+# The wiki's drift check, run on the host that holds the wiki, and watched.
+#
+# Gerrrt/Lemmiwinks/.claude/tools/drift-check reads the wiki's machine-checkable
+# claims against the machine and files a wiki issue when they disagree
+# (Lemmiwinks #282). It ran from atropos's crontab on oracle with nothing
+# watching it; this unit is what watches it (#470). The collector records when it
+# ran, how it exited and what it counted, and DriftCheckStopped fires when the
+# timestamp goes stale.
+#
+# ONE HOST. The checker needs the wiki checkout and the GitHub login of the
+# person who maintains the wiki, and oracle is where both are. The user and the
+# checkout are named below rather than discovered, because there is nothing to
+# discover them from; a second host would need its own values, and none is
+# expected.
+#
+# ROOT, AND THEN NOT ROOT. Root for the one reason patch-state's unit gives —
+# the textfile directory on an agent host is root-owned — and the collector
+# hands the checker itself to the named user with runuser -l, so the check runs
+# with that user's environment and none of root's. The hardening below is
+# therefore looser than patch-state's in exactly two places: ProtectHome is off,
+# because the checkout and the credential are in a home directory, and the
+# network is allowed, because the checker reads Prometheus, Loki, the resolver
+# and GitHub. Everything else is kept.
+#
+# Installed at /usr/local/bin/homelab-collect-drift-check by
+# scripts/install-agent-collectors.sh, which is also what installs this file.
+[Unit]
+Description=HomeLab: run the wiki's drift check and record its outcome
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathIsDirectory=/home/atropos/code/Gerrrt/Lemmiwinks
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DRIFT_CHECK_USER=atropos
+Environment=DRIFT_CHECK_REPO=/home/atropos/code/Gerrrt/Lemmiwinks
+ExecStart=/usr/local/bin/homelab-collect-drift-check
+TimeoutStartSec=300
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector /home/atropos/code/Gerrrt/Lemmiwinks /home/atropos/.local/state
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-drift-check

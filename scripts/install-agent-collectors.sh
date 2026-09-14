@@ -38,11 +38,17 @@
 # says so at length. `PatchStateStopped` covers the gap from the data side
 # instead, alerting when a host that WAS reporting stops.
 #
-# WHAT IT INSTALLS. One row per collector in COLLECTORS below — today
-# patch-state (#360) and smart-state (#351). Adding a third is a row plus a unit
-# under systemd/agent/, not a new script: the first version of this was
-# install-agent-collectors.sh and hardcoded one job, which lasted exactly as
-# long as it took for the second collector to need shipping.
+# WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
+# (#360), smart-state (#351), pve-version (#311), guest-state (#257) and
+# drift-check (#470). Adding one is a row plus a unit under systemd/agent/, not
+# a new script: the first version of this was install-agent-collectors.sh and
+# hardcoded one job, which lasted exactly as long as it took for the second
+# collector to need shipping.
+#
+# drift-check's requirement is not a binary but the wiki checkout's own guard
+# script, which exists on exactly the host that holds the wiki — oracle — and
+# nowhere else. That is the per-collector check doing its job: every other host
+# reports "cannot run this collector" and gets the rest.
 #
 # NOT EVERY COLLECTOR SUITS EVERY HOST, and the check is per collector rather
 # than per host. patch-state needs apt; smart-state needs smartmontools. A host
@@ -76,6 +82,7 @@ COLLECTORS=(
   "smart-state scripts/collect-smart-state.sh   smart-state-HOST.prom  /usr/sbin/smartctl"
   "pve-version scripts/collect-pve-version.sh   pve-version.prom       /usr/bin/pveversion"
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
+  "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
 )
 
 GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'

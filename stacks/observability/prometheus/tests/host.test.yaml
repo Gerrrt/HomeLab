@@ -544,6 +544,47 @@ tests:
         alertname: PatchStateStopped
         exp_alerts: []
 
+  # --- DriftCheckStopped: fires when the timestamp stops moving ---------------
+  # The collector writes the run's Unix time and node_exporter re-serves the
+  # file on every scrape, so the series is present throughout; only its value
+  # goes stale. A run recorded at t=0 and never again is 27 hours old at 27h.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_drift_check_last_run_timestamp_seconds{host="oracle"}'
+        values: "0x400"
+    alert_rule_test:
+      - eval_time: 27h
+        alertname: DriftCheckStopped
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "oracle has not run the wiki drift check in over a day"
+              description: >-
+                The last run was 1d 3h 0m 0s ago, so the wiki's machine-checkable
+                claims are unchecked and a stale page would go unreported.
+                Check homelab-drift-check.timer on the host —
+                `systemctl status homelab-drift-check.timer` — and its last
+                run in Loki under unit="homelab-drift-check.service". It runs
+                as the wiki maintainer's user, so a missing checkout at
+                /home/atropos/code/Gerrrt/Lemmiwinks or an expired gh login is
+                the usual cause.
+
+  # --- DriftCheckStopped: quiet while the timestamp keeps moving --------------
+  # A timer that runs daily advances the value by a day at a time; a series that
+  # tracks the clock is the generous version of that, and must stay silent.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_drift_check_last_run_timestamp_seconds{host="oracle"}'
+        values: "0+300x400"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: DriftCheckStopped
+        exp_alerts: []
+
   # --- PatchStateStopped: quiet for a host being onboarded -------------------
   # A host that has never reported must stay silent, or every apt host not yet
   # covered by #360 — `Saruman` today — alerts as a fault. The series starts at

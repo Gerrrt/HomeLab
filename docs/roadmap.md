@@ -983,6 +983,19 @@ them name the condition that would change the answer.
 
 ## Done
 
+- [x] **[#470](https://github.com/Gerrrt/HomeLab/issues/470) The wiki's drift
+      check is watched.** 2026-09-14. `Gerrrt/Lemmiwinks/.claude/tools/drift-check`
+      reads the wiki's machine-checkable claims against the machine and files a
+      wiki issue when they disagree; since the morning of 2026-09-14 it ran
+      from `atropos`'s crontab on `oracle` with no metric, which is #400's
+      shape — a check that stops looks like a wiki with nothing wrong. Shipped
+      as the fifth agent collector: `scripts/collect-drift-check.sh` runs the
+      checker as the wiki maintainer's user from a root unit that exists to
+      write the textfile directory, records when it ran, how it exited and the
+      four claim counts, and `DriftCheckStopped` fires on a timestamp more
+      than a day old. The checker stays in the wiki's repository, because its
+      claims are that wiki's sentences; this repository watches that it runs.
+
 - [x] **[#468](https://github.com/Gerrrt/HomeLab/issues/468) The backup verifier
       mistook every Loki archive for a Paperless one.** 2026-09-14. Both
       `backup-volumes` and `verify-backups` exited 2 from 2026-09-13, and

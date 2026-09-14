@@ -314,7 +314,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-99 rules in total: 81 metric-based in `prometheus/rules/`, and 18 log-based in
+100 rules in total: 82 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -421,11 +421,11 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-81 rules across eleven files in `prometheus/rules/`:
+82 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
-| `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew, reboots — and, for the two laptops, whether the shelf is on mains and whether the cell that carries them through a cut is still worth relying on ([#454](https://github.com/Gerrrt/HomeLab/issues/454)) |
+| `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew, reboots — and, for the two laptops, whether the shelf is on mains and whether the cell that carries them through a cut is still worth relying on ([#454](https://github.com/Gerrrt/HomeLab/issues/454)); and whether the wiki's drift check on `oracle` is still running ([#470](https://github.com/Gerrrt/HomeLab/issues/470)) |
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware and Smart Array cache. `shiva`'s Smart Storage Battery read failed from 2026-08-18 until it was replaced on 2026-09-02, with the array in write-through as a result, so stored metrics before that date show the failed pack — `IloBatteryCondition` names the spare part to order, and the controller rollups are deliberately read at *failed* rather than *degraded* ([#76](https://github.com/Gerrrt/HomeLab/issues/76)) |
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
@@ -444,20 +444,21 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is sixty-one rules of 81 so far — the five
+against the broken rule too. Coverage is sixty-two rules of 82 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all six in
 `backup.test.yaml`, all five in `deploy.test.yaml`, `RemoteWriteJobStale`,
 `SuricataStopped`, the two gateway rules from
-[#353](https://github.com/Gerrrt/HomeLab/issues/353), and all twenty-one in
+[#353](https://github.com/Gerrrt/HomeLab/issues/353), and all twenty-two in
 `host.rules.yaml` —
 `HostDiskWillFillIn24h` from [#189](https://github.com/Gerrrt/HomeLab/issues/189),
 six more from [#320](https://github.com/Gerrrt/HomeLab/issues/320), the four
 SMART rules from [#351](https://github.com/Gerrrt/HomeLab/issues/351),
-`PatchStateStopped` from [#360](https://github.com/Gerrrt/HomeLab/issues/360), and
+`PatchStateStopped` from [#360](https://github.com/Gerrrt/HomeLab/issues/360),
 `SystemUpdateAvailable` from [#378](https://github.com/Gerrrt/HomeLab/issues/378),
+`DriftCheckStopped` from [#470](https://github.com/Gerrrt/HomeLab/issues/470),
 the two guest rules from [#257](https://github.com/Gerrrt/HomeLab/issues/257),
 and the three laptop-battery rules from
 [#454](https://github.com/Gerrrt/HomeLab/issues/454).

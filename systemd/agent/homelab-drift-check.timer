@@ -1,0 +1,21 @@
+[Unit]
+Description=HomeLab: daily wiki drift check
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-drift-check.service
+# 06:30 UTC: after verify-backups (05:30) has written the reading the backups
+# page cites, and before the morning collectors change anything else the wiki
+# counts. The same time the crontab entry this replaces used.
+#
+# Persistent=true for the same reason the other agent timers carry it: oracle
+# is a laptop and can be off at 06:30, and the value of the timestamp is that
+# it keeps moving. A missed run is caught up at the next boot rather than
+# skipped into a DriftCheckStopped alert.
+OnCalendar=*-*-* 06:30:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
