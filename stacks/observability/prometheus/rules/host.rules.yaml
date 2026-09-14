@@ -195,6 +195,40 @@ groups:
             /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
             being written and is world-readable. A 0600 file is invisible to the
             collector and produces exactly this silence.
+      - alert: DriftCheckStopped
+        # The wiki's drift check on oracle has not run in more than a day.
+        #
+        # Gerrrt/Lemmiwinks/.claude/tools/drift-check reads the wiki's
+        # machine-checkable claims against the machine and files a wiki issue
+        # when they disagree. Its whole value is that it keeps running; a check
+        # that has quietly stopped is indistinguishable from a wiki with nothing
+        # wrong in it — #400's shape, and the reason #470 shipped it as an agent
+        # collector with a timestamp (scripts/collect-drift-check.sh).
+        #
+        # A TIMESTAMP RATHER THAN PRESENCE, unlike PatchStateStopped above, and
+        # on purpose: the .prom file persists and node_exporter re-serves it on
+        # every scrape, so the series never goes absent when the timer stops —
+        # only the timestamp stops moving. Twenty-six hours against a daily
+        # timer with fifteen minutes of jitter tolerates a missed run caught up
+        # at the next boot (Persistent=true) and not two. If oracle itself is
+        # down, InstanceDown says so and this stays quiet on absence.
+        expr: time() - homelab_drift_check_last_run_timestamp_seconds > 26 * 3600
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }} has not run the wiki drift check in over a day"
+          description: >-
+            The last run was {{ $value | humanizeDuration }} ago, so the wiki's
+            machine-checkable claims are unchecked and a stale page would go
+            unreported. Check homelab-drift-check.timer on the host —
+            `systemctl status homelab-drift-check.timer` — and its last run in
+            Loki under unit="homelab-drift-check.service". It runs as the wiki
+            maintainer's user, so a missing checkout at
+            /home/atropos/code/Gerrrt/Lemmiwinks or an expired gh login is the
+            usual cause.
       # --- SMART, for the disks the iLO cannot see (#351) -------------------
       #
       # #151 already covers Saruman's array: cpqDaPhyDrvSmartStatus arrives over

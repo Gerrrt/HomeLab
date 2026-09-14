@@ -108,10 +108,28 @@ and `morpheus` is FreeBSD with no apt at all.
 runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
-`COLLECTORS` table names — `patch-state` and `smart-state` today — and checks
-each host's requirements **per collector**, so a host without apt still gets
-SMART and the one it cannot have is reported rather than skipped silently.
-`ARGS='--only smart-state'` narrows it.
+`COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
+`guest-state` and `drift-check` — and checks each host's requirements **per
+collector**, so a host without apt still gets SMART and the one it cannot have
+is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
+it.
+
+**`drift-check` is the collector that belongs to another repository.**
+`Gerrrt/Lemmiwinks/.claude/tools/drift-check` reads the wiki's machine-checkable
+claims — rule and service counts, probes, jobs, guests, OS releases, resolver
+names, SMART, age recipients, this repository's runbook and ADR counts —
+against Prometheus, Loki, the resolver, GitHub and `oracle`'s disk, and files a
+"Drift check:" issue on the wiki when a page and the machine disagree. Its
+claims are the wiki's sentences and its output is a wiki issue, so it lives
+there; what this repository adds is the watching. `scripts/collect-drift-check.sh`
+runs it on `oracle` — as `atropos`, who holds the wiki checkout and the GitHub
+login, via `runuser -l` from a root unit that exists only to write the textfile
+directory — reads the checker off the wiki's `origin/main`, and records
+`homelab_drift_check_last_run_timestamp_seconds`, the exit code and the four
+claim counts. `DriftCheckStopped` fires when the timestamp is more than a day
+old ([#470](https://github.com/Gerrrt/HomeLab/issues/470)). Its requirement is
+the wiki checkout's guard script, so every other host correctly reports that it
+cannot run this one. It replaced a crontab entry that nothing watched.
 
 **`pve-version` is the third collector, and it exists to make a documented claim
 falsifiable.** `check_versions` compares what the documents say each host runs
