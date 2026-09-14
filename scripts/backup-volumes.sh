@@ -173,6 +173,18 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # volumes need that: both hold a single `./caddy` directory, so a top-level
 # entry would be the crossed mapping this exists to catch, present in both.
 #
+# A sentinel must also be unique across the union — load_inventory() refuses
+# the table if two volumes share one — but it MAY coincide with an entry some
+# other volume legitimately carries, and one does: paperless-data's ./index is
+# Loki's index directory, listed under loki-data in COMPANIONS below. From
+# 2026-09-13, the first weekly run after #133's table reached the host, every
+# Loki archive — five sets that had verified clean the day before — was refused
+# as "a paperless-data backup", and no manifest was written since (#468).
+# verify() now reads a foreign sentinel that is one of the volume's own
+# companions as evidence only when the volume's own sentinel is ALSO missing,
+# which is what a mislabelled archive looks like and what a real Loki volume
+# never does.
+#
 # The sensitive tier's (STACK=sensitive) were read off the volumes after a
 # boot of the pinned images, not guessed — and this table is the reason a
 # stack backup on trinity works at all: load_inventory() below dies on the
@@ -304,8 +316,26 @@ parse_compose() {
   ' "${COMPOSE_FILE}"
 }
 
+# Two volumes sharing a sentinel is the one thing verify() cannot recover from:
+# owner[] keeps whichever came last, so one of the two would always read as the
+# other's archive. Refused at load, before any volume is stopped, for the same
+# reason a missing sentinel is — a named error beats an archive nothing can
+# verify. A sentinel that merely appears among another volume's COMPANIONS is
+# allowed, and verify() says how it is treated (#468).
+check_sentinel_table() {
+  local v w
+  for v in "${!SENTINEL[@]}"; do
+    for w in "${!SENTINEL[@]}"; do
+      if [[ ${v} < ${w} && ${SENTINEL[$v]} == "${SENTINEL[$w]}" ]]; then
+        die "${v} and ${w} share the sentinel ${SENTINEL[$v]} in $(basename "$0") — verify() could not tell their archives apart; give one of them a nested path"
+      fi
+    done
+  done
+}
+
 load_inventory() {
   [[ -f ${COMPOSE_FILE} ]] || die "no compose file at ${COMPOSE_FILE}"
+  check_sentinel_table
 
   local -a declared=()
   local kind a b c
@@ -458,8 +488,22 @@ verify() {
   # Every volume's sentinel is handed to awk, not just this one's. Finding
   # somebody else's is how a crossed mapping is caught, and that has to be fatal
   # in both modes — see below.
+  #
+  # Unless the other volume's sentinel is an entry THIS volume is documented to
+  # carry. paperless-data's ./index is loki-data's index directory (COMPANIONS),
+  # so on its own it proves nothing about a Loki archive — every Loki set on
+  # the host was refused on that basis from 2026-09-13 (#468). Such a hit is
+  # "soft": awk counts it as foreign only when the volume's own sentinel is
+  # absent too, in --hot as well as strict, because an archive that carries
+  # paperless-data's marker and lacks loki-data's IS the crossed mapping.
   all=""
-  for v in "${!SENTINEL[@]}"; do all+=" ${v}|${SENTINEL[$v]}"; done
+  soft=""
+  for v in "${!SENTINEL[@]}"; do
+    all+=" ${v}|${SENTINEL[$v]}"
+    if [[ ${v} != "${vol}" && " ${companions} " == *" ${SENTINEL[$v]} "* ]]; then
+      soft+=" ${v}"
+    fi
+  done
 
   # The listing is NOT piped through head, grep -q or grep -m1. Any reader that
   # exits early SIGPIPEs tar, tar dies on signal 13, the shell reports 141, and
@@ -472,7 +516,8 @@ verify() {
   # whole lines also means only top-level entries can satisfy a sentinel.
   if ! out="$(age --decrypt -i "${AGE_IDENTITY}" "${f}" \
                 | tar -tzf - \
-                | awk -v vol="${vol}" -v all="${all# }" -v companions="${companions}" '
+                | awk -v vol="${vol}" -v all="${all# }" -v companions="${companions}" \
+                      -v soft="${soft# }" '
                     BEGIN {
                       n = split(all, pairs, " ")
                       for (i = 1; i <= n; i++) {
@@ -481,6 +526,8 @@ verify() {
                       }
                       m = split(companions, c, " ")
                       for (i = 1; i <= m; i++) want[c[i]] = 1
+                      k = split(soft, sv, " ")
+                      for (i = 1; i <= k; i++) softvol[sv[i]] = 1
                     }
                     {
                       entries++
@@ -491,7 +538,13 @@ verify() {
                     }
                     END {
                       foreign = ""
-                      for (v in hit) if (v != vol) foreign = foreign " " v
+                      for (v in hit) {
+                        if (v == vol) continue
+                        # A soft hit (see above) is not foreign while the
+                        # sentinel of this volume is itself present.
+                        if ((v in softvol) && (vol in hit)) continue
+                        foreign = foreign " " v
+                      }
                       missing = ""
                       for (k in want) if (!(k in seen)) missing = missing " " k
                       # "-" rather than "" for an empty list. Tab is an IFS
