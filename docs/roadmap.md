@@ -983,6 +983,27 @@ them name the condition that would change the answer.
 
 ## Done
 
+- [x] **[#468](https://github.com/Gerrrt/HomeLab/issues/468) The backup verifier
+      mistook every Loki archive for a Paperless one.** 2026-09-14. Both
+      `backup-volumes` and `verify-backups` exited 2 from 2026-09-13, and
+      every `loki-data` archive on the host — five sets that had verified clean
+      the day before — failed the same line: *this archive carries the
+      sentinel of paperless-data*. #133 gave `paperless-data` the sentinel
+      `./index`; a Loki data volume has a top-level `./index` of its own, listed
+      as a `loki-data` companion two tables down in the same script, and the
+      change reached the host with the 2026-09-12 revision. The archives were
+      intact; no manifest was written after 2026-09-06 and nothing was pruned.
+
+      Found from the wiki side, by reading the units' journal out of Loki
+      (`Gerrrt/Lemmiwinks#279`). The fix keeps `./index` — it is the measured
+      marker — and makes `verify()` treat a foreign sentinel that is one of the
+      volume's own companions as evidence only when the volume's own sentinel
+      is also missing, in `--hot` as well; a Paperless archive mislabelled
+      `loki-data` still fails on both counts. `load_inventory()` now refuses a
+      table in which two volumes share a sentinel outright, the case
+      `verify()` cannot recover from. Applied by hand on the host after merge,
+      since converge is report-only; the next Sunday set is the proof.
+
 - [x] **[#110](https://github.com/Gerrrt/HomeLab/issues/110) Racked the shelf
       switch in U4, on UPS power.** 2026-09-08. The 1U vented shelf, the
       TP-Link that `prometheus` and `oracle` hang off moved onto it with its
