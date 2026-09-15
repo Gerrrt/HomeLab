@@ -89,21 +89,37 @@ capacity are still chosen at the till and recorded in
 [`hardware.md`](hardware.md) afterwards, per the ADR — nothing is named here
 before it is bought.
 
-**Already paid for**, in transit or on hand: the ProDesk 600 G4 (the tier's
-host and the firewall's spare hardware), and the I226 card on its M.2 adapter
-that a restore onto it needs
-([#404](https://github.com/Gerrrt/HomeLab/issues/404)); the CRS326 that
-replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); the
-TS150 NAS, the two
-Exos X20 18 TB drives for its mirror, and its boot SSD with the bracket and
-tape that mount it in the optical bay
-([#413](https://github.com/Gerrrt/HomeLab/issues/413));
-two SM863a SSDs for
-`Saruman` ([#418](https://github.com/Gerrrt/HomeLab/issues/418)); the pfSense
-installer stick; the 2 TB USB drive that becomes the photo library's disk on
-`trinity`; the removable medium the second age recipient lives on; and the A1437 cell
+**Already paid for and on hand**, as of 2026-09-15: the ProDesk 600 G4 —
+`trinity`, the tier's host and the firewall's spare hardware
+([#404](https://github.com/Gerrrt/HomeLab/issues/404)); the TS150 NAS and its
+boot SSD with the bracket and tape that mount it in the optical bay
+([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the 2 TB USB drive
+that becomes the photo library's disk on `trinity`; and the removable medium
+the second age recipient lives on.
+
+**Already paid for and still moving**: the I226 card on its M.2 adapter that a
+restore onto `trinity` needs
+([#404](https://github.com/Gerrrt/HomeLab/issues/404)) and the pfSense
+installer stick — between them, the whole of what the rehearsal now waits on;
+the two Exos X20 18 TB drives for `smaug`'s mirror
+([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the CRS326 that
+replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); two
+SM863a SSDs for `Saruman`
+([#418](https://github.com/Gerrrt/HomeLab/issues/418)); and the A1437 cell
 that replaces `prometheus`'s thirteen-year-old one
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
+
+Four things crossed from the second paragraph to the first on **2026-09-15**:
+the TS150, the ProDesk, the boot SSD, and the bracket and tape that mount it.
+**No row on the table above moves** — arriving is not buying, and this section
+tracks money. Nothing is racked, fitted or built by it either. What it changes
+is one sentence: the two builds are no longer waiting on a van for their
+machines, only for the parts named above. And what those boxes actually are is
+still unread — serials, the spec off POST rather than off a listing, SMART
+before an install, and whether `trinity`'s 512 GB SSD is an M.2 stick or a
+2.5" drive that would contend with the I226 card for the same slot.
+[`hardware.md`](hardware.md) records each of those as owed rather than
+assuming the listing was right.
 
 **Only if a decision is taken, and none is pending** — these are not on the
 list, and each names what would put it there:
@@ -687,8 +703,12 @@ what left this one unfireable for months.
   ECC memory under a ZFS mirror, four real bays, and a Kaby Lake iGPU whose
   Quick Sync is what #138's transcoding needs. The drives were bought on
   2026-09-11 — two Seagate Exos X20 18 TB, chosen on cost per terabyte per
-  the ADR — and the boot disk with them, an Intel DC S3520 240 GB,
-  leaving only a bracket to carry it in the optical bay. The
+  the ADR — and the boot disk with them, an Intel DC S3520 240 GB, with the
+  bracket and the tape that carry it in the optical bay bought the same day.
+  This paragraph said a bracket was the only thing left to buy, which had not
+  been true since 2026-09-11. **The box landed 2026-09-15**, and the boot disk,
+  the bracket and the tape with it; the two Exos drives did not, so what the
+  build waits on is those and a bench, not money. The
   OS is decided: Ubuntu Server and one compose stack, not an appliance. Nothing
   is configured.
   Reading the enforced ruleset first changed two of the answers. **50→40 is not
@@ -795,8 +815,9 @@ what left this one unfireable for months.
   did not exist, and PVE already does the snapshots the local-only answer needs
   — so PBS would add a service for a capability that exists. `smaug` is bought
   since 2026-09-09 — the TS150 of
-  [#413](https://github.com/Gerrrt/HomeLab/issues/413), in transit, its two
-  drives bought on 2026-09-11 — and not built, so the deferral's trigger has moved from
+  [#413](https://github.com/Gerrrt/HomeLab/issues/413), in hand since
+  2026-09-15, its two drives bought on 2026-09-11 and still moving — and not
+  built, so the deferral's trigger has moved from
   a purchase to a build: PBS follows the NAS answering on `10.0.40.30`, not the
   box arriving. The lab has **revert and not backup** until then, and the ADR
   names what gets backed up when it arrives — which is also why ADR-0029 gives PBS no disk
