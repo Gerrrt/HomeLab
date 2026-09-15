@@ -166,12 +166,33 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   for this machine is outstanding on the roadmap's
   [list](roadmap.md#everything-still-to-buy) any more; what is left is those
   two drives landing, and a build.
-  **Checked on arrival, not assumed:** the Xeon E3-1225 v6 and the 8 GB of ECC
-  above came from a listing and not from the machine, so read them off POST or
-  the BIOS; the machine type-model and the serial off the chassis label; how
-  many of the four bays came with a caddy, because a bay without one holds no
-  drive; and that the 5.25" optical bay is empty, which the boot disk's bracket
-  assumes. Those go here when it is opened.
+  **Read off the machine on 2026-09-15**, where everything above it came off a
+  listing: `ThinkServer TS150`, machine type-model `70UB000AUX`, serial
+  `MJ05N4NK`. Xeon E3-1225 v6 at 3.30 GHz, four cores, and `Active Video: IGD`
+  — so the P630 this box was chosen for is live, which is the hardware half of
+  [ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)'s
+  reopen condition and not the whole of it; whether Quick Sync reaches a
+  container is still untested. 8192 MB at 2133 MHz, which is **one** Samsung
+  `M391A1G43EB1-CPBQ` — 8 GB 2Rx8 PC4-2133P, ECC unbuffered, date code 1728 —
+  in one of four slots. More memory is therefore an add and not a replace, and
+  the part to match is ECC **unbuffered**: a registered DIMM will not run on
+  this board. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
+  other address here. BIOS `S06KT03R` dated **2017-05-22**, embedded controller
+  `S06CT01A` — a nine-year-old firmware that predates the Spectre and Meltdown
+  microcode, worth checking against Lenovo's latest while the box is empty
+  rather than once it holds the household's library.
+  Six SATA ports, all enabled, and two settings that were already right rather
+  than needing changing: `Configure SATA as [AHCI]`, which is the raw-disk
+  access ZFS wants and the thing
+  [#418](https://github.com/Gerrrt/HomeLab/issues/418) is the cautionary tale
+  for, and `CSM [Disabled]`, so it boots UEFI as TrueNAS wants.
+  Two 3.5" trays, both empty — exactly the mirror and no spare.
+  **The 5.25" bay is not empty**: a PLDS `DVD-RW DU8AESH` answers on SATA5.
+  A photograph of the open case had been read here as an empty cage and was
+  wrong; the BIOS summary is what caught it. Pulling the optical drive frees
+  the bay for the boot disk, frees the port, and leaves power and data already
+  run to it — so the bracket inherits a cable that would otherwise have had to
+  be found.
 - 2× Seagate Exos X20 18 TB (`ST18000NM003D`), 3.5" SATA — bought
   2026-09-11, in transit. `smaug`'s ZFS mirror
   ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
