@@ -3,11 +3,24 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
-> The host this ADR calls `zion` is named **`smaug`** since 2026-09
+> **Two clauses of this ADR are superseded. The text below is left as written,
+> per ADR-0001.**
+>
+> **The name.** The host this ADR calls `zion` is named **`smaug`** since
+> 2026-09
 > ([ADR-0038](0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md)).
-> The address, the rules and the decision are unchanged — only the label. The
-> text here is left as written, per ADR-0001. `zion` is now reserved for the
-> dedicated firewall cold spare ADR-0034 defers, which does not exist.
+> The address, the rules and the decision are unchanged — only the label.
+> `zion` is now reserved for the dedicated firewall cold spare ADR-0034
+> defers, which does not exist.
+>
+> **The operating system.** `smaug` runs TrueNAS, not Ubuntu Server
+> ([ADR-0040](0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)) —
+> the operator's intent all along, found on 2026-09-15. The media stack stays
+> in this repository as a compose file under TrueNAS's app runtime, so the
+> *"no compose file, no pinned digests, no `make validate`"* cost this ADR
+> priced is not the one being paid; the storage layer is. Everything else here
+> — the address, the three rules, terminal outward, the scrape direction — is
+> unchanged and was never an OS decision.
 
 ## Context
 

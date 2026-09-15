@@ -152,9 +152,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   tracked under [#413](https://github.com/Gerrrt/HomeLab/issues/413). A tower,
   not a rack unit, and a 73 W part where the ADRs pictured an N100; it enters
   the Compute table when it is racked — or rather placed — addressed and in
-  `network.md`. The boot disk ADR-0016's Ubuntu Server install wants and the
-  bracket that carries it in the optical bay are the entries below and landed
-  with it; the two drives for the mirror, bought 2026-09-11, have not. Nothing
+  `network.md`. The boot disk the TrueNAS install wants
+  ([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md))
+  and the bracket that carries it in the optical bay are the entries below and
+  landed with it; the two drives for the mirror, bought 2026-09-11, have not. Nothing
   for this machine is outstanding on the roadmap's
   [list](roadmap.md#everything-still-to-buy) any more; what is left is those
   two drives landing, and a build.
@@ -175,8 +176,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   enter the Compute table with the NAS, which is not built.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
-  disk, carrying ADR-0016's Ubuntu Server and its one compose stack,
-  deliberately not the mirror. A data-centre part where the roadmap asked only
+  disk, carrying TrueNAS and the media stack it launches
+  ([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md),
+  superseding ADR-0016's Ubuntu Server), deliberately not the mirror — an
+  arrangement TrueNAS wants anyway, since it keeps its boot device out of the
+  pool entirely. A data-centre part where the roadmap asked only
   for "a 240–256 GB 2.5" SATA SSD": the endurance is beside the point for a
   boot disk, but
   the power-loss protection is the same property the SM863a pair was bought
