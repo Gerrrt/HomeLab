@@ -335,15 +335,13 @@ to be lined up before the box arrived. The box arrived on 2026-09-15 and the
 card and the installer stick did not, so it stops being a countdown and
 becomes a list of what is blocking:
 
-- **The spare itself** — **here since 2026-09-15**, and unopened
-  ([`hardware.md`](../hardware.md)). It is a stock refurbished G4 that the
-  listing says has the onboard NIC only; nothing has been read off the machine
-  to confirm that. **Open it before the card arrives**, because of the bullet
-  below: if its 512 GB SSD is a 2.5" drive, the drive carrier and a card in
-  the second M.2 slot contend for the same space, and an M.2 SSD does not.
-  That was an unknown about a box in a van and is now an unanswered question
-  about a box in the room — answering it while the card can still be returned
-  costs nothing, and answering it on the day costs the rehearsal.
+- **The spare itself** — **here since 2026-09-15, opened, and not a blocker**
+  ([`hardware.md`](../hardware.md)). Its 512 GB SSD is **M.2 and the second
+  M.2 slot is free**, so the card below has somewhere to go and the
+  drive-carrier contention this list warned about does not happen. It is a
+  stock refurbished G4 that the listing says has the onboard NIC only, which
+  is still the listing talking; the spec, the serial and the NIC count have
+  not been read off the machine.
 - **The I226 card** — bought 2026-09-11, **still in transit**
   ([`hardware.md`](../hardware.md)). One of the two things the rehearsal now
   waits on.

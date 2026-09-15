@@ -102,8 +102,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   2026-09-08, carrying the unmanaged switch that feeds `prometheus` and
   `oracle` ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
 - HP ProDesk 600 G4 Micro — i5-8500T, 32 GB, 512 GB SSD, the same model as
-  `morpheus` — ordered 2026-09-08, **in hand since 2026-09-15** and not yet
-  opened. This is `trinity`, and it is **one box with two jobs, not two
+  `morpheus` — ordered 2026-09-08, **in hand since 2026-09-15** and opened on
+  2026-09-15. This is `trinity`, and it is **one box with two jobs, not two
   boxes**: the sensitive tier's host, and
   the firewall's spare hardware in a disaster
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
@@ -116,11 +116,14 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   only; the I226 card the restore depends on was a separate purchase, made
   2026-09-11 and the entry below — which has **not** landed. So what the
   rehearsal waits on is no longer this box: it is that card and the installer
-  stick. **Checked on arrival, not assumed:** the i5-8500T, the 32 GB and the
-  512 GB above are the listing's claims and not yet the machine's; the serial
-  and the product number off the case; and the question the entry below turns
-  on — whether that 512 GB SSD is an M.2 stick or a 2.5" drive in a carrier.
-  Those go here when it is opened.
+  stick. **The 512 GB SSD is M.2, and the second M.2 slot is free** — read off
+  the machine on 2026-09-15, and the answer the entry below was waiting for.
+  There is no drive carrier and nothing contends: the I226 card has a slot to
+  land in when it arrives, and the contingency the documents carried since
+  2026-09-11 does not fire. Still the listing's claims rather than the
+  machine's, and still to be read: the i5-8500T, the 32 GB and the 512 GB
+  above, the serial and the product number off the case, and that it really
+  does have the onboard NIC alone.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
   in transit. The second port on the ProDesk Micro above, matching the card
   in `morpheus` so a pfSense restore onto the spare brings the LAN up as
@@ -130,13 +133,17 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   entry on that runbook's prerequisite list that was still unbought, and it
   is deliberately not a USB NIC: a USB
   adapter comes up as `ure0`, which is the one thing a restore must not be
-  asked about. It goes in the G4 Micro's second M.2 slot — **and if that
-  machine's 512 GB SSD turns out to be a 2.5" drive rather than M.2, the
-  drive carrier and this card contend for the same space.** That question
-  stopped waiting on this card when the G4 Micro landed on 2026-09-15:
-  opening the box answers it, and answering it before the card arrives is
-  the difference between a return and a part that fits nothing. Part number
-  and the port's MAC go here when it lands.
+  asked about. It goes in the G4 Micro's second M.2 slot, **and that slot is
+  free**: the box was opened on 2026-09-15 and its 512 GB SSD is M.2, so there
+  is no 2.5" drive carrier to contend with. This entry carried the opposite
+  contingency from 2026-09-11 until then — that a carrier and this card would
+  want the same space, and that one of them would have to go. It was a real
+  risk and it did not happen; recorded as answered rather than deleted,
+  because the reason the card was bought before the box was opened is the
+  part worth remembering. Part number and the port's MAC go here when it
+  lands, as does confirmation that the free slot takes a B+M-key 2280 card —
+  `morpheus` is the same model and does exactly this, which is why the same
+  model was bought.
 - 2 TB USB portable hard drive — on hand, previously a games console's
   storage. Becomes the photo library's disk on `trinity`
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404)): Immich's originals
