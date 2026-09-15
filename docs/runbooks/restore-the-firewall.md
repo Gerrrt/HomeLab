@@ -330,16 +330,25 @@ answer — which of the two ports a fresh install makes WAN and which LAN,
 whether the I226 card comes back as `igc0` on the spare, how long the whole
 thing takes — and to write the answers back into §3.
 
-**Before the box arrives**, so the rehearsal does not stall on day one. All of
-it was measured on 2026-09-09:
+**What the rehearsal is still missing.** This list was written on 2026-09-09
+to be lined up before the box arrived. The box arrived on 2026-09-15 and the
+card and the installer stick did not, so it stops being a countdown and
+becomes a list of what is blocking:
 
-- **The I226 card** — bought 2026-09-11, in transit
-  ([`hardware.md`](../hardware.md)). The spare is a
-  stock refurbished G4 with the onboard NIC only. If its 512 GB SSD turns out
-  to be a 2.5" drive, the drive carrier and a card in the second M.2 slot
-  contend for the same space; an M.2 SSD does not.
-- **An installer for 2.9.0 or newer** — §3 step 1. The stick in transit is
-  whatever version it is; read it before the day.
+- **The spare itself** — **here since 2026-09-15**, and unopened
+  ([`hardware.md`](../hardware.md)). It is a stock refurbished G4 that the
+  listing says has the onboard NIC only; nothing has been read off the machine
+  to confirm that. **Open it before the card arrives**, because of the bullet
+  below: if its 512 GB SSD is a 2.5" drive, the drive carrier and a card in
+  the second M.2 slot contend for the same space, and an M.2 SSD does not.
+  That was an unknown about a box in a van and is now an unanswered question
+  about a box in the room — answering it while the card can still be returned
+  costs nothing, and answering it on the day costs the rehearsal.
+- **The I226 card** — bought 2026-09-11, **still in transit**
+  ([`hardware.md`](../hardware.md)). One of the two things the rehearsal now
+  waits on.
+- **An installer for 2.9.0 or newer** — §3 step 1, and the other. The stick
+  in transit is whatever version it is; read it before the day.
 - **The newest export on `oracle`**, and the age key's offline copy.
 - **The numbers to check against**: `make backup-firewall ARGS=--verify-only`
   prints the schema and the rule count — `24.6` and 92 rules on 2026-09-09.

@@ -68,13 +68,19 @@ documents for different readers.
   `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
   dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
   `gitleaks` over the full history.
-- **CI that validates the documentation too.** Six assertions cross-check
-  this prose against the configs it describes — rule and panel counts, the
-  SNMP inventory against `docs/network.md`, the host/stack and ports tables
-  against `compose.yaml`, and a ban on image versions in prose — Dependabot
-  edits only `compose.yaml`, so a version written anywhere else is stale
-  from the next bump. A document that disagrees with the repository fails
-  the build.
+- **CI that validates the documentation too.** Ten assertions cross-check
+  this prose against the configs it describes — counted claims (rules,
+  dashboards, panels, Alloy agents, VLANs, ADRs, runbooks), the SNMP
+  inventory and the compute table against `docs/network.md`, the host/stack
+  and ports tables against `compose.yaml`, ADR numbering, firewall posture
+  against `docs/firewall-claims.yaml`, guest rows against each other, this
+  file's outstanding-purchase count against the roadmap's buy table, and a
+  ban on image versions in prose — Dependabot edits only `compose.yaml`, so
+  a version written anywhere else is stale from the next bump. A document
+  that disagrees with the repository fails the build. That opening count is
+  now one of the claims, read from the check registry rather than kept by
+  hand: it said six while ten ran, and the list beside it had been overtaken
+  by four — drift in the sentence advertising that drift gets caught.
 - **Supply chain pinned by digest.** Every image carries both a tag and a
   `sha256:` digest, so a moved tag cannot change what deploys. CI enforces it;
   `make pin-digests` re-resolves them from the registry. Every `docker run` in
@@ -332,7 +338,9 @@ Open work is tracked in
 why it is in that order.
 
 The current top items: rehearse the firewall restore on the ProDesk bought on
-2026-09-08, and then build the sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
+2026-09-08 — on hand since 2026-09-15, so what the rehearsal waits on is the
+I226 card and the installer stick and no longer the box — and then build the
+sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
 roadmap's [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
 two items now, one later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
