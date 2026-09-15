@@ -20,7 +20,9 @@ check it. This does that for `docs/`, following the pattern
 Ten assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
-                           Alloy agents, ADRs, runbooks
+                           Alloy agents, ADRs, runbooks, and the size of this
+                           list — README.md says how many assertions run, and
+                           that number is read from the registry in main()
   2. SNMP targets          snmp.yaml <-> docs/network.md
   3. Host and stack table  docs/architecture.md <-> docs/network.md, stacks/
   4. Ports table           docs/architecture.md <-> compose.yaml
@@ -573,6 +575,25 @@ def check_counts(f: dict) -> list[str]:
         # a reference and not an inventory.
         (rf"{COUNT}" + WS + r"ADRs", {f["adrs"]}, "ADRs"),
         (rf"{COUNT}" + WS + r"runbooks", {f["runbooks"]}, "runbooks"),
+        # How many assertions this file runs — and the same shape as #72, #81
+        # and #367: a counted claim that no pattern named, going stale where
+        # nothing could see it. README.md said "Six assertions" while main()
+        # registered ten, and the enumeration beside it had been overtaken by
+        # four checks — ADR numbering, firewall posture, guest claims and the
+        # buy list were all running and none was mentioned. Drift in the one
+        # file whose subject is catching drift, which makes it a false claim
+        # about the checking rather than a stale fact about the checks.
+        #
+        # The ADRs comment above settles the "just delete the number" argument
+        # and it applies here with more force: the sentence exists to say how
+        # thoroughly these documents are checked, so the number is the claim.
+        #
+        # Sourced from len(checks) in main() rather than a constant here, so
+        # an eleventh assertion fails this line on the way in instead of
+        # waiting for someone to reread the bullet. main() writes it into the
+        # facts dict after building the registry; facts() cannot compute it,
+        # because the registry closes over the dict facts() is still building.
+        (rf"{COUNT}" + WS + r"assertions", {f["assertions"]}, "assertions"),
     )
     problems = []
     for rel in PROSE:
@@ -1259,6 +1280,13 @@ def main() -> int:
         ("README's outstanding-purchase count against the roadmap's table",
          check_buy_list),
     )
+
+    # The registry is the source for README's "N assertions", so adding a
+    # check above updates the claim rather than invalidating it. Written here
+    # rather than in facts() because the tuple closes over `f`, so the count
+    # does not exist until after the dict does; check_counts reads it through
+    # the same closure, which runs below this line.
+    f["assertions"] = len(checks)
 
     total = 0
     for label, check in checks:
