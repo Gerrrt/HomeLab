@@ -709,8 +709,15 @@ what left this one unfireable for months.
   been true since 2026-09-11. **The box landed 2026-09-15**, and the boot disk,
   the bracket and the tape with it; the two Exos drives did not, so what the
   build waits on is those and a bench, not money. The
-  OS is decided: Ubuntu Server and one compose stack, not an appliance. Nothing
-  is configured.
+  OS is decided, and **it is TrueNAS, not Ubuntu Server** — this line said the
+  opposite until 2026-09-15, when the operator said aloud what was about to be
+  installed and it turned out ADR-0016 had decided against the only OS ever
+  intended for this box
+  ([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)).
+  The media stack stays in this repository either way, as a compose file
+  TrueNAS launches rather than catalogue apps, so Dependabot and the image-pin
+  check keep reaching it; what leaves CI's reach is the pool and share layout.
+  Nothing is configured.
   Reading the enforced ruleset first changed two of the answers. **50→40 is not
   a rule to add**: Hicks and Winterfell each carry an explicit *Block access to
   CasaBonita* above their catch-all, so the pass has to be ordered in front of a
