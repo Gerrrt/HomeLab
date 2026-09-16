@@ -19,8 +19,13 @@
 > in this repository as a compose file under TrueNAS's app runtime, so the
 > *"no compose file, no pinned digests, no `make validate`"* cost this ADR
 > priced is not the one being paid; the storage layer is. Everything else here
-> — the address, the three rules, terminal outward, the scrape direction — is
-> unchanged and was never an OS decision.
+> — the address, the rule positions, terminal outward, the scrape direction —
+> is unchanged. **One detail is not: the ports in the Hicks rule below.** That
+> table reads `22,8096`, which assumed administration over SSH; TrueNAS is
+> administered over HTTPS, so it is **`443,8096`**. Port 22 stays on the
+> Winterfell rule, which is a backup pull. The corrected table, and the
+> position each rule needs, are in
+> [`build-the-nas.md`](../runbooks/build-the-nas.md) §0.5.
 
 ## Context
 

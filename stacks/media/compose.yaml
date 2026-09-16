@@ -1,0 +1,190 @@
+---
+# The media tier: ADR-0008's media server, placed with the screens it serves.
+#
+# Deployed on: smaug (10.0.40.30, VLAN 40 / CasaBonita) — the ThinkServer TS150
+#              of #413, running TrueNAS per ADR-0040.
+#              NOT DEPLOYED YET. docs/runbooks/build-the-nas.md §6 deploys it,
+#              after the ZFS mirror exists. Authored before the pool does, as
+#              stacks/sensitive was authored before trinity was built.
+# Deploy with:  make up STACK=media      (from the repository root)
+#
+# ---------------------------------------------------------------------------
+# Why this stack is one service
+# ---------------------------------------------------------------------------
+# ADR-0016 decided Jellyfin alone, and Plex only if a screen on 40 turns out to
+# have no working Jellyfin client — a deferral against a test nobody has run,
+# not a rejection. Audiobookshelf (#140) and Navidrome (#141) land here later,
+# in the shape this file already has.
+#
+# ---------------------------------------------------------------------------
+# Why there is no reverse proxy here, and why that is not an oversight
+# ---------------------------------------------------------------------------
+# stacks/sensitive puts everything behind Caddy and publishes one port, because
+# that tier holds the data whose loss hurts. This tier does not. Its clients are
+# televisions, and a television is not a browser: it speaks to Jellyfin on 8096
+# directly, on the same broadcast domain, with no firewall rule involved at all.
+# That is the whole of what ADR-0008 bought by placing the server WITH its
+# clients rather than punching a hole through a terminal segment to reach it.
+#
+# A proxy in front of that would add a hop, a certificate the televisions would
+# have to trust, and a second thing to be down — for a service whose threat
+# model is already "the segment with the game consoles on it".
+#
+# ---------------------------------------------------------------------------
+# On the comments in this file
+# ---------------------------------------------------------------------------
+# The settings shared with stacks/observability and stacks/sensitive — why
+# `init: true`, why `pids_limit`, the healthcheck shape, the `${VAR:?}` guards
+# that double as the required-key list — are argued at length in those files and
+# are NOT repeated here. What IS written out is what was MEASURED on the pinned
+# image, because those are the lines a reader cannot get from a sibling file or
+# from upstream's documentation.
+
+name: media
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging: *default-logging
+  networks: [media]
+  init: true
+  pids_limit: 512
+
+services:
+  # ---------------------------------------------------------------------------
+  # Jellyfin — the media server the televisions reach directly (#138, ADR-0016)
+  # ---------------------------------------------------------------------------
+  # MEASURED 2026-09-16 on the pinned image, and each of these is a line
+  # someone would otherwise have to guess at:
+  #
+  #   1. The image declares NO user, so it runs as root unless told otherwise.
+  #      Every other service in this estate runs as a numeric non-root user and
+  #      so does this one.
+  #
+  #   2. `/config` and `/cache` are `0:0` mode **777** in the pinned image:
+  #
+  #        docker run --rm --entrypoint stat <the jellyfin image> \
+  #          -c '%n %u:%g %a' /config /cache
+  #
+  #      The placeholder is deliberate: scripts/pin-digests.sh rewrites every
+  #      image reference in this file, comments included, so a literal one here
+  #      would grow a digest on every bump. stacks/sensitive uses `<caddy
+  #      image>` in the same place for the same reason.
+  #
+  #      World-writable means a non-root user can write them on first use, so
+  #      this service needs none of the chown dance stacks/sensitive documents
+  #      for Caddy. Verify the premise, not the argument, when the image moves:
+  #      if that ever prints something other than 777, revisit the `user:` line.
+  #
+  #   3. `curl` is present; `wget`, `busybox` and `nc` are NOT. That decides the
+  #      healthcheck, which elsewhere in this repository uses busybox wget.
+  #
+  #   4. It boots read-only as uid 65534 with only /tmp and /run as tmpfs, and
+  #      answers on 8096 within about two seconds.
+  #
+  #   5. Idle RSS on a first boot with no library: **65 MiB**.
+  jellyfin:
+    <<: *service-defaults
+    image: jellyfin/jellyfin:12.1@sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e
+    container_name: media-jellyfin
+    user: "${JELLYFIN_UID:?}:${JELLYFIN_GID:?}"
+    # The render group on the HOST, which owns /dev/dri/renderD128 — this is
+    # what lets a non-root container use Quick Sync. It is a host fact and not
+    # an image one, so .env.example says how to find it rather than guessing a
+    # number; getting it wrong is the difference between hardware transcoding
+    # and one 4K stream saturating the box.
+    group_add:
+      - "${RENDER_GID:?}"
+    # The Intel HD P630 in the E3-1225 v6. ADR-0040 made a live iGPU the
+    # HARDWARE half of its reopen condition and said explicitly that a P630 the
+    # host can see and a P630 a container can use are different claims — this
+    # device line is where the second claim is made, and
+    # build-the-nas.md §6 is where it is tested.
+    devices:
+      - /dev/dri:/dev/dri
+    # A ceiling to catch a leak, not a measurement — the same position
+    # stacks/sensitive takes, and #114's method replaces it once this tier has
+    # run for a fortnight. The number it is a ceiling OVER is 65 MiB idle; the
+    # headroom is for a library scan and for transcode buffers, which is the
+    # work this service exists to do and the only work that will move it.
+    mem_limit: 2g
+    memswap_limit: 2g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+      - /run:size=16m
+    volumes:
+      # Jellyfin's own state: the database, the users, the watch history, the
+      # resume positions and — by default — the downloaded metadata and artwork.
+      # This is the half of this tier that IS backed up, and the reason the
+      # split exists: ADR-0008 ruled the library replaceable, but re-acquiring
+      # a series does not restore which episode anyone was on.
+      # scripts/backup-volumes.sh is what copies it off-host.
+      - jellyfin-config:/config
+      # Transcode scratch and image caches. Regenerated on demand, so this is
+      # the volume whose loss costs CPU rather than anything.
+      - jellyfin-cache:/cache
+      # READ-ONLY, deliberately. Jellyfin keeps metadata in /config by default,
+      # so it has no need to write into the library — and mounting the library
+      # read-only means a compromised media server on the segment with the game
+      # consoles cannot delete the thing it serves. If a future decision wants
+      # .nfo files written alongside the media, that is a decision to record and
+      # this line to change, not a default to drift past.
+      - ${MEDIA_PATH:?}:/media:ro
+    # PUBLISHED, and this is the one service in the estate where publishing to
+    # the whole segment is the POINT rather than a hole. ADR-0012 asks for a
+    # named off-host consumer; here it is every television on CasaBonita, which
+    # reaches this port on the same broadcast domain without the firewall ever
+    # seeing the packet. The Hicks rule in build-the-nas.md §0.5 adds one more
+    # consumer — a workstation — and nothing else on the estate may reach it.
+    ports:
+      - "${JELLYFIN_BIND_ADDR:?}:8096:8096"
+    healthcheck:
+      # curl, because the image has it and has no wget — see MEASURED (3).
+      #
+      # THIS KEYS ON THE STATUS CODE AND DELIBERATELY IGNORES THE BODY. A fresh
+      # instance answers `/health` with **200 OK** and a body reading
+      # `Degraded`, measured on the pinned image before the setup wizard has
+      # ever been run. A check that required the body to read `Healthy` would
+      # therefore mark the container unhealthy from first boot until somebody
+      # completed the wizard — a bootstrap deadlock, and on `restart:
+      # unless-stopped` a restart loop. So this proves the listener is up and
+      # answering, which is what a container healthcheck can honestly claim;
+      # whether Jellyfin is WELL is a question for the alert rules, once #256
+      # settles how this host is scraped at all.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # It answered in about two seconds on a first boot with no library. This
+      # figure covers a start that has one to read.
+      start_period: 60s
+
+networks:
+  media:
+    driver: bridge
+    ipam:
+      config:
+        # 172.28.<vlan>.0/24, the scheme stacks/sensitive uses on 172.28.99.0/24
+        # — inside Docker's default private space, outside every subnet the
+        # estate routes, and outside the 172.30.30.0/24 ADR-0017 keeps unrouted
+        # on ifrit. A 172.28.40.x source in a firewall log means the same kind
+        # of thing a 172.28.99.x one does.
+        - subnet: 172.28.40.0/24
+
+volumes:
+  # Backed up. See the mount comment above, and §4 of build-the-nas.md for why
+  # this is the half of the tier that is.
+  jellyfin-config:
+  # Not worth backing up: transcode scratch and regenerable image caches. The
+  # same reasoning stacks/sensitive applies to immich-model-cache, which
+  # scripts/backup-volumes.sh skips by name for exactly this reason.
+  jellyfin-cache:
