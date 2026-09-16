@@ -177,10 +177,18 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   in one of four slots. More memory is therefore an add and not a replace, and
   the part to match is ECC **unbuffered**: a registered DIMM will not run on
   this board. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
-  other address here. BIOS `S06KT03R` dated **2017-05-22**, embedded controller
-  `S06CT01A` — a nine-year-old firmware that predates the Spectre and Meltdown
-  microcode, worth checking against Lenovo's latest while the box is empty
-  rather than once it holds the household's library.
+  other address here. BIOS **`S06KT81L` dated 2024-02-05**, boot block `1.81`, flashed
+  2026-09-16 while the box was still empty. It shipped on `S06KT03R` dated
+  2017-05-22 with boot block `1.03` — a firmware predating the Spectre and
+  Meltdown microcode by a year — and the flash was done before the pool existed
+  precisely so that a reset of `Configure SATA as` or of `CSM` would cost a
+  re-check rather than an unbootable host with data on it. Both were re-checked
+  and both survived, as did the machine type-model, the serial, the UUID, the
+  MAC and the clock. **The embedded controller did not move**: it read
+  `S06CT01A` before and reads `S06CT01A` after, and whether the package updates
+  that component at all is unestablished — recorded as an observation rather
+  than as a failure, because nothing misbehaves and the BIOS half plainly
+  took.
   Six SATA ports, all enabled, and two settings that were already right rather
   than needing changing: `Configure SATA as [AHCI]`, which is the raw-disk
   access ZFS wants and the thing

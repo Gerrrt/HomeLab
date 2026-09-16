@@ -34,6 +34,14 @@ arrival day into §1–§7 rather than an evening.
 
 ### §0.1 — Flash the BIOS, or decide not to
 
+> **Done 2026-09-16.** `S06KT03R` (2017-05-22) → **`S06KT81L` (2024-02-05)**,
+> boot block `1.03` → `1.81`, by the DOS utility from a FreeDOS stick. `CSM`
+> and `AHCI` were both re-checked afterwards and both survived; so did the
+> machine type-model, the serial, the MAC and the clock. The embedded
+> controller still reads `S06CT01A` — see [`hardware.md`](../hardware.md). The
+> section below is kept for the next machine, and for the next time this one
+> needs it.
+
 `S06KT03R` dated **2017-05-22**, which predates the Spectre and Meltdown
 microcode. Lenovo ships DOS, Windows and Linux update utilities for the TS150;
 there is no network flash on this machine, because it has no BMC.
