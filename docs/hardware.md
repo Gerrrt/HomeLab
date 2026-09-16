@@ -40,6 +40,7 @@ quietly swapped.
 | `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
+| `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) | TrueNAS 25.10 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
 SNMP devices at a 60-second interval, four Alloy agents, and 30 days of metric
@@ -157,9 +158,12 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   2026-09-09, **in hand since 2026-09-15**. The NAS `smaug` of
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
   tracked under [#413](https://github.com/Gerrrt/HomeLab/issues/413). A tower,
-  not a rack unit, and a 73 W part where the ADRs pictured an N100; it enters
-  the Compute table when it is racked — or rather placed — addressed and in
-  `network.md`. The boot disk the TrueNAS install wants
+  not a rack unit, and a 73 W part where the ADRs pictured an N100. **It entered
+  the Compute table on 2026-09-16**, which is the trigger this entry set for
+  itself — placed, addressed at `10.0.40.30`, and in `network.md`. The Storage
+  column reads the boot disk alone on purpose: the ZFS mirror does not exist
+  until the two Exos drives land, and a Storage column describing a pool nobody
+  has created would be the kind of claim this table exists to not make. The boot disk the TrueNAS install wants
   ([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md))
   and the bracket that carries it in the optical bay are the entries below and
   landed with it; the two drives for the mirror, bought 2026-09-11, have not. Nothing
@@ -177,10 +181,40 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   in one of four slots. More memory is therefore an add and not a replace, and
   the part to match is ECC **unbuffered**: a registered DIMM will not run on
   this board. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
-  other address here. BIOS `S06KT03R` dated **2017-05-22**, embedded controller
-  `S06CT01A` — a nine-year-old firmware that predates the Spectre and Meltdown
-  microcode, worth checking against Lenovo's latest while the box is empty
-  rather than once it holds the household's library.
+  other address here. BIOS **`S06KT81L` dated 2024-02-05**, boot block `1.81`, flashed
+  2026-09-16 while the box was still empty. It shipped on `S06KT03R` dated
+  2017-05-22 with boot block `1.03` — a firmware predating the Spectre and
+  Meltdown microcode by a year — and the flash was done before the pool existed
+  precisely so that a reset of `Configure SATA as` or of `CSM` would cost a
+  re-check rather than an unbootable host with data on it. Both were re-checked
+  and both survived, as did the machine type-model, the serial, the UUID, the
+  MAC and the clock. **The embedded controller did not move**: it read
+  `S06CT01A` before and reads `S06CT01A` after, and whether the package updates
+  that component at all is unestablished — recorded as an observation rather
+  than as a failure, because nothing misbehaves and the BIOS half plainly
+  took.
+  **Intel AMT was enabled and on its factory-default credential when this box
+  arrived, and is now off.** Intel ME `v11.6.12.1204`, MEBx `v11.0.0.0012`: the
+  MEBx accepted `admin` on 2026-09-16, which is Intel's default and means
+  nobody had ever set one — the same class of thing the CRS326 entry below
+  warns about, that a used device arrives carrying whatever its last owner left
+  on it. `Manageability Feature Selection` read `Enabled`, `Password Policy`
+  the stock `Anytime`, and the ME network name and domain were both **blank**,
+  which is the evidence it had never been provisioned onto a network rather
+  than a proof of it. Closed the same day, in the order the firmware requires:
+  a new ME password (MEBx forces one at first login, and it lives in the
+  operator's password manager), then `Unconfigure Network Access` →
+  `Full Unprovision` while the feature was still enabled, then
+  `Manageability Feature Selection` → `Disabled`. Verified by the `<CTRL-P>`
+  prompt no longer being offered at boot.
+  **Disabled rather than hardened, which is the opposite of what
+  [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md) decided for
+  `shiva`**, and the difference is the host's job rather than a change of
+  posture: `Saruman` is headless in a rack and a remote console is load-bearing
+  there, so its iLO was kept and locked down. `smaug` is a tower with a monitor
+  beside it, on the segment with the televisions and the consoles. Out-of-band
+  management buys it nothing and would cost a management plane that answers
+  when the operating system is off.
   Six SATA ports, all enabled, and two settings that were already right rather
   than needing changing: `Configure SATA as [AHCI]`, which is the raw-disk
   access ZFS wants and the thing

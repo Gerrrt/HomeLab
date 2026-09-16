@@ -274,6 +274,7 @@ Televisions and consoles. Internet only.
 | morpheus | `10.0.40.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
 | nibelheim | `10.0.40.10` | `78:c8:81:xx:xx:xx` | Sony PlayStation 5[^PS5] | — | Lower floor | Console |
 | hyrule | `10.0.40.20` | `00:05:1b:xx:xx:xx` | Nintendo Switch[^Nintendo] | — | Lower floor | Console |
+| smaug | `10.0.40.30` | `4c:cc:6a:xx:xx:xx` | Lenovo ThinkServer TS150 | TrueNAS 25.10 | Media room | NAS |
 | mediatv | `10.0.40.100` | `58:fd:b1:xx:xx:xx` | LG OLED[^OLEDTV] | webOS | Media room | TV |
 | streambox | `10.0.40.101` | `f0:46:3b:xx:xx:xx` | Xumo Stream Box[^StreamBox] | entOS | Media room | Streaming |
 
@@ -283,13 +284,23 @@ Televisions and consoles. Internet only.
 - Internet only, no path to any other segment. Smart TVs run unauditable
   firmware with a permanent internet connection and no patch guarantee, so they
   get the same trust level as a guest.
-- The planned NAS lands here — `smaug` at `10.0.40.30`, decided by
-  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
-  bought 2026-09-09 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)) and
-  not yet built. It does not change the *Reaches* column: nothing on this
-  segment will initiate anywhere, and the three rules that ADR writes down all
-  let a more trusted segment reach **in**. That is the direction this row
-  records, and it is the one that is unchanged.
+- **The NAS is here and addressed since 2026-09-16** — `smaug` at
+  `10.0.40.30`, decided by
+  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+  and running TrueNAS by
+  [ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)
+  ([#413](https://github.com/Gerrrt/HomeLab/issues/413)). Its ZFS mirror does
+  not exist yet and neither does `stacks/media`; what exists is a host on its
+  address. **It does not change the *Reaches* column**, and that is the point
+  ADR-0016 made in advance: nothing on this segment initiates anywhere, and the
+  three rules created that day all let a more trusted segment reach **in**.
+  That is the direction this row records, and it is the one that is unchanged.
+- **Inbound is no longer nothing, and that is deliberate.** Since 2026-09-16
+  Hicks reaches `10.0.40.30` on `443` and `8096`, and `10.0.99.20` reaches it
+  on `9100` and `22` — four host-scoped, port-scoped passes above *Block access
+  to CasaBonita* on their interfaces. Everything else on every other segment is
+  still refused, and the televisions need no rule at all because they share this
+  broadcast domain with the server.
 
 [^OLEDTV]: [LG OLED TV](https://www.lg.com/us/tvs/oled)
 [^PS5]: [PlayStation 5](https://www.playstation.com/en-us/ps5/)

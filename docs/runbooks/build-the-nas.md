@@ -17,8 +17,19 @@ drives for §1 onward.
 > DHCP at `10.0.40.100`. Its spec is read off the machine rather than off a
 > listing and recorded in [`hardware.md`](../hardware.md).
 >
-> Nothing below §0.3 has been done. The pool does not exist, the address is
-> still DHCP, and none of the three firewall rules is created.
+> **§0 is complete as of 2026-09-16.** BIOS flashed (§0.1), AMT found on its
+> factory-default credential and disabled (§0.2), the static set (§0.3), the
+> reservation added (§0.4), and the rules created as four host- and port-scoped
+> passes rather than three (§0.5) — `443,8096` from Hicks split into two rules,
+> `9100` and `22` from `10.0.99.20`.
+>
+> §0.6 verified from `morpheus` rather than from the UI: every pass sits above
+> *Block access to CasaBonita* on its interface (167–168 before 169 on
+> `igc0.99`, 194–195 before 196 on `igc0.50`), Winterfell is still correctly
+> refused on `443`, and the `igc0.40` tripwire reads **118,621 evaluations and
+> zero packets**.
+>
+> What is left is the drives. The pool does not exist and nothing is deployed.
 
 This builds what [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 placed and [ADR-0040](../adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)
@@ -33,6 +44,14 @@ Every step here is independent of the drives. Doing it now is what turns
 arrival day into §1–§7 rather than an evening.
 
 ### §0.1 — Flash the BIOS, or decide not to
+
+> **Done 2026-09-16.** `S06KT03R` (2017-05-22) → **`S06KT81L` (2024-02-05)**,
+> boot block `1.03` → `1.81`, by the DOS utility from a FreeDOS stick. `CSM`
+> and `AHCI` were both re-checked afterwards and both survived; so did the
+> machine type-model, the serial, the MAC and the clock. The embedded
+> controller still reads `S06CT01A` — see [`hardware.md`](../hardware.md). The
+> section below is kept for the next machine, and for the next time this one
+> needs it.
 
 `S06KT03R` dated **2017-05-22**, which predates the Spectre and Meltdown
 microcode. Lenovo ships DOS, Windows and Linux update utilities for the TS150;
