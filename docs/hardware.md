@@ -40,6 +40,7 @@ quietly swapped.
 | `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
+| `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) | TrueNAS 25.10 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
 SNMP devices at a 60-second interval, four Alloy agents, and 30 days of metric
@@ -157,9 +158,12 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   2026-09-09, **in hand since 2026-09-15**. The NAS `smaug` of
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
   tracked under [#413](https://github.com/Gerrrt/HomeLab/issues/413). A tower,
-  not a rack unit, and a 73 W part where the ADRs pictured an N100; it enters
-  the Compute table when it is racked — or rather placed — addressed and in
-  `network.md`. The boot disk the TrueNAS install wants
+  not a rack unit, and a 73 W part where the ADRs pictured an N100. **It entered
+  the Compute table on 2026-09-16**, which is the trigger this entry set for
+  itself — placed, addressed at `10.0.40.30`, and in `network.md`. The Storage
+  column reads the boot disk alone on purpose: the ZFS mirror does not exist
+  until the two Exos drives land, and a Storage column describing a pool nobody
+  has created would be the kind of claim this table exists to not make. The boot disk the TrueNAS install wants
   ([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md))
   and the bracket that carries it in the optical bay are the entries below and
   landed with it; the two drives for the mirror, bought 2026-09-11, have not. Nothing

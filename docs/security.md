@@ -11,7 +11,7 @@ What this network is actually built to survive:
 | --- | --- |
 | A compromised IoT device pivoting to a workstation | VLAN 20 is terminal — no route to any other segment |
 | A guest on the Wi-Fi enumerating the LAN | VLAN 10 is terminal, client isolation on |
-| A smart TV's firmware phoning somewhere unexpected | VLAN 40 is terminal, egress only |
+| A smart TV's firmware phoning somewhere unexpected | VLAN 40 is terminal **outward** — egress only, and nothing on it initiates into another segment. Since 2026-09-16 two more-trusted segments reach one host on it on named ports ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)), which changes what reaches *in* and not what gets *out*; the `igc0.40` tripwire still reads zero packets |
 | A corporate laptop carrying something in from outside | Sits on VLAN 50 but has no management access |
 | A lab VM escaping into the house | VLAN 30 reachable only *from* trusted, never *to* it; the lab tripwire logs anything that gets past the blocks ([#234](https://github.com/Gerrrt/HomeLab/issues/234)) |
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |

@@ -48,10 +48,15 @@ documents for different readers.
 ## Highlights
 
 - **Network segmented by trust, not by function.** Six VLANs; IoT, media and
-  guest segments are terminal — egress only, no path to anything else, and each
-  carries a tripwire that logs anything which gets past that. Default deny holds
-  everywhere except the trusted workstation segment and the switch LAN, both of
-  which are listed rather than counted.
+  guest segments are terminal **outward** — nothing on them initiates anywhere
+  else, and each carries a tripwire that logs anything which gets past that.
+  Inbound is a separate question, and since 2026-09-16 CasaBonita is the one
+  exception: two more-trusted segments reach one host on named ports, so the
+  televisions can have a media server without the segment ceasing to be terminal
+  in the direction that matters
+  ([ADR-0016](docs/adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)).
+  Default deny holds everywhere except the trusted workstation segment and the
+  switch LAN, both of which are listed rather than counted.
   [Why](docs/adr/0013-segment-access-as-implemented.md)
 - **Full observability pipeline for a mixed estate.** Grafana Alloy agents push
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
