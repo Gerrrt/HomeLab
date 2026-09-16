@@ -226,12 +226,34 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `SATA Drive 5 Hard Disk INTEL SSDSC2BB240G7`, and the `G7` suffix is the
   S3520 generation — so the part is what the listing said, on the port the
   optical drive vacated, with both its cables inherited rather than found.
-  **Still owed, and needing `smartctl` rather than the BIOS:** the serial,
-  `Power_On_Hours` and `Percentage_Used`, read **before** TrueNAS is written to
-  it rather than after — the same caution the Exos pair below is bought under,
-  and for the same reason: a listing's hours are a claim. The installer's shell
-  is where that happens, one menu choice ahead of the install that would
-  otherwise make it moot.
+  Serial `PHDV706401TM240AGN`, firmware `N2010101`, on SATA 3.1 at 6.0 Gb/s.
+  **`smartctl` read 2026-09-16, and it is a used drive with a history worth
+  recording**: SMART self-assessment `PASSED`, `Media_Wearout_Indicator` **088**
+  — Intel's own counter, which starts at 100 and falls, so roughly a tenth of
+  the write endurance is spent and the rest is ample for a disk that will carry
+  an operating system and no data. 13,182 power-on hours, about eighteen months
+  running. Around 72 TiB written by its previous host. Zero pending sectors,
+  zero reported-uncorrectable, zero CRC errors, zero end-to-end errors, and
+  24 °C in the bay with the fan on.
+  **509 unsafe shutdowns out of 538 power cycles**, which is the number that
+  says what this drive did before: it was almost never shut down cleanly. It is
+  also the argument above, tested. This part was chosen because *a boot disk
+  that survives a power cut is worth more here than one that is merely fast*,
+  and `Power_Loss_Cap_Test` still passes after 509 of them — the capacitor works
+  and somebody else did the proving.
+  **Four reallocated sectors, and that is a number to watch rather than to
+  reject** — normalised 099 against a threshold of 000, with nothing pending
+  and nothing uncorrectable behind it. It has a consequence that is better
+  written down now than discovered later: `SmartDriveBadSectors` fires on
+  `homelab_smart_reallocated_sectors > 0`, deliberately, because a remapped
+  sector never un-remaps and the first one is the finding. **So this drive will
+  trip that alert on the day SMART collection reaches `smaug`**, exactly as
+  `oracle`'s 32 static sectors do, and the answer is the one #351 already built:
+  silence the static fact and let `SmartDriveBadSectorsGrowing` carry the trend,
+  because a silence matches labels and no label carries the count.
+  `SmartDriveWearHigh` will not fire — it wants 80 % of rated life used and this
+  is near a tenth. No self-tests had ever been logged, so a baseline belongs on
+  it before the machine carries anything, and TrueNAS's scheduled tests after.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
   for the ProLiant's SFF bays. Bought against the number every sizing
