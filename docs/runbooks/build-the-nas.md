@@ -199,7 +199,7 @@ smartctl -t long /dev/sdc
 
 | Setting | Value |
 | --- | --- |
-| Name | `hoard` |
+| Name | `erebor` |
 | Layout | **Mirror** |
 | Disks | the two Exos X20 |
 
@@ -213,13 +213,13 @@ the optical bay exists for.
 
 ## §4 — Datasets
 
-**Storage → `hoard` → Add Dataset.** Two of them, and the split is the backup
+**Storage → `erebor` → Add Dataset.** Two of them, and the split is the backup
 decision made deliberately rather than drifted into.
 
 | Dataset | Record size | atime | What it holds | Backed up |
 | --- | --- | --- | --- | --- |
-| `hoard/media` | `1M` | off | films, music, the library | **no** |
-| `hoard/apps` | default | off | Jellyfin's database and config | **yes** |
+| `erebor/media` | `1M` | off | films, music, the library | **no** |
+| `erebor/apps` | default | off | Jellyfin's database and config | **yes** |
 
 **Why the split.** ADR-0008 already ruled the library replaceable — its loss is
 *"annoying rather than catastrophic"* — and backing up 18 TB of re-downloadable
@@ -228,12 +228,12 @@ capacity. But **the metadata is not replaceable**: watch history, resume
 positions, accounts, and how the library is organised. Re-acquiring a series
 does not restore which episode you were on, and that is measured in megabytes.
 
-`1M` records on `hoard/media` because it holds large sequential files;
+`1M` records on `erebor/media` because it holds large sequential files;
 compression stays on and costs nothing on already-compressed media.
 
 ## §5 — The household share
 
-**Shares → Windows (SMB) → Add**, pointed at `hoard/media`.
+**Shares → Windows (SMB) → Add**, pointed at `erebor/media`.
 
 Create a dedicated TrueNAS user for it rather than sharing the admin account.
 The admin credential is the one that guards everything on this box, and an SMB
@@ -247,8 +247,8 @@ a compose file this repository owns, run under TrueNAS's app runtime, **not** a
 catalogue app. That is what keeps Dependabot, the digest pins and
 `make validate` reaching it.
 
-Jellyfin binds `8096`, reads `hoard/media`, and writes its state to
-`hoard/apps`.
+Jellyfin binds `8096`, reads `erebor/media`, and writes its state to
+`erebor/apps`.
 
 > **The check ADR-0040 named as its reopen condition belongs here.** Confirm
 > the iGPU reaches the container:
@@ -272,7 +272,7 @@ Jellyfin binds `8096`, reads `hoard/media`, and writes its state to
 - A Hicks workstation reaches `https://10.0.40.30` and `http://10.0.40.30:8096`
 - The monitoring host reaches `9100` and **nothing else**
 - The `igc0.40` tripwire counter is **still zero**
-- `zpool status hoard` is `ONLINE` with no errors
+- `zpool status erebor` is `ONLINE` with no errors
 - Both Exos self-tests from §2 completed without error
 
 ## §8 — What this leaves open
@@ -285,7 +285,7 @@ Jellyfin binds `8096`, reads `hoard/media`, and writes its state to
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
   PBS**, whose sync job wants another PBS instance — on TrueNAS that is PBS in
   a VM or a change to an NFS/SMB datastore.
-- **The off-host copy of `hoard/apps`**, which §4 decided should exist and this
+- **The off-host copy of `erebor/apps`**, which §4 decided should exist and this
   runbook does not build.
 - **Plex**, deferred by ADR-0016 against a test nobody has run: whether any
   screen on 40 lacks a working Jellyfin client.
