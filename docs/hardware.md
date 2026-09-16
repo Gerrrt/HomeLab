@@ -189,6 +189,28 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   that component at all is unestablished — recorded as an observation rather
   than as a failure, because nothing misbehaves and the BIOS half plainly
   took.
+  **Intel AMT was enabled and on its factory-default credential when this box
+  arrived, and is now off.** Intel ME `v11.6.12.1204`, MEBx `v11.0.0.0012`: the
+  MEBx accepted `admin` on 2026-09-16, which is Intel's default and means
+  nobody had ever set one — the same class of thing the CRS326 entry below
+  warns about, that a used device arrives carrying whatever its last owner left
+  on it. `Manageability Feature Selection` read `Enabled`, `Password Policy`
+  the stock `Anytime`, and the ME network name and domain were both **blank**,
+  which is the evidence it had never been provisioned onto a network rather
+  than a proof of it. Closed the same day, in the order the firmware requires:
+  a new ME password (MEBx forces one at first login, and it lives in the
+  operator's password manager), then `Unconfigure Network Access` →
+  `Full Unprovision` while the feature was still enabled, then
+  `Manageability Feature Selection` → `Disabled`. Verified by the `<CTRL-P>`
+  prompt no longer being offered at boot.
+  **Disabled rather than hardened, which is the opposite of what
+  [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md) decided for
+  `shiva`**, and the difference is the host's job rather than a change of
+  posture: `Saruman` is headless in a rack and a remote console is load-bearing
+  there, so its iLO was kept and locked down. `smaug` is a tower with a monitor
+  beside it, on the segment with the televisions and the consoles. Out-of-band
+  management buys it nothing and would cost a management plane that answers
+  when the operating system is off.
   Six SATA ports, all enabled, and two settings that were already right rather
   than needing changing: `Configure SATA as [AHCI]`, which is the raw-disk
   access ZFS wants and the thing
