@@ -3,6 +3,19 @@
 **Status:** Accepted · 2026-09 · supersedes the operating-system clause of
 [ADR-0016](0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 
+> [!NOTE]
+> **Decision 1 below is wrong in one detail, found on 2026-09-16 while the
+> rules were about to be created.** It says the address, the three rules and
+> the scrape direction "were never OS decisions". The *ports* in ADR-0016's
+> Hicks rule were: that table reads `22,8096`, which assumed a host
+> administered over SSH because ADR-0016 had chosen Ubuntu Server. TrueNAS is
+> administered over HTTPS, so the admin port is **443**, and the rule as
+> written would have left the NAS unreachable from a workstation in a way that
+> looks like a firewall fault. The corrected table is in
+> [`build-the-nas.md`](../runbooks/build-the-nas.md) §0.5. Port 22 stays on the
+> Winterfell rule, which is a backup pull and not administration. The text
+> below is left as written, per ADR-0001.
+
 ## Context
 
 [ADR-0016](0016-open-casabonita-inward-and-keep-it-terminal-outward.md), under
