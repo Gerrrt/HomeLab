@@ -252,8 +252,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   silence the static fact and let `SmartDriveBadSectorsGrowing` carry the trend,
   because a silence matches labels and no label carries the count.
   `SmartDriveWearHigh` will not fire — it wants 80 % of rated life used and this
-  is near a tenth. No self-tests had ever been logged, so a baseline belongs on
-  it before the machine carries anything, and TrueNAS's scheduled tests after.
+  is near a tenth. No self-tests had ever been logged in 13,182 hours, so a
+  baseline was taken on 2026-09-16 before the machine carried anything:
+  **extended offline, completed without error, at lifetime hour 13,183**. The
+  drive took far longer than its own two-minute estimate because it advertises
+  *Suspend Offline collection upon new command* and TrueNAS was live underneath
+  it — worth knowing before reading a slow self-test as a sick disk. TrueNAS's
+  scheduled tests take it from here.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
   for the ProLiant's SFF bays. Bought against the number every sizing
