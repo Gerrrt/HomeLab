@@ -360,6 +360,18 @@ def count_notifying_receivers() -> int:
     )
 
 
+# A Contents cell saying a host runs NO Alloy agent. Stripped before the
+# substring test below, so that saying so does not read as saying the opposite.
+#
+# "no Alloy" covers both shapes the table uses: "runs no Alloy" on the six lab
+# machines ADR-0029 scrapes rather than instruments, and "No Alloy agent" on a
+# host that is scraped for a different reason. A negation this does NOT know
+# would overcount — the failure is loud rather than silent, because the count
+# is asserted against hardware.md's sentence, but it is worth extending here
+# rather than reaching for a different phrasing in the table.
+NO_ALLOY = re.compile(r"\bno\s+alloy\b", re.I)
+
+
 def count_alloy_agents() -> int:
     """Hosts the architecture table says run an Alloy agent.
 
@@ -375,6 +387,24 @@ def count_alloy_agents() -> int:
     convenience: dropping the marker on the commit that builds the host pushes
     this count to four and fails hardware.md's "three Alloy agents" in the same
     run, which is exactly when that sentence should be forced to change.
+
+    SAYING A HOST RUNS NO ALLOY USED TO COUNT IT AS RUNNING ONE. The test was a
+    bare `"alloy" in cell`, which cannot tell "Alloy agent (Docker)" from "runs
+    no Alloy". It was survivable only by accident: every row that says so is
+    also marked NOT_BUILT, so the negation was masked by the exclusion above —
+    and would have surfaced on the commit that dropped the marker, which is the
+    commit already busy changing this count for a real reason. Found 2026-09-16
+    when `smaug`'s row said "No Alloy agent" and pushed the count to five; six
+    further rows (`bahamut`, `leviathan`, `titan`, `ramuh`, `carbuncle`,
+    `siren`) carry "runs no Alloy" and are waiting to do the same.
+
+    Negations are STRIPPED rather than the affirmative being matched, and that
+    is the part worth writing down. Matching `alloy agent` instead looks
+    tidier and is wrong: `prometheus` names Alloy in a service list — "…
+    docker-socket-proxy, Alloy" — and never says "Alloy agent" at all, so that
+    test would drop a host which genuinely runs one and quietly report three.
+    An over-count fails loudly against hardware.md; an under-count would have
+    been a checker agreeing with a stale sentence.
     """
     tables = tables_under(
         ARCH_MD.read_text(encoding="utf-8"),
@@ -385,7 +415,7 @@ def count_alloy_agents() -> int:
     return sum(
         1 for row in tables[0][1:]
         if len(row) > 3
-        and "alloy" in strip_md(row[3]).lower()
+        and "alloy" in NO_ALLOY.sub("", strip_md(row[3])).lower()
         and not NOT_BUILT.search(row[3])
     )
 
