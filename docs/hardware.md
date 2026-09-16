@@ -187,12 +187,14 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#418](https://github.com/Gerrrt/HomeLab/issues/418) is the cautionary tale
   for, and `CSM [Disabled]`, so it boots UEFI as TrueNAS wants.
   Two 3.5" trays, both empty — exactly the mirror and no spare.
-  **The 5.25" bay is not empty**: a PLDS `DVD-RW DU8AESH` answers on SATA5.
+  **The 5.25" bay was not empty**: a PLDS `DVD-RW DU8AESH` answered on SATA5.
   A photograph of the open case had been read here as an empty cage and was
-  wrong; the BIOS summary is what caught it. Pulling the optical drive frees
-  the bay for the boot disk, frees the port, and leaves power and data already
-  run to it — so the bracket inherits a cable that would otherwise have had to
-  be found.
+  wrong; the BIOS summary is what caught it. The optical drive came out on
+  2026-09-16 and the boot disk took its place, its port and both its cables.
+  The bay is a cage carrying its own fan on the board's `AUX1_FAN` header, and
+  that fan is **not optional**: it is the airflow over the drive bays, and two
+  7200 rpm Exos under a scrub will want it. Reconnected after the swap and
+  reading `Aux Fan: Operating`.
 - 2× Seagate Exos X20 18 TB (`ST18000NM003D`), 3.5" SATA — bought
   2026-09-11, in transit. `smaug`'s ZFS mirror
   ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
@@ -216,15 +218,20 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   that is merely fast. The TS150's optical bay is 5.25" and this is a 2.5"
   drive, so it cannot be fitted bare: **a bracket for the bay and
   double-sided tape to mount it were bought 2026-09-11**, alongside the drive,
-  and both landed with it on 2026-09-15. Neither is named here yet — that was
-  deferred because nothing is recorded before it is in hand, and they now are,
-  so it is a naming this document owes rather than one it is waiting on.
-  **Checked on arrival, not assumed:** the drive's model, part number and
-  serial, and `smartctl -a` read back **before** the install rather than after
-  — the same caution the Exos pair below is bought under, and for the same
-  reason: a listing's hours are a claim. That the bracket is a 5.25"-to-2.5"
-  adapter and not the 3.5" version, which would fit neither the drive nor the
-  bay, goes here with them.
+  and both landed with it on 2026-09-15. The bracket is a 5.25"-to-2.5" adapter
+  and does fit both the drive and the bay — an assumption until it was fitted.
+  It and the tape are still unnamed here, which is a naming this document owes
+  rather than one it is waiting on.
+  **Fitted 2026-09-16 and detected:** the BIOS summary reads
+  `SATA Drive 5 Hard Disk INTEL SSDSC2BB240G7`, and the `G7` suffix is the
+  S3520 generation — so the part is what the listing said, on the port the
+  optical drive vacated, with both its cables inherited rather than found.
+  **Still owed, and needing `smartctl` rather than the BIOS:** the serial,
+  `Power_On_Hours` and `Percentage_Used`, read **before** TrueNAS is written to
+  it rather than after — the same caution the Exos pair below is bought under,
+  and for the same reason: a listing's hours are a claim. The installer's shell
+  is where that happens, one menu choice ahead of the install that would
+  otherwise make it moot.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
   for the ProLiant's SFF bays. Bought against the number every sizing
