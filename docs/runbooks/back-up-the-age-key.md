@@ -68,19 +68,29 @@ make secrets-verify-backup KEY=/path/to/the/copy
 Expect:
 
 ```console
--- recipient matches .sops.yaml: age1yrdu996…
+-- recipient age1yrdu996…
+-- this file has 2 recipient(s); this run proves one of them
 -- decrypting observability.sops.yaml with the backup key only
-ok — keys.txt decrypts secrets/observability.sops.yaml (6/6 keys)
+ok — keys.txt decrypts secrets/observability.sops.yaml (9/9 keys)
+   Proven: this key, on its own, recovers every secret in the repo.
+   Not proven: the other 1 recipient(s) of this file. Each needs its own
+   run against its own copy — SecretsKeyBackupUnproven names any that go
+   ninety days without one.
+   Not proven: that where you keep it will still exist after a fire,
+   a theft, or a forgotten password. That part is your judgement.
 ```
 
-What it proves: the key parses, its public half is the recipient the file was
-encrypted to, it decrypts the real ciphertext, and the result contains all six
-keys `render-config.sh` requires. No secret value is printed, written to a
-temporary file, or passed to another process.
+What it proves: the key parses, its public half is one of the recipients the
+file is *actually* encrypted to — read out of the ciphertext rather than out of
+`.sops.yaml`, which can drift from it — it decrypts that ciphertext, and the
+result contains all nine keys `render-config.sh` requires. No secret value is
+printed, written to a temporary file, or passed to another process.
 
 What it deliberately does not prove: that where you put the copy will still
-exist after a fire, a theft, or a forgotten master password. That part is
-judgement, not a check.
+exist after a fire, a theft, or a forgotten master password — that part is
+judgement, not a check — and nothing whatever about the *other* recipient. Each
+copy is proved on its own, which is what the second `--` line above is counting;
+see [Adding a second recipient](#adding-a-second-recipient).
 
 > **Why not just run `sops -d` by hand.** Because on the host that already holds
 > the key, it passes no matter what. `SOPS_AGE_KEY_FILE=<backup> sops -d …` also
@@ -301,8 +311,8 @@ recipient of their own, generated where they keep it and never on this host,
 which satisfies ADR-0023's off-estate constraint and the handover case in one
 move. The location stays out of this repository, as the first key's does.
 
-Whether their key is in `.sops.yaml` yet is read from the file
-(`grep -A3 creation_rules .sops.yaml`), not from this paragraph. Adding it is
+Whether their key can open the secrets yet is read from the ciphertext
+(`./scripts/key-recipients.sh --list`), not from this paragraph. Adding it is
 the procedure above — `make secrets-add-recipient` with their public half — and
 then `make secrets-verify-backup` with *each* key, because a re-key that drops
 a recipient is the failure mode here. What this still does not solve: their

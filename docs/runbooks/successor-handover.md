@@ -255,21 +255,32 @@ and the recovery path is re-deriving each credential from the device it belongs
 to: four SNMP rotations on hardware, one of which cannot persist a community
 deletion and needs the switch rebooted to change.
 
-Check first whether it is actually gone. `.sops.yaml` may list more than one
-recipient — [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
+Check first whether it is actually gone. The secrets may be encrypted to more
+than one recipient — [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
 made a second one the design, and a second *copy* may exist that is not the one
-you were handed:
+you were handed. Ask the ciphertext, which needs no key to read:
 
 ```bash
-grep -A3 creation_rules .sops.yaml     # every key that can open the secrets
+./scripts/key-recipients.sh --list     # every key that can open the secrets
 ```
 
-If a recipient there is one somebody else holds, the secrets are recoverable and
-this is a phone call rather than a rotation. Since 2026-09-08 the design is that
-there is one: the **technical second named on the break-glass card** holds a
-recipient of their own ([#294](https://github.com/Gerrrt/HomeLab/issues/294),
-[`back-up-the-age-key.md`](back-up-the-age-key.md)). If `.sops.yaml` lists two
-keys, the second is theirs, and the call is to them.
+That reads the recipients out of `secrets/observability.sops.yaml` itself, which
+is the only list that decides anything. `.sops.yaml` says which keys *future*
+encryptions will use, and the two can disagree — a key added there by hand
+without a re-key opens nothing. Compare them if you want to know whether that
+has happened:
+
+```bash
+grep -oE 'age1[a-z0-9]+' .sops.yaml    # what the repo advertises
+```
+
+If any recipient in the first list is one somebody else holds, the secrets are
+recoverable and this is a phone call rather than a rotation. Since 2026-09-08
+the design is that there is such a person: the **technical second named on the
+break-glass card** holds a recipient of their own
+([#294](https://github.com/Gerrrt/HomeLab/issues/294),
+[`back-up-the-age-key.md`](back-up-the-age-key.md)). If the list has a key that
+is not the one you were handed, that is theirs, and the call is to them.
 
 **A handover is the moment to add yours.** ADR-0024 built the mechanism and
 [#294](https://github.com/Gerrrt/HomeLab/issues/294) named the second holder;
