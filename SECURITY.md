@@ -43,7 +43,7 @@ is a very different thing from an overlooked one. Full detail in
 | Grafana `admin`/`admin` with anonymous Admin access enabled | Fixed — anonymous auth off, password from SOPS |
 | Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD` and purged from history. A new CA and leaf have been generated with [`scripts/gen-certs.sh`](scripts/gen-certs.sh); the old keys are superseded and should be treated as compromised wherever they were ever trusted. |
 | Decrypted secrets in editor undo files, written by `make secrets-edit` | Found 2026-08-20: three files under `~/.local/state/nvim/undodir/` holding the live pfSense, APC and iLO SNMP communities in plaintext, mode 664. Shredded. `make secrets-edit` now hardens `$EDITOR` before handing it plaintext, so it cannot recur. Never committed and never left the host, so those three communities were not rotated on that basis. |
-| Alertmanager webhook URL and the MokerLink SNMP community, in a local Claude Code session transcript | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook topic was rotated — on the public ntfy instance the topic name *is* the credential, there is nothing to revoke — and delivery re-verified end to end. The switch community deliberately was not: rotating it means the `neo` residual above all over again. |
+| Alertmanager webhook URL and the MokerLink SNMP community, in a local Claude Code session transcript | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook topic was rotated — on the public ntfy instance the topic name *is* the credential, there is nothing to revoke — and delivery re-verified end to end. The switch community deliberately was not: rotating it means the `neo` residual above all over again. **That reasoning is spent, and this value now retires with the hardware.** The overwrite it was afraid of was done on 2026-09-12 and persisted, and the MokerLink is being replaced by a switch commissioned with SNMP v2c off entirely — so what retires this community is not a fresh community but the absence of one. The thing that must not be carried across is any value the MokerLink held, passphrases included. |
 | Pre-purge objects still served by GitHub after the history rewrite | The 2026-08-19 rewrite (`021d2b6`) removed both secrets above from every *reachable* commit, but GitHub still serves the orphaned objects by SHA. Verified 2026-08-26: `647d90a`, `21afcad`, `efb2632` and `ee3d443` all still resolve through the API, and the tree at `21afcad` still lists `certificates/Gandalf.Gondor.Lab/ca-key.pem` and `cert-key.pem`. Garbage collection requested from GitHub Support on 2026-08-26 — **pending**; this is the [purge runbook](docs/runbooks/purge-git-history.md)'s *Afterwards* step, and it is the last one outstanding. The repository has no forks and a network count of 0, so nothing else is perpetuating them. Both credentials were rotated *before* the rewrite, so this changes nothing about their status: the old keys and the old community remain superseded and must still be treated as public. Re-check with `gh api repos/Gerrrt/HomeLab/commits/647d90a --jq .sha` — a `404` means GitHub has collected them. |
 | Alertmanager published on `0.0.0.0`, letting anyone who could reach it silence an alert | Fixed 2026-08-30 — 9093 now binds to `127.0.0.1` ([#70](https://github.com/Gerrrt/HomeLab/issues/70), [ADR-0012](docs/adr/0012-publish-only-ports-with-an-off-host-consumer.md)). This was the sharpest of the three because a silence switches off monitoring and the record of it lives in the system being switched off. Nothing off-host ever used the port: silences are reached through Grafana, which proxies Alertmanager over the compose network behind a login, so closing it cost no capability. |
 | Prometheus and Loki published on `0.0.0.0` with no authentication | **Accepted residual, not a fix in progress.** Anything that can route to `10.0.99.20:9090` or `10.0.99.20:3100` can read every metric and log line, inject metrics through Prometheus' remote-write receiver, and delete log ranges through Loki's delete API. Both stay published because `oracle`'s Alloy agent remote-writes to 9090 and pushes to 3100 — it is not a scrape target, so those ports are its only path. Firewall default-deny is the whole control, and since 2026-09-02 it is narrower than it was: the ingest ports are reachable from Winterfell (99) itself and from `10.0.30.110` on ImaginationLAN, which has an explicit pass for `Saruman`'s Alloy agent. Hicks (50) reaches `10.0.99.20` on `3000` only — a logged *Block access to Winterfell* drops the rest — and no untrusted segment reaches it at all. `docs/network.md` lists what Hicks may reach. Closing it properly means authentication in front of the ingest ports and a credential on every agent, which is a separate piece of work — see below. |
@@ -76,7 +76,11 @@ Over GET, after the stale rows were overwritten and the switch rebooted on
 2026-09-12, `public`, `private` and a junk string are refused. The previous
 community's row is the one thing still unmeasured over GET, because the
 string — the shared value purged from history — was not to hand in the
-window; it is recorded as unverified rather than as retired.
+window, and is not expected to become available: it is recorded as unverified
+rather than as retired, and it retires with the hardware rather than by
+measurement. If it ever does turn up, `./scripts/snmp-verify.sh --old` settles
+it for the cost of a single GET — no SET, no deletion, and none of the agent
+outage that the deletion attempts cost.
 
 `scripts/snmp-verify.sh` probes with GET since that date, because GET is what
 the switch authenticates. It also sends a short and a long junk string over
@@ -97,10 +101,13 @@ exposed beyond those. What would close it is a switch whose firmware checks
 what it serves, which is the replacement
 [ADR-0018](docs/adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
 names — a MikroTik CRS326, bought 2026-09-13 and recorded in
-[`docs/hardware.md`](docs/hardware.md); this residual closes when that switch
-is racked, not before. SET was not tested, because
-a SET is a change to the device. The overwrite procedure stays at [§2.5,
-*The MokerLink switch: overwrite
+[`docs/hardware.md`](docs/hardware.md), delivery estimated 2026-09-23; this
+residual closes when the MokerLink hardware leaves the rack, not before. That
+date is a courier estimate and not an arrival, and the swap is a house-wide
+outage that shares a rack visit rather than getting its own — so it is not the
+date this closes on, only the earliest a window could be picked. SET was not
+tested, because a SET is a change to the device. The overwrite procedure stays
+at [§2.5, *The MokerLink switch: overwrite
 the row*](docs/runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
 for the rows that are real.
 

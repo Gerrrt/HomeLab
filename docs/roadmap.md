@@ -203,11 +203,14 @@ either machine is.
   ACCEPTED` for the old one. Over GET, which it does check, both stock
   strings and a junk string are refused; the previous community's row is
   unverified rather than retired, because the string was not to hand in the
-  window. `snmp-verify.sh` probes with GET since that date and sends junk
-  strings over both PDUs weekly, `WARN` for the switch. Accepted residual,
-  larger than before and recorded in `SECURITY.md`; what closes it is the
-  replacement switch — bought 2026-09-13 and in transit — and the window
-  that racks it, not another window on this one. →
+  window and is not recoverable — it was the shared value purged from history.
+  So this closes by the hardware leaving, not by a measurement. `snmp-verify.sh`
+  probes with GET since that date and sends junk strings over both PDUs weekly,
+  `WARN` for the switch. Accepted residual, larger than before and recorded in
+  `SECURITY.md`; what closes it is the replacement switch — bought 2026-09-13,
+  delivery estimated 2026-09-23 — and the window that racks it, not another
+  window on this one. Nothing further is owed on the MokerLink: the overwrite
+  §2.5 prescribes was done on 2026-09-12 and persisted. →
   [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move to SNMPv3 authPriv
   where the hardware supports it.** Decided by
