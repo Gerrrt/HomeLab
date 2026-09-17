@@ -325,10 +325,18 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   decision on `Saruman` starts from: a 7.2K mirror serving about ninety
   random write IOPS
   ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
-  Serials go here when they land. The Compute table's Storage column changes
+  Serials go here when they land — read off the labels before the drives go
+  into the bays, which is step 4 of
+  [`fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md), because
+  reading them back afterwards means reading them through the tool the fit is
+  trying to verify. The Compute table's Storage column changes
   when [#418](https://github.com/Gerrrt/HomeLab/issues/418) fits them, and
   not before — that issue also names the ADRs whose arithmetic the fit makes
-  stale
+  stale. The fit itself is
+  [`fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md), whose step 4
+  reads both serials off the labels before the drives go into the bays —
+  reading them back afterwards means reading them through the tool the fit is
+  trying to verify
 - 2× HP 2.5" SFF drive tray, `651687-001`[^Caddy] — bought 2026-09-11, in
   transit, quoted to arrive by 2026-09-17 and not here on the morning of it.
   The carriers the SM863a pair above needs to sit in `Saruman`'s SFF bays
@@ -350,6 +358,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   this machine; that both arrived; and that each has its screws, since a
   carrier without them holds a drive no better than no carrier. `651687-001`
   is the listing's part number and not yet the tray's.
+  **Until they land the SSDs cannot be fitted at all**, which is the sharpest
+  form of the point #418 is built on: arriving is not fitting, and neither the
+  Compute table nor ADR-0029's arithmetic moves for a drive on a shelf.
 - MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
   RouterOS / SwOS — bought used 2026-09-13; in transit, delivery estimated
   2026-09-23, moved out from the 09-16 to 09-21 window quoted at purchase. The
