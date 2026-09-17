@@ -46,7 +46,7 @@ every television would have to trust, and a second thing to be down.
 | Who | Reaches it how |
 | --- | --- |
 | Televisions on CasaBonita | Natively, same broadcast domain — the firewall never sees the packet |
-| A Hicks workstation | The one rule in [`build-the-nas.md`] §0.5, `50 → 10.0.40.30:443,8096` |
+| A Hicks workstation | Two of the four rules in [`build-the-nas.md`] §0.5 — `50 → 10.0.40.30:443` and `50 → 10.0.40.30:8096`, one per port |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and

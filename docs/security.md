@@ -219,9 +219,13 @@ writes three passes into CasaBonita for the NAS, and
 [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) one into
 Skids — `10.0.99.40 → 10.0.20.104:80,443/tcp`, Home Assistant to the Hue
 bridge, the one device on that segment with a local API — above the block
-that has stood between 99 and 20 since the segments existed. Neither is
-created yet; both wait on the host that would use them. The row ADR-0008
-wrote as `99 → 20` is narrower than it read: one host to one device on two
+that has stood between 99 and 20 since the segments existed. **The first set
+exists and the second does not.** ADR-0016's passes were created on
+2026-09-16, as **four** rather than three — Hicks reaching `smaug` on `443`
+and `8096`, the monitoring host on `9100` and `22` — once there was a host on
+`10.0.40.30` to test them against. ADR-0035's is still uncreated and still
+waits on the host that would use it. The row ADR-0008 wrote as `99 → 20` is
+narrower than it read: one host to one device on two
 ports, with the twenty other devices on Skids still unreachable from
 anywhere, and the segment still initiating nothing. The tripwire below is the
 check that the second half holds when the first lands.
