@@ -351,7 +351,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `charge_full_design` and a cycle count reading low, then mains pulled and
   the host staying up with `HostOnBattery` firing — the property the cell is
   there for, and untested since the machine was commissioned
-  ([`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md)). `oracle`'s
+  ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md), which
+  also carries the stack-down window and the old cell's disposal). `oracle`'s
   cell reads 72 % and is second in line, unbought.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
