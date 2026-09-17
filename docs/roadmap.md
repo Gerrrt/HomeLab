@@ -112,14 +112,20 @@ that replaces `prometheus`'s thirteen-year-old one
 Four things crossed from the second paragraph to the first on **2026-09-15**:
 the TS150, the ProDesk, the boot SSD, and the bracket and tape that mount it.
 **No row on the table above moves** — arriving is not buying, and this section
-tracks money. Nothing is racked, fitted or built by it either. What it changes
-is one sentence: the two builds are no longer waiting on a van for their
-machines, only for the parts named above. And what those boxes actually are is
-still unread — serials, the spec off POST rather than off a listing, SMART
-before an install, and whether `trinity`'s 512 GB SSD is an M.2 stick or a
-2.5" drive that would contend with the I226 card for the same slot.
-[`hardware.md`](hardware.md) records each of those as owed rather than
-assuming the listing was right.
+tracks money. Nothing was racked, fitted or built by it either. What it changed
+is one sentence: the two builds stopped waiting on a van for their machines,
+and wait only for the parts named above.
+
+**What those boxes actually are was read off them** on 2026-09-15 and
+2026-09-16, which this paragraph listed as still owed: the TS150's machine
+type-model, serial, CPU and the single DIMM in four slots; the boot SSD's model
+and serial and its `smartctl -a` taken **before** the install rather than
+after; and `trinity`'s 512 GB SSD, which is an **M.2 stick**, so there is no
+2.5" drive carrier and the second M.2 slot is free for the I226 card that was
+the thing this sentence was worried about
+([#404](https://github.com/Gerrrt/HomeLab/issues/404)).
+[`hardware.md`](hardware.md) carries each of them as a reading now rather than
+as a debt.
 
 **Only if a decision is taken, and none is pending** — these are not on the
 list, and each names what would put it there:
@@ -707,8 +713,7 @@ what left this one unfireable for months.
   bracket and the tape that carry it in the optical bay bought the same day.
   This paragraph said a bracket was the only thing left to buy, which had not
   been true since 2026-09-11. **The box landed 2026-09-15**, and the boot disk,
-  the bracket and the tape with it; the two Exos drives did not, so what the
-  build waits on is those and a bench, not money. The
+  the bracket and the tape with it. The
   OS is decided, and **it is TrueNAS, not Ubuntu Server** — this line said the
   opposite until 2026-09-15, when the operator said aloud what was about to be
   installed and it turned out ADR-0016 had decided against the only OS ever
@@ -717,25 +722,53 @@ what left this one unfireable for months.
   The media stack stays in this repository either way, as a compose file
   TrueNAS launches rather than catalogue apps, so Dependabot and the image-pin
   check keep reaching it; what leaves CI's reach is the pool and share layout.
-  Nothing is configured.
-  Reading the enforced ruleset first changed two of the answers. **50→40 is not
-  a rule to add**: Hicks and Winterfell each carry an explicit *Block access to
+  **The host is built and the pool is not** — this paragraph said "nothing is
+  configured" until 2026-09-16, and on that day
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §0 was completed end to end:
+  the BIOS flashed, AMT found on Intel's factory-default credential and
+  unprovisioned, the optical drive swapped for the boot SSD and its SMART read
+  **before** the install, TrueNAS 25.10 installed, the static and the Kea
+  reservation both set, and the inbound rules created and verified. What is
+  left is the two Exos drives and everything downstream of them: the mirror
+  `erebor`, its two datasets, the household share, the stack, and the one test
+  that decides whether the stack stays here at all — whether Quick Sync reaches
+  a container, which is ADR-0040's reopen condition and is still unrun.
+  Reading the enforced ruleset first changed two of the answers, and both were
+  borne out when the rules were created. **50→40 is not simply a rule to add**:
+  Hicks and Winterfell each carry an explicit *Block access to
   CasaBonita* above their catch-all, so the pass has to be ordered in front of a
   deny, and one appended where new rules naturally land would match nothing —
-  the same fault ADR-0013 found in *Allow Hicks access to ImaginationLAN*. And
+  the same fault ADR-0013 found in *Allow Hicks access to ImaginationLAN*. That
+  is why position was verified from `morpheus` with `pfctl` rather than from
+  the web UI, where an appended rule looks present while matching nothing. And
   **one rule is not enough**: every other host in the estate is monitored and
   backed up by pushing, so a NAS built like the others would have its Alloy
   agent initiating 40→99, the first upward path in the estate and the end of the
   property ADR-0008 claims to keep. The ADR reverses the direction instead —
-  `node_exporter` scraped rather than Alloy pushing, the metadata backup pulled
+  scraped rather than Alloy pushing, the metadata backup pulled
   by `prometheus` rather than sent — which costs the NAS its logs, because Loki
-  has no pull and its ingest is unauthenticated. Three rules, all inbound, all
-  host- and port-scoped, written down and deliberately not created: a `pass` to
-  an address with nothing behind it is a rule nobody can test. Terminal survives
-  in the direction that carries it — CasaBonita stops being terminal inbound and
-  stays terminal outbound, with #223's tripwire untouched. Capacity buys a
+  has no pull and its ingest is unauthenticated, and costs it its SMART and its
+  patch state for the same reason
+  ([#255](https://github.com/Gerrrt/HomeLab/issues/255),
+  [#483](https://github.com/Gerrrt/HomeLab/issues/483)). ADR-0016 wrote down
+  three rules, all inbound, all host- and port-scoped, and deliberately did not
+  create them: a `pass` to an address with nothing behind it is a rule nobody
+  can test. **Four exist since 2026-09-16**, because the Hicks pass is split
+  into two rather than carrying a port list, and Hicks reaches `443` and not
+  the `22` that ADR-0016's table names — that port assumed a box administered
+  over SSH, which was an operating-system decision inside a firewall table, and
+  ADR-0040 carries the correction against its own text. Port 22 survives on the
+  Winterfell rule and is **inert**, because TrueNAS ships SSH disabled. Whether
+  the scrape target is `node_exporter` on `9100` or TrueNAS's own endpoint is
+  open, and it is not a free choice —
+  [#256](https://github.com/Gerrrt/HomeLab/issues/256) settles it, and the
+  second answer costs a fifth rule. Terminal survives
+  in the direction that carries it — CasaBonita stopped being terminal inbound
+  on 2026-09-16 and stays terminal outbound, with #223's tripwire untouched and
+  reading zero packets. Capacity buys a
   four-bay chassis with two bays filled, because the bay count is the half that
-  cannot be changed later and the library's size is a number nobody has.
+  cannot be changed later and the library's size is a number nobody has; both
+  trays are still empty.
 - **[#101](https://github.com/Gerrrt/HomeLab/issues/101) Build ADR-0007's
   defended estate on `Saruman`** — a Windows domain, Wazuh, Velociraptor, PBS
   and a second observability stack. The umbrella. The observability half is
@@ -815,21 +848,27 @@ what left this one unfireable for months.
   `odin` the way `stacks/lab` was ahead of `alexander`; what it cannot do
   before #414 is say anything, because an agentless Wazuh has nothing to
   report.
-  [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS is **decided and
+  [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS was **decided and
   deferred** by
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md):
   a hypervisor backing up its own guests to itself is not a backup, `smaug`
   did not exist, and PVE already does the snapshots the local-only answer needs
-  — so PBS would add a service for a capability that exists. `smaug` is bought
-  since 2026-09-09 — the TS150 of
-  [#413](https://github.com/Gerrrt/HomeLab/issues/413), in hand since
-  2026-09-15, its two drives bought on 2026-09-11 and still moving — and not
-  built, so the deferral's trigger has moved from
-  a purchase to a build: PBS follows the NAS answering on `10.0.40.30`, not the
-  box arriving. The lab has **revert and not backup** until then, and the ADR
-  names what gets backed up when it arrives — which is also why ADR-0029 gives PBS no disk
-  on this pool: there is nothing to give it yet. Liveness stays where it already
-  was, with
+  — so PBS would add a service for a capability that exists. That deferral
+  named its own trigger — *"PBS follows the NAS answering on `10.0.40.30`, not
+  the box arriving"* — and **the trigger has fired**: `smaug` has held that
+  address since 2026-09-16. This paragraph said the trigger had moved from a
+  purchase to a build, which was right, and then the build happened.
+  What has not cleared is the blocker: the pool does not exist, so there is
+  still nowhere to send anything, and ADR-0027's sync job was designed against
+  a Linux host rather than TrueNAS — on TrueNAS it is PBS in a VM or a change
+  to an NFS/SMB datastore, which are not the same answer.
+  [#485](https://github.com/Gerrrt/HomeLab/issues/485) carries the re-read,
+  because a fired trigger whose tracker closed on the decision is how an
+  accepted ADR quietly becomes a rejected one. The lab has **revert and not
+  backup** until it lands, and the ADR names what gets backed up when it does —
+  which is also why ADR-0029 gives PBS no disk on this pool: there is nothing
+  to give it yet, and that stops being true on the day this is built. Liveness
+  stays where it already was, with
   [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0020 decides only
   that no Alertmanager goes *inside* the stack, and the lab is otherwise being
   built to go quiet.
