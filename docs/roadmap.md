@@ -1050,6 +1050,51 @@ them name the condition that would change the answer.
 
 ## Done
 
+- [x] **[#441](https://github.com/Gerrrt/HomeLab/issues/441) Alerted on a sensor
+      that stops logging, and closed the Zeek half by deciding it elsewhere.**
+      2026-09-17. `SuricataLogsStopped` landed on 2026-09-12 in
+      `loki/rules/security.rules.yaml`: `absent_over_time({app="suricata"}[9h])`,
+      aggregate across both interfaces, `for: 0s` like the two absence rules it
+      copies. The window was read rather than picked — 22 days of the stream, in
+      which the longest silence across both interfaces was 75 minutes — which is
+      what the issue asked for, because the thirty minutes it opened with would
+      have paged about twice a day.
+
+      **Re-measured on 2026-09-17 over 27.7 days and it holds.** Worst aggregate
+      silence 80 minutes, six gaps past an hour, none past two, so nine hours
+      keeps nearly seven times the headroom `DhcpLeaseLogsStopped` settled on.
+      The aggregate design earned its keep in the interval: `igc0.10` alone went
+      quiet for more than nine hours **seven times**, worst 47.5 hours, so a
+      per-interface rule would have paged seven times in a fortnight. The
+      short-gap counts are not comparable between the two measurements — 135
+      over thirty minutes here against 54 on 2026-09-12, a difference in method,
+      not in Suricata — and the rule's comment says so rather than presenting
+      one series.
+
+      **The Zeek half was not built, and will not be as the issue described it.**
+      `ZeekLogsStopped` was to be the same shape against the lab's Loki once
+      [#437](https://github.com/Gerrrt/HomeLab/issues/437) existed. Three things
+      make that the wrong instrument. #437 puts Zeek's logs on `alexander` and
+      never on `10.0.99.20`, which ADR-0007 requires;
+      [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
+      gives that stack no Alertmanager on purpose, and `stacks/lab/loki/` ships
+      no ruler and no `rules/` because *"a ruler with nowhere to deliver
+      evaluates rules and discards the result, which reads as coverage and is
+      not"*; and
+      [ADR-0028](adr/0028-let-guest-liveness-cross-but-not-guest-telemetry.md)
+      revisited that exact boundary and kept it. #437 already carries the right
+      mechanism — a `homelab_zeek_mirror_active` textfile gauge read on the
+      hypervisor, crossing as guest state under ADR-0028 — so Zeek's liveness is
+      a metric question answered where Zeek is built, and this issue closes
+      rather than holding a slot behind a Wave 2 dependency that itself waits on
+      [#414](https://github.com/Gerrrt/HomeLab/issues/414).
+
+      What this proves and what it does not, unchanged from the merge: Loki
+      rules still have no unit-test harness, so `check_loki_rules.sh` shows the
+      rule parses and the ruler evaluates it, not that it fires. The live ruler
+      reports it `health=ok` and `state=inactive`, which is the good state and
+      not evidence of detection.
+
 - [x] **[#470](https://github.com/Gerrrt/HomeLab/issues/470) The wiki's drift
       check is watched.** 2026-09-14. `Gerrrt/Lemmiwinks/.claude/tools/drift-check`
       reads the wiki's machine-checkable claims against the machine and files a

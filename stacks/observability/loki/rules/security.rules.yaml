@@ -616,6 +616,23 @@ groups:
   # SuricataLogsStopped fires only when BOTH interfaces have been silent, and a
   # Degens-only silence is invisible to it by design.
   #
+  # RE-VERIFIED 2026-09-17, five weeks on and over a retention window that has
+  # rolled forward: 27.7 days ending 2026-09-17 22:25 UTC, same five-minute
+  # buckets. The worst aggregate silence is 80 minutes — five minutes longer
+  # than the 2026-09-12 reading — six gaps exceeded an hour, none exceeded two,
+  # and nine hours is still nearly seven times the worst gap. The case for
+  # aggregating got stronger rather than weaker: igc0.10 alone crossed nine
+  # hours SEVEN times, worst 47.5 hours, so a per-interface rule would have
+  # paged seven times in a fortnight.
+  #
+  # The short-gap counts are NOT comparable across the two measurements — this
+  # one counts 135 gaps over thirty minutes where 2026-09-12 counted 54, which
+  # is a difference in method (bucket alignment, and which streams were summed)
+  # rather than in Suricata. The long tail, which is the half that sets the
+  # window, agrees. Note also that `interface` is only stamped from 2026-09-02,
+  # when syslog.alloy began mapping facility local1/local2, so the per-interface
+  # figures cover 13.7 days against the aggregate's 27.7.
+  #
   # Two rules, two questions. SuricataStopped in prometheus/rules/ids.rules.yaml
   # reads the firewall's process table over SNMP (#90) — bsnmpd serves
   # HOST-RESOURCES-MIB hrSWRunTable, the pfsense module fetches the rows named
