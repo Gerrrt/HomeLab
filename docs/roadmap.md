@@ -1009,7 +1009,14 @@ them name the condition that would change the answer.
   and a larger concession on the management segment than SSH already is: it
   turns any browser session on Hicks into a potential path to every console in
   the estate, and it stores connection credentials to do it. The estate already
-  has a KVM in U6 for physical console access. Declined.
+  has a KVM in U6 for physical console access. Declined. **The remote-access question it
+  gestured at is answered differently** by
+  [ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md):
+  WireGuard to the lab jumpbox, terminating on ImaginationLAN and reaching the
+  lab only. That is not a softening of this decline — it stores no connection
+  credentials at a gateway, it never touches Winterfell, and the boundary is
+  the firewall's rather than an application's. Guacamole's objection was about
+  the management segment, and nothing about ADR-0041 goes near it.
 - **Frigate** — locally-processed object detection on camera streams, and the
   one service on the shortlist that would change the network's shape rather
   than its population: continuous RTSP from every camera through the `99 → 20`

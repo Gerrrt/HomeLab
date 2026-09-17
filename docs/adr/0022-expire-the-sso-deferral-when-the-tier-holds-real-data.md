@@ -2,6 +2,20 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> **Trigger 2 fired in 2026-09, and the deferral was re-accepted rather than
+> ended.**
+> [ADR-0041](0041-terminate-the-remote-path-on-the-lab-and-route-it.md) opens a
+> WireGuard path terminating on the lab, which takes ADR-0008's *no external
+> exposure* premise — the thing this trigger makes testable. It is recorded as
+> fired there rather than argued around, and re-accepted on the grounds this
+> ADR provides for: nothing in the table below becomes reachable, the tier is
+> unbuilt, and the two-users premise is unchanged. What did become externally
+> reachable is the lab's own Grafana on `alexander`, which the table below
+> already condemns as unable to carry a second factor in any edition.
+> **Triggers 1 and 3 are untouched and keep their full force.** Nothing here is
+> amended.
+
 ## Context
 
 [ADR-0008](0008-place-services-by-data-trust.md) defers Authelia knowingly and
