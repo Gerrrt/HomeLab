@@ -5,7 +5,7 @@
 > [!NOTE]
 > **Trigger 2 fired in 2026-09, and the deferral was re-accepted rather than
 > ended.**
-> [ADR-0041](0041-terminate-the-remote-path-on-the-lab-and-route-it.md) opens a
+> [ADR-0042](0042-terminate-the-remote-path-on-the-lab-and-route-it.md) opens a
 > WireGuard path terminating on the lab, which takes ADR-0008's *no external
 > exposure* premise — the thing this trigger makes testable. It is recorded as
 > fired there rather than argued around, and re-accepted on the grounds this
