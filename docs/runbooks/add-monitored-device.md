@@ -1,8 +1,8 @@
 # Runbook: Add a monitored device
 
-Four paths: a host that can run an agent, a device that cannot, an endpoint
-with a URL, and a resolver — which is asked what it answered rather than
-whether it can be reached.
+Five paths: a host that can run an agent, a host that may not, a device that
+cannot, an endpoint with a URL, and a resolver — which is asked what it
+answered rather than whether it can be reached.
 
 ---
 
@@ -154,6 +154,111 @@ tripwire, and the Loki rule #234 builds on that will fire on the agent doing its
 job. Not logged, for the same reason. The script cannot check any of this; what
 it can do is tell you the host is up and Prometheus has not heard from it,
 which is what a missing rule looks like.
+
+---
+
+## A Linux host that may not push
+
+Read the path above first. This one exists because its opening sentence is
+false for some hosts, and the difference is a decision about the network rather
+than about the machine.
+
+**When this path applies.** The host sits on a segment that may not initiate
+upward — a terminal segment, in the sense
+[ADR-0013](../adr/0013-read-the-firewall-before-writing-about-it.md) uses —
+or it cannot run an agent at all. `smaug` is the estate's only one today: the
+NAS is on CasaBonita, and
+[ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+would not let it reach up to the monitoring host, so Prometheus reaches down and
+scrapes it instead. The convention that every host runs Alloy exists to serve a
+direction; where the direction reverses, so does the tool.
+
+The cost is stated where the decision is: Loki has no pull, so a host monitored
+this way gets metrics and **no logs**
+([#255](https://github.com/Gerrrt/HomeLab/issues/255)). That is not a gap to
+work around here — it is the price of the placement, and it belongs in
+`docs/security.md` as a residual before the host is monitored at all.
+
+### 1. The firewall pass first, and verified in position
+
+Nothing below is testable until the monitoring host can reach the port, and a
+pass appended where new rules naturally land will sit *below* an existing deny
+and match nothing — which presents as "the scrape is broken" rather than as a
+misplaced rule. Create it host-scoped and port-scoped, then **read the ruleset
+on `morpheus` rather than the UI** to confirm the position. `build-the-nas.md`
+§0.5 and §0.6 are the worked example.
+
+ADR-0016 declined to create its passes until the host answered, for the reason
+that a `pass` to an address with nothing behind it is a rule nobody can test.
+The order is hardware → rule → target, and each step is only checkable after the
+one before it.
+
+### 2. An exporter on the host, in that host's own stack
+
+`node_exporter`, because it is what the `host-overview` dashboard and seven
+rules in `host.rules.yaml` are written against — see
+`prometheus/targets/node.yaml`, which carries that argument in full.
+
+It belongs in the host's own compose stack, digest-pinned like everything else
+([ADR-0004](../adr/0004-one-compose-stack-per-host.md); ADR-0040 decision 3
+declined to make `smaug` an exception to it). `stacks/media/compose.yaml`'s
+`node-exporter` service is the model, including the two things that are not
+obvious from upstream's documentation: it has no `/-/healthy`, and a bridged
+container reads its own veth for `node_network_*`.
+
+### 3. Add the target — `prometheus/targets/node.yaml`
+
+```yaml
+- targets: ["<address>:9100"]
+  labels:
+    instance: <hostname>
+    role: <what it does>
+    vlan: "<segment>"
+```
+
+**`instance` is the one that matters.** A direct scrape defaults it to the
+address, and the dashboards template their host picker on it — so without this
+line the host appears as an IP and a port beside a list of hostnames, and
+`InstanceDown` pages reading the same. Set it to what `hostname` would say, so a
+scraped host sorts with the pushed ones.
+
+**Never set a `job` label.** `honor_labels` is false, so it arrives as
+`exported_job` while `job` keeps the value from `prometheus.yaml` — and every
+rule matching on `job` then matches nothing, with the target showing UP.
+
+The file is a directory mount, so Prometheus re-reads it within five minutes
+with no restart and no deploy.
+
+### 4. Nothing else, and that is the point
+
+`InstanceDown` is `up == 0` with no job matcher, so it covers this host from its
+first scrape — `tests/host.test.yaml` asserts exactly that against `smaug`.
+`ScrapeTargetDisappeared` covers the other half, which is this target going
+missing from the file rather than the host going down.
+`RemoteWriteJobStale` deliberately does **not** apply: it is for jobs that push,
+and giving a scraped job a `<hostname>-metrics` name would quietly enrol it in a
+rule whose notification text is false for it.
+
+### Verify
+
+```promql
+up{job="node"}
+```
+
+Then read the metrics themselves rather than the target state, because a wrong
+`--path.rootfs` produces a healthy target describing a container:
+
+```bash
+curl -s http://<address>:9100/metrics | grep -c '^node_filesystem_avail_bytes'
+```
+
+Zero means every disk rule on that host is blind and nothing will say so.
+
+### 5. Document it
+
+A row in `docs/network.md`, the host's row in `docs/architecture.md` — phrased
+"runs no Alloy", which `scripts/check_docs.py` reads to keep the agent count
+honest — and the residual in `docs/security.md` if the host ships no logs.
 
 ---
 

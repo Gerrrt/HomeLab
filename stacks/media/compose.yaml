@@ -168,6 +168,137 @@ services:
       # figure covers a start that has one to read.
       start_period: 60s
 
+  # ---------------------------------------------------------------------------
+  # node_exporter — how this host is monitored at all (#256, ADR-0016)
+  # ---------------------------------------------------------------------------
+  # THIS IS THE HALF OF THE ESTATE'S MONITORING THAT RUNS BACKWARDS. Every other
+  # host runs Alloy and pushes; CasaBonita is terminal-outward, so nothing here
+  # may initiate upward and Prometheus reaches in and scrapes instead. ADR-0016
+  # chose `node_exporter` on 9100 for that, #256 confirmed it against TrueNAS's
+  # own endpoint, and the argument is written out in the observability stack's
+  # prometheus/targets/node.yaml rather than repeated here.
+  #
+  # ADR-0016 assumed a distribution package. TrueNAS has no package manager and
+  # an immutable root, so on this host the exporter is a container — which is
+  # what keeps it inside Dependabot, the digest pins and `make validate`, the
+  # argument ADR-0040 decision 2 made for keeping this stack in the repository.
+  #
+  # MEASURED 2026-09-17 on the pinned image, and each is a line someone would
+  # otherwise guess at:
+  #
+  #   1. The image DOES declare a user — `nobody` — which is the opposite of
+  #      Jellyfin above. The `user:` line below is still written out, because
+  #      an image's default is a thing that can change under a Dependabot bump
+  #      and every other service in this estate names its uid.
+  #
+  #   2. `wget`, `nc` and `busybox` are present; `curl` is NOT — again the
+  #      opposite of Jellyfin, which decides the healthcheck the other way.
+  #
+  #   3. `/-/healthy` DOES NOT EXIST HERE. It answers **404**:
+  #
+  #        docker run --rm -d --name ne <node-exporter image>
+  #        docker exec ne wget --spider -q http://localhost:9100/-/healthy
+  #
+  #      Prometheus, Alertmanager, snmp-exporter and blackbox-exporter all
+  #      serve it and are all healthchecked that way in stacks/observability.
+  #      node_exporter is not one of them, and a healthcheck copied from a
+  #      sibling file would mark this container unhealthy forever on
+  #      `restart: unless-stopped` — a restart loop, for a typo in a path.
+  #
+  #   4. It boots read-only as uid 65534 with `cap_drop: [ALL]` and no tmpfs at
+  #      all: it writes nothing.
+  #
+  #   5. Idle RSS: **3.4 MiB**, rising to 5.3 MiB once it has served a scrape.
+  node-exporter:
+    <<: *service-defaults
+    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+    container_name: media-node-exporter
+    user: "65534:65534"
+    command:
+      # The host's filesystem, process table and sysfs, read through the mount
+      # below rather than the container's own. Without these three the metrics
+      # describe the container and `up` still reads 1 — the failure that looks
+      # exactly like success. targets/node.yaml's header carries the one-line
+      # check that catches it.
+      - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --web.listen-address=:9100
+      # NO NETWORK METRICS FROM THIS HOST, deliberately, and this is the one
+      # line in the file worth reading twice.
+      #
+      # `/proc/net` is a symlink to `/proc/self/net` and resolves in the
+      # READING process's network namespace. A bridged container reading a
+      # bind-mounted host `/proc` therefore reports its own veth: measured
+      # 2026-09-17, `node_network_receive_bytes_total` named `eth0` and `lo`
+      # and nothing else, on a host with real NICs.
+      #
+      # That is worse than a gap. The Host Overview's throughput panels filter
+      # `device!~"lo|veth.*|docker.*|br-.*"`, which `eth0` passes — so the
+      # container's loopback-quiet veth would be charted as this NAS's network
+      # throughput, plausibly and silently, on the one host in the estate whose
+      # job is moving bytes over a network. Reporting nothing is honest;
+      # reporting a believable wrong number is not.
+      #
+      # The alternative is `network_mode: host`, and it costs more than it
+      # buys: the anchor above carries `networks:`, which compose refuses
+      # alongside `network_mode`, so this service would drop out of
+      # x-service-defaults and lose `restart`, `logging`, `init` and
+      # `pids_limit`; and `ports:` is silently ignored under host networking,
+      # so the bind address below — ADR-0012's discipline — would stop meaning
+      # anything while still reading as though it did.
+      - --no-collector.netdev
+      - --no-collector.netclass
+      - --no-collector.netstat
+      - --no-collector.arp
+      - --no-collector.sockstat
+    # A ceiling to catch a leak, not a measurement — the same position Jellyfin
+    # above and stacks/sensitive take. The number it is a ceiling OVER is
+    # 3.4 MiB idle, so this is two orders of magnitude of headroom; a
+    # node_exporter that reaches it has stopped being a node_exporter.
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    volumes:
+      # The whole root, read-only. This is what node_filesystem_* reads, which
+      # is how the estate learns `erebor` is filling — HostDiskCritical and
+      # HostDiskWillFillIn24h in the observability stack are written against
+      # those series and cover this host the day it answers, with nothing added.
+      #
+      # The trade is real and belongs here rather than in a commit message:
+      # every path on this host that uid 65534 can read is readable from inside
+      # this container. It earns that by being the only way the one host with no
+      # logs (ADR-0016, #255) says anything about itself at all.
+      #
+      # rslave so datasets mounted after the container starts — which is every
+      # dataset on erebor, on every boot — are visible without a restart.
+      - /:/host:ro,rslave
+    # PUBLISHED, with a named off-host consumer as ADR-0012 asks: Prometheus at
+    # 10.0.99.20, through the `99 → 40:9100` pass created and verified in
+    # position on 2026-09-16 (build-the-nas.md §0.5). That pass is what makes
+    # this the estate's first scraped host.
+    #
+    # The bind address does NOT make this private. Everything on CasaBonita —
+    # the televisions, the game consoles — shares this broadcast domain and
+    # reaches 9100 without the firewall seeing a packet, exactly as they reach
+    # Jellyfin's 8096 above. node_exporter has no write API, so the residual is
+    # disclosure of this host's shape; docs/security.md records it.
+    ports:
+      - "${NODE_EXPORTER_BIND_ADDR:?}:9100:9100"
+    healthcheck:
+      # `/` and not `/-/healthy`, which 404s here — see MEASURED (3). And not
+      # `/metrics` either: that path runs every enabled collector, so polling it
+      # every 30 seconds would spend real work proving a listener is up. `/` is
+      # the landing page and answers 200 without collecting anything.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9100/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 networks:
   media:
     driver: bridge

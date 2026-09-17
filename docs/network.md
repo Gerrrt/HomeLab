@@ -300,8 +300,8 @@ Televisions and consoles. Internet only.
   and running TrueNAS by
   [ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)
   ([#413](https://github.com/Gerrrt/HomeLab/issues/413)). Its ZFS mirror does
-  not exist yet and neither does `stacks/media`; what exists is a host on its
-  address. **It does not change the *Reaches* column**, and that is the point
+  not exist yet and `stacks/media` is authored but not deployed; what exists is
+  a host on its address. **It does not change the *Reaches* column**, and that is the point
   ADR-0016 made in advance: nothing on this segment initiates anywhere, and the
   four rules created that day all let a more trusted segment reach **in**.
   That is the direction this row records, and it is the one that is unchanged.
@@ -311,6 +311,14 @@ Televisions and consoles. Internet only.
   to CasaBonita* on their interfaces. Everything else on every other segment is
   still refused, and the televisions need no rule at all because they share this
   broadcast domain with the server.
+- **What answers on `9100` is `node_exporter`**, which makes this the one host
+  in the estate that Prometheus *scrapes* rather than is pushed to
+  ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
+  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)).
+  Nothing answers there yet — the exporter is a container and the container
+  needs the pool — so `prometheus/targets/node.yaml` carries the target
+  commented out rather than pointing a live check at a port with nothing behind
+  it. Port `22` is inert for a different reason: TrueNAS ships SSH disabled.
 
 [^OLEDTV]: [LG OLED TV](https://www.lg.com/us/tvs/oled)
 [^PS5]: [PlayStation 5](https://www.playstation.com/en-us/ps5/)

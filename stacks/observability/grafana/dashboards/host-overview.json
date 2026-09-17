@@ -343,7 +343,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "count(up{job=~\".*-metrics\"} == 1)",
+          "expr": "count(up{job=~\".*-metrics|node\"} == 1)",
           "legendFormat": "__auto",
           "range": false,
           "instant": true,

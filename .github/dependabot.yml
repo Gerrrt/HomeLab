@@ -76,6 +76,23 @@ updates:
       wazuh:
         patterns: ["wazuh/*"]
 
+  # The media tier, on smaug. Two images that share nothing with each other —
+  # Jellyfin and a node_exporter — so no groups; each bump is its own PR. Added
+  # with the exporter (#256) rather than with the stack, because until then this
+  # directory held one pinned image and no entry, and it had already been
+  # rotting for the reason every comment above gives: pins rot from the day they
+  # are written, and a stack nobody has deployed yet is exactly where that goes
+  # unnoticed.
+  - package-ecosystem: docker-compose
+    directory: /stacks/media
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "media"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

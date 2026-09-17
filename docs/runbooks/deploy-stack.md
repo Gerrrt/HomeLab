@@ -118,8 +118,8 @@ Then in the UI:
 
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
-2. **Prometheus → Status → Rules.** 82 rules loaded, none in error. The
-   page counts 83: the extra one is `homelab_suricata_expected_interface`,
+2. **Prometheus → Status → Rules.** 83 rules loaded, none in error. The
+   page counts 84: the extra one is `homelab_suricata_expected_interface`,
    the stack's only recording rule. Everything counted in this repository is
    alert rules, so the two numbers differ by one and always have.
 3. **Grafana → Dashboards → HomeLab.** Seven dashboards, populated.

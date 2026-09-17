@@ -1,0 +1,103 @@
+---
+# Scraped host targets, consumed by the `node` job via file_sd_configs.
+# Hot-reloaded every 5 minutes — no Prometheus restart required.
+#
+# THE FORK THIS FILE SETTLES (#256). ADR-0016 specified `node_exporter` on 9100
+# for the NAS. ADR-0040 then put TrueNAS on that host and reopened the question,
+# because TrueNAS ships a metrics endpoint of its own — so the target shape was
+# a choice nobody had made. THE ANSWER IS node_exporter, run as a digest-pinned
+# container out of stacks/media/compose.yaml. Three reasons, in order of weight:
+#
+#   1. host-overview.json is built entirely on node_exporter's namespace. Its
+#      only template variable is `label_values(node_uname_info, instance)` and
+#      every panel matches `instance=~"$instance"`. So are seven rules in
+#      rules/host.rules.yaml — InstanceDown, HostDiskWillFillIn24h,
+#      HostDiskCritical, HostMemoryPressure, HostHighLoad, HostClockSkew and
+#      HostRebooted all cover this host the day it answers, with nothing added.
+#      The other branch means a parallel dashboard and parallel rules, for one
+#      host.
+#   2. The `10.0.99.20 → 10.0.40.30:9100` pass already exists, created and
+#      verified in position above *Block access to CasaBonita* on 2026-09-16.
+#      The other branch is a fifth inbound rule, with all of build-the-nas.md
+#      §0.5 and §0.6's ordering care, verified from `morpheus` and not the UI.
+#   3. A container in this repository keeps the exporter inside Dependabot, the
+#      digest pins and `make validate` — ADR-0040 decision 2's argument for
+#      keeping that stack here at all. ADR-0016 assumed a distribution package;
+#      TrueNAS has no package manager and an immutable root, so "install
+#      node_exporter" is a container on this host or it is clicks.
+#
+# SAY WHAT THIS WAS DECIDED ON, because it was not a comparison. This repository
+# records nothing about what TrueNAS natively exposes — no port, no protocol, no
+# metric names; four documents restate the same unsourced sentence. The branch
+# above was declined on the pass that exists and the dashboard that exists, and
+# NOT on having measured the alternative. If someone measures it later and it is
+# better, that is a new decision with new evidence and not a reversal of this
+# one.
+#
+# THE LABELS, and every one of them is load-bearing:
+#
+# `instance` is the WHOLE CONTRACT of this file. A direct scrape defaults it to
+#            the address, so without this line the Host Overview's host picker
+#            would list `10.0.40.30:9100` beside five hostnames and InstanceDown
+#            would page reading "node target 10.0.40.30:9100 is down" — one more
+#            lookup than a person mid-incident should have to do, which is the
+#            argument stacks/lab/prometheus/prometheus.yaml already makes for
+#            the Windows guests it scrapes. Set it to the hostname Alloy would
+#            have sent, so this host sorts with the others.
+# `role`     as elsewhere: what the thing is for.
+# `vlan`     which segment it is on, as targets/snmp.yaml carries it. On this
+#            host it is not decoration — it is the reason the scrape runs
+#            backwards, and the label a reader needs to understand why.
+#
+# NO `job` LABEL, ever. honor_labels is false, so one set here arrives as
+# `exported_job` while `job` stays whatever prometheus.yaml said — and every
+# rule matching on `job` would then match nothing, with the target showing UP
+# and healthy the whole time.
+#
+# NO `host` LABEL, deliberately. Nothing reads it for scraped metrics: the
+# host-keyed rules all join on textfile-collector series that carry their own,
+# the Logs dashboard templates on it and this host ships no logs (#255), and
+# `instance` already carries the name. A label nothing reads is a label that
+# rots.
+
+# --- smaug ---------------------------------------------------------------
+#
+# WRITTEN OUT AND NOT ENABLED. The host holds 10.0.40.30 and the firewall pass
+# is verified, but nothing answers on 9100 yet: the exporter is a container, the
+# container needs Docker, and Docker on TrueNAS needs the apps pool — which is
+# on the ZFS mirror that does not exist. Every route to node_exporter on this
+# host runs through that pool, so this cannot be live before the drives land no
+# matter where the exporter is put. ADR-0040's "the scrape, then the stack" is
+# right about the order these are AUTHORED in and is not achievable for
+# liveness.
+#
+# Enabling it today would mean `up == 0` from the moment the file loaded, and
+# InstanceDown is `up == 0` at severity critical — routed to `urgent`, repeating
+# every 4 hours, forever. ADR-0017 refuses a check that is permanently red for a
+# known reason by name, and targets/blackbox-dns.yaml and the commented Windows
+# job in stacks/lab make the same call.
+#
+# When the pool exists and stacks/media is deployed, verify FROM THIS HOST —
+# which can reach 9100 and may not reach anything else on 40 — BEFORE
+# uncommenting:
+#
+#   nc -z -w3 10.0.40.30 9100
+#   curl -s http://10.0.40.30:9100/metrics | grep -E '^node_(uname_info|boot_time_seconds)'
+#   curl -s http://10.0.40.30:9100/metrics | grep -c '^node_filesystem_avail_bytes'
+#
+# The third is the one that matters. `--path.rootfs` pointed at the wrong place
+# produces a container's filesystems, or none, while `up` still reads 1 and the
+# target shows green — so a count of 0 means every disk rule on this host is
+# blind and nothing will say so. It must be the number of mounted filesystems on
+# smaug, and after §3 that includes erebor.
+#
+# Expect NO node_network_* series at all: stacks/media/compose.yaml disables
+# those collectors on purpose, because a bridged container reads its own veth
+# and would chart it as this NAS's throughput. That file carries the
+# measurement and the argument.
+
+# - targets: ["10.0.40.30:9100"]
+#   labels:
+#     instance: smaug
+#     role: nas
+#     vlan: "40"

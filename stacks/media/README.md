@@ -14,8 +14,12 @@ make up STACK=media
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | jellyfin | `jellyfin/jellyfin` | 8096 (http), on the segment | The media server the televisions reach directly, with Quick Sync hardware transcoding on the E3-1225 v6's HD P630 ([#138], [ADR-0016]) |
+| node-exporter | `prom/node-exporter` | 9100 (http), to `10.0.99.20` only | How this host is monitored at all — Prometheus scrapes it, because nothing on this segment may push ([#256], [ADR-0016]) |
 
-One service, and that is a decision rather than a starting point. [ADR-0016]
+Two services, and only one of them is the tier. `node-exporter` is here
+because of the section below; everything else in this file is about Jellyfin.
+
+One media service, and that is a decision rather than a starting point. [ADR-0016]
 builds **Jellyfin alone** and adds Plex only if a screen on 40 turns out to
 have no working Jellyfin client — the LG OLED, which is the primary screen,
 has one. Plex authenticates its clients through `plex.tv` even on a local
@@ -47,10 +51,43 @@ every television would have to trust, and a second thing to be down.
 | --- | --- |
 | Televisions on CasaBonita | Natively, same broadcast domain — the firewall never sees the packet |
 | A Hicks workstation | The one rule in [`build-the-nas.md`] §0.5, `50 → 10.0.40.30:443,8096` |
+| Prometheus, on `9100` | The rule in [`build-the-nas.md`] §0.5, `10.0.99.20 → 10.0.40.30:9100` |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and
-here there are two: every screen in the house, and one workstation.
+here there are three: every screen in the house, one workstation, and the
+monitoring host.
+
+Neither published port is private to its consumer, and the reason is the same
+for both: everything already on CasaBonita shares this broadcast domain and
+reaches them without the firewall seeing a packet. For 8096 that is the whole
+point. For 9100 it is a residual — an unauthenticated read of this host's
+filesystems, uptime and load, by the televisions — and `docs/security.md`
+records it rather than the firewall rule being mistaken for a boundary it is
+not.
+
+## Why this host is scraped, and runs no agent
+
+Every other machine in the estate runs Alloy and **pushes** metrics and logs to
+`10.0.99.20`. This one may not. [ADR-0016] put the NAS on a segment that is
+terminal outward — nothing on CasaBonita initiates anywhere — so Prometheus
+reaches in over `99 → 40:9100` and scrapes instead. The convention that every
+host runs Alloy exists to serve a direction; here the direction reverses, so
+the tool does too. `smaug` is the estate's first scraped host.
+
+[#256] settled what shape that target takes, because [ADR-0040] opened a fork
+in it: TrueNAS ships a metrics endpoint of its own. The answer is
+`node_exporter`, for three reasons written out in full in
+`stacks/observability/prometheus/targets/node.yaml` — the firewall pass already
+exists for `9100`, the `host-overview` dashboard and seven rules in
+`host.rules.yaml` are built on the `node_*` namespace, and a container in this
+repository stays inside Dependabot, the digest pins and `make validate`, which
+is [ADR-0040] decision 2's argument for this stack being here at all.
+
+What this does **not** buy is logs. Loki has no pull, and its ingest is
+unauthenticated by [ADR-0012], so centralising this host's logs would mean a
+`40 → 99:3100` rule that lets anything reaching the NAS write to the log store.
+The NAS gets metrics and no logs; [#255] is where that residual lives.
 
 ## The backup split
 
@@ -111,4 +148,6 @@ library exists**, because moving a populated library is a weekend.
 [#138]: https://github.com/Gerrrt/HomeLab/issues/138
 [#140]: https://github.com/Gerrrt/HomeLab/issues/140
 [#141]: https://github.com/Gerrrt/HomeLab/issues/141
+[#255]: https://github.com/Gerrrt/HomeLab/issues/255
+[#256]: https://github.com/Gerrrt/HomeLab/issues/256
 [#413]: https://github.com/Gerrrt/HomeLab/issues/413
