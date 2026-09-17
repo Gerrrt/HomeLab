@@ -331,17 +331,23 @@ whether the I226 card comes back as `igc0` on the spare, how long the whole
 thing takes — and to write the answers back into §3.
 
 **What the rehearsal is still missing.** This list was written on 2026-09-09
-to be lined up before the box arrived. The box arrived on 2026-09-15 and the
+to be lined up before the box arrived. The box arrived on 2026-09-14 and the
 card and the installer stick did not, so it stops being a countdown and
 becomes a list of what is blocking:
 
-- **The spare itself** — **here since 2026-09-15, opened, and not a blocker**
+- **The spare itself** — **here since 2026-09-14, opened, and not a blocker**
   ([`hardware.md`](../hardware.md)). Its 512 GB SSD is **M.2 and the second
   M.2 slot is free**, so the card below has somewhere to go and the
   drive-carrier contention this list warned about does not happen. It is a
   stock refurbished G4 that the listing says has the onboard NIC only, which
   is still the listing talking; the spec, the serial and the NIC count have
-  not been read off the machine.
+  not been read off the machine — and that reading now has a date on it.
+  **The seller-return window closes 2026-10-08.** It arrived carrying Windows
+  11 Pro, and step 2 below installs pfSense over it; that is the act that ends
+  the return, and it is the one step of this rehearsal that cannot be taken
+  back. So prove the machine — spec, serial, NIC count, disk health — before
+  that date. This is the only entry on this list with a deadline, and it is
+  not waiting on the two entries below that are.
 - **The I226 card** — bought 2026-09-11, **still in transit**
   ([`hardware.md`](../hardware.md)). One of the two things the rehearsal now
   waits on.

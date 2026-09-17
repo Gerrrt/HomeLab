@@ -89,13 +89,14 @@ capacity are still chosen at the till and recorded in
 [`hardware.md`](hardware.md) afterwards, per the ADR — nothing is named here
 before it is bought.
 
-**Already paid for and on hand**, as of 2026-09-15: the ProDesk 600 G4 —
+**Already paid for and on hand**, as of 2026-09-17: the ProDesk 600 G4 —
 `trinity`, the tier's host and the firewall's spare hardware
 ([#404](https://github.com/Gerrrt/HomeLab/issues/404)); the TS150 NAS and its
 boot SSD with the bracket and tape that mount it in the optical bay
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the 2 TB USB drive
-that becomes the photo library's disk on `trinity`; and the removable medium
-the second age recipient lives on.
+that becomes the photo library's disk on `trinity`; two SM863a SSDs for
+`Saruman` ([#418](https://github.com/Gerrrt/HomeLab/issues/418)); and the
+removable medium the second age recipient lives on.
 
 **Already paid for and still moving**: the I226 card on its M.2 adapter that a
 restore onto `trinity` needs
@@ -103,14 +104,25 @@ restore onto `trinity` needs
 installer stick — between them, the whole of what the rehearsal now waits on;
 the two Exos X20 18 TB drives for `smaug`'s mirror
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the CRS326 that
-replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); two
-SM863a SSDs for `Saruman`
-([#418](https://github.com/Gerrrt/HomeLab/issues/418)); and the A1437 cell
-that replaces `prometheus`'s thirteen-year-old one
+replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); and the
+A1437 cell that replaces `prometheus`'s thirteen-year-old one
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
 
-Four things crossed from the second paragraph to the first on **2026-09-15**:
-the TS150, the ProDesk, the boot SSD, and the bracket and tape that mount it.
+Four things crossed from the second paragraph to the first: the TS150, the
+ProDesk, the boot SSD, and the bracket and tape that mount it. All four were
+recorded here as **2026-09-15**; the ProDesk's is now **2026-09-14**, from the
+carrier's own notice, and the other three are unaudited. They were written in
+the same commit, that evening, and dated by UTC after it had turned over — so
+the same day may be out by one for each of them. Checking is
+[#413](https://github.com/Gerrrt/HomeLab/issues/413)'s, not this section's, and
+nothing here depends on which day it was.
+
+**2026-09-17: the two SM863a SSDs are on hand.** They were delivered
+2026-09-11 and carried above as still moving for six days. Delivery is recorded
+against the order, which was one order for the pair; that both drives were in
+it is not separately proved and is
+[#418](https://github.com/Gerrrt/HomeLab/issues/418)'s to confirm at the bays.
+
 **No row on the table above moves** — arriving is not buying, and this section
 tracks money. Nothing was racked, fitted or built by it either. What it changed
 is one sentence: the two builds stopped waiting on a van for their machines,
@@ -518,7 +530,15 @@ what left this one unfireable for months.
   wiped and built as the sensitive tier's host ([#404](https://github.com/Gerrrt/HomeLab/issues/404)), and it is the
   firewall's spare hardware in a disaster at the cost of the tier being down
   until a replacement arrives. The powered-off shelf spare is deferred to the
-  day that cost is unacceptable. Writing that procedure found the runbook's own decrypt
+  day that cost is unacceptable. **The box is in hand, and proving it has a
+  deadline the rehearsal does not**: it was sold refurbished with a one-year
+  warranty and a thirty-day return, and that return closes **2026-10-08**. The
+  spec, the serial and the NIC count are still the listing's word rather than
+  the machine's, and the step that would settle them — installing pfSense over
+  the Windows 11 Pro it arrived with — is also the step that ends the return.
+  So the machine gets proved before 2026-10-08 whether or not the card has
+  landed by then, which is the one part of this issue that is not waiting on a
+  package. Writing that procedure found the runbook's own decrypt
   command had never been run: it passed `--input-type binary`, which sops
   rejects on the first byte of a real export, so a restore following the
   runbook would have stopped at step one. Fixed, and it is the kind of thing

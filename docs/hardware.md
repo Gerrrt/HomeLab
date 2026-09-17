@@ -102,15 +102,19 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 - 1U vented rack shelf, 4-post with square-hole mounting — in U4 since
   2026-09-08, carrying the unmanaged switch that feeds `prometheus` and
   `oracle` ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
-- HP ProDesk 600 G4 Micro — i5-8500T, 32 GB, 512 GB SSD, the same model as
-  `morpheus` — ordered 2026-09-08, **in hand since 2026-09-15** and opened on
-  2026-09-15. This is `trinity`, and it is **one box with two jobs, not two
-  boxes**: the sensitive tier's host, and
+- HP ProDesk 600 G4 Micro[^Trinity] — i5-8500T, 32 GB, 512 GB SSD, the same
+  model as `morpheus` — ordered 2026-09-08, **in hand since 2026-09-14** and
+  opened on 2026-09-15. This is `trinity`, and it is **one box with two jobs,
+  not two boxes**: the sensitive tier's host, and
   the firewall's spare hardware in a disaster
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
   The documents call it "the tier's host" in one place and "the spare" in
   another, which is how it came to be read as two machines ([ADR-0038](adr/0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md));
   a second ProDesk is deferred, not ordered.
+  This entry read "in hand since 2026-09-15" until 2026-09-17. The carrier's
+  notice puts the drop-off at 15:05 local on the 14th; the commit that recorded
+  it was written that evening and dated by UTC, which had already turned over.
+  The opening date is a separate reading and stands.
   It enters the Compute table when
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it. It ships with the onboard NIC
@@ -121,10 +125,31 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the machine on 2026-09-15, and the answer the entry below was waiting for.
   There is no drive carrier and nothing contends: the I226 card has a slot to
   land in when it arrives, and the contingency the documents carried since
-  2026-09-11 does not fire. Still the listing's claims rather than the
-  machine's, and still to be read: the i5-8500T, the 32 GB and the 512 GB
-  above, the serial and the product number off the case, and that it really
-  does have the onboard NIC alone.
+  2026-09-11 does not fire.
+  **It arrived carrying Windows 11 Pro**, sold refurbished with a licence. The
+  rehearsal's first act is to wipe it, so that licence is spent rather than
+  banked: it is OEM, it dies with the install it shipped on, and **it does not
+  move the buy table's two Windows 11 Pro keys**
+  ([`roadmap.md`](roadmap.md#everything-still-to-buy)). Those are for the lab
+  domain's two endpoints ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md),
+  [#414](https://github.com/Gerrrt/HomeLab/issues/414)) — a different machine
+  and a different decision.
+  **The warranty runs to 2027-09-08** — one year from purchase, through
+  SquareTrade, applied automatically because it was sold as eBay Refurbished.
+  It is worth recording because
+  [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)
+  accepts that the tier is down until a replacement arrives: inside that year a
+  dead `trinity` has a claim behind it, and after it the ADR's cost is the
+  whole cost.
+  **The seller-return window closes 2026-10-08**, thirty days from purchase.
+  That is a deadline on the list below rather than a fact about the machine.
+  Still the listing's claims rather than the machine's, and still to be read:
+  the i5-8500T, the 32 GB and the 512 GB above, the serial and the product
+  number off the case, and that it really does have the onboard NIC alone —
+  **read them before that date**. Installing pfSense over the Windows partition
+  is what ends the return and is the one step of the rehearsal that cannot be
+  taken back, so the machine has to be proved while sending it back is still an
+  option. That is sooner than the card arrives, and it does not wait on it.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
   in transit. The second port on the ProDesk Micro above, matching the card
   in `morpheus` so a pfSense restore onto the spare brings the LAN up as
@@ -368,6 +393,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^Shiva]: [HPE ProLiant DL360 Gen9](https://buy.hpe.com/us/en/servers/rack-servers/proliant-dl300-servers/proliant-dl360-server/p/1010026922)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
+[^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
 [^SM863a]: [Samsung SM863a 960 GB, MZ-7KM960N](https://www.ebay.com/itm/800210578217)
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)
 [^Panel]: [Jadol 24-port patch panel](https://a.co/d/izggRoK)
