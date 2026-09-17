@@ -35,7 +35,14 @@ internal services.
 ends [ADR-0008](adr/0008-place-services-by-data-trust.md)'s SSO deferral on a
 state rather than leaving it open: the first real secret, photo or document in
 the sensitive tier, any reachability from outside the house, or a third account
-holder — whichever comes first. Until then the floor is per-application TOTP,
+holder — whichever comes first. **The second of those has now fired and the
+deferral was re-accepted**, not ended:
+[ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md) opens
+a WireGuard path terminating on the lab, which takes ADR-0008's *no external
+exposure* premise with it. Nothing in the tier became reachable — it is
+unbuilt, and on Winterfell when it is built — but the lab's own Grafana on
+`alexander` did, and that is one of the three below that cannot carry a factor
+at all. The other two triggers keep their full force. Until then the floor is per-application TOTP,
 and it does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
 can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
 Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
@@ -676,6 +683,12 @@ fingerprint of a house is not. Withheld on purpose:
 - **Camera-to-room mapping.** Knowing there are seven cameras is fine. Knowing
   which one covers which door is a physical-security detail.
 - **The WAN address**, firewall rule bodies, and Wi-Fi configuration.
+- **The WireGuard endpoint and its listen port**, for the same reason and with
+  the same instinct: a repository that withholds the WAN address and then
+  publishes the port a VPN answers on has withheld nothing. The design, the
+  peer subnet and the rules are published
+  ([ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md));
+  where to send a packet is not.
 
 The public IP was already redacted in the original inventory — the rest of this
 is the same instinct applied consistently.

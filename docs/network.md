@@ -84,6 +84,16 @@ truth for what a box actually does.
 - Cat6 from the ISP gateway[^modem] to the WAN interface of the ProDesk[^ProDesk].
 - The gateway runs in bridge mode; its own Wi-Fi radio stays operational but is
   unused. All wireless is handled by eero units on tagged VLANs.
+- **One inbound pass, and one only** — the WireGuard endpoint decided by
+  [ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md): a
+  UDP `rdr` to the lab jumpbox, terminating on ImaginationLAN and reaching the
+  lab only. The endpoint hostname and the listen port are withheld with the WAN
+  address ([`security.md`](security.md#what-this-repository-deliberately-does-not-publish)).
+  Before it, `morpheus` carried no `rdr` and no inbound WAN pass beyond DHCP
+  client replies — the state ADR-0011 measured in 2026-08. **Not built:** the
+  jumpbox ([#436](https://github.com/Gerrrt/HomeLab/issues/436)) does not exist
+  and the endpoint question is unanswered, so this describes a decision rather
+  than a rule on the box.
 
 [^modem]: [Xfinity Gateway (XB7)](https://www.xfinity.com/support/articles/broadband-gateways-userguides)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
@@ -380,6 +390,18 @@ Where things get broken on purpose.
   other guest. The build is
   [`build-the-playground.md`](runbooks/build-the-playground.md), and `Saruman`
   moves to `10.0.30.20` as part of it.
+
+- **The WireGuard peers live on `172.31.0.0/24`, and it is routed rather than
+  translated**
+  ([ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md)).
+  `morpheus` carries one static route for it toward the jumpbox, so a peer's
+  own address is what arrives on this interface and what a firewall log
+  carries — which is what lets a rule name a peer and an alert say which one.
+  The blocks and the tripwire on this interface are therefore doubled: one set
+  sourced from the segment, one from the peers. It is the fourth private block
+  in the house and the second that is not a VLAN. **`172.30.` is `ifrit`'s
+  range bridge; `172.31.` is the tunnel** — they mean opposite things in a log
+  line, and the second octet is the only thing that distinguishes them.
 
 > [!NOTE]
 > `10.0.30.10` is the iLO BMC, not the hypervisor, and it is what

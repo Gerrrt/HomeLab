@@ -119,3 +119,12 @@ earned its place. This leaves the "no MFA on the internal services" gap in
   revisited. Both changes push toward a dedicated services segment and toward
   Authelia, and both were declined here on the strength of *two users, no remote
   access*. When that premise changes, so does the decision.
+
+  > *The second half of that premise changed in 2026-09.
+  > [ADR-0041](0041-terminate-the-remote-path-on-the-lab-and-route-it.md) opens
+  > a WireGuard path that terminates on the lab and reaches the lab only, so
+  > "no remote access" becomes "no remote access to the house". It fires
+  > [ADR-0022](0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)'s
+  > second trigger and re-accepts the deferral with reasons, which is what that
+  > ADR provides for. The placement reasoning above is unchanged and this ADR
+  > is not superseded.*
