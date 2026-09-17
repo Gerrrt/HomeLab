@@ -964,6 +964,16 @@ months.
   with the repository side built and the device side not yet done. Under
   **Security** above, because it has a procedure now rather than only a
   decision.
+- **[#444](https://github.com/Gerrrt/HomeLab/issues/444)** The CRS326's
+  operating system and management posture, decided by
+  [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  ahead of the cabling window rather than during it — RouterOS over SwOS, the
+  name `neo` and `10.7.7.2` inherited, `www-ssl` from the estate's CA with plain
+  `www` off, an SNMPv3 authPriv user, and mirroring left disabled per ADR-0006.
+  Nothing is built: the switch is still in transit and `neo` is still the
+  MokerLink. Under **Security** above, because it has a procedure now —
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) — rather than only a
+  decision.
 
 ## Considered and declined
 
