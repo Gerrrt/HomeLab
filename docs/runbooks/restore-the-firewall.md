@@ -267,7 +267,19 @@ ssh root@10.0.99.1 'pfctl -sr \
 # latter names 10.0.30.0/24 itself, and against it every DNS query from the lab
 # to its own gateway logs as a crossing.
 ssh root@10.0.99.1 'pfctl -sr | grep -E "^pass in log quick on igc0\.30 " | grep -c "<House_Segments>"'
-# expect 1
+# expect 2 once ADR-0041's tunnel exists: the lab's own tripwire and the
+# WireGuard peers'. Before it is built, expect 1.
+
+# 6. ADR-0041's rules, if the tunnel has been built. The check above counts
+#    tripwires by their shape and the four in step 5 are sourced from an
+#    interface network macro, which the tunnel's is not — so the tunnel's
+#    tripwire and its blocks need asking after separately, or a restore drops
+#    them as silently as it drops the other four.
+ssh root@10.0.99.1 'pfctl -sr | grep -c "<Tunnel_Peers>"'
+# expect 0 if the tunnel is not built. Once it is: one tripwire plus one block
+# per house segment, and `pfctl -t Tunnel_Peers -T show` must print the peer
+# subnet rather than an empty table — an alias that survived with no contents
+# makes every rule using it match nothing, which reads as "no leaks".
 ```
 
 > [!NOTE]
@@ -331,17 +343,23 @@ whether the I226 card comes back as `igc0` on the spare, how long the whole
 thing takes — and to write the answers back into §3.
 
 **What the rehearsal is still missing.** This list was written on 2026-09-09
-to be lined up before the box arrived. The box arrived on 2026-09-15 and the
+to be lined up before the box arrived. The box arrived on 2026-09-14 and the
 card and the installer stick did not, so it stops being a countdown and
 becomes a list of what is blocking:
 
-- **The spare itself** — **here since 2026-09-15, opened, and not a blocker**
+- **The spare itself** — **here since 2026-09-14, opened, and not a blocker**
   ([`hardware.md`](../hardware.md)). Its 512 GB SSD is **M.2 and the second
   M.2 slot is free**, so the card below has somewhere to go and the
   drive-carrier contention this list warned about does not happen. It is a
   stock refurbished G4 that the listing says has the onboard NIC only, which
   is still the listing talking; the spec, the serial and the NIC count have
-  not been read off the machine.
+  not been read off the machine — and that reading now has a date on it.
+  **The seller-return window closes 2026-10-08.** It arrived carrying Windows
+  11 Pro, and step 2 below installs pfSense over it; that is the act that ends
+  the return, and it is the one step of this rehearsal that cannot be taken
+  back. So prove the machine — spec, serial, NIC count, disk health — before
+  that date. This is the only entry on this list with a deadline, and it is
+  not waiting on the two entries below that are.
 - **The I226 card** — bought 2026-09-11, **still in transit**
   ([`hardware.md`](../hardware.md)). One of the two things the rehearsal now
   waits on.

@@ -102,15 +102,19 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 - 1U vented rack shelf, 4-post with square-hole mounting — in U4 since
   2026-09-08, carrying the unmanaged switch that feeds `prometheus` and
   `oracle` ([#110](https://github.com/Gerrrt/HomeLab/issues/110))
-- HP ProDesk 600 G4 Micro — i5-8500T, 32 GB, 512 GB SSD, the same model as
-  `morpheus` — ordered 2026-09-08, **in hand since 2026-09-15** and opened on
-  2026-09-15. This is `trinity`, and it is **one box with two jobs, not two
-  boxes**: the sensitive tier's host, and
+- HP ProDesk 600 G4 Micro[^Trinity] — i5-8500T, 32 GB, 512 GB SSD, the same
+  model as `morpheus` — ordered 2026-09-08, **in hand since 2026-09-14** and
+  opened on 2026-09-15. This is `trinity`, and it is **one box with two jobs,
+  not two boxes**: the sensitive tier's host, and
   the firewall's spare hardware in a disaster
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
   The documents call it "the tier's host" in one place and "the spare" in
   another, which is how it came to be read as two machines ([ADR-0038](adr/0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md));
   a second ProDesk is deferred, not ordered.
+  This entry read "in hand since 2026-09-15" until 2026-09-17. The carrier's
+  notice puts the drop-off at 15:05 local on the 14th; the commit that recorded
+  it was written that evening and dated by UTC, which had already turned over.
+  The opening date is a separate reading and stands.
   It enters the Compute table when
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it. It ships with the onboard NIC
@@ -121,10 +125,31 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the machine on 2026-09-15, and the answer the entry below was waiting for.
   There is no drive carrier and nothing contends: the I226 card has a slot to
   land in when it arrives, and the contingency the documents carried since
-  2026-09-11 does not fire. Still the listing's claims rather than the
-  machine's, and still to be read: the i5-8500T, the 32 GB and the 512 GB
-  above, the serial and the product number off the case, and that it really
-  does have the onboard NIC alone.
+  2026-09-11 does not fire.
+  **It arrived carrying Windows 11 Pro**, sold refurbished with a licence. The
+  rehearsal's first act is to wipe it, so that licence is spent rather than
+  banked: it is OEM, it dies with the install it shipped on, and **it does not
+  move the buy table's two Windows 11 Pro keys**
+  ([`roadmap.md`](roadmap.md#everything-still-to-buy)). Those are for the lab
+  domain's two endpoints ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md),
+  [#414](https://github.com/Gerrrt/HomeLab/issues/414)) — a different machine
+  and a different decision.
+  **The warranty runs to 2027-09-08** — one year from purchase, through
+  SquareTrade, applied automatically because it was sold as eBay Refurbished.
+  It is worth recording because
+  [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)
+  accepts that the tier is down until a replacement arrives: inside that year a
+  dead `trinity` has a claim behind it, and after it the ADR's cost is the
+  whole cost.
+  **The seller-return window closes 2026-10-08**, thirty days from purchase.
+  That is a deadline on the list below rather than a fact about the machine.
+  Still the listing's claims rather than the machine's, and still to be read:
+  the i5-8500T, the 32 GB and the 512 GB above, the serial and the product
+  number off the case, and that it really does have the onboard NIC alone —
+  **read them before that date**. Installing pfSense over the Windows partition
+  is what ends the return and is the one step of the rehearsal that cannot be
+  taken back, so the machine has to be proved while sending it back is still an
+  option. That is sooner than the card arrives, and it does not wait on it.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
   in transit. The second port on the ProDesk Micro above, matching the card
   in `morpheus` so a pfSense restore onto the spare brings the LAN up as
@@ -294,8 +319,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   it — worth knowing before reading a slow self-test as a sick disk. TrueNAS's
   scheduled tests take it from here.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
-  SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
-  for the ProLiant's SFF bays. Bought against the number every sizing
+  SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, **in hand
+  since 2026-09-11**, for the ProLiant's SFF bays. Bought against the number
+  every sizing
   decision on `Saruman` starts from: a 7.2K mirror serving about ninety
   random write IOPS
   ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
@@ -303,8 +329,31 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   when [#418](https://github.com/Gerrrt/HomeLab/issues/418) fits them, and
   not before — that issue also names the ADRs whose arithmetic the fit makes
   stale
+- 2× HP 2.5" SFF drive tray, `651687-001`[^Caddy] — bought 2026-09-11, in
+  transit, quoted to arrive by 2026-09-17 and not here on the morning of it.
+  The carriers the SM863a pair above needs to sit in `Saruman`'s SFF bays
+  ([#418](https://github.com/Gerrrt/HomeLab/issues/418)). A Gen9 bay holds a
+  drive only in a tray, so two drives want two trays, and two is what was
+  bought — worth writing down, because one tray short is one SSD fitted and
+  one on a shelf.
+  **This purchase went unrecorded for six days**, which is the omission this
+  entry exists to close. It was made in the same sitting as the I226 card, the
+  Exos pair, and the boot disk's bracket and tape, every one of which has had
+  an entry here since the day it was bought. The roadmap's rule is that a
+  purchase is written down when the money is spent, so a gap like this is the
+  rule failing rather than a thing the rule allows. Found on 2026-09-17 while
+  reading the ProDesk's arrival paperwork for
+  [#92](https://github.com/Gerrrt/HomeLab/issues/92), which is not a way of
+  finding purchases that can be relied on.
+  **Checked on arrival, not assumed:** that they are the Gen8/Gen9 SmartDrive
+  carrier and not the Gen10 part or the 3.5" LFF one, neither of which fits
+  this machine; that both arrived; and that each has its screws, since a
+  carrier without them holds a drive no better than no carrier. `651687-001`
+  is the listing's part number and not yet the tray's.
 - MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
-  RouterOS / SwOS — bought used 2026-09-13, in transit. The replacement for
+  RouterOS / SwOS — bought used 2026-09-13; in transit, delivery estimated
+  2026-09-23, moved out from the 09-16 to 09-21 window quoted at purchase. The
+  replacement for
   `neo` that
   [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
   asked for in its last consequence and
@@ -315,7 +364,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#84](https://github.com/Gerrrt/HomeLab/issues/84)'s GETBULK residual rides
   along; SNMPv3 is not the argument, because
   [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
-  found the switch in the rack already answers v3 on the wire. It enters the
+  found the switch in the rack already answers v3 on the wire. **How it is
+  configured was decided before the window rather than during it** —
+  [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  runs it on RouterOS, keeps the name `neo` and the address `10.7.7.2`, serves
+  `www-ssl` from a leaf off the estate's CA with plain `www` off, and gives it
+  an SNMPv3 authPriv user; the procedure is
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md). It enters the
   Rack table at U9 and [`network.md`](network.md) when it is racked — `neo`
   carries every VLAN, so the swap is a house-wide outage and shares a rack
   visit rather than getting its own — and until then `neo` is the switch in
@@ -360,7 +415,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^Shiva]: [HPE ProLiant DL360 Gen9](https://buy.hpe.com/us/en/servers/rack-servers/proliant-dl300-servers/proliant-dl360-server/p/1010026922)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
+[^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
 [^SM863a]: [Samsung SM863a 960 GB, MZ-7KM960N](https://www.ebay.com/itm/800210578217)
+[^Caddy]: [HP 2.5" SFF drive tray, 651687-001, for DL360/DL380/ML350 Gen8 and Gen9](https://www.ebay.com/itm/126297185368)
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)
 [^Panel]: [Jadol 24-port patch panel](https://a.co/d/izggRoK)
 [^PDU]: [10-outlet 1U PDU](https://a.co/d/ibEygxZ)

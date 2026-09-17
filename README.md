@@ -92,8 +92,8 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 40 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 25
+- **Documented decisions and runbooks.** 41 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 26
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
 
@@ -207,7 +207,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 39 architecture decision records
+│   ├── adr/                  # 41 architecture decision records
 │   └── runbooks/             # successor handover (start here), deploy, converge,
 │                             #   add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, restore the stack,
@@ -343,7 +343,7 @@ Open work is tracked in
 why it is in that order.
 
 The current top items: rehearse the firewall restore on the ProDesk bought on
-2026-09-08 — on hand since 2026-09-15, so what the rehearsal waits on is the
+2026-09-08 — on hand since 2026-09-14, so what the rehearsal waits on is the
 I226 card and the installer stick and no longer the box — and then build the
 sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
 roadmap's [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):

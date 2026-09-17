@@ -37,7 +37,7 @@ is already built and validated; what is missing is somewhere to run it.
 | | Decision | Why this and not the obvious alternative |
 | --- | --- | --- |
 | Name | `alexander` | A Final Fantasy summon, like `shiva` and `ifrit` already on this segment. A fortress, which is what the defended estate's own observer is |
-| Address | `10.0.30.40/24` | Statics on this segment live **below `.100`**; the pool is `.100–.200`. Continues the decade spacing — `shiva` .10, `Saruman` .20 (after #96), `ifrit` .30 |
+| Address | `10.0.30.40/24` | Statics on this segment live **below `.100`**; the pool is `.100–.200`. Continues the decade spacing — `shiva` .10, `Saruman` .20 (after #421), `ifrit` .30 |
 | Kind | **VM, not LXC** | `stacks/lab` uses `cgroup: host`, `cap_drop: [ALL]` and a Docker socket mount. Docker in an LXC needs nesting and keyctl workarounds, and those settings behave differently under one. A VM has no such asterisks |
 | OS | **Ubuntu Server LTS** — `alexander` runs 26.04 | See below. This is the one that would have bitten quietly |
 | Disk | 64 GB | Prometheus is capped at 4 GB and Loki keeps 15 days of a small estate. 64 GB leaves room without pretending the spindles are free |

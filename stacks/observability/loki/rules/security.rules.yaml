@@ -351,11 +351,21 @@ groups:
         #
         # 10.7.7.0/24 is the untagged switch-management LAN, in both aliases
         # since 2026-09-06; a logged block above the tripwire catches it first.
+        #
+        # 172.31.0.0/24 is the WireGuard peer subnet (ADR-0041). Routed, not
+        # masqueraded, so a peer's own address is what arrives on igc0.30 and
+        # what a filterlog line carries — which is the point of routing rather
+        # than translating, and the reason this source class has two members
+        # rather than one. A peer reaching the house is the same breach as the
+        # lab reaching the house and fires the same alert; the source octet is
+        # what says which. `172.30.` is ifrit's range bridge and is NOT here:
+        # that source means a target escaped a bridge with no physical port,
+        # which is a different incident (ADR-0017, build-the-playground.md).
         expr: |
           sum by (interface) (
             count_over_time(
               {app="filterlog", action="pass"}
-              |~ `,10\.0\.30\.[0-9]+,(10\.0\.(10|20|40|50|99)|10\.7\.7)\.[0-9]+,` [5m]
+              |~ `,(10\.0\.30|172\.31\.0)\.[0-9]+,(10\.0\.(10|20|40|50|99)|10\.7\.7)\.[0-9]+,` [5m]
             )
           ) > 0
         for: 0s
@@ -366,11 +376,14 @@ groups:
         annotations:
           summary: "Segmentation breach: the lab passed to the house on {{ $labels.interface }}"
           description: >-
-            A packet from VLAN 30 was PASSED toward another segment. ADR-0014
-            puts attackers on that VLAN and says this path does not exist:
-            the segment that holds attack tooling has reached the house. Either
-            a block rule was removed or reordered, or the tripwire's alias
-            gained the wrong subnet. Treat as a live segmentation failure.
+            A packet from VLAN 30 or from the WireGuard peer subnet was
+            PASSED toward another segment. ADR-0014 puts attackers on that VLAN
+            and says this path does not exist: the segment that holds attack
+            tooling has reached the house. Either a block rule was removed or
+            reordered, or the tripwire's alias gained the wrong subnet. A
+            10.0.30.x source is the lab itself; a 172.31.x source is a remote
+            peer, which also means the ADR-0041 blocks are missing or ordered
+            below the catch-all. Treat as a live segmentation failure.
 
       - alert: IoTAttemptedLateralMovement
         # The mirror image: correctly BLOCKED attempts out of the IoT segment.
@@ -615,6 +628,23 @@ groups:
   # gap was 47 hours, and a rule on it alone would fire most days. So
   # SuricataLogsStopped fires only when BOTH interfaces have been silent, and a
   # Degens-only silence is invisible to it by design.
+  #
+  # RE-VERIFIED 2026-09-17, five weeks on and over a retention window that has
+  # rolled forward: 27.7 days ending 2026-09-17 22:25 UTC, same five-minute
+  # buckets. The worst aggregate silence is 80 minutes — five minutes longer
+  # than the 2026-09-12 reading — six gaps exceeded an hour, none exceeded two,
+  # and nine hours is still nearly seven times the worst gap. The case for
+  # aggregating got stronger rather than weaker: igc0.10 alone crossed nine
+  # hours SEVEN times, worst 47.5 hours, so a per-interface rule would have
+  # paged seven times in a fortnight.
+  #
+  # The short-gap counts are NOT comparable across the two measurements — this
+  # one counts 135 gaps over thirty minutes where 2026-09-12 counted 54, which
+  # is a difference in method (bucket alignment, and which streams were summed)
+  # rather than in Suricata. The long tail, which is the half that sets the
+  # window, agrees. Note also that `interface` is only stamped from 2026-09-02,
+  # when syslog.alloy began mapping facility local1/local2, so the per-interface
+  # figures cover 13.7 days against the aggregate's 27.7.
   #
   # Two rules, two questions. SuricataStopped in prometheus/rules/ids.rules.yaml
   # reads the firewall's process table over SNMP (#90) — bsnmpd serves

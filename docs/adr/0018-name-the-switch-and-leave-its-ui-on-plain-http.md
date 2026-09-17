@@ -3,13 +3,29 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
-> The replacement the last consequence below asks for was bought on
-> 2026-09-13: a MikroTik CRS326-24G-2S+RM, chosen for the TLS management
-> interface ([`hardware.md`](../hardware.md),
-> [#444](https://github.com/Gerrrt/HomeLab/issues/444)). Nothing here changes
-> until it is racked — `neo` is still the switch, still on plain HTTP. The ADR
-> that names the new switch and decides its OS and management posture is
-> written then. The text here is left as written, per ADR-0001.
+> **One clause of this ADR is superseded. The text below is left as written,
+> per ADR-0001.**
+>
+> **The purchase.** The replacement the last consequence below asks for was
+> bought on 2026-09-13: a MikroTik CRS326-24G-2S+RM, chosen for the TLS
+> management interface ([`hardware.md`](../hardware.md),
+> [#444](https://github.com/Gerrrt/HomeLab/issues/444)).
+>
+> **The UI.** Decision 2 — that the UI stays plain HTTP, and that #97's
+> certificate goal is closed as not achievable — is superseded by
+> [ADR-0041](0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md),
+> which runs the CRS326 on RouterOS and serves the UI from `www-ssl` with a
+> leaf from the estate's CA. Decisions 1 and 3 are unchanged, and so is the
+> reasoning behind them: the switch keeps the name `neo` and the address
+> `10.7.7.2`, and both stay written down because the name depends on
+> `morpheus`. The rejection of renumbering onto `10.0.99.x` also stands.
+>
+> This note previously said that ADR would be written when the switch was
+> racked. It was written before instead: a house-wide outage is not when to
+> choose between a dual-boot device's two operating systems. **Nothing here
+> changes until it is racked** — `neo` is still the MokerLink, still on plain
+> HTTP, until the window in
+> [`swap-the-switch.md`](../runbooks/swap-the-switch.md).
 
 ## Context
 

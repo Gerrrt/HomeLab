@@ -1,0 +1,397 @@
+# Runbook: Open the remote path
+
+**Target:** WireGuard on the jumpbox, ImaginationLAN (VLAN 30); one static
+route, one port forward and five rules on `morpheus` (`10.0.99.1`)
+**Time:** ninety minutes, across the jumpbox, the firewall GUI and one client
+**You will need:** a shell on the jumpbox, the pfSense GUI, a client device to
+enrol, and **an endpoint** — see §0, which is the step this runbook cannot do
+for you
+**Before this:** the jumpbox exists
+([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and
+[ADR-0041](../adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md)
+is read rather than skimmed
+
+This opens the estate's **first inbound path from the internet**. It terminates
+on the lab and reaches the lab, and the thing that keeps it there is the
+firewall's default deny rather than the jumpbox's configuration — but the
+jumpbox's configuration is what decides whether the firewall is ever asked. Two
+mistakes here do not announce themselves: a client `AllowedIPs` wider than the
+lab, and a `MASQUERADE` rule copied in from a tutorial.
+
+> [!CAUTION]
+> **There is no `MASQUERADE` in this design, anywhere.** Every guide you will
+> find while doing this has one. ADR-0041 §2 is why this one does not: NAT
+> would make every peer indistinguishable from the jumpbox, which holds a
+> Proxmox token and an SSH key, and would hand every peer the jumpbox's
+> standing at the firewall. If you find yourself adding `-j MASQUERADE` to make
+> something work, the missing piece is the static route in §5, not the NAT.
+
+## What moves where, and what never does
+
+| Artefact | Made on | Lives on | Travels? |
+| --- | --- | --- | --- |
+| The server private key | The jumpbox | The jumpbox, in `/etc/wireguard/` at `0600` | **Never.** Generated where it is used |
+| The server public key | The jumpbox | Every peer's config | Yes, freely. Public |
+| Each peer's private key | **That peer's own device** | That device | **Never**, including not to the jumpbox |
+| Each peer's public key | That device | `wg0.conf` on the jumpbox | Yes, freely. Public |
+| The preshared key, one per peer | Either end, with `wg genpsk` | Both ends of that one peer | Once, over a channel that is not email |
+| The endpoint hostname and listen port | §0 | `docs/security.md`'s withheld list | **Not into this repository** |
+
+Generating a peer's key *on the jumpbox* and sending it to the device is the
+obvious shortcut and it is the one thing this table exists to forbid. A private
+key that has been on two machines is a key you cannot reason about later.
+
+---
+
+## 0. The endpoint — the prerequisite this runbook does not solve
+
+WireGuard needs a stable address and port to dial. This estate has neither: the
+WAN address is ISP-assigned by DHCP, and there is no dynamic DNS anywhere in
+it. ADR-0041 §4 records that deliberately as a separate decision — a static
+address is a recurring purchase, and a dynamic DNS provider is a third party
+handed a continuously-updated pointer to the house.
+
+**Do not start §1 until that is answered.** Everything below assumes you have
+one of:
+
+- a static WAN address from the ISP, or
+- a dynamic DNS hostname, updated by `morpheus` under *Services → Dynamic DNS*.
+
+Pick a listen port that is not a well-known one. It goes on `security.md`'s
+withheld list beside the WAN address, not into a commit message.
+
+> [!NOTE]
+> Behind CGNAT neither option works, and no amount of firewall configuration
+> fixes it — an inbound port forward needs an address the ISP actually routes
+> to you. If the WAN address is in `100.64.0.0/10`, stop here: the answer is a
+> conversation with the ISP, or an outbound-only overlay, which is a different
+> ADR.
+
+## 1. Install WireGuard on the jumpbox
+
+```bash
+# The distro package, not a container. The jumpbox runs no compose stack, and
+# a kernel-module datapath in Docker would need privileges worth more than the
+# convenience.
+sudo apt-get update && sudo apt-get install --yes wireguard
+
+# Expect a version, and no error. The module loads on first use, not now.
+wg --version
+```
+
+> [!NOTE]
+> **If this host ever runs Docker, pin its address pools first.** Docker walks
+> `172.16/12` upward from `172.17` when it allocates a bridge network, and
+> `172.31.0.0/24` is at the very top of that walk — the last thing it would
+> take, and still something it can take. A collision here is a tunnel that
+> stops routing the day someone runs `docker compose up` on the toolchain host.
+> Set `default-address-pools` in `/etc/docker/daemon.json` to a base that
+> excludes it.
+
+## 2. Generate the server keypair, on the jumpbox
+
+```bash
+# umask FIRST. wg genkey writes through your shell's redirect, and the default
+# umask leaves the private key world-readable for the instant before chmod.
+sudo install -d -m 0700 /etc/wireguard
+( umask 077 && wg genkey | sudo tee /etc/wireguard/server.key >/dev/null )
+sudo chmod 0600 /etc/wireguard/server.key
+sudo sh -c 'wg pubkey < /etc/wireguard/server.key > /etc/wireguard/server.pub'
+
+# The public half, for the peer configs in §4.
+sudo cat /etc/wireguard/server.pub
+```
+
+Verify the mode before moving on — this is the one file whose permissions
+matter and the one people fix later:
+
+```bash
+sudo stat -c '%a %n' /etc/wireguard/server.key
+# expect: 600 /etc/wireguard/server.key
+```
+
+## 3. The server configuration
+
+`/etc/wireguard/wg0.conf`, mode `0600`. Substitute the bracketed values; the
+listen port is the one from §0.
+
+```ini
+[Interface]
+# The router's own address inside the tunnel. /24 here is the interface's
+# subnet, not a grant to anybody.
+Address    = 172.31.0.1/24
+ListenPort = <LISTEN_PORT>
+PrivateKey = <contents of /etc/wireguard/server.key>
+
+# Forwarding is a capability scoped to the tunnel's lifetime, not a permanent
+# property of the host (ADR-0041). Nothing here is in /etc/sysctl.conf, and
+# nothing here translates an address.
+PostUp   = sysctl -w net.ipv4.ip_forward=1
+PostDown = sysctl -w net.ipv4.ip_forward=0
+
+[Peer]
+# laptop-01. One block per device, and the comment is how you will know which
+# key to delete in a year.
+PublicKey    = <that device's PUBLIC key>
+PresharedKey = <output of `wg genpsk`, unique to this peer>
+# On the SERVER, AllowedIPs is an ACCESS CONTROL LIST: the only source address
+# this peer is permitted to present. One /32 per device. A /24 here would let
+# any peer impersonate any other.
+AllowedIPs   = 172.31.0.2/32
+```
+
+```bash
+sudo chmod 0600 /etc/wireguard/wg0.conf
+sudo systemctl enable --now wg-quick@wg0
+```
+
+## 4. The client configuration
+
+On the **client device**, generate its own keypair and build this. Send the
+public key to the jumpbox for §3; the private key stays where it was made.
+
+```ini
+[Interface]
+Address    = 172.31.0.2/32
+PrivateKey = <this device's PRIVATE key, generated here>
+
+[Peer]
+PublicKey    = <the server public key from §2>
+PresharedKey = <the same preshared key as this peer's block on the server>
+Endpoint     = <ENDPOINT>:<LISTEN_PORT>
+# On the CLIENT, AllowedIPs is a ROUTE: the CIDRs that go down the tunnel.
+# This is the lab and nothing else. 0.0.0.0/0 here would pull all of the
+# device's traffic through the house, which is not what this is for and is the
+# failure ADR-0041 says will not announce itself.
+AllowedIPs   = 10.0.30.0/24
+PersistentKeepalive = 25
+```
+
+> [!IMPORTANT]
+> **`AllowedIPs` means opposite things on the two ends, and both are on this
+> page.** Server: an ACL, `/32`, "who may this peer claim to be". Client: a
+> route, `10.0.30.0/24`, "what goes down the tunnel". Reading §3's value into
+> §4 gives a peer that can reach nothing; reading §4's into §3 gives a peer
+> that can present any source address in the tunnel subnet.
+
+## 5. The route back, on `morpheus`
+
+Without this, lab hosts receive tunnel packets and answer them to their default
+gateway, which has never heard of `172.31.0.0/24`. This is the step that
+replaces the NAT rule.
+
+*System → Routing → Gateways → Add* — a gateway on the ImaginationLAN
+interface pointing at the jumpbox:
+
+| Field | Value |
+| --- | --- |
+| Interface | ImaginationLAN |
+| Address Family | IPv4 |
+| Name | `JUMPBOX_TUNNEL` |
+| Gateway | the jumpbox's lab address |
+| Disable Gateway Monitoring | **checked** — it is a host, not an uplink, and a failed ping should not mark it down |
+
+Then *System → Routing → Static Routes → Add*:
+
+| Field | Value |
+| --- | --- |
+| Destination network | `172.31.0.0/24` |
+| Gateway | `JUMPBOX_TUNNEL` |
+| Description | `WireGuard peers — ADR-0041` |
+
+**Save**, then **Apply Changes**.
+
+## 6. The inbound pass, on the WAN
+
+*Firewall → NAT → Port Forward → Add*:
+
+| Field | Value |
+| --- | --- |
+| Interface | WAN |
+| Protocol | **UDP** |
+| Destination | WAN address |
+| Destination port range | the listen port, from and to |
+| Redirect target IP | the jumpbox's lab address |
+| Redirect target port | the same listen port |
+| Description | `WireGuard — ADR-0041` |
+| Filter rule association | **Add associated filter rule** |
+
+**Save**, then **Apply Changes**. This is the `rdr` and the WAN pass that
+[ADR-0011](../adr/0011-keep-the-wiki-internal.md)'s 2026-08 measurement said
+did not exist; its update note records that this is what changed it.
+
+## 7. Teach the segmentation about the second subnet
+
+**This section is not optional, and skipping it is worse than having used
+NAT.** Routed mode puts a second source subnet on `igc0.30`. Every existing
+block rule and the tripwire are scoped `from <OPT4__NETWORK>` — that is
+`10.0.30.0/24` and it does not match a tunnel peer. Left as-is, tunnel traffic
+misses every block above the catch-all and the catch-all passes it to every
+segment in the house.
+
+First, *Firewall → Aliases → IP → Add*:
+
+| Field | Value |
+| --- | --- |
+| Name | `Tunnel_Peers` |
+| Type | Network(s) |
+| Network | `172.31.0.0/24` |
+| Description | `WireGuard peers — ADR-0041` |
+
+Then on *Firewall → Rules → ImaginationLAN*, mirror the existing lab rules for
+this source, keeping the established order — blocks, then the tripwire, then
+the egress catch-all:
+
+1. **A block per house segment**, `Tunnel_Peers → <segment>`, logged, placed
+   immediately beside the existing `10.0.30.0/24` blocks.
+2. **One tripwire**, `pass` + `log`, `Tunnel_Peers → House_Segments`, directly
+   below those blocks and above the `→ any` egress rule.
+
+The tripwire points at `House_Segments`, **not** `Internal_Segments` — the
+latter names `10.0.30.0/24` itself, and against it every DNS query from a peer
+to the lab gateway logs as a crossing. That mistake cost 1,239 false lines in
+three days when the lab's own tripwire was created
+([#234](https://github.com/Gerrrt/HomeLab/issues/234)); do not repeat it here.
+
+Then widen the alert that watches it —
+`stacks/observability/loki/rules/security.rules.yaml`,
+`LabSegmentReachedInternalNetwork` — so a tunnel source counts as the lab
+reaching the house. The rule and its unit test are changed in the same commit
+as this runbook; `make check-loki-rules` proves it.
+
+## 8. Verify — up, and then down
+
+The tunnel being up proves almost nothing. What has to be proved is that it
+reaches the lab, that it reaches nothing else, and that the capability goes
+away with it.
+
+```bash
+# On the jumpbox, with the tunnel up. The handshake is the only proof the keys
+# and the endpoint agree; an interface can exist and be useless.
+sudo wg show wg0
+# expect: a peer, a recent handshake, and non-zero transfer in both directions
+```
+
+```bash
+# THE CHECK THIS RUNBOOK EXISTS FOR. Read AllowedIPs off the RUNNING
+# interface, not off the file you think you deployed.
+sudo wg show wg0 allowed-ips
+# expect exactly one /32 per peer, all inside 172.31.0.0/24.
+# Anything wider — a /24, or 0.0.0.0/0 — is the segmentation failure.
+```
+
+From the **client**, with the tunnel up:
+
+```bash
+# Reaches the lab.
+ping -c1 10.0.30.1
+
+# Reaches NOTHING else. Each of these must fail, and must fail by timing out
+# rather than by "network unreachable" from your own machine — the latter means
+# the client route is right and you have not tested the firewall at all.
+ping -c1 -W3 10.0.99.20   # Winterfell — the observability host
+ping -c1 -W3 10.0.99.30   # Winterfell — oracle
+ping -c1 -W3 10.0.50.10   # Hicks
+ping -c1 -W3 10.0.40.30   # CasaBonita
+```
+
+Now bring it down, and check the capability went with it:
+
+```bash
+sudo systemctl stop wg-quick@wg0
+
+# Forwarding is off, because PostDown turned it off.
+sysctl net.ipv4.ip_forward
+# expect: net.ipv4.ip_forward = 0
+
+# NO MASQUERADE RULE EXISTS — with the tunnel down or up. This is the check
+# #442 asks for by name. Both must print nothing at all.
+sudo iptables-save 2>/dev/null | grep -i masquerade
+sudo nft list ruleset 2>/dev/null | grep -i masquerade
+```
+
+And from the client, with the tunnel down, the lab is gone:
+
+```bash
+ping -c1 -W3 10.0.30.1
+# expect: failure. If this succeeds, you are on the house network, not remote —
+# test from a device that is genuinely off-estate, on a phone hotspot.
+```
+
+### The leak drill
+
+`build-the-playground.md` gives the range a drill that proves a leak would
+report itself. The tunnel gets the sibling, and for the same reason: routed
+mode means a peer's address appears on the wire, so a packet that escapes the
+lab carries a source that cannot be anything else.
+
+With the tunnel up, from the client, aim one packet at a segment the tunnel
+must not reach — `ping -c3 -W3 10.0.99.20` — and then, on the monitoring host:
+
+```bash
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (src) (count_over_time({app="filterlog", action="block"} | regexp `,(?P<src>\d+\.\d+\.\d+\.\d+),(?P<dst>\d+\.\d+\.\d+\.\d+),` | src =~ "172\\.31\\..+" [15m]))' \
+  | jq '.data.result'
+```
+
+A row with a `172.31.x` source is the property working: the firewall stopped it
+*and* said which peer tried. **An empty result is not a pass** — it means
+either the packet never left the client (check the client's `AllowedIPs`
+route), or the jumpbox never forwarded it, and you should find out which before
+concluding the boundary held.
+
+Addresses are parsed at query time rather than indexed
+([ADR-0003](../adr/0003-observability-stack-selection.md)), which is why this
+reaches for `regexp` rather than a label.
+
+> [!IMPORTANT]
+> **Test from off-estate, once, properly.** Every check above passes from a
+> Hicks workstation whether or not the tunnel works, because Hicks reaches
+> ImaginationLAN anyway (ADR-0031). A verification that cannot fail has not
+> verified anything.
+
+## Rollback
+
+In reverse, and safe at every step — the estate's posture before this runbook
+is strictly more closed than after it.
+
+1. `sudo systemctl disable --now wg-quick@wg0` on the jumpbox. The inbound path
+   is dead from here; everything below is tidying.
+2. Delete the port forward and its associated filter rule (§6).
+3. Delete the static route and the gateway (§5).
+4. Delete the `Tunnel_Peers` rules and the alias (§7).
+5. Revert the Loki rule change.
+6. `sudo shred -u /etc/wireguard/server.key /etc/wireguard/wg0.conf`.
+
+Removing **one peer** rather than the tunnel is a `wg0.conf` edit and
+`sudo systemctl reload wg-quick@wg0`. ADR-0041 records that this does not scale
+and that the first lost device is when it stops being proportionate.
+
+## If something goes wrong
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| No handshake, ever | The port forward is not reaching the jumpbox, or the endpoint is stale | `sudo tcpdump -ni any udp port <LISTEN_PORT>` on the jumpbox while the client retries. No packets means §6 or the endpoint; packets but no handshake means the keys |
+| Handshake succeeds, nothing routes | The static route in §5 is missing — replies are going to the lab's default gateway, which has never heard of the tunnel subnet | Add it. **Do not add a NAT rule to make this work** |
+| Handshake succeeds, lab reachable, but only from the jumpbox itself | `PostUp` did not run or forwarding is off | `sysctl net.ipv4.ip_forward` — expect 1 with the tunnel up |
+| The client reaches the whole internet through the house | `AllowedIPs = 0.0.0.0/0` on the client | §4. This is the wide-`AllowedIPs` failure, and it is silent |
+| The client reaches Winterfell | A block in §7 is missing or ordered below the catch-all | Check rule order on the ImaginationLAN interface. Treat as a live segmentation failure and read the tripwire log |
+| `LabSegmentReachedInternalNetwork` fires | Either a real breach, or the rule was widened without the blocks | Both are urgent. Read the `filterlog` line: a `172.31.0.x` source is a peer, a `10.0.30.x` source is the lab |
+| Everything works from the sofa and nothing from a hotel | You tested from inside the house | See §8's note. Hicks reaches the lab without any tunnel |
+
+## What this does not do
+
+- **It does not reach Winterfell, and it must not.** ADR-0022's second trigger
+  ends the SSO deferral the moment the sensitive tier is reachable from outside
+  the house. Terminating on 99, or routing the tunnel to the tier, fires it —
+  that is a new ADR and an identity provider, not a rule change.
+- **It does not authenticate a person.** A peer is a device with a key. There
+  is no second factor and no account behind it; losing the device is losing the
+  credential.
+- **It does not revoke.** See Rollback.
+- **It does not watch the WAN.** Suricata is not on that interface and
+  `docs/security.md` says it deliberately never will be. The tunnel's inside is
+  watched by the §7 tripwire; its outside is not watched at all.
+- **It does not give the lab a route to the peers.** Traffic is initiated from
+  the peer. Nothing on ImaginationLAN can open a connection to a device on the
+  tunnel, and nothing should want to.
