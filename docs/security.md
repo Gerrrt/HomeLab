@@ -240,16 +240,27 @@ Everything else — IoT, media, guest — gets internet and nothing more.
 That sentence is about what those segments *initiate*, and two decisions now
 reach into them without touching it.
 [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
-writes three passes into CasaBonita for the NAS, and
+writes passes into CasaBonita for the NAS and
 [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) one into
-Skids — `10.0.99.40 → 10.0.20.104:80,443/tcp`, Home Assistant to the Hue
-bridge, the one device on that segment with a local API — above the block
-that has stood between 99 and 20 since the segments existed. Neither is
-created yet; both wait on the host that would use them. The row ADR-0008
+Skids, and they are at different stages — this paragraph said neither was
+created, and half of that stopped being true on 2026-09-16. **CasaBonita's
+exist.** Hicks reaches `10.0.40.30` on `443` and `8096`, and `10.0.99.20`
+reaches it on `9100` and `22`: four host- and port-scoped passes above *Block
+access to CasaBonita*, verified in position with `pfctl` rather than read off
+the web UI, where an appended rule looks present while matching nothing.
+ADR-0016 wrote three and four exist, because the Hicks pass is split rather
+than carrying a port list, and the `22` is inert — TrueNAS ships SSH disabled
+([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)).
+[`network.md`](network.md) holds the current list. **Skids' does not exist.**
+`10.0.99.40 → 10.0.20.104:80,443/tcp` — Home Assistant to the Hue bridge, the
+one device on that segment with a local API — still waits above the block that
+has stood between 99 and 20 since the segments existed, on the host that would
+use it ([#134](https://github.com/Gerrrt/HomeLab/issues/134)). The row ADR-0008
 wrote as `99 → 20` is narrower than it read: one host to one device on two
-ports, with the twenty other devices on Skids still unreachable from
-anywhere, and the segment still initiating nothing. The tripwire below is the
-check that the second half holds when the first lands.
+ports, with the twenty other devices on Skids still unreachable from anywhere,
+and both segments still initiating nothing. The tripwire below is the check
+that the second half holds — waiting on Skids, and since 2026-09-16 actually
+checking on CasaBonita.
 
 That sentence is now checked rather than asserted. Four **tripwire** rules
 sit below the block rules that stop each cross-segment path and above the
@@ -270,6 +281,39 @@ against a firewall that logged only blocks, so it could not fire for any input
 — the control was described here and not actually watched. Note that a
 firewall restore from a backup older than 2026-09-01 drops them silently; the
 restore runbook checks for them.
+
+**On CasaBonita that tripwire is now the only control watching the segment**,
+and since 2026-09-16 there is something on it worth watching. `smaug` at
+`10.0.40.30` is scraped rather than pushing, by the same ADR-0016 decision that
+keeps the segment terminal outward: it runs no Alloy agent, and with the agent
+go its logs, its SMART attributes and its patch state, because every one of
+those rides a push this host does not make. Loki has no pull — ingest is a push
+or it is nothing — so the only rule that would centralise the logs is the
+`40 → 99:3100` the ADR refused, and refusing it is the residual recorded in
+[`SECURITY.md`](../SECURITY.md)
+([#255](https://github.com/Gerrrt/HomeLab/issues/255) for the logs,
+[#483](https://github.com/Gerrrt/HomeLab/issues/483) for the rest). Suricata
+does not watch `igc0.40` either; it runs on Skids and Degens only. So the
+tripwire is what is left, and it is worth being exact about what that buys:
+`TerminalSegmentReachedInternalNetwork` fires on a `pass` from 10, 20 or 40
+toward 30, 50, 99 or the switch LAN, which is a compromise *leaving* the
+segment. Anything `smaug` does that stays on CasaBonita, or goes straight out
+to the internet, is not merely unalerted — it is unrecorded.
+
+**There is no alert for that and there cannot be one**, which is a decision and
+not an omission. A rule reading "no logs from `smaug`" is an absence rule, and
+an absence rule needs a declared expectation to measure the silence against —
+`homelab_suricata_expected_interface` is that pattern, and `SuricataLogsStopped`
+only became writable once somebody measured what a normal silence looks like:
+22 days of stream, a worst gap of 75 minutes, nine hours chosen as seven times
+it. Here the expected volume is zero and always was, so silence is the design
+working and no threshold separates it from a compromise. The two
+collection-completeness rules are no help for the same reason.
+`JournalSourceStopped` and `LogEntriesDropped` are both keyed on an agent that
+exists, and `check_loki_coverage.py` takes its denominator from the hosts Loki
+is already hearing from — so a host that has never shipped a line is absent
+from the question rather than failing it. The firewall and the tripwire are the
+control. This paragraph is the record that there is nothing else.
 
 Segmentation is doing more work here than it should have to. Prometheus and Loki
 publish unauthenticated ingest ports for `oracle`'s agent to use, so anything
