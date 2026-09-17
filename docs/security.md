@@ -35,7 +35,14 @@ internal services.
 ends [ADR-0008](adr/0008-place-services-by-data-trust.md)'s SSO deferral on a
 state rather than leaving it open: the first real secret, photo or document in
 the sensitive tier, any reachability from outside the house, or a third account
-holder — whichever comes first. Until then the floor is per-application TOTP,
+holder — whichever comes first. **The second of those has now fired and the
+deferral was re-accepted**, not ended:
+[ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md) opens
+a WireGuard path terminating on the lab, which takes ADR-0008's *no external
+exposure* premise with it. Nothing in the tier became reachable — it is
+unbuilt, and on Winterfell when it is built — but the lab's own Grafana on
+`alexander` did, and that is one of the three below that cannot carry a factor
+at all. The other two triggers keep their full force. Until then the floor is per-application TOTP,
 and it does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
 can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
 Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
@@ -101,8 +108,26 @@ process is alive, not that it is inspecting anything. `SuricataLogsStopped` in
 once both interfaces have been silent for nine hours, a window read from 22 days
 of the stream whose longest silence was 75 minutes, and it cannot see one
 interface going quiet on its own — the guest segment is silent for days at a
-time ([#441](https://github.com/Gerrrt/HomeLab/issues/441)). The runbook's test
-alert is still the only proof that it detects.
+time ([#441](https://github.com/Gerrrt/HomeLab/issues/441)). Re-measured on
+2026-09-17 over 27.7 days, the worst aggregate silence was 80 minutes and the
+guest segment alone crossed nine hours seven times, so the window holds and the
+decision to aggregate is what keeps the rule quiet. The runbook's test alert is
+still the only proof that it detects.
+
+**A limit none of the three names, and no rule here closes: Suricata is not a
+protocol logger, and the lab is out of reach.** SNI, JA3 and certificate metadata — the
+ground the plaintext limit gives up — are Zeek's, and east-west traffic between
+the lab's domain guests crosses no router, so `morpheus` never sees a packet of
+it ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
+[ADR-0006](adr/0006-detect-at-the-chokepoint.md)). When that sensor is built its
+logs stay on `alexander` and never reach `10.0.99.20`, which ADR-0007 requires
+and [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
+enforces by giving the lab no Alertmanager for a ruler to deliver to. So the
+absence rule this section describes has no Zeek equivalent and will not get one:
+whether that sensor is still running is answered on the hypervisor, as guest
+state crossing under
+[ADR-0028](adr/0028-let-guest-liveness-cross-but-not-guest-telemetry.md), by the
+`homelab_zeek_mirror_active` gauge #437 builds alongside the mirror.
 
 **Device joins are detected as of 2026-09-04**, from the DHCP server rather
 than from the wireless. `morpheus` ships Kea's lease log to Loki, and the first
@@ -658,6 +683,12 @@ fingerprint of a house is not. Withheld on purpose:
 - **Camera-to-room mapping.** Knowing there are seven cameras is fine. Knowing
   which one covers which door is a physical-security detail.
 - **The WAN address**, firewall rule bodies, and Wi-Fi configuration.
+- **The WireGuard endpoint and its listen port**, for the same reason and with
+  the same instinct: a repository that withholds the WAN address and then
+  publishes the port a VPN answers on has withheld nothing. The design, the
+  peer subnet and the rules are published
+  ([ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md));
+  where to send a packet is not.
 
 The public IP was already redacted in the original inventory — the rest of this
 is the same instinct applied consistently.

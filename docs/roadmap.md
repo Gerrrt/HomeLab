@@ -89,13 +89,14 @@ capacity are still chosen at the till and recorded in
 [`hardware.md`](hardware.md) afterwards, per the ADR — nothing is named here
 before it is bought.
 
-**Already paid for and on hand**, as of 2026-09-15: the ProDesk 600 G4 —
+**Already paid for and on hand**, as of 2026-09-17: the ProDesk 600 G4 —
 `trinity`, the tier's host and the firewall's spare hardware
 ([#404](https://github.com/Gerrrt/HomeLab/issues/404)); the TS150 NAS and its
 boot SSD with the bracket and tape that mount it in the optical bay
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the 2 TB USB drive
-that becomes the photo library's disk on `trinity`; and the removable medium
-the second age recipient lives on.
+that becomes the photo library's disk on `trinity`; two SM863a SSDs for
+`Saruman` ([#418](https://github.com/Gerrrt/HomeLab/issues/418)); and the
+removable medium the second age recipient lives on.
 
 **Already paid for and still moving**: the I226 card on its M.2 adapter that a
 restore onto `trinity` needs
@@ -103,14 +104,25 @@ restore onto `trinity` needs
 installer stick — between them, the whole of what the rehearsal now waits on;
 the two Exos X20 18 TB drives for `smaug`'s mirror
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the CRS326 that
-replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); two
-SM863a SSDs for `Saruman`
-([#418](https://github.com/Gerrrt/HomeLab/issues/418)); and the A1437 cell
-that replaces `prometheus`'s thirteen-year-old one
+replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); and the
+A1437 cell that replaces `prometheus`'s thirteen-year-old one
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
 
-Four things crossed from the second paragraph to the first on **2026-09-15**:
-the TS150, the ProDesk, the boot SSD, and the bracket and tape that mount it.
+Four things crossed from the second paragraph to the first: the TS150, the
+ProDesk, the boot SSD, and the bracket and tape that mount it. All four were
+recorded here as **2026-09-15**; the ProDesk's is now **2026-09-14**, from the
+carrier's own notice, and the other three are unaudited. They were written in
+the same commit, that evening, and dated by UTC after it had turned over — so
+the same day may be out by one for each of them. Checking is
+[#413](https://github.com/Gerrrt/HomeLab/issues/413)'s, not this section's, and
+nothing here depends on which day it was.
+
+**2026-09-17: the two SM863a SSDs are on hand.** They were delivered
+2026-09-11 and carried above as still moving for six days. Delivery is recorded
+against the order, which was one order for the pair; that both drives were in
+it is not separately proved and is
+[#418](https://github.com/Gerrrt/HomeLab/issues/418)'s to confirm at the bays.
+
 **No row on the table above moves** — arriving is not buying, and this section
 tracks money. Nothing was racked, fitted or built by it either. What it changed
 is one sentence: the two builds stopped waiting on a van for their machines,
@@ -518,7 +530,15 @@ what left this one unfireable for months.
   wiped and built as the sensitive tier's host ([#404](https://github.com/Gerrrt/HomeLab/issues/404)), and it is the
   firewall's spare hardware in a disaster at the cost of the tier being down
   until a replacement arrives. The powered-off shelf spare is deferred to the
-  day that cost is unacceptable. Writing that procedure found the runbook's own decrypt
+  day that cost is unacceptable. **The box is in hand, and proving it has a
+  deadline the rehearsal does not**: it was sold refurbished with a one-year
+  warranty and a thirty-day return, and that return closes **2026-10-08**. The
+  spec, the serial and the NIC count are still the listing's word rather than
+  the machine's, and the step that would settle them — installing pfSense over
+  the Windows 11 Pro it arrived with — is also the step that ends the return.
+  So the machine gets proved before 2026-10-08 whether or not the card has
+  landed by then, which is the one part of this issue that is not waiting on a
+  package. Writing that procedure found the runbook's own decrypt
   command had never been run: it passed `--input-type binary`, which sops
   rejects on the first byte of a real export, so a restore following the
   runbook would have stopped at step one. Fixed, and it is the kind of thing
@@ -872,22 +892,43 @@ what left this one unfireable for months.
   [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0020 decides only
   that no Alertmanager goes *inside* the stack, and the lab is otherwise being
   built to go quiet.
-- **[#96](https://github.com/Gerrrt/HomeLab/issues/96) Procure `ifrit` and build
-  the playground** — only after the main network is finished. The isolation
-  mechanism ADR-0007 deferred is settled by ADR-0014: `ifrit` is single-homed on
-  ImaginationLAN, the targets sit on a bridge with no physical port on a subnet
-  the firewall does not route, the attack VM does not forward, and the
-  hypervisor management planes close at the host. ADR-0017 settles the rest —
-  buy for IOPS and quiet rather than for threads, because the range's whole
-  operation is snapshot-and-revert and `Saruman`'s complaint is already
-  spindles; socketed RAM, because `prometheus`'s is soldered; `172.30.30.0/24`
-  on the isolated bridge with no gateway anywhere on it; and no backups, no
-  monitoring and no patching for the guests, so the least important part of the
-  lab joins none of the estate's loops. "After the main network is finished"
-  now names issues: #101 first, because an attack VM pointed at an
-  uninstrumented estate teaches nothing; #234 before the segment holds
-  attackers; #235 decided — the iLO stays, ADR-0033 — before this build makes
-  it true. What is left is the purchase itself and the build.
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Buy `ifrit` and build
+  the range** — only after the main network is finished. This entry was keyed to
+  [#96](https://github.com/Gerrrt/HomeLab/issues/96) until 2026-09-17, and #96
+  closed on the decision and the runbook on 2026-09-04: the purchase it ended
+  by naming had no tracker at all for five days, and this file
+  went on pointing at the closed issue for another eight after #421 was opened —
+  the same shape as #102 → #404 and #95 → #413. The isolation mechanism ADR-0007
+  deferred is settled by ADR-0014: `ifrit` is single-homed on ImaginationLAN,
+  the targets sit on a bridge with no physical port on a subnet the firewall
+  does not route, the attack VM does not forward, and the hypervisor management
+  planes close at the host. ADR-0017 settles the rest — buy for IOPS and quiet
+  rather than for threads, because the range's whole operation is
+  snapshot-and-revert and `Saruman`'s complaint is already spindles; socketed
+  RAM, because `prometheus`'s is soldered; `172.30.30.0/24` on the isolated
+  bridge with no gateway anywhere on it; and no backups, no monitoring and no
+  patching for the guests, so the least important part of the lab joins none of
+  the estate's loops. "After the main network is finished" named three issues
+  when that sentence was written, and **two of them have closed since**:
+  [#234](https://github.com/Gerrrt/HomeLab/issues/234)'s tripwire was armed and
+  verified on 2026-09-08, and
+  [#235](https://github.com/Gerrrt/HomeLab/issues/235) was decided the same day
+  — the iLO stays, [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md) —
+  with the hardening that decision owed done on 2026-09-09. Both are recorded in
+  full under *Done* below, which is why this paragraph does not restate them.
+  What is left of the gate is
+  [#101](https://github.com/Gerrrt/HomeLab/issues/101), and it is an umbrella
+  rather than a thing anyone builds: what it means here is the domain
+  ([#414](https://github.com/Gerrrt/HomeLab/issues/414)) and the SOC stack
+  ([#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh and
+  [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor), because an
+  attack VM pointed at an uninstrumented estate teaches nothing. This paragraph
+  ended "what is left is the purchase itself and the build" until 2026-09-17,
+  which read as though the money were the next thing to spend. **The purchase is
+  gated on #414 being built, and it is the last purchase on the estate's list,
+  not the next** — which is what *Everything still to buy* at the top of this
+  file has said since #421 was opened, and what this entry now agrees with
+  rather than contradicts.
   → [runbook](runbooks/build-the-playground.md)
 - **[#418](https://github.com/Gerrrt/HomeLab/issues/418) Fit the two SSDs in
   `Saruman`.** Two Samsung SM863a 960 GB SATA enterprise drives, bought
@@ -964,6 +1005,16 @@ months.
   with the repository side built and the device side not yet done. Under
   **Security** above, because it has a procedure now rather than only a
   decision.
+- **[#444](https://github.com/Gerrrt/HomeLab/issues/444)** The CRS326's
+  operating system and management posture, decided by
+  [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  ahead of the cabling window rather than during it — RouterOS over SwOS, the
+  name `neo` and `10.7.7.2` inherited, `www-ssl` from the estate's CA with plain
+  `www` off, an SNMPv3 authPriv user, and mirroring left disabled per ADR-0006.
+  Nothing is built: the switch is still in transit and `neo` is still the
+  MokerLink. Under **Security** above, because it has a procedure now —
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) — rather than only a
+  decision.
 
 ## Considered and declined
 
@@ -1009,7 +1060,14 @@ them name the condition that would change the answer.
   and a larger concession on the management segment than SSH already is: it
   turns any browser session on Hicks into a potential path to every console in
   the estate, and it stores connection credentials to do it. The estate already
-  has a KVM in U6 for physical console access. Declined.
+  has a KVM in U6 for physical console access. Declined. **The remote-access question it
+  gestured at is answered differently** by
+  [ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md):
+  WireGuard to the lab jumpbox, terminating on ImaginationLAN and reaching the
+  lab only. That is not a softening of this decline — it stores no connection
+  credentials at a gateway, it never touches Winterfell, and the boundary is
+  the firewall's rather than an application's. Guacamole's objection was about
+  the management segment, and nothing about ADR-0041 goes near it.
 - **Frigate** — locally-processed object detection on camera streams, and the
   one service on the shortlist that would change the network's shape rather
   than its population: continuous RTSP from every camera through the `99 → 20`
@@ -1049,6 +1107,51 @@ them name the condition that would change the answer.
   known end, unlike the others here.
 
 ## Done
+
+- [x] **[#441](https://github.com/Gerrrt/HomeLab/issues/441) Alerted on a sensor
+      that stops logging, and closed the Zeek half by deciding it elsewhere.**
+      2026-09-17. `SuricataLogsStopped` landed on 2026-09-12 in
+      `loki/rules/security.rules.yaml`: `absent_over_time({app="suricata"}[9h])`,
+      aggregate across both interfaces, `for: 0s` like the two absence rules it
+      copies. The window was read rather than picked — 22 days of the stream, in
+      which the longest silence across both interfaces was 75 minutes — which is
+      what the issue asked for, because the thirty minutes it opened with would
+      have paged about twice a day.
+
+      **Re-measured on 2026-09-17 over 27.7 days and it holds.** Worst aggregate
+      silence 80 minutes, six gaps past an hour, none past two, so nine hours
+      keeps nearly seven times the headroom `DhcpLeaseLogsStopped` settled on.
+      The aggregate design earned its keep in the interval: `igc0.10` alone went
+      quiet for more than nine hours **seven times**, worst 47.5 hours, so a
+      per-interface rule would have paged seven times in a fortnight. The
+      short-gap counts are not comparable between the two measurements — 135
+      over thirty minutes here against 54 on 2026-09-12, a difference in method,
+      not in Suricata — and the rule's comment says so rather than presenting
+      one series.
+
+      **The Zeek half was not built, and will not be as the issue described it.**
+      `ZeekLogsStopped` was to be the same shape against the lab's Loki once
+      [#437](https://github.com/Gerrrt/HomeLab/issues/437) existed. Three things
+      make that the wrong instrument. #437 puts Zeek's logs on `alexander` and
+      never on `10.0.99.20`, which ADR-0007 requires;
+      [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
+      gives that stack no Alertmanager on purpose, and `stacks/lab/loki/` ships
+      no ruler and no `rules/` because *"a ruler with nowhere to deliver
+      evaluates rules and discards the result, which reads as coverage and is
+      not"*; and
+      [ADR-0028](adr/0028-let-guest-liveness-cross-but-not-guest-telemetry.md)
+      revisited that exact boundary and kept it. #437 already carries the right
+      mechanism — a `homelab_zeek_mirror_active` textfile gauge read on the
+      hypervisor, crossing as guest state under ADR-0028 — so Zeek's liveness is
+      a metric question answered where Zeek is built, and this issue closes
+      rather than holding a slot behind a Wave 2 dependency that itself waits on
+      [#414](https://github.com/Gerrrt/HomeLab/issues/414).
+
+      What this proves and what it does not, unchanged from the merge: Loki
+      rules still have no unit-test harness, so `check_loki_rules.sh` shows the
+      rule parses and the ruler evaluates it, not that it fires. The live ruler
+      reports it `health=ok` and `state=inactive`, which is the good state and
+      not evidence of detection.
 
 - [x] **[#470](https://github.com/Gerrrt/HomeLab/issues/470) The wiki's drift
       check is watched.** 2026-09-14. `Gerrrt/Lemmiwinks/.claude/tools/drift-check`

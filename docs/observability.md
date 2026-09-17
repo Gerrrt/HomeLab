@@ -296,6 +296,18 @@ packet anyway, so nothing is weakened by it being there. The terminal three feed
 `LabSegmentReachedInternalNetwork`, which reads VLAN 30 as a source rather than
 a destination.
 
+**That alert reads two source subnets, not one.**
+[ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md) routes
+the WireGuard peers on `172.31.0.0/24` rather than masquerading them, so a
+peer's own address reaches `igc0.30` and appears in `filterlog`. That is the
+point of routing rather than translating — a peer is nameable in a rule and in
+an alert — and the cost is that a source class written as `10.0.30.0/24` no
+longer covers the interface. The alert's regex carries both; the interface
+carries a second set of blocks and a second tripwire, sourced from the peers
+rather than from the segment. A `10.0.30.x` source is the lab, a `172.31.x`
+source is a remote peer, and a `172.30.x` source is neither — that is `ifrit`'s
+range bridge escaping, which is a different incident.
+
 A tripwire that never fires is indistinguishable from a broken one, which is
 this whole family of defect, so the logging path was proven rather than assumed:
 logging was briefly enabled on the lowest-volume terminal egress rule, and 49 of
