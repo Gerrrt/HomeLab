@@ -85,7 +85,7 @@ truth for what a box actually does.
 - The gateway runs in bridge mode; its own Wi-Fi radio stays operational but is
   unused. All wireless is handled by eero units on tagged VLANs.
 - **One inbound pass, and one only** — the WireGuard endpoint decided by
-  [ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md): a
+  [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md): a
   UDP `rdr` to the lab jumpbox, terminating on ImaginationLAN and reaching the
   lab only. The endpoint hostname and the listen port are withheld with the WAN
   address ([`security.md`](security.md#what-this-repository-deliberately-does-not-publish)).
@@ -393,7 +393,7 @@ Where things get broken on purpose.
 
 - **The WireGuard peers live on `172.31.0.0/24`, and it is routed rather than
   translated**
-  ([ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md)).
+  ([ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)).
   `morpheus` carries one static route for it toward the jumpbox, so a peer's
   own address is what arrives on this interface and what a firewall log
   carries — which is what lets a rule name a peer and an alert say which one.
