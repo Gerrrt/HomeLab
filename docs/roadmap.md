@@ -104,9 +104,20 @@ restore onto `trinity` needs
 installer stick — between them, the whole of what the rehearsal now waits on;
 the two Exos X20 18 TB drives for `smaug`'s mirror
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the CRS326 that
-replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); and the
+replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); the
 A1437 cell that replaces `prometheus`'s thirteen-year-old one
-([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)); and two HP SFF drive
+trays for `Saruman`, the carriers its SM863a pair needs to go in the bays
+([#418](https://github.com/Gerrrt/HomeLab/issues/418)).
+
+**2026-09-17: the trays were bought on 2026-09-11 and are only now written
+down.** They were paid for in the same sitting as the I226 card, the Exos pair
+and the boot disk's bracket, and unlike every one of those they got no entry in
+[`hardware.md`](hardware.md) and no line here. This section's rule is that a
+purchase is recorded when the money is spent; six days of silence is that rule
+failing, and it was caught by reading a delivery notice for a different issue
+rather than by anything this repository does. Nothing here checks the list
+against what was actually bought, which is the gap the omission found.
 
 Four things crossed from the second paragraph to the first: the TS150, the
 ProDesk, the boot SSD, and the bracket and tape that mount it. All four were
