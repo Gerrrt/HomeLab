@@ -293,7 +293,7 @@ Televisions and consoles. Internet only.
   not exist yet and neither does `stacks/media`; what exists is a host on its
   address. **It does not change the *Reaches* column**, and that is the point
   ADR-0016 made in advance: nothing on this segment initiates anywhere, and the
-  three rules created that day all let a more trusted segment reach **in**.
+  four rules created that day all let a more trusted segment reach **in**.
   That is the direction this row records, and it is the one that is unchanged.
 - **Inbound is no longer nothing, and that is deliberate.** Since 2026-09-16
   Hicks reaches `10.0.40.30` on `443` and `8096`, and `10.0.99.20` reaches it
