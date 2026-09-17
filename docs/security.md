@@ -101,8 +101,26 @@ process is alive, not that it is inspecting anything. `SuricataLogsStopped` in
 once both interfaces have been silent for nine hours, a window read from 22 days
 of the stream whose longest silence was 75 minutes, and it cannot see one
 interface going quiet on its own — the guest segment is silent for days at a
-time ([#441](https://github.com/Gerrrt/HomeLab/issues/441)). The runbook's test
-alert is still the only proof that it detects.
+time ([#441](https://github.com/Gerrrt/HomeLab/issues/441)). Re-measured on
+2026-09-17 over 27.7 days, the worst aggregate silence was 80 minutes and the
+guest segment alone crossed nine hours seven times, so the window holds and the
+decision to aggregate is what keeps the rule quiet. The runbook's test alert is
+still the only proof that it detects.
+
+**A limit none of the three names, and no rule here closes: Suricata is not a
+protocol logger, and the lab is out of reach.** SNI, JA3 and certificate metadata — the
+ground the plaintext limit gives up — are Zeek's, and east-west traffic between
+the lab's domain guests crosses no router, so `morpheus` never sees a packet of
+it ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
+[ADR-0006](adr/0006-detect-at-the-chokepoint.md)). When that sensor is built its
+logs stay on `alexander` and never reach `10.0.99.20`, which ADR-0007 requires
+and [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
+enforces by giving the lab no Alertmanager for a ruler to deliver to. So the
+absence rule this section describes has no Zeek equivalent and will not get one:
+whether that sensor is still running is answered on the hypervisor, as guest
+state crossing under
+[ADR-0028](adr/0028-let-guest-liveness-cross-but-not-guest-telemetry.md), by the
+`homelab_zeek_mirror_active` gauge #437 builds alongside the mirror.
 
 **Device joins are detected as of 2026-09-04**, from the DHCP server rather
 than from the wireless. `morpheus` ships Kea's lease log to Loki, and the first
