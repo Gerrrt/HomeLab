@@ -29,13 +29,23 @@ than assumed"; §8 is that check, and it is the reason this file exists.
 
 ## 0. Before you start
 
-Three things belong ahead of this work, per ADR-0017:
+ADR-0017 put three things ahead of this work, and **two of them are done**.
+This table read as three open to-dos until 2026-09-17, by which point two of
+its rows had been closed for over a week. The tracker for the buy and the build
+is [#421](https://github.com/Gerrrt/HomeLab/issues/421); #96 closed on the
+decision and on this runbook.
 
-| | Why it is first |
-| --- | --- |
-| [#101](https://github.com/Gerrrt/HomeLab/issues/101) — `stacks/lab/` on `Saruman` | An attack VM pointed at an estate with no Wazuh, no Velociraptor and no domain teaches nothing. This is the half that carries the value |
-| [#234](https://github.com/Gerrrt/HomeLab/issues/234) — the ImaginationLAN tripwire | The only thing watching the boundary this build creates. It is a no-op until the segment holds attackers, which is what §5 makes it |
-| [#235](https://github.com/Gerrrt/HomeLab/issues/235) — whether `shiva` stays on VLAN 30 | Decided: it stays ([ADR-0033](../adr/0033-keep-the-ilo-on-the-lab-segment.md)). Before §5 puts a Kali VM in its broadcast domain, do the iLO hardening that ADR lists — IPMI-over-LAN and unused services off |
+| | State | Why it is ahead of §1 |
+| --- | --- | --- |
+| [#101](https://github.com/Gerrrt/HomeLab/issues/101) — the defended estate on `Saruman` | **The one that still gates this build.** The umbrella is not a thing anyone builds: what this waits on is the lab domain ([#414](https://github.com/Gerrrt/HomeLab/issues/414)) and the SOC stack — [#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh and [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor, in `stacks/soc/` on `odin` per [ADR-0030](../adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md). Whether each is built is on its own issue | An attack VM pointed at an estate with no Wazuh, no Velociraptor and no domain teaches nothing. This is the half that carries the value |
+| [#234](https://github.com/Gerrrt/HomeLab/issues/234) — the ImaginationLAN tripwire | **Armed and verified 2026-09-08**, and nothing here re-arms it. §8 and §9 assume it is already live | The only thing watching the boundary this build creates. It is a no-op until the segment holds attackers, which is what §5 makes it |
+| [#235](https://github.com/Gerrrt/HomeLab/issues/235) — whether `shiva` stays on VLAN 30 | **Decided: it stays** ([ADR-0033](../adr/0033-keep-the-ilo-on-the-lab-segment.md)), **and the hardening that decision named was done 2026-09-09** — IPMI-over-LAN, SSH and iLO Federation off, the BMC's credential shared with nothing in the house, its security log read for a baseline, and the redundant `10.0.30.10 → 10.0.99.20/udp` return-path rule deleted from `morpheus`. Read [`SECURITY.md`](../../SECURITY.md)'s row for it rather than doing it again | Before §5 puts a Kali VM in its broadcast domain, the BMC already in that domain has to be the hardened one. A decision taken afterwards is taken under a fact that is already true |
+
+So what genuinely remains ahead of §1 is the estate and the machine. `ifrit` is
+unpurchased, and the purchase is gated on #414's domain being built: it is the
+**last** purchase on the estate's list, not the next. ADR-0017 and #421 carry
+the spec to buy against, and nothing below this section can be started without
+the box.
 
 You will also need a free Green access port on `neo` and an outlet on the PDU.
 `ifrit` does **not** hang off the unmanaged shelf switch: that switch is fed

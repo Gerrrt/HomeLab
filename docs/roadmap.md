@@ -872,22 +872,43 @@ what left this one unfireable for months.
   [#257](https://github.com/Gerrrt/HomeLab/issues/257): ADR-0020 decides only
   that no Alertmanager goes *inside* the stack, and the lab is otherwise being
   built to go quiet.
-- **[#96](https://github.com/Gerrrt/HomeLab/issues/96) Procure `ifrit` and build
-  the playground** — only after the main network is finished. The isolation
-  mechanism ADR-0007 deferred is settled by ADR-0014: `ifrit` is single-homed on
-  ImaginationLAN, the targets sit on a bridge with no physical port on a subnet
-  the firewall does not route, the attack VM does not forward, and the
-  hypervisor management planes close at the host. ADR-0017 settles the rest —
-  buy for IOPS and quiet rather than for threads, because the range's whole
-  operation is snapshot-and-revert and `Saruman`'s complaint is already
-  spindles; socketed RAM, because `prometheus`'s is soldered; `172.30.30.0/24`
-  on the isolated bridge with no gateway anywhere on it; and no backups, no
-  monitoring and no patching for the guests, so the least important part of the
-  lab joins none of the estate's loops. "After the main network is finished"
-  now names issues: #101 first, because an attack VM pointed at an
-  uninstrumented estate teaches nothing; #234 before the segment holds
-  attackers; #235 decided — the iLO stays, ADR-0033 — before this build makes
-  it true. What is left is the purchase itself and the build.
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Buy `ifrit` and build
+  the range** — only after the main network is finished. This entry was keyed to
+  [#96](https://github.com/Gerrrt/HomeLab/issues/96) until 2026-09-17, and #96
+  closed on the decision and the runbook on 2026-09-04: the purchase it ended
+  by naming had no tracker at all for five days, and this file
+  went on pointing at the closed issue for another eight after #421 was opened —
+  the same shape as #102 → #404 and #95 → #413. The isolation mechanism ADR-0007
+  deferred is settled by ADR-0014: `ifrit` is single-homed on ImaginationLAN,
+  the targets sit on a bridge with no physical port on a subnet the firewall
+  does not route, the attack VM does not forward, and the hypervisor management
+  planes close at the host. ADR-0017 settles the rest — buy for IOPS and quiet
+  rather than for threads, because the range's whole operation is
+  snapshot-and-revert and `Saruman`'s complaint is already spindles; socketed
+  RAM, because `prometheus`'s is soldered; `172.30.30.0/24` on the isolated
+  bridge with no gateway anywhere on it; and no backups, no monitoring and no
+  patching for the guests, so the least important part of the lab joins none of
+  the estate's loops. "After the main network is finished" named three issues
+  when that sentence was written, and **two of them have closed since**:
+  [#234](https://github.com/Gerrrt/HomeLab/issues/234)'s tripwire was armed and
+  verified on 2026-09-08, and
+  [#235](https://github.com/Gerrrt/HomeLab/issues/235) was decided the same day
+  — the iLO stays, [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md) —
+  with the hardening that decision owed done on 2026-09-09. Both are recorded in
+  full under *Done* below, which is why this paragraph does not restate them.
+  What is left of the gate is
+  [#101](https://github.com/Gerrrt/HomeLab/issues/101), and it is an umbrella
+  rather than a thing anyone builds: what it means here is the domain
+  ([#414](https://github.com/Gerrrt/HomeLab/issues/414)) and the SOC stack
+  ([#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh and
+  [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor), because an
+  attack VM pointed at an uninstrumented estate teaches nothing. This paragraph
+  ended "what is left is the purchase itself and the build" until 2026-09-17,
+  which read as though the money were the next thing to spend. **The purchase is
+  gated on #414 being built, and it is the last purchase on the estate's list,
+  not the next** — which is what *Everything still to buy* at the top of this
+  file has said since #421 was opened, and what this entry now agrees with
+  rather than contradicts.
   → [runbook](runbooks/build-the-playground.md)
 - **[#418](https://github.com/Gerrrt/HomeLab/issues/418) Fit the two SSDs in
   `Saruman`.** Two Samsung SM863a 960 GB SATA enterprise drives, bought
