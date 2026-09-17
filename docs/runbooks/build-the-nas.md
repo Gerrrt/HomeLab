@@ -5,7 +5,8 @@
 `10.0.40.30`
 **Time:** §0 is about half an hour and needs no drives. §1–§7 is about twenty
 minutes once the drives are in hand.
-**You will need:** a console on `smaug` (or its web UI), the pfSense UI on
+**You will need:** a console on `smaug` (or its web UI), `neo`'s web UI at
+`http://10.7.7.2` and a yellow Cat6 lead for §0.2b, the pfSense UI on
 `morpheus`, a shell on the monitoring host for §0.6, and the two Exos X20
 drives for §1 onward.
 
@@ -18,10 +19,15 @@ drives for §1 onward.
 > listing and recorded in [`hardware.md`](../hardware.md).
 >
 > **§0 is complete as of 2026-09-16.** BIOS flashed (§0.1), AMT found on its
-> factory-default credential and disabled (§0.2), the static set (§0.3), the
-> reservation added (§0.4), and the rules created as four host- and port-scoped
-> passes rather than three (§0.5) — `443,8096` from Hicks split into two rules,
-> `9100` and `22` from `10.0.99.20`.
+> factory-default credential and disabled (§0.2), the switch port moved into
+> CasaBonita untagged (§0.2b), the static set (§0.3), the reservation added
+> (§0.4), and the rules created as four host- and port-scoped passes rather
+> than three (§0.5) — `443,8096` from Hicks split into two rules, `9100` and
+> `22` from `10.0.99.20`.
+>
+> **§0.2b is the one step here with no date of its own.** It was added after the
+> fact by [#481](https://github.com/Gerrrt/HomeLab/issues/481), which is why it
+> records a reading rather than a day's work.
 >
 > §0.6 verified from `morpheus` rather than from the UI: every pass sits above
 > *Block access to CasaBonita* on its interface (167–168 before 169 on
@@ -84,6 +90,65 @@ its own issue — the precedent is
 
 There is also an `ME_DIS` header on the board if the answer turns out to be
 "remove it entirely".
+
+### §0.2b — Move its switch port to CasaBonita
+
+> **Done, and the only step in §0 without a date.** Read off the switch on
+> 2026-09-17: `smaug` is on **port 15 of `neo`**, whose PVID is **40**, untagged
+> only, with `smaug`'s MAC learned on it in VLAN 40 and the link up at **1000M
+> full** — the fastest thing answering on CasaBonita when it was read, which is
+> what identifies the port. The move itself was never recorded. The map was last
+> read on 2026-09-04 with port 15 still ImaginationLAN's and matching the
+> documented map exactly, so it happened between that day and this one, and the
+> install on 2026-09-16 is the obvious occasion — an inference, not a reading.
+> The section below is kept for the next machine, and for the next time this one
+> is re-cabled.
+>
+> **Port 15 is a fact about `neo`.** The MikroTik bought to replace it
+> ([#444](https://github.com/Gerrrt/HomeLab/issues/444)) will need its own
+> reading, and this step run again.
+
+In `neo`'s web UI at `http://10.7.7.2`, add the port to CasaBonita's untagged
+members in the static VLAN table, take it out of ImaginationLAN's, and set its
+**PVID to 40**. What you are making is a **Yellow access port, untagged VLAN 40
+— no trunk, no tagged port**, the same shape
+[`build-the-playground.md`](build-the-playground.md) asks for in Green on the
+lab segment. The UI is plain HTTP, and that is decided rather than outstanding
+([ADR-0018](../adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)).
+
+**Read both tables back after saving.** Membership and PVID are set in separate
+places on this firmware, and a port with the right membership and a stale PVID
+is the failure below wearing a working port's clothes.
+
+Not **port 1**, which is the trunk to `morpheus`, and not **port 3**, which
+feeds the unmanaged shelf switch that `prometheus` and `oracle` hang off.
+
+**Then re-patch it yellow.** CasaBonita is the yellow cable and ImaginationLAN
+the green one
+([ADR-0009](../adr/0009-colour-vlans-by-cable-not-by-trust.md)), so a port taken
+from the lab segment still has a green cable in it. That ADR makes colour
+evidence rather than decoration, and a green cable in a CasaBonita port is
+exactly what destroys it.
+
+**This comes before §0.3, and the order is not cosmetic.** §0.3 sets a static on
+`10.0.40.0/24`, and TrueNAS applies it on a test-and-confirm timer: on a port
+still carrying VLAN 30 that static loses contact the moment it is applied and
+rolls itself back. If it somehow sticks, the result is worse — a machine on the
+lab segment holding a media-segment address, which no inbound rule reaches, so
+*"can I reach the NAS"* fails in a way **indistinguishable from a firewall
+fault**. §0.5 warns about the mirror image of that, a rule appended where it
+matches nothing and leaves the question passing for the wrong reason; this one
+leaves it failing for the wrong reason, and sends you to the pfSense UI, where
+the answer is not.
+
+**Write the port number down**, which is what this section is for. §0.3 and
+§0.4 hold the address twice because either alone is a single point of drift; a
+port that nothing records is worse than either, because a successor re-cabling
+this machine has nothing to re-cable it to. Only this machine's own port belongs
+here — the full map is the wiki's `infrastructure/switching` page and stays
+there, because
+[ADR-0026](../adr/0026-check-the-documents-where-the-truth-is.md) keeps facts
+where they are checked rather than copying them somewhere nothing checks them.
 
 ### §0.3 — Give it the static address
 
@@ -291,6 +356,9 @@ Jellyfin binds `8096`, reads `erebor/media`, and writes its state to
 - A Hicks workstation reaches `https://10.0.40.30` and `http://10.0.40.30:8096`
 - The monitoring host reaches `9100` and **nothing else**
 - The `igc0.40` tripwire counter is **still zero**
+- Port 15 on `neo` reads PVID **40**, untagged, with `smaug`'s MAC learned on it
+  in VLAN 40 — read in the switch UI, and **not** inferred from the host having
+  an address
 - `zpool status erebor` is `ONLINE` with no errors
 - Both Exos self-tests from §2 completed without error
 
