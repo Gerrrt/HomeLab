@@ -304,7 +304,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   not before — that issue also names the ADRs whose arithmetic the fit makes
   stale
 - MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
-  RouterOS / SwOS — bought used 2026-09-13, in transit. The replacement for
+  RouterOS / SwOS — bought used 2026-09-13; in transit, delivery estimated
+  2026-09-23, moved out from the 09-16 to 09-21 window quoted at purchase. The
+  replacement for
   `neo` that
   [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
   asked for in its last consequence and
@@ -315,7 +317,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#84](https://github.com/Gerrrt/HomeLab/issues/84)'s GETBULK residual rides
   along; SNMPv3 is not the argument, because
   [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
-  found the switch in the rack already answers v3 on the wire. It enters the
+  found the switch in the rack already answers v3 on the wire. **How it is
+  configured was decided before the window rather than during it** —
+  [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  runs it on RouterOS, keeps the name `neo` and the address `10.7.7.2`, serves
+  `www-ssl` from a leaf off the estate's CA with plain `www` off, and gives it
+  an SNMPv3 authPriv user; the procedure is
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md). It enters the
   Rack table at U9 and [`network.md`](network.md) when it is racked — `neo`
   carries every VLAN, so the swap is a house-wide outage and shares a rack
   visit rather than getting its own — and until then `neo` is the switch in
