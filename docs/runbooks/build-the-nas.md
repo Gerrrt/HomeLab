@@ -174,7 +174,7 @@ the box and in the firewall, not here.
 The static is set on the host and the reservation is set on the server, and
 both are done because either alone is a single point of drift.
 
-### §0.5 — Create the three rules, in order and in position
+### §0.5 — Create the four rules, in order and in position
 
 **Position is the whole difficulty.** Two of these sit above a deny that has
 been in place since 2025; appended where new rules naturally land they would
@@ -183,14 +183,20 @@ reason.
 
 | On interface | Protocol / source → destination | Position |
 | --- | --- | --- |
-| Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` ports `443,8096` | **above** *Block access to CasaBonita* |
+| Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `443` | **above** *Block access to CasaBonita* |
+| Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `8096` | **above** *Block access to CasaBonita* |
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `9100` | **above** *Block access to CasaBonita* |
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `22` | **above** *Block access to CasaBonita* |
 
-**The Hicks rule's ports differ from ADR-0016's table, and deliberately.** That
-table says `22,8096`, which assumed a box administered over SSH — ADR-0016
-decided Ubuntu Server. `smaug` runs TrueNAS, which is administered over HTTPS,
-so the admin port is **443** and not 22.
+**Four rules and not ADR-0016's three.** That table wrote the Hicks pass as a
+single row carrying a port list; what was created on 2026-09-16 is one rule per
+port, which is what this table now describes. Three was a count of the rows the
+ADR wrote, not of rules that exist.
+
+**The Hicks ports differ from ADR-0016's table, and deliberately.** That table
+says `22,8096`, which assumed a box administered over SSH — ADR-0016 decided
+Ubuntu Server. `smaug` runs TrueNAS, which is administered over HTTPS, so the
+admin port is **443** and not 22.
 [ADR-0040](../adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)
 records the correction; it had originally claimed the rules were untouched by
 the operating-system change, and the ports were the part of them that was not.
