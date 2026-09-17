@@ -121,7 +121,7 @@ earned its place. This leaves the "no MFA on the internal services" gap in
   access*. When that premise changes, so does the decision.
 
   > *The second half of that premise changed in 2026-09.
-  > [ADR-0041](0041-terminate-the-remote-path-on-the-lab-and-route-it.md) opens
+  > [ADR-0042](0042-terminate-the-remote-path-on-the-lab-and-route-it.md) opens
   > a WireGuard path that terminates on the lab and reaches the lab only, so
   > "no remote access" becomes "no remote access to the house". It fires
   > [ADR-0022](0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)'s

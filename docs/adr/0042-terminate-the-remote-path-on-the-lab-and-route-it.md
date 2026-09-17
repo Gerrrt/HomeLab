@@ -1,6 +1,16 @@
-# ADR-0041: Terminate the remote path on the lab, and route it
+# ADR-0042: Terminate the remote path on the lab, and route it
 
 **Status:** Accepted · 2026-09
+
+> [!NOTE]
+> **One of the conditions under *What would reopen this* has fired, 2026-09.**
+> The Proxmox `8006` rule widens to admit the jumpbox, by
+> [ADR-0043](0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
+> — the decision this ADR's consequences left to #436, and the one that names
+> the jumpbox `phoenix` at `10.0.30.70`. Nothing here is amended: routed mode,
+> decision 3, is what that widening relies on to admit one host and not every
+> peer, and ADR-0014 carries the supersession of its rule. The text below is
+> left as written, per ADR-0001.
 
 ## Context
 
