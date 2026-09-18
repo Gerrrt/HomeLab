@@ -193,7 +193,9 @@ stays in that gitignored directory and nowhere else.
 and until now nothing off `alexander` did — the two `ports:` blocks in
 `stacks/lab/compose.yaml` and the two port lines in `stacks/lab/.env.example`
 have been commented since the day that stack landed, waiting for a client with
-no scrape alternative. This is that client (ADR-0030).
+no scrape alternative. This is that client (ADR-0030) — unless `phoenix` was
+built first, in which case [`build-the-jumpbox.md`](build-the-jumpbox.md) §5
+already did this and the four are open; check before editing.
 
 Uncomment all four — `PROMETHEUS_PORT` and `LOKI_PORT` in `.env.example`, and
 the `ports:` block under `prometheus` and under `loki` in `compose.yaml` — and

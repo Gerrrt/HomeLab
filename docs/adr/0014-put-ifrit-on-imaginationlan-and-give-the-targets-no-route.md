@@ -23,6 +23,18 @@
 > a second source subnet — `172.31.0.0/24`, the WireGuard peers — which is why
 > it also widens the tripwire this ADR decided. `172.30.` is the range;
 > `172.31.` is the tunnel. Nothing here is amended.
+>
+> ---
+>
+> **One rule is superseded, 2026-09.** The management-plane rule below admits
+> `8006`, `8007` and `22` from `10.0.50.0/24` only. Since
+> [ADR-0043](0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
+> it also admits one address on VLAN 30, `10.0.30.70`, to `8006` alone — the
+> deployment host, driving the API it exists to drive, and the host the
+> tunnel above terminates on. That is a change to a decision rather than a
+> premise, which is why it is a supersession of that one rule and not a
+> note; every other bullet below stands. The text is left as written, per
+> ADR-0001.
 
 ## Context
 

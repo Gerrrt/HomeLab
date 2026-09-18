@@ -352,7 +352,7 @@ groups:
         # 10.7.7.0/24 is the untagged switch-management LAN, in both aliases
         # since 2026-09-06; a logged block above the tripwire catches it first.
         #
-        # 172.31.0.0/24 is the WireGuard peer subnet (ADR-0041). Routed, not
+        # 172.31.0.0/24 is the WireGuard peer subnet (ADR-0042). Routed, not
         # masqueraded, so a peer's own address is what arrives on igc0.30 and
         # what a filterlog line carries — which is the point of routing rather
         # than translating, and the reason this source class has two members
@@ -382,7 +382,7 @@ groups:
             tooling has reached the house. Either a block rule was removed or
             reordered, or the tripwire's alias gained the wrong subnet. A
             10.0.30.x source is the lab itself; a 172.31.x source is a remote
-            peer, which also means the ADR-0041 blocks are missing or ordered
+            peer, which also means the ADR-0042 blocks are missing or ordered
             below the catch-all. Treat as a live segmentation failure.
 
       - alert: IoTAttemptedLateralMovement
