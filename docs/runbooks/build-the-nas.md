@@ -104,9 +104,14 @@ There is also an `ME_DIS` header on the board if the answer turns out to be
 > The section below is kept for the next machine, and for the next time this one
 > is re-cabled.
 >
-> **Port 15 is a fact about `neo`.** The MikroTik bought to replace it
-> ([#444](https://github.com/Gerrrt/HomeLab/issues/444)) will need its own
-> reading, and this step run again.
+> **Port 15 is a fact about the MokerLink, not about `neo`.** The CRS326 bought
+> under [#444](https://github.com/Gerrrt/HomeLab/issues/444) inherits both the
+> name and `10.7.7.2`
+> ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+> decision 2), so `neo` still answers on this address after the swap while its
+> port numbering does not carry over. §1.1 of
+> [`swap-the-switch.md`](swap-the-switch.md) captures the map on the way past,
+> and is where this number is re-read rather than assumed.
 
 In `neo`'s web UI at `http://10.7.7.2`, add the port to CasaBonita's untagged
 members in the static VLAN table, take it out of ImaginationLAN's, and set its
