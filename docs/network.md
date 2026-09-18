@@ -300,11 +300,20 @@ Televisions and consoles. Internet only.
   and running TrueNAS by
   [ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)
   ([#413](https://github.com/Gerrrt/HomeLab/issues/413)). Its ZFS mirror does
-  not exist yet and `stacks/media` is authored but not deployed; what exists is
-  a host on its address. **It does not change the *Reaches* column**, and that is the point
-  ADR-0016 made in advance: nothing on this segment initiates anywhere, and the
-  four rules created that day all let a more trusted segment reach **in**.
-  That is the direction this row records, and it is the one that is unchanged.
+  not exist yet, and `stacks/media` is authored and undeployed against that
+  absence; what exists is a host on its address. **It does not change the
+  *Reaches* column**, and that is the point ADR-0016 made in advance: nothing
+  on this segment initiates anywhere, and the rules created that day all let a
+  more trusted segment reach **in**. That is the direction this row records,
+  and it is the one that is unchanged. **They are counted in the next bullet
+  and nowhere else** — this bullet used to count them too, the two drifted
+  apart, and this one still said three long after four existed.
+- **`smaug` is on port 15 of the switch**, untagged with PVID 40. That port was
+  ImaginationLAN's when the map was last read on 2026-09-04 and was moved for
+  the install ([#481](https://github.com/Gerrrt/HomeLab/issues/481)). It is
+  recorded because a single-NIC host on an access port has its segment decided
+  at the switch and nowhere else: put it back on 30 and the address, the
+  reservation and every inbound rule are silently pointless.
 - **Inbound is no longer nothing, and that is deliberate.** Since 2026-09-16
   Hicks reaches `10.0.40.30` on `443` and `8096`, and `10.0.99.20` reaches it
   on `9100` and `22` — four host-scoped, port-scoped passes above *Block access

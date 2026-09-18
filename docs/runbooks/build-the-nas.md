@@ -5,10 +5,10 @@
 `10.0.40.30`
 **Time:** §0 is about half an hour and needs no drives. §1–§7 is about twenty
 minutes once the drives are in hand.
-**You will need:** a console on `smaug` (or its web UI), `neo`'s web UI at
-`http://10.7.7.2` and a yellow Cat6 lead for §0.2b, the pfSense UI on
-`morpheus`, a shell on the monitoring host for §0.6, and the two Exos X20
-drives for §1 onward.
+**You will need:** a console on `smaug` — its web UI cannot run §2 or §6, and
+SSH is off — `neo`'s web UI at `http://10.7.7.2` and a yellow Cat6 lead for
+§0.2b, the pfSense UI on `morpheus`, a shell on the monitoring host for §0.6,
+and the two Exos X20 drives for §1 onward.
 
 > **Status — 2026-09-16: §0 is the work that can be done before the drives
 > land, and it is the whole of what is blocking.**
@@ -30,10 +30,20 @@ drives for §1 onward.
 > records a reading rather than a day's work.
 >
 > §0.6 verified from `morpheus` rather than from the UI: every pass sits above
-> *Block access to CasaBonita* on its interface (167–168 before 169 on
-> `igc0.99`, 194–195 before 196 on `igc0.50`), Winterfell is still correctly
-> refused on `443`, and the `igc0.40` tripwire reads **118,621 evaluations and
-> zero packets**.
+> *Block access to CasaBonita* on its interface, Winterfell is still correctly
+> refused on `443`, and the `igc0.40` tripwire matched **zero packets**.
+>
+> **No rule numbers are recorded here, and that is deliberate.** This block
+> first carried them — 167–168 before 169 on `igc0.99`, 194–195 before 196 on
+> `igc0.50`. Those are right for `pfctl -sr | grep -n` and wrong for
+> `pfctl -sr -vv`, which on 2026-09-17 numbered the same four rules `@148`,
+> `@149`, `@175` and `@176`. Both readings came off the live ruleset in one
+> invocation: `-vv` numbers each ruleset from zero, `grep -n` counts output
+> lines, and the two therefore disagree by however many `scrub` rules precede
+> the filter set. **The command §0.6 needs is the one the numbers do not
+> match**, because a tripwire check reads a counter and counters only come
+> from `-vv`. So match on the rule descriptions, which do not depend on how
+> the ruleset is being printed.
 >
 > What is left is the drives. The pool does not exist and nothing is deployed.
 
@@ -104,9 +114,14 @@ There is also an `ME_DIS` header on the board if the answer turns out to be
 > The section below is kept for the next machine, and for the next time this one
 > is re-cabled.
 >
-> **Port 15 is a fact about `neo`.** The MikroTik bought to replace it
-> ([#444](https://github.com/Gerrrt/HomeLab/issues/444)) will need its own
-> reading, and this step run again.
+> **Port 15 is a fact about the MokerLink, not about `neo`.** The CRS326 bought
+> under [#444](https://github.com/Gerrrt/HomeLab/issues/444) inherits both the
+> name and `10.7.7.2`
+> ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+> decision 2), so `neo` still answers on this address after the swap while its
+> port numbering does not carry over. §1.1 of
+> [`swap-the-switch.md`](swap-the-switch.md) captures the map on the way past,
+> and is where this number is re-read rather than assumed.
 
 In `neo`'s web UI at `http://10.7.7.2`, add the port to CasaBonita's untagged
 members in the static VLAN table, take it out of ImaginationLAN's, and set its
@@ -141,6 +156,11 @@ matches nothing and leaves the question passing for the wrong reason; this one
 leaves it failing for the wrong reason, and sends you to the pfSense UI, where
 the answer is not.
 
+**It is lettered rather than renumbered, and it has to stay that way.**
+Shifting §0.3 onward to make room would move §0.5, and **ADR-0016 and ADR-0040
+both cite §0.5 by name** — ADRs are immutable (ADR-0001), so renumbering would
+break the only pointer two settled decisions have at the rule table.
+
 **Write the port number down**, which is what this section is for. §0.3 and
 §0.4 hold the address twice because either alone is a single point of drift; a
 port that nothing records is worse than either, because a successor re-cabling
@@ -174,18 +194,25 @@ the box and in the firewall, not here.
 The static is set on the host and the reservation is set on the server, and
 both are done because either alone is a single point of drift.
 
-### §0.5 — Create the three rules, in order and in position
+### §0.5 — Create the four rules, in order and in position
 
-**Position is the whole difficulty.** Two of these sit above a deny that has
-been in place since 2025; appended where new rules naturally land they would
-match nothing, and *"can I reach the NAS"* would still pass for the wrong
-reason.
+**Position is the whole difficulty.** All four sit above a deny that has been
+in place since 2025; appended where new rules naturally land they would match
+nothing, and *"can I reach the NAS"* would still pass for the wrong reason.
 
-| On interface | Protocol / source → destination | Position |
-| --- | --- | --- |
-| Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` ports `443,8096` | **above** *Block access to CasaBonita* |
-| Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `9100` | **above** *Block access to CasaBonita* |
-| Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `22` | **above** *Block access to CasaBonita* |
+| On interface | Protocol / source → destination | Description | Position |
+| --- | --- | --- | --- |
+| Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `443` | `Allow HTTPS to smaug` | **above** *Block access to CasaBonita* |
+| Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `8096` | `Allow 8096 to smaug` | **above** *Block access to CasaBonita* |
+| Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `9100` | `Allow 9100 to smaug` | **above** *Block access to CasaBonita* |
+| Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `22` | `Allow SSH to smaug` | **above** *Block access to CasaBonita* |
+
+**Four, where [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+wrote three.** The Hicks pass is one rule per port rather than one rule
+carrying a port list — functionally identical, and worth the extra row because
+the description is what §0.6 matches on and a description naming one port is
+unambiguous about which rule answered. **Set these descriptions exactly**; they
+are load-bearing in the next section, not decoration.
 
 **The Hicks rule's ports differ from ADR-0016's table, and deliberately.** That
 table says `22,8096`, which assumed a box administered over SSH — ADR-0016
@@ -206,7 +233,25 @@ bought by putting the server with its clients.
 
 ### §0.6 — Prove the rules did what you meant
 
-Two checks, and the second is the one that matters.
+**Do this from `morpheus` and from the monitoring host, not from the pfSense
+UI.** An appended rule matches nothing while looking perfectly present in the
+UI, and that is the failure this whole section exists to catch.
+
+**First, position — the check the other three assume.** On `morpheus`:
+
+```bash
+pfctl -sr -vv \
+  | grep -E 'on igc0\.(99|50) ' \
+  | grep -E 'descr=(Allow .* to smaug|Block access to CasaBonita)'
+```
+
+Each pass must appear **above** the *Block access to CasaBonita* rule on its
+own interface: `Allow 9100`/`Allow SSH` before the block on `igc0.99`, and
+`Allow HTTPS`/`Allow 8096` before it on `igc0.50`. **Read the order, not the
+numbers.** `-vv` numbers each ruleset from zero rather than counting output
+lines, so its `@` indices match neither `pfctl -sr | grep -n` nor anything
+written down here — they are a printing artefact, and only the sequence is a
+fact about the firewall.
 
 From a Hicks workstation, the NAS's UI should answer:
 
@@ -215,8 +260,9 @@ curl -kIs https://10.0.40.30 | head -1
 ```
 
 From the monitoring host, which is on Winterfell, `443` should **still be
-refused** — that rule is scoped to `10.0.99.20` and to port `9100`, so a
-success here would mean the rule is wider than it reads:
+refused** — the two Winterfell rules are scoped to `10.0.99.20` and to ports
+`9100` and `22`, so a success here would mean one of them is wider than it
+reads:
 
 ```bash
 nc -z -w3 10.0.40.30 443 && echo "WRONG: 99 can reach 443" || echo "correct: blocked"
@@ -225,9 +271,11 @@ nc -z -w3 10.0.40.30 443 && echo "WRONG: 99 can reach 443" || echo "correct: blo
 Then read **the tripwire counter on `igc0.40`**
 ([#223](https://github.com/Gerrrt/HomeLab/issues/223)). It matches packets
 *originating* on CasaBonita, and the return traffic for a session Hicks opened
-is carried by state and never reaches the ruleset. **It must still be zero.**
-If it has moved, something on 40 is initiating outward and that is a bigger
-finding than anything in this runbook.
+is carried by state and never reaches the ruleset. **Its packet count must
+still be zero.** The evaluation counter beside it climbs constantly and means
+nothing — it is every packet the rule was tested against. If *packets* have
+moved, something on 40 is initiating outward and that is a bigger finding than
+anything in this runbook.
 
 ---
 
@@ -245,7 +293,11 @@ drives, and two 7200 rpm Exos under a scrub will want it.
 
 ## §2 — Read the drives before trusting them
 
-From **option 8, Open Linux Shell**, or over SSH once enabled:
+From **option 8, Open Linux Shell**, at the console — **not over SSH**.
+TrueNAS ships SSH disabled, and §0.5's port-22 pass is inert until someone
+turns it on. Enabling it here to save a walk to the machine widens this host's
+attack surface for the sake of five commands; §8's backup path is the reason
+to turn it on, and this is not it.
 
 ```bash
 lsblk
@@ -331,6 +383,13 @@ a compose file this repository owns, run under TrueNAS's app runtime, **not** a
 catalogue app. That is what keeps Dependabot, the digest pins and
 `make validate` reaching it.
 
+Copy `stacks/media/.env.example` to `.env`, confirm `RENDER_GID` still matches
+what this host reports, and bring it up:
+
+```bash
+make up STACK=media
+```
+
 Jellyfin binds `8096`, reads `erebor/media`, and writes its state to
 `erebor/apps`. `node-exporter` binds `9100` and is the whole of how this host
 is monitored — see §6.1.
@@ -365,16 +424,28 @@ disabled on purpose, because a bridged container reads its own veth and would
 chart it as this NAS's throughput; `stacks/media/compose.yaml` carries the
 measurement.
 
-> **The check ADR-0040 named as its reopen condition belongs here.** Confirm
-> the iGPU reaches the container:
+> **The check ADR-0040 named as its reopen condition belongs here, and it has
+> to run *inside* the container.** The host half is already settled —
+> `Active Video: IGD` on an E3-1225 v6, and render node `107 render` read off
+> this machine on 2026-09-16. Running `ls -l /dev/dri` on the host re-confirms
+> the half that was never in doubt and says nothing about the condition, which
+> is whether the device reaches a container:
 >
 > ```bash
-> ls -l /dev/dri
+> docker exec media-jellyfin ls -l /dev/dri
 > ```
 >
-> and that Jellyfin's playback settings offer **QSV** hardware transcoding. The
-> CPU half is already confirmed — `Active Video: IGD` on an E3-1225 v6 — but a
-> live P630 and a P630 a container can use are different claims.
+> The node has to be present **and** the container's supplementary groups have
+> to include the render GID — which is what `group_add` in the compose file is
+> there to do, and the thing most likely to be silently wrong:
+>
+> ```bash
+> docker exec media-jellyfin id
+> ```
+>
+> Then check that Jellyfin's playback settings offer **QSV** hardware
+> transcoding, and transcode something with it. A device node a container can
+> list and a device node it can *use* are still different claims.
 >
 > If it does not pass, decision 2 of ADR-0040 reopens: catalogue apps that
 > manage the passthrough, or the media stack moves off this host. **Check it
@@ -385,12 +456,18 @@ measurement.
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
 - A Hicks workstation reaches `https://10.0.40.30` and `http://10.0.40.30:8096`
-- The monitoring host reaches `9100` and **nothing else** — and `up{job="node"}`
-  is `1`, labelled `instance="smaug"` rather than an address
+- The monitoring host reaches `9100` and **nothing else**. Both halves are
+  checkable now: `443` and `8096` must be refused from the monitoring host, and
+  `node_exporter` must be answering — §6.1 is what stands it up, and
+  [#256](https://github.com/Gerrrt/HomeLab/issues/256) settled that it is
+  `node_exporter` rather than TrueNAS's own endpoint. `up{job="node"}` should be
+  `1`, labelled `instance="smaug"` rather than an address
 - The `igc0.40` tripwire counter is **still zero**
 - Port 15 on `neo` reads PVID **40**, untagged, with `smaug`'s MAC learned on it
   in VLAN 40 — read in the switch UI, and **not** inferred from the host having
-  an address
+  an address (§0.2b)
+- The `igc0.40` tripwire's **packet** count is **still zero** — its evaluation
+  count will have climbed, and that is not a finding
 - `zpool status erebor` is `ONLINE` with no errors
 - Both Exos self-tests from §2 completed without error
 
