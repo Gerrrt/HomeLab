@@ -854,7 +854,9 @@ what left this one unfireable for months.
   the endpoints per session, because a 7.2K mirror serves about ninety random
   write IOPS and six idle Windows guests would be most of them — the number
   #418's SSDs were bought against, and the one their *fit* re-derives; a drive
-  in transit changes no duty cycle. Three things
+  on the shelf changes no duty cycle either, and since 2026-09-11 that is
+  where they are — waiting on the trays that let them into the bays at all.
+  Three things
   that ADR left explicit because they fail quietly: the DC takes its clock from
   the gateway, not `time.windows.com` — ADR-0014 named that failure and did not
   fix it, and the alert reads the *sync source* rather than the offset, because
@@ -946,16 +948,45 @@ what left this one unfireable for months.
   → [runbook](runbooks/build-the-playground.md)
 - **[#418](https://github.com/Gerrrt/HomeLab/issues/418) Fit the two SSDs in
   `Saruman`.** Two Samsung SM863a 960 GB SATA enterprise drives, bought
-  2026-09-09, in transit. ADR-0007's constraint — "the fleet
-  is sized against spindles, not RAM" — became a number in ADR-0029, about
-  ninety random write IOPS for the whole machine, and that number sized the
-  lab domain's duty cycle and #266's indexer. The SSDs raise the ceiling; what
-  the issue leaves to the fit is whether they replace the mirror or sit beside
-  it, whether the Smart Array manages them — the drive rules read `cpqida.mib`
-  and a layout the controller does not own falls out of all of them — and
-  what #76's write cache does for the new logical drive. The fit makes
-  ADR-0029's derivation stale on the day, and the issue says so rather than
-  leaving the ADR to be silently edited.
+  2026-09-09, **delivered 2026-09-11, not fitted and not yet fittable**.
+  ADR-0007's constraint — "the
+  fleet is sized against spindles, not RAM" — became a number in ADR-0029,
+  about ninety random write IOPS for the whole machine, and that number sized
+  the lab domain's duty cycle and #266's indexer. The SSDs raise the ceiling.
+
+  **Two of the three questions the issue left to the fit are now answered, and
+  the one that matters is not.** The layout is decided: the SSDs become a
+  *second* logical drive on the P440ar, RAID 1, Smart Array managed, with the
+  7.2K mirror keeping Proxmox, the ISOs and the backups. That is the smaller
+  change, it keeps a spindle for the things that do not need IOPS, and it
+  leaves `IloDrivePredictiveFailure`, `IloDriveSmartUnreadable` and the
+  `replaceDriveSSDWearOut(4)` state reading `cpqida.mib` exactly as they do
+  today — so #351's decision to skip `smart-state` on this host stays right
+  rather than needing re-checking. #76's cache is **read and handed over, not
+  changed**: `modify cacheratio=` is controller-wide and would land on the
+  array holding every guest, so the runbook takes the `ssacli` reading nobody
+  has ever taken on this machine and #76 owns what to do about it.
+
+  **What blocks it is neither of those: the trays.** A Gen9 bay holds a drive
+  only in a SmartDrive carrier, two were bought `651687-001` on 2026-09-11,
+  and on the morning of 2026-09-17 they had not arrived. Until they do, the
+  drives cannot enter the machine, which is why the runbook makes the carriers
+  a stop condition at step 4 rather than something discovered at the rack. The
+  same step confirms both drives are physically present — the delivery notice
+  covers one order, not two units, which the paragraph above leaves to this
+  issue to prove at the bays.
+
+  What is still open after that is the only thing the purchase was for.
+  **ADR-0029's
+  ninety is derived, not measured** — seek plus half a rotation at 7200 rpm —
+  so the runbook measures both arrays at the parameters that derivation
+  implies, 4 KiB at queue depth 1, and three times: the HDD mirror loaded, the
+  SSD array idle, and the HDD mirror idle once the guest has moved off it.
+  Until that reading exists, ADR-0029, ADR-0007, ADR-0017 and the #414
+  paragraph above all stand as written. The fit makes them stale on the day,
+  and it gets a dated note on each rather than a silent edit — ADR-0001 makes
+  them immutable.
+  → [runbook](runbooks/fit-the-saruman-ssds.md)
 
 ## Automation
 
