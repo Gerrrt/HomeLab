@@ -392,13 +392,17 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   ([#76](https://github.com/Gerrrt/HomeLab/issues/76))
 - A1437 battery cell for `prometheus`[^A1437] — the pack that fits the
   `A1425`, the late-2012 Retina 13" in the Compute table — bought new
-  2026-09-13, in transit. A consumable and not an upgrade: it is the one
+  2026-09-13, **delivered 2026-09-18 and not yet fitted.** A consumable and
+  not an upgrade: it is the one
   exception the roadmap's *Never* line names, bought because the estate's
   mains-cut path rests on this cell and the failure mode of a
   thirteen-year-old lithium cell on a shelf is swelling
   ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). The listing calls
   it genuine and its brand field says unbranded, so it is recorded as a
-  compatible cell, not an Apple part, until it is in hand. The cell it
+  compatible cell, not an Apple part. That wording was written to be settled
+  once the part could be looked at, which it now can: the cell arrived
+  2026-09-18 and this line stays as it is until someone reads the pack's own
+  markings and says otherwise. The cell it
   replaces read 94 % of design capacity after 108 cycles on 2026-09-12, which
   is above `HostBatteryHealthLow`'s 80 % — it is bought on age, not on the
   alert. Nothing in the Compute table changes; a cell is not a spec.
@@ -406,7 +410,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `charge_full_design` and a cycle count reading low, then mains pulled and
   the host staying up with `HostOnBattery` firing — the property the cell is
   there for, and untested since the machine was commissioned
-  ([`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md)). `oracle`'s
+  ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md), which
+  also carries the stack-down window and the old cell's disposal). `oracle`'s
   cell reads 72 % and is second in line, unbought.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
