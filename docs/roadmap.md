@@ -119,12 +119,13 @@ restore onto `trinity` needs
 installer stick — between them, the whole of what the rehearsal now waits on;
 the two Exos X20 18 TB drives for `smaug`'s mirror
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the CRS326 that
-replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); and two
-HP SFF drive trays for `Saruman`, the carriers its SM863a pair needs to go in
-the bays ([#418](https://github.com/Gerrrt/HomeLab/issues/418)). The A1437 cell
-for `prometheus` was on this list until 2026-09-18 and is on neither now: it is
-fitted ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). These two
-paragraphs track money that has not yet become a working part, and that has.
+replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). The
+A1437 cell for `prometheus` was on this list until 2026-09-18 and is on neither
+now: it is fitted ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). The
+two SFF drive trays for `Saruman` left it the same day, and took the SM863a
+pair off the paragraph above with them — see the 2026-09-18 note below. These
+two paragraphs track money that has not yet become a working part, and that
+has.
 
 **2026-09-17: the trays were bought on 2026-09-11 and are only now written
 down.** They were paid for in the same sitting as the I226 card, the Exos pair
@@ -149,6 +150,15 @@ nothing here depends on which day it was.
 against the order, which was one order for the pair; that both drives were in
 it is not separately proved and is
 [#418](https://github.com/Gerrrt/HomeLab/issues/418)'s to confirm at the bays.
+
+**2026-09-18: the trays arrived and both SSDs are in the bays.** Confirmed at
+the bays, as the paragraph above asked: the iLO reports two new drives at
+`Port 1I Box 1 Bay 3` and `Bay 4` from 20:11 UTC, with different serials, so
+the pair was a pair. Fitted is not finished — the drives are in no logical
+drive, nothing has moved to them, and the measurement the purchase exists for
+has not been taken; [#418](https://github.com/Gerrrt/HomeLab/issues/418)
+carries that. Neither the SSDs nor the trays appear in either paragraph above
+now: they are parts, and [`hardware.md`](hardware.md) has them.
 
 **No row on the table above moves** — arriving is not buying, and this section
 tracks money. Nothing was racked, fitted or built by it either. What it changed
@@ -883,9 +893,10 @@ what left this one unfireable for months.
   DC-plus-workstations domain is the DC itself. The servers run continuously and
   the endpoints per session, because a 7.2K mirror serves about ninety random
   write IOPS and six idle Windows guests would be most of them — the number
-  #418's SSDs were bought against, and the one their *fit* re-derives; a drive
-  on the shelf changes no duty cycle either, and since 2026-09-11 that is
-  where they are — waiting on the trays that let them into the bays at all.
+  #418's SSDs were bought against, and the one their *fit* re-derives. The
+  drives went into bays 3 and 4 on 2026-09-18 and are still unassigned, and an
+  unassigned drive changes no duty cycle either — the sentence above holds
+  until the runbook's step 8 measures both arrays.
   Three things
   that ADR left explicit because they fail quietly: the DC takes its clock from
   the gateway, not `time.windows.com` — ADR-0014 named that failure and did not
@@ -978,7 +989,8 @@ what left this one unfireable for months.
   → [runbook](runbooks/build-the-playground.md)
 - **[#418](https://github.com/Gerrrt/HomeLab/issues/418) Fit the two SSDs in
   `Saruman`.** Two Samsung SM863a 960 GB SATA enterprise drives, bought
-  2026-09-09, **delivered 2026-09-11, not fitted and not yet fittable**.
+  2026-09-09, delivered 2026-09-11, **fitted 2026-09-18 and in no logical
+  drive yet**.
   ADR-0007's constraint — "the
   fleet is sized against spindles, not RAM" — became a number in ADR-0029,
   about ninety random write IOPS for the whole machine, and that number sized
@@ -997,14 +1009,23 @@ what left this one unfireable for months.
   array holding every guest, so the runbook takes the `ssacli` reading nobody
   has ever taken on this machine and #76 owns what to do about it.
 
-  **What blocks it is neither of those: the trays.** A Gen9 bay holds a drive
-  only in a SmartDrive carrier, two were bought `651687-001` on 2026-09-11,
-  and on the morning of 2026-09-17 they had not arrived. Until they do, the
-  drives cannot enter the machine, which is why the runbook makes the carriers
-  a stop condition at step 4 rather than something discovered at the rack. The
-  same step confirms both drives are physically present — the delivery notice
-  covers one order, not two units, which the paragraph above leaves to this
-  issue to prove at the bays.
+  **The trays blocked it for a day, and the fit stopped at the bays.** A Gen9
+  bay holds a drive only in a SmartDrive carrier; two `651687-001` were bought
+  2026-09-11, had not arrived on the morning of 2026-09-17, and were in the
+  chassis with a drive in each by 20:11 UTC on 2026-09-18 — both drives
+  present, `Bay 3` and `Bay 4`, different serials, solid-state, SMART `ok`,
+  `notConfigured`, and nothing alerted. That is the runbook's step 4 and no
+  step after it: no `ssacli` on the host yet, no logical drive, no thin pool,
+  `alexander` still on the HDD mirror. Three predictions were wrong on the day
+  and are corrected in the runbook — the iLO names the drive `SAMSUNG` and not
+  by part number, the walk did not get slower, and the serials were read back
+  through the iLO rather than off the labels first, which the runbook now says
+  can still be put right while the drives are unassigned and not after. One
+  reading is worse than hoped: the wear and endurance columns are blank on
+  both SSDs, as they are on the HDDs, and if they stay blank once the drives
+  are in a logical drive, wear monitoring on the newest drives in the estate
+  needs `smartctl` through the `hpsa` path, which is an issue the runbook's
+  closing paragraph already describes.
 
   What is still open after that is the only thing the purchase was for.
   **ADR-0029's
@@ -1013,9 +1034,9 @@ what left this one unfireable for months.
   implies, 4 KiB at queue depth 1, and three times: the HDD mirror loaded, the
   SSD array idle, and the HDD mirror idle once the guest has moved off it.
   Until that reading exists, ADR-0029, ADR-0007, ADR-0017 and the #414
-  paragraph above all stand as written. The fit makes them stale on the day,
-  and it gets a dated note on each rather than a silent edit — ADR-0001 makes
-  them immutable.
+  paragraph above all stand as written. The measurement makes them stale on
+  the day it lands, not the day the drives did, and it gets a dated note on
+  each rather than a silent edit — ADR-0001 makes them immutable.
   → [runbook](runbooks/fit-the-saruman-ssds.md)
 
 ## Automation
