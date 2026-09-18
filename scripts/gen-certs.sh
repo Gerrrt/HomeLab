@@ -138,6 +138,12 @@ that holds it. Pass --force only if that is what you mean."
   # here — which is why the sensitive tier's step-ca has a root of its own
   # rather than sitting beneath this one (ADR-0037, measured before deciding).
   # Lifting it means re-minting this root and re-trusting it everywhere.
+  #
+  # And the key stays on the monitoring host. ADR-0043 decided it does not
+  # follow the deployment toolchain to `phoenix` on VLAN 30: that host holds
+  # credentials for every other host, and the key every other host trusts
+  # must not sit beside them. Nothing below enforces that — the path is
+  # relative to whichever checkout runs this — so this comment is the guard.
   openssl req -x509 -newkey rsa:4096 -sha256 -nodes \
     -keyout "${CA_KEY}" -out "${CA_CRT}" -days "${CA_DAYS}" \
     -subj "${CA_SUBJECT}" \

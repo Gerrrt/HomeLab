@@ -378,6 +378,26 @@ Where things get broken on purpose.
   pushes to `alexander` and not to Winterfell — "guests get no such rule"
   covers it — and ADR-0029's six machines report to it as agents. Every path
   it needs is intra-segment, so it adds no firewall rule.
+- A third guest, `phoenix`, is planned at `10.0.30.70` — the next decade — as
+  the deployment host: the Proxmox API token, the SSH key and the checkout
+  that the Packer, OpenTofu and Ansible work after
+  [#436](https://github.com/Gerrrt/HomeLab/issues/436) runs from, placed by
+  [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md).
+  **Not built**; it enters the table above when it is
+  ([`build-the-jumpbox.md`](runbooks/build-the-jumpbox.md)). It runs no stack
+  and holds no key that signs anything — the estate's CA stays on
+  `prometheus`, and that ADR says why. It is also where
+  [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
+  WireGuard tunnel terminates once the endpoint it records as blocking exists;
+  the peers reach the lab through it and nothing else. Its Alloy pushes to
+  `alexander` and
+  not to Winterfell, and it gets no pass out of this segment: a rule from it
+  into 99 would make it the bastion ADR-0002 and ADR-0012 declined. It adds
+  nothing on `morpheus`. What it adds is on `Saruman`: one line in the
+  hypervisor's own firewall admitting `10.0.30.70` to `8006`, the first
+  address on this segment with a path to the Proxmox API, which
+  `firewall-claims.yaml` cannot see because it lives in `/etc/pve` and not in
+  pf.
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
   into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry

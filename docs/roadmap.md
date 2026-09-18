@@ -1031,6 +1031,32 @@ what left this one unfireable for months.
   unifying that.
 - **[#100](https://github.com/Gerrrt/HomeLab/issues/100) Automate the Grafana
 
+- **[#436](https://github.com/Gerrrt/HomeLab/issues/436) Build a deployment
+  jumpbox on ImaginationLAN, and decide where the CA lives.** Decided by
+  [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md);
+  the guest is not built. The host is `phoenix`, `10.0.30.70`, a guest on
+  `Saruman` that holds the estate's first Proxmox API credential and the SSH
+  key the toolchain will inject into what it builds — the prerequisite for
+  the Packer, OpenTofu and Ansible issues, which today have nowhere to run
+  from. The CA question the issue carried was answered by reading the root
+  first: the issue's premise — that the tier's step-ca already sits beneath
+  the estate's CA — is the sentence ADR-0037 retracted, and the estate's
+  root is `pathlen:0`, so the only question was where one key file sits. It
+  stays on `prometheus`, because the host that holds credentials for every
+  other host must not also hold the key every other host trusts, and
+  because VLAN 30 is the segment ADR-0014 built to hold attackers. Two things
+  the issue did not count: the Proxmox firewall on `Saruman` admits `8006`
+  from Hicks only, so the build widens ADR-0014's rule by one address on one
+  port, recorded as a marked amendment there and on ADR-0039; and
+  `certificates/ca-key.pem` has no backup or custody story at all, unlike
+  the age key and the tier's root — found, named in the ADR with what the
+  answer is not, and carried by
+  [#496](https://github.com/Gerrrt/HomeLab/issues/496). The same host is
+  where [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)
+  terminates the remote path; that ADR left the `8006` question to this issue,
+  and it is taken here.
+  → [runbook](runbooks/build-the-jumpbox.md)
+
 ## Decided but not built
 
 Accepted ADRs with no work behind them. Recorded here because an accepted ADR

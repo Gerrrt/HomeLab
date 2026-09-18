@@ -2,6 +2,15 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> **One consequence is amended, 2026-09.** The first bullet under
+> Consequences says nothing on VLAN 30 gains a path to `8006` on either
+> hypervisor. Since
+> [ADR-0043](0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
+> one address does — `10.0.30.70`, the deployment host, to `Saruman` alone.
+> The decision this ADR records is unchanged: neither hypervisor reaches the
+> other. The text below is left as written, per ADR-0001.
+
 ## Context
 
 [#443](https://github.com/Gerrrt/HomeLab/issues/443) asked for a decision
