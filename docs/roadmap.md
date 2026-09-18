@@ -62,9 +62,24 @@ three rows to two, and neither of them is a part: two licences and a drive
 kept at another address. What closes #454 is not the cell landing but the fit
 and the test after it — `charge_full` at or near design, a low cycle count,
 and mains pulled with the host staying up — which
-[`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) names. `oracle`'s
-cell, the one that measures worse, stays unbought and second in line, as that
-issue ranked it.
+[`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) names.
+This paragraph pointed at
+[`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) until 2026-09-18 —
+the rack pack in `mjolnir`, not this cell — which is the same wrong pointer
+[#506](https://github.com/Gerrrt/HomeLab/pull/506) corrected in the alert's own
+description. `oracle`'s cell, the one that measures worse, stays unbought and
+second in line, as that issue ranked it.
+
+**2026-09-18: the cell is fitted, and the issue stays open.** The A1437 went
+into `prometheus` the day it was delivered; the host was down from 14:53 to
+about 18:12 UTC. The new pack reads `charge_full` 6.889 Ah of 6.8 Ah design at
+one cycle, and both of its design figures differ from the old pack's — an
+aftermarket cell reports its own, which is the only proof of a changed part on
+a machine that exports no serial number. **The buy table does not move**: the
+cell left it on 2026-09-13, and fitting is not buying. What is still owed is
+the mains pull on the charged pack and the runtime it measures, so
+[#454](https://github.com/Gerrrt/HomeLab/issues/454) stays open and this gets
+no *Done* entry.
 
 **Buy these, and the estate as decided is fully bought:**
 
@@ -104,11 +119,12 @@ restore onto `trinity` needs
 installer stick — between them, the whole of what the rehearsal now waits on;
 the two Exos X20 18 TB drives for `smaug`'s mirror
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the CRS326 that
-replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); the
-A1437 cell that replaces `prometheus`'s thirteen-year-old one
-([#454](https://github.com/Gerrrt/HomeLab/issues/454)); and two HP SFF drive
-trays for `Saruman`, the carriers its SM863a pair needs to go in the bays
-([#418](https://github.com/Gerrrt/HomeLab/issues/418)).
+replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); and two
+HP SFF drive trays for `Saruman`, the carriers its SM863a pair needs to go in
+the bays ([#418](https://github.com/Gerrrt/HomeLab/issues/418)). The A1437 cell
+for `prometheus` was on this list until 2026-09-18 and is on neither now: it is
+fitted ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). These two
+paragraphs track money that has not yet become a working part, and that has.
 
 **2026-09-17: the trays were bought on 2026-09-11 and are only now written
 down.** They were paid for in the same sitting as the I226 card, the Exos pair
@@ -201,9 +217,12 @@ is the point, not a problem to spend money on.
 **consumable whose failure is a safety or availability event** is not an
 upgrade. `prometheus`'s battery is the worked example
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)) — the estate's
-mains-cut path depends on it, `host.rules.yaml` measures it since 2026-09-12
-(94 % of design after 108 cycles), and the failure mode of a thirteen-year-old
-cell is a fire on a shelf. `oracle` has the same kind of cell and it measures
+mains-cut path depends on it, `host.rules.yaml` has measured it since
+2026-09-12 — 94 % of design after 108 cycles, on the cell that was there then —
+and the failure mode of a thirteen-year-old cell is a fire on a shelf. **That
+cell was bought 2026-09-13 and fitted 2026-09-18**, so this is the exception
+being exercised rather than restated; the new pack reads 101 % of its design
+capacity at one cycle, and the runtime it was bought for is still unmeasured. `oracle` has the same kind of cell and it measures
 worse, 72 %, so `HostBatteryHealthLow` fires for it first; it stays second in
 line only because `prometheus` is the host whose death is the estate going
 blind. The cell for `prometheus` was bought on 2026-09-13; nothing else about
@@ -474,6 +493,14 @@ new since this file was last honest:
   puts it on `oracle`. What that buys is bounded, and the ADR says so: it
   catches a silently dead notification path, and it cannot report a mains cut,
   because the switch between the two laptops has no battery (#110).
+
+  **That last clause has been stale since 2026-09-08 and is corrected rather
+  than swapped.** The switch was racked in U4 on UPS power by
+  [#110](https://github.com/Gerrrt/HomeLab/issues/110), and each laptop rides a
+  cut on its own cell — measured since 2026-09-12 and, on `prometheus`, replaced
+  on 2026-09-18 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). So the
+  off-host check *can* report a mains cut, for exactly as long as `prometheus`
+  stays up on its cell, which is the one thing still unmeasured.
 
 Two collection faults of the same kind were fixed in
 [#62](https://github.com/Gerrrt/HomeLab/pull/62): the agent was answering to the

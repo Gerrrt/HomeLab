@@ -86,11 +86,13 @@ is measured rather than assumed
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). No collector was
 needed: Alloy's node collector already exports `node_power_supply_*` from both
 hosts, and `host.rules.yaml` reads it — `HostBatteryHealthLow` when a cell's
-`charge_full` falls below 80 % of `charge_full_design` (`prometheus` read 94 %
-after 108 cycles, `oracle` 72 %), `HostOnBattery` when the mains adapter loses
+`charge_full` falls below 80 % of `charge_full_design` (`oracle` reads 72 %;
+`prometheus` read 94 % after 108 cycles until its cell was replaced on
+2026-09-18, and now reads 101 % at one cycle), `HostOnBattery` when the mains
+adapter loses
 input, `HostBatteryNotReported` when a laptop stops reporting a cell. The cell
-for `prometheus`, an A1437, was bought 2026-09-13 and is recorded in
-[`hardware.md`](../hardware.md#accessories). The swap and the tests that prove
+for `prometheus`, an A1437, was bought 2026-09-13, **fitted 2026-09-18**, and
+is recorded in [`hardware.md`](../hardware.md#accessories). The swap and the tests that prove
 it are [`replace-the-laptop-cell.md`](replace-the-laptop-cell.md), which is
 where the baseline, the disposal and the stack-down window are written down —
 that cell is glued into the machine running this stack, so fitting it blinds
@@ -99,7 +101,9 @@ pack did not carry. What it proves is the same shape as step 5 here:
 `charge_full` at or near `charge_full_design` and the cycle count reading low,
 then that laptop's mains pulled with the host staying up and `HostOnBattery`
 firing — the property the cell is there for, and untested since the machine was
-commissioned.
+commissioned. The first half was proved at the fit on 2026-09-18: `charge_full`
+above design, `cyclecount` 1. **The mains pull on the charged pack has still
+not been run**, so that property remains untested and #454 is still open.
 
 ## Before you start
 

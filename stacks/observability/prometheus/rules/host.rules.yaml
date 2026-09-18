@@ -501,6 +501,23 @@ groups:
       # cell still worth relying on; is there a cell at all. Only the last
       # needs to know which hosts are laptops, and that list lives in its
       # expression and nowhere else.
+      #
+      # PROMETHEUS'S CELL WAS REPLACED ON 2026-09-18 (#454). The figures above
+      # are the pack that came out, and they stay: they are what these rules
+      # were written against. The A1437 fitted in its place reads charge_full
+      # 6.889 Ah of 6.8 Ah design (101 %) at cyclecount 1.
+      #
+      # BOTH DESIGN FIGURES MOVED: charge_full_design 6.6 -> 6.8 Ah and
+      # voltage_min_design 11.21 -> 11.4 V. An aftermarket pack reports its own
+      # design numbers, and on this machine that is the only proof the part
+      # changed at all — it exports no serial, and manufacturer and model_name
+      # came back identical, SMP and bq20z451. Nothing in these expressions
+      # depends on either figure: HostBatteryHealthLow reads the RATIO, so a
+      # design figure that moves is absorbed rather than breaking the rule.
+      #
+      # oracle's cell is unchanged, unbought and still firing.
+      # docs/runbooks/replace-the-laptop-cell.md has the fit, and what it still
+      # owes: the mains pull on the charged pack, which is why #454 is open.
 
       - alert: HostOnBattery
         # The mains adapter reports online=0, joined to the info series so that

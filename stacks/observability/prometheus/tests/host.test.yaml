@@ -1146,15 +1146,38 @@ tests:
                 docs/runbooks/replace-the-laptop-cell.md says what to check
                 before and after the swap.
 
-  # --- HostBatteryHealthLow: QUIET for prometheus's real reading -------------
-  # 6.196 Ah of 6.6 Ah is 94 %, read on 2026-09-12 after 108 cycles. Without
-  # this the threshold could be deleted and the firing tests would still pass.
+  # --- HostBatteryHealthLow: QUIET just above the line ----------------------
+  # 6.196 Ah of 6.6 Ah is 94 %, read on 2026-09-12 after 108 cycles. THAT CELL
+  # WAS REPLACED ON 2026-09-18 (#454) and these values are kept deliberately
+  # rather than refreshed: they are the tighter guard on the 0.8 threshold.
+  # 0.9388 sits 0.14 above the line where the pack now fitted sits 0.21 above
+  # it, so a threshold quietly raised to 0.95 fails this case and would pass
+  # one built on the new numbers. Without a quiet case the threshold could be
+  # deleted outright and the firing tests would still pass.
   - interval: 1m
     input_series:
       - series: 'node_power_supply_charge_full{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
         values: "6.196x100"
       - series: 'node_power_supply_charge_full_design{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
         values: "6.6x100"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: HostBatteryHealthLow
+        exp_alerts: []
+
+  # --- HostBatteryHealthLow: QUIET above 100 % of design --------------------
+  # The A1437 fitted to prometheus on 2026-09-18: charge_full 6.889 Ah against
+  # a charge_full_design of 6.8 Ah, a ratio of 1.013. A ratio ABOVE 1 is an
+  # input shape this rule had never been fed — an aftermarket pack reports its
+  # own design figure and can measure above it — and it has to stay quiet
+  # rather than falling through to the `or` branch.
+  # docs/runbooks/replace-the-laptop-cell.md records the fit.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_charge_full{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "6.889x100"
+      - series: 'node_power_supply_charge_full_design{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "6.8x100"
     alert_rule_test:
       - eval_time: 65m
         alertname: HostBatteryHealthLow
