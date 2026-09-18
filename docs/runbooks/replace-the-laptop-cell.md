@@ -3,15 +3,30 @@
 **One glued-in cell, one power-down of the host that watches everything else,
 and one test that only works with the machine running.**
 
-> **Status — 2026-09-18: the cell is in hand and nothing is fitted. The
-> baseline below is measured, not remembered.**
+> **Status — 2026-09-18: the cell is fitted. Step 8, the mains pull on the new
+> cell, has not been run, so
+> [#454](https://github.com/Gerrrt/HomeLab/issues/454) stays open.**
 >
-> Every reading in step 1 was taken from this host's own Prometheus on
-> 2026-09-17 and re-read unchanged on 2026-09-18, the day the cell arrived:
-> `charge_full` 6.196 Ah of 6.6 Ah design (94 %), unmoved across the retained
-> window, 108 cycles, `status` `Full`, on mains via `ADP1`. Nothing in
-> `host.rules.yaml` is firing for `prometheus`. The baseline table is therefore
-> current as it stands — it does not need retaking before the fit.
+> The host was down from 14:53:37 to about 18:12 UTC — roughly three hours and
+> eighteen minutes, over the two-hour bound this page sets below, and *not* the
+> 184 minutes the series appear to show. Step 6 has why.
+>
+> The new pack reads `charge_full` 6.889 Ah against a `charge_full_design` of
+> 6.8 Ah (101 %), `cyclecount` 1, `present` 1, `status` `Charging`. The cell it
+> replaced, measured 2026-09-17, read 6.196 Ah of 6.6 Ah (94 %) after 108
+> cycles, and went for recycling the same day it came out. **Both design
+> figures moved** — 6.6 → 6.8 Ah, and `voltage_min_design` 11.21 → 11.4 V —
+> which step 1's table said they could not. The correction is beneath that
+> table.
+>
+> **Step 2 was never performed, and now cannot be.** The alert path was not
+> proved on the old cell before it came out: `HostOnBattery` had never fired
+> for `prometheus` across the whole 30-day retention. What fired on 2026-09-18
+> was accidental — the machine came back from the swap unplugged at 41 %, so
+> `HostOnBattery` went pending at 14:56 and firing at 14:57 *on the skewed
+> clock*, for `prometheus` and nothing else, with `UpsOnBattery` quiet
+> throughout. That is the discriminator step 2 wanted, arrived at by accident.
+> It is not the bounded test, and it measured no runtime.
 >
 > `HostBatteryHealthLow` fired for **`oracle`** from 2026-09-14 and was
 > silenced on 2026-09-17 until 2026-10-08
@@ -40,9 +55,9 @@ network is enough for both mains-pull tests.
 
 ## Why this is not urgent, and why it is not nothing
 
-The cell reads **94 % of design capacity after 108 cycles**, which is *above*
-`HostBatteryHealthLow`'s 80 % line. **No alert asked for this.** It is bought
-on age and on the failure mode, which is the exception
+The cell that came out read **94 % of design capacity after 108 cycles**,
+which was *above* `HostBatteryHealthLow`'s 80 % line. **No alert asked for
+this.** It was bought on age and on the failure mode, which is the exception
 [`../roadmap.md`](../roadmap.md) names in the same breath as its *Never* line:
 a consumable whose failure is a safety or availability event is not an upgrade.
 
@@ -106,6 +121,11 @@ The two battery runbooks beside this one did not need this section, because
   tightest staleness threshold that matters here is 90 minutes, so a window
   under two hours costs at most one late job on the way back.
 
+  **2026-09-18 ran to about three hours and eighteen minutes, not two** —
+  14:53:37 to roughly 18:12. Solvent soak and the clock confusion in step 6 are
+  where it went. Budget three and a half hours and treat two as the target
+  rather than the observed.
+
 ## 1. Record the baseline — before touching anything
 
 This is the step that makes the fix provable rather than assumed. The UPS pack
@@ -152,27 +172,43 @@ curl -sS http://localhost:9090/api/v1/alerts |
   python3 -c 'import json,sys; [print(a["labels"].get("alertname"), a["labels"].get("instance"), a["state"]) for a in json.load(sys.stdin)["data"]["alerts"]]'
 ```
 
-The **Reads** column was measured on 2026-09-17 and is the baseline; fill
-**Observed** in step 7.
+The **Reads** column was measured on 2026-09-17, on the cell that came out.
+**Observed** was filled on 2026-09-18, minutes after the fit and part-way
+through the first charge — `status` was `Charging` and `capacity` still
+climbing — so every row there is a first reading rather than a settled one.
+`charge_full` in particular is the gauge's figure before it has learned this
+pack across a cycle; step 8 is what settles it.
 
-| Metric | Reads 2026-09-17, thirteen-year-old cell | After a good new cell | Observed |
+| Metric | Reads 2026-09-17, thirteen-year-old cell | After a good new cell | Observed 2026-09-18 |
 | --- | --- | --- | --- |
-| `node_power_supply_charge_full` | `6.196` | at or near `6.6` | |
-| `node_power_supply_charge_full_design` | `6.6` | `6.6` — must not move | |
-| `charge_full / charge_full_design` | `0.9388` | `0.98`–`1.0` | |
-| `node_power_supply_cyclecount` | `108` | low — `0` to a handful | |
-| `node_power_supply_charge_ampere` | `6.12`, drifting in the last digit | any value that **moves** | |
-| `node_power_supply_capacity` | `93` | rises to `100` on charge | |
-| `node_power_supply_current_ampere` | `0` | non-zero while discharging | |
-| `node_power_supply_voltage_volt` | `12.43` on mains (24h span `12.425`–`12.438`) | `10.9`–`12.6`, and varying under load | |
-| `node_power_supply_voltage_min_design` | `11.21` | `11.21` — must not move | |
-| `node_power_supply_temp_celsius` | `32.7`–`39.2` over 24h, averaging `33.3` | a similar band, never far above it | |
-| `node_power_supply_present` | `1` | `1` | |
-| `node_power_supply_online{power_supply="ADP1"}` | `1` | `1` | |
-| info `manufacturer` | `SMP` | may or may not change | |
-| info `model_name` | `bq20z451` | may or may not change | |
-| info `status` | `Full` | `Charging`, then `Full` | |
+| `node_power_supply_charge_full` | `6.196` | at or near its own design figure | `6.889` |
+| `node_power_supply_charge_full_design` | `6.6` | **may move — see below** | `6.8` |
+| `charge_full / charge_full_design` | `0.9388` | `0.98`–`1.0`, or above it | `1.013` |
+| `node_power_supply_cyclecount` | `108` | low — `0` to a handful | `1` |
+| `node_power_supply_charge_ampere` | `6.12`, drifting in the last digit | any value that **moves** | `3.48`, climbing |
+| `node_power_supply_capacity` | `93` | rises to `100` on charge | `51` and climbing |
+| `node_power_supply_current_ampere` | `0` | non-zero while discharging | `1.677`, charging |
+| `node_power_supply_voltage_volt` | `12.43` on mains (24h span `12.425`–`12.438`) | `10.9`–`12.6`, and varying under load | `12.607` |
+| `node_power_supply_voltage_min_design` | `11.21` | **may move — see below** | `11.4` |
+| `node_power_supply_temp_celsius` | `32.7`–`39.2` over 24h, averaging `33.3` | a similar band, never far above it | `25.5`, one sample |
+| `node_power_supply_present` | `1` | `1` | `1` |
+| `node_power_supply_online{power_supply="ADP1"}` | `1` | `1` | `1` |
+| info `manufacturer` | `SMP` | may or may not change | `SMP` — unchanged |
+| info `model_name` | `bq20z451` | may or may not change | `bq20z451` — unchanged |
+| info `status` | `Full` | `Charging`, then `Full` | `Charging` |
 
+> **The two "must not move" rows were wrong, and their moving is the strongest
+> proof available that the pack is genuinely different.** This page asserted
+> that `charge_full_design` (`6.6`) and `voltage_min_design` (`11.21`) are
+> properties of the model and therefore fixed. They are not. They are figures
+> the pack's own gas gauge reports, and an aftermarket A1437 reports its own:
+> on 2026-09-18 they read `6.8` Ah and `11.4` V. **Read the expectation the
+> other way round from here — a design figure that moves is evidence of a
+> different pack, and one that does not is evidence of nothing.** That matters
+> more on this machine than it would elsewhere, because it exports no serial
+> number (step 7) and `manufacturer` and `model_name` came back byte-identical,
+> `SMP` and `bq20z451`, exactly as step 7 warned they would.
+>
 > **Three names in this family are not what you would guess, and a wrong one
 > returns an empty result — which on a command line is indistinguishable from
 > "the cell is gone".** The cycle count is `node_power_supply_cyclecount`, one
@@ -189,6 +225,10 @@ Query Prometheus rather than reaching for the host's own
 what is being compared against; the kernel agreeing with itself proves less.
 
 ## 2. Prove the alert path on the cell you are about to throw away
+
+> **Not done on 2026-09-18, and it can never be done for this swap — the old
+> cell is gone.** Read this step as written before reusing the page on
+> `oracle`; what it costs to skip is in *What is still open*.
 
 A lithium cell should come out discharged rather than full, and the only way to
 discharge this one is to run the machine on it. That is the mains-pull test, so
@@ -352,11 +392,35 @@ Then, in order:
     python3 -c 'import json,sys; [print(a["labels"].get("alertname"), a["labels"].get("instance"), a["state"]) for a in json.load(sys.stdin)["data"]["alerts"]]'
   ```
 
+  On 2026-09-18 it came back identical to step 1's snapshot:
+  `ScheduledJobFailed` (`backup-volumes`, exited 2), `SecretsKeyBackupUnproven`,
+  `RebootRequired`, and `GatewayMonitorUnreliable` (`morpheus`, `WAN_DHCP6`).
+  All four had been firing continuously for the four days before the swap, so
+  none of them is this work. `HostBatteryNotReported` stayed quiet and every
+  target came back up. The reboot in step 4 was not taken, so `RebootRequired`
+  is still firing rather than cleared.
+
 - The off-host healthcheck is green again within about ten minutes of
   Alertmanager starting. If it is still red after that, it is
   [`verify-the-alert-path.md`](verify-the-alert-path.md) and not this runbook.
 - **Measure the hole, and measure which half of it filled in.** One query,
-  twice, against two jobs that behave differently:
+  twice, against two jobs that behave differently.
+
+  > **After a battery swap, do not read this query as the window.**
+  > Disconnecting the cell clears the RTC. On 2026-09-18 the post-swap journal
+  > boot opens `2026-07-28 15:04:45`; `systemd-timesyncd` restored the clock to
+  > `14:53:37` — the second the machine went down — and the stack then ran about
+  > fourteen minutes writing samples at **backdated** timestamps, 14:54:30 to
+  > 15:08, before NTP stepped the clock forward to the true 18:12. So the TSDB
+  > holds a 184-minute hole from 15:08 to 18:12 that is *not* downtime, and
+  > fourteen minutes of real post-swap operation filed inside the outage. The
+  > true window was 14:53:37 to about 18:12. **Take it from
+  > `journalctl --list-boots` and the recorded shutdown, not from
+  > `query_range`.** Nothing noticed the backdated boot — `HostClockSkew` reads
+  > `node_timex_offset_seconds`, which is small once timesyncd has restored a
+  > wrong but stable clock — and whether anything should is
+  > [#519](https://github.com/Gerrrt/HomeLab/issues/519). A further reboot at
+  > 18:28 is in the series too and is not part of the swap.
 
   ```bash
   for j in snmp oracle-metrics; do
@@ -370,8 +434,9 @@ Then, in order:
   done
   ```
 
-  `snmp` is scraped by Prometheus and its hole is the true length of the
-  window. `oracle-metrics` arrives by remote write and may be shorter, because
+  With the window taken from the journal, this still separates the two jobs'
+  behaviour. `snmp` is scraped by Prometheus, so its hole is the shape of the
+  outage. `oracle-metrics` arrives by remote write and may be shorter, because
   that agent's WAL retried. A shorter `oracle-metrics` hole is the backfill
   working; an equal one means it did not. Either way the number is now known
   rather than assumed.
@@ -382,7 +447,8 @@ Then, in order:
 
 ## 7. Confirm the metrics actually moved
 
-Re-run step 1's loop and fill the **Observed** column.
+Re-run step 1's loop and fill the **Observed** column. It was filled on
+2026-09-18 and the readings are there; what follows is how they were judged.
 
 > **There is no serial number to appeal to.** `shiva`'s pack was proven by
 > `cpqHeSysBatterySerialNumber` changing — the one row that could not be the old
@@ -392,19 +458,26 @@ Re-run step 1's loop and fill the **Observed** column.
 > Dell does carry one, which is worth knowing when this runbook is reused
 > there.) Worse, an aftermarket A1437 commonly reuses the same gas gauge, so
 > `SMP` / `bq20z451` reading identically afterwards proves nothing either way.
-> The honest proof is three rows together, not one: **`cyclecount` falling from
-> `108` to something low, `charge_full` rising toward `6.6`, and
-> `charge_ampere` moving across a charge cycle.** A reading that is
-> byte-for-byte identical to the baseline means the machine is reporting the old
-> pack's stored values — treat that as "the new cell is not seen", not as "the
-> numbers happen to match", and go back to the connector.
+> The honest proof is several rows together, not one. On 2026-09-18 it was
+> **four**: `cyclecount` falling from `108` to `1`, `charge_full` rising from
+> `6.196` to `6.889`, `charge_ampere` moving across a charge cycle, and — the
+> row this page did not know it had — **both design figures changing**,
+> `charge_full_design` `6.6` → `6.8` and `voltage_min_design` `11.21` → `11.4`.
+> That last one turned out to be the strongest of them, and the table above now
+> says so. A reading that is byte-for-byte identical to the baseline means the
+> machine is reporting the old pack's stored values — treat that as "the new
+> cell is not seen", not as "the numbers happen to match", and go back to the
+> connector.
 
 Two more failure shapes worth naming:
 
-- **`charge_full` reads exactly `6.6` and never moves.** That is the gauge
-  reporting its design figure because it has not learned a capacity yet, not a
-  cell at 100 % health. It becomes a measurement after one full charge and one
-  substantial discharge, and step 8 provides the discharge.
+- **`charge_full` reads exactly its own `charge_full_design` and never moves.**
+  That is the gauge reporting the design figure because it has not learned a
+  capacity yet, not a cell at 100 % health. It becomes a measurement after one
+  full charge and one substantial discharge, and step 8 provides the discharge.
+  The 2026-09-18 reading is not this case: `6.889` is *above* the `6.8` design
+  figure, so the gauge is reporting something it measured rather than something
+  it was told.
 - **`HostBatteryHealthLow` fires for `prometheus`.** The new cell is measurably
   worse than the thirteen-year-old one it replaced. That is a return to the
   seller, not a finding to write up.
@@ -415,6 +488,13 @@ Two more failure shapes worth naming:
 > [#454](https://github.com/Gerrrt/HomeLab/issues/454). Everything before it
 > makes a claim about capacity. Only this one makes the claim the cell was
 > bought for.
+>
+> **Not done as of 2026-09-18.** The pack was still charging when the fit was
+> recorded — `capacity` 51 % and rising — and this step needs it full. Until it
+> runs, the property the cell was bought for is untested and that issue stays
+> open. The accidental discharge on the day is not a substitute: it began at
+> 41 %, was not bounded, measured no runtime, and its timestamps are the
+> backdated ones step 6 describes.
 
 Same procedure as step 2, now on the new cell and with the machine fully
 charged. Because the numbers are finally meaningful, also **measure the runtime
@@ -453,7 +533,8 @@ note that it is one measurement at one load on one day.
   the removed one there keeps the hazard and gives up the capacity.
 - Keep it in a non-flammable container, away from the rack and away from
   anything that burns, and take it to a council household-waste battery point or
-  a retailer take-back **within days, not months**. Note the date.
+  a retailer take-back **within days, not months**. Note the date. **The cell
+  removed on 2026-09-18 went for recycling the same day.**
 - **Never post it.** A damaged lithium cell is not a mailable item.
 - If it came out swollen or vented: outside, metal container, same day, and do
   not apply solvent to it.
@@ -485,15 +566,23 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
 
 ## What is still open
 
-- **`HostBatteryHealthLow`'s description names
-  [`fit-the-ups-battery.md`](fit-the-ups-battery.md), not this file.** That was
-  the only runbook there was when the rule was written. Correcting it changes
-  `stacks/observability/prometheus/rules/host.rules.yaml` *and* the
-  `exp_annotations` block in
-  `stacks/observability/prometheus/tests/host.test.yaml`, which asserts the
-  string exactly — a rules-and-tests change rather than a documentation one, so
-  it is not made here. A reader following the annotation lands on that
-  runbook's laptop-cell paragraph, which links here.
+- **Step 8 has not been run, and it is the whole of what keeps
+  [#454](https://github.com/Gerrrt/HomeLab/issues/454) open.** Everything else
+  the issue asked for is done and measured. The cell needs a full charge first.
+- **Step 2 can never be run for this swap: the old cell is gone.** The
+  discrimination it was written to buy — a step-8 failure being the cell or the
+  adapter and nothing else, because the path was already proven — is
+  unavailable. A failure in step 8 will be ambiguous between the pack, the brick
+  and the rule. The only evidence the path works is the accidental firing on
+  2026-09-18, which did at least exercise the real rule against the real
+  adapter. Run step 2 properly when this page is reused on `oracle`.
+- **A battery disconnect resets the RTC, and the TSDB records the result as a
+  hole that is not one** — [#519](https://github.com/Gerrrt/HomeLab/issues/519).
+  Nothing notices a backward boot: `HostClockSkew` reads the kernel's current
+  offset, which stays small once the clock is wrong but stable, and
+  `node_timex_sync_status` — which was `0` for exactly the backdated window — is
+  read by no rule. Step 6 says what to do instead; whether anything should alert
+  is that issue's question.
 - **`oracle`'s cell reads 72 %, is unbought, and its alert is silenced until
   2026-10-08** — `01cb81d7-5e19-4e6d-b386-f5c8c843032b`, matching
   `alertname="HostBatteryHealthLow"`, `instance="oracle"`,
@@ -507,9 +596,18 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
 
   This runbook is written to be reused for that cell. The differences: its
   mains supply is `AC` and not `ADP1`; its firmware reports `cyclecount` as `0`
-  and always has, so the strongest of the three proof rows in step 7 is
-  unavailable there; it exports no `temp_celsius`; and its info series *does*
-  carry a `serial_number`, which is a proof row this machine lacks.
+  and always has, so one of step 7's proof rows is unavailable there; it exports
+  no `temp_celsius`; and its info series *does* carry a `serial_number`, which
+  is a proof row this machine lacks and the cleanest of them all. Whether that
+  Dell's clock survives the disconnect the way this MacBook's did not is
+  unknown and worth watching for — see [#519](https://github.com/Gerrrt/HomeLab/issues/519).
 - **Nothing watches runtime-on-battery continuously.** The figure step 8
   produces is one measurement, at one load, on one day. There is no rule and no
   series that would notice it halving.
+
+**Closed since this page was written:** `HostBatteryHealthLow`'s description
+named [`fit-the-ups-battery.md`](fit-the-ups-battery.md) — the rack pack in
+`mjolnir`, not this cell — because that was the only runbook there was when the
+rule was written. [#506](https://github.com/Gerrrt/HomeLab/pull/506) retargeted
+it at this file on 2026-09-17, moving the `exp_annotations` blocks in
+`stacks/observability/prometheus/tests/host.test.yaml` with it.
