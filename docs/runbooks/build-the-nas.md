@@ -291,6 +291,22 @@ stay free.
 **Do not disturb the bay fan on `AUX1_FAN`.** It is the airflow over these two
 drives, and two 7200 rpm Exos under a scrub will want it.
 
+**Look at the power lead before the case closes.** The Exos, like every
+enterprise SATA drive since about 2016, reads **pin 3 of its power connector as
+Power Disable**: a supply that puts 3.3 V on that pin holds the drive off, so it
+never spins and never appears in `lsblk`. A desktop supply's SATA lead with
+**five wires, one of them orange**, carries that 3.3 V; four wires and no orange
+does not. If the orange wire is there, put Kapton tape over pin 3 on each
+drive's power receptacle, or feed the bays through a Molex-to-SATA adapter,
+which has no 3.3 V to offer. The boot disk booting proves nothing here — the
+S3520 predates the feature and ignores the pin. A drive missing from §2's
+`lsblk` is this before it is a cable or a port.
+
+The connectors themselves are ordinary SATA, and it is worth saying because
+the drive held PCB-up does not look like it: the wide receptacle is the 15-pin
+power, the narrow one the 7-pin data, and the small four-pin block beside them
+is Seagate's jumper header, which stays empty.
+
 ## §2 — Read the drives before trusting them
 
 From **option 8, Open Linux Shell**, at the console — **not over SSH**.
