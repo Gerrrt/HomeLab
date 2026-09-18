@@ -24,7 +24,10 @@ dependency of the mains-cut path and is watched as one: Alloy's node collector
 exports `node_power_supply_*` from both, and `host.rules.yaml` alerts when the
 shelf is off mains, when a cell falls below 80 % of its design capacity, and
 when a laptop reports no cell at all
-([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)). `prometheus`'s cell was
+replaced on 2026-09-18 and reads 101 % of its design capacity at one cycle;
+`oracle`'s is the original, reads 72 %, and is unbought. How long either laptop
+actually runs on its cell has never been measured.
 
 The patch panel and the PDU were listed the other way round here until
 2026-08-29. U8 is the panel and U7 is the PDU, confirmed against the rack.
@@ -403,7 +406,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   ([#76](https://github.com/Gerrrt/HomeLab/issues/76))
 - A1437 battery cell for `prometheus`[^A1437] — the pack that fits the
   `A1425`, the late-2012 Retina 13" in the Compute table — bought new
-  2026-09-13, **delivered 2026-09-18 and not yet fitted.** A consumable and
+  2026-09-13, delivered 2026-09-18 and **fitted the same day.** A consumable and
   not an upgrade: it is the one
   exception the roadmap's *Never* line names, bought because the estate's
   mains-cut path rests on this cell and the failure mode of a
@@ -411,19 +414,29 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). The listing calls
   it genuine and its brand field says unbranded, so it is recorded as a
   compatible cell, not an Apple part. That wording was written to be settled
-  once the part could be looked at, which it now can: the cell arrived
-  2026-09-18 and this line stays as it is until someone reads the pack's own
-  markings and says otherwise. The cell it
-  replaces read 94 % of design capacity after 108 cycles on 2026-09-12, which
-  is above `HostBatteryHealthLow`'s 80 % — it is bought on age, not on the
-  alert. Nothing in the Compute table changes; a cell is not a spec.
-  **Checked at the fit, not assumed:** `charge_full` at or near
-  `charge_full_design` and a cycle count reading low, then mains pulled and
-  the host staying up with `HostOnBattery` firing — the property the cell is
-  there for, and untested since the machine was commissioned
-  ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md), which
-  also carries the stack-down window and the old cell's disposal). `oracle`'s
-  cell reads 72 % and is second in line, unbought.
+  once the part could be looked at, and the fit settled it sideways.
+  `manufacturer` and `model_name` came back unchanged — `SMP`, `bq20z451` —
+  because an aftermarket A1437 reuses the same gas gauge; but **both design
+  figures moved**, `charge_full_design` 6.6 → 6.8 Ah and `voltage_min_design`
+  11.21 → 11.4 V, which is a pack reporting its own numbers and is the only
+  proof of a different part available on a machine that exports no serial. It
+  stays recorded as a compatible cell. The new pack reads `charge_full`
+  6.889 Ah of 6.8 Ah design (101 %) at `cyclecount` 1. The cell it replaced
+  read 94 % of design capacity after 108 cycles, on 2026-09-12 and again on
+  2026-09-17 — above `HostBatteryHealthLow`'s 80 %, so it was bought on age and
+  not on the alert — and went for recycling on 2026-09-18. Nothing in the
+  Compute table changes; a cell is not a spec.
+  **Checked at the fit:** `charge_full` above `charge_full_design`,
+  `cyclecount` 1, `charge_ampere` moving, and both design figures changed — all
+  read from this host's own Prometheus on 2026-09-18. **Not checked, and the
+  reason [#454](https://github.com/Gerrrt/HomeLab/issues/454) is still open:**
+  the mains pull on the fully charged pack, which is the property the cell was
+  bought for and a runtime the estate has never had. The pack was still
+  charging when the fit was recorded.
+  ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) carries
+  the baseline, the stack-down window — 14:53 to about 18:12 on the day, over
+  its own two-hour bound — and the disposal.) `oracle`'s cell reads 72 % and is
+  second in line, unbought.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]
