@@ -3,13 +3,15 @@
 **One glued-in cell, one power-down of the host that watches everything else,
 and one test that only works with the machine running.**
 
-> **Status — 2026-09-17: nothing is fitted. The cell is in transit and the
+> **Status — 2026-09-18: the cell is in hand and nothing is fitted. The
 > baseline below is measured, not remembered.**
 >
 > Every reading in step 1 was taken from this host's own Prometheus on
-> 2026-09-17: `charge_full` 6.196 Ah of 6.6 Ah design (94 %), unmoved across
-> the retained window, 108 cycles, `status` `Full`, on mains via `ADP1`.
-> Nothing in `host.rules.yaml` is firing for `prometheus`.
+> 2026-09-17 and re-read unchanged on 2026-09-18, the day the cell arrived:
+> `charge_full` 6.196 Ah of 6.6 Ah design (94 %), unmoved across the retained
+> window, 108 cycles, `status` `Full`, on mains via `ADP1`. Nothing in
+> `host.rules.yaml` is firing for `prometheus`. The baseline table is therefore
+> current as it stands — it does not need retaking before the fit.
 >
 > `HostBatteryHealthLow` fired for **`oracle`** from 2026-09-14 and was
 > silenced on 2026-09-17 until 2026-10-08
