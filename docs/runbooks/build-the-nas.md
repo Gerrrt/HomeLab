@@ -375,7 +375,7 @@ Create a dedicated TrueNAS user for it rather than sharing the admin account.
 The admin credential is the one that guards everything on this box, and an SMB
 share is mounted by televisions.
 
-## §6 — Jellyfin
+## §6 — The stack, and the scrape
 
 Deploy the stack from the repository, per
 [ADR-0040](../adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md):
@@ -391,7 +391,38 @@ make up STACK=media
 ```
 
 Jellyfin binds `8096`, reads `erebor/media`, and writes its state to
-`erebor/apps`.
+`erebor/apps`. `node-exporter` binds `9100` and is the whole of how this host
+is monitored — see §6.1.
+
+### §6.1 — Turn the scrape on, and prove it before you do
+
+The `node-exporter` service comes up with the stack. Nothing was scraping it
+until now: [#256](https://github.com/Gerrrt/HomeLab/issues/256) wrote the `node`
+job and `prometheus/targets/node.yaml` with **the target commented out**,
+because a scrape aimed at a port with nothing behind it means `up == 0` and
+`InstanceDown` paging `urgent` every four hours until the drives arrive —
+[ADR-0017](../adr/0017-buy-ifrit-and-give-it-no-monitoring.md)'s refusal.
+
+From the monitoring host, which can reach `9100` and nothing else on this
+segment:
+
+```bash
+curl -s http://10.0.40.30:9100/metrics | grep -c '^node_filesystem_avail_bytes'
+```
+
+**It must be greater than zero, and it must count `erebor`.** A wrong
+`--path.rootfs` produces a container's filesystems, or none, while `up` still
+reads 1 and the target shows green — so a zero here means every disk rule on
+this host is blind and nothing else will tell you.
+
+Then uncomment the four lines at the end of `prometheus/targets/node.yaml` and
+commit. That directory is a bind mount, so Prometheus re-reads it within five
+minutes: no restart, no deploy, no `--force-recreate`.
+
+Expect **no** `node_network_*` series from this host. Those collectors are
+disabled on purpose, because a bridged container reads its own veth and would
+chart it as this NAS's throughput; `stacks/media/compose.yaml` carries the
+measurement.
 
 > **The check ADR-0040 named as its reopen condition belongs here, and it has
 > to run *inside* the container.** The host half is already settled —
@@ -425,13 +456,13 @@ Jellyfin binds `8096`, reads `erebor/media`, and writes its state to
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
 - A Hicks workstation reaches `https://10.0.40.30` and `http://10.0.40.30:8096`
-- The monitoring host reaches `9100` and **nothing else** — but note that
-  *nothing in §1–§6 stands anything up on `9100`*. Until
-  [#256](https://github.com/Gerrrt/HomeLab/issues/256) settles whether the
-  target is `node_exporter` or TrueNAS's own metrics endpoint, only the **and
-  nothing else** half of this line is checkable: `443` and `8096` must both be
-  refused from the monitoring host. A listener answering on `9100` is that
-  issue's to deliver, not this runbook's
+- The monitoring host reaches `9100` and **nothing else**. Both halves are
+  checkable now: `443` and `8096` must be refused from the monitoring host, and
+  `node_exporter` must be answering — §6.1 is what stands it up, and
+  [#256](https://github.com/Gerrrt/HomeLab/issues/256) settled that it is
+  `node_exporter` rather than TrueNAS's own endpoint. `up{job="node"}` should be
+  `1`, labelled `instance="smaug"` rather than an address
+- The `igc0.40` tripwire counter is **still zero**
 - Port 15 on `neo` reads PVID **40**, untagged, with `smaug`'s MAC learned on it
   in VLAN 40 — read in the switch UI, and **not** inferred from the host having
   an address (§0.2b)
@@ -442,9 +473,6 @@ Jellyfin binds `8096`, reads `erebor/media`, and writes its state to
 
 ## §8 — What this leaves open
 
-- **[#256](https://github.com/Gerrrt/HomeLab/issues/256), the scrape path.** It
-  specifies `node_exporter` on `9100`, and TrueNAS ships its own metrics
-  endpoint — so the target shape is a fork that issue now has to settle.
 - **[#255](https://github.com/Gerrrt/HomeLab/issues/255)**, the residual saying
   this host ships no logs, which is true the day it exists.
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s

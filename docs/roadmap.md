@@ -792,11 +792,14 @@ what left this one unfireable for months.
   the `22` that ADR-0016's table names — that port assumed a box administered
   over SSH, which was an operating-system decision inside a firewall table, and
   ADR-0040 carries the correction against its own text. Port 22 survives on the
-  Winterfell rule and is **inert**, because TrueNAS ships SSH disabled. Whether
-  the scrape target is `node_exporter` on `9100` or TrueNAS's own endpoint is
-  open, and it is not a free choice —
-  [#256](https://github.com/Gerrrt/HomeLab/issues/256) settles it, and the
-  second answer costs a fifth rule. Terminal survives
+  Winterfell rule and is **inert**, because TrueNAS ships SSH disabled. The scrape target is
+  **`node_exporter` on `9100`**, settled by
+  [#256](https://github.com/Gerrrt/HomeLab/issues/256) on 2026-09-17 — the pass
+  that exists and a dashboard built entirely on `node_*` series, against an
+  alternative the repository had never measured and which would have cost a
+  fifth rule. The job and the target file are written; the target is commented
+  until the pool exists, because on TrueNAS every route to an exporter runs
+  through it. Terminal survives
   in the direction that carries it — CasaBonita stopped being terminal inbound
   on 2026-09-16 and stays terminal outbound, with #223's tripwire untouched and
   reading zero packets. Capacity buys a

@@ -176,6 +176,46 @@ tests:
         alertname: InstanceDown
         exp_alerts: []
 
+  # --- InstanceDown: fires for a SCRAPED HOST, naming it rather than its port -
+  # `smaug` is the estate's first scraped host (#256, ADR-0016): CasaBonita is
+  # terminal-outward, so the NAS cannot push and Prometheus reaches in over
+  # 99 → 40:9100 instead. This case is the executable form of the claim that
+  # issue rests on — that a scraped host needs no new down-detection, because
+  # `up == 0` above has no job matcher and covers it the day it answers.
+  #
+  # It also pins the OTHER half of that claim, which lives in a different file:
+  # the summary reads "smaug" and not "10.0.40.30:9100" only because
+  # prometheus/targets/node.yaml sets `instance` explicitly. Delete that label
+  # and a direct scrape defaults it back to the address — the rule still fires,
+  # the dashboards still work, and the page quietly becomes an IP nobody can
+  # place at 3 a.m. This assertion is what notices.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="smaug",job="node"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              alertname: InstanceDown
+              instance: smaug
+              job: node
+              component: host
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "node target smaug is down"
+              description: >-
+                Prometheus has failed to scrape smaug
+                (node) for 5 minutes.
+
+      # The pair, for the reason every pair in this file exists: a scrape that
+      # misses once must not page. Same fixture, inside `for: 5m`.
+      - eval_time: 3m
+        alertname: InstanceDown
+        exp_alerts: []
+
   # --- HostDiskCritical: fires below 10% free -------------------------------
   - interval: 5m
     input_series:

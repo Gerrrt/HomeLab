@@ -37,6 +37,7 @@ it is not closed by anything in this document.
 | Source | Via | Interval | Examples |
 | --- | --- | --- | --- |
 | Linux hosts | Alloy → `node_exporter` | 60s | CPU, memory, filesystem, network, load, clock offset |
+| `smaug`, the NAS | Prometheus → `node_exporter` | 60s | The same, minus network — the one host that is SCRAPED and not pushed to, and the one that ships no logs ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md), [#255](https://github.com/Gerrrt/HomeLab/issues/255)) |
 | Docker containers | Alloy → cAdvisor | 60s | Per-container CPU, memory, network, restarts, OOM |
 | Container logs | Alloy → Docker socket | stream | stdout/stderr per container |
 | systemd journal | Alloy | stream | unit, boot ID, transport, priority. Delivery is watched by `JournalSourceStopped` |
@@ -185,12 +186,23 @@ it should report hundreds. Both were invisible for hours because the only view
 of the collection path was `up{job="alloy"}`, which stayed `1` throughout.
 
 `up` is a poor liveness signal for half of what this stack collects, and the
-dashboard says so rather than papering over it. Prometheus scrapes nine jobs
+dashboard says so rather than papering over it. Prometheus scrapes twelve jobs
 directly; the rest arrive by remote_write — one `<host>-metrics` and one
 `<host>-alloy` per agent, plus `integrations/cadvisor` wherever there is
 Docker. **A directly scraped target that dies sets `up` to 0. A remote-writing
 agent that dies just stops pushing, so its `up` goes stale and ages out instead
 of falling** — and `InstanceDown` is `up == 0`, so it cannot see that at all.
+
+Eleven of those twelve jobs are containers on the compose network or devices
+behind an exporter. The twelfth is `node`, and it is a MACHINE — `smaug`, which
+[ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md) put
+on a segment that may not initiate upward, so Prometheus reaches in and scrapes
+it rather than being pushed to ([#256](https://github.com/Gerrrt/HomeLab/issues/256)).
+It is the estate's first scraped host, it needs no new down-detection because
+`InstanceDown` has no job matcher, and it is deliberately **not** called
+`smaug-metrics`: that name would enrol a pulled job in `RemoteWriteJobStale`,
+whose notification says an Alloy agent has stopped pushing. This host has no
+Alloy agent, by decision.
 The *Sample staleness by job* panel is what covers the pushed jobs on the
 dashboard, and the *Every target* table puts `Staleness` next to `Up` for the
 same reason.
@@ -326,7 +338,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-100 rules in total: 82 metric-based in `prometheus/rules/`, and 18 log-based in
+101 rules in total: 83 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -433,7 +445,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-82 rules across eleven files in `prometheus/rules/`:
+83 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -441,7 +453,7 @@ argument and for what to do when it exits 1.
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware and Smart Array cache. `shiva`'s Smart Storage Battery read failed from 2026-08-18 until it was replaced on 2026-09-02, with the array in write-through as a result, so stored metrics before that date show the failed pack — `IloBatteryCondition` names the spare part to order, and the controller rollups are deliberately read at *failed* rather than *degraded* ([#76](https://github.com/Gerrrt/HomeLab/issues/76)) |
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
-| `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion, and remote-writing agents that stop pushing — the case `up == 0` structurally cannot see. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault |
+| `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion, and the two cases `up == 0` structurally cannot see — a remote-writing agent that stops pushing, and a scraped target that stops being a target at all. The second is `ScrapeTargetDisappeared`, added with the first scraped host ([#256](https://github.com/Gerrrt/HomeLab/issues/256)): an emptied or unparseable `targets/node.yaml` makes the series vanish rather than fall to 0, so `InstanceDown` stays silent and `RemoteWriteJobStale` excludes scraped jobs by design. The target for `smaug` is written into `targets/node.yaml` and left disabled until the NAS has a pool to run the exporter from. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http. The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense — a probe sent down the normal resolver path always passes, because Unbound's fallback is doing its job. [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) made losing the filter silent on purpose, and these two rules are what distinguishes "this site was never on a list" from "AdGuard has been dead for three weeks". Warning, not critical: nothing is down and nobody is blocked. The targets are written into `targets/blackbox-dns.yaml` and left disabled until [#102](https://github.com/Gerrrt/HomeLab/issues/102) builds the mini PC ([#126](https://github.com/Gerrrt/HomeLab/issues/126)) |
@@ -456,12 +468,13 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is sixty-two rules of 82 so far — the five
+against the broken rule too. Coverage is sixty-three rules of 83 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all six in
 `backup.test.yaml`, all five in `deploy.test.yaml`, `RemoteWriteJobStale`,
+`ScrapeTargetDisappeared`,
 `SuricataStopped`, the two gateway rules from
 [#353](https://github.com/Gerrrt/HomeLab/issues/353), and all twenty-two in
 `host.rules.yaml` —
@@ -686,6 +699,11 @@ short:
 - **A Linux host:** run Alloy with `LOKI_URL` and
   `PROMETHEUS_REMOTE_WRITE_URL` pointed at `10.0.99.20`. Nothing on the
   monitoring host changes.
+- **A Linux host that may not push:** a firewall pass first, then
+  `node_exporter` in that host's own compose stack, then a target in
+  `prometheus/targets/node.yaml` with `instance` set to the hostname. The
+  direction reverses when the segment demands it, and the tool reverses with
+  it — `smaug` is the only one today.
 - **An SNMP device:** append a target to
   `prometheus/targets/snmp.yaml` and a module plus auth to
   `snmp-exporter/generator.yaml`. file_sd picks the target up within five

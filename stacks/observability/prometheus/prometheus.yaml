@@ -199,3 +199,54 @@ scrape_configs:
         action: labeldrop
       - target_label: __address__
         replacement: blackbox-exporter:9115
+
+  # ---------------------------------------------------------------------------
+  # The one host that is pulled.
+  #
+  # Every other machine in this estate PUSHES: Alloy remote_writes metrics here
+  # and pushes logs to :3100, and Prometheus is never told the host exists.
+  # `smaug` cannot. ADR-0016 put the NAS on CasaBonita, which is terminal
+  # outward — nothing on 40 may initiate upward — so the direction reverses and
+  # Prometheus reaches in over the `99 → 40:9100` pass instead. That makes this
+  # the estate's first scraped HOST, as opposed to a container on this compose
+  # network or a device behind an exporter, and it is why #256 was more than a
+  # line in a YAML file.
+  #
+  # WHY THE JOB IS CALLED `node` AND NOT `smaug-metrics`, which is the name the
+  # convention would suggest. RemoteWriteJobStale in rules/stack.rules.yaml
+  # selects `up{job=~"integrations/.+|.+-metrics|.+-alloy"}` and says in its own
+  # comment that "every directly scraped job is deliberately excluded: those
+  # have `up == 0` and InstanceDown". A job named `smaug-metrics` would join
+  # that selector by its NAME, and be covered by the rule written for the case
+  # `up == 0` structurally cannot see — telling whoever is paged that "the Alloy
+  # agent on smaug is down", which is false twice over about the one host with
+  # no Alloy agent by decision. Alertmanager's InstanceDown inhibit would then
+  # suppress the duplicate, so it would be quietly wrong rather than loudly so.
+  #
+  # The cost of the honest name is one expression: the Host Overview's "hosts
+  # reporting" stat counted `job=~".*-metrics"` and now counts `node` too.
+  #
+  # WHY file_sd RATHER THAN static targets, for the same reason the SNMP job
+  # above gives, plus one this job feels harder: prometheus.yaml is a
+  # SINGLE-FILE bind mount, so editing it needs the container recreated, while
+  # targets/ is a DIRECTORY mount and a file dropped in it is visible at once.
+  # Enabling this host is therefore an uncomment and a 5-minute wait, not a
+  # deploy — which matters because the target is written before it can answer.
+  #
+  # WHY NO relabel_configs. The snmp and blackbox jobs have them because their
+  # targets are arguments to an exporter and have to be turned into query
+  # parameters. There is no exporter in front of this one: the address in the
+  # file is the address Prometheus connects to, and the labels in the file are
+  # the labels on the metrics. targets/node.yaml is where they are argued.
+  # ---------------------------------------------------------------------------
+  - job_name: node
+    # 60s, not the 15s global. config.alloy collects every pushed host at 60s,
+    # so a finer interval here would make the one host reached across a segment
+    # boundary four times denser than the estate it is compared against, for no
+    # signal that any rule or panel asks for.
+    scrape_interval: 60s
+    scrape_timeout: 10s
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/node.yaml
+        refresh_interval: 5m

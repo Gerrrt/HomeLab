@@ -26,6 +26,24 @@
 # firing case here is the proof that the form actually shipped does fire, and
 # the two quiet cases are the proof that it has not simply been made to fire
 # for everything.
+#
+# ScrapeTargetDisappeared was added by #256 and is the mirror of that rule for
+# the one host this estate PULLS. Its four cases were mutation-tested on
+# 2026-09-17, against a copy of the rules, each mutation asserted to apply
+# before being run — #189's trap is a mutation that silently fails and looks
+# exactly like a rule that cannot be broken. All four were killed:
+#
+#   ScrapeTargetDisappeared  unless -> and;  [24h] -> [5m];
+#                            drop the job="node" selector;  for: 15m -> 0m
+#
+# The last one SURVIVED on the first attempt, and that is worth recording rather
+# than quietly fixing. Three cases and a firing assertion at 60m cannot tell
+# `for: 15m` from `for: 0m` — by 60m the alert has been firing for 25 minutes
+# either way. The `eval_time: 40m` pairing under the firing case is what kills
+# it: the series ends at 30m, ages out of the instant selector at 35m, and is
+# pending until 50m. A green run without that assertion was proving less than it
+# appeared to.
+
 rule_files:
   - ../rules/stack.rules.yaml
 
@@ -178,6 +196,92 @@ tests:
     alert_rule_test:
       - eval_time: 60m
         alertname: RemoteWriteJobStale
+        exp_alerts: []
+
+  # --- ScrapeTargetDisappeared: fires when the target stops being a target --
+  # The mirror of the RemoteWriteJobStale case above, and the same fixture
+  # shape for the same reason: the series arrives every minute and then stops.
+  # What differs is the cause, and it is the whole point of the rule — a pushed
+  # job stops because the agent died, a scraped job stops because the TARGET
+  # WAS REMOVED. From the series there is no telling those apart, which is why
+  # the selector and not the shape is what separates the two rules.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node",instance="smaug"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ScrapeTargetDisappeared
+        exp_alerts:
+          - exp_labels:
+              alertname: ScrapeTargetDisappeared
+              instance: smaug
+              job: node
+              component: stack
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "scraped target smaug has disappeared from service discovery"
+              description: >-
+                Prometheus was scraping smaug within the last day and no longer
+                has it as a target at all. This is not a host that is down —
+                that is InstanceDown's, and it would need the target to still
+                exist. Check that prometheus/targets/node.yaml still lists it
+                and still parses: Status → Service Discovery, and
+                prometheus_sd_file_read_errors_total.
+
+      # Gone, but not for long enough yet. The last sample is at 30m and the
+      # instant selector stops resolving it five minutes later, so the alert is
+      # pending from 35m and firing from 50m. This is the case that makes
+      # `for: 15m` load-bearing: without it the rule fires here, and mutating
+      # the `for` to 0m would otherwise have left every test in this file green.
+      - eval_time: 40m
+        alertname: ScrapeTargetDisappeared
+        exp_alerts: []
+
+  # --- ScrapeTargetDisappeared: quiet while the target is being scraped -----
+  # The production state, once smaug answers. Without this case the rule would
+  # pass its test while firing continuously for a target that is perfectly fine.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node",instance="smaug"}'
+        values: "1x70"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ScrapeTargetDisappeared
+        exp_alerts: []
+
+  # --- ScrapeTargetDisappeared: quiet for a target that is present and down --
+  # smaug powered off, or the firewall pass moved below the deny. The target
+  # still EXISTS, so up is 0 rather than absent — this rule must stay silent and
+  # InstanceDown must be the one that fires. The two partition the failure and
+  # do not overlap, which is the same claim the cAdvisor case above makes for
+  # the pushed half. Held at 0 for the whole range rather than written as a gap,
+  # because it is the presence of the series and not its value that this rule
+  # keys on.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node",instance="smaug"}'
+        values: "0x70"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ScrapeTargetDisappeared
+        exp_alerts: []
+
+  # --- ScrapeTargetDisappeared: quiet for a PUSHED job that goes silent -----
+  # This is the case that pins the selector rather than the expression. The
+  # fixture is byte-for-byte the firing case of RemoteWriteJobStale above, and
+  # that rule is expected to fire on it — this one must not, because widening
+  # `job="node"` to every job would cover remote_write jobs twice and page for
+  # the same outage under two names. Without this case the selector could be
+  # dropped entirely and every other test here would still pass.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="oracle-metrics",instance="oracle"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ScrapeTargetDisappeared
         exp_alerts: []
 
   # --- LogEntriesDropped: fires on loss that keeps happening ---------------

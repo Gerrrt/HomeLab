@@ -320,6 +320,14 @@ Televisions and consoles. Internet only.
   to CasaBonita* on their interfaces. Everything else on every other segment is
   still refused, and the televisions need no rule at all because they share this
   broadcast domain with the server.
+- **What answers on `9100` is `node_exporter`**, which makes this the one host
+  in the estate that Prometheus *scrapes* rather than is pushed to
+  ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
+  [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)).
+  Nothing answers there yet — the exporter is a container and the container
+  needs the pool — so `prometheus/targets/node.yaml` carries the target
+  commented out rather than pointing a live check at a port with nothing behind
+  it. Port `22` is inert for a different reason: TrueNAS ships SSH disabled.
 
 [^OLEDTV]: [LG OLED TV](https://www.lg.com/us/tvs/oled)
 [^PS5]: [PlayStation 5](https://www.playstation.com/en-us/ps5/)

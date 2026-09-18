@@ -186,6 +186,71 @@ groups:
             the Alloy agent on {{ $labels.instance }} is down or it cannot reach
             this host. Metrics from it are being lost, not queued.
 
+      - alert: ScrapeTargetDisappeared
+        # THE MIRROR OF RemoteWriteJobStale, for the one host that is pulled.
+        #
+        # Between them those two rules were supposed to cover every collected
+        # target. They did not, and #256 is where the hole became visible:
+        # RemoteWriteJobStale catches a pushed job that stops pushing, and
+        # InstanceDown catches a scraped target that is PRESENT and failing. A
+        # scraped target that stops being a target is neither.
+        #
+        # An emptied targets/node.yaml, a YAML error that makes file_sd drop the
+        # file, a bad merge that deletes the block: `up{job="node"}` ceases to
+        # exist, so `up == 0` matches nothing and InstanceDown stays silent.
+        # RemoteWriteJobStale's selector cannot help — it excludes directly
+        # scraped jobs deliberately, and says so where it is written. So the one
+        # host in the estate that Prometheus has to be TOLD about was also the
+        # one host that could be forgotten in silence, which is the #62 and #63
+        # class exactly: not a rule that misfires, a gap nothing reports.
+        #
+        # The shape is RemoteWriteJobStale's, for its reason: an instant
+        # selector goes absent along with the series, so "which targets were
+        # here and are not here now" has to be asked over a range.
+        # `count_over_time` reads the range and sees through staleness.
+        #
+        # THE WINDOW IS THE SAME BOUND AND THE SAME HONEST COST. 24h is how long
+        # this can still remember a target existed; a target restored inside a
+        # day resolves truthfully, and one gone longer resolves *falsely* at 24h
+        # having notified at least twice by then.
+        #
+        # SCOPED TO job="node" RATHER THAN EVERY SCRAPED JOB, and that is a
+        # narrowing worth naming. The same hole exists for targets/snmp.yaml and
+        # the three blackbox files. It is smaller there — those jobs have many
+        # targets, so one vanishing leaves siblings behind and the dashboards
+        # thin out visibly — and covering them means deciding what a partial
+        # disappearance should say, which is more than #256 needs. `node` has
+        # exactly one target: it disappears completely or not at all.
+        #
+        # WARNING AND NOT CRITICAL, deliberately, because of what it means. A
+        # host that is down produces up == 0, and InstanceDown pages `urgent`
+        # for it. This fires when the REPOSITORY lost the target while the host
+        # is very likely fine — a configuration fault, found in daylight, fixed
+        # by an editor.
+        #
+        # Do not put {{ $value }} in the annotations: `count by` returns the
+        # number of samples in the window, a number like 1440 that means nothing
+        # to whoever reads the notification. The same warning RemoteWriteJobStale
+        # carries, for the same reason.
+        expr: |
+          count by (job, instance) (count_over_time(up{job="node"}[24h]))
+          unless
+          count by (job, instance) (up{job="node"})
+        for: 15m
+        labels:
+          component: stack
+          severity: warning
+          category: availability
+        annotations:
+          summary: "scraped target {{ $labels.instance }} has disappeared from service discovery"
+          description: >-
+            Prometheus was scraping {{ $labels.instance }} within the last day
+            and no longer has it as a target at all. This is not a host that is
+            down — that is InstanceDown's, and it would need the target to still
+            exist. Check that prometheus/targets/node.yaml still lists it and
+            still parses: Status → Service Discovery, and
+            prometheus_sd_file_read_errors_total.
+
       - alert: LogEntriesDropped
         # Alloy accepted a log line and Loki refused it. There is no retry
         # behind a rejection, unlike the network errors

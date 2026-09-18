@@ -17,7 +17,7 @@ What this network is actually built to survive:
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 100 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 101 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — 94 % of design on `prometheus`, 72 % on `oracle` ([#454](https://github.com/Gerrrt/HomeLab/issues/454)) — see below |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -255,8 +255,20 @@ than carrying a port list, and the `22` is inert — TrueNAS ships SSH disabled
 `10.0.99.40 → 10.0.20.104:80,443/tcp` — Home Assistant to the Hue bridge, the
 one device on that segment with a local API — still waits above the block that
 has stood between 99 and 20 since the segments existed, on the host that would
-use it ([#134](https://github.com/Gerrrt/HomeLab/issues/134)). The row ADR-0008
-wrote as `99 → 20` is narrower than it read: one host to one device on two
+use it ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
+
+One of CasaBonita's four is a monitoring pass, and it carries a residual worth
+naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`
+on the NAS ([#256](https://github.com/Gerrrt/HomeLab/issues/256)), and that
+endpoint is **unauthenticated**. The firewall rule is what stops other segments
+reading it; nothing stops CasaBonita itself, because the televisions and the
+game consoles share that broadcast domain and the firewall never sees those
+packets — the same property that lets them reach Jellyfin, working the other
+way. node_exporter has no write API, so the exposure is disclosure of the
+host's shape: filesystems, uptime, load. Accepted, and the same class as the
+unauthenticated ports the observability stack publishes.
+
+The row ADR-0008wrote as `99 → 20` is narrower than it read: one host to one device on two
 ports, with the twenty other devices on Skids still unreachable from anywhere,
 and both segments still initiating nothing. The tripwire below is the check
 that the second half holds — waiting on Skids, and since 2026-09-16 actually
