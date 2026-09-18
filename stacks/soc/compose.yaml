@@ -77,7 +77,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.indexer:
     <<: *service-defaults
-    image: wazuh/wazuh-indexer:4.14.7@sha256:3bd92b2ea39b1f0cd979e12af4078ecb34980db3c99e4bbe2763965d56d52363
+    image: wazuh/wazuh-indexer:4.14.7@sha256:1b85f946cc7c6530ffc34b5a2f4471ef533a17e6262f97b75dc794c3f2b8c0a0
     container_name: soc-wazuh-indexer
     hostname: wazuh.indexer
     # DIFFERENCE 2: OpenSearch's bootstrap checks want the process able to
@@ -155,7 +155,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.manager:
     <<: *service-defaults
-    image: wazuh/wazuh-manager:4.14.7@sha256:80cada6a192fcb8caa8b415a5b64e2155138dd8df1da3a7b227d7e5e4e7460c0
+    image: wazuh/wazuh-manager:4.14.7@sha256:e32fe983f83b9ee1f14d8e4f061848244a21c4f678d278d13f91ff6079961d6f
     container_name: soc-wazuh-manager
     hostname: wazuh.manager
     # DIFFERENCE 3: no docker-init in front of this one. The image's entrypoint
@@ -252,7 +252,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.dashboard:
     <<: *service-defaults
-    image: wazuh/wazuh-dashboard:4.14.7@sha256:a7b565642dcb88ebfc2fe411169bad1d39fd02de4e5e1fa70f4b441380e62f47
+    image: wazuh/wazuh-dashboard:4.14.7@sha256:860f45d7878fcf34e42616bbceb91e8aa726b6108d0c7469e554e47648d28d43
     container_name: soc-wazuh-dashboard
     hostname: wazuh.dashboard
     mem_limit: 1024m
