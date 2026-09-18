@@ -267,10 +267,10 @@ ssh root@10.0.99.1 'pfctl -sr \
 # latter names 10.0.30.0/24 itself, and against it every DNS query from the lab
 # to its own gateway logs as a crossing.
 ssh root@10.0.99.1 'pfctl -sr | grep -E "^pass in log quick on igc0\.30 " | grep -c "<House_Segments>"'
-# expect 2 once ADR-0041's tunnel exists: the lab's own tripwire and the
+# expect 2 once ADR-0042's tunnel exists: the lab's own tripwire and the
 # WireGuard peers'. Before it is built, expect 1.
 
-# 6. ADR-0041's rules, if the tunnel has been built. The check above counts
+# 6. ADR-0042's rules, if the tunnel has been built. The check above counts
 #    tripwires by their shape and the four in step 5 are sourced from an
 #    interface network macro, which the tunnel's is not — so the tunnel's
 #    tripwire and its blocks need asking after separately, or a restore drops

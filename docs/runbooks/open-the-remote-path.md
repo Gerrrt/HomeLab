@@ -8,7 +8,7 @@ enrol, and **an endpoint** — see §0, which is the step this runbook cannot do
 for you
 **Before this:** the jumpbox exists
 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and
-[ADR-0041](../adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md)
+[ADR-0042](../adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)
 is read rather than skimmed
 
 This opens the estate's **first inbound path from the internet**. It terminates
@@ -20,7 +20,7 @@ lab, and a `MASQUERADE` rule copied in from a tutorial.
 
 > [!CAUTION]
 > **There is no `MASQUERADE` in this design, anywhere.** Every guide you will
-> find while doing this has one. ADR-0041 §2 is why this one does not: NAT
+> find while doing this has one. ADR-0042 §2 is why this one does not: NAT
 > would make every peer indistinguishable from the jumpbox, which holds a
 > Proxmox token and an SSH key, and would hand every peer the jumpbox's
 > standing at the firewall. If you find yourself adding `-j MASQUERADE` to make
@@ -47,7 +47,7 @@ key that has been on two machines is a key you cannot reason about later.
 
 WireGuard needs a stable address and port to dial. This estate has neither: the
 WAN address is ISP-assigned by DHCP, and there is no dynamic DNS anywhere in
-it. ADR-0041 §4 records that deliberately as a separate decision — a static
+it. ADR-0042 §4 records that deliberately as a separate decision — a static
 address is a recurring purchase, and a dynamic DNS provider is a third party
 handed a continuously-updated pointer to the house.
 
@@ -124,7 +124,7 @@ ListenPort = <LISTEN_PORT>
 PrivateKey = <contents of /etc/wireguard/server.key>
 
 # Forwarding is a capability scoped to the tunnel's lifetime, not a permanent
-# property of the host (ADR-0041). Nothing here is in /etc/sysctl.conf, and
+# property of the host (ADR-0042). Nothing here is in /etc/sysctl.conf, and
 # nothing here translates an address.
 PostUp   = sysctl -w net.ipv4.ip_forward=1
 PostDown = sysctl -w net.ipv4.ip_forward=0
@@ -162,7 +162,7 @@ Endpoint     = <ENDPOINT>:<LISTEN_PORT>
 # On the CLIENT, AllowedIPs is a ROUTE: the CIDRs that go down the tunnel.
 # This is the lab and nothing else. 0.0.0.0/0 here would pull all of the
 # device's traffic through the house, which is not what this is for and is the
-# failure ADR-0041 says will not announce itself.
+# failure ADR-0042 says will not announce itself.
 AllowedIPs   = 10.0.30.0/24
 PersistentKeepalive = 25
 ```
@@ -197,7 +197,7 @@ Then *System → Routing → Static Routes → Add*:
 | --- | --- |
 | Destination network | `172.31.0.0/24` |
 | Gateway | `JUMPBOX_TUNNEL` |
-| Description | `WireGuard peers — ADR-0041` |
+| Description | `WireGuard peers — ADR-0042` |
 
 **Save**, then **Apply Changes**.
 
@@ -213,7 +213,7 @@ Then *System → Routing → Static Routes → Add*:
 | Destination port range | the listen port, from and to |
 | Redirect target IP | the jumpbox's lab address |
 | Redirect target port | the same listen port |
-| Description | `WireGuard — ADR-0041` |
+| Description | `WireGuard — ADR-0042` |
 | Filter rule association | **Add associated filter rule** |
 
 **Save**, then **Apply Changes**. This is the `rdr` and the WAN pass that
@@ -236,7 +236,7 @@ First, *Firewall → Aliases → IP → Add*:
 | Name | `Tunnel_Peers` |
 | Type | Network(s) |
 | Network | `172.31.0.0/24` |
-| Description | `WireGuard peers — ADR-0041` |
+| Description | `WireGuard peers — ADR-0042` |
 
 Then on *Firewall → Rules → ImaginationLAN*, mirror the existing lab rules for
 this source, keeping the established order — blocks, then the tripwire, then
@@ -364,7 +364,7 @@ is strictly more closed than after it.
 6. `sudo shred -u /etc/wireguard/server.key /etc/wireguard/wg0.conf`.
 
 Removing **one peer** rather than the tunnel is a `wg0.conf` edit and
-`sudo systemctl reload wg-quick@wg0`. ADR-0041 records that this does not scale
+`sudo systemctl reload wg-quick@wg0`. ADR-0042 records that this does not scale
 and that the first lost device is when it stops being proportionate.
 
 ## If something goes wrong

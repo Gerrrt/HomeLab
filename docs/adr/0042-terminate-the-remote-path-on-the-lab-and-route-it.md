@@ -1,4 +1,4 @@
-# ADR-0041: Terminate the remote path on the lab, and route it
+# ADR-0042: Terminate the remote path on the lab, and route it
 
 **Status:** Accepted · 2026-09
 

@@ -297,7 +297,7 @@ packet anyway, so nothing is weakened by it being there. The terminal three feed
 a destination.
 
 **That alert reads two source subnets, not one.**
-[ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md) routes
+[ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md) routes
 the WireGuard peers on `172.31.0.0/24` rather than masquerading them, so a
 peer's own address reaches `igc0.30` and appears in `filterlog`. That is the
 point of routing rather than translating — a peer is nameable in a rule and in
