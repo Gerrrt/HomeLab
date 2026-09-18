@@ -1074,8 +1074,8 @@ tests:
                 capacity it was built with. Below 80 % the runtime on a mains
                 cut is a guess, and a cell this far into its life is also the
                 one that swells. Order the replacement —
-                docs/runbooks/fit-the-ups-battery.md says what to check after
-                the swap.
+                docs/runbooks/replace-the-laptop-cell.md says what to check
+                before and after the swap.
 
   # --- HostBatteryHealthLow: the energy_* spelling counts too ---------------
   # A driver reporting watt-hours instead of amp-hours. 30 of 50 is 60 %.
@@ -1103,8 +1103,8 @@ tests:
                 capacity it was built with. Below 80 % the runtime on a mains
                 cut is a guess, and a cell this far into its life is also the
                 one that swells. Order the replacement —
-                docs/runbooks/fit-the-ups-battery.md says what to check after
-                the swap.
+                docs/runbooks/replace-the-laptop-cell.md says what to check
+                before and after the swap.
 
   # --- HostBatteryHealthLow: QUIET for prometheus's real reading -------------
   # 6.196 Ah of 6.6 Ah is 94 %, read on 2026-09-12 after 108 cycles. Without
