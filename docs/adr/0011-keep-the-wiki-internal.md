@@ -60,12 +60,12 @@ machinery for publishing a service exists and reusing it would be cheap.
 > entry"* is the live state of the firewall, not only an intention.
 >
 > **Update · 2026-09.** The measurement above is now dated.
-> [ADR-0041](0041-terminate-the-remote-path-on-the-lab-and-route-it.md) decides
+> [ADR-0042](0042-terminate-the-remote-path-on-the-lab-and-route-it.md) decides
 > a WireGuard endpoint on the lab jumpbox, and building it makes `morpheus`
 > carry exactly one `rdr` and one inbound WAN pass. **The decision below is
 > unchanged and so is its reasoning**: the wiki is still not published, still
 > has no external hostname and still sits behind no reverse proxy, and reaching
-> it still means being inside the house — or, from ADR-0041 onward, on a tunnel
+> it still means being inside the house — or, from ADR-0042 onward, on a tunnel
 > that terminates on VLAN 30 and cannot route to `oracle` at all. What expires
 > is the estate-wide claim that nothing is reachable from outside, not this
 > ADR's answer for this service.
