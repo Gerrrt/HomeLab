@@ -387,10 +387,10 @@ repository must be treated as compromised:
 
 | What | Where | Status |
 | --- | --- | --- |
-| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` (now rewritten) | Purged from history. Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old; `neo` answers the new one but still accepts its previous community, and the stock `public` and `private` besides — measured 2026-09-06 and 2026-09-09, the other three refuse both — accepted risk, see [`SECURITY.md`](../SECURITY.md) and the [runbook](runbooks/rotate-snmp-community.md) |
+| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` (now rewritten) | Purged from history. Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old. `neo` answers the new one; whether it still holds the previous one is **unverified**, not confirmed. Its agent serves GETBULK to any community of sixteen characters or fewer without consulting the table (measured 2026-09-12), which is what the 2026-09-06 and 2026-09-09 sightings of the old string and the stock `public` and `private` actually were; those measurements are withdrawn. Over GET, which it does check, both stock strings and a junk string are refused — the previous community's row is the one thing still unmeasured, because that string was purged from history and is not to hand. Accepted risk, see [`SECURITY.md`](../SECURITY.md) and the [runbook](runbooks/rotate-snmp-community.md) |
 | Grafana `admin` / `admin` with anonymous Admin access | compose file | Fixed: password from SOPS, anonymous auth disabled |
 | Decrypted secrets in editor undo files | `~/.local/state/nvim/undodir/`, written by `make secrets-edit` | Found 2026-08-20: three files holding the live pfSense, APC and iLO SNMP communities in plaintext, mode 664, on an unencrypted disk. Shredded. `make secrets-edit` now hardens the editor first, so it cannot recur. Never committed, never left the host, so the communities were not rotated on that basis |
-| Alertmanager webhook URL and the MokerLink SNMP community | a local Claude Code session transcript under `~/.claude/projects/` | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook was rotated because it is a one-line regenerate; the switch community was not, because rotating it means the `neo` residual below all over again |
+| Alertmanager webhook URL and the MokerLink SNMP community | a local Claude Code session transcript under `~/.claude/projects/` | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook was rotated because it is a one-line regenerate; the switch community was not, because rotating it means the `neo` residual below all over again. That reasoning is spent — the overwrite it was afraid of was done on 2026-09-12 and persisted — and the value retires with the MokerLink hardware, which is replaced by a switch commissioned with v2c off entirely; no value the MokerLink held is carried across |
 | Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` | Purged from history, and the CA replaced — see [runbook](runbooks/generate-certificates.md). Anything that trusted the old CA must be re-pointed at the new one |
 
 CI scans both the working tree and the full history, with no ignore file. Both
@@ -570,8 +570,11 @@ may or may not have
 (ADR-0036). A TLS management interface belongs in the selection criteria
 whenever this switch is replaced — and the replacement that has one, a
 MikroTik CRS326, was bought 2026-09-13 ([`hardware.md`](hardware.md),
-[#444](https://github.com/Gerrrt/HomeLab/issues/444)). This section changes
-when it is racked, not before.
+[#444](https://github.com/Gerrrt/HomeLab/issues/444)), with delivery estimated
+2026-09-23. This section changes when it is racked, not before — that date is a
+courier estimate rather than an arrival, and the swap takes the whole house
+offline and shares a rack visit, so it buys a window to pick rather than a date
+this closes on.
 
 ## Hardening applied to the stack
 

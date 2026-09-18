@@ -325,10 +325,18 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   decision on `Saruman` starts from: a 7.2K mirror serving about ninety
   random write IOPS
   ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
-  Serials go here when they land. The Compute table's Storage column changes
+  Serials go here when they land — read off the labels before the drives go
+  into the bays, which is step 4 of
+  [`fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md), because
+  reading them back afterwards means reading them through the tool the fit is
+  trying to verify. The Compute table's Storage column changes
   when [#418](https://github.com/Gerrrt/HomeLab/issues/418) fits them, and
   not before — that issue also names the ADRs whose arithmetic the fit makes
-  stale
+  stale. The fit itself is
+  [`fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md), whose step 4
+  reads both serials off the labels before the drives go into the bays —
+  reading them back afterwards means reading them through the tool the fit is
+  trying to verify
 - 2× HP 2.5" SFF drive tray, `651687-001`[^Caddy] — bought 2026-09-11, in
   transit, quoted to arrive by 2026-09-17 and not here on the morning of it.
   The carriers the SM863a pair above needs to sit in `Saruman`'s SFF bays
@@ -350,6 +358,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   this machine; that both arrived; and that each has its screws, since a
   carrier without them holds a drive no better than no carrier. `651687-001`
   is the listing's part number and not yet the tray's.
+  **Until they land the SSDs cannot be fitted at all**, which is the sharpest
+  form of the point #418 is built on: arriving is not fitting, and neither the
+  Compute table nor ADR-0029's arithmetic moves for a drive on a shelf.
 - MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
   RouterOS / SwOS — bought used 2026-09-13; in transit, delivery estimated
   2026-09-23, moved out from the 09-16 to 09-21 window quoted at purchase. The
@@ -392,13 +403,17 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   ([#76](https://github.com/Gerrrt/HomeLab/issues/76))
 - A1437 battery cell for `prometheus`[^A1437] — the pack that fits the
   `A1425`, the late-2012 Retina 13" in the Compute table — bought new
-  2026-09-13, in transit. A consumable and not an upgrade: it is the one
+  2026-09-13, **delivered 2026-09-18 and not yet fitted.** A consumable and
+  not an upgrade: it is the one
   exception the roadmap's *Never* line names, bought because the estate's
   mains-cut path rests on this cell and the failure mode of a
   thirteen-year-old lithium cell on a shelf is swelling
   ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). The listing calls
   it genuine and its brand field says unbranded, so it is recorded as a
-  compatible cell, not an Apple part, until it is in hand. The cell it
+  compatible cell, not an Apple part. That wording was written to be settled
+  once the part could be looked at, which it now can: the cell arrived
+  2026-09-18 and this line stays as it is until someone reads the pack's own
+  markings and says otherwise. The cell it
   replaces read 94 % of design capacity after 108 cycles on 2026-09-12, which
   is above `HostBatteryHealthLow`'s 80 % — it is bought on age, not on the
   alert. Nothing in the Compute table changes; a cell is not a spec.
@@ -406,7 +421,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `charge_full_design` and a cycle count reading low, then mains pulled and
   the host staying up with `HostOnBattery` firing — the property the cell is
   there for, and untested since the machine was commissioned
-  ([`fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md)). `oracle`'s
+  ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md), which
+  also carries the stack-down window and the old cell's disposal). `oracle`'s
   cell reads 72 % and is second in line, unbought.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
