@@ -40,7 +40,7 @@ quietly swapped.
 | Host | Hardware | CPU | RAM | Storage | OS |
 | --- | --- | --- | --- | --- | --- |
 | `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB NVMe SSD | FreeBSD 16.0 (pfSense) |
-| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 | Proxmox VE 9 |
+| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1; 2× 960 GB SATA SSD, unassigned | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
 | `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) | TrueNAS 25.10 |
@@ -322,31 +322,43 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   it — worth knowing before reading a slow self-test as a sick disk. TrueNAS's
   scheduled tests take it from here.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
-  SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, **in hand
-  since 2026-09-11**, for the ProLiant's SFF bays. Bought against the number
-  every sizing
-  decision on `Saruman` starts from: a 7.2K mirror serving about ninety
-  random write IOPS
+  SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, delivered
+  2026-09-11, **fitted 2026-09-18 in bays 3 and 4 of the ProLiant, and not
+  yet in any logical drive.** Bought against the number every sizing decision
+  on `Saruman` starts from: a 7.2K mirror serving about ninety random write
+  IOPS
   ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
-  Serials go here when they land — read off the labels before the drives go
-  into the bays, which is step 4 of
-  [`fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md), because
-  reading them back afterwards means reading them through the tool the fit is
-  trying to verify. The Compute table's Storage column changes
-  when [#418](https://github.com/Gerrrt/HomeLab/issues/418) fits them, and
-  not before — that issue also names the ADRs whose arithmetic the fit makes
-  stale. The fit itself is
-  [`fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md), whose step 4
-  reads both serials off the labels before the drives go into the bays —
-  reading them back afterwards means reading them through the tool the fit is
-  trying to verify
-- 2× HP 2.5" SFF drive tray, `651687-001`[^Caddy] — bought 2026-09-11, in
-  transit, quoted to arrive by 2026-09-17 and not here on the morning of it.
-  The carriers the SM863a pair above needs to sit in `Saruman`'s SFF bays
+  Serial `S3F3NX0K601487` in Bay 3 and `S3F3NX0K806107` in Bay 4, firmware
+  `GXM5304Q`, both negotiated at 6 Gb/s — **as the iLO reports them over
+  SNMP, not as read off the labels.** The fit runbook asked for the labels
+  first, because reading a serial back through the controller means reading
+  it through the tool the fit is trying to verify; that was not done, and the
+  runbook's step 4 says how it still can be while the drives are unassigned.
+  The iLO gives the model only as `SAMSUNG` — it names a third-party SATA
+  drive by vendor where it gives the HPE disks their part number — so the part
+  is proved by the size (`915715` MB), the firmware and the serial prefix
+  rather than by the model string. Both read solid-state, SMART `ok` and
+  `notConfigured` from the first scrape they appeared in, at 20:11 UTC, and
+  nothing alerted. The Compute table's Storage column moved on the day, as
+  this entry said it would. What has not moved is everything after the bays:
+  no logical drive, no thin pool, `alexander` still on the HDD mirror, and no
+  measurement — so
+  [#418](https://github.com/Gerrrt/HomeLab/issues/418) stays open and the ADRs
+  whose arithmetic it names stand as written until step 8 of
+  [`fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md) produces a
+  number. This entry is where the serials live, which is the question
+  [#148](https://github.com/Gerrrt/HomeLab/issues/148) asked.
+- 2× HP 2.5" SFF drive tray, `651687-001`[^Caddy] — bought 2026-09-11,
+  **arrived and fitted 2026-09-18**, one under each SM863a in bays 3 and 4.
+  The carriers the pair above needs to sit in `Saruman`'s SFF bays
   ([#418](https://github.com/Gerrrt/HomeLab/issues/418)). A Gen9 bay holds a
   drive only in a tray, so two drives want two trays, and two is what was
   bought — worth writing down, because one tray short is one SSD fitted and
-  one on a shelf.
+  one on a shelf. The arrival checks this entry asked for are answered by the
+  bays rather than by the packaging: both trays took a drive, and the iLO
+  reads the same carrier firmware on all four bays
+  (`cpqDaPhyDrvSmartCarrierAppFWRev` `11`, bootloader `6`), so they are the
+  Gen8/Gen9 SmartDrive carrier and not the Gen10 part or the 3.5" LFF one.
   **This purchase went unrecorded for six days**, which is the omission this
   entry exists to close. It was made in the same sitting as the I226 card, the
   Exos pair, and the boot disk's bracket and tape, every one of which has had
@@ -355,15 +367,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   rule failing rather than a thing the rule allows. Found on 2026-09-17 while
   reading the ProDesk's arrival paperwork for
   [#92](https://github.com/Gerrrt/HomeLab/issues/92), which is not a way of
-  finding purchases that can be relied on.
-  **Checked on arrival, not assumed:** that they are the Gen8/Gen9 SmartDrive
-  carrier and not the Gen10 part or the 3.5" LFF one, neither of which fits
-  this machine; that both arrived; and that each has its screws, since a
-  carrier without them holds a drive no better than no carrier. `651687-001`
-  is the listing's part number and not yet the tray's.
-  **Until they land the SSDs cannot be fitted at all**, which is the sharpest
-  form of the point #418 is built on: arriving is not fitting, and neither the
-  Compute table nor ADR-0029's arithmetic moves for a drive on a shelf.
+  finding purchases that can be relied on. `651687-001` is the listing's part
+  number, not read off the tray.
 - MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
   RouterOS / SwOS — bought used 2026-09-13; in transit, delivery estimated
   2026-09-23, moved out from the 09-16 to 09-21 window quoted at purchase. The

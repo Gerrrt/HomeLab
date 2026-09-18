@@ -3,29 +3,44 @@
 **Two drives, no maintenance window, and a number that has to be measured on
 both arrays — not assumed from either.**
 
-> **Status — 2026-09-17: the drives are here, the trays are not. Nothing is
-> fitted, and nothing can be.**
+> **Status — 2026-09-18: the drives are in the bays, unassigned, and nothing
+> else has moved.**
 >
-> Two Samsung SM863a 960 GB (`MZ-7KM960N`), bought 2026-09-09 and delivered
-> 2026-09-11. The baseline in step 0 below was read from Prometheus on
-> 2026-09-17 and is the "Before" column of every table here.
+> Both SM863a drives were fitted on 2026-09-18 and the iLO reported them
+> between the 20:10 and 20:11 UTC scrapes — the same minute, both at once:
+> `cpqDaPhyDrv` indexes `2` and `3`, `Port 1I Box 1 Bay 3` and `Bay 4`,
+> `MediaType` `3` solidState, `RotationalSpeed` `5` rpmSsd, `Type` `3` sata,
+> `NegotiatedLinkRate` `4`, `915715` MB each, `Condition`, `Status` and
+> `SmartStatus` all `2` ok, `ConfigurationStatus` `3` notConfigured. Serials
+> **`S3F3NX0K601487`** (Bay 3) and **`S3F3NX0K806107`** (Bay 4), firmware
+> `GXM5304Q`. Nothing alerted, nothing was silenced, and nothing needed to be:
+> step 1's silences are written for step 5's sync, and inserting a drive into
+> an empty bay moves no condition column — observed now, rather than argued.
 >
-> **This runbook is blocked at step 4 until the drive trays land.** A Gen9 bay
-> holds a drive only in an HPE SmartDrive carrier. Two were bought
-> (`651687-001`, 2026-09-11) and had not arrived by the morning of 2026-09-17
-> — see [`../hardware.md`](../hardware.md). Steps 0 through 3 can all be done
-> before they turn up, and doing them early is worth it: step 2 in particular
-> is the one most likely to fail, and finding that out with the drives already
-> in your hand is the wrong order.
+> **Step 4 is done and every other step is not.** No `ssacli` on the host, no
+> logical drive (`cpqDaLogDrv` still reads index `1` only), no thin pool,
+> `alexander` still on the HDD mirror, no fio, and no cache reading for
+> [#76](https://github.com/Gerrrt/HomeLab/issues/76). Step 11's *Observed*
+> column is filled for the physical-drive rows and blank for everything after
+> them.
 >
-> **The layout is decided and the measurement is not.** The SSDs become a
-> *second* logical drive on the P440ar, RAID 1, Smart Array managed; the two
-> 7.2K disks keep Proxmox, the ISOs and the backups. That answers the first two
-> questions [#418](https://github.com/Gerrrt/HomeLab/issues/418) left to the
-> fit. What it does not answer is the one the purchase exists for: the write
-> IOPS this machine actually has. Step 8 measures it, on both arrays, with the
-> parameters ADR-0029 derived its number from — and until that reading exists,
-> no ADR here changes.
+> **Three things this runbook predicted wrongly, corrected below.** The model
+> string reads `SAMSUNG` and not `MZ7KM960...`; the walk did not get slower —
+> `scrape_duration_seconds` is `11.4` s before and after, not the 13–17 s
+> estimated; and the serials were **not** read off the labels first. They are
+> the iLO's, which is the tool the fit was meant to verify. Step 4 says how to
+> still do the label check while the drives are unassigned, and why that
+> window closes at step 5.
+>
+> **The layout is decided and the measurement is still not taken.** The SSDs
+> become a *second* logical drive on the P440ar, RAID 1, Smart Array managed;
+> the two 7.2K disks keep Proxmox, the ISOs and the backups. That answers the
+> first two questions [#418](https://github.com/Gerrrt/HomeLab/issues/418)
+> left to the fit. What it does not answer is the one the purchase exists for:
+> the write IOPS this machine actually has. Step 8 measures it, on both arrays,
+> with the parameters ADR-0029 derived its number from — and until that
+> reading exists, no ADR here changes. The 2026-09-17 baseline in step 0 is
+> still the *Before* column of every table here; nothing in it moved.
 
 `shiva` is the iLO, not the hypervisor. The host behind it is `Saruman` at
 `10.0.30.110`; see [`../hardware.md`](../hardware.md). Both are on VLAN 30.
@@ -140,6 +155,12 @@ The repo documents *deleting* a silence
 ([`fit-the-ups-battery.md`](fit-the-ups-battery.md) §3) and has never written
 down creating one. This is that call.
 
+**Create these immediately before step 5, not before step 4.** On 2026-09-18
+the drives went into bays 3 and 4 with no silence standing and nothing fired:
+an unassigned drive in an empty bay moves no condition column, and the two
+silences below name a logical drive and a sync that do not exist until
+`create` runs. A silence made at the fit would have expired unused.
+
 ```bash
 START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 END=$(date -u -d '+5 hours' +%Y-%m-%dT%H:%M:%SZ)
@@ -251,26 +272,21 @@ The SFF bays are genuinely hot-plug, and inserting drives into **empty** bays
 while logical drive 1 serves the running OS is a supported operation. Two
 preconditions, stated here rather than discovered at the rack:
 
-- **HPE Gen8/Gen9 SFF SmartDrive carriers — bought, and not here yet.** Two
-  HP 2.5" SFF drive trays, `651687-001`, bought 2026-09-11 and still in
-  transit on 2026-09-17; [`../hardware.md`](../hardware.md) carries them. A
-  bare 2.5" drive does not seat in a ProLiant bay, so **this is where the job
-  stops until they land**. The baseline in step 0 shows
-  `cpqDaPhyDrvSmartCarrierAppFWRev` reading `11` on the existing drives, so
-  the carriers this machine uses are the firmware-carrying kind and not
-  improvised — a Gen10 part or a 3.5" LFF tray will not do.
-
-  Check on arrival, per `hardware.md`: that both trays came, that each has its
-  screws, and that they are the Gen8/Gen9 SmartDrive carrier. One tray short
-  is one SSD fitted and one on a shelf, which is a worse outcome than waiting.
-
-- **Both drives, physically.** The delivery notice covers one order for the
-  pair, not two units confirmed. `docs/roadmap.md` leaves proving that to this
-  runbook, and the bays are where it gets proved: two drives in, two new
-  `cpqDaPhyDrv` indexes out.
-- **Bays 3 and 4 must be cabled.** Both existing drives read `Box 1 Bay 1` and
-  `Bay 2`. The backplane variant on this chassis is recorded nowhere in this
-  repository.
+- **HPE Gen8/Gen9 SFF SmartDrive carriers — bought 2026-09-11, arrived and
+  fitted 2026-09-18.** Two `651687-001`; both came, both took a drive, and
+  `cpqDaPhyDrvSmartCarrierAppFWRev` reads `11` with
+  `cpqDaPhyDrvSmartCarrierBootldrFWRev` `6` on all four bays, so they are the
+  firmware-carrying kind the existing drives sit in and not a Gen10 or 3.5"
+  LFF part. [`../hardware.md`](../hardware.md) carries them. Kept as a
+  precondition because the next fit on this chassis needs the same check: a
+  bare 2.5" drive does not seat in a ProLiant bay, and one tray short is one
+  SSD fitted and one on a shelf.
+- **Both drives, physically.** The delivery notice covered one order for the
+  pair, not two units. Settled at the bays on 2026-09-18: two drives in, two
+  new `cpqDaPhyDrv` indexes out, with different serials.
+- **Bays 3 and 4 are cabled.** Unknown until 2026-09-18 — the backplane
+  variant is recorded nowhere — and now observed: `Port 1I Box 1 Bay 3` and
+  `Bay 4` on the same connector as bays 1 and 2.
 
 **Read both serial numbers off the drive labels before they go in.** They are
 the one row in step 11's table that cannot be produced by the old hardware
@@ -278,6 +294,15 @@ reporting differently, and they are what
 [`../hardware.md`](../hardware.md)'s *"Serials go here when they land"* is
 waiting for. Writing them down after the drives are in a chassis means reading
 them back through the tool you are trying to verify.
+
+> **This was not done on 2026-09-18.** The serials in `hardware.md` are the
+> iLO's — `S3F3NX0K601487` in Bay 3, `S3F3NX0K806107` in Bay 4 — read over
+> SNMP after the fact. Two drives with different Samsung serials in the right
+> bays is strong evidence and not the proof this paragraph asked for. While
+> both drives read `Unassigned` a label check is still cheap: a drive that is
+> a member of nothing can be pulled, read and reseated without the controller
+> caring. **That stops being true the moment step 5 creates the logical
+> drive.** If the label check matters, it is before step 5 or not at all.
 
 Insert into bays 3 and 4, then:
 
@@ -618,19 +643,19 @@ right-hand value.
 
 | Metric | Before, 2026-09-17 | After a successful fit | Observed |
 | --- | --- | --- | --- |
-| `cpqDaPhyDrv*` index set | `0`, `1` | `0`, `1`, `2`, `3` | |
-| `cpqDaPhyDrvLocationString{2,3}` | absent | `Port 1I Box 1 Bay 3` / `Bay 4` | |
-| `cpqDaPhyDrvSerialNum{2,3}` | absent | **the two label serials — the row that cannot be faked** | |
-| `cpqDaPhyDrvModel{2,3}` | absent | an `MZ7KM960...` string | |
-| `cpqDaPhyDrvMediaType{2,3}` | absent (`{0,1}` = `2`) | `3` solidState | |
-| `cpqDaPhyDrvRotationalSpeed{2,3}` | absent (`{0,1}` = `2`) | `5` rpmSsd | |
-| `cpqDaPhyDrvType{2,3}` | absent | `3` sata | |
-| `cpqDaPhyDrvNegotiatedLinkRate{2,3}` | absent (`{0,1}` = `4`) | `4`. A `3` means the drive negotiated down to 3 Gb/s | |
-| `cpqDaPhyDrvConfigurationStatus{2,3}` | absent | `3` notConfigured after step 4 → `2` configured after step 5 | |
-| `cpqDaPhyDrvCondition{2,3}` / `Status{2,3}` | absent | `2` ok / `2` ok | |
-| `cpqDaPhyDrvSmartStatus{2,3}` | absent | `2` ok. `1` trips `IloDriveSmartUnreadable` after 1 h, unrouted. **`4` is SSD wear-out and is a true finding** | |
-| `cpqDaPhyDrvSSDWearStatus{2,3}` | absent (`{0,1}` = `1` other) | `2` ok, or `1` if the controller will not read a third-party SSD | |
-| `cpqDaPhyDrvSSDPercntEndrnceUsed{2,3}` | absent (`{0,1}` = `4294967295`) | a percentage, or `4294967295` — unknown is this box's norm | |
+| `cpqDaPhyDrv*` index set | `0`, `1` | `0`, `1`, `2`, `3` | `0`–`3` from 20:11 UTC 2026-09-18, both in one scrape |
+| `cpqDaPhyDrvLocationString{2,3}` | absent | `Port 1I Box 1 Bay 3` / `Bay 4` | as predicted |
+| `cpqDaPhyDrvSerialNum{2,3}` | absent | **the two label serials — the row that cannot be faked** | `S3F3NX0K601487` / `S3F3NX0K806107` — **from the iLO, not the labels**; see step 4 |
+| `cpqDaPhyDrvModel{2,3}` | absent | ~~an `MZ7KM960...` string~~ `SAMSUNG` | `SAMSUNG`, vendor only. The iLO reports a third-party SATA drive by vendor where it gives the HPE drives their part number; the part is proved by size, `cpqDaPhyDrvFWRev` `GXM5304Q` and the serial prefix instead |
+| `cpqDaPhyDrvMediaType{2,3}` | absent (`{0,1}` = `2`) | `3` solidState | `3` |
+| `cpqDaPhyDrvRotationalSpeed{2,3}` | absent (`{0,1}` = `2`) | `5` rpmSsd | `5` |
+| `cpqDaPhyDrvType{2,3}` | absent | `3` sata | `3` — the same value the HDDs read, so item 12 is no nearer settled |
+| `cpqDaPhyDrvNegotiatedLinkRate{2,3}` | absent (`{0,1}` = `4`) | `4`. A `3` means the drive negotiated down to 3 Gb/s | `4` |
+| `cpqDaPhyDrvConfigurationStatus{2,3}` | absent | `3` notConfigured after step 4 → `2` configured after step 5 | `3` — step 5 not run |
+| `cpqDaPhyDrvCondition{2,3}` / `Status{2,3}` | absent | `2` ok / `2` ok | `2` / `2` from the first scrape |
+| `cpqDaPhyDrvSmartStatus{2,3}` | absent | `2` ok. `1` trips `IloDriveSmartUnreadable` after 1 h, unrouted. **`4` is SSD wear-out and is a true finding** | `2` from the first scrape — no `other(1)` phase while unconfigured, `IloDriveSmartUnreadable` never fired |
+| `cpqDaPhyDrvSSDWearStatus{2,3}` | absent (`{0,1}` = `1` other) | `2` ok, or `1` if the controller will not read a third-party SSD | `1` other, unconfigured. **Re-read after step 5**: `cpqDaPhyDrvHasMonInfo` reads false on all four drives and the MIB allows an unconfigured drive to go unpolled. If still `1` once configured, wear is blind on these drives and the closing paragraph's `smartctl -d cciss` issue gets opened |
+| `cpqDaPhyDrvSSDPercntEndrnceUsed{2,3}` | absent (`{0,1}` = `4294967295`) | a percentage, or `4294967295` — unknown is this box's norm | `4294967295`, and `PowerOnHours` and `SSDEstTimeRemainingHours` the same. Same re-read as the row above |
 | `cpqDaLogDrv*` index set | `1` | `1`, `2` | |
 | `cpqDaLogDrvCondition{2}` / `Status{2}` | absent | `2` ok / `2` ok (`5`, `7`, `18`, `19` while syncing) | |
 | `cpqDaLogDrvFaultTol{2}` | absent | `3` mirroring | |
@@ -648,7 +673,7 @@ right-hand value.
 | `cpqDaCntlrDriveWriteCacheState` | `1` other | `1` other — **unchanged is the pass condition** | |
 | `ssacli ctrl slot=0 show detail` → Cache Ratio | never read | a real ratio, or `0/0` — **this is the #76 reading, and either answer resolves it** | |
 | `ssacli ctrl slot=0 ld 1 show detail` → Caching | never read | `Enabled`, or the (b) branch of step 6 | |
-| `scrape_duration_seconds{device="shiva"}` | `11.8` s | roughly 13–17 s, and well under 30 | |
+| `scrape_duration_seconds{device="shiva"}` | `11.8` s | ~~roughly 13–17 s~~ unchanged, and well under 30 | `11.4` s averaged over two hours either side of the fit. Two more drives cost the walk nothing measurable; the estimate was wrong |
 | `rate(node_disk_writes_completed_total{device="sda"}[1h])` | current | falls to the host's own writes | |
 | the same for `sdb` | absent | present, carrying `alexander`'s writes | |
 | **fio 4k QD1 randwrite, HDD** | ADR-0029's **derived** `83` | **measured** — M1 loaded, M3 idle | |
@@ -727,19 +752,19 @@ settling it is most of the value of doing the fit carefully.
    trixie; HPE's MCP SDR is not known to publish a trixie suite; nothing in this
    repository is evidence it has ever run here. Three paths in step 2, none
    observed working on this box.
-2. **When the drive trays arrive, and whether both do.** No longer *whether*
-   — `651687-001` × 2 were bought 2026-09-11 and are recorded in
-   `hardware.md`. But they were quoted for 2026-09-17 and were not here that
-   morning, and a carrier without its screws holds a drive no better than no
-   carrier. A hard stop, not a detail.
-3. **Whether bays 3 and 4 are cabled.** Both existing drives are Bay 1 and
-   Bay 2; the backplane variant is recorded nowhere.
+2. ~~**When the drive trays arrive, and whether both do.**~~ **Settled
+   2026-09-18.** Both `651687-001` arrived, both took a drive, and the iLO reads
+   the same carrier firmware (`11` / `6`) on all four bays.
+3. ~~**Whether bays 3 and 4 are cabled.**~~ **Settled 2026-09-18.** They are:
+   `Port 1I Box 1 Bay 3` and `Bay 4`, same connector as the mirror.
 4. **Whether a newly created RAID 1 transits `cpqDaLogDrvCondition = 3`.** This
    is the whole reason step 1 creates a silence rather than skipping one, and
    the fit should record the answer so the next one need not guess.
-5. **Whether a brand-new non-HPE SATA SSD reports `cpqDaPhyDrvSmartStatus = 1`**
-   before the controller configures it. The info severity makes finding out
-   free.
+5. ~~**Whether a brand-new non-HPE SATA SSD reports `cpqDaPhyDrvSmartStatus = 1`**
+   before the controller configures it.~~ **Settled 2026-09-18: it does not.**
+   Both read `2` ok from the first scrape they appeared in, unconfigured, and
+   `IloDriveSmartUnreadable` never went pending. The test fixture's `other(1)`
+   case describes a state this drive did not pass through.
 6. **Whether `cpqDaAccelWriteCachePercent = 0` is a reporting gap or a real
    0 % allocation.** Four columns lean towards real. Only step 6's `ssacli`
    reading decides, and it has never been run on this machine.
@@ -767,15 +792,35 @@ settling it is most of the value of doing the fit carefully.
     for step 1's silence, and verifiable within a minute of creating it.
 14. **How long the iLO takes to reflect a configuration change.** The 60 s
     scrape is not the bound; the iLO's own agentless refresh may be minutes.
+    *Half settled 2026-09-18:* a physical insertion showed up within one scrape
+    interval — both drives in the 20:11 UTC scrape, absent at 20:10. Whether a
+    `create` is reflected as fast is still item 13's business.
 15. **The exact option spellings** on the installed `ssacli` — `aa=`,
     `ssdsmartpath=`, `dwc=` have all moved between versions.
     `ssacli ctrl slot=0 help create` and `help modify` are the authority.
 
+Two things the fit showed that nothing here had asked about:
+
+- **The iLO names a third-party SATA drive by vendor only.** `cpqDaPhyDrvModel`
+  reads `SAMSUNG` where the HPE drives read their part number `MM1000GBKAL`.
+  Anything that wanted to match the model string — a rule, a dashboard label,
+  a future `hardware.md` check — has firmware (`GXM5304Q`), size and serial to
+  work with instead.
+- **`cpqDaPhyDrvMaximumTemperature` is a lifetime figure, and it is above the
+  threshold on one drive.** Bay 3 reads a maximum of `62` °C against a
+  `cpqDaPhyDrvTemperatureThreshold` of `60`; Bay 4 reads `51`. Both are at
+  `30`–`32` °C now. These are second-hand enterprise drives and the number is
+  their previous life's, not this chassis's — but it is exactly the kind of
+  reading only direct SMART would have shown at purchase, which is the closing
+  paragraph's argument made for it.
+
 One thing that belongs beyond this runbook rather than in it:
 `collect-smart-state.sh` skips `Saruman` because the iLO covers its array — but
 the iLO already reports `4294967295` for the HDDs' endurance columns and
-`cpqDaPhyDrvSSDWearStatus` `1` (other), and it will very likely do the same for
-two third-party SSDs. That would leave wear monitoring blind on the newest and
-most wear-sensitive parts in the estate, on drives bought second-hand.
-`smartctl -d cciss,N /dev/sda` reads the drives directly through the `hpsa`
-path and would close it. That is an issue, not a step here.
+`cpqDaPhyDrvSSDWearStatus` `1` (other), and on 2026-09-18 it did the same for
+the two SSDs while they were unconfigured. That would leave wear monitoring
+blind on the newest and most wear-sensitive parts in the estate, on drives
+bought second-hand. `smartctl -d cciss,N /dev/sda` reads the drives directly
+through the `hpsa` path and would close it. The reading is re-taken after step
+5, because an unconfigured drive may simply not be polled; if it is still blank
+then, that is an issue, not a step here.
