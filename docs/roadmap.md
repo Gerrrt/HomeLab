@@ -104,9 +104,20 @@ restore onto `trinity` needs
 installer stick — between them, the whole of what the rehearsal now waits on;
 the two Exos X20 18 TB drives for `smaug`'s mirror
 ([#413](https://github.com/Gerrrt/HomeLab/issues/413)); the CRS326 that
-replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); and the
+replaces `neo` ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); the
 A1437 cell that replaces `prometheus`'s thirteen-year-old one
-([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)); and two HP SFF drive
+trays for `Saruman`, the carriers its SM863a pair needs to go in the bays
+([#418](https://github.com/Gerrrt/HomeLab/issues/418)).
+
+**2026-09-17: the trays were bought on 2026-09-11 and are only now written
+down.** They were paid for in the same sitting as the I226 card, the Exos pair
+and the boot disk's bracket, and unlike every one of those they got no entry in
+[`hardware.md`](hardware.md) and no line here. This section's rule is that a
+purchase is recorded when the money is spent; six days of silence is that rule
+failing, and it was caught by reading a delivery notice for a different issue
+rather than by anything this repository does. Nothing here checks the list
+against what was actually bought, which is the gap the omission found.
 
 Four things crossed from the second paragraph to the first: the TS150, the
 ProDesk, the boot SSD, and the bracket and tape that mount it. All four were
@@ -1062,12 +1073,12 @@ them name the condition that would change the answer.
   the estate, and it stores connection credentials to do it. The estate already
   has a KVM in U6 for physical console access. Declined. **The remote-access question it
   gestured at is answered differently** by
-  [ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md):
+  [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md):
   WireGuard to the lab jumpbox, terminating on ImaginationLAN and reaching the
   lab only. That is not a softening of this decline — it stores no connection
   credentials at a gateway, it never touches Winterfell, and the boundary is
   the firewall's rather than an application's. Guacamole's objection was about
-  the management segment, and nothing about ADR-0041 goes near it.
+  the management segment, and nothing about ADR-0042 goes near it.
 - **Frigate** — locally-processed object detection on camera streams, and the
   one service on the shortlist that would change the network's shape rather
   than its population: continuous RTSP from every camera through the `99 → 20`

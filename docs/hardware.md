@@ -319,8 +319,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   it — worth knowing before reading a slow self-test as a sick disk. TrueNAS's
   scheduled tests take it from here.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
-  SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, in transit,
-  for the ProLiant's SFF bays. Bought against the number every sizing
+  SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, **in hand
+  since 2026-09-11**, for the ProLiant's SFF bays. Bought against the number
+  every sizing
   decision on `Saruman` starts from: a 7.2K mirror serving about ninety
   random write IOPS
   ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
@@ -328,6 +329,27 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   when [#418](https://github.com/Gerrrt/HomeLab/issues/418) fits them, and
   not before — that issue also names the ADRs whose arithmetic the fit makes
   stale
+- 2× HP 2.5" SFF drive tray, `651687-001`[^Caddy] — bought 2026-09-11, in
+  transit, quoted to arrive by 2026-09-17 and not here on the morning of it.
+  The carriers the SM863a pair above needs to sit in `Saruman`'s SFF bays
+  ([#418](https://github.com/Gerrrt/HomeLab/issues/418)). A Gen9 bay holds a
+  drive only in a tray, so two drives want two trays, and two is what was
+  bought — worth writing down, because one tray short is one SSD fitted and
+  one on a shelf.
+  **This purchase went unrecorded for six days**, which is the omission this
+  entry exists to close. It was made in the same sitting as the I226 card, the
+  Exos pair, and the boot disk's bracket and tape, every one of which has had
+  an entry here since the day it was bought. The roadmap's rule is that a
+  purchase is written down when the money is spent, so a gap like this is the
+  rule failing rather than a thing the rule allows. Found on 2026-09-17 while
+  reading the ProDesk's arrival paperwork for
+  [#92](https://github.com/Gerrrt/HomeLab/issues/92), which is not a way of
+  finding purchases that can be relied on.
+  **Checked on arrival, not assumed:** that they are the Gen8/Gen9 SmartDrive
+  carrier and not the Gen10 part or the 3.5" LFF one, neither of which fits
+  this machine; that both arrived; and that each has its screws, since a
+  carrier without them holds a drive no better than no carrier. `651687-001`
+  is the listing's part number and not yet the tray's.
 - MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
   RouterOS / SwOS — bought used 2026-09-13; in transit, delivery estimated
   2026-09-23, moved out from the 09-16 to 09-21 window quoted at purchase. The
@@ -396,6 +418,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
 [^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
 [^SM863a]: [Samsung SM863a 960 GB, MZ-7KM960N](https://www.ebay.com/itm/800210578217)
+[^Caddy]: [HP 2.5" SFF drive tray, 651687-001, for DL360/DL380/ML350 Gen8 and Gen9](https://www.ebay.com/itm/126297185368)
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)
 [^Panel]: [Jadol 24-port patch panel](https://a.co/d/izggRoK)
 [^PDU]: [10-outlet 1U PDU](https://a.co/d/ibEygxZ)

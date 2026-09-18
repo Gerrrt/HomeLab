@@ -85,7 +85,7 @@ truth for what a box actually does.
 - The gateway runs in bridge mode; its own Wi-Fi radio stays operational but is
   unused. All wireless is handled by eero units on tagged VLANs.
 - **One inbound pass, and one only** — the WireGuard endpoint decided by
-  [ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md): a
+  [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md): a
   UDP `rdr` to the lab jumpbox, terminating on ImaginationLAN and reaching the
   lab only. The endpoint hostname and the listen port are withheld with the WAN
   address ([`security.md`](security.md#what-this-repository-deliberately-does-not-publish)).
@@ -303,7 +303,7 @@ Televisions and consoles. Internet only.
   not exist yet and neither does `stacks/media`; what exists is a host on its
   address. **It does not change the *Reaches* column**, and that is the point
   ADR-0016 made in advance: nothing on this segment initiates anywhere, and the
-  three rules created that day all let a more trusted segment reach **in**.
+  four rules created that day all let a more trusted segment reach **in**.
   That is the direction this row records, and it is the one that is unchanged.
 - **Inbound is no longer nothing, and that is deliberate.** Since 2026-09-16
   Hicks reaches `10.0.40.30` on `443` and `8096`, and `10.0.99.20` reaches it
@@ -393,7 +393,7 @@ Where things get broken on purpose.
 
 - **The WireGuard peers live on `172.31.0.0/24`, and it is routed rather than
   translated**
-  ([ADR-0041](adr/0041-terminate-the-remote-path-on-the-lab-and-route-it.md)).
+  ([ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)).
   `morpheus` carries one static route for it toward the jumpbox, so a peer's
   own address is what arrives on this interface and what a firewall log
   carries — which is what lets a rule name a peer and an alert say which one.
