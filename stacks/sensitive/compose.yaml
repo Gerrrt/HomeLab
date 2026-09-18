@@ -642,7 +642,7 @@ services:
   # — and move the number and this paragraph together.
   immich-server:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-server:v3.2.0@sha256:ae13784ffcfcce8f4178113eb6661602a1fd1912f3d539880b8ac0dd95fc8ac2
+    image: ghcr.io/immich-app/immich-server:v3.2.2@sha256:79cc1623323d5894922686d8743b4780181428f98eecbfb58ce12c41ef02d1ea
     container_name: sensitive-immich-server
     init: false
     # 3 GiB: the server transcodes video with ffmpeg inside this container,
