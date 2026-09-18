@@ -64,10 +64,20 @@ easily skipped because the new switch is the interesting object.
 
 **Export the MokerLink's running configuration and write down its full port map
 — every port, its VLAN membership, tagged or untagged, and what is plugged into
-it.** No document in this repository records it. `architecture.md` has the
+it.** No document in this repository records the map. `architecture.md` has the
 topology and `network.md` has the addresses; neither has a per-port map, so if
 you unplug 26 cables without one, the house comes back wrong and you will be
 diagnosing it at midnight with no switch to compare against.
+
+**One port is written down, and the capture is worth checking against it.**
+`smaug` is on **port 15**, untagged VLAN 40, PVID 40 — read off the switch on
+2026-09-17 and recorded in [`build-the-nas.md`](build-the-nas.md) §0.2b, which
+is the step that put it there. The wiki's `infrastructure/switching` page
+carries dated readings of the whole map and is the authority for it, which is
+why the map is not copied in here
+([ADR-0026](../adr/0026-check-the-documents-where-the-truth-is.md)). Neither
+record substitutes for reading the live switch — but a capture that disagrees
+with either is worth a second look before 26 cables come out.
 
 **Count the copper.** The MokerLink has 26 copper ports; the CRS326 has 24 ×
 RJ45 plus 2 × SFP+, which do not take an RJ45 patch lead. If more than 24 copper
