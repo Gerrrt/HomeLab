@@ -799,11 +799,13 @@ what left this one unfireable for months.
   the BIOS flashed, AMT found on Intel's factory-default credential and
   unprovisioned, the optical drive swapped for the boot SSD and its SMART read
   **before** the install, TrueNAS 25.10 installed, the static and the Kea
-  reservation both set, and the inbound rules created and verified. What is
-  left is the two Exos drives and everything downstream of them: the mirror
-  `erebor`, its two datasets, the household share, the stack, and the one test
-  that decides whether the stack stays here at all — whether Quick Sync reaches
-  a container, which is ADR-0040's reopen condition and is still unrun.
+  reservation both set, and the inbound rules created and verified. **The
+  drives landed 2026-09-18**, both at zero hours by the FARM log and not only
+  by SMART, and the rest followed: the mirror `erebor`, its two datasets, the
+  household share `media`, and the stack running under TrueNAS's Docker with
+  the scrape live on 2026-09-19. Of ADR-0040's reopen condition, the render
+  node reaches the container and the process carries the render group; the
+  transcode itself is the half still unrun.
   Reading the enforced ruleset first changed two of the answers, and both were
   borne out when the rules were created. **50→40 is not simply a rule to add**:
   Hicks and Winterfell each carry an explicit *Block access to
