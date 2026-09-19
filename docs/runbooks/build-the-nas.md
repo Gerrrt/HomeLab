@@ -624,8 +624,9 @@ measurement.
 > 143,780 evaluations, **0 packets**, all four passes still above the block.
 > **A television on CasaBonita played the test clip the same evening**,
 > having found `smaug` on the segment with no rule involved — which is the
-> line the placement exists for. **Not yet read:** the two extended
-> self-tests, and port 15 in the switch UI.
+> line the placement exists for. **Port 15 re-read in the switch UI the
+> same evening: VLAN 40, PVID 40, untagged only.** **Not yet read:** the two
+> extended self-tests.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
