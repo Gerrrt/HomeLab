@@ -206,22 +206,33 @@ curl -sk -H "Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECR
 compile` shows what it thinks the rules are). A `401` is the token. An empty
 list with a `200` is the ACL: the user can reach the node and see no guests.
 
-## 5. Open the lab's doors, if they are still shut
+## 5. Open the lab's doors
 
 This guest's Alloy pushes to the lab's Prometheus and Loki. The two `ports:`
 blocks in `stacks/lab/compose.yaml` and the two port lines in
 `stacks/lab/.env.example` landed commented, waiting for a client with no
-scrape alternative — [`build-the-soc-guest.md`](build-the-soc-guest.md) §7 is
-the step that opens them for `odin`, and whichever of the two guests is built
-first does it. Check before editing anything, from `phoenix`:
+scrape alternative, and this guest is the one that came first: the change
+that publishes all four is in the repository
+([#436](https://github.com/Gerrrt/HomeLab/issues/436), 2026-09), ahead of the
+guest by days so the agent has somewhere to push on first boot.
+[`build-the-soc-guest.md`](build-the-soc-guest.md) §7 now only confirms it.
+What is left is applying it where the stack runs, **on `alexander`**:
+
+```bash
+cd ~/HomeLab
+git pull
+make up STACK=lab
+ss -ltn '( sport = :9090 or sport = :3100 )'
+```
+
+Both lines must show `10.0.30.40` or `0.0.0.0`. Then from `phoenix`:
 
 ```bash
 nc -zv -w 3 10.0.30.40 9090 3100
 ```
 
-Both open: skip to §6. Either refused: do §7 of the SOC runbook now, **on
-`alexander`**, and commit and push from there, for the reason it gives.
-Nothing on `morpheus` is involved either way — the path is intra-segment.
+Both open: on to §6. Nothing on `morpheus` is involved — the path is
+intra-segment.
 
 Being scraped by `alexander` instead, the way ADR-0029's six Windows machines
 are, would have needed no `ports:` change at all. It loses because a

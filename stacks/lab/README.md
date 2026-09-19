@@ -104,10 +104,15 @@ thing entirely on this segment.
   attackers. That first client with no scrape alternative is now decided:
   `odin`, [`stacks/soc`](../soc)'s guest
   ([ADR-0030](../../docs/adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md)),
-  whose Alloy pushes here. `compose.yaml` still carries the two `ports:`
-  blocks commented, and
-  [`build-the-soc-guest.md`](../../docs/runbooks/build-the-soc-guest.md) §7
-  uncomments them on the day, not before.
+  whose Alloy pushes here — and `phoenix`, the deployment host
+  ([ADR-0043](../../docs/adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)),
+  which was built first. The two `ports:` blocks in `compose.yaml` stayed
+  commented until then;
+  [`build-the-jumpbox.md`](../../docs/runbooks/build-the-jumpbox.md) §5
+  published them in 2026-09
+  ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and
+  [`build-the-soc-guest.md`](../../docs/runbooks/build-the-soc-guest.md) §7 now
+  only confirms they are open.
 - **Image tags are pinned here but bumped separately.** `.github/dependabot.yml`
   now watches this directory as well as the estate's, so the two do not drift.
   Versions are deliberately absent from the table above — Dependabot only edits

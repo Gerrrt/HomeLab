@@ -136,13 +136,15 @@ services:
     # ADR-0030 made that argument, and stacks/soc is the client: `odin`'s Alloy
     # pushes here, and there is no scrape alternative for it. ADR-0043 adds a
     # second, `phoenix`, the deployment host, whose worth in an incident is its
-    # logs. The block still lands COMMENTED, and whichever guest is built first
-    # uncomments it — build-the-soc-guest.md §7 or build-the-jumpbox.md §5,
-    # here and on loki below — in the same change that brings that guest up. A
-    # receiver published with no client yet is exactly the ADR-0012 case, on
-    # the segment where it matters most.
-    #   ports:
-    #     - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
+    # logs. The block landed COMMENTED and waited for whichever guest came
+    # first; that was `phoenix`, and build-the-jumpbox.md §5 published it, here
+    # and on loki below, in 2026-09 (#436) — days ahead of the guest rather than
+    # in the same change, so its agent has somewhere to push on first boot. A
+    # receiver published with no client at all is exactly the ADR-0012 case, on
+    # the segment where it matters most; one with a client days away is the
+    # narrowest gap the runbook could cut.
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
     expose:
       - "9090"
     healthcheck:
@@ -180,11 +182,11 @@ services:
     # answered the rest the other way round: Wazuh's alerts stay in its own
     # indexer and are never copied here, and what odin's Alloy ships to this
     # Loki is that GUEST's own logs — journal, auth.log, containers — the way
-    # every other host's agent does — as `phoenix`'s will (ADR-0043). Those are
-    # the clients this opens for, on the same day and by the same runbook step
-    # as prometheus above:
-    #   ports:
-    #     - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
+    # every other host's agent does — as `phoenix`'s does (ADR-0043). Those are
+    # the clients this is open for, published for `phoenix` in 2026-09 by the
+    # same runbook step as prometheus above (#436):
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
     expose:
       - "3100"
 
