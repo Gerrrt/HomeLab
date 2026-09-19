@@ -995,9 +995,12 @@ what left this one unfireable for months.
   rather than contradicts.
   → [runbook](runbooks/build-the-playground.md)
 - **[#418](https://github.com/Gerrrt/HomeLab/issues/418) Fit the two SSDs in
-  `Saruman`.** Two Samsung SM863a 960 GB SATA enterprise drives, bought
-  2026-09-09, delivered 2026-09-11, **fitted 2026-09-18 and in no logical
-  drive yet**.
+  `Saruman`, and [#527](https://github.com/Gerrrt/HomeLab/issues/527) do
+  everything the fit left.** Two Samsung SM863a 960 GB SATA enterprise
+  drives, bought 2026-09-09, delivered 2026-09-11, fitted 2026-09-18, and
+  **since 2026-09-19 logical drive 2 with the thin pool `Large_data` on it —
+  and still with no guest on them and no measurement taken**. #418 closed at
+  the bays; #527 carries steps 5–11 of the runbook and is open.
   ADR-0007's constraint — "the
   fleet is sized against spindles, not RAM" — became a number in ADR-0029,
   about ninety random write IOPS for the whole machine, and that number sized
@@ -1016,23 +1019,38 @@ what left this one unfireable for months.
   array holding every guest, so the runbook takes the `ssacli` reading nobody
   has ever taken on this machine and #76 owns what to do about it.
 
-  **The trays blocked it for a day, and the fit stopped at the bays.** A Gen9
-  bay holds a drive only in a SmartDrive carrier; two `651687-001` were bought
-  2026-09-11, had not arrived on the morning of 2026-09-17, and were in the
-  chassis with a drive in each by 20:11 UTC on 2026-09-18 — both drives
-  present, `Bay 3` and `Bay 4`, different serials, solid-state, SMART `ok`,
-  `notConfigured`, and nothing alerted. That is the runbook's step 4 and no
-  step after it: no `ssacli` on the host yet, no logical drive, no thin pool,
-  `alexander` still on the HDD mirror. Three predictions were wrong on the day
-  and are corrected in the runbook — the iLO names the drive `SAMSUNG` and not
-  by part number, the walk did not get slower, and the serials were read back
-  through the iLO rather than off the labels first, which the runbook now says
-  can still be put right while the drives are unassigned and not after. One
-  reading is worse than hoped: the wear and endurance columns are blank on
-  both SSDs, as they are on the HDDs, and if they stay blank once the drives
-  are in a logical drive, wear monitoring on the newest drives in the estate
-  needs `smartctl` through the `hpsa` path, which is an issue the runbook's
-  closing paragraph already describes.
+  **The trays blocked it for a day, the fit stopped at the bays, and the
+  array came the day after.** A Gen9 bay holds a drive only in a SmartDrive
+  carrier; two `651687-001` were bought 2026-09-11, had not arrived on the
+  morning of 2026-09-17, and were in the chassis with a drive in each by
+  20:11 UTC on 2026-09-18 — both drives present, `Bay 3` and `Bay 4`,
+  different serials, solid-state, SMART `ok`, `notConfigured`, and nothing
+  alerted. Three predictions were wrong on the day and are corrected in the
+  runbook — the iLO names the drive `SAMSUNG` and not by part number, the
+  walk did not get slower, and the serials were read back through the iLO
+  rather than off the labels first; the label check was then not done, and
+  the window for it closed with the array. On 2026-09-19 the drives became
+  **logical drive 2** — RAID 1, `915683` MB, index `2` as predicted, `ok`
+  from the first scrape with no sync the iLO ever showed — made through the
+  offline Smart Storage Administrator, the runbook's path 3, because `ssacli`
+  is still not on the host and neither way of getting it there was tried.
+  The thin pool on it is **`Large_data`**, made that afternoon; the runbook's
+  `ssd` is renamed throughout. Two things that path cost: the controller has
+  still never been read from the host, so the cache reading #76 has waited on
+  since 2026-09-02 is still owed and needs `ssacli` or a second SSA session;
+  and the session was a fourteen-and-a-half-hour power-off rather than the
+  twenty-minute reboot the runbook priced, so `RemoteWriteJobStale`,
+  `GuestStateStopped` and `PatchStateStopped` all fired with nothing silenced,
+  which the runbook now says how to avoid. One reading is worse than hoped
+  and is now confirmed: the wear and endurance columns are blank on both SSDs
+  **with the drives configured**, as they are on the HDDs, so wear monitoring
+  on the newest drives in the estate needs `smartctl` through the `hpsa`
+  path — [#529](https://github.com/Gerrrt/HomeLab/issues/529), filed against
+  exactly that condition, is no longer gated on anything. A thin pool is also
+  not a filesystem, so `HostDiskCritical` cannot see `Large_data` fill;
+  [#538](https://github.com/Gerrrt/HomeLab/issues/538) is that blind spot,
+  opened while the pool is still empty. `alexander` is still on the HDD
+  mirror.
 
   What is still open after that is the only thing the purchase was for.
   **ADR-0029's
