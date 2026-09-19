@@ -2,13 +2,17 @@
 
 [ADR-0008]'s media tier — the household's media server — on `smaug`
 (`10.0.40.30`, CasaBonita / VLAN 40), the ThinkServer TS150 that [#413] bought
-and [ADR-0040] gave TrueNAS. **The pool is not built yet**;
-[`build-the-nas.md`] §6 deploys this stack, and this directory is authored
-ahead of the storage the way `stacks/sensitive` was authored ahead of
-`trinity`.
+and [ADR-0040] gave TrueNAS. **Deployed 2026-09-19**, from a copy of this
+directory's two files on the pool, under TrueNAS's own Docker;
+[`build-the-nas.md`] §6 is the procedure. `make up STACK=media` does **not**
+work on that host — it renders secrets this stack does not have, on a box
+without `make` or `sops` — so a change here reaches `smaug` by re-fetching
+`compose.yaml` and `.env.example` from `main` into `/mnt/erebor/apps/stack`
+and running `docker compose up -d` there. Nothing pulls from `main` on that
+host on its own: a Dependabot bump is merged here and deployed there by hand.
 
 ```bash
-make up STACK=media
+cd /mnt/erebor/apps/stack && docker compose up -d
 ```
 
 | Service | Image | Port | Purpose |
@@ -130,7 +134,7 @@ Every non-obvious line in `compose.yaml` came off the pinned image on
   is a restart loop.
 - **65 MiB idle RSS**, which is what the 2 GiB ceiling is a ceiling over.
 
-## The check that is not done yet
+## The check that is half done
 
 [ADR-0040] keeps the media stack in this repository on the strength of Quick
 Sync working, and names its own reopen condition: **the iGPU reaching a
@@ -139,6 +143,12 @@ read off the machine — but a live P630 and a P630 a container can use are
 different claims. `devices: /dev/dri` and `RENDER_GID` are where the second
 claim is made; [`build-the-nas.md`] §6 is where it gets tested, **before the
 library exists**, because moving a populated library is a weekend.
+
+**On 2026-09-19 the shell half passed**: `renderD128` is listed inside the
+container as `root 107`, and `id` there reads
+`groups=65534(nogroup),107`. What that does not prove is a transcode, which
+is a claim only Jellyfin's playback settings and a played file can make, and
+that is the half still open.
 
 [ADR-0008]: ../../docs/adr/0008-place-services-by-data-trust.md
 [ADR-0012]: ../../docs/adr/0012-publish-only-ports-with-an-off-host-consumer.md

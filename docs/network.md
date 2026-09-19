@@ -299,9 +299,9 @@ Televisions and consoles. Internet only.
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
   and running TrueNAS by
   [ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)
-  ([#413](https://github.com/Gerrrt/HomeLab/issues/413)). Its ZFS mirror does
-  not exist yet, and `stacks/media` is authored and undeployed against that
-  absence; what exists is a host on its address. **It does not change the
+  ([#413](https://github.com/Gerrrt/HomeLab/issues/413)). Its ZFS mirror
+  `erebor` exists since 2026-09-18 and `stacks/media` runs on it since
+  2026-09-19, publishing `8096` to this segment. **It does not change the
   *Reaches* column**, and that is the point ADR-0016 made in advance: nothing
   on this segment initiates anywhere, and the rules created that day all let a
   more trusted segment reach **in**. That is the direction this row records,

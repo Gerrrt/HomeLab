@@ -43,7 +43,7 @@ quietly swapped.
 | `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
-| `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) | TrueNAS 25.10 |
+| `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
 SNMP devices at a 60-second interval, four Alloy agents, and 30 days of metric
@@ -194,10 +194,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   has created would be the kind of claim this table exists to not make. The boot disk the TrueNAS install wants
   ([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md))
   and the bracket that carries it in the optical bay are the entries below and
-  landed with it; the two drives for the mirror, bought 2026-09-11, have not. Nothing
+  landed with it; the two drives for the mirror, bought 2026-09-11, landed on
+  2026-09-18 and were in the bays that evening. Nothing
   for this machine is outstanding on the roadmap's
-  [list](roadmap.md#everything-still-to-buy) any more; what is left is those
-  two drives landing, and a build.
+  [list](roadmap.md#everything-still-to-buy) any more, and the Storage column
+  reads the mirror since 2026-09-19.
   **Read off the machine on 2026-09-15**, where everything above it came off a
   listing: `ThinkServer TS150`, machine type-model `70UB000AUX`, serial
   `MJ05N4NK`. Xeon E3-1225 v6 at 3.30 GHz, four cores, and `Active Video: IGD`
@@ -248,7 +249,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   access ZFS wants and the thing
   [#418](https://github.com/Gerrrt/HomeLab/issues/418) is the cautionary tale
   for, and `CSM [Disabled]`, so it boots UEFI as TrueNAS wants.
-  Two 3.5" trays, both empty — exactly the mirror and no spare.
+  Two 3.5" trays, filled by the Exos pair on 2026-09-18 — exactly the mirror
+  and no spare.
   **The 5.25" bay was not empty**: a PLDS `DVD-RW DU8AESH` answered on SATA5.
   A photograph of the open case had been read here as an empty cage and was
   wrong; the BIOS summary is what caught it. The optical drive came out on
@@ -257,15 +259,30 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   that fan is **not optional**: it is the airflow over the drive bays, and two
   7200 rpm Exos under a scrub will want it. Reconnected after the swap and
   reading `Aux Fan: Operating`.
-- 2× Seagate Exos X20 18 TB (`ST18000NM003D`), 3.5" SATA — bought
-  2026-09-11, in transit. `smaug`'s ZFS mirror
+- 2× Seagate Exos X20 18 TB (`ST18000NM003D`, firmware `SN03`), 3.5" SATA —
+  bought 2026-09-11, **in hand since 2026-09-18**, a day after the carrier's
+  window lapsed. `smaug`'s ZFS mirror
   ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
   [#413](https://github.com/Gerrrt/HomeLab/issues/413)). A mirror of two is
-  one drive's capacity, so this is 18 TB usable, not 36. The listing's
-  **zero power-on hours is a claim, not a fact** — read it back with
-  `smartctl -a` on arrival and record what the drives actually report here,
-  before the mirror is built on them. Serials go here when they land. They
-  enter the Compute table with the NAS, which is not built.
+  one drive's capacity, so this is 18 TB usable, not 36.
+  **Read off both drives with `smartctl -a` at the console on 2026-09-18,
+  before the pool existed**: serials `ZVTBS4NL` and `ZVTBSDL3`, both `PASSED`,
+  both at **0 power-on hours**, 0 reallocated, 0 pending, 0 uncorrectable, no
+  errors logged, 26 °C in the bays against a lifetime range of 24–26. **The
+  zero hours is a fact, not a claim, and it was checked the one way that
+  settles it.** SMART's hours counter can be reset, and used Exos drives with
+  it zeroed were sold as new through 2025; Seagate's FARM log keeps a second
+  counter that the reset does not touch, and `smartctl -l farm` on this host
+  read **0 power-on hours and 0 spindle hours on both drives**. What the
+  resettable counters add is consistent with new drives bench-checked by the
+  seller and with nothing more: `ZVTBSDL3` arrived carrying a Windows quick
+  format — a 16 MB Microsoft reserved partition and an NTFS volume labelled
+  `New Volume` filling the rest — with 718,258 LBAs written, about 370 MB
+  and the size of that format, three power cycles, and one short self-test
+  logged at lifetime hour 0; `ZVTBS4NL` arrived blank, two power cycles,
+  nothing written. Both spun up and enumerated on the first power-up
+  (`build-the-nas.md` §1 records the pin-3 trap they could have hit). They
+  enter the Compute table with the pool.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches

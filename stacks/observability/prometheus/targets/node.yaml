@@ -62,24 +62,20 @@
 
 # --- smaug ---------------------------------------------------------------
 #
-# WRITTEN OUT AND NOT ENABLED. The host holds 10.0.40.30 and the firewall pass
-# is verified, but nothing answers on 9100 yet: the exporter is a container, the
-# container needs Docker, and Docker on TrueNAS needs the apps pool — which is
-# on the ZFS mirror that does not exist. Every route to node_exporter on this
-# host runs through that pool, so this cannot be live before the drives land no
-# matter where the exporter is put. ADR-0040's "the scrape, then the stack" is
-# right about the order these are AUTHORED in and is not achievable for
-# liveness.
+# ENABLED 2026-09-19, after the three checks below passed from this host. It
+# was written out and commented from 2026-09-17 until then, because every
+# route to node_exporter on this host runs through the ZFS pool — the exporter
+# is a container, the container needs Docker, and Docker on TrueNAS needs the
+# apps pool — and enabling it before the pool existed would have meant
+# `up == 0` from the moment the file loaded, with InstanceDown at severity
+# critical paging `urgent` every 4 hours, forever. ADR-0017 refuses a check
+# that is permanently red for a known reason by name, and
+# targets/blackbox-dns.yaml and the commented Windows job in stacks/lab make
+# the same call.
 #
-# Enabling it today would mean `up == 0` from the moment the file loaded, and
-# InstanceDown is `up == 0` at severity critical — routed to `urgent`, repeating
-# every 4 hours, forever. ADR-0017 refuses a check that is permanently red for a
-# known reason by name, and targets/blackbox-dns.yaml and the commented Windows
-# job in stacks/lab make the same call.
-#
-# When the pool exists and stacks/media is deployed, verify FROM THIS HOST —
-# which can reach 9100 and may not reach anything else on 40 — BEFORE
-# uncommenting:
+# What was verified FROM THIS HOST — which can reach 9100 and may not reach
+# anything else on 40 — before the four lines below were uncommented, and what
+# to re-run if the exporter is ever rebuilt:
 #
 #   nc -z -w3 10.0.40.30 9100
 #   curl -s http://10.0.40.30:9100/metrics | grep -E '^node_(uname_info|boot_time_seconds)'
@@ -89,15 +85,18 @@
 # produces a container's filesystems, or none, while `up` still reads 1 and the
 # target shows green — so a count of 0 means every disk rule on this host is
 # blind and nothing will say so. It must be the number of mounted filesystems on
-# smaug, and after §3 that includes erebor.
+# smaug, and after build-the-nas.md §3 that includes erebor. On 2026-09-19 it
+# read 36: the boot pool's datasets, `erebor`, `erebor/media`, `erebor/apps`,
+# and the `.system` and `ix-apps` datasets TrueNAS creates for itself. 443 and
+# 8096 were refused from here in the same minute, as §0.5's rules say.
 #
 # Expect NO node_network_* series at all: stacks/media/compose.yaml disables
 # those collectors on purpose, because a bridged container reads its own veth
 # and would chart it as this NAS's throughput. That file carries the
-# measurement and the argument.
+# measurement and the argument. The count was 0 on the day.
 
-# - targets: ["10.0.40.30:9100"]
-#   labels:
-#     instance: smaug
-#     role: nas
-#     vlan: "40"
+- targets: ["10.0.40.30:9100"]
+  labels:
+    instance: smaug
+    role: nas
+    vlan: "40"

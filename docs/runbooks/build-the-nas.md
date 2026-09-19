@@ -10,6 +10,23 @@ SSH is off — `neo`'s web UI at `http://10.7.7.2` and a yellow Cat6 lead for
 §0.2b, the pfSense UI on `morpheus`, a shell on the monitoring host for §0.6,
 and the two Exos X20 drives for §1 onward.
 
+> **Status — 2026-09-19: the drives are in, the pool exists, the stack is
+> deployed and the scrape is on.** The Exos pair landed on 2026-09-18, a day
+> after the carrier's window lapsed, and §1–§6 were done that evening and the
+> next morning. Both drives read **0 power-on hours in the FARM log** as well
+> as in SMART, which is the reading that settles the listing's claim (§2).
+> `erebor` is a mirror with encryption off by decision (§3); `erebor/media`
+> and `erebor/apps` exist (§4); the share is `media` and its user is `bilbo`
+> (§5); the stack runs from `/mnt/erebor/apps/stack` under TrueNAS's Docker,
+> and **§6 as previously written could not run on this box** — it is rewritten
+> below. `node_exporter` answered the three §6.1 checks from the monitoring
+> host and the target in `targets/node.yaml` is live. Inside the container the
+> render node is present and the process carries GID 107 — the two halves of
+> ADR-0040's condition that a shell can check. **Still open in §7:** the
+> transcode itself, a television playing something, the two extended
+> self-tests (about 28 hours each, started 2026-09-18), and the tripwire and
+> port-15 re-reads.
+>
 > **Status — 2026-09-16: §0 is the work that can be done before the drives
 > land, and it is the whole of what is blocking.**
 >
@@ -45,7 +62,7 @@ and the two Exos X20 drives for §1 onward.
 > from `-vv`. So match on the rule descriptions, which do not depend on how
 > the ruleset is being printed.
 >
-> What is left is the drives. The pool does not exist and nothing is deployed.
+> What was left on 2026-09-16 was the drives. They landed two days later.
 
 This builds what [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 placed and [ADR-0040](../adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)
@@ -309,6 +326,20 @@ is Seagate's jumper header, which stays empty.
 
 ## §2 — Read the drives before trusting them
 
+> **Done 2026-09-18.** `sda` was `ZVTBS4NL` and `sdb` was `ZVTBSDL3`, both
+> `PASSED`, 0 reallocated, 0 pending, 0 power-on hours by SMART — and, the
+> reading this section did not know to ask for, **0 power-on hours and 0
+> spindle hours by `smartctl -l farm`** on both. Seagate's FARM log keeps an
+> hours counter that a SMART reset does not touch, and it is what caught the
+> used Exos drives sold as new through 2025; the `smartctl` on TrueNAS 25.10
+> reads it. Run it, and treat SMART's zero as a claim until it agrees.
+> `ZVTBSDL3` arrived carrying a Windows quick format — a 16 MB reserved
+> partition and an NTFS volume labelled `New Volume` — with about 370 MB
+> written and one short self-test at hour 0, which is a seller's bench check
+> and nothing more; the pool creation wiped it. Extended tests started on
+> both the same evening, at about 28 hours each. Full readings are in
+> [`hardware.md`](../hardware.md).
+
 From **option 8, Open Linux Shell**, at the console — **not over SSH**.
 TrueNAS ships SSH disabled, and §0.5's port-22 pass is inert until someone
 turns it on. Enabling it here to save a walk to the machine widens this host's
@@ -347,6 +378,9 @@ smartctl -t long /dev/sdc
 
 ## §3 — Create the mirror
 
+> **Done 2026-09-18.** Mirror of the two Exos, encryption unchecked, with the
+> extended self-tests still running underneath it.
+
 **Storage → Create Pool.**
 
 | Setting | Value |
@@ -354,6 +388,18 @@ smartctl -t long /dev/sdc
 | Name | `erebor` |
 | Layout | **Mirror** |
 | Disks | the two Exos X20 |
+| Encryption | **off** |
+
+**Encryption is off by decision, not by default.** ADR-0008 ruled the library
+replaceable and `erebor/apps` is watch history; encryption at rest is what the
+sensitive tier gets, and nothing asks it of this one. Both key modes cost
+something here: a key file auto-unlocks from a boot pool that lives on a used
+SSD with reallocated sectors, and a passphrase leaves the pool locked after
+every reboot on a box whose remote console was disabled on purpose (§0.2).
+Either is a new secret with a handover obligation, guarding films. ZFS
+encryption is per dataset, so a future dataset that holds something that
+matters can be created encrypted on this plain pool; pool-level encryption
+cannot be removed later without a rebuild. Saying no keeps the option.
 
 **A mirror of two is one drive's capacity — 18 TB usable, not 36.** ADR-0016
 chose availability, not capacity: a dead disk becomes a drive swap instead of a
@@ -364,6 +410,22 @@ keeps its boot pool separate by design, which is the arrangement the S3520 in
 the optical bay exists for.
 
 ## §4 — Datasets
+
+> **Done 2026-09-18.** `erebor/media` on the **SMB** preset — case-insensitive
+> with NFSv4 ACLs, which is what televisions and Windows clients expect and
+> cannot be changed after creation — and `erebor/apps` on the **Apps** preset.
+> The Add Dataset dialog calls these *Dataset Presets*; the record size and
+> atime are under its advanced options.
+>
+> **One row of the table below is not yet true, and it is the one that says
+> "backed up".** Jellyfin's `/config` is a Docker named volume, and TrueNAS
+> keeps named volumes on the pool it was given for Apps, in a dataset of its
+> own — `erebor/ix-apps/docker`, not `erebor/apps`. So `erebor/apps` holds the
+> compose file and its `.env` (§6) and nothing Jellyfin writes. Whether the
+> stack binds `/config` to `erebor/apps` instead, or the backup reads the
+> `ix-apps` dataset, is [#484](https://github.com/Gerrrt/HomeLab/issues/484)'s
+> to decide with the rest of the backup mechanism; it is recorded here so the
+> table is not read as describing what exists.
 
 **Storage → `erebor` → Add Dataset.** Two of them, and the split is the backup
 decision made deliberately rather than drifted into.
@@ -385,6 +447,19 @@ compression stays on and costs nothing on already-compressed media.
 
 ## §5 — The household share
 
+> **Done 2026-09-18.** The share is **`media`**, reached as
+> `\\10.0.40.30\media`, created from the dataset dialog's *Create SMB Share*
+> box rather than from the Shares page — same result. The user is **`bilbo`**:
+> SMB on, and TrueNAS access, shell, SSH and sudo all off, so the credential
+> that lives on televisions can mount one share and do nothing else anywhere.
+> It needed no ACL entry of its own: an SMB user joins `builtin_users` on
+> creation, and the SMB preset's default ACL already grants that group
+> Modify, so `bilbo` reads and writes. What the ACL was missing was
+> **Jellyfin's** read path — the container reads the library as uid 65534,
+> which is nobody's group and not `builtin_users` — so one entry was added:
+> `everyone@`, Allow, Basic Read, Inherit. The list now has five entries, the
+> four the preset wrote and that one.
+
 **Shares → Windows (SMB) → Add**, pointed at `erebor/media`.
 
 Create a dedicated TrueNAS user for it rather than sharing the admin account.
@@ -399,16 +474,53 @@ a compose file this repository owns, run under TrueNAS's app runtime, **not** a
 catalogue app. That is what keeps Dependabot, the digest pins and
 `make validate` reaching it.
 
-Copy `stacks/media/.env.example` to `.env`, confirm `RENDER_GID` still matches
-what this host reports, and bring it up:
+> **Done 2026-09-19, and not the way this section said.** It read
+> `make up STACK=media` until then. That target renders config first, the
+> render decrypts `secrets/<stack>.sops.yaml`, and this stack has no secrets
+> file because it needs no secrets — so the render dies on the missing file,
+> on a box that ships neither `make` nor `sops` in any case. What `make up`
+> does underneath is `docker compose up`, and that is what runs here. The
+> steps below are what was done.
+
+**First, give Apps a pool.** Docker does not exist on TrueNAS until it has
+one: **Apps → Configuration → Choose Pool → `erebor`**, and wait for Apps to
+report running. That creates `erebor/ix-apps`, where Docker's images and named
+volumes live from then on.
+
+**Then fetch the two files the stack is.** The repository is public and this
+host has egress, so they come straight from `main`. The `.env` is copied
+as-is, because every value in it is a plain host fact:
 
 ```bash
-make up STACK=media
+mkdir -p /mnt/erebor/apps/stack && cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/stacks/media/compose.yaml \
+  && curl -fsSL  https://raw.githubusercontent.com/Gerrrt/HomeLab/main/stacks/media/.env.example -o .env
 ```
 
-Jellyfin binds `8096`, reads `erebor/media`, and writes its state to
-`erebor/apps`. `node-exporter` binds `9100` and is the whole of how this host
-is monitored — see §6.1.
+The folder is under `erebor/apps` because that is the dataset §4 set aside
+for application state; its name is arbitrary, since the compose file sets its
+own project name. **Do not call it `media`** — that is the library's name one
+level up, and the collision confused the first person to do this.
+
+Confirm `RENDER_GID` still matches what this host reports — it is hard-coded
+in `.env`, and `107 render` was re-read on 2026-09-19 — then bring it up:
+
+```bash
+stat -c '%g %G' /dev/dri/renderD128
+docker compose up -d && docker compose ps
+```
+
+Jellyfin binds `8096` and reads `erebor/media`. `node-exporter` binds `9100`
+and is the whole of how this host is monitored — see §6.1. Jellyfin's state
+goes to a named volume, which is on `erebor/ix-apps` and not on `erebor/apps`;
+§4 says why that matters.
+
+**Updating the stack is the same two `curl` lines and `docker compose up -d`
+again.** Nothing on this host pulls from `main` on its own: there is no
+converge timer here, so a Dependabot bump that merges is not deployed until
+someone does this. That is a residual of ADR-0040's shape and not a defect in
+it, and it wants a line in `stacks/media/README.md` rather than an issue until
+it bites.
 
 ### §6.1 — Turn the scrape on, and prove it before you do
 
@@ -434,6 +546,16 @@ this host is blind and nothing else will tell you.
 Then uncomment the four lines at the end of `prometheus/targets/node.yaml` and
 commit. That directory is a bind mount, so Prometheus re-reads it within five
 minutes: no restart, no deploy, no `--force-recreate`.
+
+> **Done 2026-09-19.** From the monitoring host: `9100` open, `443` and
+> `8096` refused, `node_uname_info` and `node_boot_time_seconds` present,
+> **36** `node_filesystem_avail_bytes` series including `erebor`,
+> `erebor/media` and `erebor/apps`, and **0** `node_network_*` series. The
+> target was uncommented the same morning. Inside the container:
+> `renderD128` listed as `root 107` and `id` read
+> `uid=65534(nobody) gid=65534(nogroup) groups=65534(nogroup),107` — both
+> halves of the check below that a shell can make. The transcode is the one
+> it cannot, and is still to run.
 
 Expect **no** `node_network_*` series from this host. Those collectors are
 disabled on purpose, because a bridged container reads its own veth and would
@@ -468,6 +590,12 @@ measurement.
 > before the library exists**, because moving a populated library is a weekend.
 
 ## §7 — Verify
+
+> **As of 2026-09-19:** the monitoring-host line holds in both halves, the
+> device checks hold, and `erebor` is mounted with its datasets. **Not yet
+> read:** a television playing, the QSV transcode, `zpool status`, the two
+> extended self-tests, and the post-deploy re-reads of the tripwire and port
+> 15.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
