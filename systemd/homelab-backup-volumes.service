@@ -33,13 +33,17 @@ Environment=STACK=observability
 # Explicit even though User= already sets $HOME from the passwd entry: the
 # scripts document this variable by name, and an explicit value is greppable.
 Environment=SOPS_AGE_KEY_FILE=/home/robo/.config/sops/age/keys.txt
-# KEEP=, STOP_TIMEOUT= and FW_HOST= are host facts, not repository facts. The
-# leading - means an absent file is not an error.
+# KEEP=, STOP_TIMEOUT=, VOL_OFFHOST= and FW_HOST= are host facts, not
+# repository facts. The leading - means an absent file is not an error.
 EnvironmentFile=-/etc/default/homelab-timers
 ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job backup-volumes --lock backups --lock-wait 900 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab backup
 # The stack is down for the duration, and the trap in backup-volumes.sh only
 # restarts it on an EXIT PATH — a hang has no exit path and nothing recovers.
-# This is the ceiling on that. The normal run is about ninety seconds.
+# This is the ceiling on that. The normal run is about ninety seconds, plus
+# about ninety more to copy the set to oracle at 100 Mb/s after the stack is
+# back up (#535). A first run against an empty oracle would copy every retained
+# set, some twelve minutes, still inside this — but the runbook seeds by hand
+# with `make backup ARGS=--copy-only` first, which never stops the stack.
 TimeoutStartSec=1800
 # Deliberately not Restart=on-failure. A retry stops the stack a second time,
 # and the outcome is already a metric with an alert on it: the right response to

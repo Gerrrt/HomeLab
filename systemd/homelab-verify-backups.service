@@ -3,7 +3,11 @@
 # roadmap.md #77 names this as the cheap job to put on a timer: it is what
 # catches bit-rot in a set nobody has touched for a week. It decrypts and reads
 # the archives and never stops the stack, so unlike the weekly backup it is safe
-# to run every night.
+# to run every night. Since #535 it also asks oracle to hash every archive it
+# holds and compares the answer with each set's MANIFEST, so a copy that has
+# stopped existing, or rotted there, is this job's failure the next morning.
+# That is ssh as robo with the key backup-firewall uses; ProtectHome=false
+# below is what lets it read ~/.ssh.
 #
 # See homelab-backup-volumes.service for why each directive below is set.
 [Unit]
