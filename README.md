@@ -210,6 +210,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │                             #   Assistant, AdGuard Home, Immich, Paperless-ngx
 │                             #   and Vaultwarden so far; its own CA, leaves over
 │                             #   ACME (ADR-0037); for a host not yet built (ADR-0034, #404)
+├── stacks/media/             # Jellyfin on smaug, under TrueNAS's own Docker —
+│                             #   deployed by hand, no secrets file by decision
+│                             #   (ADR-0040, #528)
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
 ├── scripts/                  # bootstrap, render, validate, pin-digests, purge
 ├── SECURITY.md               # disclosure policy and known exposure
