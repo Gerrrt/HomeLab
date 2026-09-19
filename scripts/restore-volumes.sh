@@ -276,8 +276,11 @@ done
 
 # The decrypt-and-read pass is backup-volumes.sh's own verify(), not a second
 # implementation of it. One sentinel table, one set of assertions, used by the
-# script that writes archives and the script that consumes them.
-"${BACKUP}" --verify-only --set "${STAMP}" ${ONLY:+--only "${ONLY}"} \
+# script that writes archives and the script that consumes them. --local-only
+# because a restore happens when things are broken: oracle may be off, or this
+# may be a rebuilt host whose key is not authorised there yet, and neither is
+# a reason the set in front of us cannot be restored (#535).
+"${BACKUP}" --verify-only --set "${STAMP}" --local-only ${ONLY:+--only "${ONLY}"} \
   || die "phase 1 failed — the archives did not verify, and nothing was touched"
 
 # ---------------------------------------------------------------------------

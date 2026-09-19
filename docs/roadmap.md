@@ -97,13 +97,20 @@ going blind. What closes #531 is not the cell landing but the fit and the
 test after it, as with #454, and the silence deleted rather than left to
 expire.
 
+**2026-09-19, later the same day: the second cell is bought.** The M5Y1K for
+`oracle`, from the listing recorded in [`hardware.md`](hardware.md), sold as
+genuine Dell and recorded as the listing's claim until the pack is in hand.
+The row leaves the table the day it joined it — three rows back to two, and
+neither of them a part again: two licences and a drive kept at another
+address. What closes [#531](https://github.com/Gerrrt/HomeLab/issues/531) is
+unchanged: the fit, step 8's mains pull, and the silence deleted.
+
 **Buy these, and the estate as decided is fully bought:**
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 | An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
-| A Dell M5Y1K 4-cell pack for `oracle` | The second laptop cell, at 72 % of design and alerting under a silence. A consumable whose failure is a safety and an availability event — the exception to *Never* below, not an upgrade | [#531](https://github.com/Gerrrt/HomeLab/issues/531), [#454](https://github.com/Gerrrt/HomeLab/issues/454) | Now — the silence on its alert expires 2026-10-08, and a cell below the line is the one that swells |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
@@ -260,8 +267,8 @@ being exercised rather than restated; the new pack reads 101 % of its design
 capacity at one cycle, and the runtime it was bought for was measured on 2026-09-19: about 2.5 hours from full at the stack's load. `oracle` has the same kind of cell and it measures
 worse, 72 %, so `HostBatteryHealthLow` fires for it first; it stays second in
 line only because `prometheus` is the host whose death is the estate going
-blind. The cell for `prometheus` was bought on 2026-09-13, and `oracle`'s is
-identified and on the list above since 2026-09-19
+blind. The cell for `prometheus` was bought on 2026-09-13, and `oracle`'s on
+2026-09-19, the day it was identified
 ([#531](https://github.com/Gerrrt/HomeLab/issues/531)); nothing else about
 either machine is.
 
@@ -635,13 +642,15 @@ what left this one unfireable for months.
   prints is the config schema (`24.6`), not the release (pfSense CE 2.9.0);
   the runbook told the reader to match it to an installer, which cannot be
   done. Both fixed, the release recorded in `hardware.md`, and the shopping
-  list names the card. The volume sets `make backup` writes still sit
-  on the host they protect. Unlike the firewall, they have been restored — the
-  whole stack was brought up on a restored set on 2026-08-29 and verified — but
-  nothing copies them anywhere. Where they go is no longer open:
-  [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md) sends them to `oracle`
-  alongside the firewall exports, which fits — a set is 867 MB of `age`
-  ciphertext against 67 GB free — and leaves only the copying to build.
+  list names the card. The volume sets `make backup` writes left the host they
+  protect on 2026-09-19: [#535](https://github.com/Gerrrt/HomeLab/issues/535)
+  built the copying that [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md)
+  decided — every weekly run copies the set to `oracle` beside the firewall
+  exports and fails if it cannot, the daily verify hashes the far side, and the
+  restore runbook starts from that copy. Unlike the firewall, the sets have been
+  restored — the whole stack was brought up on a restored set on 2026-08-29 and
+  verified — but not yet from the copy on `oracle`. What remains for the sets is
+  what remains for the export: off-host is not offsite.
 - **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put the wiki on
   `oracle` into the repository, and back up its database.** ADR-0015 ratified a
   host whose main service is not described anywhere here: `wiki` and its
@@ -2259,9 +2268,9 @@ them name the condition that would change the answer.
 
       **Decided:** it stays powered, and its role is the small off-host jobs —
       work whose value is that it is not on the monitoring host. The wiki and
-      the firewall export copy it already has; the volume backup sets (#92) and
-      the dead man's switch watcher (#67) are added, decided here and built
-      under their own issues. **Rejected:** a second age recipient *on `oracle`*,
+      the firewall export copy it already has; the volume backup sets (#535,
+      built 2026-09-19) and the dead man's switch watcher (#67) are added,
+      decided here and built under their own issues. **Rejected:** a second age recipient *on `oracle`*,
       because a private key there would put the backups and the means to open
       them on one disk and retire the property the off-host copy exists to
       have — narrowed by
@@ -2655,7 +2664,8 @@ them name the condition that would change the answer.
       `make secrets-verify-backup` deliberately has no timer: it needs a human to
       mount removable media, so it gets a ninety-day deadline and an alert
       instead. What this does **not** solve is that the host still verifies its
-      own backups — that is #92 and #99, both still open.
+      own backups — #535 sends the sets to `oracle` and hashes them there, but
+      the judge is still this host; that is #99, still open.
       → [runbook](runbooks/schedule-maintenance.md)
 - [x] **Enable Suricata on `morpheus`.** Running on Skids (VLAN 20) alert-only
       since 2026-08-21; alerts reach Loki with classification and priority parsed

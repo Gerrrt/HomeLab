@@ -61,7 +61,11 @@ make backup STACK=sensitive ARGS=--list
 ```
 
 It lands in `backups/volumes/<STAMP>/` on `trinity`, gitignored, one
-age-encrypted archive per volume and a `MANIFEST` written last. The archives are
+age-encrypted archive per volume and a `MANIFEST` written last, and the same
+run copies it to `oracle` under `backups/volumes/sensitive` — a directory of
+its own, so the estate's prune and the tier's cannot see each other's sets
+([#535](https://github.com/Gerrrt/HomeLab/issues/535); the key exchange and
+the seed are in [`restore-the-stack.md`](restore-the-stack.md) §0). The archives are
 encrypted to every recipient of `secrets/sensitive.sops.yaml` — `trinity`'s key,
 and the technical second's once it joins that rule — and the manifest records
 which. The stack is stopped for the length of the copy, which is seconds here:

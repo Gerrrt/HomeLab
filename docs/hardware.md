@@ -26,10 +26,11 @@ shelf is off mains, when a cell falls below 80 % of its design capacity, and
 when a laptop reports no cell at all
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). `prometheus`'s cell was
 replaced on 2026-09-18 and reads 101 % of its design capacity at one cycle;
-`oracle`'s is the original, reads 72 %, and is identified as a Dell M5Y1K and
-unbought ([#531](https://github.com/Gerrrt/HomeLab/issues/531)). `prometheus`'s
-runtime was measured on 2026-09-19: 2.72 Ah/h at the stack's load, about 2.5
-hours from a full pack, one measurement on one day. `oracle`'s has never been
+`oracle`'s is the original, reads 72 %, and its replacement — a Dell M5Y1K —
+was bought on 2026-09-19 and is in transit
+([#531](https://github.com/Gerrrt/HomeLab/issues/531)). `prometheus`'s runtime
+was measured on 2026-09-19: 2.72 Ah/h at the stack's load, about 2.5 hours
+from a full pack, one measurement on one day. `oracle`'s has never been
 measured.
 
 The patch panel and the PDU were listed the other way round here until
@@ -477,14 +478,18 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) carries
   the baseline, the stack-down window — 14:53 to about 18:12 on the day, over
   its own two-hour bound — and the disposal.) `oracle`'s cell reads 72 % and is
-  second in line, unbought — the entry below.
-- Dell M5Y1K 4-cell pack for `oracle` — 14.8 V, 40 Wh, the latched pack the
-  Inspiron 15-3565 in the Compute table takes. **Identified 2026-09-19 and
-  unbought**, under [#531](https://github.com/Gerrrt/HomeLab/issues/531): the
-  part is written down before the money is spent, which is the order that
-  issue asks for, and the seller, the listing, the purchase date and a
-  footnote go here when it is bought. The number comes off the machine rather
-  than off a listing: `/sys/class/power_supply/BAT0` reports `model_name`
+  second in line, bought 2026-09-19 — the entry below.
+- Dell M5Y1K 4-cell pack for `oracle`[^M5Y1K] — 14.8 V, 40 Wh, the latched
+  pack the Inspiron 15-3565 in the Compute table takes. **Identified and
+  bought 2026-09-19, in transit**, under
+  [#531](https://github.com/Gerrrt/HomeLab/issues/531): the part was written
+  down here before the money was spent, which is the order that issue asks
+  for, and the purchase followed the same day. The listing calls it genuine
+  Dell, which — as with the A1437 above — is the listing's claim until the
+  pack is looked at; a Dell label and a `serial_number` that is not `1650`
+  are what would settle it, and the fit records which it turned out to be.
+  The listing quoted delivery in two to four days. The number comes off the
+  machine rather than off the listing: `/sys/class/power_supply/BAT0` reports `model_name`
   `DELL VN3N047`, and `VN3N0` is one of the interchangeable Dell part numbers
   for this pack — `M5Y1K` is the primary, and `WKRJ2`, `HD4J0`, `991XP` and
   `GXVJ3` the others listings carry — with `manufacturer` `SMP-Sanyo2` and
@@ -531,6 +536,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446)
 [^A1437]: [A1437 battery for the MacBook Pro 13" A1425 Retina](https://www.ebay.com/itm/356174101017)
+[^M5Y1K]: [Dell M5Y1K 40 Wh 4-cell battery for the Inspiron 15 3000 series](https://www.ebay.com/itm/357495025211)
 [^ProDeskRackmount]: [1U rackmount for ProDesk Mini](https://a.co/d/4d7klOL)
 [^I226]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N)
 [^Sliderail]: [Sliding rails for ProLiant](https://a.co/d/5d4A4FO)
