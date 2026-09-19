@@ -24,7 +24,10 @@ both arrays — not assumed from either.**
 > **Steps 4, 5 and 7 are done; 2, 3, 6, 8, 9, 10 and 11 are not.** Path 3
 > means no `ssacli`, so the controller has never been read from the host and
 > the cache reading owed to
-> [#76](https://github.com/Gerrrt/HomeLab/issues/76) is still owed. LD 2 has
+> [#76](https://github.com/Gerrrt/HomeLab/issues/76) is still owed. Step 2's
+> premise was wrong, though: HPE does publish a `trixie` suite, read from the
+> SDR on 2026-09-19, so path 1 is an `apt-get` and is the next thing to run.
+> LD 2 has
 > `HasAccel` `1` other and `SSDSmartPathStatus` `1` other, the same as LD 1:
 > step 6's two `modify` lines have not run. No fio on either array, no
 > `move-disk`: `sda` reads are flat at the host's own ~50 KB/s and `sdb` has
@@ -234,25 +237,43 @@ step 10 for why each one is better left live.
 
 > **This is the largest unknown in this runbook and it is written as one.**
 > `ssacli` is not in Debian and not in the Proxmox repositories. It comes from
-> HPE's MCP SDR, which is not known to publish a Debian 13 `trixie` suite, and
-> **nothing in this repository is evidence that it has ever been installed on
-> this host.** Proxmox VE 9 is Debian 13. None of the three paths below has
-> been watched working on this box.
+> HPE's MCP SDR, ~~which is not known to publish a Debian 13 `trixie` suite,~~
+> and **nothing in this repository is evidence that it has ever been installed
+> on this host.** Proxmox VE 9 is Debian 13. ~~None of the three paths below
+> has been watched working on this box.~~ Path 3 has; see below.
+>
+> **2026-09-19, read from the SDR itself: HPE publishes `bookworm` and `trixie`
+> suites.** `dists/trixie/current/` carries a signed `Release` dated
+> 2026-09-08 and one `ssacli` stanza — `6.60-8.0`, `Depends: libc6 (>= 2.7)`
+> and nothing else — so the struck clause above was wrong, and the libc
+> question that path 1 used to raise was never going to bind. The key this
+> step used to fetch, `hpPublicKey2048_key1.pub`, is HPE's 2015 key and
+> expired 2024-11-16; the two that sign anything current are
+> `hpePublicKey2048_key1.pub` and `hpePublicKey2048_key2.pub`, and a package
+> published in 2026 is signed by the second. Path 1 is rewritten below and is
+> the first move: it costs an `apt-get` and nothing else if it fails. What is
+> still unknown is not whether the package installs but whether the binary
+> finds the P440ar through `hpsa` on this host — item 1 of "What this runbook
+> does not know", narrowed.
 
-Path 1 — pin the `bullseye` suite and accept an out-of-suite package:
+Path 1 — the `trixie` suite, which exists:
 
 ```bash
-curl -fsSL https://downloads.linux.hpe.com/SDR/hpPublicKey2048_key1.pub | gpg --dearmor > /usr/share/keyrings/hpe.gpg
-echo "deb [signed-by=/usr/share/keyrings/hpe.gpg] https://downloads.linux.hpe.com/SDR/repo/mcp bullseye/current non-free" > /etc/apt/sources.list.d/hpe-mcp.list
+for k in key1 key2; do curl -fsSL "https://downloads.linux.hpe.com/SDR/hpePublicKey2048_$k.pub" | gpg --dearmor; done > /usr/share/keyrings/hpe-mcp.gpg
+echo "deb [signed-by=/usr/share/keyrings/hpe-mcp.gpg] https://downloads.linux.hpe.com/SDR/repo/mcp trixie/current non-free" > /etc/apt/sources.list.d/hpe-mcp.list
 apt-get update && apt-get install -y ssacli
+ssacli version
+ssacli ctrl all show status     # the real test: it must print "Smart Array P440ar in Slot 0 (Embedded)"
 ```
 
-`ssacli` is a largely self-contained vendor binary; it may or may not satisfy
-trixie's `libc6` and `libstdc++6`.
+`ssacli` is a largely self-contained vendor binary; its only declared
+dependency is `libc6`. Two dearmored keyrings concatenated into one file is a
+valid keyring, which is why the loop writes both into it.
 
 Path 2 — take the `.deb` directly from
-`https://downloads.linux.hpe.com/SDR/repo/mcp/pool/non-free/` and `dpkg -i`,
-resolving whatever it complains about.
+`https://downloads.linux.hpe.com/SDR/repo/mcp/pool/non-free/` —
+`ssacli-6.60-8.0_amd64.deb` is the one the `trixie` index names — and
+`dpkg -i`, resolving whatever it complains about.
 
 Path 3 — **no host package at all.** Reboot into Intelligent Provisioning and
 use the offline Smart Storage Administrator through the iLO remote console.
@@ -563,10 +584,22 @@ re-derivation.
 
 ```bash
 apt-get install -y fio
-vgs                                       # confirm free extents in both VGs first
-lvcreate -n fiotest -L 8G Large_data
-lvcreate -n fiotest -L 8G pve
+vgs                                        # expect VFree near 0 on Large_data: pvesh gave the pool the whole VG
+lvs -a -o +data_percent,metadata_percent   # pve/data and Large_data/Large_data, and their headroom
+lvcreate -V 8G -T Large_data/Large_data -n fiotest
+lvcreate -V 8G -T pve/data -n fiotest
 ```
+
+> **Thin volumes, not linear ones — corrected 2026-09-19, before the step
+> ran.** `pvesh create ... lvmthin` sizes the pool to the whole volume group
+> less its metadata, so the `lvcreate -L 8G` linear form this step used to
+> write would have failed for lack of free extents on `Large_data`, and `pve`
+> was never checked. A thin volume in each pool is the same overhead on both
+> sides — and `pve/data` is literally the pool `vm-140-disk-0` lives in, so
+> M1 measures the path the guest actually takes. The fill below is now
+> load-bearing twice: it puts the SSD in steady state, and it allocates every
+> chunk of both thin volumes before the 4 KiB run, so neither array is
+> measured against unallocated space. Record which form was used.
 
 Precondition both targets identically, so the SSD is measured in steady state
 rather than on fresh flash:
@@ -668,7 +701,22 @@ qm set 140 --scsi0 Large_data:vm-140-disk-0,discard=on,iothread=1,ssd=1
 ```
 
 `ssd=1` sets the emulated rotation rate so the guest's own scheduler and TRIM
-behave; it takes effect at the guest's next start.
+behave; it takes effect at the guest's next start — so give it one:
+
+```bash
+qm reboot 140                                   # the agent is enabled (build-the-lab-guest.md §1): a clean restart
+qm status 140
+qm guest exec 140 -- lsblk -d -o NAME,ROTA,SIZE  # ROTA 0 on the disk is the guest seeing flash
+```
+
+**The reboot is part of the step, not a courtesy.**
+[#527](https://github.com/Gerrrt/HomeLab/issues/527)'s done condition is
+`alexander` *booting* from the pool, and `ssd=1` is a start-time flag. No
+silence for it: `HypervisorGuestStopped` needs an hour of `== 0`,
+`GuestStateStopped` reads the collector's timer and not the guest, and the
+lab stack's own `InstanceDown` fires inside `alexander` and routes nowhere
+outside the lab, which is what ADR-0007 means by lab telemetry staying in the
+lab.
 
 **Backups.** `vzdump` jobs are per-VM, not per-storage, so nothing here changes
 them — confirm with `cat /etc/pve/jobs.cfg`. Existing backups stay restorable,
@@ -765,7 +813,9 @@ comfortably under 30 s.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `ssacli` will not install | No trixie suite from HPE's MCP SDR | Paths 2 and 3 in step 2. Record which one worked |
+| `ssacli` will not install | ~~No trixie suite from HPE's MCP SDR~~ The suite exists since 2026-09-08, so it is the keyring or the network | Path 2 in step 2, then path 3 — with the three silences step 2 names. Record which one worked |
+| `ssacli` installs, `ctrl all show` finds no controller | The binary cannot reach the P440ar through `hpsa` on this kernel — item 1 of "What this runbook does not know", the part that is still open | Path 3, with the silences. Record the exact error |
+| `lvcreate -L` refuses for lack of free extents | The volume group is all thin pool: `pvesh ... lvmthin` gives it everything but the metadata | The `-V ... -T` form in step 8 |
 | `ctrl all show` prints a slot other than 0 | This chassis is not wired as assumed | Stop. Every `slot=0` in this runbook is wrong; re-derive them all |
 | Drives do not seat in the bays | No HPE SmartDrive carriers | Stop at step 4. This is a purchase, and a purchase edits the roadmap's buy table |
 | Drives seat but never appear to `ssacli` | Bays 3–4 not cabled on this backplane | Try bays that are known-good; if none, this layout is not available on this chassis |
@@ -830,7 +880,10 @@ settling it is most of the value of doing the fit carefully.
    repository is evidence it has ever run here. Three paths in step 2. *Still
    open after 2026-09-19:* path 3 was used and neither `ssacli` path was
    attempted, so this is exactly as unknown as it was, and steps 3 and 6 are
-   waiting on it.
+   waiting on it. *Narrowed the same evening:* the SDR does publish a
+   `trixie` suite, and the package in it depends on `libc6` alone, so
+   "installable" is no longer the question — "runs against the P440ar
+   through `hpsa`" is.
 2. ~~**When the drive trays arrive, and whether both do.**~~ **Settled
    2026-09-18.** Both `651687-001` arrived, both took a drive, and the iLO reads
    the same carrier firmware (`11` / `6`) on all four bays.

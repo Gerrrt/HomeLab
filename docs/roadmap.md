@@ -633,13 +633,15 @@ what left this one unfireable for months.
   prints is the config schema (`24.6`), not the release (pfSense CE 2.9.0);
   the runbook told the reader to match it to an installer, which cannot be
   done. Both fixed, the release recorded in `hardware.md`, and the shopping
-  list names the card. The volume sets `make backup` writes still sit
-  on the host they protect. Unlike the firewall, they have been restored — the
-  whole stack was brought up on a restored set on 2026-08-29 and verified — but
-  nothing copies them anywhere. Where they go is no longer open:
-  [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md) sends them to `oracle`
-  alongside the firewall exports, which fits — a set is 867 MB of `age`
-  ciphertext against 67 GB free — and leaves only the copying to build.
+  list names the card. The volume sets `make backup` writes left the host they
+  protect on 2026-09-19: [#535](https://github.com/Gerrrt/HomeLab/issues/535)
+  built the copying that [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md)
+  decided — every weekly run copies the set to `oracle` beside the firewall
+  exports and fails if it cannot, the daily verify hashes the far side, and the
+  restore runbook starts from that copy. Unlike the firewall, the sets have been
+  restored — the whole stack was brought up on a restored set on 2026-08-29 and
+  verified — but not yet from the copy on `oracle`. What remains for the sets is
+  what remains for the export: off-host is not offsite.
 - **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put the wiki on
   `oracle` into the repository, and back up its database.** ADR-0015 ratified a
   host whose main service is not described anywhere here: `wiki` and its
@@ -2243,9 +2245,9 @@ them name the condition that would change the answer.
 
       **Decided:** it stays powered, and its role is the small off-host jobs —
       work whose value is that it is not on the monitoring host. The wiki and
-      the firewall export copy it already has; the volume backup sets (#92) and
-      the dead man's switch watcher (#67) are added, decided here and built
-      under their own issues. **Rejected:** a second age recipient *on `oracle`*,
+      the firewall export copy it already has; the volume backup sets (#535,
+      built 2026-09-19) and the dead man's switch watcher (#67) are added,
+      decided here and built under their own issues. **Rejected:** a second age recipient *on `oracle`*,
       because a private key there would put the backups and the means to open
       them on one disk and retire the property the off-host copy exists to
       have — narrowed by
@@ -2639,7 +2641,8 @@ them name the condition that would change the answer.
       `make secrets-verify-backup` deliberately has no timer: it needs a human to
       mount removable media, so it gets a ninety-day deadline and an alert
       instead. What this does **not** solve is that the host still verifies its
-      own backups — that is #92 and #99, both still open.
+      own backups — #535 sends the sets to `oracle` and hashes them there, but
+      the judge is still this host; that is #99, still open.
       → [runbook](runbooks/schedule-maintenance.md)
 - [x] **Enable Suricata on `morpheus`.** Running on Skids (VLAN 20) alert-only
       since 2026-08-21; alerts reach Loki with classification and priority parsed

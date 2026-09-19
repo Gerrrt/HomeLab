@@ -94,6 +94,17 @@ creation_rules:
     age: >-
       REPLACE_WITH_SOC_AGE_PUBLIC_KEY
 
+  # There is NO media rule, and that is a decision rather than a gap (#528).
+  # stacks/media renders no secrets: Jellyfin's admin is made by its own setup
+  # wizard and lives in its database, and its host — smaug, TrueNAS — runs
+  # neither make nor sops, so `make secrets-init STACK=media` has nowhere to
+  # run. scripts/check_sops_rules.py maps secrets/media.sops.yaml to the
+  # catch-all below and passes, which is harmless ONLY while that file does not
+  # exist. If a media service ever takes a credential from outside, add a rule
+  # for it ABOVE the catch-all first, or the file lands on the estate's key —
+  # the inversion the lab rule's comment describes. docs/security.md § Secrets
+  # records the exception.
+
   - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
     age: >-
       age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x,

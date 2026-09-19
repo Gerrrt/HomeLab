@@ -184,8 +184,10 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 - DHCP enabled, with static reservations for everything listed.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
-  the off-host copy of the firewall export that `make backup-firewall` pushes
-  to it, as ciphertext with no key. Its role is the estate's small off-host
+  the off-host copies of the firewall export that `make backup-firewall` pushes
+  to it and of the weekly volume sets that `make backup` pushes
+  ([#535](https://github.com/Gerrrt/HomeLab/issues/535)), as ciphertext with
+  no key. Its role is the estate's small off-host
   jobs: [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md). Its NIC
   supports 10/100 only, so that link runs at 100 Mb/s — measured 2026-09-03 —
   and no cable will lift it. `prometheus` links at a gigabit through the same

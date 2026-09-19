@@ -677,10 +677,12 @@ per recipient off `homelab_key_recipient_last_proof_timestamp_seconds` rather
 than off the job. One timestamp for every copy would mean proving either one
 vouched for the other, which is backwards when the whole point of the second
 copy is that it fails independently. With a single recipient it behaves exactly
-as it always has. One output does leave: `backup-firewall` copies each export
+as it always has. Two outputs leave: `backup-firewall` copies each export
 to `oracle` and fails if it cannot, so its failure alert doubles as "the config
-has stopped leaving this host". The volume sets do not leave; that is
-[#92](https://github.com/Gerrrt/HomeLab/issues/92).
+has stopped leaving this host", and since
+[#535](https://github.com/Gerrrt/HomeLab/issues/535) `backup-volumes` does the
+same with each weekly set, with `verify-backups` hashing the far side every
+morning — no rule names either job; the generic pair carries both.
 
 That series has to exist for the nag to mean anything, and for four days it did
 not ([#400](https://github.com/Gerrrt/HomeLab/issues/400)): it was written only

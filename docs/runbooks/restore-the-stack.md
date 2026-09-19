@@ -2,8 +2,8 @@
 
 **Target:** the five Docker data volumes on `prometheus` (10.0.99.20), VLAN 99
 **Time:** 10 minutes for one volume; 30 for the whole set on a rebuilt host
-**You will need:** a backup set, the age private key, and the stack stopped —
-the restore script stops it for you
+**You will need:** a backup set (here, or its copy on `oracle`), the age private
+key, and the stack stopped — the restore script stops it for you
 
 Nothing in the house breaks when this stack is down, and that is exactly what
 makes it easy to lose. Metrics and logs re-accumulate, the dashboards are in
@@ -49,8 +49,36 @@ unproven, because it is.
 
 **It lives somewhere other than the machine that made it.** A set on
 `prometheus` protects against a bad upgrade and a mistyped command. It protects
-against nothing that happens to `prometheus`. Copy it to the backup target and
-offsite. This is the step that gets skipped — see [`roadmap.md`](../roadmap.md).
+against nothing that happens to `prometheus`, so the same run copies every
+complete set to `oracle` — `atropos@10.0.99.30:backups/volumes/observability`
+by default, `VOL_OFFHOST` in `/etc/default/homelab-timers` to change it — and
+**fails if it cannot**. A set with no copy is reported as a failed job, not a
+partial success, so the weekly timer's `ScheduledJobFailed` is also the alarm
+for "the sets have stopped leaving this host". The daily `verify-backups` run
+checks the far side as well: `oracle` hashes every archive it holds and the
+answer must match the manifest, and the manifest is pulled back and compared
+byte for byte, so a copy that stops existing, or rots there, is a failed job
+the next morning. `oracle` holds ciphertext only. The age key is not there and
+must never be put there. `KEEP` bounds both sides, and `oracle` holds one set
+more whenever the newest quiesced set here has aged past it.
+
+The copy rides on the key exchange `backup-firewall` already needed —
+[`restore-the-firewall.md`](restore-the-firewall.md) §0 — so on a rebuilt host
+do that again first. The sets that predate the copy, or a stretch with `oracle`
+switched off, are caught up by hand, and this never stops the stack:
+
+```bash
+make backup ARGS=--copy-only
+```
+
+`make backup ARGS=--list` shows both sides. If `verify-backups` reports a set
+that *differs* on `oracle`, nothing removes it for you: look at it, remove that
+one directory there, and run the copy again. Two things this does not change.
+Off-host is not offsite — `oracle` is on the same shelf, mains and room, and a
+fire takes both ([`roadmap.md`](../roadmap.md)). And `oracle`'s disk is a
+2016 laptop HDD carrying 32 static reallocated sectors, silenced as a known
+fact; `SmartDriveBadSectorsGrowing` is what watches it, and the daily far-side
+hash is what reads every archive it holds.
 
 **The age key is backed up.** A volume archive you cannot decrypt is a disk you
 cannot read. See [`back-up-the-age-key.md`](back-up-the-age-key.md) and
@@ -76,7 +104,7 @@ A set that has never been decrypted is a set you are hoping about.
 | Loki answers but returns nothing older than the last restart | `loki-data` lost or partly written | §2, `loki-data` |
 | Duplicate log lines flooding Loki after a restart | `alloy-data` positions lost; Alloy re-read from the top | §2, `alloy-data` |
 | The host's disk is gone, or the filesystem is read-only | Hardware | §3, after rebuilding the host |
-| Files under `/var/lib/docker/volumes` deleted or encrypted | Ransomware, or a mis-aimed `rm -rf` | §3 — and **not** from a set on this host |
+| Files under `/var/lib/docker/volumes` deleted or encrypted | Ransomware, or a mis-aimed `rm -rf` | §3, from the copy on `oracle` — **not** from a set on this host |
 
 Run `make ps` and `docker volume ls` before anything else. A stack that looks
 like it lost its data is far more often a container that failed to start than a
@@ -134,10 +162,24 @@ make up
 
 Same, without `--only`. On a rebuilt host, do it in this order:
 
-1. Restore the age key and run `make render`, or nothing will start.
-2. `make restore ARGS="--from <STAMP>"` — volumes that do not exist yet are
+1. If `prometheus` is what died, or is unreachable, take the set from `oracle`
+   first. The age key is not there; bring it from its offline copy
+   ([`back-up-the-age-key.md`](back-up-the-age-key.md)):
+
+   ```bash
+   ssh atropos@10.0.99.30 ls -1r backups/volumes/observability
+   ```
+
+   ```bash
+   scp -r atropos@10.0.99.30:backups/volumes/observability/<STAMP> backups/volumes/
+   ```
+
+2. Restore the age key and run `make render`, or nothing will start.
+3. `make backup ARGS="--verify-only --set <STAMP> --local-only"` — the set
+   decrypts here, and `oracle` is not asked about it.
+4. `make restore ARGS="--from <STAMP>"` — volumes that do not exist yet are
    created rather than replaced, so a bare host is a valid target.
-3. `make up`.
+5. `make up`.
 
 > [!CAUTION]
 > On a rebuilt host, restore **before** the first `make up`, not after. Starting
@@ -266,6 +308,12 @@ curl -sG http://localhost:9090/api/v1/query \
 The whole-stack restore in §3 was performed on 2026-08-29. It is no longer a
 hypothesis. The set was restored into a scratch project and the entire stack was
 started on the result; §4 was run against it, including the negative assertions.
+
+The copy on `oracle` has not been restored from. What is proven of it is what
+the firewall's copy proves of itself: every archive there hashes to the
+manifest's entry and the manifest is byte-identical, checked when it lands and
+every morning after. A set that is byte-identical to one proven to decrypt is
+proven to decrypt; the rehearsal from that side is still owed.
 
 **What it established.**
 
