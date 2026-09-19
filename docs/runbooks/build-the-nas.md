@@ -653,7 +653,11 @@ measurement.
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
   PBS**, whose sync job wants another PBS instance — on TrueNAS that is PBS in
   a VM or a change to an NFS/SMB datastore.
+  [#485](https://github.com/Gerrrt/HomeLab/issues/485) carries it.
 - **The off-host copy of `erebor/apps`**, which §4 decided should exist and this
   runbook does not build.
+  [#484](https://github.com/Gerrrt/HomeLab/issues/484) carries it, with the
+  finding that `jellyfin-config` lives on `erebor/ix-apps`, not `erebor/apps`.
 - **Plex**, deferred by ADR-0016 against a test nobody has run: whether any
   screen on 40 lacks a working Jellyfin client.
+  [#139](https://github.com/Gerrrt/HomeLab/issues/139) carries the test.

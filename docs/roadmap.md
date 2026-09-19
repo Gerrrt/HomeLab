@@ -244,7 +244,9 @@ either machine is.
   carries pfSense's stock *Default allow LAN to any*.** `10.7.7.0/24` reaches
   every VLAN; `network.md` said "Nothing". Bounded by that segment holding only
   the switch — which is also the device whose SNMP agent serves GETBULK to any
-  short community (#84) and stays on v2c (#85). Lower risk than #228: getting it wrong
+  short community (#84) and stays on v2c until #444 replaces it — ADR-0036
+  moved #85 to the iLO and the UPS card, and the switch is no longer in that
+  issue. Lower risk than #228: getting it wrong
   costs SNMP polling of `neo`, which is monitored.
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink
   switch's previous SNMP community.** The rows were overwritten and the
@@ -550,8 +552,10 @@ what left this one unfireable for months.
 
 ## Infrastructure
 
-- **[#92](https://github.com/Gerrrt/HomeLab/issues/92) Get the firewall backup
-  off `prometheus`, and buy a spare ProDesk.** Half done. Since 2026-09-03
+- **[#92](https://github.com/Gerrrt/HomeLab/issues/92) Rehearse the firewall
+  restore on `trinity`.** Retitled 2026-09-19 — it used to read *Get the
+  firewall backup off `prometheus`, and buy a spare ProDesk*; the copy is done
+  and the buy was withdrawn by ADR-0034. Half done. Since 2026-09-03
   `make backup-firewall` copies every export to `oracle` — ciphertext only, the
   key stays here — and exits non-zero if it cannot, so the nightly job's metric
   says "stopped leaving this host" rather than "fine". Off-host, not offsite:
@@ -837,15 +841,15 @@ what left this one unfireable for months.
   [#256](https://github.com/Gerrrt/HomeLab/issues/256) on 2026-09-17 — the pass
   that exists and a dashboard built entirely on `node_*` series, against an
   alternative the repository had never measured and which would have cost a
-  fifth rule. The job and the target file are written; the target is commented
-  until the pool exists, because on TrueNAS every route to an exporter runs
-  through it. Terminal survives
+  fifth rule. The job and the target file are written, and the target has been
+  live since 2026-09-19 (#522); #256 closed on it the same day. Terminal survives
   in the direction that carries it — CasaBonita stopped being terminal inbound
   on 2026-09-16 and stays terminal outbound, with #223's tripwire untouched and
   reading zero packets. Capacity buys a
   four-bay chassis with two bays filled, because the bay count is the half that
-  cannot be changed later and the library's size is a number nobody has; both
-  trays are still empty.
+  cannot be changed later and the library's size is a number nobody has; the
+  two filled trays have held the Exos pair since 2026-09-19, and `erebor` is
+  their mirror.
 - **[#101](https://github.com/Gerrrt/HomeLab/issues/101) Build ADR-0007's
   defended estate on `Saruman`** — a Windows domain, Wazuh, Velociraptor, PBS
   and a second observability stack. The umbrella. The observability half is
@@ -923,9 +927,9 @@ what left this one unfireable for months.
   own premise. Six agents make about 21 GB of alerts a quarter, which the disks
   do not notice; what runs out is heap-per-shard, at OpenSearch's
   twenty-five-shards-per-GiB against one daily index each, so retention is
-  thirty days because that is what a 2 GiB heap buys. `stacks/soc/` is not
-  yet authored, and nothing stops it being written and CI-validated ahead of
-  `odin` the way `stacks/lab` was ahead of `alexander`; what it cannot do
+  thirty days because that is what a 2 GiB heap buys. `stacks/soc/` was
+  authored and CI-validated in #434 on 2026-09-10, ahead of `odin` the way
+  `stacks/lab` was ahead of `alexander`; what it cannot do
   before #414 is say anything, because an agentless Wazuh has nothing to
   report.
   [#268](https://github.com/Gerrrt/HomeLab/issues/268) PBS was **decided and
@@ -938,8 +942,8 @@ what left this one unfireable for months.
   the box arriving"* — and **the trigger has fired**: `smaug` has held that
   address since 2026-09-16. This paragraph said the trigger had moved from a
   purchase to a build, which was right, and then the build happened.
-  What has not cleared is the blocker: the pool does not exist, so there is
-  still nowhere to send anything, and ADR-0027's sync job was designed against
+  The blocker cleared on 2026-09-19 as well: `erebor` is ONLINE, so there is
+  somewhere to send it. What is left is that ADR-0027's sync job was designed against
   a Linux host rather than TrueNAS — on TrueNAS it is PBS in a VM or a change
   to an NFS/SMB datastore, which are not the same answer.
   [#485](https://github.com/Gerrrt/HomeLab/issues/485) carries the re-read,
