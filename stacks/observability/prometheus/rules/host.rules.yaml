@@ -565,10 +565,13 @@ groups:
       # `or` in HostBatteryHealthLow keeps the energy_* spelling for a future
       # machine whose driver reports watt-hours instead.
       #
-      # THREE RULES, THREE QUESTIONS. Is the shelf on mains right now; is the
-      # cell still worth relying on; is there a cell at all. Only the last
-      # needs to know which hosts are laptops, and that list lives in its
-      # expression and nowhere else.
+      # SIX ALERTS AND ONE RECORDING RULE, FIVE QUESTIONS. Is the shelf on
+      # mains right now; is the cell still worth relying on; is there a cell at
+      # all; is the cell hot; and how long does the host have left on it. Only
+      # "is there a cell" needs to know which hosts are laptops, and that list
+      # lives in its expression and nowhere else. The sixth alert,
+      # HostBatteryTempNotMeasured, asks whether the fourth question can be
+      # answered at all — on 2026-09-19 it cannot, on either host; see below.
       #
       # PROMETHEUS'S CELL WAS REPLACED ON 2026-09-18 (#454). The figures above
       # are the pack that came out, and they stay: they are what these rules
@@ -590,6 +593,40 @@ groups:
       # THE SWAP ALSO CLEARED THE RTC, and the stack came back writing samples
       # three hours in the past. HostClockUnsynchronised above is the rule
       # that reads the field which carried that event (#519).
+      #
+      # CELL TEMPERATURE, READ ON 2026-09-19 (#532). Neither laptop measures
+      # it. oracle's BAT0 has never exported node_power_supply_temp_celsius —
+      # the Dell's driver exposes no temp attribute, and its dell_smm hwmon
+      # carries CPU, GPU and Ambient only. prometheus's did: the cell that came
+      # out ran 32.7–39.2 °C over its last 24 h and never above 40.3 °C in
+      # thirty days of retention, changing 99 times in 26 h. The A1437 fitted
+      # on 2026-09-18 has reported 25.5 °C on every one of its 1,560 samples
+      # since — zero changes — and the Apple SMC's own battery thermistors
+      # (hwmon TB0T/TB1T/TB2T) froze at the same moment, because the SMC reads
+      # them from the pack. There is no independent sensor to fall back on.
+      # HostBatteryHot is written anyway, at 45 °C for five minutes: it costs
+      # nothing, and it goes live the day a pack that measures is fitted.
+      # HostBatteryTempNotMeasured says, per host, that today is not that day.
+      # It is `info` on purpose — true on both hosts for as long as these packs
+      # are in, and a warning would be two twelve-hour nags forever on the
+      # channel whose ntfy budget the heartbeat already spends (#407). Until
+      # it resolves, the trackpad inspection in replace-the-laptop-cell.md §3
+      # is the only hot-cell detection there is.
+      #
+      # RUNTIME ON BATTERY: A RULE, NOT THE ANNUAL FIGURE. #532 allowed either.
+      # Step 8 of the runbook measures runtime once, at one load, on one day;
+      # homelab_battery_runtime_seconds computes it on every cut from the
+      # pack's own instantaneous draw, and HostBatteryRuntimeLow pages when it
+      # falls under thirty minutes — the last page before the estate goes
+      # blind. node_power_supply_current_ampere rather than deriv() of
+      # charge_ampere: the draw is non-zero from the first sample after mains
+      # drops (1.35 A on prometheus, 0.44 A on oracle, 2026-09-08), where a
+      # ten-minute derivative of a three-decimal gauge is ten minutes late and
+      # steppy. The draw is also non-zero while CHARGING (1.68 A and 0.97 A on
+      # the same day), which is why the recording rule is gated on the same
+      # online=0/type="Mains" join HostOnBattery uses rather than on the sign
+      # of anything. "Would notice it halving" is the recorded series read
+      # over months, and the capacity half of halving is HostBatteryHealthLow.
 
       - alert: HostOnBattery
         # The mains adapter reports online=0, joined to the info series so that
@@ -677,3 +714,111 @@ groups:
             are both blind to it until it comes back. Check
             /sys/class/power_supply/ on the host, and whether the cell was
             removed on purpose.
+
+      - alert: HostBatteryHot
+        # THE THRESHOLD IS MEASURED, NOT CHOSEN — against the pack that came
+        # out, because the one fitted measures nothing (header). Its highest
+        # reading in thirty days of retention was 40.3 °C, its 99.9th
+        # percentile 39.6, the runbook's 24 h band 32.7–39.2. 45 °C is 4.7 °C
+        # above anything that cell ever produced, and it is the charge
+        # temperature ceiling lithium-ion datasheets put on a pack: a cell
+        # above it on a shelf, idling on mains, is outside its own envelope.
+        # Five minutes and not one sample, per the runbook — a single reading
+        # proves nothing; five consecutive ones at Alloy's 60 s push do.
+        #
+        # Critical, the hardware route: a hot cell in an occupied room is the
+        # one alert in this section that should wake someone. Not `power` —
+        # that route is for the mains being out. No host selector: only a host
+        # with a cell has the series, and the list of laptops stays written
+        # once, in HostBatteryNotReported.
+        expr: node_power_supply_temp_celsius > 45
+        for: 5m
+        labels:
+          component: host
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $labels.power_supply }} reads {{ $value }} °C"
+          description: >-
+            The cell's own gauge has read above 45 °C for five minutes. The
+            pack this threshold was measured against never read above 40.3 °C
+            idling on a shelf. Treat the machine as a hazard: unplug it, do not
+            leave it unattended, and read
+            docs/runbooks/replace-the-laptop-cell.md §3 before touching it.
+
+      - alert: HostBatteryTempNotMeasured
+        # A cell that is present and whose temperature either does not exist
+        # as a series (oracle) or has not changed in 24 hours (the A1437 in
+        # prometheus, 25.5 °C on every sample since it was fitted). A real
+        # thermistor on an idle laptop still jitters by a tenth of a degree
+        # many times a day — the old cell changed 99 times in 26 h — so zero
+        # changes in a day is a gauge returning a constant, not a quiet room.
+        # It fires for both hosts the day it lands, and that is the finding:
+        # HostBatteryHot is blind until this resolves, which it does by itself
+        # the first day a pack reports a moving figure. `info`, for the reason
+        # in the header: recorded, never notified.
+        expr: >-
+          node_power_supply_present{power_supply=~"BAT.*"} == 1
+          unless on (instance, power_supply)
+          changes(node_power_supply_temp_celsius[24h]) > 0
+        for: 1h
+        labels:
+          component: host
+          severity: info
+          category: hardware
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $labels.power_supply }} reports no moving temperature"
+          description: >-
+            The cell is present but its temperature is either not exported or
+            has not changed in 24 hours, so HostBatteryHot cannot fire for it.
+            Nothing to do on the host: the pack's gauge is what it is. Until
+            this resolves, the inspection in
+            docs/runbooks/replace-the-laptop-cell.md §3 is the only check on a
+            hot cell here.
+
+      - record: homelab_battery_runtime_seconds
+        # Seconds the host has left on its cell at the draw it is presenting
+        # right now, and only while it is on that cell. charge_ampere is what
+        # the kernel calls charge_now, in Ah; current_ampere is the pack's
+        # instantaneous draw in A. The `> 0` on the divisor drops the sample
+        # instead of recording +Inf for the first scrape after the plug is
+        # pulled, when the draw still reads 0. The `or` branch keeps the
+        # watt-hour spelling for a future driver, as HostBatteryHealthLow does.
+        # The gate is HostOnBattery's own join, not the ALERTS series: ALERTS
+        # lags by that rule's `for`, and the same expression in the same group
+        # is the honest "while on battery".
+        expr: >-
+          (
+            node_power_supply_charge_ampere / (node_power_supply_current_ampere > 0)
+            or
+            node_power_supply_energy_watthour / (node_power_supply_power_watt > 0)
+          ) * 3600
+          and on (instance)
+          (
+            node_power_supply_online == 0
+            and on (instance, power_supply)
+            node_power_supply_info{type="Mains"}
+          )
+
+      - alert: HostBatteryRuntimeLow
+        # Thirty minutes: the last page before the estate goes blind, with time
+        # to act on it — a clean shutdown, or a generator lead. Both cells
+        # project four hours and more from full at the loads measured on
+        # 2026-09-08 (6.2 Ah at 1.35 A on prometheus, 1.9 Ah at 0.44 A on
+        # oracle), so a healthy pack never gets here and the runbook's bounded
+        # 50 % test does not either. Critical on the power route beside
+        # HostOnBattery, which is already firing by the time this can.
+        expr: homelab_battery_runtime_seconds < 30 * 60
+        for: 5m
+        labels:
+          component: host
+          severity: critical
+          category: power
+        annotations:
+          summary: "{{ $labels.instance }} has {{ $value | humanizeDuration }} of battery left"
+          description: >-
+            The host is on its own cell and, at the draw it is presenting now,
+            has under thirty minutes before it dies with the cut it is supposed
+            to outlast. If this is prometheus, that is the monitoring host:
+            shut it down cleanly rather than letting the cell decide.
+            HostOnBattery says why the mains is out.
