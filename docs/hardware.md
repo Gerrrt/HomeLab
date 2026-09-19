@@ -204,8 +204,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `MJ05N4NK`. Xeon E3-1225 v6 at 3.30 GHz, four cores, and `Active Video: IGD`
   — so the P630 this box was chosen for is live, which is the hardware half of
   [ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)'s
-  reopen condition and not the whole of it; whether Quick Sync reaches a
-  container is still untested. 8192 MB at 2133 MHz, which is **one** Samsung
+  reopen condition and not the whole of it; **whether Quick Sync reaches a
+  container was tested on 2026-09-19 and it does** — a hardware decode,
+  scale and `h264_qsv` encode inside the Jellyfin container, per
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.1. 8192 MB at 2133 MHz, which is **one** Samsung
   `M391A1G43EB1-CPBQ` — 8 GB 2Rx8 PC4-2133P, ECC unbuffered, date code 1728 —
   in one of four slots. More memory is therefore an add and not a replace, and
   the part to match is ECC **unbuffered**: a registered DIMM will not run on

@@ -466,6 +466,17 @@ compression stays on and costs nothing on already-compressed media.
 > which is nobody's group and not `builtin_users` — so one entry was added:
 > `everyone@`, Allow, Basic Read, Inherit. The list now has five entries, the
 > four the preset wrote and that one.
+>
+> **No workstation can mount this share, and that was found by trying.** The
+> Hicks rules from §0.5 pass `443` and `8096` to `smaug` and nothing else;
+> SMB is `445`, so a Hicks machine that reaches the TrueNAS UI and Jellyfin
+> gets nothing from `\\10.0.40.30\media`. Only devices already on
+> CasaBonita can mount it, and those are televisions. Getting a film onto the
+> library today means the console shell — `mkdir` and `curl` under
+> `/mnt/erebor/media/` — which is how the test clip in §6.1 arrived. Whether
+> the answer is a fifth Hicks rule on `445` or something else is
+> [#523](https://github.com/Gerrrt/HomeLab/issues/523)'s; it is recorded
+> here because the share exists and looks usable and is not.
 
 **Shares → Windows (SMB) → Add**, pointed at `erebor/media`.
 
@@ -561,8 +572,16 @@ minutes: no restart, no deploy, no `--force-recreate`.
 > target was uncommented the same morning. Inside the container:
 > `renderD128` listed as `root 107` and `id` read
 > `uid=65534(nobody) gid=65534(nogroup) groups=65534(nogroup),107` — both
-> halves of the check below that a shell can make. The transcode is the one
-> it cannot, and is still to run.
+> halves of the check below that a shell can make. **The transcode passed
+> the same day**, read off the ffmpeg command line Jellyfin logged rather
+> than off the dashboard, which hides the answer behind a hover: libva
+> opened the `iHD` driver, the input was decoded with `-hwaccel vaapi`,
+> scaled on the GPU with `scale_vaapi`, and encoded by **`h264_qsv`** —
+> 300 frames of 1080p to 540p in 0.76 s, about five times real time, on a
+> 10-second Big Buck Bunny clip played at a forced 480p. **ADR-0040's
+> reopen condition is closed and decision 2 stands.** The log is
+> `/config/log/FFmpeg.Transcode-*.log` inside the container; `docker top
+> media-jellyfin` shows the same line while a stream is running.
 
 Expect **no** `node_network_*` series from this host. Those collectors are
 disabled on purpose, because a bridged container reads its own veth and would
@@ -599,9 +618,12 @@ measurement.
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the
-> device checks hold, and `zpool status erebor` is `ONLINE` with no errors.
-> **Not yet read:** a television playing, the QSV transcode, the two extended
-> self-tests, and the post-deploy re-reads of the tripwire and port 15.
+> QSV transcode passed (§6.1), `zpool status erebor` is `ONLINE` with no
+> errors, `up{job="node",instance="smaug"}` reads 1, and the tripwire and
+> the rule order were re-read from `morpheus` after the stack came up:
+> 143,780 evaluations, **0 packets**, all four passes still above the block.
+> **Not yet read:** a television playing, the two extended self-tests, and
+> port 15 in the switch UI.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
