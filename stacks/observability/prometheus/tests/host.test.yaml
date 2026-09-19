@@ -129,6 +129,7 @@ tests:
   #   HostHighLoad        drop the / count without (cpu, mode) normaliser;
   #                       without (cpu, mode) -> without (cpu);  for: 30m -> 0m
   #   HostClockSkew       drop abs();  for: 10m -> 0m
+  #   HostClockUnsynchronised  == 0 -> == 1;  for: 5m -> 0m  (both killed 2026-09-19)
   #   HostRebooted        < 600 -> < 60;  < 600 -> < 6000
   #
   # The two HostRebooted mutations are in opposite directions on purpose: one
@@ -422,6 +423,76 @@ tests:
     alert_rule_test:
       - eval_time: 15m
         alertname: HostClockSkew
+        exp_alerts: []
+
+  # --- HostClockUnsynchronised: fires on a clock with no source, and clears --
+  # The fixture is the 2026-09-18 event (#519) in shape: synchronised, then
+  # node_timex_sync_status drops to 0 from 6m to 24m — the RTC-cleared boot,
+  # 13.8 minutes of it in the real TSDB — then NTP steps the clock and the flag
+  # returns to 1. Three reads: inside `for:` (quiet), past it (firing), after
+  # the source is back (resolved).
+  #
+  # The evaluation points are chosen against this file's 5m evaluation_interval,
+  # not against the sample times. The first evaluation to see a 0 is at 10m, so
+  # that is where the `for:` clock starts and where `for: 5m -> 0m` would fire;
+  # an eval at 8m reads the state from the 5m evaluation, when the series was
+  # still 1, and is quiet whatever `for:` says — a case that cannot fail, the
+  # #189 trap. The 5m boundary then falls at 15m, so the firing read is at 20m,
+  # a full interval clear of it; 30m is the second evaluation after recovery.
+  #
+  # HostClockSkew is deliberately not read here. Its input is
+  # node_timex_offset_seconds, which the real event held at exactly 0 the whole
+  # time — that silence is the finding, not a gap in this test.
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_sync_status{instance="prometheus",job="integrations/node_exporter"}'
+        values: "1x5 0x18 1x10"
+    alert_rule_test:
+      # The first evaluation to see the 0 — pending, for: 5m has not elapsed.
+      - eval_time: 10m
+        alertname: HostClockUnsynchronised
+        exp_alerts: []
+
+      - eval_time: 20m
+        alertname: HostClockUnsynchronised
+        exp_alerts:
+          - exp_labels:
+              alertname: HostClockUnsynchronised
+              instance: prometheus
+              job: integrations/node_exporter
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "prometheus clock has no time source"
+              description: >-
+                The kernel reports its clock unsynchronised: no NTP source has
+                confirmed the time. HostClockSkew stays quiet here because a clock
+                that is wrong but stable has nothing to correct. Every sample and
+                log line this host stamps while this fires is on an unconfirmed
+                clock — after a battery or RTC loss it is backdated into the outage
+                it follows. Check `timedatectl timesync-status` and
+                `journalctl -b -u systemd-timesyncd`;
+                docs/runbooks/replace-the-laptop-cell.md step 6 says how to read
+                the TSDB afterwards.
+
+      # NTP is back — the flag has read 1 since 25m.
+      - eval_time: 30m
+        alertname: HostClockUnsynchronised
+        exp_alerts: []
+
+  # --- HostClockUnsynchronised: quiet on a synchronised estate ---------------
+  # Two hosts holding 1 throughout, which is what every ordinary boot in the
+  # 30 days before this rule landed looked like. `== 0 -> == 1` fires this.
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_sync_status{instance="prometheus",job="integrations/node_exporter"}'
+        values: "1x30"
+      - series: 'node_timex_sync_status{instance="Saruman",job="integrations/node_exporter"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostClockUnsynchronised
         exp_alerts: []
 
   # --- HostRebooted: fires inside 10m of boot, quiet after -------------------
