@@ -189,29 +189,24 @@ stays in that gitignored directory and nowhere else.
 
 ## 7. Open the lab's doors
 
-**On `alexander`.** This guest's Alloy pushes to the lab's Prometheus and Loki,
-and until now nothing off `alexander` did — the two `ports:` blocks in
-`stacks/lab/compose.yaml` and the two port lines in `stacks/lab/.env.example`
-have been commented since the day that stack landed, waiting for a client with
-no scrape alternative. This is that client (ADR-0030) — unless `phoenix` was
-built first, in which case [`build-the-jumpbox.md`](build-the-jumpbox.md) §5
-already did this and the four are open; check before editing.
-
-Uncomment all four — `PROMETHEUS_PORT` and `LOKI_PORT` in `.env.example`, and
-the `ports:` block under `prometheus` and under `loki` in `compose.yaml` — and
-apply:
+**On `alexander`.** This guest's Alloy pushes to the lab's Prometheus and Loki.
+The two `ports:` blocks in `stacks/lab/compose.yaml` and the two port lines in
+`stacks/lab/.env.example` were commented from the day that stack landed,
+waiting for a client with no scrape alternative; this guest was expected to be
+that client (ADR-0030), and `phoenix` got there first —
+[`build-the-jumpbox.md`](build-the-jumpbox.md) §5 published all four in 2026-09
+([#436](https://github.com/Gerrrt/HomeLab/issues/436)). There is nothing to
+edit. Confirm the doors are open before going on:
 
 ```bash
-cd ~/HomeLab
-make up STACK=lab
 ss -ltn '( sport = :9090 or sport = :3100 )'
 ```
 
-Both must show `10.0.30.40` or `0.0.0.0`. **Commit and push the change from
-`alexander`**: ADR-0030 decided it, and the day it happens is the day the
-repository should say it did. Read the comment above each block before
-uncommenting it — it says what is now listening on the segment that exists
-to hold attackers, and that is a thing to know rather than discover.
+Both must show `10.0.30.40` or `0.0.0.0`. If either is missing, `alexander`'s
+checkout is behind: `cd ~/HomeLab && git pull && make up STACK=lab` and check
+again. Read the comment above each block in `compose.yaml` once — it says what
+is listening on the segment that exists to hold attackers, and that is a thing
+to know rather than discover.
 
 ## 8. Bring it up
 
