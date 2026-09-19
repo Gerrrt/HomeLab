@@ -64,21 +64,80 @@
 # argument. It applies here with more force: grafana.db carries the admin
 # password hash, every API token and every datasource credential.
 #
+# WHY THE COPY IS PART OF THE JOB AND NOT A SEPARATE ONE
+#
+# For three weeks this script ended by printing "copy the set to the backup
+# target and offsite — see docs/roadmap.md #92", and nothing did. A set on the
+# disk it protects is a copy, not a backup. ADR-0015 gave the copy a home —
+# `oracle`, the other laptop on the shelf, which already receives the firewall
+# export — and #535 built it, on the model scripts/backup-firewall.sh set: the
+# copy is a step of THIS job, after the set is written, verified and the stack
+# is back up, and a run whose copy fails exits non-zero even though the local
+# set is complete. The weekly timer records the exit code
+# (scripts/run-scheduled.sh), so "the sets have stopped leaving this host" is
+# ScheduledJobFailed within ten minutes rather than a sentence nobody reads.
+# The daily verify-backups run checks the far side too, so a copy that stops
+# existing is a failed job the next morning. No new unit, lock, metric or
+# alert rule: backup.rules.yaml names no job on purpose.
+#
+# What lands on oracle is age ciphertext. The private key is NOT there and must
+# never be — a compromise of oracle yields nothing. The far side needs sshd and
+# coreutils: `ls`, `mkdir`, `cat`, `mv`, `rm`, `sha256sum`, `nice`. The proof
+# that a copy is a backup is a far-side sha256sum compared with the MANIFEST's
+# column, which was computed on the bytes verify() had just decrypted — the
+# same claim backup-firewall.sh makes by pulling the bytes back, without the
+# wire time (a set is close to a gigabyte on a 100 Mb/s link). The MANIFEST
+# itself is small, so it IS pulled back and compared. Known limit, stated
+# rather than engineered away: the key that writes there can also delete
+# there. Same trust as the firewall copy; append-only storage is a different
+# issue. And same room, so this is off-host and not offsite. A fire still
+# takes both.
+#
+# One retention knob, KEEP, both sides — backup-firewall.sh:80-88 has the
+# argument. The far side keeps the newest KEEP complete sets, never the newest,
+# and never a set this host still holds: prune() below keeps an extra set when
+# the newest quiesced one is past KEEP, and without that clause the far side
+# would delete it weekly and the next copy would upload it again. Steady state
+# there is KEEP+1 sets, bounded. The far-side directory is per STACK, because
+# trinity runs this script as STACK=sensitive against the same oracle and one
+# host's prune must not be able to see the other host's sets.
+#
+# WHAT MAY BE SENT TO THE FAR SIDE
+#
+# Every remote command is handed to oracle's LOGIN SHELL, which is zsh with
+# `nomatch` on: a glob matching nothing is a fatal error, not the literal bash
+# would pass through, and a non-zero remote command fails the job. So nothing
+# sent from this file may contain a glob, and nothing may be bash-only — no
+# arrays, no [[ ]], no $( ). What crosses the wire is cd, ls, mkdir -p, chmod,
+# cat, mv, rm, nice, sha256sum and single-quoted literals, each literal a name
+# that passed is_stamp() or is_volume_name() first. That character class is the
+# point: no quote, space, newline, leading dash or glob metacharacter survives
+# it, so a validated name cannot break out of the quotes it is embedded in.
+# All the bash stays on this side. The helpers are deliberately a copy of the
+# firewall script's rather than a shared library: the unit of transfer differs
+# (a directory written MANIFEST-last, not a file) and a bug here must not be
+# able to break a nightly job that has run since 2026-09-03.
+#
 # Usage:
-#   scripts/backup-volumes.sh                       quiesce, archive, verify
+#   scripts/backup-volumes.sh                       quiesce, archive, verify, copy to oracle
 #   scripts/backup-volumes.sh --hot                 skip the stop; UNPROVEN
-#   scripts/backup-volumes.sh --list                show the sets that exist
+#   scripts/backup-volumes.sh --local-only          any of the below without the far side
+#   scripts/backup-volumes.sh --copy-only           copy every set oracle lacks; seeding, catch-up
+#   scripts/backup-volumes.sh --list                show the sets that exist, here and there
 #   scripts/backup-volumes.sh --inventory           print the derived volume table
 #   scripts/backup-volumes.sh --project             print the compose project name
-#   scripts/backup-volumes.sh --verify-only         re-verify the newest set
-#   scripts/backup-volumes.sh --verify-only --all   re-verify every retained set
+#   scripts/backup-volumes.sh --verify-only         re-verify the newest set, here and there
+#   scripts/backup-volumes.sh --verify-only --all   re-verify every retained set, here and there
 #   scripts/backup-volumes.sh --verify-only --set <STAMP> [--only vol,vol]
-#   scripts/backup-volumes.sh --prune               apply retention only
+#   scripts/backup-volumes.sh --prune               apply retention only, both sides
 #
 # Environment:
 #   STACK              default observability   selects stacks/<STACK>/compose.yaml
 #   COMPOSE_PROJECT_NAME   overrides the volume prefix, as it does for compose
-#   KEEP               default 7               complete sets to retain
+#   KEEP               default 7               complete sets to retain, here and there
+#   VOL_OFFHOST        default atropos@10.0.99.30:backups/volumes/<STACK> — user@host:dir,
+#                      the dir relative to that user's home unless absolute. The
+#                      weekly unit can override it in /etc/default/homelab-timers.
 #   STOP_TIMEOUT       default 60              seconds before SIGKILL on stop
 #   SOPS_AGE_KEY_FILE  default ~/.config/sops/age/keys.txt
 set -euo pipefail
@@ -91,6 +150,11 @@ OUT_DIR="${REPO_ROOT}/backups/volumes"
 AGE_IDENTITY="${SOPS_AGE_KEY_FILE:-${HOME}/.config/sops/age/keys.txt}"
 KEEP="${KEEP:-7}"
 STOP_TIMEOUT="${STOP_TIMEOUT:-60}"
+VOL_OFFHOST="${VOL_OFFHOST:-atropos@10.0.99.30:backups/volumes/${STACK}}"
+
+# BatchMode so a missing key, or an unknown host key, fails loudly instead of
+# hanging a timer on a prompt.
+SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10)
 
 # An archive smaller than this is not a backup. Measured on this host: an empty
 # volume encrypts to 306 bytes, and the smallest real one (alertmanager-data,
@@ -110,6 +174,39 @@ warn()  { printf '\033[0;33mwarning:\033[0m %s\n' "$*" >&2; }
 die()   { red "$*"; exit 1; }
 
 need() { command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1"; }
+
+# ---------------------------------------------------------------------------
+# Configuration checks — before any mode is dispatched, because KEEP and
+# VOL_OFFHOST now reach `rm -rf` on another host.
+# ---------------------------------------------------------------------------
+
+# STACK names the far-side directory, so it is remote command text.
+[[ ${STACK} =~ ^[a-z][a-z0-9-]*$ ]] \
+  || die "STACK may only contain lowercase letters, digits and -, got '${STACK}'"
+
+# Rejected rather than clamped: a mistyped KEEP in an environment file is not a
+# request to delete every set on either side. Before this the local prune
+# survived KEEP="" only because \${sets[@]:KEEP} is a bash error; the far-side
+# prune would have compared against 0 and removed every set but the newest.
+if ! [[ ${KEEP} =~ ^[0-9]+$ ]] || ((KEEP < 1)); then
+  die "KEEP must be a positive integer, got '${KEEP}'"
+fi
+
+OFFHOST_TARGET="${VOL_OFFHOST%%:*}"
+OFFHOST_DIR="${VOL_OFFHOST#*:}"
+[[ ${VOL_OFFHOST} == *:* && -n ${OFFHOST_TARGET} && -n ${OFFHOST_DIR} ]] \
+  || die "VOL_OFFHOST must be user@host:dir, got '${VOL_OFFHOST}'"
+# Enough for a directory handed to ls and cat; retention hands it to rm, and a
+# stray quote in an operator-edited /etc/default/homelab-timers would otherwise
+# close the quoting and turn the rest of the line into remote command text.
+[[ ${OFFHOST_DIR} =~ ^[A-Za-z0-9._/-]+$ ]] \
+  || die "VOL_OFFHOST directory may only contain letters, digits, . _ - and /, got '${OFFHOST_DIR}'"
+[[ ${OFFHOST_DIR} != "/" && ${OFFHOST_DIR} != *..* ]] \
+  || die "VOL_OFFHOST directory may not be / or contain '..', got '${OFFHOST_DIR}'"
+# zsh resolves a `cd` argument through CDPATH unless it starts with / ./ or ../
+# and oracle's login shell IS zsh. Anchoring it costs two characters.
+OFFHOST_CD="${OFFHOST_DIR}"
+[[ ${OFFHOST_CD} == /* ]] || OFFHOST_CD="./${OFFHOST_CD}"
 
 # The recipients are the STACK's, read out of its encrypted secrets file by
 # key-recipients.sh — the `sops:` metadata, which is fact, where .sops.yaml is
@@ -456,6 +553,301 @@ list_sets() {
   info "${n} set(s), keeping ${KEEP}"
 }
 
+# The volumes a MANIFEST lists, and the sha256 it recorded for one of them.
+# The five-field rows are the volume table; everything else is two fields.
+manifest_volumes() { awk -F'\t' 'NF == 5 && $1 !~ /^#/ { print $1 }' "$1/MANIFEST" 2>/dev/null; }
+manifest_sha()     { awk -F'\t' -v v="$2" 'NF == 5 && $1 == v { print $5; exit }' "$1/MANIFEST" 2>/dev/null; }
+manifest_bytes()   { awk -F'\t' 'NF == 5 && $1 !~ /^#/ { s += $4 } END { print s + 0 }' "$1/MANIFEST" 2>/dev/null; }
+
+# ---------------------------------------------------------------------------
+# The far side — see WHAT MAY BE SENT TO THE FAR SIDE in the header.
+#
+# Nothing here needs more than sshd and coreutils on the target: no rsync, no
+# agent, no key. Files are streamed over ssh into a .part name and renamed, and
+# a set's MANIFEST goes last, so a copy that dies mid-transfer leaves a
+# directory with no MANIFEST — INCOMPLETE, by the same rule as here — and never
+# a plausible-looking set that is short.
+# ---------------------------------------------------------------------------
+
+# stdin closed by default so a command that does not stream cannot eat the
+# caller's. The copy is the one that streams, and says so.
+remote()       { "${SSH[@]}" "${OFFHOST_TARGET}" "$@" </dev/null; }
+remote_stdin() { "${SSH[@]}" "${OFFHOST_TARGET}" "$@"; }
+
+# The two predicates every name passes before it is embedded in a quoted remote
+# command. Stamps are what this script writes (date -u +%Y%m%dT%H%M%SZ);
+# volume names come from compose.yaml, not from this file.
+is_stamp()       { [[ $1 =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; }
+is_volume_name() { [[ $1 =~ ^[A-Za-z0-9._-]+$ ]]; }
+
+# Everything known about the far side, in two round trips, into three arrays:
+# the stamp-named directories (newest first), those of them that hold a
+# MANIFEST (newest first), and the top-level names that are not stamps —
+# counted and reported, never touched. Returns non-zero only when the host
+# could not be asked; an empty directory and a missing one are the same
+# finding. The MANIFEST probe names each directory explicitly: `ls */MANIFEST`
+# is a glob, and `find` is not something the far side is required to have.
+REMOTE_STAMPS=()
+REMOTE_COMPLETE=()
+REMOTE_STRAYS=()
+read_remote() {
+  local out cmd s
+  REMOTE_STAMPS=(); REMOTE_COMPLETE=(); REMOTE_STRAYS=()
+  out="$(remote "ls -1 '${OFFHOST_DIR}' 2>/dev/null; true")" || return 1
+  while IFS= read -r s; do
+    [[ -n ${s} ]] || continue
+    if is_stamp "${s}"; then REMOTE_STAMPS+=("${s}"); else REMOTE_STRAYS+=("${s}"); fi
+  done < <(sort -r <<<"${out}")
+  ((${#REMOTE_STAMPS[@]})) || return 0
+  cmd="cd -- '${OFFHOST_CD}' && ls -1 --"
+  for s in "${REMOTE_STAMPS[@]}"; do cmd+=" '${s}/MANIFEST'"; done
+  cmd+=" 2>/dev/null; true"
+  out="$(remote "${cmd}")" || return 1
+  while IFS= read -r s; do
+    [[ ${s} == */MANIFEST ]] || continue
+    s="${s%/MANIFEST}"
+    is_stamp "${s}" && REMOTE_COMPLETE+=("${s}")
+  done < <(sort -r <<<"${out}")
+  return 0
+}
+
+remote_has_complete() {
+  local s
+  for s in "${REMOTE_COMPLETE[@]}"; do [[ ${s} == "$1" ]] && return 0; done
+  return 1
+}
+
+is_local_complete() {
+  local d
+  while read -r d; do
+    [[ -n ${d} && "$(basename "${d}")" == "$1" ]] && return 0
+  done < <(complete_sets)
+  return 1
+}
+
+# The proof that a copy is a backup: the far side hashes what it holds and the
+# hashes must equal the MANIFEST's column, which was computed on the bytes
+# verify() had just decrypted. One round trip for every archive of every set
+# named — one handshake on that CPU instead of one per file. stdout is kept
+# whatever the exit status: sha256sum reports a missing name and hashes the
+# rest, so a partial answer is the finding, and only ssh's own 255 means the
+# host could not be asked. Honours --only, like verify_set.
+verify_remote_archives() {
+  local -a dirs=("$@") names=() want=()
+  local d stamp vol sha n out rc failed=0
+  local -A expect=() got=()
+  for d in "${dirs[@]}"; do
+    stamp="$(basename "${d}")"
+    is_stamp "${stamp}" || { red "refusing to check a set with an unexpected name: ${stamp}"; return 1; }
+    if ((${#ONLY_VOLUMES[@]})); then want=("${ONLY_VOLUMES[@]}"); else mapfile -t want < <(manifest_volumes "${d}"); fi
+    ((${#want[@]})) || { red "${stamp}: the MANIFEST lists no volumes"; failed=1; continue; }
+    for vol in "${want[@]}"; do
+      is_volume_name "${vol}" || { red "refusing to send an unexpected volume name: ${vol}"; return 1; }
+      sha="$(manifest_sha "${d}" "${vol}")"
+      [[ -n ${sha} ]] || { red "${stamp}: no sha256 for ${vol} in the MANIFEST"; failed=1; continue; }
+      n="${stamp}/${vol}.tar.gz.age"
+      expect["${n}"]="${sha}"
+      names+=("${n}")
+    done
+  done
+  ((${#names[@]})) || return "${failed}"
+
+  local cmd="cd -- '${OFFHOST_CD}' && nice -n 19 sha256sum --"
+  for n in "${names[@]}"; do cmd+=" '${n}'"; done
+  cmd+=" 2>/dev/null"
+  rc=0
+  out="$(remote "${cmd}")" || rc=$?
+  ((rc != 255)) || { red "cannot reach ${OFFHOST_TARGET}"; return 1; }
+  while read -r sha n; do
+    [[ -n ${n} ]] && got["${n}"]="${sha}"
+  done <<<"${out}"
+  for n in "${names[@]}"; do
+    if [[ -z ${got[${n}]:-} ]]; then
+      red "${OFFHOST_TARGET}:${OFFHOST_DIR}/${n} is missing"
+      failed=1
+    elif [[ ${got[${n}]} != "${expect[${n}]}" ]]; then
+      red "${OFFHOST_TARGET}:${OFFHOST_DIR}/${n} differs from the local copy (sha256 ${got[${n}]:0:12}… there, ${expect[${n}]:0:12}… in the MANIFEST)"
+      failed=1
+    fi
+  done
+  return "${failed}"
+}
+
+# Small, so this one IS pulled back and compared byte for byte.
+verify_remote_manifest() {
+  local d="$1" stamp
+  stamp="$(basename "${d}")"
+  is_stamp "${stamp}" || return 1
+  if remote "cat '${OFFHOST_DIR}/${stamp}/MANIFEST'" 2>/dev/null | cmp -s - "${d}/MANIFEST"; then
+    return 0
+  fi
+  red "${OFFHOST_TARGET}:${OFFHOST_DIR}/${stamp}/MANIFEST is missing or differs from the local copy"
+  return 1
+}
+
+# What --verify-only asks of the far side: every archive of every target, then
+# each MANIFEST. A set that fails is named with its repair, and the repair is
+# by hand: this script never deletes anything on a failure path (#64), and a
+# copy that differs is a finding to look at before it is overwritten.
+verify_remote_sets() {
+  local d failed=0 n=0
+  verify_remote_archives "$@" || failed=1
+  for d in "$@"; do
+    verify_remote_manifest "${d}" || failed=1
+    n=$((n + 1))
+  done
+  if ((failed)); then
+    red "repair: on ${OFFHOST_TARGET} remove the set named above — rm -rf '${OFFHOST_DIR}/<STAMP>' — then here: make backup ARGS=--copy-only"
+    return 1
+  fi
+  green "verified ${n} set(s) on ${OFFHOST_TARGET}:${OFFHOST_DIR} — every archive hashes to its MANIFEST entry, every MANIFEST byte-identical"
+}
+
+# Every complete local set the far side does not have, newest first, not just
+# the one this run wrote. A Sunday oracle was off would otherwise leave one set
+# that never left this host, and nothing would ever go back for it. Archives
+# first, then the hashes are checked, then the MANIFEST — so the far side's
+# "complete" means what it means here.
+copy_offhost() {
+  local -a local_sets=() vols=()
+  local d stamp vol name copied=0
+  mapfile -t local_sets < <(complete_sets)
+  if ((${#local_sets[@]} == 0)) || [[ -z ${local_sets[0]} ]]; then
+    info "no complete sets in ${OUT_DIR} — nothing to copy"
+    return 0
+  fi
+  read_remote || { red "cannot reach ${OFFHOST_TARGET}"; return 1; }
+  remote "mkdir -p '${OFFHOST_DIR}' && chmod 700 '${OFFHOST_DIR}'" \
+    || { red "cannot create ${OFFHOST_DIR} on ${OFFHOST_TARGET}"; return 1; }
+  for d in "${local_sets[@]}"; do
+    stamp="$(basename "${d}")"
+    is_stamp "${stamp}" || { warn "skipping ${stamp} — not a stamp this script writes"; continue; }
+    remote_has_complete "${stamp}" && continue
+    mapfile -t vols < <(manifest_volumes "${d}")
+    ((${#vols[@]})) || { red "${stamp}: the MANIFEST lists no volumes — not copying it"; return 1; }
+    info "copying ${stamp} ($(human "$(manifest_bytes "${d}")")) to ${OFFHOST_TARGET}:${OFFHOST_DIR}"
+    remote "mkdir -p '${OFFHOST_DIR}/${stamp}' && chmod 700 '${OFFHOST_DIR}/${stamp}'" \
+      || { red "cannot create ${OFFHOST_DIR}/${stamp} on ${OFFHOST_TARGET}"; return 1; }
+    for vol in "${vols[@]}"; do
+      is_volume_name "${vol}" || { red "refusing to send an unexpected volume name: ${vol}"; return 1; }
+      name="${vol}.tar.gz.age"
+      [[ -f ${d}/${name} ]] || { red "${stamp}: ${name} is missing here although the MANIFEST lists it"; return 1; }
+      remote_stdin "cat > '${OFFHOST_DIR}/${stamp}/${name}.part' && mv -f '${OFFHOST_DIR}/${stamp}/${name}.part' '${OFFHOST_DIR}/${stamp}/${name}'" < "${d}/${name}" \
+        || { red "copy of ${stamp}/${name} to ${OFFHOST_TARGET} failed"; return 1; }
+    done
+    verify_remote_archives "${d}" || return 1
+    remote_stdin "cat > '${OFFHOST_DIR}/${stamp}/MANIFEST.part' && mv -f '${OFFHOST_DIR}/${stamp}/MANIFEST.part' '${OFFHOST_DIR}/${stamp}/MANIFEST'" < "${d}/MANIFEST" \
+      || { red "copy of ${stamp}/MANIFEST to ${OFFHOST_TARGET} failed"; return 1; }
+    verify_remote_manifest "${d}" || return 1
+    green "copied ${stamp} to ${OFFHOST_TARGET} — every archive hashes to its MANIFEST entry"
+    copied=$((copied + 1))
+  done
+  ((copied)) || info "${OFFHOST_TARGET}:${OFFHOST_DIR} already has every complete set here"
+}
+
+# ---------------------------------------------------------------------------
+# Far-side retention
+#
+# ORDER on the main path: prune (here), then copy_offhost, then prune_offhost
+# — backup-firewall.sh:321-341 explains both boundaries; getting either wrong
+# is a loop rather than a wrong answer.
+#
+# Two classes of victim, computed from read_remote()'s picture and the local
+# complete list, and printed by one function so --list cannot disagree with
+# --prune:
+#   (a) a complete far-side set beyond the newest KEEP there — never the
+#       newest, and never one this host still holds, which is the clause that
+#       keeps one KEEP correct for both sides (header). A set only the far
+#       side holds, inside the newest KEEP, is left alone: that is what a
+#       local wipe looks like from there, and the far side then IS the backup.
+#   (b) a far-side directory with no MANIFEST whose stamp this host no longer
+#       holds complete. A directory is only ever created there for a set that
+#       is complete here, so this is a copy that died, and nothing will ever
+#       retry it. One this host does hold is retried by the next copy step,
+#       which reuses the same .part names, so it is left alone.
+# ---------------------------------------------------------------------------
+offhost_victims() {
+  local s i=0 newest="${REMOTE_COMPLETE[0]:-}"
+  for s in "${REMOTE_COMPLETE[@]}"; do
+    i=$((i + 1))
+    ((i > KEEP)) || continue
+    [[ ${s} == "${newest}" ]] && continue
+    is_local_complete "${s}" && continue
+    printf '%s\n' "${s}"
+  done
+  for s in "${REMOTE_STAMPS[@]}"; do
+    remote_has_complete "${s}" && continue
+    is_local_complete "${s}" && continue
+    printf '%s\n' "${s}"
+  done
+}
+
+prune_offhost() {
+  local -a victims=()
+  local s out cmd
+  read_remote || { red "cannot reach ${OFFHOST_TARGET}"; return 1; }
+  ((${#REMOTE_STRAYS[@]} == 0)) \
+    || warn "${#REMOTE_STRAYS[@]} name(s) in ${OFFHOST_TARGET}:${OFFHOST_DIR} not written by this script — never pruned, inspect by hand"
+  mapfile -t victims < <(offhost_victims)
+  if ((${#victims[@]} == 0)) || [[ -z ${victims[0]} ]]; then
+    info "${OFFHOST_TARGET}:${OFFHOST_DIR} holds ${#REMOTE_COMPLETE[@]} complete set(s), keeping ${KEEP} — nothing to prune"
+    return 0
+  fi
+  # Every name here came back from the far side and passed is_stamp, so the
+  # delete set is by construction a subset of what we were just shown. cd
+  # first and name the directories relatively: no path is concatenated over
+  # there, and a cd that fails for any reason short-circuits before the rm.
+  cmd="cd -- '${OFFHOST_CD}' && rm -rf --"
+  for s in "${victims[@]}"; do
+    is_stamp "${s}" || { red "refusing to prune ${s} on ${OFFHOST_TARGET}"; return 1; }
+    cmd+=" '${s}'"
+  done
+  info "pruning ${#victims[@]} set(s) on ${OFFHOST_TARGET}: ${victims[*]}"
+  out="$(remote "${cmd}" 2>&1)" || { red "prune on ${OFFHOST_TARGET} failed: ${out}"; return 1; }
+}
+
+# The far-side half of --list: the dry run for retention, from the same
+# picture and the same victim function prune_offhost uses.
+list_remote_sets() {
+  local -a victims=()
+  local s state flag
+  printf '\n'
+  info "on ${OFFHOST_TARGET}:${OFFHOST_DIR}"
+  read_remote || { red "unreachable — nothing off this host is known to exist"; return 0; }
+  if ((${#REMOTE_STAMPS[@]} == 0)); then
+    info "(nothing)"
+  else
+    mapfile -t victims < <(offhost_victims)
+    for s in "${REMOTE_STAMPS[@]}"; do
+      state=INCOMPLETE; flag=""
+      remote_has_complete "${s}" && state=complete
+      printf '%s\n' "${victims[@]}" | grep -qxF "${s}" && flag=$'\t'"prunes next run"
+      printf '%s\t%s%s\n' "${s}" "${state}" "${flag}"
+    done
+  fi
+  info "${#REMOTE_STAMPS[@]} set(s) there (${#REMOTE_COMPLETE[@]} complete), keeping ${KEEP}"
+  ((${#REMOTE_STRAYS[@]} == 0)) \
+    || warn "${#REMOTE_STRAYS[@]} name(s) there not written by this script — never pruned, inspect by hand"
+}
+
+# The lock every mode that reads or changes a set takes. Without it a hand-run
+# copy and the daily verify overlap freely — the outer lock in
+# scripts/run-scheduled.sh is held by timer runs only — and the verify sees a
+# set mid-stream on the far side, reports it missing and pages. The main path
+# refuses to wait, as it always has: a second backup queued behind a first
+# would stop the stack twice. Everything else queues for as long as the timer
+# units do (--lock-wait 900), so a hand seed delays the verify instead of
+# failing it.
+take_lock() {
+  mkdir -p "${OUT_DIR}"
+  exec 9>"${OUT_DIR}/.lock"
+  if [[ ${1:-} == wait ]]; then
+    flock -w 900 9 || die "timed out waiting for another $(basename "$0") to finish"
+  else
+    flock -n 9 || die "another $(basename "$0") is already running"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Verification — the tarball analogue of backup-firewall.sh:62-76
 #
@@ -789,6 +1181,7 @@ usage() { sed -n 's|^# \{0,1\}||; /^Usage:/,/^$/p' "$0" | head -20; }
 MODE=backup
 MODE_SET=""
 HOT=0
+LOCAL_ONLY=0
 ALL=0
 SET_ARG=""
 ONLY=""
@@ -801,6 +1194,8 @@ set_mode() {
 while (($#)); do
   case "$1" in
     --hot)         HOT=1 ;;
+    --local-only)  LOCAL_ONLY=1 ;;
+    --copy-only)   set_mode copy ;;
     --all)         ALL=1 ;;
     --set)         SET_ARG="${2:?--set needs a stamp}"; shift ;;
     --only)        ONLY="${2:?--only needs a comma-separated volume list}"; shift ;;
@@ -815,6 +1210,11 @@ while (($#)); do
   esac
   shift
 done
+
+if [[ ${MODE} == copy ]]; then
+  ((HOT == 0))        || die "--copy-only takes no --hot: it archives nothing"
+  ((LOCAL_ONLY == 0)) || die "--copy-only --local-only would do nothing"
+fi
 
 COMPOSE=(docker compose -f "${COMPOSE_FILE}")
 
@@ -844,6 +1244,23 @@ case "${MODE}" in
     ;;
   list)
     list_sets
+    ((LOCAL_ONLY)) || list_remote_sets
+    exit 0
+    ;;
+  # Needs ssh and cmp, not age, docker or the identity: it moves ciphertext
+  # that has already been proven, and never stops the stack. This is how the
+  # sets that predate the copy get seeded, and how a stretch with oracle off
+  # is caught up.
+  copy)
+    need ssh
+    need cmp
+    take_lock wait
+    if ! copy_offhost; then
+      red "the off-host copy FAILED — check: ${OFFHOST_TARGET} reachable, its host key in ~/.ssh/known_hosts,"
+      red "and this host's key authorised there — docs/runbooks/restore-the-stack.md §0"
+      exit 1
+    fi
+    prune_offhost || exit 1
     exit 0
     ;;
 esac
@@ -854,6 +1271,7 @@ need age
 
 case "${MODE}" in
   verify)
+    take_lock wait
     failed=0
     if ((ALL)); then
       mapfile -t targets < <(complete_sets)
@@ -868,11 +1286,30 @@ case "${MODE}" in
     for t in "${targets[@]}"; do
       verify_set "${t}" "${ONLY_VOLUMES[@]}" || failed=1
     done
+    # The far side is checked even when a local set failed, and both are
+    # reported: they are different findings with different repairs. Skipped
+    # with --local-only, which is what restore-volumes.sh passes — a restore
+    # happens when things are broken, and oracle may be one of them.
+    if ((LOCAL_ONLY)); then
+      info "--local-only: the copy on ${OFFHOST_TARGET} was not checked"
+    else
+      need ssh
+      need cmp
+      verify_remote_sets "${targets[@]}" || failed=1
+    fi
     ((failed == 0)) || die "verification FAILED"
     exit 0
     ;;
   prune)
+    take_lock wait
     prune
+    if ((LOCAL_ONLY)); then
+      info "--local-only: retention was applied here; ${OFFHOST_TARGET} was not touched"
+    else
+      need ssh
+      printf '\n'
+      prune_offhost || exit 1
+    fi
     exit 0
     ;;
 esac
@@ -887,14 +1324,22 @@ need tar
 need awk
 need flock
 need numfmt
+if ((LOCAL_ONLY == 0)); then
+  need ssh
+  need cmp
+fi
 docker info >/dev/null 2>&1 || die "cannot reach the docker daemon"
-
-mkdir -p "${OUT_DIR}"
 
 # Without this a cron run and a manual run overlap: one stops the stack while
 # the other is mid-archive, and the first to finish restarts it under the second.
-exec 9>"${OUT_DIR}/.lock"
-flock -n 9 || die "another $(basename "$0") is already running"
+take_lock
+
+# A warning and not a refusal: the local set is still worth taking, and the
+# copy step will say the same thing as a failure. This just says it before the
+# stack goes down rather than after.
+if ((LOCAL_ONLY == 0)) && ! remote true >/dev/null 2>&1; then
+  warn "cannot reach ${OFFHOST_TARGET} now — the set will be written here and the copy step will fail"
+fi
 
 # mapfile over a process substitution loses the child's exit status, so the
 # check is on what arrived: key-recipients.sh has already said why on stderr.
@@ -1015,6 +1460,9 @@ fi
   done
 } > "${SET_DIR}/MANIFEST"
 
+# Local retention before the copy: a set past KEEP here would be past it there
+# too, and copying it first would move a gigabyte that prune_offhost then
+# removes in the same run.
 prune
 
 set_bytes=0
@@ -1023,8 +1471,33 @@ for v in "${VOLUMES[@]}"; do set_bytes=$((set_bytes + BYTES[$v])); done
 printf '\n'
 green "wrote ${SET_DIR#"${REPO_ROOT}"/} — ${#VOLUMES[@]} volumes, $(human "${set_bytes}"), $( ((HOT)) && echo "stack never stopped (UNPROVEN)" || echo "stack down ${downtime}s" ), $((SECONDS - started))s total"
 printf '\n'
-info "This is on the same host as everything it protects."
-info "Copy the set to the backup target and offsite — see docs/roadmap.md #92."
+
+if ((LOCAL_ONLY)); then
+  info "--local-only: this is on the same host as everything it protects."
+  info "Retention was applied here; ${OFFHOST_TARGET} was not touched. Copy it: make backup ARGS=--copy-only"
+else
+  # The set is written and proven and the stack is up. From here a failure is
+  # still a failure of the JOB — see the header — but the message has to say
+  # which half.
+  if ! copy_offhost; then
+    printf '\n'
+    red "wrote ${STAMP} but the off-host copy FAILED — this backup is on the machine it protects"
+    red "the local set is complete and verified, and the stack is up"
+    red "check: ${OFFHOST_TARGET} reachable, its host key in ~/.ssh/known_hosts, and this"
+    red "host's key authorised there — docs/runbooks/restore-the-stack.md §0"
+    exit 1
+  fi
+  # Only once the copy has succeeded, so the far side is never shortened in a
+  # run that then re-uploads what it removed.
+  if ! prune_offhost; then
+    printf '\n'
+    red "wrote and copied ${STAMP} but retention on ${OFFHOST_TARGET} FAILED"
+    red "the backup is safe; the far side is growing unbounded"
+    exit 1
+  fi
+  printf '\n'
+  info "Copied to ${OFFHOST_TARGET}:${OFFHOST_DIR} — off-host, not offsite; a fire takes both. See docs/roadmap.md."
+fi
 info "On a timer: systemctl list-timers 'homelab-*' — docs/runbooks/schedule-maintenance.md."
 case "${STACK}" in
   sensitive) info "Restoring it: docs/runbooks/restore-the-sensitive-tier.md" ;;
