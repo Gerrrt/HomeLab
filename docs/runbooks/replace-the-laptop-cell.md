@@ -336,7 +336,7 @@ pack across a cycle; step 8 is what settles it.
 | `node_power_supply_current_ampere` | `0` | non-zero while discharging | `1.677`, charging |
 | `node_power_supply_voltage_volt` | `12.43` on mains (24h span `12.425`–`12.438`) | `10.9`–`12.6`, and varying under load | `12.607` |
 | `node_power_supply_voltage_min_design` | `11.21` | **may move — see below** | `11.4` |
-| `node_power_supply_temp_celsius` | `32.7`–`39.2` over 24h, averaging `33.3` | a similar band, never far above it | `25.5`, one sample |
+| `node_power_supply_temp_celsius` | `32.7`–`39.2` over 24h, averaging `33.3` | a similar band, never far above it | `25.5`, and every sample since — the pack's gauge returns a constant, see step 3 |
 | `node_power_supply_present` | `1` | `1` | `1` |
 | `node_power_supply_online{power_supply="ADP1"}` | `1` | `1` | `1` |
 | info `manufacturer` | `SMP` | may or may not change | `SMP` — unchanged |
@@ -456,10 +456,22 @@ The case against silencing, which is the one that wins here:
 - **The temperature baseline is the one number that speaks to this, and it
   is a band rather than a figure.** `node_power_supply_temp_celsius` ranged
   `32.7`–`39.2` over the 24 hours to 2026-09-17, averaging `33.3`, idling on
-  mains. Nothing alerts on it and nothing watches it; it is written down here
-  so a reading far above that band has something to be far above. One
+  mains, and never above `40.3` in thirty days of retention. Since
+  [#532](https://github.com/Gerrrt/HomeLab/issues/532) `HostBatteryHot` reads
+  it: critical, above `45` for five minutes, measured against that band. One
   instantaneous sample proves nothing on its own — a single reading near `39`
-  is ordinary for this cell.
+  is ordinary for this cell, which is why the rule wants five.
+- **The pack now fitted does not measure its temperature, and neither does
+  the other laptop's.** The A1437 has reported `25.5` on every one of its
+  1,560 samples since it was fitted — zero changes, against 99 changes in the
+  old cell's last 26 hours — and the SMC's own battery thermistors
+  (`TB0T`/`TB1T`/`TB2T` under `node_hwmon_temp_celsius`) froze at the same
+  moment, because the SMC reads them from the pack. `oracle`'s Dell exports no
+  `temp_celsius` at all. `HostBatteryTempNotMeasured` (info: recorded, never
+  notified) fires for both hosts and clears by itself the day a pack reports a
+  moving figure, which is the day `HostBatteryHot` stops being blind. Until
+  then the inspection in the first bullet is the only hot-cell detection this
+  machine has, and a reading of `25.5` is not evidence that the cell is cool.
 - **Order of operations, and it is not negotiable.** Machine off (step 4),
   bottom case off, then **disconnect the battery connector from the logic board
   before touching anything else.** A metal tool near a live cell's terminals is
@@ -650,18 +662,25 @@ Two more failure shapes worth naming:
 
 Same procedure as step 2, now on the new cell and with the machine fully
 charged. Because the numbers are finally meaningful, also **measure the runtime
-rather than estimating it** — a figure the estate has never had:
+rather than estimating it** — a figure the estate has never had. Since
+[#532](https://github.com/Gerrrt/HomeLab/issues/532) the stack computes it for
+you on every cut, from the pack's own instantaneous draw, and only while the
+adapter reports no input:
 
 ```bash
-# Ampere-hours per hour being drawn, at the load the stack actually presents
+# Seconds left at the draw the stack is presenting right now — recorded only
+# while on battery, so an empty result on mains is correct, not broken
 curl -sG http://localhost:9090/api/v1/query --data-urlencode \
-  'query=-deriv(node_power_supply_charge_ampere{instance="prometheus",power_supply="BAT0"}[10m]) * 3600'
+  'query=homelab_battery_runtime_seconds{instance="prometheus"} / 60'
 
-# Hours left at that draw
+# The draw itself, in amps, for the record
 curl -sG http://localhost:9090/api/v1/query --data-urlencode \
-  'query=node_power_supply_charge_ampere{instance="prometheus",power_supply="BAT0"}
-         / (-deriv(node_power_supply_charge_ampere{instance="prometheus",power_supply="BAT0"}[10m]) * 3600)'
+  'query=node_power_supply_current_ampere{instance="prometheus",power_supply="BAT0"}'
 ```
+
+`HostBatteryRuntimeLow` pages under thirty minutes of that projection. A
+healthy pack near full projects hours, so it should stay quiet through this
+bounded test; if it fires, the cell or the draw is not what step 7 said.
 
 Bound the test: **stop at twenty minutes or 50 % capacity, whichever comes
 first.** The point is that the property holds and is measurable, not that the
@@ -753,9 +772,18 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
   does not survive, `HostClockUnsynchronised` is what will say so, and because
   `oracle` is not the monitoring host it sees that whole window rather than
   the slice this one caught.
-- **Nothing watches runtime-on-battery continuously.** The figure step 8
-  produces is one measurement, at one load, on one day. There is no rule and no
-  series that would notice it halving.
+- **Runtime-on-battery is projected on every cut, but has still never been
+  measured.** `homelab_battery_runtime_seconds` and `HostBatteryRuntimeLow`
+  ([#532](https://github.com/Gerrrt/HomeLab/issues/532)) read the pack's draw
+  whenever the adapter loses input, so the series that would notice the figure
+  halving now exists. The bounded measurement step 8 asks for is what proves
+  the projection against a clock, and it is still owed.
+- **Cell temperature is unmeasured on both laptops, by the packs' own doing.**
+  `HostBatteryHot` is loaded and cannot fire: the A1437 returns a constant and
+  the Dell exports nothing (step 3). `HostBatteryTempNotMeasured` records that
+  for each host and clears when a pack that measures is fitted; until then the
+  trackpad inspection is the only detection for the failure mode
+  [#454](https://github.com/Gerrrt/HomeLab/issues/454) opened with.
 
 **Closed since this page was written:** `HostBatteryHealthLow`'s description
 named [`fit-the-ups-battery.md`](fit-the-ups-battery.md) — the rack pack in
