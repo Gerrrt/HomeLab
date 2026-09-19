@@ -90,7 +90,11 @@ hosts, and `host.rules.yaml` reads it — `HostBatteryHealthLow` when a cell's
 `prometheus` read 94 % after 108 cycles until its cell was replaced on
 2026-09-18, and now reads 101 % at one cycle), `HostOnBattery` when the mains
 adapter loses
-input, `HostBatteryNotReported` when a laptop stops reporting a cell. The cell
+input, `HostBatteryNotReported` when a laptop stops reporting a cell, and, from
+[#532](https://github.com/Gerrrt/HomeLab/issues/532), `HostBatteryHot` above
+45 °C, `HostBatteryRuntimeLow` under thirty minutes of projected runtime on a
+cut, and `HostBatteryTempNotMeasured` for as long as a pack reports no moving
+temperature — which on 2026-09-19 was both of them. The cell
 for `prometheus`, an A1437, was bought 2026-09-13, **fitted 2026-09-18**, and
 is recorded in [`hardware.md`](../hardware.md#accessories). The swap and the tests that prove
 it are [`replace-the-laptop-cell.md`](replace-the-laptop-cell.md), which is

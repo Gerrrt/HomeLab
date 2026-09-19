@@ -22,16 +22,21 @@ by the TP-Link in U4, and eero Pro 6E units distributed through the house.
 Both laptops ride a mains cut out on their own cells, so each cell is a
 dependency of the mains-cut path and is watched as one: Alloy's node collector
 exports `node_power_supply_*` from both, and `host.rules.yaml` alerts when the
-shelf is off mains, when a cell falls below 80 % of its design capacity, and
-when a laptop reports no cell at all
-([#454](https://github.com/Gerrrt/HomeLab/issues/454)). `prometheus`'s cell was
+shelf is off mains, when a cell falls below 80 % of its design capacity, when a
+laptop reports no cell at all
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)), when a cell reads above
+45 °C, and when a host on its cell has under thirty minutes left
+([#532](https://github.com/Gerrrt/HomeLab/issues/532)). `prometheus`'s cell was
 replaced on 2026-09-18 and reads 101 % of its design capacity at one cycle;
 `oracle`'s is the original, reads 72 %, and its replacement — a Dell M5Y1K —
 was bought on 2026-09-19 and is in transit
 ([#531](https://github.com/Gerrrt/HomeLab/issues/531)). `prometheus`'s runtime
 was measured on 2026-09-19: 2.72 Ah/h at the stack's load, about 2.5 hours
 from a full pack, one measurement on one day. `oracle`'s has never been
-measured.
+measured. Neither pack reports a moving cell temperature — the Dell exports
+none, and the A1437 fitted to `prometheus` returns a constant — so the
+temperature alert is blind until a pack that measures is fitted, and
+`HostBatteryTempNotMeasured` says so.
 
 The patch panel and the PDU were listed the other way round here until
 2026-08-29. U8 is the panel and U7 is the PDU, confirmed against the rack.
