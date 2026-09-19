@@ -753,7 +753,8 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
 - **Nothing on this page is owed to
   [#454](https://github.com/Gerrrt/HomeLab/issues/454) any more.** Step 8 ran
   on 2026-09-19 and the issue closes on it. What the swap surfaced went to
-  three issues of its own, below.
+  issues of its own: `oracle`'s cell and continuous watching below, and the RTC
+  reset under *Closed since this page was written*.
 - **Step 2 can never be run for this swap: the old cell is gone.** The
   discrimination it was written to buy — a step-8 failure being the cell or the
   adapter and nothing else, because the path was already proven — is
