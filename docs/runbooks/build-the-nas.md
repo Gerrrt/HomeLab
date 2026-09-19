@@ -6,7 +6,8 @@
 **Time:** §0 is about half an hour and needs no drives. §1–§7 is about twenty
 minutes once the drives are in hand.
 **You will need:** a console on `smaug` — its web UI cannot run §2 or §6, and
-SSH is off — `neo`'s web UI at `http://10.7.7.2` and a yellow Cat6 lead for
+SSH is off until §6.2 turns it on for the backup pull and nothing else —
+`neo`'s web UI at `http://10.7.7.2` and a yellow Cat6 lead for
 §0.2b, the pfSense UI on `morpheus`, a shell on the monitoring host for §0.6,
 and the two Exos X20 drives for §1 onward.
 
@@ -243,8 +244,10 @@ the operating-system change, and the ports were the part of them that was not.
 
 Port 22 stays on the Winterfell rule, which is `prometheus` pulling the
 metadata backup. **TrueNAS ships SSH disabled**, so that rule is inert until
-the service is switched on — turn it on when the backup path is actually built,
-not before.
+the service is switched on — and **§6.2 is where it is switched on**, with the
+pull built, bench-tested and its user created first, per
+[ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md). Not
+before, and not for administration.
 
 **The televisions need no rule at all.** They are on the same broadcast domain
 and the firewall never sees the packets. That is the whole of what ADR-0008
@@ -350,7 +353,7 @@ is Seagate's jumper header, which stays empty.
 From **option 8, Open Linux Shell**, at the console — **not over SSH**.
 TrueNAS ships SSH disabled, and §0.5's port-22 pass is inert until someone
 turns it on. Enabling it here to save a walk to the machine widens this host's
-attack surface for the sake of five commands; §8's backup path is the reason
+attack surface for the sake of five commands; §6.2's backup pull is the reason
 to turn it on, and this is not it.
 
 ```bash
@@ -426,15 +429,20 @@ the optical bay exists for.
 > The Add Dataset dialog calls these *Dataset Presets*; the record size and
 > atime are under its advanced options.
 >
-> **One row of the table below is not yet true, and it is the one that says
-> "backed up".** Jellyfin's `/config` is a Docker named volume, and TrueNAS
-> keeps named volumes on the pool it was given for Apps, in a dataset of its
-> own — `erebor/ix-apps/docker`, not `erebor/apps`. So `erebor/apps` holds the
-> compose file and its `.env` (§6) and nothing Jellyfin writes. Whether the
-> stack binds `/config` to `erebor/apps` instead, or the backup reads the
-> `ix-apps` dataset, is [#484](https://github.com/Gerrrt/HomeLab/issues/484)'s
-> to decide with the rest of the backup mechanism; it is recorded here so the
-> table is not read as describing what exists.
+> **One row of the table below is decided and not yet done, and it is the
+> one that says "backed up".** As deployed on 2026-09-19, Jellyfin's `/config`
+> was a Docker named volume, and TrueNAS keeps named volumes on the pool it
+> was given for Apps, in a dataset of its own — `erebor/ix-apps/docker`, not
+> `erebor/apps`. So `erebor/apps` held the compose file and its `.env` (§6)
+> and nothing Jellyfin writes
+> ([#484](https://github.com/Gerrrt/HomeLab/issues/484)).
+> [ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)
+> settles it: `/config` becomes a **bind mount** at
+> `/mnt/erebor/apps/jellyfin/config` (§6 migrates the state that already
+> exists), this dataset gets the nightly snapshot task in §4.1, and the
+> monitoring host pulls the newest snapshot's copy over the port-22 rule
+> (§6.2). The row reads **yes** because that is the decision; §6.2's Done
+> block is where the date goes once its checklist is complete.
 
 **Storage → `erebor` → Add Dataset.** Two of them, and the split is the backup
 decision made deliberately rather than drifted into.
@@ -442,7 +450,7 @@ decision made deliberately rather than drifted into.
 | Dataset | Record size | atime | What it holds | Backed up |
 | --- | --- | --- | --- | --- |
 | `erebor/media` | `1M` | off | films, music, the library | **no** |
-| `erebor/apps` | default | off | Jellyfin's database and config | **yes** |
+| `erebor/apps` | default | off | the compose files, and Jellyfin's `/config` as a bind mount | **yes** — §4.1 and §6.2 |
 
 **Why the split.** ADR-0008 already ruled the library replaceable — its loss is
 *"annoying rather than catastrophic"* — and backing up 18 TB of re-downloadable
@@ -453,6 +461,49 @@ does not restore which episode you were on, and that is measured in megabytes.
 
 `1M` records on `erebor/media` because it holds large sequential files;
 compression stays on and costs nothing on already-compressed media.
+
+### §4.1 — Snapshot `erebor/apps` nightly
+
+This is the quiesce for the backup, and the first entry in the snapshot
+schedule ADR-0040's fourth decision said would be written down as it was
+created. Jellyfin keeps its state in SQLite, and a copy of a live SQLite
+database is a file that looks like a backup; the estate's other backups stop
+the service to get a consistent one. Stopping Jellyfin from the monitoring
+host would need the Docker socket here, which is root, for a user whose whole
+design is that it reads one directory. A ZFS snapshot is atomic across the
+dataset instead — the database, its write-ahead log and its shared-memory
+file are frozen at one instant — and `scripts/backup-nas.sh` reads the newest
+one through `.zfs/snapshot/`. Jellyfin never stops.
+
+**Data Protection → Periodic Snapshot Tasks → Add**, and every setting below
+is load-bearing for the script, not a preference:
+
+| Setting | Value | Why the script depends on it |
+| --- | --- | --- |
+| Dataset | `erebor/apps` | The bind mount in §6 is a directory on it, not a child dataset, so this is enough |
+| Recursive | **off** | Nothing beneath it is a dataset |
+| Naming schema | `auto-%Y-%m-%d_%H-%M` | The default. The script accepts only names of this shape, and reads the snapshot's age out of the name — in this host's zone, which is why §6.2 records that zone |
+| Schedule | daily, `03:00` | The pull runs weekly and fails if the newest snapshot is older than **two days**, twice the period; a daily task tolerates one missed night |
+| Lifetime | 2 weeks | Local rollback history; the off-host copy is the backup |
+| Allow Taking Empty Snapshots | **on** | Off, a night with no writes produces no snapshot and the pull fails for a reason that is not a fault |
+
+Then record the host's timezone here from **System → General**, because the
+snapshot names are in it and the monitoring host is in UTC: `NAS_SNAPSHOT_TZ`
+in `scripts/backup-nas.sh` defaults to **`America/Los_Angeles`**, and if the
+host is ever set to another zone, the override goes in
+`/etc/default/homelab-timers` on the monitoring host.
+
+Check it the next day, from the console shell: the newest name under
+`/mnt/erebor/apps/.zfs/snapshot/` is this morning's. The directory is hidden
+from `ls /mnt/erebor/apps` and reachable by path regardless; `snapdir` is
+left at its default.
+
+```bash
+ls -1 /mnt/erebor/apps/.zfs/snapshot/
+```
+
+> **Not yet created** as of the day this section was written; the Done block
+> goes here.
 
 ## §5 — The household share
 
@@ -522,6 +573,46 @@ for application state; its name is arbitrary, since the compose file sets its
 own project name. **Do not call it `media`** — that is the library's name one
 level up, and the collision confused the first person to do this.
 
+**Then create the directory Jellyfin's state lives in.** `.env` names it as
+`JELLYFIN_CONFIG_PATH`, and it is a bind mount on this dataset rather than a
+named volume, for the reason §4's status block gives. A bind mount does not
+inherit the image's world-writable `/config` the way a fresh volume does, and
+Jellyfin runs as `65534`, so the directory has to exist and be owned before
+the first `up`:
+
+```bash
+mkdir -p /mnt/erebor/apps/jellyfin/config \
+  && chown 65534:65534 /mnt/erebor/apps/jellyfin/config \
+  && chmod 755 /mnt/erebor/apps/jellyfin/config
+```
+
+> **Migrating the state that already exists.** The stack ran from 2026-09-19
+> with `/config` as a named volume, so on this host the directory above is
+> not empty on first use — it is filled from the volume, with Jellyfin
+> stopped, before the compose file that names it is applied. As root, from
+> the stack directory:
+>
+> ```bash
+> docker compose stop jellyfin \
+>   && src="$(docker volume inspect media_jellyfin-config --format '{{.Mountpoint}}')" \
+>   && cp -a "$src/." /mnt/erebor/apps/jellyfin/config/ \
+>   && chown -R 65534:65534 /mnt/erebor/apps/jellyfin/config
+> ```
+>
+> The mountpoint is asked for rather than written down, because where TrueNAS
+> keeps its volumes is its business. Then re-fetch the two files (the `curl`
+> lines above), `docker compose up -d`, and prove the state came across
+> before anything is removed: the users and the watch history are there in
+> the web UI, and `docker exec media-jellyfin ls /config/data` lists
+> `jellyfin.db`. Only then remove the orphan — compose will warn about it on
+> every `up` until you do, and that warning is the reminder, not a fault:
+>
+> ```bash
+> docker volume rm media_jellyfin-config
+> ```
+>
+> **Not yet done** as of the day this block was written; the date goes here.
+
 Confirm `RENDER_GID` still matches what this host reports — it is hard-coded
 in `.env`, and `107 render` was re-read on 2026-09-19 — then bring it up:
 
@@ -532,8 +623,9 @@ docker compose up -d && docker compose ps
 
 Jellyfin binds `8096` and reads `erebor/media`. `node-exporter` binds `9100`
 and is the whole of how this host is monitored — see §6.1. Jellyfin's state
-goes to a named volume, which is on `erebor/ix-apps` and not on `erebor/apps`;
-§4 says why that matters.
+is the bind mount above, on `erebor/apps`, which is what §4.1 snapshots and
+§6.2 pulls; its cache is a named volume on `erebor/ix-apps`, and is not
+backed up by anything, by decision.
 
 **Updating the stack is the same two `curl` lines and `docker compose up -d`
 again.** Nothing on this host pulls from `main` on its own: there is no
@@ -617,6 +709,167 @@ measurement.
 > manage the passthrough, or the media stack moves off this host. **Check it
 > before the library exists**, because moving a populated library is a weekend.
 
+### §6.2 — Turn the backup pull on
+
+This is the step §0.5 deferred: the port-22 pass has existed since
+2026-09-16 and matched nothing, because TrueNAS ships SSH disabled and
+nothing was built to use it. [ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)
+is the decision and `scripts/backup-nas.sh` is the mechanism: the monitoring
+host logs in as one unprivileged user, reads Jellyfin's `/config` out of the
+newest snapshot §4.1 takes, and encrypts it on arrival. Every step of the
+script was bench-tested against a directory on `oracle` over real ssh before
+this section was written; **none of it has touched this host**, which is
+what the checklist below is for. Do the steps in order — the proof in step 5
+is what makes step 7 safe.
+
+1. **Create the user.** Credentials → Users → Add: name **`frodo`**, a
+   full name that says what it is for, **Disable Password** on, SMB off,
+   no sudo, no auxiliary groups, shell **zsh** (the default for a user with
+   shell access; the script's commands are written to behave the same under
+   zsh and bash). Paste the monitoring host's operator public key —
+   `/home/robo/.ssh/id_ed25519.pub`, the key that already reaches `morpheus`
+   and `oracle` — into **Authorized Keys**. If the form will not store a key
+   against the default home directory, give the user one at
+   `/mnt/erebor/apps/home/frodo` — on the dataset the user already needs to
+   read, so nothing new is created for it — and record that here.
+
+2. **Give the user read on the dataset, and nothing else.** From the console
+   shell, read what the Apps preset set on the dataset root before changing
+   it, and record both lines here the way §5 recorded `bilbo`'s:
+
+   ```bash
+   zfs get -H acltype,aclmode erebor/apps \
+     && stat -c '%U:%G %a %n' /mnt/erebor/apps /mnt/erebor/apps/jellyfin /mnt/erebor/apps/jellyfin/config
+   ```
+
+   Then Datasets → `erebor/apps` → Permissions → Edit, add one entry — Who
+   **User** `frodo`, permissions **Read** (the basic set: read and traverse),
+   flags **Inherit** — and apply it recursively so the files Jellyfin has
+   already written carry it. Jellyfin creates files at `0644` in directories
+   at `0755`, so in practice `frodo` needs traverse on the two directories
+   above `config` and nothing more; the entry is the smallest thing that
+   grants it and survives a file Jellyfin one day writes tighter.
+
+3. **Turn SSH on.** System → Services → SSH: **Start Automatically** on,
+   then Configure — *Log in as Root with Password* **off**, *Allow Password
+   Authentication* **off**, *Allow TCP Port Forwarding* **off** — and start
+   it. The firewall already scopes port 22 to `10.0.99.20`; this is the
+   service behind that rule and nothing else may reach it.
+
+4. **Record the host key on the monitoring host.** `BatchMode` needs
+   something to check against, so connect once by hand and accept the
+   fingerprint **after** comparing it with what this host prints from its
+   console shell — `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`. A
+   reinstall of TrueNAS changes this key and the job then fails until this
+   step is repeated; that is the correct behaviour.
+
+   ```bash
+   ssh frodo@10.0.40.30 true
+   ```
+
+5. **Prove the read, as the user, against a snapshot.** This is the same
+   `tar` the job runs, thrown away, and its exit status is the whole
+   result: `0` means every file under the path is readable by `frodo`;
+   `2` names the file that is not, and the fallback in ADR-0045 decision 4
+   is the remedy rather than a wider grant here. `<newest>` is the last name
+   `ls` printed in §4.1.
+
+   ```bash
+   ssh frodo@10.0.40.30 "tar -cf /dev/null --numeric-owner -C '/mnt/erebor/apps/.zfs/snapshot/<newest>/jellyfin/config' . && echo readable"
+   ```
+
+   Cross-check the name against the pool's own clock once, so the zone in
+   §4.1 is known to be right: from the console shell,
+   `zfs get -Hp creation erebor/apps@<newest>` is an epoch, and the script's
+   reading of the same name is `TZ=America/Los_Angeles date -d '<date> <time>' +%s`
+   on the monitoring host. They agree to the minute or the zone is wrong.
+
+6. **The first run, by hand, on the monitoring host**, from the deployment
+   checkout — and watch it: it prints the snapshot it chose, the size, the
+   verification line with `./data/jellyfin.db present`, and the set it
+   wrote. Then list and verify.
+
+   ```bash
+   make backup-nas && make backup-nas ARGS=--list && make verify-backups
+   ```
+
+7. **Install the timer.** `make install-timers` on the deployment checkout
+   adds `homelab-backup-nas.timer` (Saturdays 03:30 UTC) and repoints the
+   nightly `verify-backups` at both directories. Step 6 comes first because
+   the nightly verification fails on an empty `backups/nas/` — a missing set
+   is a finding, and the first run is what makes it not one.
+
+8. **Re-read the tripwire.** From `morpheus`, the `igc0.40` counter in §0.6
+   is **still zero**: every packet of this was inbound to the NAS, and
+   nothing on it initiated anything.
+
+9. **Rewrite the sentences that said "inert".** Three documents and two
+   blocks in this runbook say port 22 is inert until this section is done:
+   [`security.md`](../security.md) under CasaBonita, [`network.md`](../network.md)
+   in `smaug`'s bullet, [`roadmap.md`](../roadmap.md) in the NAS paragraph,
+   §0.5 above, and §4's status block. Each names this section; each becomes
+   past tense with today's date, in the one commit that also fills the Done
+   block below.
+
+10. **What this leaves, said plainly.** One more service on the NAS, key-only,
+    one address, one user who can read Jellyfin's configuration — which
+    includes its users' password hashes — and whose key lives on the host
+    that already holds the estate's age identity. What lands on the
+    monitoring host is ciphertext to the same two recipients that open
+    `grafana.db`, and the same run copies the set to `oracle` beside the
+    volume sets and hashes it there, by the helpers
+    [#535](https://github.com/Gerrrt/HomeLab/issues/535) built. Off-host
+    twice, offsite never: one shelf holds all of it.
+
+> **Not yet done** as of the day this section was written. The Done block
+> goes here, with the date, what step 2 read off the dataset, and the first
+> set's stamp.
+
+### §6.3 — Restore Jellyfin's state
+
+Two cases, in the order to try them.
+
+**The pool is fine and Jellyfin is not** — a bad upgrade, a corrupted
+database, a mistake in the web UI. The nightly snapshots from §4.1 are on
+the pool, and the newest one from before the fault is the restore. As root,
+from the stack directory, with Jellyfin stopped:
+
+```bash
+docker compose stop jellyfin \
+  && cp -a /mnt/erebor/apps/.zfs/snapshot/<name>/jellyfin/config/. /mnt/erebor/apps/jellyfin/config/ \
+  && docker compose up -d
+```
+
+**The pool is gone.** Rebuild §3 to §6 with the bind directory (the
+migration block does not apply; the directory starts empty), then bring the
+set back from the monitoring host. Verify it there first, then stream the
+decrypted archive to a staging directory on this host that is created for
+the occasion — plaintext may land on this pool because this pool is where
+the data lives — and unpack it as root with Jellyfin stopped:
+
+```bash
+make backup-nas ARGS="--verify-only --set <STAMP>"
+```
+
+```bash
+age --decrypt -i ~/.config/sops/age/keys.txt backups/nas/<STAMP>/jellyfin-config.tar.gz.age \
+  | ssh frodo@10.0.40.30 "mkdir -p '/mnt/erebor/apps/home/frodo/restore' && cat > '/mnt/erebor/apps/home/frodo/restore/jellyfin-config.tar.gz'"
+```
+
+Then on this host, as root, from the stack directory:
+
+```bash
+docker compose stop jellyfin \
+  && tar --numeric-owner -xzf /mnt/erebor/apps/home/frodo/restore/jellyfin-config.tar.gz -C /mnt/erebor/apps/jellyfin/config \
+  && chown -R 65534:65534 /mnt/erebor/apps/jellyfin/config \
+  && docker compose up -d \
+  && rm -r /mnt/erebor/apps/home/frodo/restore
+```
+
+The proof is the same as the migration's: the users and the watch history
+are back in the web UI. `--numeric-owner` on both ends is what keeps `65534`
+as `65534` across two hosts that spell it differently.
+
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the
@@ -646,6 +899,8 @@ measurement.
   `node_exporter` rather than TrueNAS's own endpoint. `up{job="node"}` should be
   `1`, labelled `instance="smaug"` rather than an address
 - The `igc0.40` tripwire counter is **still zero**
+- `make backup-nas ARGS=--list` on the monitoring host shows a **complete**
+  set, and the nightly `verify-backups` has passed at least once since (§6.2)
 - Port 15 on `neo` reads PVID **40**, untagged, with `smaug`'s MAC learned on it
   in VLAN 40 — read in the switch UI, and **not** inferred from the host having
   an address (§0.2b)
@@ -662,10 +917,10 @@ measurement.
   PBS**, whose sync job wants another PBS instance — on TrueNAS that is PBS in
   a VM or a change to an NFS/SMB datastore.
   [#485](https://github.com/Gerrrt/HomeLab/issues/485) carries it.
-- **The off-host copy of `erebor/apps`**, which §4 decided should exist and this
-  runbook does not build.
-  [#484](https://github.com/Gerrrt/HomeLab/issues/484) carries it, with the
-  finding that `jellyfin-config` lives on `erebor/ix-apps`, not `erebor/apps`.
+- **Offsite.** §6.2 gets Jellyfin's state off `smaug`, onto the monitoring
+  host and onto `oracle`, and every one of those copies is on the same shelf
+  under the same roof — the position the volume sets and the firewall export
+  are in, and [`roadmap.md`](../roadmap.md) is where that residual lives.
 - **Plex**, deferred by ADR-0016 against a test nobody has run: whether any
   screen on 40 lacks a working Jellyfin client.
   [#139](https://github.com/Gerrrt/HomeLab/issues/139) carries the test.

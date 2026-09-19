@@ -47,9 +47,10 @@ stacks/*/snmp-exporter/mibs/
 # ---- Backups ----
 # `make backup` writes age-encrypted volume archives to backups/volumes/<stamp>/,
 # and `make restore` writes a pre-restore snapshot of what it is about to
-# replace to backups/volumes/.pre-restore-<stamp>/. `make backup-firewall`
-# writes the SOPS-encrypted pfSense config to backups/firewall/. None of it
-# belongs in git.
+# replace to backups/volumes/.pre-restore-<stamp>/. `make backup-nas` writes
+# the age-encrypted pull of Jellyfin's state off smaug to backups/nas/<stamp>/.
+# `make backup-firewall` writes the SOPS-encrypted pfSense config to
+# backups/firewall/. None of it belongs in git.
 #
 # The firewall config carries the WAN address, the full rule set and user
 # password hashes — docs/security.md says those are deliberately unpublished,

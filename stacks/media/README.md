@@ -15,6 +15,10 @@ host on its own: a Dependabot bump is merged here and deployed there by hand.
 cd /mnt/erebor/apps/stack && docker compose up -d
 ```
 
+`.env.example` names `JELLYFIN_CONFIG_PATH`, a directory on `erebor/apps`
+that has to exist, owned by `65534:65534`, before the first `up` — §6 of the
+runbook creates it, and says why it is a bind mount and not a volume.
+
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | jellyfin | `jellyfin/jellyfin` | 8096 (http), on the segment | The media server the televisions reach directly, with Quick Sync hardware transcoding on the E3-1225 v6's HD P630 ([#138], [ADR-0016]) |
@@ -101,7 +105,7 @@ volume layout rather than in a policy document:
 
 | Volume / mount | What it holds | Backed up |
 | --- | --- | --- |
-| `jellyfin-config` | database, users, **watch history, resume positions**, metadata | **yes** — `scripts/backup-volumes.sh` |
+| `${JELLYFIN_CONFIG_PATH}` → `/config` | database, users, **watch history, resume positions**, metadata | **yes** — `scripts/backup-nas.sh`, weekly, from a ZFS snapshot of `erebor/apps` |
 | `jellyfin-cache` | transcode scratch, image caches | no — regenerable |
 | `${MEDIA_PATH}` → `/media` | the library itself | no — see below |
 
@@ -110,6 +114,25 @@ than catastrophic"*, so backing up 18 TB of re-acquirable files would spend the
 mirror's capacity contradicting a decision already taken. But re-acquiring a
 series does not restore **which episode anyone was on**, and that part is
 measured in megabytes. The mirror buys availability; the backup buys the index.
+
+**How the yes works, and where it was not true.** For the first week this
+table said *yes — `scripts/backup-volumes.sh`*, and that script had no entry
+for the volume, cannot see this host's Docker, and would have found the state
+on `erebor/ix-apps` rather than on the dataset [`build-the-nas.md`] §4 calls
+backed up ([#484]). [ADR-0045] settles it: `/config` is a **bind mount** on
+`erebor/apps`, TrueNAS snapshots that dataset nightly, and the monitoring host
+**pulls** the newest snapshot's copy over the `99 → 40:22` pass — the rule
+[ADR-0016] wrote for exactly this and nothing else — encrypting it on arrival
+with `age` and copying the set on to `oracle` in the same run. Jellyfin is
+never stopped; the snapshot is the quiesce. Nothing on this host initiates
+anything, which is the terminal property [ADR-0016] keeps.
+[`build-the-nas.md`] §6.2 turns the pull on and §6.3 restores from it.
+
+**What is not backed up, on purpose:** `erebor/media`, the library;
+`jellyfin-cache`, which `scripts/backup-volumes.sh` lists as disposable by
+name; and `erebor/ix-apps`, Docker's images and that cache volume. And
+`scripts/backup-volumes.sh` does not run against this stack at all —
+`STACK=media` reports nothing to archive, which is the true answer here.
 
 The library is mounted **read-only**. Jellyfin keeps metadata in `/config` by
 default, so it has no need to write there — and a media server on the segment
@@ -195,6 +218,7 @@ reopen condition is closed; the stack stays here.
 [ADR-0012]: ../../docs/adr/0012-publish-only-ports-with-an-off-host-consumer.md
 [ADR-0016]: ../../docs/adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md
 [ADR-0040]: ../../docs/adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md
+[ADR-0045]: ../../docs/adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md
 [`build-the-nas.md`]: ../../docs/runbooks/build-the-nas.md
 [#138]: https://github.com/Gerrrt/HomeLab/issues/138
 [#140]: https://github.com/Gerrrt/HomeLab/issues/140
@@ -203,3 +227,4 @@ reopen condition is closed; the stack stays here.
 [#256]: https://github.com/Gerrrt/HomeLab/issues/256
 [#413]: https://github.com/Gerrrt/HomeLab/issues/413
 [#528]: https://github.com/Gerrrt/HomeLab/issues/528
+[#484]: https://github.com/Gerrrt/HomeLab/issues/484

@@ -873,7 +873,12 @@ what left this one unfireable for months.
   the `22` that ADR-0016's table names — that port assumed a box administered
   over SSH, which was an operating-system decision inside a firewall table, and
   ADR-0040 carries the correction against its own text. Port 22 survives on the
-  Winterfell rule and is **inert**, because TrueNAS ships SSH disabled. The scrape target is
+  Winterfell rule and is **inert** until
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switches SSH on for
+  the backup pull — decided by
+  [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md),
+  built under [#484](https://github.com/Gerrrt/HomeLab/issues/484), and
+  deployed by hand on `smaug`, where nothing pulls from `main`. The scrape target is
   **`node_exporter` on `9100`**, settled by
   [#256](https://github.com/Gerrrt/HomeLab/issues/256) on 2026-09-17 — the pass
   that exists and a dashboard built entirely on `node_*` series, against an
