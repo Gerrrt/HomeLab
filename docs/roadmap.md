@@ -200,6 +200,14 @@ list, and each names what would put it there:
   transcoding, and [`hardware.md`](hardware.md) already records that the
   TS150's Quick Sync is what [#138](https://github.com/Gerrrt/HomeLab/issues/138)
   needs, so Jellyfin has it for nothing.
+- A reachable address for the WireGuard endpoint, in either of its paid
+  forms: [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
+  answers it with a free dynamic DNS record instead. A **static address** is
+  not sold on the residential service the house buys — it would be a business
+  contract, the first subscription on this list — and enters only if that
+  service changes. A **VPS relay** is [#447](https://github.com/Gerrrt/HomeLab/issues/447)'s
+  purchase, entered when there is something to publish, and the day it exists
+  it replaces the record.
 
 Two things left this list because the decision got taken: the **MokerLink
 replacement**, now [#444](https://github.com/Gerrrt/HomeLab/issues/444), and
@@ -1162,6 +1170,18 @@ months.
   MokerLink. Under **Security** above, because it has a procedure now —
   [`swap-the-switch.md`](runbooks/swap-the-switch.md) — rather than only a
   decision.
+- **[#530](https://github.com/Gerrrt/HomeLab/issues/530)** The WireGuard
+  endpoint, the prerequisite ADR-0042 recorded as blocking, decided by
+  [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md):
+  a dynamic DNS record kept current by `morpheus`'s own client, on a free
+  provider, after measuring that the WAN address is public rather than
+  carrier-grade NAT and that the residential service sells no static one.
+  Nothing is configured: the client is §0 of
+  [`open-the-remote-path.md`](runbooks/open-the-remote-path.md), which
+  [#442](https://github.com/Gerrrt/HomeLab/issues/442) runs once `phoenix`
+  exists ([#436](https://github.com/Gerrrt/HomeLab/issues/436)). Neither issue
+  has an entry above, because the remote path is a decision with a runbook and
+  not yet a piece of work anyone can start.
 
 ## Considered and declined
 
