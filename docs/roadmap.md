@@ -81,12 +81,28 @@ the mains pull on the charged pack and the runtime it measures, so
 [#454](https://github.com/Gerrrt/HomeLab/issues/454) stays open and this gets
 no *Done* entry.
 
+**2026-09-19: the second cell is identified and enters the list.** `oracle`'s
+pack is a Dell M5Y1K — 14.8 V, 40 Wh, four cells, the latched pack the
+Inspiron 15-3565 takes — read off the machine's own `model_name` rather than
+off a listing, and recorded in [`hardware.md`](hardware.md) before any money
+is spent, which is the order
+[#531](https://github.com/Gerrrt/HomeLab/issues/531) asks for. The table goes
+from two rows to three, and the row is the same consumable exception the
+A1437 was: this cell reads 72 % of design, `HostBatteryHealthLow` has fired
+for it since 2026-09-14, and it sits under a silence that expires 2026-10-08 —
+the date that makes it *now* rather than *later*. Second in line stays
+second: `prometheus`'s was bought first because that host dying is the estate
+going blind. What closes #531 is not the cell landing but the fit and the
+test after it, as with #454, and the silence deleted rather than left to
+expire.
+
 **Buy these, and the estate as decided is fully bought:**
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 | An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
+| A Dell M5Y1K 4-cell pack for `oracle` | The second laptop cell, at 72 % of design and alerting under a silence. A consumable whose failure is a safety and an availability event — the exception to *Never* below, not an upgrade | [#531](https://github.com/Gerrrt/HomeLab/issues/531), [#454](https://github.com/Gerrrt/HomeLab/issues/454) | Now — the silence on its alert expires 2026-10-08, and a cell below the line is the one that swells |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
@@ -235,7 +251,9 @@ being exercised rather than restated; the new pack reads 101 % of its design
 capacity at one cycle, and the runtime it was bought for is still unmeasured. `oracle` has the same kind of cell and it measures
 worse, 72 %, so `HostBatteryHealthLow` fires for it first; it stays second in
 line only because `prometheus` is the host whose death is the estate going
-blind. The cell for `prometheus` was bought on 2026-09-13; nothing else about
+blind. The cell for `prometheus` was bought on 2026-09-13, and `oracle`'s is
+identified and on the list above since 2026-09-19
+([#531](https://github.com/Gerrrt/HomeLab/issues/531)); nothing else about
 either machine is.
 
 ## Security
