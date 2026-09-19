@@ -177,6 +177,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 | --- | --- | --- |
 | Firewall / routing | [pfSense on FreeBSD 16](docs/network.md) | VLANs, DHCP, default-deny |
 | Virtualisation | Proxmox VE | Lab hypervisor |
+| Storage | [TrueNAS 25.10](docs/runbooks/build-the-nas.md) | `smaug`: 2× 18 TB ZFS mirror `erebor`, the SMB share, and the Docker the media stack runs under |
+| Media | [Jellyfin](stacks/media) | Quick Sync transcoding on the NAS; the one stack deployed from TrueNAS rather than by `make deploy` |
+| Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | On `alexander`, a guest on `Saruman`, with its own Prometheus; only liveness crosses to the estate's, never telemetry |
 | Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention capped at 12 GiB, remote-write receiver |
 | Logs | [Loki](stacks/observability/loki) | Single-binary, filesystem storage |
 | Collection | [Grafana Alloy](stacks/observability/alloy) | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
