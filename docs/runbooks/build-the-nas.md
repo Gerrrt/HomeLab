@@ -622,11 +622,11 @@ measurement.
 > errors, `up{job="node",instance="smaug"}` reads 1, and the tripwire and
 > the rule order were re-read from `morpheus` after the stack came up:
 > 143,780 evaluations, **0 packets**, all four passes still above the block.
-> **A television on CasaBonita played the test clip the same evening**,
-> having found `smaug` on the segment with no rule involved — which is the
-> line the placement exists for. **Port 15 re-read in the switch UI the
-> same evening: VLAN 40, PVID 40, untagged only.** **Not yet read:** the two
-> extended self-tests.
+> **Port 15 re-read in the switch UI the same evening: VLAN 40, PVID 40,
+> untagged only.** **Not yet read:** a television playing — this block said
+> it had, for about an hour on 2026-09-19, on a report that was withdrawn
+> before the evening was out — and the two extended self-tests, 20 % through
+> at six lifetime hours and due around the evening of 2026-09-20.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
