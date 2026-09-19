@@ -11,6 +11,17 @@
 > decision 3, is what that widening relies on to admit one host and not every
 > peer, and ADR-0014 carries the supersession of its rule. The text below is
 > left as written, per ADR-0001.
+>
+> ---
+>
+> **Decision 5 is discharged, 2026-09.** The endpoint it recorded as blocking
+> and owned by its own issue is decided by
+> [ADR-0044](0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md):
+> dynamic DNS, updated by `morpheus`'s own client, on a free provider whose
+> name is withheld with the hostname. The measurement that decided it — a
+> public address, not carrier-grade NAT, on a residential service that sells
+> no static one — is there, not here. Nothing here is amended; the text below
+> is left as written, per ADR-0001.
 
 ## Context
 

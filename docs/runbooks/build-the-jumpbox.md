@@ -51,7 +51,7 @@ and no certificate authority.
 | Disk | 32 GB | A checkout, a few ISOs, the toolchain's binaries. `discard=on` so a deleted ISO returns its space to `local-lvm` |
 | Stack | **none** | It runs no compose stack and no Docker at all. The Alloy agent is the native package, deployed by `scripts/deploy-agent.sh` the way `Saruman`'s is |
 | Pushes to | `alexander`, `10.0.30.40` | Never `10.0.99.20`: guests get no pass into Winterfell (ADR-0007), and everything this host needs is on its own segment |
-| Remote path | **Not here** | ADR-0042 terminates the WireGuard tunnel on this host, and [`open-the-remote-path.md`](open-the-remote-path.md) builds it — after this runbook, and only once the endpoint that ADR records as blocking exists |
+| Remote path | **Not here** | ADR-0042 terminates the WireGuard tunnel on this host, and [`open-the-remote-path.md`](open-the-remote-path.md) builds it — after this runbook, starting with the dynamic DNS record its §0 creates under [ADR-0044](../adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md) |
 
 > [!CAUTION]
 > **`certificates/ca-key.pem` does not come here, and ADR-0043 is why.** This
@@ -341,7 +341,11 @@ walks you through the first three:
 - `docs/hardware.md` — removing the marker raises the Alloy agent count, and
   the sentence there that states it fails until it says the new number.
 - `docs/network.md`'s WAN note, which says the jumpbox does not exist — it
-  does now, and the endpoint question is the part that is still open.
+  does now. The endpoint is decided
+  ([ADR-0044](../adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md));
+  whether its dynamic DNS client is configured yet is
+  [`open-the-remote-path.md`](open-the-remote-path.md) §0's business, not this
+  runbook's.
 - `docs/observability.md` — the sentence that says what pushes to `alexander`
   gains a host, and the one that says the lab's ports are shut stops being
   true, if §5 was yours.

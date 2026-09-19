@@ -4,8 +4,8 @@
 route, one port forward and five rules on `morpheus` (`10.0.99.1`)
 **Time:** ninety minutes, across the jumpbox, the firewall GUI and one client
 **You will need:** a shell on the jumpbox, the pfSense GUI, a client device to
-enrol, and **an endpoint** — see §0, which is the step this runbook cannot do
-for you
+enrol, and a dynamic DNS account — §0 turns it into **the endpoint**, which
+used to be the step this runbook could not do for you
 **Before this:** the jumpbox exists
 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and
 [ADR-0042](../adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)
@@ -20,7 +20,7 @@ lab, and a `MASQUERADE` rule copied in from a tutorial.
 
 > [!CAUTION]
 > **There is no `MASQUERADE` in this design, anywhere.** Every guide you will
-> find while doing this has one. ADR-0042 §2 is why this one does not: NAT
+> find while doing this has one. ADR-0042 §3 is why this one does not: NAT
 > would make every peer indistinguishable from the jumpbox, which holds a
 > Proxmox token and an SSH key, and would hand every peer the jumpbox's
 > standing at the firewall. If you find yourself adding `-j MASQUERADE` to make
@@ -43,29 +43,65 @@ key that has been on two machines is a key you cannot reason about later.
 
 ---
 
-## 0. The endpoint — the prerequisite this runbook does not solve
+## 0. The endpoint — dynamic DNS on `morpheus`
 
-WireGuard needs a stable address and port to dial. This estate has neither: the
-WAN address is ISP-assigned by DHCP, and there is no dynamic DNS anywhere in
-it. ADR-0042 §4 records that deliberately as a separate decision — a static
-address is a recurring purchase, and a dynamic DNS provider is a third party
-handed a continuously-updated pointer to the house.
+WireGuard needs a stable address and port to dial. The WAN address is
+ISP-assigned by DHCP and sticky in practice, and
+[ADR-0044](../adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
+decided how it gets a name: a dynamic DNS record in a free provider's zone,
+kept current by the client pfSense ships. ADR-0042 §5 had recorded this as the
+one prerequisite its runbook could not solve; it is solved here, and this
+section is the first step rather than a stop sign.
 
-**Do not start §1 until that is answered.** Everything below assumes you have
-one of:
+1. **Confirm the address is still a public one.** On `morpheus`, *Status →
+   Interfaces* shows the WAN address; from `prometheus`,
+   `curl -s https://ifconfig.me/ip` shows what the internet sees. They must
+   match, and neither may be in `100.64.0.0/10` — see the note below. Checked
+   on 2026-09-19 and true then; check again, because this is the fact every
+   later step rests on.
+2. **Create the provider account and its token, off this repository.** The
+   provider is the one on `security.md`'s withheld list, chosen by ADR-0044's
+   criteria: native support in the pfSense client, a token scoped to the one
+   record, no renewal nag, no charge. Pick a hostname nobody would guess from
+   the estate's names. The account, the token and the hostname go on the
+   withheld list the moment they exist.
+3. **Add the client on `morpheus`.** *Services → Dynamic DNS → Dynamic DNS
+   Clients → Add*: the provider; interface **WAN**; the hostname; the token in
+   the field the provider's entry labels for it; *Verbose logging* on for the
+   first week. Save, then *Force update* on the row it creates. The row turns
+   green with the cached address when the provider has accepted it; a red row
+   means the token or the hostname, and *Status → System Logs → System →
+   General* says which.
+4. **Verify from outside the house, not from inside it.** Unbound would answer
+   the name from its own cache and prove nothing. From `prometheus`, ask a
+   public resolver directly and compare it to step 1:
 
-- a static WAN address from the ISP, or
-- a dynamic DNS hostname, updated by `morpheus` under *Services → Dynamic DNS*.
+   ```bash
+   dig +short <HOSTNAME> @1.1.1.1
+   ```
 
-Pick a listen port that is not a well-known one. It goes on `security.md`'s
-withheld list beside the WAN address, not into a commit message.
+   Then the same query from a phone on mobile data. Both must print the WAN
+   address. A stale answer within the record's TTL is normal for a few
+   minutes after a forced update; a stale answer an hour later is the client.
+5. **Pick a listen port** that is not a well-known one. It goes on
+   `security.md`'s withheld list beside the hostname and the WAN address, not
+   into a commit message.
+
+Nothing in this section is written into this repository: the provider, the
+hostname, the token and the port are all withheld, and the client's
+configuration lives in `config.xml`, which
+[`backup-firewall.sh`](../../scripts/backup-firewall.sh) already treats as
+secret. A restore onto the spare hardware carries the client with it, so the
+record follows the new address the spare's MAC is given — check step 4 after
+any restore anyway.
 
 > [!NOTE]
-> Behind CGNAT neither option works, and no amount of firewall configuration
+> Behind CGNAT none of this works, and no amount of firewall configuration
 > fixes it — an inbound port forward needs an address the ISP actually routes
-> to you. If the WAN address is in `100.64.0.0/10`, stop here: the answer is a
-> conversation with the ISP, or an outbound-only overlay, which is a different
-> ADR.
+> to you. If the WAN address is in `100.64.0.0/10`, or step 1's two addresses
+> differ, stop here: ADR-0044's reopening clause names this case, and the
+> answer is [#447](https://github.com/Gerrrt/HomeLab/issues/447)'s relay or an
+> outbound-only overlay, which is a different ADR.
 
 ## 1. Install WireGuard on the jumpbox
 
@@ -371,7 +407,7 @@ and that the first lost device is when it stops being proportionate.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| No handshake, ever | The port forward is not reaching the jumpbox, or the endpoint is stale | `sudo tcpdump -ni any udp port <LISTEN_PORT>` on the jumpbox while the client retries. No packets means §6 or the endpoint; packets but no handshake means the keys |
+| No handshake, ever | The port forward is not reaching the jumpbox, or the dynamic DNS record is stale | `sudo tcpdump -ni any udp port <LISTEN_PORT>` on the jumpbox while the client retries. No packets means §6 or the record — run §0 step 4, and *Force update* on the client if the name and the WAN address differ; packets but no handshake means the keys |
 | Handshake succeeds, nothing routes | The static route in §5 is missing — replies are going to the lab's default gateway, which has never heard of the tunnel subnet | Add it. **Do not add a NAT rule to make this work** |
 | Handshake succeeds, lab reachable, but only from the jumpbox itself | `PostUp` did not run or forwarding is off | `sysctl net.ipv4.ip_forward` — expect 1 with the tunnel up |
 | The client reaches the whole internet through the house | `AllowedIPs = 0.0.0.0/0` on the client | §4. This is the wide-`AllowedIPs` failure, and it is silent |
