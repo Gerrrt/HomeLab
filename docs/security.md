@@ -390,6 +390,28 @@ assumption consistent with what they are.
   `grafana-data` already does.
   [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) records
   the deviation and what would retire it.
+- **The media tier keeps its admin credential outside SOPS too, and has no
+  secrets file at all.** Jellyfin's `admin` is created by its own setup wizard
+  and kept as a hash in `jellyfin.db` inside the `jellyfin-config` volume; no
+  environment variable or rendered file is a way to hand it in, so
+  `stacks/media` has no `secrets/media.*` and no `.sops.yaml` rule — on
+  purpose, decided on [#528](https://github.com/Gerrrt/HomeLab/issues/528),
+  and not because the stack was deployed by hand. The plaintext is in the
+  operator's password manager, where pfSense's and iLO's already are. What
+  protects it is a hash at rest, VLAN 40's terminal property, the `50 → 40`
+  passes being the only way in, and
+  [ADR-0008](adr/0008-place-services-by-data-trust.md)'s blast radius — a
+  media server whose data is replaceable. Audiobookshelf
+  ([#140](https://github.com/Gerrrt/HomeLab/issues/140)) and Navidrome
+  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) create their first
+  user the same way and join this bullet when they land. What would retire
+  it: a service on that tier taking a credential from outside. Then the tier
+  gets `secrets/media.sops.yaml` and a rule of its own under
+  [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md),
+  and because `smaug` runs no `sops` the key would be the operator's rather
+  than the host's — a decision for that day and not before. Recovering the
+  admin without the password is in
+  [`stacks/media/README.md`](../stacks/media/README.md).
 
 ### Known historical exposure
 

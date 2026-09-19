@@ -115,6 +115,45 @@ The library is mounted **read-only**. Jellyfin keeps metadata in `/config` by
 default, so it has no need to write there — and a media server on the segment
 with the game consoles should not be able to delete the thing it serves.
 
+## Where the admin credential lives, and why there is no secrets file
+
+Every other tier has a `secrets/<stack>.example.yaml` and a `.sops.yaml` rule
+of its own. This one has neither, and [#528] decided that rather than let it
+happen: **Jellyfin's `admin` is created by its own setup wizard and kept as a
+hash in `jellyfin.db` inside `jellyfin-config`**. No environment variable or
+rendered file is a way to hand it in, so a value in a secrets file would
+reach nothing — and `make secrets-init STACK=media` has to run on the stack's
+host, which ships neither `make` nor `sops`. The plaintext is in the
+operator's password manager, beside pfSense's and iLO's. `docs/security.md`
+§ Secrets records the exception next to Home Assistant's, which is the same
+class, and names what would retire it.
+
+What that costs is one command: `make render STACK=media` dies on the missing
+file, and that is expected. This stack is deployed by the two `curl` lines in
+[`build-the-nas.md`] §6, never by `make up`.
+
+**Nobody needs the password to get back in.** From a workstation on Hicks,
+*Forgot Password* on `http://10.0.40.30:8096` writes a PIN file into the
+config volume; the login page then takes the PIN and sets a new password. The
+file is read from a TrueNAS shell:
+
+```bash
+docker exec media-jellyfin sh -c 'cat /config/passwordreset*.json /config/data/passwordreset*.json 2>/dev/null'
+```
+
+The flow only answers an address Jellyfin counts as local, which every RFC
+1918 range is until its *LAN networks* setting says otherwise — and Hicks is
+the segment the `50 → 40` passes were made for. Before the wizard has been run
+at all there is no admin to reset, and `/health` reads `Degraded`, which is
+why the healthcheck ignores the body.
+
+Audiobookshelf ([#140]) and Navidrome ([#141]) are the same shape — a first
+user created through the UI, no admin password from the environment — and
+join this section rather than `secrets/` when they land. Their way back in
+without the password: Navidrome ships
+`navidrome user edit --user <name> --set-password`; Audiobookshelf's root is
+reset by editing its user store under `/config`.
+
 ## What was measured rather than assumed
 
 Every non-obvious line in `compose.yaml` came off the pinned image on
@@ -163,3 +202,4 @@ reopen condition is closed; the stack stays here.
 [#255]: https://github.com/Gerrrt/HomeLab/issues/255
 [#256]: https://github.com/Gerrrt/HomeLab/issues/256
 [#413]: https://github.com/Gerrrt/HomeLab/issues/413
+[#528]: https://github.com/Gerrrt/HomeLab/issues/528

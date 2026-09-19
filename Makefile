@@ -649,7 +649,7 @@ backup-firewall: ## Pull morpheus's pfSense config, encrypt it to ./backups/, co
 	./scripts/backup-firewall.sh $(ARGS)
 
 .PHONY: backup
-backup: ## Quiesce the stack, archive its volumes to ./backups/ and verify
+backup: ## Quiesce the stack, archive its volumes to ./backups/, verify, copy to oracle
 	@# Thin on purpose. This target used to BE the implementation, and every
 	@# defect in #64 followed from that: one fixed output filename that tar
 	@# truncated at open, so the only way to lose a backup was to take one; a
@@ -660,6 +660,14 @@ backup: ## Quiesce the stack, archive its volumes to ./backups/ and verify
 	@# The volume list and the services to stop are now derived from
 	@# compose.yaml, so a sixth volume cannot be forgotten. STACK goes in the
 	@# environment rather than positionally: the script's arguments are flags.
+	@#
+	@# The copy to oracle is part of this target, not a second one, for the
+	@# reasons backup-firewall gives above: a run whose copy fails exits
+	@# non-zero after the stack is back up, so the weekly timer's metric says
+	@# "stopped leaving this host" rather than "fine" (#535). ARGS=--local-only
+	@# skips it; ARGS=--copy-only copies every set oracle lacks without
+	@# stopping the stack, which is how the existing sets were seeded. KEEP
+	@# bounds both sides; ARGS=--list shows both.
 	STACK=$(STACK) ./scripts/backup-volumes.sh $(ARGS)
 
 .PHONY: restore

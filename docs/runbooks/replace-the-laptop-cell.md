@@ -34,9 +34,9 @@ and one test that only works with the machine running.**
 > finding [#454](https://github.com/Gerrrt/HomeLab/issues/454) produced rather
 > than a fault in this procedure, and that cell is second in line. **Since
 > 2026-09-19 it is identified — a Dell M5Y1K — and tracked by
-> [#531](https://github.com/Gerrrt/HomeLab/issues/531), still unbought**; what
-> changes when this page is reused there is in *Reusing this page on `oracle`*
-> below. The silence suppresses 72 % **and anything lower**, so that cell's
+> [#531](https://github.com/Gerrrt/HomeLab/issues/531), bought the same day
+> and in transit**; what changes when this page is reused there is in
+> *Reusing this page on `oracle`* below. The silence suppresses 72 % **and anything lower**, so that cell's
 > further decay is not visible until it expires — see *What is still open*.
 >
 > **No silence is created anywhere in this runbook, and that is deliberate.**
@@ -82,8 +82,8 @@ since the machine was commissioned. Step 8 is where it stops being an
 assumption.
 
 What this is **not** is a fix for `oracle`, whose cell measures worse at 72 %
-and is already firing. That cell is identified, unbought and second in line
-([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and this runbook is
+and is already firing. That cell is second in line, bought 2026-09-19 and in
+transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and this runbook is
 written to be reused for it — *Reusing this page on `oracle`* has the
 differences between the two machines.
 
@@ -728,7 +728,7 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
   and the rule. The only evidence the path works is the accidental firing on
   2026-09-18, which did at least exercise the real rule against the real
   adapter. Run step 2 properly when this page is reused on `oracle`.
-- **`oracle`'s cell reads 72 %, is identified and unbought
+- **`oracle`'s cell reads 72 %, its replacement is bought and in transit
   ([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and its alert is
   silenced until 2026-10-08** — `01cb81d7-5e19-4e6d-b386-f5c8c843032b`, matching
   `alertname="HostBatteryHealthLow"`, `instance="oracle"`,

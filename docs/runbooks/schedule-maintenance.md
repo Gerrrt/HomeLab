@@ -14,8 +14,9 @@ Nothing ran any of them, and `backups/` did not exist on the host at all — so
 Everything installed here runs **on the machine it is checking**, with the key
 that is on that machine, against the disk that is in it.
 
-`verify-backups` proves an archive still decrypts. It does not prove the disk
-will spin up next month, and it cannot prove anything at all about a fire or a
+`verify-backups` proves an archive still decrypts, and that its copy on
+`oracle` still hashes to the same bytes. It does not prove either disk will
+spin up next month, and it cannot prove anything at all about a fire or a
 theft. A green dashboard here is a narrower claim than it looks.
 
 The one job that genuinely proves off-host recoverability is
@@ -32,16 +33,22 @@ nothing else that would ever write it, and the nag was silent for as long as
 that lasted ([#400](https://github.com/Gerrrt/HomeLab/issues/400)).
 `SecretsKeyRecipientsUnrecorded` fires if the file is missing anyway.
 
-One job's output leaves this host: `backup-firewall` copies every export to
+Two jobs' output leaves this host. `backup-firewall` copies every export to
 `oracle` and **fails if it cannot**, so its `ScheduledJobFailed` also means "the
 config has stopped leaving `prometheus`" — a file that never left is a failed
-run, not a partial success. The same run bounds what accumulates on each side
-(`FW_KEEP`, default thirty), so a nightly job cannot fill either disk;
-[`restore-the-firewall.md`](restore-the-firewall.md) §0 has the window and how
-to change it. The copy needs a one-time key exchange between the
-two laptops, in [`restore-the-firewall.md`](restore-the-firewall.md) §0, and
-fails on purpose until that is done. The volume sets still do not leave
-([#92](https://github.com/Gerrrt/HomeLab/issues/92)). Deployment itself is now
+run, not a partial success. `backup-volumes` does the same with every complete
+set, weekly, after the stack is back up
+([#535](https://github.com/Gerrrt/HomeLab/issues/535)), and `verify-backups`
+asks `oracle` to hash what it holds every morning, so a copy that has stopped
+existing is that job's failure within a day. No rule names either job; the
+generic pair above carries both. The same runs bound what accumulates on each
+side — `FW_KEEP`, default thirty, for the exports; `KEEP`, default seven, for
+the sets, on both sides — so neither job can fill either disk;
+[`restore-the-firewall.md`](restore-the-firewall.md) §0 and
+[`restore-the-stack.md`](restore-the-stack.md) §0 have the windows and how to
+change them. Both copies ride on one key exchange between the two laptops, in
+[`restore-the-firewall.md`](restore-the-firewall.md) §0, and fail on purpose
+until that is done. Deployment itself is now
 one of these jobs rather than something a human remembers to do —
 [#99](https://github.com/Gerrrt/HomeLab/issues/99),
 [ADR-0021](../adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md), and
@@ -260,8 +267,9 @@ and every kernel-surface toggle.
 
 `smart-state-remote` needs the opposite thing — a *credential*, not a privilege.
 The key at `/home/robo/.ssh/id_ed25519` is `robo`'s, is what `backup-firewall`
-has used since [#92](https://github.com/Gerrrt/HomeLab/issues/92), and root does
-not have it.
+has used since [#92](https://github.com/Gerrrt/HomeLab/issues/92) and
+`backup-volumes` and `verify-backups` since
+[#535](https://github.com/Gerrrt/HomeLab/issues/535), and root does not have it.
 
 **One unit tried to be both users and failed twice**, each time in the gap
 between "works by hand as `robo`" and "works as the unit". As root it could not
@@ -550,6 +558,8 @@ expected rather than a second fault.
 | A metric exists but no alert can fire | `exported_job` in the query output | A `job` label got into a `.prom` file. Fix the label name in `run-scheduled.sh` |
 | `homelab_job_last_exit_code` is 75 | The job never started — another job held its lock for the full wait | Expected if a `--verify-only` run collided with a long backup. Persistent means a job is hanging: check `systemctl list-units 'homelab-*'` |
 | `backup-firewall` exits 1 with *off-host copy FAILED* | `oracle` is down, its host key is not in `robo`'s `known_hosts`, or this host's key is not authorised there | The export was written locally and is intact. Repair the path to `oracle` — [`restore-the-firewall.md`](restore-the-firewall.md) §0 — and the next run copies every file that never left |
+| `backup-volumes` exits 1 with *off-host copy FAILED* | The same three causes, or `oracle` ran out of room | The set was written and verified here and the stack is up. Repair the path, then `make backup ARGS=--copy-only` — it copies every set `oracle` lacks without stopping the stack, and the next weekly run would do the same |
+| `verify-backups` exits 1 naming a set on `oracle` as *missing* or *differs* | The copy of that set never landed, was removed, or its bytes no longer hash to the manifest | Every local set still decrypts, or the message would say so first. *Missing*: `make backup ARGS=--copy-only`. *Differs*: nothing removes it for you — look at it, `rm -rf` that one directory on `oracle`, then the same command. [`restore-the-stack.md`](restore-the-stack.md) §0 |
 | `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
 | `loki-coverage` exits 1 | A Loki alerting rule cannot see a host that is producing exactly the lines it hunts | Not an outage — nothing is broken, but an alert cannot fire for that host, which is how [#261](https://github.com/Gerrrt/HomeLab/issues/261) went unnoticed. The FAIL line names the rule, the host and the log type the lines are arriving under; the fix is usually an `or` branch on the rule for that host's stream. A `WARN` is the latent form — the rule cannot reach the host at all, but nothing there matches it today — and does not fail the job |
 | `firewall-claims` exits 1 | A segmentation claim in `docs/firewall-claims.yaml` no longer matches the running ruleset | Not an outage, and the firewall is not the thing that is wrong — a document is. The FAIL line names the interface, the segment and the direction: *now reaches X* means a block was removed or a VLAN was added, *no longer reaches X* means a block landed and the prose still describes the world before it. Re-derive with `scripts/check_firewall_claims.py --derive`, then move the prose that cites it — `docs/network.md` and `docs/security.md`. Never edit an ADR in place: [ADR-0001](../adr/0001-record-architecture-decisions.md) makes them immutable, so a stale one gets a marked amendment or a superseding ADR |
