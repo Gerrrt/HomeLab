@@ -181,8 +181,11 @@ journalctl -b -u systemd-timesyncd --no-pager | grep -i 'jumped\|restored\|unset
 
 The new boot's first timestamp is the true time, and the grep prints nothing.
 Anything else is the #519 failure on a machine that was not supposed to have
-it. Record the result on that issue either way: a pass here is the datum it
-is short of.
+it, and `HostClockUnsynchronised` fires from the stack — which stays up — about
+six minutes into any such window, seeing all of it on this host. The journal
+check is still the record, because the rule reads the flag and not the size
+of the step. Record the result on that issue either way: a pass here is the
+datum it is short of.
 
 **Every query changes `instance`, and one changes the supply.** Step 1's
 loop, the ratio, and step 2's and step 8's alert queries all take
@@ -559,11 +562,17 @@ Then, in order:
   > fourteen minutes of real post-swap operation filed inside the outage. The
   > true window was 14:53:37 to about 18:12. **Take it from
   > `journalctl --list-boots` and the recorded shutdown, not from
-  > `query_range`.** Nothing noticed the backdated boot — `HostClockSkew` reads
-  > `node_timex_offset_seconds`, which is small once timesyncd has restored a
-  > wrong but stable clock — and whether anything should is
-  > [#519](https://github.com/Gerrrt/HomeLab/issues/519). A further reboot at
-  > 18:28 is in the series too and is not part of the swap.
+  > `query_range`.** Nothing noticed the backdated boot at the time:
+  > `HostClockSkew` reads `node_timex_offset_seconds`, which held exactly `0`
+  > once timesyncd had restored a wrong but stable clock. `HostClockUnsynchronised`
+  > now reads `node_timex_sync_status`, the field that was `0` for precisely
+  > that window ([#519](https://github.com/Gerrrt/HomeLab/issues/519)), and
+  > would have fired about six minutes in. Read it for what it is: the
+  > notification arrives on the phone in real time, the alert record it leaves
+  > in the TSDB is stamped by the same wrong clock, and it sees nothing of the
+  > hours the stack was down. It is a prompt to come to this paragraph, not a
+  > measurement of the window. A further reboot at 18:28 is in the series too
+  > and is not part of the swap.
 
   ```bash
   for j in snmp oracle-metrics; do
@@ -719,13 +728,6 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
   and the rule. The only evidence the path works is the accidental firing on
   2026-09-18, which did at least exercise the real rule against the real
   adapter. Run step 2 properly when this page is reused on `oracle`.
-- **A battery disconnect resets the RTC, and the TSDB records the result as a
-  hole that is not one** — [#519](https://github.com/Gerrrt/HomeLab/issues/519).
-  Nothing notices a backward boot: `HostClockSkew` reads the kernel's current
-  offset, which stays small once the clock is wrong but stable, and
-  `node_timex_sync_status` — which was `0` for exactly the backdated window — is
-  read by no rule. Step 6 says what to do instead; whether anything should alert
-  is that issue's question.
 - **`oracle`'s cell reads 72 %, is identified and unbought
   ([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and its alert is
   silenced until 2026-10-08** — `01cb81d7-5e19-4e6d-b386-f5c8c843032b`, matching
@@ -747,7 +749,10 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
   proof row this machine lacks and the cleanest of them all; and its clock is
   expected to survive the disconnect, because the coin cell that backs it is
   separate from the pack — expected, and checked at the fit rather than
-  assumed, for [#519](https://github.com/Gerrrt/HomeLab/issues/519).
+  assumed, for [#519](https://github.com/Gerrrt/HomeLab/issues/519). If it
+  does not survive, `HostClockUnsynchronised` is what will say so, and because
+  `oracle` is not the monitoring host it sees that whole window rather than
+  the slice this one caught.
 - **Nothing watches runtime-on-battery continuously.** The figure step 8
   produces is one measurement, at one load, on one day. There is no rule and no
   series that would notice it halving.
@@ -757,4 +762,12 @@ named [`fit-the-ups-battery.md`](fit-the-ups-battery.md) — the rack pack in
 `mjolnir`, not this cell — because that was the only runbook there was when the
 rule was written. [#506](https://github.com/Gerrrt/HomeLab/pull/506) retargeted
 it at this file on 2026-09-17, moving the `exp_annotations` blocks in
-`stacks/observability/prometheus/tests/host.test.yaml` with it.
+`stacks/observability/prometheus/tests/host.test.yaml` with it. And **a battery
+disconnect resets the RTC, and the TSDB records the result as a hole that is
+not one** — [#519](https://github.com/Gerrrt/HomeLab/issues/519) asked whether
+anything should notice. `HostClockUnsynchronised` in `host.rules.yaml` now reads
+`node_timex_sync_status == 0` for five minutes: on the thirty days of retention
+before it landed, eight ordinary boots produced no `0` sample at all and the
+only run was this swap's backdated window. What it can and cannot see is in
+step 6 and in the rule's own comment; the runbook instruction — take the window
+from the journal — stands.
