@@ -42,9 +42,11 @@
 # stating: a passphrase is what made the previous leak survivable, but it also
 # means every issuance is interactive, which is how a lab ends up with one
 # long-lived certificate nobody dares reissue. The exposure this time is bounded
-# by the key never leaving this host and never being committed. If you would
-# rather have the passphrase, add -aes256 to the CA key generation below and
-# accept the prompt on every issue.
+# by the key never being committed and never leaving this host except as ONE
+# offline copy, on the medium that already holds the age key's second copy —
+# docs/runbooks/back-up-the-ca-key.md, and #496 for why a copy and not a
+# passphrase. If you would rather have the passphrase, add -aes256 to the CA
+# key generation below and accept the prompt on every issue.
 
 set -euo pipefail
 
@@ -152,10 +154,18 @@ that holds it. Pass --force only if that is what you mean."
   chmod 600 "${CA_KEY}"
   chmod 644 "${CA_CRT}"
 
+  # The new key starts unproved, and says so now rather than on the next
+  # morning's timer: ca-key-state.sh writes its fingerprint at 0 and drops the
+  # old key's proof, so CaKeyBackupUnproven fires until the offline copy is
+  # replaced and proved again. `|| true` because a workstation with no textfile
+  # directory is not a reason to fail the mint (#496).
+  "${REPO_ROOT}/scripts/ca-key-state.sh" --record || true
+
   ok "CA created"
-  printf '  key  %s  (never commit, never copy off this host)\n' "${CA_KEY#"${REPO_ROOT}"/}"
+  printf '  key  %s  (never commit; ONE offline copy, proved — docs/runbooks/back-up-the-ca-key.md)\n' "${CA_KEY#"${REPO_ROOT}"/}"
   printf '  cert %s  (safe to distribute — this is what clients trust)\n' "${CA_CRT#"${REPO_ROOT}"/}"
-  printf '\nIssue a leaf with:\n  scripts/gen-certs.sh --host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\n\n'
+  printf '\nIssue a leaf with:\n  scripts/gen-certs.sh --host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\n'
+  printf 'Then back the key up, and prove the copy:\n  make certs-verify-backup KEY=/path/to/the/copy\n\n'
   exit 0
 fi
 

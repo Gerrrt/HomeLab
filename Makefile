@@ -320,6 +320,17 @@ recipient-state: ## Record which age recipients can open the secrets, and when e
 	@# the ninety-day nag is silent. secrets-verify-backup is what sets a proof.
 	./scripts/key-recipients.sh --record --stack $(STACK)
 
+.PHONY: ca-key-state
+ca-key-state: ## Record the estate CA key's fingerprint and when a copy of it was last proved (#496)
+	@# The CA-key twin of recipient-state. Reads the PUBLIC certificate, hashes
+	@# its public key, and writes one series for that fingerprint into the
+	@# textfile dir, carrying an existing proof forward and setting none. Never
+	@# opens ca-key.pem. This is what CaKeyBackupUnproven reads; without it a
+	@# host that has never proved the key has no series and the nag is silent,
+	@# and a re-minted CA would inherit the old key's proof. certs-verify-backup
+	@# is what sets a proof.
+	./scripts/ca-key-state.sh --record
+
 .PHONY: smart-state-remote
 smart-state-remote: ## Collect SMART health from morpheus over SSH (runs as robo)
 	@# morpheus is FreeBSD with no node_exporter and no textfile directory, but
@@ -560,6 +571,26 @@ secrets-verify-backup: ## Check a backup age key decrypts the secrets (KEY=/path
 	@# Nagging is not as good as running it, but it beats remembering.
 	./scripts/run-scheduled.sh --job verify-key-backup --lock keys \
 		-- ./scripts/verify-key-backup.sh "$(KEY)" $(STACK)
+
+.PHONY: certs-verify-backup
+certs-verify-backup: ## Check an offline copy of the CA key is this CA's key (KEY=/path/to/ca-key.pem)
+	@# Maintenance, not Validation, for the reason secrets-verify-backup gives:
+	@# it needs a private key on a mounted medium and must never reach CI.
+	@# KEY rather than ARGS, and guarded here, for the same reasons too — a bare
+	@# `make certs-verify-backup` is a typo and must not reach run-scheduled.sh
+	@# to be recorded as a failed verification.
+	@[[ -n "$(KEY)" ]] || { \
+		printf '\033[0;31merror:\033[0m KEY is required\n' >&2; \
+		printf 'Mount the offline copy, then:  make certs-verify-backup KEY=/path/to/ca-key.pem\n' >&2; \
+		printf 'See docs/runbooks/back-up-the-ca-key.md\n' >&2; \
+		exit 2; \
+	}
+	@# Wrapped so the run is recorded, though a human runs it: verify-ca-key-backup.sh
+	@# refuses the live key by device:inode so that a copy is what gets tested,
+	@# and no timer can mount one. The deadline is enforced from the other end —
+	@# CaKeyBackupUnproven fires when the proof passes ninety days old.
+	./scripts/run-scheduled.sh --job verify-ca-key-backup --lock keys \
+		-- ./scripts/verify-ca-key-backup.sh "$(KEY)"
 
 .PHONY: certs
 certs: ## Create the internal CA / issue a leaf (ARGS="--host x.matrix.elysium --ip 10.0.0.1")

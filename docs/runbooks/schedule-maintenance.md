@@ -32,6 +32,14 @@ nothing else that would ever write it, and the nag was silent for as long as
 that lasted ([#400](https://github.com/Gerrrt/HomeLab/issues/400)).
 `SecretsKeyRecipientsUnrecorded` fires if the file is missing anyway.
 
+The estate CA's private key has the same arrangement since
+[#496](https://github.com/Gerrrt/HomeLab/issues/496): `make certs-verify-backup`
+is the human proof — a comparison of public keys against a copy on the same
+offline medium, no timer, ninety days — `CaKeyBackupUnproven` is the nag, and
+the `ca-key-state` timer writes the series it reads every day, keyed on the
+key's fingerprint so a re-minted CA starts at never rather than inheriting the
+old key's proof ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)).
+
 One job's output leaves this host: `backup-firewall` copies every export to
 `oracle` and **fails if it cannot**, so its `ScheduledJobFailed` also means "the
 config has stopped leaving `prometheus`" — a file that never left is a failed
@@ -72,8 +80,10 @@ the host.
 | `smart-state-remote` | `make smart-state-remote` | daily 08:45 | 2 days |
 | `pkg-state` | `make pkg-state` | daily 09:00 | 2 days |
 | `recipient-state` | `make recipient-state` | daily 09:15 | 2 days |
+| `ca-key-state` | `make ca-key-state` | daily 09:30 | 2 days |
 | `gateway-state` | `make gateway-state` | every 15 minutes | 90 minutes |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
+| `verify-ca-key-backup` | **you**, `make certs-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
 period fires on every run that slips past its jitter window, whereas twice
@@ -542,7 +552,8 @@ expected rather than a second fault.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` until you first verify the key. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `CaKeyBackupUnproven` | No offline copy of `certificates/ca-key.pem` has been proved in ninety days — or ever, or not since the CA was re-minted, which the fingerprint label tells apart | Mount the medium and `make certs-verify-backup KEY=…` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)). After a re-mint, copy the new key there first; the old copy is refused |
 | `SecretsKeyRecipientsUnrecorded` | The ninety-day deadline is declared and no recipient has a proof series, so `SecretsKeyBackupUnproven` cannot fire however stale the proof is | `systemctl start homelab-recipient-state.service`. If that unit does not exist the timers predate [#400](https://github.com/Gerrrt/HomeLab/issues/400): `make install-timers` adds it and primes it. On a host with one recipient the first write inherits the old `verify-key-backup` proof rather than starting from never |
 | `ScheduledJobMetricsAbsent` | Nothing from the textfile directory has reached Prometheus in six hours | This is the whole directory, not one file — check Alloy is up and the directory still exists. A single malformed file shows as `node_textfile_scrape_error 1` and costs only that file |
 | One job's series missing, `node_textfile_scrape_error` is 1 | That job's `.prom` failed to parse — a truncated write, or something wrote it without the temp-then-rename | The other files are unaffected. Re-run the job; if it recurs, something is writing the file directly instead of through `run-scheduled.sh` |
