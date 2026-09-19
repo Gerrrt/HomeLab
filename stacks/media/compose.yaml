@@ -2,11 +2,17 @@
 # The media tier: ADR-0008's media server, placed with the screens it serves.
 #
 # Deployed on: smaug (10.0.40.30, VLAN 40 / CasaBonita) — the ThinkServer TS150
-#              of #413, running TrueNAS per ADR-0040.
-#              NOT DEPLOYED YET. docs/runbooks/build-the-nas.md §6 deploys it,
-#              after the ZFS mirror exists. Authored before the pool does, as
+#              of #413, running TrueNAS per ADR-0040. DEPLOYED 2026-09-19, from
+#              a copy of this directory's two files at /mnt/erebor/apps/stack,
+#              under TrueNAS's own Docker — docs/runbooks/build-the-nas.md §6.
+#              Authored on 2026-09-16, before the pool existed, as
 #              stacks/sensitive was authored before trinity was built.
-# Deploy with:  make up STACK=media      (from the repository root)
+# Deploy with:  NOT `make up STACK=media`. That target renders a secrets file
+#              this stack does not have, on a box with neither make nor sops.
+#              A change here reaches smaug by re-fetching compose.yaml and
+#              .env.example from main into that folder and running
+#              `docker compose up -d` there, by hand — nothing on smaug pulls
+#              from main on its own. README.md has the procedure.
 #
 # ---------------------------------------------------------------------------
 # Why this stack is one service
@@ -103,8 +109,10 @@ services:
     # The Intel HD P630 in the E3-1225 v6. ADR-0040 made a live iGPU the
     # HARDWARE half of its reopen condition and said explicitly that a P630 the
     # host can see and a P630 a container can use are different claims — this
-    # device line is where the second claim is made, and
-    # build-the-nas.md §6 is where it is tested.
+    # device line is where the second claim is made. build-the-nas.md §6.1 is
+    # where it was tested, on 2026-09-19, and it passed: the node is listed
+    # inside the container, `id` there carries the render group, and a forced
+    # transcode ran through VAAPI and h264_qsv at about five times real time.
     devices:
       - /dev/dri:/dev/dri
     # A ceiling to catch a leak, not a measurement — the same position
