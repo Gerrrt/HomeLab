@@ -41,7 +41,7 @@ quietly swapped.
 | Host | Hardware | CPU | RAM | Storage | OS |
 | --- | --- | --- | --- | --- | --- |
 | `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB NVMe SSD | FreeBSD 16.0 (pfSense) |
-| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 (`pve`); 2× 960 GB SATA SSD, RAID 1, LVM-thin `Large_data` | Proxmox VE 9 |
+| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 (`pve`); 2× 960 GB SATA SSD, RAID 1, LVM-thin `large_data` | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
 | `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
@@ -347,7 +347,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, delivered
   2026-09-11, fitted 2026-09-18 in bays 3 and 4 of the ProLiant, and **since
   2026-09-19 the P440ar's logical drive 2: RAID 1, `915683` MB, carrying the
-  LVM-thin pool `Large_data`** (volume group, pool and Proxmox storage id are
+  LVM-thin pool `large_data`** (volume group, pool and Proxmox storage id are
   all that one word). Bought against the number every sizing decision on
   `Saruman` starts from: a 7.2K mirror serving about ninety random write IOPS
   ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
