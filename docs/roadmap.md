@@ -70,16 +70,17 @@ the rack pack in `mjolnir`, not this cell — which is the same wrong pointer
 description. `oracle`'s cell, the one that measures worse, stays unbought and
 second in line, as that issue ranked it.
 
-**2026-09-18: the cell is fitted, and the issue stays open.** The A1437 went
+**2026-09-18: the cell is fitted, and the issue stayed open.** The A1437 went
 into `prometheus` the day it was delivered; the host was down from 14:53 to
 about 18:12 UTC. The new pack reads `charge_full` 6.889 Ah of 6.8 Ah design at
 one cycle, and both of its design figures differ from the old pack's — an
 aftermarket cell reports its own, which is the only proof of a changed part on
 a machine that exports no serial number. **The buy table does not move**: the
-cell left it on 2026-09-13, and fitting is not buying. What is still owed is
-the mains pull on the charged pack and the runtime it measures, so
-[#454](https://github.com/Gerrrt/HomeLab/issues/454) stays open and this gets
-no *Done* entry.
+cell left it on 2026-09-13, and fitting is not buying. What was still owed was
+the mains pull on the charged pack and the runtime it measures; that ran on
+2026-09-19 — 2.72 Ah/h, about 2.5 hours from full — and
+[#454](https://github.com/Gerrrt/HomeLab/issues/454) closed on it, with its
+*Done* entry below.
 
 **2026-09-19: the second cell is identified and enters the list.** `oracle`'s
 pack is a Dell M5Y1K — 14.8 V, 40 Wh, four cells, the latched pack the
@@ -256,7 +257,7 @@ mains-cut path depends on it, `host.rules.yaml` has measured it since
 and the failure mode of a thirteen-year-old cell is a fire on a shelf. **That
 cell was bought 2026-09-13 and fitted 2026-09-18**, so this is the exception
 being exercised rather than restated; the new pack reads 101 % of its design
-capacity at one cycle, and the runtime it was bought for is still unmeasured. `oracle` has the same kind of cell and it measures
+capacity at one cycle, and the runtime it was bought for was measured on 2026-09-19: about 2.5 hours from full at the stack's load. `oracle` has the same kind of cell and it measures
 worse, 72 %, so `HostBatteryHealthLow` fires for it first; it stays second in
 line only because `prometheus` is the host whose death is the estate going
 blind. The cell for `prometheus` was bought on 2026-09-13, and `oracle`'s is
@@ -538,7 +539,8 @@ new since this file was last honest:
   cut on its own cell — measured since 2026-09-12 and, on `prometheus`, replaced
   on 2026-09-18 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). So the
   off-host check *can* report a mains cut, for exactly as long as `prometheus`
-  stays up on its cell, which is the one thing still unmeasured.
+  stays up on its cell — about 2.5 hours from full, measured on 2026-09-19
+  ([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
 
 Two collection faults of the same kind were fixed in
 [#62](https://github.com/Gerrrt/HomeLab/pull/62): the agent was answering to the
@@ -1293,6 +1295,20 @@ them name the condition that would change the answer.
 
 ## Done
 
+- [x] **[#454](https://github.com/Gerrrt/HomeLab/issues/454) Replaced
+      `prometheus`'s battery, watched it, and proved the mains-cut path on it.**
+      2026-09-19. Opened for a thirteen-year-old cell that nothing monitored and
+      no document named as a dependency. The collector it proposed was never
+      needed — Alloy exported `node_power_supply_*` all along, and the family is
+      `charge_*`, not the `energy_*` the issue wrote — so #461 wrote three rules
+      against what existed. The A1437 was bought 2026-09-13 as the one exception
+      the *Never* line above names, fitted 2026-09-18, and on 2026-09-19 the
+      brick was pulled on the full pack: the host stayed up, `HostOnBattery`
+      fired for it alone inside three minutes, and the draw measured 2.72 Ah/h —
+      about 2.5 hours from full, the first runtime figure the estate has had.
+      Left behind as issues of their own: the RTC reset the disconnect caused
+      (#519), `oracle`'s cell at 72 % (#531), and continuous watching of
+      runtime and cell temperature (#532).
 - [x] **[#441](https://github.com/Gerrrt/HomeLab/issues/441) Alerted on a sensor
       that stops logging, and closed the Zeek half by deciding it elsewhere.**
       2026-09-17. `SuricataLogsStopped` landed on 2026-09-12 in

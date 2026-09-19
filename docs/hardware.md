@@ -27,8 +27,10 @@ when a laptop reports no cell at all
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). `prometheus`'s cell was
 replaced on 2026-09-18 and reads 101 % of its design capacity at one cycle;
 `oracle`'s is the original, reads 72 %, and is identified as a Dell M5Y1K and
-unbought ([#531](https://github.com/Gerrrt/HomeLab/issues/531)). How long
-either laptop actually runs on its cell has never been measured.
+unbought ([#531](https://github.com/Gerrrt/HomeLab/issues/531)). `prometheus`'s
+runtime was measured on 2026-09-19: 2.72 Ah/h at the stack's load, about 2.5
+hours from a full pack, one measurement on one day. `oracle`'s has never been
+measured.
 
 The patch panel and the PDU were listed the other way round here until
 2026-08-29. U8 is the panel and U7 is the PDU, confirmed against the rack.
@@ -465,11 +467,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   Compute table changes; a cell is not a spec.
   **Checked at the fit:** `charge_full` above `charge_full_design`,
   `cyclecount` 1, `charge_ampere` moving, and both design figures changed — all
-  read from this host's own Prometheus on 2026-09-18. **Not checked, and the
-  reason [#454](https://github.com/Gerrrt/HomeLab/issues/454) is still open:**
-  the mains pull on the fully charged pack, which is the property the cell was
-  bought for and a runtime the estate has never had. The pack was still
-  charging when the fit was recorded.
+  read from this host's own Prometheus on 2026-09-18. **Checked on
+  2026-09-19, and the check that closed
+  [#454](https://github.com/Gerrrt/HomeLab/issues/454):** the mains pull on the
+  fully charged pack. The host stayed up for a bounded 22 minutes on the cell,
+  `HostOnBattery` fired for it alone, and the draw measured 2.72 Ah/h — about
+  2.5 hours from full at the load the stack presents, the first runtime figure
+  the estate has had for either laptop, and one measurement on one day.
   ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) carries
   the baseline, the stack-down window — 14:53 to about 18:12 on the day, over
   its own two-hour bound — and the disposal.) `oracle`'s cell reads 72 % and is
