@@ -22,10 +22,12 @@ and the two Exos X20 drives for §1 onward.
 > below. `node_exporter` answered the three §6.1 checks from the monitoring
 > host and the target in `targets/node.yaml` is live. Inside the container the
 > render node is present and the process carries GID 107 — the two halves of
-> ADR-0040's condition that a shell can check. **Still open in §7:** the
-> transcode itself, a television playing something, the two extended
-> self-tests (about 28 hours each, started 2026-09-18), and the tripwire and
-> port-15 re-reads.
+> ADR-0040's condition that a shell can check. **By the evening of 2026-09-19
+> the transcode had passed, a television had played something, and the
+> tripwire and port 15 were re-read** (§6.1, §7). **Still open in §7, and the
+> one line between this runbook and done:** the two extended self-tests,
+> about 28 hours each, started 2026-09-18 and at **10 % remaining** that
+> evening.
 >
 > **Status — 2026-09-16: §0 is the work that can be done before the drives
 > land, and it is the whole of what is blocking.**
@@ -623,10 +625,16 @@ measurement.
 > the rule order were re-read from `morpheus` after the stack came up:
 > 143,780 evaluations, **0 packets**, all four passes still above the block.
 > **Port 15 re-read in the switch UI the same evening: VLAN 40, PVID 40,
-> untagged only.** **Not yet read:** a television playing — this block said
-> it had, for about an hour on 2026-09-19, on a report that was withdrawn
-> before the evening was out — and the two extended self-tests, 20 % through
-> at six lifetime hours and due around the evening of 2026-09-20.
+> untagged only.** **A television on CasaBonita played something on the
+> evening of 2026-09-19**, read by the operator on the screen and with no
+> firewall rule in the path — this line had been claimed once earlier that
+> day and withdrawn within the hour, so this is the reading and that was not.
+> **Not yet read:** the two extended self-tests, at **10 % remaining** the
+> same evening (20 % through at six lifetime hours that morning), so they
+> complete overnight or the next morning. Read them at the console with
+> `smartctl -l selftest` on both drives; the result goes in
+> [`hardware.md`](../hardware.md)'s Exos entry and closes
+> [#413](https://github.com/Gerrrt/HomeLab/issues/413).
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
