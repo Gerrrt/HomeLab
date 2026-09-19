@@ -26,8 +26,9 @@ shelf is off mains, when a cell falls below 80 % of its design capacity, and
 when a laptop reports no cell at all
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). `prometheus`'s cell was
 replaced on 2026-09-18 and reads 101 % of its design capacity at one cycle;
-`oracle`'s is the original, reads 72 %, and is unbought. How long either laptop
-actually runs on its cell has never been measured.
+`oracle`'s is the original, reads 72 %, and is identified as a Dell M5Y1K and
+unbought ([#531](https://github.com/Gerrrt/HomeLab/issues/531)). How long
+either laptop actually runs on its cell has never been measured.
 
 The patch panel and the PDU were listed the other way round here until
 2026-08-29. U8 is the panel and U7 is the PDU, confirmed against the rack.
@@ -472,7 +473,43 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) carries
   the baseline, the stack-down window — 14:53 to about 18:12 on the day, over
   its own two-hour bound — and the disposal.) `oracle`'s cell reads 72 % and is
-  second in line, unbought.
+  second in line, unbought — the entry below.
+- Dell M5Y1K 4-cell pack for `oracle` — 14.8 V, 40 Wh, the latched pack the
+  Inspiron 15-3565 in the Compute table takes. **Identified 2026-09-19 and
+  unbought**, under [#531](https://github.com/Gerrrt/HomeLab/issues/531): the
+  part is written down before the money is spent, which is the order that
+  issue asks for, and the seller, the listing, the purchase date and a
+  footnote go here when it is bought. The number comes off the machine rather
+  than off a listing: `/sys/class/power_supply/BAT0` reports `model_name`
+  `DELL VN3N047`, and `VN3N0` is one of the interchangeable Dell part numbers
+  for this pack — `M5Y1K` is the primary, and `WKRJ2`, `HD4J0`, `991XP` and
+  `GXVJ3` the others listings carry — with `manufacturer` `SMP-Sanyo2` and
+  `serial_number` `1650`. The design figures agree with the part: 2.8 Ah at
+  14.8 V is the 40 Wh on the label. It is the second laptop cell and the same
+  consumable exception as the A1437 above, second in line because
+  `prometheus` dying is the estate going blind and `oracle` dying is the wiki
+  and the off-host jobs going quiet
+  ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). It measures worse
+  than the cell that exception was written for: `charge_full` 2.021 Ah of
+  2.8 Ah design, **72 %**, read 2026-09-12 and unchanged on 2026-09-19 — the
+  same figure across the whole 30-day retention — below
+  `HostBatteryHealthLow`'s 80 % line, and that alert has fired for it since
+  2026-09-14 under a silence that expires 2026-10-08. **A bare battery, not a
+  kit**: unlike the MacBook's glued cell this one sits behind a slide latch on
+  the underside, so the swap is a latch and a lift with the machine off, and
+  needs no solvent, no screws and no tools. The machine's coin cell is a
+  separate CR2032 behind the keyboard and palmrest, which a latch swap never
+  reaches — the reason its clock is expected to survive the disconnect that
+  reset `prometheus`'s
+  ([#519](https://github.com/Gerrrt/HomeLab/issues/519)), and a thing the fit
+  checks rather than assumes. What proves the swap differs from the MacBook
+  too: this pack's info series carries a `serial_number`, which the MacBook's
+  does not, so a changed serial is the clean proof row; and its firmware
+  reports `cyclecount` as `0` always and exports no `temp_celsius`, so two of
+  the MacBook's rows are unavailable here.
+  [`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) has the
+  procedure and a section on what differs on this host. Nothing in the
+  Compute table changes; a cell is not a spec.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]
