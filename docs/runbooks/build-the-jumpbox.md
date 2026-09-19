@@ -4,7 +4,7 @@
 **Time:** about an hour, most of it the OS installer
 **You will need:** the Proxmox web UI on `Saruman` (or a shell on it through
 the KVM or `shiva`), an Ubuntu Server ISO, the pfSense UI on `morpheus` for one
-reservation, a shell on `alexander` for §5 if the lab's ports are still shut,
+reservation, a shell on `alexander` for §5,
 and the Mac for §6 — it is the only machine that reaches this segment with a
 checkout in hand
 **After this:** [`open-the-remote-path.md`](open-the-remote-path.md), if the
@@ -12,6 +12,17 @@ remote path is wanted —
 [ADR-0042](../adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)
 terminates the WireGuard tunnel on this host, and its runbook begins where
 this one ends
+
+> **Status — 2026-09-DD: `phoenix` is built and its agent is pushing to
+> `alexander`.**
+>
+> Ubuntu 26.04 LTS, `10.0.30.70`, VMID 170, `bc:24:11` OUI, ISO
+> `ubuntu-26.04-live-server-amd64.iso` *(ISO and OUI pending the §1 report)*.
+> §4's `curl`: *(pending the §4 report)*. §7: *(pending the §7 report — both
+> `up{instance="phoenix"}` jobs and the Loki job count go here)*.
+> The lab's ports were opened ahead of the guest by #543 and applied on
+> `alexander` in §5, the first time `deploy-agent.sh`'s `--monitoring-host`
+> flag was used.
 
 This builds the host [ADR-0043](../adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
 decided: the one machine whose purpose is to hold credentials for other
