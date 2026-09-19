@@ -3,11 +3,34 @@
 **One glued-in cell, one power-down of the host that watches everything else,
 and one test that only works with the machine running.**
 
-> **Status — 2026-09-18: the cell is fitted. Step 8, the mains pull on the new
-> cell, has not been run, so
-> [#454](https://github.com/Gerrrt/HomeLab/issues/454) stays open.**
+> **Status — 2026-09-19: step 8 ran. The A1437 held `prometheus` up through a
+> 22-minute mains pull, `HostOnBattery` fired for it alone, and the runtime the
+> cell was bought for is measured — about 2.5 hours from full at the stack's
+> load. [#454](https://github.com/Gerrrt/HomeLab/issues/454) closes on this.**
 >
-> The host was down from 14:53:37 to about 18:12 UTC — roughly three hours and
+> | | |
+> | --- | --- |
+> | Brick pulled — `ADP1` `online` 0 on sysfs | 22:12:20 UTC, pack `Full` at 101 %, 6.887 Ah |
+> | First `online == 0` sample in Prometheus; `HostOnBattery` pending | 22:12:50 |
+> | `HostOnBattery` firing, active in Alertmanager | 22:14:52 — 2 min 32 s after the pull; the budget in step 2 is four minutes |
+> | Bound reached: twenty minutes, 87 % | 22:32:36 |
+> | Brick back; `status` `Charging` | 22:34:38, at 86 % |
+> | `online == 1` in Prometheus; alert gone from `ALERTS` | 22:35:39 |
+>
+> On battery 22 min 19 s, 6.887 → 5.875 Ah: **2.72 Ah/h — 2.71 A at 12.0 V,
+> about 33 W** — which empties this 6.889 Ah pack in **about 2.5 hours**. That
+> is one measurement at one load on one day: the stack as it ran on a Saturday
+> evening, lid closed, nothing else. `UpsOnBattery` never appeared and
+> `HostOnBattery` never fired for `oracle`, so the plug pulled was the right
+> one. Alertmanager sent two webhook notifications in the window — the firing
+> and the resolve — and none failed. `temp_celsius` read 25.5 °C throughout,
+> which is not a cool cell but a gauge that returns a constant: the A1437 has
+> not moved off that figure since it was fitted, where the old pack ranged
+> 32.7–39.2 °C in step 3. The runtime projection and the temperature rules
+> that landed the same day, and which of them can see anything, are
+> [#532](https://github.com/Gerrrt/HomeLab/issues/532).
+>
+> **Fitted 2026-09-18.** The host was down from 14:53:37 to about 18:12 UTC — roughly three hours and
 > eighteen minutes, over the two-hour bound this page sets below, and *not* the
 > 184 minutes the series appear to show. Step 6 has why.
 >
@@ -77,9 +100,8 @@ different questions and only one of them is measured.
 link of the mains-cut path that [#93](https://github.com/Gerrrt/HomeLab/issues/93)
 and [#110](https://github.com/Gerrrt/HomeLab/issues/110) built — the TP-Link in
 U4 is on UPS power so the laptops stay *reachable* through a cut, and the cell
-is what keeps this one *running* through it. That half has never been tested
-since the machine was commissioned. Step 8 is where it stops being an
-assumption.
+is what keeps this one *running* through it. That half was never tested from
+the day the machine was commissioned until step 8 ran on 2026-09-19.
 
 What this is **not** is a fix for `oracle`, whose cell measures worse at 72 %
 and is already firing. That cell is second in line, bought 2026-09-19 and in
@@ -653,12 +675,23 @@ Two more failure shapes worth naming:
 > makes a claim about capacity. Only this one makes the claim the cell was
 > bought for.
 >
-> **Not done as of 2026-09-18.** The pack was still charging when the fit was
-> recorded — `capacity` 51 % and rising — and this step needs it full. Until it
-> runs, the property the cell was bought for is untested and that issue stays
-> open. The accidental discharge on the day is not a substitute: it began at
-> 41 %, was not bounded, measured no runtime, and its timestamps are the
-> backdated ones step 6 describes.
+> **Done 2026-09-19, 22:12–22:35 UTC**, on the pack reading `Full` at 101 %,
+> read off this host while it ran on the cell. The timeline and the figures are
+> in the status banner at the top of this page. In short: pulled at 22:12:20,
+> pending at the first offline sample, firing and active in Alertmanager at
+> 22:14:52, stopped at the twenty-minute bound with 87 % left, back on mains at
+> 22:34:38, resolved at 22:35:39. Draw 2.72 Ah/h — 2.71 A at 12.0 V — so a full
+> pack lasts about 2.5 hours at the load the stack presents. Not the four to
+> five hours the accidental discharge of 2026-09-18 suggested: that reading was
+> taken on a skewed clock during a partial boot, and it is the reason this step
+> says *measure rather than estimate*. The twenty-minute bound came first, as
+> it will on any healthy pack — twenty minutes at this draw is 14 % of the cell.
+>
+> The two queries below were run every 30 seconds through the test and read
+> 2.75 Ah/h at minute ten, rising to 2.85 by minute twenty as the `[10m]`
+> window filled with discharge samples; the whole-window figure from sysfs —
+> charge at the pull minus charge at the plug-in, over the time on battery — is
+> the one recorded.
 
 Same procedure as step 2, now on the new cell and with the machine fully
 charged. Because the numbers are finally meaningful, also **measure the runtime
@@ -737,16 +770,20 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
 
 ## What is still open
 
-- **Step 8 has not been run, and it is the whole of what keeps
-  [#454](https://github.com/Gerrrt/HomeLab/issues/454) open.** Everything else
-  the issue asked for is done and measured. The cell needs a full charge first.
+- **Nothing on this page is owed to
+  [#454](https://github.com/Gerrrt/HomeLab/issues/454) any more.** Step 8 ran
+  on 2026-09-19 and the issue closes on it. What the swap surfaced went to
+  issues of its own — `oracle`'s cell, the runtime projection and the blind
+  temperature rules below, the RTC reset under *Closed since this page was
+  written*.
 - **Step 2 can never be run for this swap: the old cell is gone.** The
   discrimination it was written to buy — a step-8 failure being the cell or the
   adapter and nothing else, because the path was already proven — is
-  unavailable. A failure in step 8 will be ambiguous between the pack, the brick
-  and the rule. The only evidence the path works is the accidental firing on
-  2026-09-18, which did at least exercise the real rule against the real
-  adapter. Run step 2 properly when this page is reused on `oracle`.
+  unavailable. Step 8 passed on 2026-09-19, so the ambiguity a failure would
+  have carried never had to be resolved, and that pass — plus the accidental
+  firing of 2026-09-18 — is now the evidence the path works against the real
+  rule and the real adapter. Run step 2 properly when this page is reused on
+  `oracle`.
 - **`oracle`'s cell reads 72 %, its replacement is bought and in transit
   ([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and its alert is
   silenced until 2026-10-08** — `01cb81d7-5e19-4e6d-b386-f5c8c843032b`, matching
@@ -772,12 +809,14 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
   does not survive, `HostClockUnsynchronised` is what will say so, and because
   `oracle` is not the monitoring host it sees that whole window rather than
   the slice this one caught.
-- **Runtime-on-battery is projected on every cut, but has still never been
-  measured.** `homelab_battery_runtime_seconds` and `HostBatteryRuntimeLow`
+- **Runtime-on-battery is projected on every cut, and was measured once.**
+  `homelab_battery_runtime_seconds` and `HostBatteryRuntimeLow`
   ([#532](https://github.com/Gerrrt/HomeLab/issues/532)) read the pack's draw
   whenever the adapter loses input, so the series that would notice the figure
-  halving now exists. The bounded measurement step 8 asks for is what proves
-  the projection against a clock, and it is still owed.
+  halving now exists. The bounded measurement step 8 asks for ran on
+  2026-09-19 — 2.72 Ah/h, about 2.5 hours from full, one load on one day — and
+  is what the projection is proven against; the next cut is the first chance
+  to compare the two.
 - **Cell temperature is unmeasured on both laptops, by the packs' own doing.**
   `HostBatteryHot` is loaded and cannot fire: the A1437 returns a constant and
   the Dell exports nothing (step 3). `HostBatteryTempNotMeasured` records that

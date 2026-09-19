@@ -586,9 +586,12 @@ groups:
       # depends on either figure: HostBatteryHealthLow reads the RATIO, so a
       # design figure that moves is absorbed rather than breaking the rule.
       #
-      # oracle's cell is unchanged, unbought and still firing.
-      # docs/runbooks/replace-the-laptop-cell.md has the fit, and what it still
-      # owes: the mains pull on the charged pack, which is why #454 is open.
+      # oracle's cell is unchanged and still firing; its replacement was bought
+      # on 2026-09-19 and is in transit (#531).
+      # docs/runbooks/replace-the-laptop-cell.md has the fit and the mains pull
+      # that closed #454 on 2026-09-19: HostOnBattery pending at the first
+      # offline sample, firing 2m32s after the plug, resolved a minute after it
+      # went back; 2.72 Ah/h drawn, about 2.5 h from full. One measurement.
       #
       # THE SWAP ALSO CLEARED THE RTC, and the stack came back writing samples
       # three hours in the past. HostClockUnsynchronised above is the rule

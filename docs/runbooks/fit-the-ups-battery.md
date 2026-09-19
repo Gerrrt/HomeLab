@@ -106,8 +106,12 @@ pack did not carry. What it proves is the same shape as step 5 here:
 then that laptop's mains pulled with the host staying up and `HostOnBattery`
 firing — the property the cell is there for, and untested since the machine was
 commissioned. The first half was proved at the fit on 2026-09-18: `charge_full`
-above design, `cyclecount` 1. **The mains pull on the charged pack has still
-not been run**, so that property remains untested and #454 is still open.
+above design, `cyclecount` 1. **The second half was proved on 2026-09-19**: the
+brick pulled on a full pack, `HostOnBattery` firing for `prometheus` alone
+inside three minutes with `UpsOnBattery` quiet, the host up throughout, and a
+measured draw of 2.72 Ah/h — about 2.5 hours from full at the stack's load, one
+measurement on one day. That closed #454. `oracle`'s half is untested and its
+cell is [#531](https://github.com/Gerrrt/HomeLab/issues/531).
 
 ## Before you start
 
