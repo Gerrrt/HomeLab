@@ -280,9 +280,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `New Volume` filling the rest — with 718,258 LBAs written, about 370 MB
   and the size of that format, three power cycles, and one short self-test
   logged at lifetime hour 0; `ZVTBS4NL` arrived blank, two power cycles,
-  nothing written. Both spun up and enumerated on the first power-up
-  (`build-the-nas.md` §1 records the pin-3 trap they could have hit). They
-  enter the Compute table with the pool.
+  nothing written. Both spun up and enumerated on the first power-up. **The
+  TS150's SATA power lead has four wires and no orange one**, read on
+  2026-09-18, so this supply puts nothing on pin 3 and the Power Disable trap
+  `build-the-nas.md` §1 records does not apply on this box — it would on a
+  supply that does. They entered the Compute table with the pool.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches

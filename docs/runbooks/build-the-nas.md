@@ -298,6 +298,11 @@ anything in this runbook.
 
 ## §1 — Fit the drives
 
+> **Done 2026-09-18.** Both trays, `SATA2` and `SATA3`, the bay fan left
+> alone. **The power lead had four wires and no orange one**, so the pin-3
+> trap below did not fire on this supply; both drives spun up and appeared in
+> `lsblk` first time.
+
 Power down, unplug, hold the power button five seconds, ground yourself.
 
 Both 3.5" trays are already in the bays and empty. Screw a drive into each,
