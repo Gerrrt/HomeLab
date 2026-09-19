@@ -803,9 +803,10 @@ what left this one unfireable for months.
   drives landed 2026-09-18**, both at zero hours by the FARM log and not only
   by SMART, and the rest followed: the mirror `erebor`, its two datasets, the
   household share `media`, and the stack running under TrueNAS's Docker with
-  the scrape live on 2026-09-19. Of ADR-0040's reopen condition, the render
-  node reaches the container and the process carries the render group; the
-  transcode itself is the half still unrun.
+  the scrape live on 2026-09-19. **ADR-0040's reopen condition is closed**:
+  the render node reaches the container, the process carries the render
+  group, and a forced transcode ran through VAAPI and `h264_qsv` at about
+  five times real time the same day. The stack stays on this host.
   Reading the enforced ruleset first changed two of the answers, and both were
   borne out when the rules were created. **50→40 is not simply a rule to add**:
   Hicks and Winterfell each carry an explicit *Block access to

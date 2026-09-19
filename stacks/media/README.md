@@ -134,7 +134,7 @@ Every non-obvious line in `compose.yaml` came off the pinned image on
   is a restart loop.
 - **65 MiB idle RSS**, which is what the 2 GiB ceiling is a ceiling over.
 
-## The check that is half done
+## The check that passed
 
 [ADR-0040] keeps the media stack in this repository on the strength of Quick
 Sync working, and names its own reopen condition: **the iGPU reaching a
@@ -144,11 +144,13 @@ different claims. `devices: /dev/dri` and `RENDER_GID` are where the second
 claim is made; [`build-the-nas.md`] §6 is where it gets tested, **before the
 library exists**, because moving a populated library is a weekend.
 
-**On 2026-09-19 the shell half passed**: `renderD128` is listed inside the
-container as `root 107`, and `id` there reads
-`groups=65534(nogroup),107`. What that does not prove is a transcode, which
-is a claim only Jellyfin's playback settings and a played file can make, and
-that is the half still open.
+**On 2026-09-19 both halves passed.** `renderD128` is listed inside the
+container as `root 107`, `id` there reads `groups=65534(nogroup),107`, and
+a 1080p clip played at a forced 480p was decoded with `-hwaccel vaapi` on
+the `iHD` driver, scaled by `scale_vaapi` and encoded by `h264_qsv` at about
+five times real time — read off the ffmpeg command line in
+`/config/log/FFmpeg.Transcode-*.log`, not off the dashboard. [ADR-0040]'s
+reopen condition is closed; the stack stays here.
 
 [ADR-0008]: ../../docs/adr/0008-place-services-by-data-trust.md
 [ADR-0012]: ../../docs/adr/0012-publish-only-ports-with-an-off-host-consumer.md
