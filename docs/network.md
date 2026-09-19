@@ -91,9 +91,13 @@ truth for what a box actually does.
   address ([`security.md`](security.md#what-this-repository-deliberately-does-not-publish)).
   Before it, `morpheus` carried no `rdr` and no inbound WAN pass beyond DHCP
   client replies — the state ADR-0011 measured in 2026-08. **Not built:** the
-  jumpbox ([#436](https://github.com/Gerrrt/HomeLab/issues/436)) does not exist
-  and the endpoint question is unanswered, so this describes a decision rather
-  than a rule on the box.
+  jumpbox ([#436](https://github.com/Gerrrt/HomeLab/issues/436)) does not exist,
+  so this describes a decision rather than a rule on the box. The endpoint
+  question is answered —
+  [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md):
+  a dynamic DNS record kept current by `morpheus`'s own client, on a WAN
+  address measured to be public rather than carrier-grade NAT — and the client
+  is not yet configured either.
 
 [^modem]: [Xfinity Gateway (XB7)](https://www.xfinity.com/support/articles/broadband-gateways-userguides)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)

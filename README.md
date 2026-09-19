@@ -98,7 +98,7 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 43 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 44 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 30
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
@@ -216,7 +216,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 43 architecture decision records
+│   ├── adr/                  # 44 architecture decision records
 │   └── runbooks/             # successor handover (start here), deploy, converge,
 │                             #   add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, restore the stack,

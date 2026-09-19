@@ -747,7 +747,12 @@ fingerprint of a house is not. Withheld on purpose:
   publishes the port a VPN answers on has withheld nothing. The design, the
   peer subnet and the rules are published
   ([ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md));
-  where to send a packet is not.
+  where to send a packet is not. That now includes **the dynamic DNS
+  hostname, its provider, the account and the update token**
+  ([ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)):
+  naming the provider narrows the search for the name to one zone, and the
+  token lives in `config.xml`, which this repository already keeps out of
+  the tree.
 
 The public IP was already redacted in the original inventory — the rest of this
 is the same instinct applied consistently.
