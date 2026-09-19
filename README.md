@@ -5,13 +5,19 @@
 **A segmented home network and its observability stack, managed as code.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/ci.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=CI)](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml)
+[![Digest drift](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/digests.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=Digest%20drift)](https://github.com/Gerrrt/HomeLab/actions/workflows/digests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=plastic)](LICENSE)
 [![SOPS](https://img.shields.io/badge/SOPS-6f42c1?style=plastic)](https://github.com/getsops/sops)
 [![age](https://img.shields.io/badge/age-6f42c1?style=plastic)](https://github.com/FiloSottile/age)
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io)
+[![Alertmanager](https://img.shields.io/badge/Alertmanager-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io/docs/alerting/latest/alertmanager/)
+[![snmp_exporter](https://img.shields.io/badge/snmp__exporter-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://github.com/prometheus/snmp_exporter)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
 [![Loki](https://img.shields.io/badge/Loki-F5A800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/loki/)
-[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2016-212121?style=plastic)](https://www.pfsense.org)
+[![Alloy](https://img.shields.io/badge/Alloy-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/alloy-opentelemetry-collector/)
+[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2016-212121?style=plastic&logo=pfsense&logoColor=white)](https://www.pfsense.org)
+[![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-E57000?style=plastic&logo=proxmox&logoColor=white)](https://www.proxmox.com/en/proxmox-virtual-environment)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 
 [Start here](docs/runbooks/successor-handover.md) ·
 [Architecture](docs/architecture.md) ·
@@ -171,6 +177,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 | --- | --- | --- |
 | Firewall / routing | [pfSense on FreeBSD 16](docs/network.md) | VLANs, DHCP, default-deny |
 | Virtualisation | Proxmox VE | Lab hypervisor |
+| Storage | [TrueNAS 25.10](docs/runbooks/build-the-nas.md) | `smaug`: 2× 18 TB ZFS mirror `erebor`, the SMB share, and the Docker the media stack runs under |
+| Media | [Jellyfin](stacks/media) | Quick Sync transcoding on the NAS; the one stack deployed from TrueNAS rather than by `make deploy` |
+| Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | On `alexander`, a guest on `Saruman`, with its own Prometheus; only liveness crosses to the estate's, never telemetry |
 | Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention capped at 12 GiB, remote-write receiver |
 | Logs | [Loki](stacks/observability/loki) | Single-binary, filesystem storage |
 | Collection | [Grafana Alloy](stacks/observability/alloy) | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
