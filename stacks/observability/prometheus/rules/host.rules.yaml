@@ -84,6 +84,74 @@ groups:
             Clock skew breaks log correlation across hosts and can invalidate
             rate() calculations.
 
+      - alert: HostClockUnsynchronised
+        # THE CLOCK HostClockSkew CANNOT SEE.
+        #
+        # Replacing prometheus's laptop cell on 2026-09-18 (#454) cleared the
+        # RTC. systemd-timesyncd restored the clock from its own clock file,
+        # whose timestamp is the second the machine went down, and the stack
+        # ran 13.8 minutes writing samples BACKDATED inside the outage before
+        # NTP stepped the clock forward about three hours. Nothing alerted
+        # (#519). HostClockSkew reads node_timex_offset_seconds, the kernel's
+        # current correction estimate; a clock that is wrong but stable has
+        # nothing to correct, and the offset read exactly 0 for the whole
+        # window. The field that carried the event is one over:
+        # node_timex_sync_status was 0 from the first post-swap scrape to the
+        # NTP step. This is ADR-0029's pair on Linux — DomainControllerClockDrifting
+        # reads the offset, DomainControllerTimeSourceIsLocalClock reads the
+        # source — because the obvious metric reads zero for exactly the
+        # failure being hunted.
+        #
+        # NOT node_boot_time_seconds. The issue's other candidate was a
+        # backward jump in the boot time, and the series never jumped
+        # backward: the 2026-07-28 value the RTC came up with never reached a
+        # scrape, the restored 14:53:27 is later than the previous boot, and
+        # the NTP step moved it FORWARD to 18:00:52. HostRebooted did fire, at
+        # info, into the null receiver.
+        #
+        # for: 5m IS MEASURED, NOT PICKED. Over the 30 days of retention on
+        # 2026-09-19 the estate booted eight times (Saruman three, oracle
+        # three, prometheus twice) and, read at 15s resolution around each
+        # boot, produced not one sample of 0: timesyncd syncs before the
+        # first 60s scrape on an ordinary boot. The only run of 0 in retention
+        # was the backdated window, 14:54:27 to 15:08:12 in TSDB time. Five
+        # minutes is five scrapes above the measured normal, fires about six
+        # minutes into that window, and would have said so roughly eight
+        # minutes before NTP repaired it. 15m would have missed the event
+        # entirely. The kernel also re-raises STA_UNSYNC on its own about
+        # nine hours after the last NTP update (maxerror grows at 500 us/s
+        # to the 16 s phase limit), so an NTP path that dies quietly is
+        # reported here before it has produced any drift for HostClockSkew.
+        #
+        # WHAT IT CAN AND CANNOT SEE. For a remote-writing host other than
+        # this one (oracle, next in line for the same swap), Prometheus is on
+        # a correct clock: the alert fires in real time, the ALERTS record is
+        # stamped correctly, and only that host's own samples are backdated.
+        # For prometheus itself the rule sees only the part of the window in
+        # which Prometheus was running on the wrong clock — 13.8 minutes of a
+        # roughly 3h18m outage on 2026-09-18. The notification reaches ntfy
+        # in real time; the alert's own startsAt and its ALERTS series carry
+        # the same wrong clock. It sees nothing of the hours the stack was
+        # down, and says nothing about samples written before the first 0.
+        expr: node_timex_sync_status == 0
+        for: 5m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} clock has no time source"
+          description: >-
+            The kernel reports its clock unsynchronised: no NTP source has
+            confirmed the time. HostClockSkew stays quiet here because a clock
+            that is wrong but stable has nothing to correct. Every sample and
+            log line this host stamps while this fires is on an unconfirmed
+            clock — after a battery or RTC loss it is backdated into the outage
+            it follows. Check `timedatectl timesync-status` and
+            `journalctl -b -u systemd-timesyncd`;
+            docs/runbooks/replace-the-laptop-cell.md step 6 says how to read
+            the TSDB afterwards.
+
       - alert: HostRebooted
         expr: time() - node_boot_time_seconds < 600
         labels:
@@ -515,11 +583,16 @@ groups:
       # depends on either figure: HostBatteryHealthLow reads the RATIO, so a
       # design figure that moves is absorbed rather than breaking the rule.
       #
-      # oracle's cell is unchanged, unbought and still firing (#531).
+      # oracle's cell is unchanged and still firing; its replacement was bought
+      # on 2026-09-19 and is in transit (#531).
       # docs/runbooks/replace-the-laptop-cell.md has the fit and the mains pull
       # that closed #454 on 2026-09-19: HostOnBattery pending at the first
       # offline sample, firing 2m32s after the plug, resolved a minute after it
       # went back; 2.72 Ah/h drawn, about 2.5 h from full. One measurement.
+      #
+      # THE SWAP ALSO CLEARED THE RTC, and the stack came back writing samples
+      # three hours in the past. HostClockUnsynchronised above is the rule
+      # that reads the field which carried that event (#519).
 
       - alert: HostOnBattery
         # The mains adapter reports online=0, joined to the info series so that
