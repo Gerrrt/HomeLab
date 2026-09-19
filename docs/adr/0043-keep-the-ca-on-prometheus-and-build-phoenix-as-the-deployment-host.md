@@ -279,6 +279,16 @@ proof, when it is built, needs no decryption: the public half of the backup
 compared with the public half of `ca.pem`, a sibling of
 `verify-key-backup.sh` with the same refusal to run against the live key.
 
+> [!NOTE]
+> **Discharged 2026-09-19.** [#496](https://github.com/Gerrrt/HomeLab/issues/496)
+> delivered the copy's runbook, the proof (`make certs-verify-backup`, the
+> sibling described above) and — in the same change rather than second —
+> the alerting this paragraph deferred: `CaKeyBackupUnproven`, on the same
+> ninety days, keyed on the key's fingerprint so that a re-mint starts it at
+> never. The trust list ADR-0037 could not write is now
+> [`generate-certificates.md`](../runbooks/generate-certificates.md) §4. The
+> text above is left as written, per ADR-0001.
+
 ## Consequences
 
 - **The lab's Prometheus and Loki open to a first off-host client, and the
