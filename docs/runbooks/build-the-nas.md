@@ -384,7 +384,9 @@ smartctl -t long /dev/sdc
 ## §3 — Create the mirror
 
 > **Done 2026-09-18.** Mirror of the two Exos, encryption unchecked, with the
-> extended self-tests still running underneath it.
+> extended self-tests still running underneath it. `zpool status erebor` on
+> 2026-09-19: `ONLINE`, one `mirror-0` of two members, 0 read, 0 write, 0
+> checksum errors, no known data errors.
 
 **Storage → Create Pool.**
 
@@ -597,10 +599,9 @@ measurement.
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the
-> device checks hold, and `erebor` is mounted with its datasets. **Not yet
-> read:** a television playing, the QSV transcode, `zpool status`, the two
-> extended self-tests, and the post-deploy re-reads of the tripwire and port
-> 15.
+> device checks hold, and `zpool status erebor` is `ONLINE` with no errors.
+> **Not yet read:** a television playing, the QSV transcode, the two extended
+> self-tests, and the post-deploy re-reads of the tripwire and port 15.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
