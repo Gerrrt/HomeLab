@@ -332,12 +332,12 @@ Televisions and consoles. Internet only.
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)).
   It has answered since 2026-09-19, and the target in
   `prometheus/targets/node.yaml` has been live since the same morning
-  ([#522](https://github.com/Gerrrt/HomeLab/pull/522)). Port `22` is inert
-  for a different reason — TrueNAS ships SSH disabled — until
-  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switches it on for the
-  backup pull [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)
-  decided: key-only, one read-only user, and the rule already scopes it to
-  `10.0.99.20`. §6.2 rewrites this sentence on the day.
+  ([#522](https://github.com/Gerrrt/HomeLab/pull/522)). Port `22` was inert
+  for a different reason — TrueNAS ships SSH disabled — until 2026-09-19,
+  when [`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switched it on
+  for the backup pull [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)
+  decided: key-only, one read-only user, `frodo`, and the rule already scopes
+  it to `10.0.99.20`. The first pull landed on 2026-09-20.
 
 [^OLEDTV]: [LG OLED TV](https://www.lg.com/us/tvs/oled)
 [^PS5]: [PlayStation 5](https://www.playstation.com/en-us/ps5/)
