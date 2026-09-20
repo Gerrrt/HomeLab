@@ -296,6 +296,14 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   2026-09-18, so this supply puts nothing on pin 3 and the Power Disable trap
   `build-the-nas.md` §1 records does not apply on this box — it would on a
   supply that does. They entered the Compute table with the pool.
+  **Both extended self-tests completed without error.** Started 2026-09-18 at
+  lifetime hour 0, under the pool creation and the first day of the stack, and
+  read on 2026-09-20 with `smartctl -l selftest`: `ZVTBS4NL` (`sda`) logged
+  the completion at lifetime hour 25 and `ZVTBSDL3` (`sdb`) at 26, no LBA of
+  first error on either, and `sdb`'s log still carries the seller's short
+  test at hour 0 above it. That was the last open line of
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §7, and
+  [#413](https://github.com/Gerrrt/HomeLab/issues/413) closed on it.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches
