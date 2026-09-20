@@ -1200,7 +1200,11 @@ what left this one unfireable for months.
   because VLAN 30 is the segment ADR-0014 built to hold attackers. Two things
   the issue did not count: the Proxmox firewall on `Saruman` admits `8006`
   from Hicks only, so the build widens ADR-0014's rule by one address on one
-  port, recorded as a marked amendment there and on ADR-0039; and
+  port, recorded as a marked amendment there and on ADR-0039 — and the build
+  then found that firewall never enabled at all, closed the same day by
+  [#566](https://github.com/Gerrrt/HomeLab/issues/566), which also found that
+  Proxmox had been admitting the whole segment through a `management` set
+  derived from the node's own subnet; and
   `certificates/ca-key.pem` has no backup or custody story at all, unlike
   the age key and the tier's root — found, named in the ADR with what the
   answer is not, and carried by
