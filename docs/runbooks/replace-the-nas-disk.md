@@ -3,8 +3,9 @@
 **One faulted Exos, two trays and no spare, and a dataset with no copy
 anywhere else — so the copy comes first and the tray comes last.**
 
-> **Status — 2026-09-20: nothing below is done. The pool runs on one disk,
-> and `erebor/apps` exists only on it.**
+> **Status — 2026-09-20: step 1 is read and it is the drive; steps 2–6 are
+> not done. The pool runs on one disk, `erebor/apps` exists only on it, and
+> since the exporter came back nothing is paging for either.**
 >
 > | When (PDT, 2026-09-19) | What |
 > | --- | --- |
@@ -25,6 +26,34 @@ anywhere else — so the copy comes first and the tray comes last.**
 > refused, and §6.2 is marked *Not yet done*. That is step 2, and it is why
 > the tray waits.
 > [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries this.
+>
+> **Step 1 read at the console, 2026-09-19 23:19 PDT. It is the drive, and
+> the return is the answer.** `zpool status -v erebor`: pool `ONLINE`,
+> `mirror-0` `ONLINE`, the `24c4970d…` leaf `FAULTED` with **3 read, 99
+> write, 0 checksum** errors, "too many errors", `errors: No known data
+> errors`. `dmesg` from 20:47:12 onward is one shape only: `Sense Key: Not
+> Ready`, *Logical unit not ready, cause not reportable*, commands timing
+> out at 60 s and aborted, a target reset that succeeded and changed
+> nothing, reads and writes failing at sector 0, at 2080, and at the far end
+> of the disk alike — the drive going away, not the path. No link resets, no
+> `SError`, no CRC. SMART at lifetime hour 32: overall `PASSED`, **850
+> pending and 850 offline-uncorrectable sectors** where both read 0 on
+> 2026-09-18, `Command_Timeout` normalised to **1**, no reallocations, error
+> log empty, the extended self-test still logged as completed clean at hour
+> 26. FARM says which head: **all 850 reallocation candidates are on head
+> 5**, 124 command timeouts, 179 hardware resets, 12 V and 5 V rails inside
+> spec, 28 °C. The fault was at about **lifetime hour 27**, one hour after
+> the self-test that passed.
+>
+> **The exporter came back on `docker restart media-node-exporter`** at
+> 23:26 PDT (06:26 UTC 2026-09-20): `/metrics` in 46 ms, every collector
+> reporting success, `up` back to 1 on the next scrape, `InstanceDown`
+> resolved. **And that is the problem.** The kstat behind
+> `node_zfs_zpool_state` reads `online` for `erebor` — the pool state, which
+> `zpool status` also prints as `ONLINE` — so `ZpoolNotOnline` sees nothing,
+> and from 23:27 PDT **no alert in the estate is firing for a mirror running
+> on one disk.** The only thing that noticed is TrueNAS's own alert, which
+> reaches the web UI and nothing else. See *What is still open*.
 
 `smaug` is the TrueNAS host at `10.0.40.30` on CasaBonita, which is terminal
 outward ([ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)):
@@ -251,16 +280,33 @@ refund fight — is the operator's, and it is recorded here.
 
 ## What is still open
 
-- **Whether `zpool status` says `DEGRADED` or `ONLINE` for a faulted mirror
-  leaf.** TrueNAS's alert said `ONLINE`. Step 1 settles it, and it decides
-  whether `ZpoolNotOnline` can see this class of fault at all.
-- **No vdev-level metric.** node_exporter exports pool state and nothing per
-  device; [#483](https://github.com/Gerrrt/HomeLab/issues/483) is why
-  nothing on `smaug` can push more. A `FAULTED` leaf under an `ONLINE` pool
-  is invisible from here until that changes.
-- **Whether the exporter hangs on every device fault.** If step 1's restart
-  does not bring it back, then `InstanceDown` is the NAS disk alert in
-  practice and this runbook should say so at the top.
+- **Settled 2026-09-19: `zpool status` says `ONLINE` for a faulted mirror
+  leaf, and so does the kstat.** `ZpoolNotOnline` cannot see this class of
+  fault. It still catches a pool that is genuinely degraded, suspended or
+  unavailable — a resilver, a second disk gone — but the one fault that has
+  actually happened is below its resolution.
+- **No vdev-level metric, and now nothing fires.** node_exporter exports
+  pool state and nothing per device; [#483](https://github.com/Gerrrt/HomeLab/issues/483)
+  is why nothing on `smaug` can push more. With the exporter restarted,
+  `InstanceDown` has resolved and no alert covers the degraded mirror. Two
+  ways out, neither built: point TrueNAS's own alert service at a channel
+  that reaches a phone (System → Alert Settings → Add; the estate's ntfy
+  receiver is the obvious candidate if the type list offers it), or have a
+  periodic task on `smaug` write `zpool status` vdev states to a textfile
+  the exporter serves — the mechanism #483 argues about.
+- **The exporter's hang was the fault, not a habit.** It came back on a
+  restart within seven minutes of the console session, so `InstanceDown` is
+  the NAS disk alert only while the device is still timing out I/O. The
+  runbook now says so at the top.
+- **Which controller the pair is on.** `readlink /sys/block/sdb` resolves
+  under `host0` at PCI `0000:01:00.0`, and `dmesg` handles it with task
+  aborts and target resets — a SCSI host on the PCIe slot, not the board's
+  AHCI, whose `ata2` and `ata3` read *SATA link down* at boot while
+  [`build-the-nas.md`](build-the-nas.md) §1 says the trays are cabled to
+  `SATA2` and `SATA3`. Either there is a controller in the slot that
+  [`hardware.md`](../hardware.md) does not list, or §1's port names are
+  wrong. `lspci -nn` and `readlink /sys/block/sda` at the console settle
+  it, and the answer belongs in the hardware entry.
 - **§6.2**, until step 2 path A has run — and `oracle`'s copy of the NAS
   set, which `backup-nas.sh` makes and nothing has yet made.
 - **The replacement decision**, and whether a third drive follows.

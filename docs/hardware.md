@@ -318,7 +318,16 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   said at the console, and the outcome, belong in
   [`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md)'s status
   block and then here; [#558](https://github.com/Gerrrt/HomeLab/issues/558)
-  carries it.
+  carries it. **Read at the console on 2026-09-19 at 23:19 PDT, at lifetime
+  hour 32: it is the drive.** `zpool status` counts 3 read and 99 write
+  errors on the leaf; `dmesg` is *Logical unit not ready* and 60-second
+  command timeouts from 20:47 on, with no link resets and no CRC errors;
+  SMART reads **850 pending and 850 offline-uncorrectable sectors** against
+  the 0 and 0 of the day before, `Command_Timeout` normalised to 1, overall
+  health still `PASSED`; and FARM puts **all 850 reallocation candidates on
+  head 5**, with 124 command timeouts and 179 hardware resets, both rails
+  in spec, 28 °C. `ZVTBS4NL` is unaffected. The extended self-test that
+  completed at hour 26 was true when it was read and is not evidence now.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches
