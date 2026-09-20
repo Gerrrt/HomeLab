@@ -540,7 +540,12 @@ pvesm status
 > spelling the same evening: the `lvcreate` and every fio line naming the SSD
 > pool failed on a volume group that does not exist, while the `pve` side
 > ran. LVM and PVE storage ids are case-sensitive; copy the name out of
-> `pvesm status`, not out of a document. The device was `sdb`: Proxmox came up at 13:43 UTC after the
+> `pvesm status`, not out of a document. **The fio lines did worse than
+> fail**: fio creates a missing directory for its `--filename`, so
+> `/dev/Large_data/fiotest` came into being as an 8 GB regular file on
+> devtmpfs — RAM — and the two runs against it "succeeded" with memory's
+> numbers. Discarded; `rm -rf /dev/Large_data` once `stat` says regular
+> file. Step 8's troubleshooting row carries this now. The device was `sdb`: Proxmox came up at 13:43 UTC after the
 > SSA session with a second `LOGICAL_VOLUME` there — no rescan needed, because
 > the host booted fresh, which is why item 10 below is still not settled. The
 > pool's three device-mapper volumes (`_tmeta`, `_tdata`, `-tpool`) appeared in
@@ -826,7 +831,7 @@ comfortably under 30 s.
 | `qm move-disk` refuses | Snapshots on vmid 140 | `qm listsnapshot 140`, delete them, retry |
 | Move completes, guest will not boot | Storage moved, guest config did not | `qm config 140` — `scsi0` must name the `large_data` storage. `unused0` is still the intact original |
 | The new pool fills | Thin overprovisioning, and nothing alerts on it | Step 7's blind spot, arriving. `pvesm status`, `lvs` |
-| fio numbers are wildly high | Caching somewhere in the path | `--direct=1` on every run, and a raw LV target — never a file, never `/dev/sda` |
+| fio numbers are wildly high | Caching somewhere in the path — or the target is not the LV at all: fio creates a missing directory for `--filename`, so a misspelt `/dev/<vg>/` path becomes a regular file on devtmpfs and the run measures RAM | `--direct=1` on every run, and a raw LV target — never a file, never `/dev/sda`. `stat -c %F` the target before the fill: it must say `block special file` |
 
 ## Flipping the documents
 
