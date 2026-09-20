@@ -81,8 +81,8 @@ BLUE = "\033[0;34m"
 RESET = "\033[0m"
 
 
-def single_file_mounts(stack: str) -> list[tuple[str, pathlib.Path | None, str]]:
-    """(service, host path, container path) for every single-FILE bind mount.
+def single_file_mounts(stack: str) -> list[tuple[str, str, pathlib.Path | None, str]]:
+    """(service, container name, host path, container path) per single-FILE bind mount.
 
     Directory mounts are excluded and do not need to be here: a file replaced
     inside a mounted directory is visible to the container at once, which is why
@@ -103,8 +103,9 @@ def single_file_mounts(stack: str) -> list[tuple[str, pathlib.Path | None, str]]
                 continue
             source, target = parts[0], parts[1]
             host = (stack_dir / source).resolve()
+            container = spec.get("container_name") or service
             if host.is_file():
-                found.append((service, host, target))
+                found.append((service, container, host, target))
             elif not host.exists() and not host.is_dir():
                 # A declared mount whose source does not exist is not a skip.
                 # Docker CREATES a directory at a missing bind-mount source, so
@@ -112,11 +113,11 @@ def single_file_mounts(stack: str) -> list[tuple[str, pathlib.Path | None, str]]
                 # should be — which is the #69 failure, and reporting nothing
                 # here would be the same silence in a new place. Returned with
                 # host=None so the caller can say so.
-                found.append((service, None, target))
+                found.append((service, container, None, target))
     return found
 
 
-def container_copy(service: str, target: str) -> bytes | None:
+def container_copy(container: str, target: str) -> bytes | None:
     """What the container has at that path, or None if it cannot be read.
 
     `docker cp` rather than `docker exec cat`, because loki's image is
@@ -124,7 +125,7 @@ def container_copy(service: str, target: str) -> bytes | None:
     """
     with tempfile.NamedTemporaryFile() as tmp:
         result = subprocess.run(
-            ["docker", "cp", f"{service}:{target}", tmp.name],
+            ["docker", "cp", f"{container}:{target}", tmp.name],
             capture_output=True, text=True,
         )
         if result.returncode != 0:
@@ -155,8 +156,15 @@ def main() -> int:
 
     stale: list[str] = []
     checked = 0
-    for service, host, target in mounts:
-        if service not in alive:
+    # `docker ps` prints container names, and a stack that sets `container_name`
+    # (stacks/lab prefixes every service with `lab-`) names its containers
+    # differently from its services. Matching the service name against that
+    # list skipped every lab container as "not running" from the day the
+    # stack landed, and reported "0 mount(s) match" as OK — the #355 guard
+    # was never guarding the lab. The service name is still what compose
+    # wants for --force-recreate below.
+    for service, container, host, target in mounts:
+        if container not in alive:
             print(f"{YELLOW}  SKIP{RESET} {service} is not running")
             continue
         if host is None:
@@ -169,7 +177,7 @@ def main() -> int:
                 f"gitignored, or missing from this checkout"
             )
             continue
-        inside = container_copy(service, target)
+        inside = container_copy(container, target)
         if inside is None:
             print(f"{RED}  FAIL{RESET} {service}: cannot read {target} from the container")
             stale.append(service)
@@ -221,10 +229,10 @@ def main() -> int:
     # rebound nothing would otherwise leave this reporting success for the exact
     # failure it exists to catch.
     still: list[str] = []
-    for service, host, target in mounts:
+    for service, container, host, target in mounts:
         if host is None or service not in set(stale):
             continue
-        inside = container_copy(service, target)
+        inside = container_copy(container, target)
         if inside != host.read_bytes():
             still.append(service)
     if still:
