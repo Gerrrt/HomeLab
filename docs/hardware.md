@@ -275,9 +275,21 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   chipset, that handled `sdb`'s failure with 60-second command timeouts,
   task aborts and a target reset. `smartctl` reaches the drives without a
   `-d megaraid` option and reports them by their own model and serial, which
-  is what a JBOD pass-through looks like; whether the card is in JBOD mode
-  or presenting two single-disk virtual drives, and which firmware it runs,
-  are unread and belong here when they are. `1000:005f` is the ID to watch:
+  is what a JBOD pass-through looks like — and `dmesg` confirms it, read the
+  same night: driver `megaraid_sas` 07.727.03.00-rc1, controller type
+  **`iMR(0MB)`** — the cacheless entry-level MegaRAID, no write cache and
+  no battery to worry about — subsystem `1000:9340`, which is the 9340-8i
+  family the ThinkServer RAID 520i is built on, *Secure JBOD support: Yes*,
+  and **`JBOD sequence map : enabled`**, which is the driver's way of
+  saying the disks are JBOD devices rather than virtual drives. So ZFS sees
+  the drives themselves through a RAID firmware's error handling, which is
+  the better of the two arrangements a MegaRAID offers and still not an
+  IT-mode HBA. The firmware version is not in `dmesg`; it is in
+  `/sys/class/scsi_host/host0/fw_ver` and is still owed here. The driver
+  logged a disable/enable of its interrupts at 21:03:51 on 2026-09-19, the
+  same second as the target reset in the fault's `dmesg` — the controller
+  resetting itself around a disk that had stopped answering, which is the
+  Online Controller Reset it advertises as enabled. `1000:005f` is the ID to watch:
   `1000:0097` is the same silicon in IT mode, and the card was never
   recorded here, like the optical drive was not. Cabling below, in
   [`build-the-nas.md`](runbooks/build-the-nas.md) §1, says `SATA2` and

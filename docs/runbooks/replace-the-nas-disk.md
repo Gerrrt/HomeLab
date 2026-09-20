@@ -311,14 +311,16 @@ refund fight — is the operator's, and it is recorded here.
   `01:00.0`, and both `sda` and `sdb` resolve under its `host0`; the
   chipset AHCI carries the boot SSD alone. [`build-the-nas.md`](build-the-nas.md)
   §1's `SATA2`/`SATA3` was wrong and now says so;
-  [`hardware.md`](../hardware.md) carries the card. What is **not** read
-  yet, and belongs in the hardware entry: the card's firmware and whether
-  the disks are JBOD pass-through or single-disk virtual drives.
-  `cat /sys/class/scsi_host/host0/proc_name` names the driver, and
-  `dmesg -T | grep -iE 'megaraid|megasas'` prints the firmware and, on a
-  JBOD, says so. `smartctl` reaching the drives by their own model without
-  `-d megaraid` says pass-through, which is the better of the two answers
-  and still not the IT-mode HBA ZFS is designed for. Whether to leave the
+  [`hardware.md`](../hardware.md) carries the card. **Read the same
+  night:** driver `megaraid_sas`, controller type `iMR(0MB)` — cacheless,
+  no battery — subsystem `9340`, and `JBOD sequence map : enabled`, so the
+  disks are **JBOD pass-through**, not virtual drives, which is why
+  `smartctl` reaches them by their own model without `-d megaraid`. That is
+  the better of the two answers a MegaRAID offers and still not the IT-mode
+  HBA ZFS is designed for: the sixty-second timeouts, task aborts and the
+  21:03:51 controller reset in the fault's `dmesg` are its firmware's error
+  path, and ZFS waited on them. The firmware version is the one reading
+  still owed, from `/sys/class/scsi_host/host0/fw_ver`. Whether to leave the
   card as it is, flash the 3008 to IT firmware (`1000:0097`), or cable the
   bays to the chipset's free `SATA0`–`SATA3` and take the card out is a
   decision for [#558](https://github.com/Gerrrt/HomeLab/issues/558) after
