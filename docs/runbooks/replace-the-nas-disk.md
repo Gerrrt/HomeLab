@@ -1,0 +1,266 @@
+# Runbook: Replace a disk in `erebor`
+
+**One faulted Exos, two trays and no spare, and a dataset with no copy
+anywhere else — so the copy comes first and the tray comes last.**
+
+> **Status — 2026-09-20: nothing below is done. The pool runs on one disk,
+> and `erebor/apps` exists only on it.**
+>
+> | When (PDT, 2026-09-19) | What |
+> | --- | --- |
+> | 20:46 | `up{job="node",instance="smaug"}` went 1 → 0 and stayed there. TCP 9100 still accepts; `GET /metrics` never returns — `curl -m 30` gives up with exit 28. A collector is blocked behind the faulted device. |
+> | 20:50 | `InstanceDown` firing, critical, routed to `urgent`. Still firing. |
+> | 20:55 (03:55 UTC 2026-09-20) | TrueNAS: *"Pool erebor state is ONLINE: One or more devices are faulted in response to persistent errors. Sufficient replicas exist for the pool to continue functioning in a degraded state. Disk ST18000NM003D-3DL103 ZVTBSDL3 is FAULTED"* |
+>
+> `ZVTBSDL3` is `sdb`, at about **lifetime hour 27** — one day after it
+> arrived, and about an hour after the extended self-test
+> [`build-the-nas.md`](build-the-nas.md) §2 started had completed without
+> error at hour 26. The other half of the mirror, `ZVTBS4NL` (`sda`), carries
+> everything.
+>
+> **`erebor/apps` has zero copies off `smaug`.** `scripts/backup-nas.sh`
+> merged on 2026-09-19 ([#554](https://github.com/Gerrrt/HomeLab/pull/554)),
+> but on the monitoring host `backups/nas` does not exist,
+> `homelab-backup-nas.timer` is not installed, `ssh frodo@10.0.40.30` is
+> refused, and §6.2 is marked *Not yet done*. That is step 2, and it is why
+> the tray waits.
+> [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries this.
+
+`smaug` is the TrueNAS host at `10.0.40.30` on CasaBonita, which is terminal
+outward ([ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)):
+the monitoring host reaches `9100` and, once §6.2 is done, `22`, and nothing
+else. So the console steps below are done **at the machine** (option 8, *Open
+Linux Shell*) or in the TrueNAS UI at `https://10.0.40.30` from a Hicks
+workstation, and the monitoring host's part is reading the result. The pool
+is a mirror of two Seagate Exos X20 18 TB in the TS150's two 3.5" trays;
+`sda` is `ZVTBS4NL` and `sdb` is `ZVTBSDL3`, but **the serial on the drive
+label settles which tray is which, not the letter** — letters are assigned
+at enumeration and a reboot can swap them.
+
+## Why this is urgent, and why it is not an emergency
+
+Urgent: a mirror of two with one device out has no redundancy. Everything on
+`erebor` is on one spinning disk, and `erebor/apps` — Jellyfin's users,
+watch history, resume positions, and its password hashes — is the half
+[ADR-0008](../adr/0008-place-services-by-data-trust.md) ruled irreplaceable
+and it is on nothing else. The return clock is running too: the pair was
+delivered on 2026-09-18 and the eBay Money Back Guarantee is thirty days from
+delivery, so a return has to be opened by **2026-10-18**.
+
+Not an emergency: the pool is serving, `erebor/media` is replaceable by
+decision (§4 of the build runbook), and with two trays and no spare there is
+nothing that can be done today that adds redundancy — the pool runs on
+`ZVTBS4NL` alone until a replacement drive is in the house, whatever the
+order of the steps. That is the argument for doing the copy carefully rather
+than the swap quickly.
+
+## 1. Triage at the console, and get the exporter back
+
+At the console, before anything else, and every reading goes into the
+status block above:
+
+```bash
+zpool status -v erebor
+```
+
+Record the pool's `state:` line verbatim. TrueNAS's alert said the pool is
+`ONLINE` with a `FAULTED` leaf; if `zpool status` says `DEGRADED`, the
+kstat `node_zfs_zpool_state` reads will say so too and `ZpoolNotOnline` can
+see it. If it also says `ONLINE`, the pool-level metric cannot see a faulted
+mirror leaf at all, and that goes in *What is still open*.
+
+```bash
+readlink /sys/block/sdb
+dmesg -T | grep -iE 'ata[0-9]|sdb'
+```
+
+The `readlink` names the `ataN` port `sdb` is on, so the `dmesg` lines can
+be matched to it. Two shapes, read differently:
+
+- **`hard resetting link`, `SError`, `link is slow to respond`, `failed
+  command: READ FPDMA QUEUED` with a status of `DRDY` and no media error** —
+  the path, not the platter: cable, port, or power. §1 of the build runbook
+  records that this supply has no 3.3 V on pin 3, so the Power Disable trap
+  does not apply, but a data cable seated on the day the drive went in is a
+  real suspect. Power down, reseat both connectors on that drive, power up,
+  `zpool clear erebor`, and watch `zpool status` for an hour. If it stays
+  clean, this runbook ends at step 5 with a cable named instead of a disk.
+- **`UNC`, `media error`, `I/O error`, `Buffer I/O error on dev sdb`** —
+  the platter. Continue.
+
+```bash
+smartctl -a /dev/sdb
+smartctl -l selftest /dev/sdb
+smartctl -l farm /dev/sdb
+```
+
+`SMART overall-health`, `Reallocated_Sector_Ct`, `Current_Pending_Sector`,
+`Offline_Uncorrectable`, and the *SMART Error Log* are the lines. All four
+read `0` and `PASSED` on 2026-09-18 and the self-test log read clean at
+hour 26; what has changed since is the finding. `-l farm` is for the hours
+counter, so the lifetime hour of the fault is a number rather than an
+estimate.
+
+Then the exporter. Its container is `media-node-exporter`
+([`stacks/media/compose.yaml`](../../stacks/media/compose.yaml)):
+
+```bash
+docker restart media-node-exporter
+```
+
+and from the monitoring host:
+
+```bash
+curl -s -m 15 http://10.0.40.30:9100/metrics | grep 'node_zfs_zpool_state{.*zpool="erebor"' | grep ' 1$'
+```
+
+If it answers, `up` returns to 1 on the next scrape and the pool-state rule
+is live from that scrape on. If it hangs again, the collector is blocked
+behind the device and will stay blocked until step 4 takes the device out;
+say so in the status block. **Do not silence `InstanceDown`**: while the
+exporter is down it is the only signal there is, and Alertmanager's inhibit
+rule means a silence on it hides nothing else. **Do not disable the zfs
+collector** to make the scrape green — a green scrape with no pool state is
+worse than a red one.
+
+## 2. Copy `erebor/apps` off, before anything touches a tray
+
+Path A is the design, and it is preferred: do
+[`build-the-nas.md`](build-the-nas.md) §6.2 steps 1–6, then on the
+deployment checkout of the monitoring host:
+
+```bash
+make backup-nas && make backup-nas ARGS=--list && make verify-backups
+```
+
+and §6.2 step 7, `make install-timers`, once the first pull has passed, so
+this copy is the first of a series rather than the only one.
+
+Path B is for the evening §6.2 cannot be done. A USB stick at the console,
+reading from the **newest snapshot** (§4.1) so that Jellyfin never stops and
+the SQLite files are captured at one instant:
+
+```bash
+lsblk
+mkdir -p /mnt/usb && mount /dev/sdX1 /mnt/usb
+ls -1 /mnt/erebor/apps/.zfs/snapshot/
+tar --numeric-owner -czf "/mnt/usb/erebor-apps-$(date -u +%Y%m%dT%H%MZ).tar.gz" \
+  -C /mnt/erebor/apps/.zfs/snapshot/<newest> . && sync
+tar -tzf /mnt/usb/erebor-apps-*.tar.gz | grep 'jellyfin/config/data/jellyfin.db'
+umount /mnt/usb
+```
+
+`sdX` is the stick — `lsblk` shows it as the device that is neither an
+18 TB Exos nor the 223.6 G boot SSD — and the `grep` is the sentinel
+that #554 chose: no `jellyfin.db` in the listing, no backup. Say plainly what
+path B is: **plaintext, on a stick, including Jellyfin's password hashes.**
+It is encrypted on the monitoring host or destroyed the day path A exists,
+and it does not leave the house in between.
+
+## 3. Start the return, and decide the replacement
+
+The pair is eBay item
+[237056026029](https://www.ebay.com/itm/237056026029). Open a return under
+the Money Back Guarantee as *item not as described / defective* **before
+2026-10-18**; the seller chooses refund or replacement, and either is fine
+for the pool. Check Seagate's own warranty by serial at
+<https://www.seagate.com/support/warranty-and-replacements/> — an "0HR" lot
+may be OEM stock Seagate will not cover, and the answer, either way, goes in
+[`hardware.md`](../hardware.md)'s Exos entry.
+
+The decision point: a replacement from the seller means no purchase; a
+refund, or a return that will take weeks, means buying an 18 TB outright to
+close the redundancy gap sooner — and a purchase means a row in
+[`roadmap.md`](../roadmap.md)'s buy list in the same commit, which is its
+rule. A third drive as a cold spare is the same question asked once more,
+and the answer is recorded here when it is made.
+
+Ship the faulted drive only after step 2's copy is verified and step 6 is
+done. The pool loses nothing by keeping it in the tray until then; it is
+contributing nothing.
+
+## 4. Offline, power down, swap
+
+In the UI: **Storage → `erebor` → Manage Devices → the disk showing
+FAULTED (`ZVTBSDL3`) → Offline.** Then **System → Shut Down.** Power lead
+out, five seconds on the button to drain the supply, ground yourself (§1).
+
+Pull the tray whose drive label reads `ZVTBSDL3` — read the label, not the
+letter. Fit the replacement in the same tray on the same data and power
+leads, so a cable that was the fault is found by the next reading rather
+than hidden by a fresh one. Leave the `AUX1_FAN` cage fan alone; it is the
+airflow over both trays and §1 says why it is not optional.
+
+Power on. **Read the new drive before trusting it**, §2-style:
+
+```bash
+smartctl -a /dev/sdX
+smartctl -l farm /dev/sdX
+```
+
+Serial, firmware, SMART and FARM hours into `hardware.md` — the FARM
+counter is the one a reset cannot touch. Then in the UI: **Storage →
+`erebor` → Manage Devices → the OFFLINE member → Replace → pick the new
+disk → Replace.** `zpool status erebor` shows `resilver in progress`. A
+mirror resilver copies allocated blocks only, so it is hours rather than the
+day a full 18 TB would take, and `ZpoolNotOnline` fires for the whole of it
+— that is the intended reading, not a fault. When it completes:
+
+```bash
+zpool scrub erebor
+zpool status -v erebor
+```
+
+Wait for the scrub. The status must read `ONLINE` and `errors: No known
+data errors` with `0 0 0` on every row. Start `smartctl -t long /dev/sdX`
+on the new disk; it takes about 28 hours, and the result is a `hardware.md`
+line.
+
+## 5. Verify, and write it down
+
+- `zpool status -v erebor` reads `ONLINE`, zeros on every row, scrub
+  completed with 0 errors
+- From the monitoring host, `curl -s -m 15 http://10.0.40.30:9100/metrics`
+  carries `node_zfs_zpool_state{state="online",zpool="erebor"} 1`, and
+  `up{job="node",instance="smaug"}` reads 1
+- `ZpoolNotOnline` and `InstanceDown` are both resolved in Alertmanager,
+  with no silence in place
+- `make backup-nas ARGS=--list` on the monitoring host shows the set from
+  step 2 (path A), and `homelab-backup-nas.timer` is in `systemctl
+  list-timers`
+- [`hardware.md`](../hardware.md)'s Exos entry carries the new serial, its
+  readings, and the outcome of the return; [`build-the-nas.md`](build-the-nas.md)
+  §7's `zpool status` line is true again
+- [#558](https://github.com/Gerrrt/HomeLab/issues/558) closes on this list
+
+## 6. Before the faulted disk leaves the house
+
+The pool is not encrypted (§3), and the disk held the library and Jellyfin's
+password hashes. A FAULTED drive may or may not still take writes:
+
+```bash
+shred -n 1 -v /dev/sdX
+```
+
+is one pass over 18 TB, about a day. If that is more than the drive will
+sit still for, `zpool labelclear -f /dev/sdX` and a `dd if=/dev/zero` over
+the first and last GiB removes the pool labels and the partition table, which
+is what makes the disk mountable elsewhere; the data blocks remain. If the
+drive takes no writes at all, the choice — ship it, or keep it and take the
+refund fight — is the operator's, and it is recorded here.
+
+## What is still open
+
+- **Whether `zpool status` says `DEGRADED` or `ONLINE` for a faulted mirror
+  leaf.** TrueNAS's alert said `ONLINE`. Step 1 settles it, and it decides
+  whether `ZpoolNotOnline` can see this class of fault at all.
+- **No vdev-level metric.** node_exporter exports pool state and nothing per
+  device; [#483](https://github.com/Gerrrt/HomeLab/issues/483) is why
+  nothing on `smaug` can push more. A `FAULTED` leaf under an `ONLINE` pool
+  is invisible from here until that changes.
+- **Whether the exporter hangs on every device fault.** If step 1's restart
+  does not bring it back, then `InstanceDown` is the NAS disk alert in
+  practice and this runbook should say so at the top.
+- **§6.2**, until step 2 path A has run — and `oracle`'s copy of the NAS
+  set, which `backup-nas.sh` makes and nothing has yet made.
+- **The replacement decision**, and whether a third drive follows.

@@ -894,6 +894,16 @@ as `65534` across two hosts that spell it differently.
 > [`hardware.md`](../hardware.md)'s Exos entry, and it was the last line of
 > this list: **every line below is read**, and
 > [#413](https://github.com/Gerrrt/HomeLab/issues/413) closed on it.
+>
+> **2026-09-20: the `zpool status erebor` line below stopped being true the
+> evening before.** `sdb` (`ZVTBSDL3`) FAULTED at 20:55 PDT on 2026-09-19, at
+> about lifetime hour 27 and an hour after the self-test above completed
+> clean, and node_exporter stopped answering nine minutes earlier, so
+> `up{job="node",instance="smaug"}` reads 0 as well. The pool runs on
+> `ZVTBS4NL` alone. [`replace-the-nas-disk.md`](replace-the-nas-disk.md) is
+> the procedure, and §6.2 — still not done — is its step 2, because
+> `erebor/apps` has no copy off this host.
+> [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries it.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
@@ -917,6 +927,11 @@ as `65534` across two hosts that spell it differently.
 
 ## §8 — What this leaves open
 
+- **A faulted disk, one day in.** `ZVTBSDL3` FAULTED on 2026-09-19 and the
+  pool is a mirror of one until it is replaced;
+  [`replace-the-nas-disk.md`](replace-the-nas-disk.md) is the procedure and
+  [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries it. Its step
+  2 is §6.2.
 - **[#255](https://github.com/Gerrrt/HomeLab/issues/255)**, the residual saying
   this host ships no logs, which is true the day it exists.
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s

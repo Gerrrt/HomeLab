@@ -400,6 +400,61 @@ groups:
             replaced — that is deliberate, because a drive that failed once and
             went quiet is still a drive that failed. Check backups first.
 
+      # --- ZFS pool state, for the one host whose disks ARE a pool (#558) ---
+      #
+      # node_exporter's zfs collector reads /proc/spl/kstat/zfs/<pool>/state
+      # and exports one 0/1 series per pool per state:
+      # node_zfs_zpool_state{zpool="erebor",state="online|degraded|faulted|
+      # offline|removed|suspended|unavail"}. smaug exported it from the day the
+      # scrape went live (2026-09-19, #522) and nothing read it: the SMART
+      # family above is homelab_smart_*, which #483 says cannot reach smaug,
+      # and every other disk rule in this file is per-filesystem.
+      #
+      # WHAT THE FIRST INCIDENT LOOKED LIKE, and why this rule did not see it.
+      # 2026-09-19 20:55 PDT, TrueNAS: "Pool erebor state is ONLINE: One or
+      # more devices are faulted in response to persistent errors ... Disk
+      # ST18000NM003D-3DL103 ZVTBSDL3 is FAULTED" — one day after the drive
+      # arrived, an hour after its extended self-test completed clean. Nine
+      # minutes EARLIER, at 20:46, up{instance="smaug"} went to 0 and stayed
+      # there: TCP 9100 still accepted, GET /metrics never returned — a
+      # collector blocked behind the faulted device. So InstanceDown, firing
+      # from 20:50, was the page, and this series stopped being written before
+      # the pool state had anything to say. This rule catches only the case
+      # where the exporter SURVIVES the fault, and for a collector that reads
+      # kstats through the failing disk that may be the exception rather than
+      # the rule. InstanceDown inhibits it on the same instance
+      # (alertmanager.yaml), which is the right order: when the exporter is
+      # dead, InstanceDown is the signal, and the runbook's first step is at
+      # the console either way.
+      #
+      # `state!="online"` == 1 rather than `state="online"` == 0, so the label
+      # carries WHICH state the pool is in and a state name the collector
+      # learns later is caught without editing this line. boot-pool is covered
+      # by the same selector. A resilver after a replacement holds the pool at
+      # degraded for its whole duration; the alert firing throughout is the
+      # intended reading, not noise — the runbook says so where it happens.
+      #
+      # for: 5m is five scrapes at the node job's 60s. Critical, on the
+      # hardware route: a two-disk mirror with a device out has no redundancy
+      # left, and erebor/apps is the dataset ADR-0008 calls irreplaceable.
+      - alert: ZpoolNotOnline
+        expr: node_zfs_zpool_state{state!="online"} == 1
+        for: 5m
+        labels:
+          component: host
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "{{ $labels.instance }}: zpool {{ $labels.zpool }} is {{ $labels.state }}"
+          description: >-
+            The pool's own state, read from its kstat, has not been online for
+            five minutes. On a two-disk mirror that is one disk carrying
+            everything, the replaceable library and the irreplaceable Jellyfin
+            state alike. `zpool status -v {{ $labels.zpool }}` at the console
+            names the device; docs/runbooks/replace-the-nas-disk.md is the
+            order to do things in, and copying erebor/apps off comes before
+            touching a tray.
+
       - alert: SystemUpdateAvailable
         # A pfSense system upgrade has been available for a week (#378).
         #

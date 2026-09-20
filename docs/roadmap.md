@@ -900,7 +900,11 @@ what left this one unfireable for months.
   four-bay chassis with two bays filled, because the bay count is the half that
   cannot be changed later and the library's size is a number nobody has; the
   two filled trays have held the Exos pair since 2026-09-19, and `erebor` is
-  their mirror.
+  their mirror. **One of them faulted on 2026-09-19**, a day in, with the
+  exporter hung ahead of it and nothing yet pulling `erebor/apps` off the
+  box; [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries the
+  swap, the return, and the rule that now reads pool state.
+  → [runbook](runbooks/replace-the-nas-disk.md)
 - **[#101](https://github.com/Gerrrt/HomeLab/issues/101) Build ADR-0007's
   defended estate on `Saruman`** — a Windows domain, Wazuh, Velociraptor, PBS
   and a second observability stack. The umbrella. The observability half is
