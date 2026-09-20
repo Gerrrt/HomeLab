@@ -221,6 +221,22 @@ def main() -> int:
     )
     args = ap.parse_args()
 
+    # Only the estate's stack runs an Alertmanager (ADR-0020 gives the lab none,
+    # and soc, media and sensitive follow it). `make up` runs this for every
+    # stack, and until 2026-09-20 a stack without one failed here on its last
+    # step — after compose, the reload and the health check had all succeeded —
+    # so `make up STACK=lab` exited 1 over a file it was right not to have.
+    # A stack with no Alertmanager service has no notification path to check.
+    compose = REPO / "stacks" / args.stack / "compose.yaml"
+    if not compose.is_file():
+        sys.exit(f"no compose.yaml for stack {args.stack!r} at {compose}")
+    if not re.search(r"^  alertmanager:\s*$", compose.read_text(encoding="utf-8"), re.M):
+        print(
+            f"  NOTE stack {args.stack!r} declares no alertmanager service — "
+            f"no notification path to check"
+        )
+        return 0
+
     wanted, rendered = declared(args.stack)
     if not wanted:
         sys.exit(
