@@ -941,7 +941,8 @@ as `65534` across two hosts that spell it differently.
 > ran on 2026-09-20: set `20260920T060234Z`, `jellyfin.db` present, hashed
 > on `oracle`, the timer installed;
 > [#484](https://github.com/Gerrrt/HomeLab/issues/484) closed on it. The
-> tray can be touched.
+> tray can be touched. The return was opened on 2026-09-20 and the seller's
+> choice is what the swap now waits on.
 > [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries the swap.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
@@ -970,8 +971,9 @@ as `65534` across two hosts that spell it differently.
   pool is a mirror of one until it is replaced;
   [`replace-the-nas-disk.md`](replace-the-nas-disk.md) is the procedure and
   [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries it. Its step
-  2, the copy off this host, ran on 2026-09-20 (§6.2); what is left is the
-  return, the replacement and the swap.
+  2, the copy off this host, ran on 2026-09-20 (§6.2), and its step 3 opened
+  the return the same day; what is left is the seller's choice, the wipe
+  and the ship, and the swap when a drive arrives.
 - **[#255](https://github.com/Gerrrt/HomeLab/issues/255)**, the residual saying
   this host ships no logs, which is true the day it exists.
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
