@@ -136,7 +136,7 @@ the role is its own so that what it can do is a list rather than
 pveum role add PhoenixBuilder --privs \
   "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit \
    VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network \
-   VM.Config.Options VM.Console VM.Monitor VM.PowerMgmt VM.Audit VM.Snapshot \
+   VM.Config.Options VM.Console VM.PowerMgmt VM.Audit VM.Snapshot \
    Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit SDN.Use"
 pveum user add phoenix@pve --comment "deployment host, ADR-0043"
 pveum acl modify /vms --users phoenix@pve --roles PhoenixBuilder
@@ -147,8 +147,15 @@ pveum acl modify /nodes/saruman --users phoenix@pve --roles PVEAuditor
 pveum user token add phoenix@pve builder --privsep 0
 ```
 
-Four of those are worth knowing rather than copying:
+Five of those are worth knowing rather than copying:
 
+- **No `VM.Monitor`.** Packer's own permission list still names it, and the
+  first run of this section copied it in; Proxmox VE 8 dropped the privilege,
+  so on 9 `pveum role add` rejects the whole list and every `acl modify`
+  after it fails with "role does not exist". The boot command Packer types
+  goes through `sendkey`, which is `VM.Console`, already granted. A `pveum`
+  error here means the role was never made — fix the list and rerun the
+  role and the four ACLs; the `PVEAuditor` line and the token are unaffected.
 - **`/vms`, the two storages and the bridge, and nothing under `/nodes` but
   audit.** The token that can create guests must not be able to touch the
   host firewall ADR-0014 depends on, and `PVEAuditor` on the node is
@@ -161,7 +168,10 @@ Four of those are worth knowing rather than copying:
   permissions and there is no second set to keep in step. The trade is that
   it is exactly as powerful as the user, which is why the user is this narrow.
 - **The secret prints once.** Copy it now; it cannot be shown again, only
-  regenerated.
+  regenerated. Copy it into the file in the next block and nowhere else — a
+  session transcript or a chat is a log, and a secret pasted into one is
+  rotated, not kept. `pveum user token remove phoenix@pve builder` and the
+  `token add` line again is the whole rotation.
 
 **Then the door.** ADR-0014 closes `8006` on `Saruman` to `10.0.50.0/24` and
 this guest is not on it. ADR-0043 admits one address, on this port and no
