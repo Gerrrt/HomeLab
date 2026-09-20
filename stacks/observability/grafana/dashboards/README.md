@@ -95,11 +95,17 @@ Alertmanager:
 curl -s http://localhost:9093/api/v2/silences | jq '.[] | select(.status.state == "active")'
 ```
 
-Every deliberate silence in this lab is also recorded in prose, by UUID and
-expiry, in three places that move together: `docs/roadmap.md`, the relevant
-runbook, and a comment in the rule file it silences. An active silence that
-those three do not account for is one somebody forgot to write down. The
-Observability Stack dashboard charts the silence count for exactly that reason.
+Every deliberate silence here names its owner in its own comment — the number
+of the open issue that owns its expiry, first — and `scripts/collect_silences.py`
+reads that back every fifteen minutes as
+`homelab_silence_expires_timestamp_seconds{alert,issue,id}`, so
+`SilenceWithoutIssue` fires on one that names none and `SilenceExpiresSoon`
+warns a week before one lapses ([#575](https://github.com/Gerrrt/HomeLab/issues/575),
+`docs/observability.md` under Silences). The prose record this paragraph used
+to claim — roadmap, runbook and rule-file comment, by UUID — held neither of
+the silences active on 2026-09-20, which is why the record moved into the
+silence itself. The Observability Stack dashboard charts the count by state;
+the per-silence series is where the names are.
 
 ## Panel expressions are parsed by CI, which constrains how they are written
 
