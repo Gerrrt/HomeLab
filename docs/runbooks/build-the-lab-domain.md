@@ -82,6 +82,16 @@ VMIDs `150`–`155`, so the last octet is legible from `qm list` — the same
 reasoning that gave `alexander` VMID `140`. Storage is `local-lvm` on a stock
 Proxmox install; check `pvesm status` if yours differs.
 
+> **`large_data` exists since 2026-09-19 and is where these six belong.** The
+> SSD pool measured 7,952 random write IOPS at queue depth 1 against the
+> mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)), and
+> `alexander` already lives on it. The storage id in the commands below is
+> [#414](https://github.com/Gerrrt/HomeLab/issues/414)'s to change when it
+> builds — `large_data:` for `local-lvm:` on every disk line, and `ssd=1` on
+> every `--scsi0` — along with the boot-order argument the IMPORTANT block
+> above makes, which was priced on ninety IOPS. Not rewritten here: this page
+> has not been run, and the fit is not the build.
+
 ```bash
 # The two domain controllers and the two member servers.
 for spec in "150 bahamut 4096 60 1" \
@@ -162,13 +172,21 @@ Six of those flags are worth knowing rather than copying.
   nothing without the `-single` controller. It matters more here than it did for
   `alexander`, because this is four times the write load on the same spindles.
 
-Leave the disk cache at the Proxmox default. The Smart Array cache is enabled
+Leave the disk cache at the Proxmox default. ~~The Smart Array cache is enabled
 and battery-backed again since the pack was fitted on 2026-09-02
 ([#76](https://github.com/Gerrrt/HomeLab/issues/76)) — but
 [`replace-the-smart-storage-battery.md`](replace-the-smart-storage-battery.md)
 records `cpqDaAccelWriteCachePercent` still reading `0`, unexplained. Until that
 is understood, `writeback` here leans on a cache nobody has confirmed is
-absorbing writes, and this build is the one that would notice.
+absorbing writes, and this build is the one that would notice.~~ Settled
+2026-09-19 by the SSD fit: `ssacli` reads the controller cache at `10% Read /
+90% Write`, battery-backed, and the `0` was the iLO not populating the column
+([#76](https://github.com/Gerrrt/HomeLab/issues/76), via
+[#527](https://github.com/Gerrrt/HomeLab/issues/527)). The setting stays the
+default for a better reason: on the HDD pool the controller absorbs writes
+below the hypervisor, and on `large_data` — where these six will go — the
+SSDs run Smart Path with their own capacitor-backed buffers. `writeback`
+would add host RAM that nothing backs, on either pool.
 
 > [!IMPORTANT]
 > **With a virtio SCSI controller, the Windows installer shows no disks at

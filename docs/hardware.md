@@ -49,7 +49,7 @@ quietly swapped.
 | Host | Hardware | CPU | RAM | Storage | OS |
 | --- | --- | --- | --- | --- | --- |
 | `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB NVMe SSD | FreeBSD 16.0 (pfSense) |
-| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 (`pve`); 2× 960 GB SATA SSD, RAID 1, LVM-thin `large_data` | Proxmox VE 9 |
+| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SATA HDD, RAID 1 (`pve`); 2× 960 GB SATA SSD, RAID 1, LVM-thin `large_data` | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
 | `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
@@ -359,7 +359,15 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   all that one word). Bought against the number every sizing decision on
   `Saruman` starts from: a 7.2K mirror serving about ninety random write IOPS
   ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
-  Serial `S3F3NX0K601487` in Bay 3 and `S3F3NX0K806107` in Bay 4, firmware
+  **Measured 2026-09-20** (fit runbook step 8: 4 KiB random write, queue
+  depth 1, `direct=1`, an 8 GiB thin volume on each pool): the HDD mirror
+  does **741 IOPS** idle and 734 with the guest live, 1.3 ms mean and 12.5 ms
+  p99, against the derived 83 — the controller's battery-backed write cache,
+  which `ssacli` reads as `10% Read / 90% Write` and the iLO reads as `0`, is
+  absorbing writes; at queue depth 32 the mirror sustains 712. The SSD mirror
+  does **7,952 IOPS** at queue depth 1, 102 µs mean and 198 µs p99, and
+  51,600 at queue depth 32 — on SSD Smart Path, with no controller cache in
+  the path. Serial `S3F3NX0K601487` in Bay 3 and `S3F3NX0K806107` in Bay 4, firmware
   `GXM5304Q`, both negotiated at 6 Gb/s — **as the iLO reports them over
   SNMP, not as read off the labels.** The fit runbook asked for the labels
   first, because reading a serial back through the controller means reading
@@ -372,7 +380,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   and `notConfigured` from the first scrape they appeared in, at 20:11 UTC on
   2026-09-18, and `configured` from 13:40 UTC the next day, the scrape the
   logical drive first appeared in — created through the offline Smart Storage
-  Administrator, not `ssacli`, which is still not on the host. The array read
+  Administrator, not `ssacli`, which reached the host that evening from HPE's
+  `trixie` suite and read the controller for the first time. The array read
   `ok` from its first scrape and nothing alerted for it; what did alert was
   the fourteen-and-a-half-hour power-off the SSA session sat inside, which the
   runbook now records. **The iLO's wear columns stayed blank once the drives
@@ -380,13 +389,20 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   unknown — which is the condition
   [#529](https://github.com/Gerrrt/HomeLab/issues/529) was filed against, so
   wear on these two drives is [#529](https://github.com/Gerrrt/HomeLab/issues/529)'s
-  to read through `hpsa`. What has not moved is everything after the pool:
-  `alexander` still on the HDD mirror, no cache reading for
-  [#76](https://github.com/Gerrrt/HomeLab/issues/76), and no measurement — so
-  [#527](https://github.com/Gerrrt/HomeLab/issues/527) stays open and the
-  ADRs whose arithmetic it names stand as written until step 8 of
-  [`fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md) produces a
-  number. This entry is where the serials live, which is the question
+  to read through `hpsa`, and `ssacli` agrees: both report `SSD Smart Trip
+  Wearout: Not Supported`. **`alexander` has lived on `large_data` since
+  02:41 UTC on 2026-09-20** — a 100 GiB disk mirrored across online in
+  7 min 28 s, `unused0` removed, `ssd=1` set, and rebooted so the guest sees
+  a non-rotational disk. The cache reading
+  [#76](https://github.com/Gerrrt/HomeLab/issues/76) waited on since
+  2026-09-02 is taken and is the iLO's blind spot, not the controller's:
+  the ratio is set and the cache is working. The numbers above are what
+  [#527](https://github.com/Gerrrt/HomeLab/issues/527) closed on, and the
+  ADRs whose arithmetic they replace carry dated notes rather than edits.
+  The two spinners in bays 1 and 2 are **SATA**, not the SAS this table
+  said until 2026-09-20 — `Interface Type: SATA`, `MM1000GBKAL`, read by
+  `ssacli` — which changes no decision and one word. This entry is where the
+  serials live, which is the question
   [#148](https://github.com/Gerrrt/HomeLab/issues/148) asked.
 - 2× HP 2.5" SFF drive tray, `651687-001`[^Caddy] — bought 2026-09-11,
   **arrived and fitted 2026-09-18**, one under each SM863a in bays 3 and 4.
