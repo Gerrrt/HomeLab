@@ -143,6 +143,24 @@ groups:
       # that — they were written to become correct when the hardware did.
       # History and the two readings that did not move are in
       # docs/runbooks/replace-the-smart-storage-battery.md.
+      #
+      # THE FIT THAT NEEDED NO SILENCE. Two SSDs joined the P440ar as logical
+      # drive 2 on 2026-09-19 and the lab guest moved onto them on 2026-09-20
+      # (#527). The runbook priced two IloHardwareDegraded silences scoped to
+      # the new cpqDaLogDrvIndex and cpqDaPhyDrvIndex values and created
+      # neither: the new logical drive read 2 (ok) from the first scrape it
+      # appeared in and never transited 3. Nothing on shiva fired for the fit;
+      # what did fire, unsilenced, was the fourteen-hour power-off the offline
+      # Smart Storage Administrator session sat inside (RemoteWriteJobStale,
+      # GuestStateStopped, PatchStateStopped — host rules, not these). One
+      # reading from that day matters here: ssacli reports the controller
+      # cache at 10% Read / 90% Write and enabled on logical drive 1, while
+      # cpqDaAccelWriteCachePercent, ReadCachePercent, Memory and ReadMemory
+      # all read 0 and cpqDaLogDrvHasAccel reads other on both logical drives.
+      # Those columns are not populated by this iLO. No rule may be written on
+      # them; IloWriteCacheDisabled reads cpqDaAccelStatus, which is. The
+      # fixtures in tests/network.test.yaml carry four drives and two logical
+      # drives since 2026-09-19. History: docs/runbooks/fit-the-saruman-ssds.md.
       - alert: IloHardwareDegraded
         # Temperature, supplies and drives are read at > 2 because degraded
         # there means a redundancy has already been spent. The two Smart Array
