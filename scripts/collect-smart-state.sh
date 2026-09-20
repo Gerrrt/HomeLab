@@ -263,6 +263,13 @@ for d in docs:
         elif name == "offline_uncorrectable":
             add("homelab_smart_uncorrectable_sectors",
                 "Sectors that failed to read and could not be recovered.", plain, raw)
+        elif name == "unsafe_shutdown_count":
+            # Intel's attribute 174, the ATA spelling of the NVMe field above
+            # and the same metric name on purpose: smaug's S3520 arrived with
+            # 509 of these in 538 power cycles (#483), and ADR-0047 makes the
+            # count the measure of any cut its shutdown sequence missed.
+            add("homelab_smart_unsafe_shutdowns_total",
+                "Power lost without a clean shutdown notification.", plain, raw)
         elif name in ("percent_lifetime_remain", "ssd_life_left"):
             # Reported as REMAINING; inverted so it means the same thing as the
             # NVMe metric of the same name rather than the opposite.

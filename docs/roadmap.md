@@ -450,6 +450,28 @@ either machine is.
   in Loki, which trades a flood for silently dropped lines and is its own
   decision. `loki`'s `mem_limit` is unchanged until a fortnight without the
   flood exists to re-derive from — 2026-09-18.
+- **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
+  UPS's signal, and measure the pack once.** Decided 2026-09-20 by
+  [ADR-0047](adr/0047-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
+  not built. The issue found that nothing subscribes to `mjolnir` for the one
+  thing a UPS card is for and that no document said what powers `smaug` —
+  the answer, read at the rack, is the PDU by a long cord to the media room,
+  so it is on the UPS with `morpheus`, `Saruman` and `neo`, and
+  [`hardware.md`](hardware.md#rack) now carries a *Powered by* column. The
+  decision costs no purchase and no new path between segments: the pfSense
+  NUT package has been installed on the firewall since 2026-08-20 and never
+  configured, the firewall reaches the card with no rule, and both
+  subscribers already reach their own gateway on 3493 under the catch-all —
+  the rules are two pass/block pairs that *narrow* that to one host per
+  segment. What remains is the rack visit:
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) builds it,
+  proves the order with `upsmon -c fsd`, and pulls the mains once to replace
+  the card's 47-minute claim with a number. The S3520's unsafe-shutdown
+  counter is the measure of any cut the sequence misses:
+  `SmartDriveUnsafeShutdownsGrowing` reads it, and waits on
+  [#483](https://github.com/Gerrrt/HomeLab/issues/483) for the collector to
+  reach the host at all.
+  → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#249](https://github.com/Gerrrt/HomeLab/issues/249) Scrape the UPS
   self-test schedule.** [#93](https://github.com/Gerrrt/HomeLab/issues/93) left
   `mjolnir` testing itself every fortnight and nothing able to see that it does.

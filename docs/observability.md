@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-107 rules in total: 89 metric-based in `prometheus/rules/`, and 18 log-based in
+108 rules in total: 90 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -450,11 +450,11 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-89 rules across eleven files in `prometheus/rules/`:
+90 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
-| `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew and a clock with no time source at all — `HostClockUnsynchronised` reads `node_timex_sync_status`, because the offset reads zero once timesyncd has restored a clock that is wrong but stable, which is how a cleared RTC wrote fourteen minutes of samples three hours in the past and nothing noticed ([#519](https://github.com/Gerrrt/HomeLab/issues/519)) — reboots, and, for the two laptops, whether the shelf is on mains, whether the cell that carries them through a cut is still worth relying on ([#454](https://github.com/Gerrrt/HomeLab/issues/454), and [`runbooks/replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) for the swap), how hot that cell is, whether its temperature is being measured at all — on 2026-09-19 it was not, on either host — and how many minutes the host has left once the cut arrives ([#532](https://github.com/Gerrrt/HomeLab/issues/532)); whether the wiki's drift check on `oracle` is still running ([#470](https://github.com/Gerrrt/HomeLab/issues/470)); and, for the NAS, whether every ZFS pool is online — `ZpoolNotOnline` reads `node_zfs_zpool_state`, added after `erebor` lost a disk on 2026-09-19 with the exporter hung ahead of it and `InstanceDown` the only page ([#558](https://github.com/Gerrrt/HomeLab/issues/558), [`runbooks/replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md)) |
+| `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew and a clock with no time source at all — `HostClockUnsynchronised` reads `node_timex_sync_status`, because the offset reads zero once timesyncd has restored a clock that is wrong but stable, which is how a cleared RTC wrote fourteen minutes of samples three hours in the past and nothing noticed ([#519](https://github.com/Gerrrt/HomeLab/issues/519)) — reboots, and, for the two laptops, whether the shelf is on mains, whether the cell that carries them through a cut is still worth relying on ([#454](https://github.com/Gerrrt/HomeLab/issues/454), and [`runbooks/replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) for the swap), how hot that cell is, whether its temperature is being measured at all — on 2026-09-19 it was not, on either host — and how many minutes the host has left once the cut arrives ([#532](https://github.com/Gerrrt/HomeLab/issues/532)); whether the wiki's drift check on `oracle` is still running ([#470](https://github.com/Gerrrt/HomeLab/issues/470)); and, for the NAS, whether every ZFS pool is online — `ZpoolNotOnline` reads `node_zfs_zpool_state`, added after `erebor` lost a disk on 2026-09-19 with the exporter hung ahead of it and `InstanceDown` the only page ([#558](https://github.com/Gerrrt/HomeLab/issues/558), [`runbooks/replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md)); and whether any drive's unsafe-shutdown count has grown in a day — `SmartDriveUnsafeShutdownsGrowing`, the measure of a cut the shutdown sequence [ADR-0047](adr/0047-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides did not catch, written against `smaug`'s boot disk before the collector reaches it ([#483](https://github.com/Gerrrt/HomeLab/issues/483), [#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware and Smart Array cache. `shiva`'s Smart Storage Battery read failed from 2026-08-18 until it was replaced on 2026-09-02, with the array in write-through as a result, so stored metrics before that date show the failed pack — `IloBatteryCondition` names the spare part to order, and the controller rollups are deliberately read at *failed* rather than *degraded* ([#76](https://github.com/Gerrrt/HomeLab/issues/76)) |
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
@@ -473,7 +473,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is sixty-nine rules of 89 so far — the five
+against the broken rule too. Coverage is seventy rules of 90 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
