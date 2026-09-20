@@ -17,8 +17,8 @@ this one ends
 > `alexander`.**
 >
 > Ubuntu 26.04 LTS, `10.0.30.70`, VMID 170, `bc:24:11` OUI, ISO
-> `ubuntu-26.04.1-live-server-amd64.iso`. §4's `curl`: *(pending the §4
-> report)*. §7 passed: `make validate` green in the guest's own checkout (16
+> `ubuntu-26.04.1-live-server-amd64.iso`. §4's `curl` returned `alexander`
+> and `phoenix` — token, ACLs and node name all right. §7 passed: `make validate` green in the guest's own checkout (16
 > host-specific skips — no Docker, no age key, by design), both
 > `up{instance="phoenix"}` jobs at `1`, and four Loki jobs — `auth.log`,
 > `syslog`, `/var/log/*.log` and the journal — so 26.04.1 ships rsyslog as
