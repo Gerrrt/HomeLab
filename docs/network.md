@@ -412,11 +412,18 @@ Where things get broken on purpose.
   nothing on `morpheus`. What it adds is on `Saruman`: one line in the
   hypervisor's own firewall admitting `10.0.30.70` to `8006`, which
   `firewall-claims.yaml` cannot see because it lives in `/etc/pve` and not in
-  pf. That line is decided and not written: on 2026-09-20 the build found
-  `Saruman`'s firewall disabled and ADR-0014's rules never applied, so today
-  every address on this segment reaches `8006`, and
-  [#566](https://github.com/Gerrrt/HomeLab/issues/566) carries closing it
-  with all four rules.
+  pf. That line is written, and the firewall it sits in was turned on the same
+  day it was found off: `phoenix`'s build on 2026-09-20 discovered `Saruman`'s
+  Proxmox firewall disabled with ADR-0014's rules never applied, and
+  [#566](https://github.com/Gerrrt/HomeLab/issues/566) closed it that day with
+  all four rules, verified from `morpheus`. **Enabling it was not sufficient on
+  its own, which is the part worth carrying:** Proxmox builds a `management`
+  address set out of the node's own subnet, so `10.0.30.0/24` reached the API,
+  SSH, VNC, the SPICE proxy and the migration range through a rule nobody
+  wrote, underneath a `DROP` policy that looked closed. The `local_network`
+  alias is pinned to `10.0.30.110` so that the four rules above are the only
+  way in. Hicks reaches `8006`, `8007` and `22`; `phoenix` reaches `8006`;
+  nothing else on this segment reaches the hypervisor at all.
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
   into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
