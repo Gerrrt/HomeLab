@@ -701,6 +701,35 @@ backup: ## Quiesce the stack, archive its volumes to ./backups/, verify, copy to
 	@# bounds both sides; ARGS=--list shows both.
 	STACK=$(STACK) ./scripts/backup-volumes.sh $(ARGS)
 
+.PHONY: backup-nas
+backup-nas: ## Pull Jellyfin's state off smaug from its newest ZFS snapshot, encrypt and verify
+	@# The one backup that leaves this host to FETCH rather than to deliver.
+	@# smaug cannot run backup-volumes.sh — no age, no checkout, no key, and
+	@# ADR-0016 forbids it initiating anything upward — so this host reads a
+	@# snapshot of erebor/apps over the 99 → 40:22 pass and encrypts what
+	@# arrives here (ADR-0045). Jellyfin is never stopped: the snapshot is the
+	@# quiesce. NAS_KEEP and not KEEP, for the reason backup-firewall gives
+	@# for FW_KEEP. Sets land in backups/nas/, apart from the volume sets, and
+	@# `make verify-backups` reads both. The copy to oracle is a step of this
+	@# target too, by the helpers `backup` gained under #535 — same far-side
+	@# rules, its own directory there — so ARGS=--local-only and
+	@# ARGS=--copy-only mean here what they mean above.
+	./scripts/backup-nas.sh $(ARGS)
+
+.PHONY: verify-backups
+verify-backups: ## Re-verify every retained set of both kinds: the volume sets and the NAS set
+	@# What homelab-verify-backups.timer runs nightly. Two directories, one
+	@# job: backups/volumes/ is verified against the stack's derived volume
+	@# list and backups/nas/ against its own, and a media set in the volume
+	@# directory would fail the first — which is why they are apart, and why
+	@# one target walks both rather than a second unit doing the second half.
+	@# Both halves run even when the first fails, so one morning's journal
+	@# says which sets are bad rather than stopping at the first directory.
+	@rc=0; \
+	STACK=$(STACK) ./scripts/backup-volumes.sh --verify-only --all || rc=1; \
+	./scripts/backup-nas.sh --verify-only --all || rc=1; \
+	exit $$rc
+
 .PHONY: restore
 restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>")
 	@# Deliberately a separate script from `backup`. One script that both writes

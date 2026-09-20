@@ -8,6 +8,27 @@
 > The address, the rules and the decision are unchanged — only the label. The
 > text here is left as written, per ADR-0001. `zion` is now reserved for the
 > dedicated firewall cold spare ADR-0034 defers, which does not exist.
+>
+> The number "By spindle" and "The duty cycle is a spindle decision" rest on
+> was measured on 2026-09-20 by
+> [#527](https://github.com/Gerrrt/HomeLab/issues/527), at the parameters the
+> derivation implies — 4 KiB random write, queue depth 1, `direct=1`, on the
+> array itself. The 7.2K mirror delivered **741 IOPS** idle and 734 with the
+> lab guest live, not 83: *"that figure assumes no write cache"* was the
+> conservative assumption rather than the true one, because the P440ar's
+> battery-backed cache is set `10% Read / 90% Write` and absorbing writes,
+> which the iLO's cache columns do not show and `ssacli` does. At queue depth
+> 32 the mirror sustains 712, so ~700 is its rate and queueing buys latency
+> only. The two SM863a fitted as logical drive 2 delivered **7,952** at queue
+> depth 1 and 51,600 at queue depth 32, on SSD Smart Path. The spinners are
+> SATA, not the SAS this text and ADR-0007 assumed, which changes no
+> arithmetic. What follows for the decision: the six guests go on the SSD
+> pool, and "the endpoints start per session" is now a choice this domain
+> makes about what a detection baseline should contain, not a constraint
+> the array imposes — #414 re-derives the budget against `large_data` when
+> it builds. The 8 GiB test region flatters the mirror against a whole-disk
+> working set; nothing here re-plans on the HDD number. The text here is
+> left as written, per ADR-0001.
 
 ## Context
 

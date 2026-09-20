@@ -9,6 +9,11 @@
 # That is ssh as robo with the key backup-firewall uses; ProtectHome=false
 # below is what lets it read ~/.ssh.
 #
+# Since #484 there are two kinds of set on this host, in two directories:
+# the volume sets in backups/volumes/ and the NAS set in backups/nas/. The
+# make target walks both, so one timer proves both; a second unit would be
+# one more lock and one more threshold saying the same thing.
+#
 # See homelab-backup-volumes.service for why each directive below is set.
 [Unit]
 Description=HomeLab: verify every stored backup set still decrypts
@@ -30,7 +35,7 @@ EnvironmentFile=-/etc/default/homelab-timers
 # case block handling --verify-only returns before reaching it — so without this
 # a verify run and a real backup can overlap, and the backup's prune can delete
 # a set this is mid-read on.
-ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job verify-backups --lock backups --lock-wait 900 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab backup "ARGS=--verify-only --all"
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job verify-backups --lock backups --lock-wait 900 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab verify-backups
 TimeoutStartSec=1800
 Restart=no
 Nice=10

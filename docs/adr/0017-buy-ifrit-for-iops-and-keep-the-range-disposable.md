@@ -2,6 +2,18 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> The ADR-0007 sentence this ADR quotes under "The fleet's measured
+> bottleneck is spindles, not RAM" was measured on 2026-09-20
+> ([#527](https://github.com/Gerrrt/HomeLab/issues/527)): `Saruman`'s 7.2K
+> mirror does 741 random write IOPS at 4 KiB, queue depth 1, and the two
+> SSDs fitted as its second logical drive do 7,952 — so the bottleneck the
+> word *measured* was borrowing against is now measured, and raised. The
+> pair is also SATA, not SAS. The argument for `ifrit` was a separate fault
+> domain for a range whose operation is snapshot-and-revert, and it stands;
+> what no longer stands is that the DL360 cannot offer IOPS. The text here is
+> left as written, per ADR-0001.
+
 ## Context
 
 [ADR-0007](0007-defensive-estate-and-offensive-range.md) split the lab into a

@@ -184,6 +184,15 @@ has not been taken; [#418](https://github.com/Gerrrt/HomeLab/issues/418)
 carries that. Neither the SSDs nor the trays appear in either paragraph above
 now: they are parts, and [`hardware.md`](hardware.md) has them.
 
+**2026-09-20: the SSD pair is measured and carrying `alexander`.** What the
+paragraph above called not finished is: logical drive 2 on 2026-09-19,
+`ssacli` on the host that evening, both arrays measured at 4 KiB queue depth
+1 — the 7.2K mirror 741 IOPS, the SSD mirror 7,952 — and the lab guest moved
+across and rebooted from flash on 2026-09-20.
+[#527](https://github.com/Gerrrt/HomeLab/issues/527) closed on it; the
+numbers are in [`hardware.md`](hardware.md) and the reasoning that used the
+old number carries dated notes. Nothing here was bought.
+
 **No row on the table above moves** — arriving is not buying, and this section
 tracks money. Nothing was racked, fitted or built by it either. What it changed
 is one sentence: the two builds stopped waiting on a van for their machines,
@@ -873,7 +882,12 @@ what left this one unfireable for months.
   the `22` that ADR-0016's table names — that port assumed a box administered
   over SSH, which was an operating-system decision inside a firewall table, and
   ADR-0040 carries the correction against its own text. Port 22 survives on the
-  Winterfell rule and is **inert**, because TrueNAS ships SSH disabled. The scrape target is
+  Winterfell rule and is **inert** until
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switches SSH on for
+  the backup pull — decided by
+  [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md),
+  built under [#484](https://github.com/Gerrrt/HomeLab/issues/484), and
+  deployed by hand on `smaug`, where nothing pulls from `main`. The scrape target is
   **`node_exporter` on `9100`**, settled by
   [#256](https://github.com/Gerrrt/HomeLab/issues/256) on 2026-09-17 — the pass
   that exists and a dashboard built entirely on `node_*` series, against an
@@ -937,10 +951,14 @@ what left this one unfireable for months.
   DC-plus-workstations domain is the DC itself. The servers run continuously and
   the endpoints per session, because a 7.2K mirror serves about ninety random
   write IOPS and six idle Windows guests would be most of them — the number
-  #418's SSDs were bought against, and the one their *fit* re-derives. The
-  drives went into bays 3 and 4 on 2026-09-18 and are still unassigned, and an
-  unassigned drive changes no duty cycle either — the sentence above holds
-  until the runbook's step 8 measures both arrays.
+  #418's SSDs were bought against, and the one their *fit* re-derived on
+  2026-09-20: the mirror does **741** random write IOPS at queue depth 1, not
+  ninety, because the controller cache the derivation assumed absent is
+  present, and the SSD pair does **7,952** — so the six guests go on
+  `large_data`, and continuous-versus-per-session is a choice this build
+  makes for its own reasons, not one the array makes for it. ADR-0029's
+  duty cycle stands as written under a dated note; what it costs #266 to
+  run the endpoints continuously is now a question, not a constraint.
   Three things
   that ADR left explicit because they fail quietly: the DC takes its clock from
   the gateway, not `time.windows.com` — ADR-0014 named that failure and did not
@@ -1035,9 +1053,9 @@ what left this one unfireable for months.
   `Saruman`, and [#527](https://github.com/Gerrrt/HomeLab/issues/527) do
   everything the fit left.** Two Samsung SM863a 960 GB SATA enterprise
   drives, bought 2026-09-09, delivered 2026-09-11, fitted 2026-09-18, and
-  **since 2026-09-19 logical drive 2 with the thin pool `Large_data` on it —
-  and still with no guest on them and no measurement taken**. #418 closed at
-  the bays; #527 carries steps 5–11 of the runbook and is open.
+  **since 2026-09-19 logical drive 2 with the thin pool `large_data` on it,
+  measured and carrying `alexander` since 2026-09-20**. #418 closed at the
+  bays; #527 carried steps 5–11 of the runbook and closed on the numbers.
   ADR-0007's constraint — "the
   fleet is sized against spindles, not RAM" — became a number in ADR-0029,
   about ninety random write IOPS for the whole machine, and that number sized
@@ -1071,7 +1089,7 @@ what left this one unfireable for months.
   from the first scrape with no sync the iLO ever showed — made through the
   offline Smart Storage Administrator, the runbook's path 3, because `ssacli`
   is still not on the host and neither way of getting it there was tried.
-  The thin pool on it is **`Large_data`**, made that afternoon; the runbook's
+  The thin pool on it is **`large_data`**, made that afternoon; the runbook's
   `ssd` is renamed throughout. Two things that path cost: the controller has
   still never been read from the host, so the cache reading #76 has waited on
   since 2026-09-02 is still owed and needs `ssacli` or a second SSA session;
@@ -1084,21 +1102,33 @@ what left this one unfireable for months.
   on the newest drives in the estate needs `smartctl` through the `hpsa`
   path — [#529](https://github.com/Gerrrt/HomeLab/issues/529), filed against
   exactly that condition, is no longer gated on anything. A thin pool is also
-  not a filesystem, so `HostDiskCritical` cannot see `Large_data` fill;
+  not a filesystem, so `HostDiskCritical` cannot see `large_data` fill;
   [#538](https://github.com/Gerrrt/HomeLab/issues/538) is that blind spot,
-  opened while the pool is still empty. `alexander` is still on the HDD
-  mirror.
+  opened while the pool was still empty.
 
-  What is still open after that is the only thing the purchase was for.
-  **ADR-0029's
-  ninety is derived, not measured** — seek plus half a rotation at 7200 rpm —
-  so the runbook measures both arrays at the parameters that derivation
-  implies, 4 KiB at queue depth 1, and three times: the HDD mirror loaded, the
-  SSD array idle, and the HDD mirror idle once the guest has moved off it.
-  Until that reading exists, ADR-0029, ADR-0007, ADR-0017 and the #414
-  paragraph above all stand as written. The measurement makes them stale on
-  the day it lands, not the day the drives did, and it gets a dated note on
-  each rather than a silent edit — ADR-0001 makes them immutable.
+  **The rest ran on the evening of 2026-09-19 and the small hours of
+  2026-09-20, and the number the purchase was for is measured.** `ssacli`
+  went on through path 1 after all — HPE publishes a `trixie` suite, which
+  the runbook had said it did not — and read the controller for the first
+  time from the host: `Cache Ratio: 10% Read / 90% Write`, battery-backed,
+  LD 1 `Caching: Enabled`. That is #76's answer, and it is **(a)**: the iLO's
+  cache columns are not populated on this hardware, the ratio was set all
+  along, and the change #76 would have owned does not exist. The spinners
+  are SATA, not SAS, which `hardware.md` now says. The SSD array is on Smart
+  Path, which excludes the controller cache and is the controller's design
+  point for it. Then fio at 4 KiB, queue depth 1, on a thin volume in each
+  pool: **the 7.2K mirror does 741 IOPS** idle and 734 with the guest live —
+  nine times ADR-0029's derived 83, because the derivation assumed no write
+  cache and there is one — and 712 at queue depth 32, so ~700 is the array's
+  sustained rate; **the SSD mirror does 7,952** at queue depth 1 and 51,600
+  at queue depth 32. `alexander`'s 100 GiB disk mirrored across online in
+  7 min 28 s, `ssd=1` went on, and the guest rebooted from flash at about
+  02:58 UTC. No silence was created or needed for any of it. Two things the
+  run cost are in the runbook: a capitalised pool name that had fio
+  benchmark RAM for a block, and a guest built with `--agent enabled=1` and
+  no agent installed. ADR-0029, ADR-0007 and ADR-0017 carry dated notes
+  rather than edits — ADR-0001 makes them immutable — and the #414 paragraph
+  above says what the number now is.
   → [runbook](runbooks/fit-the-saruman-ssds.md)
 
 ## Automation
@@ -1305,6 +1335,29 @@ them name the condition that would change the answer.
   known end, unlike the others here.
 
 ## Done
+
+- [x] **[#527](https://github.com/Gerrrt/HomeLab/issues/527) `Saruman`'s
+      SSDs measured, cached-or-not settled, and `alexander` moved onto them.**
+      2026-09-20. Steps 2, 3, 6, 8, 9, 10 and 11 of the fit runbook, run from
+      the Mac between 22:50 UTC on 2026-09-19 and 03:03 UTC on 2026-09-20.
+      `ssacli 6.60` installed from HPE's `trixie` suite in one `apt-get`
+      (path 1; the runbook had believed no such suite existed). The
+      controller, read from the host for the first time: `Cache Ratio: 10%
+      Read / 90% Write`, `1.8` GB battery-backed, LD 1 `Caching: Enabled`, LD 2
+      on Smart Path with caching refused for that reason — so #76's reading
+      is branch (a), the iLO's cache columns are blind on this hardware, and
+      no rule may be written on them. Both spinners `Interface Type: SATA`.
+      fio, 4 KiB random write at queue depth 1 on a thin volume per pool: HDD
+      mirror **741** IOPS idle (734 loaded; 712 at queue depth 32), SSD mirror
+      **7,952** (51,600 at queue depth 32). `alexander`'s 100 GiB disk moved
+      online in 7 min 28 s, `unused0` removed after the guest answered,
+      `ssd=1`, rebooted: `ROTA 0`. No silence created; none needed. Two
+      costs: `Large_data` for `large_data` had fio write 8 GB into devtmpfs
+      and report RAM's numbers for a block, and `qemu-guest-agent` was never
+      installed in the guest, so `qm reboot` needed it first. `hardware.md`
+      carries the numbers and loses the word SAS; ADR-0029, ADR-0007 and
+      ADR-0017 carry dated notes; the #414 paragraph says what the number is
+      now. → [runbook](runbooks/fit-the-saruman-ssds.md)
 
 - [x] **[#454](https://github.com/Gerrrt/HomeLab/issues/454) Replaced
       `prometheus`'s battery, watched it, and proved the mains-cut path on it.**
@@ -2473,6 +2526,17 @@ them name the condition that would change the answer.
       that resolves the first; the metrics before 2026-09-02 show the failed
       pack and a write-through array, which any range crossing that date will
       include.
+
+      **The `ssacli` check ran on 2026-09-19, seventeen days later, and the
+      first reading is a blind spot, not a fault.** `Cache Ratio: 10% Read /
+      90% Write`, `Battery Backed Cache Size: 1.8`, LD 1 `Caching: Enabled` —
+      while `cpqDaAccelWriteCachePercent` and its three siblings still read
+      `0`. The iLO does not populate those columns on this hardware; the
+      ratio was set and the cache was absorbing writes all along, which the
+      fit's fio then showed as a 7.2K mirror completing 4 KiB writes in 1.3
+      ms. No `modify cacheratio=` was ever needed. `cpqDaAccelFailedBatteries`
+      `1` is still unexplained and still not alerted on. Recorded by #527;
+      this issue stays closed.
       → [runbook](runbooks/replace-the-smart-storage-battery.md)
 
 - [x] **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to

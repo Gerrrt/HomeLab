@@ -26,6 +26,15 @@
 > Winterfell rule, which is a backup pull. The corrected table, and the
 > position each rule needs, are in
 > [`build-the-nas.md`](../runbooks/build-the-nas.md) §0.5.
+>
+> **The backup's shape.** *Backups* below says the metadata is encrypted
+> *on the NAS* and landed on `oracle`. It is encrypted on `prometheus`, on
+> arrival, and lands in `backups/nas/` beside the volume sets and then on
+> `oracle` by the copy #535 built
+> ([ADR-0045](0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)) —
+> TrueNAS has no `age`, a key on the NAS would buy nothing, and the property
+> this section wanted holds more strongly with no archive on the NAS at all.
+> The direction — pulled by `prometheus` over `99 → 40:22` — is as written.
 
 ## Context
 

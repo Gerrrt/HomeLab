@@ -117,7 +117,7 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # the file is missing anyway.
 #
 # converge is the only hourly row, and the only one whose threshold is three
-# times its period rather than two. It shares the `backups` lock with the two
+# times its period rather than two. It shares the `backups` lock with the
 # backup jobs, so a run that collides with the weekly archive can legitimately
 # spend its whole 900s lock wait and then be an hour late; twice the period
 # would alert on that, and being late for a reason is not the finding.
@@ -126,7 +126,8 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 JOBS=(
   "converge          homelab-converge             10800  converge"
   "backup-volumes    homelab-backup-volumes     1209600  backup"
-  "verify-backups    homelab-verify-backups      259200  backup"
+  "backup-nas        homelab-backup-nas         1209600  backup-nas"
+  "verify-backups    homelab-verify-backups      259200  verify-backups"
   "backup-firewall   homelab-backup-firewall     259200  backup-firewall"
   "snmp-verify       homelab-snmp-verify        1209600  snmp-verify"
   "check-versions    homelab-check-versions     1209600  check-versions"

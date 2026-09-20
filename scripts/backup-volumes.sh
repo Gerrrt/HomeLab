@@ -118,6 +118,15 @@
 # (a directory written MANIFEST-last, not a file) and a bug here must not be
 # able to break a nightly job that has run since 2026-09-03.
 #
+# WHEN SOURCED
+#
+# scripts/backup-nas.sh sources this file rather than running it: it pulls
+# Jellyfin's state off smaug over ssh (ADR-0045), a job this script's docker-
+# and-quiesce shape cannot do, and it wants the same sentinel table, the same
+# verify() and the same set layout rather than a second copy of them. The
+# guard just above the argument parsing returns to the caller, so everything
+# above it is a library and everything below it is this script.
+#
 # Usage:
 #   scripts/backup-volumes.sh                       quiesce, archive, verify, copy to oracle
 #   scripts/backup-volumes.sh --hot                 skip the stop; UNPROVEN
@@ -316,6 +325,20 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # move it here — loudly, since the script refuses to write an archive it
 # cannot verify; and Valkey's ./dump.rdb is written by `--save 60 1` and again
 # on the SIGTERM a quiesce sends, which is the case that was checked.
+#
+# Jellyfin's (jellyfin-config) is the one entry here that no compose file on
+# this host declares: it is an ARCHIVE name, consumed by scripts/backup-nas.sh,
+# which sources this file for the tables and verify() and pulls the directory
+# off smaug over ssh (ADR-0045). Read off a boot of the pinned image on
+# 2026-09-19: ./data/jellyfin.db is created about thirty seconds into a first
+# start, when the migration service seeds it — a listing taken at twenty
+# seconds shows ./data holding only its .jellyfin-data marker — and the log
+# names the path outright ("Data Source=/config/data/jellyfin.db"). The WAL
+# beside it is where the writes are, as with Vaultwarden: 1.6 MB in
+# jellyfin.db-wal against 12 KB in jellyfin.db while running, and a clean stop
+# checkpoints it into a 536 KB main file with no -wal at all. A ZFS snapshot
+# taken while Jellyfin runs carries all three files (db, -wal, -shm) at one
+# instant, which is what makes reading one consistent; see COMPANIONS.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -333,6 +356,7 @@ declare -A SENTINEL=(
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
   [paperless-broker-data]="./dump.rdb"
+  [jellyfin-config]="./data/jellyfin.db"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -363,6 +387,7 @@ declare -A COMPANIONS=(
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
   [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
   [paperless-broker-data]=""
+  [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and
@@ -373,8 +398,17 @@ declare -A COMPANIONS=(
 # because an empty archive is refused above and rightly so. Listed by name so
 # the omission is a decision recorded here rather than a volume that fell
 # through; a volume in neither this table nor SENTINEL is still fatal (#131).
+#
+# jellyfin-cache is here for the same reason and one more: stacks/media runs
+# on smaug, where this script does not, so the entry exists to make
+# `STACK=media backup-volumes.sh --inventory` say the true thing — nothing in
+# that file is this script's to archive — instead of dying over a sentinel.
+# What IS archived from that host is backup-nas.sh's, and it is a bind mount
+# on erebor/apps rather than a volume, which is why no jellyfin-config is
+# declared there at all (ADR-0045).
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
+  [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"
 )
 
 VOLUMES=()
@@ -1167,6 +1201,20 @@ prune() {
     rm -rf -- "${d}"
   done
 }
+
+# ---------------------------------------------------------------------------
+# When sourced
+#
+# scripts/backup-nas.sh sources this file for everything above this line — the
+# three tables, check_sentinel_table(), the set helpers, verify(), verify_set()
+# and prune() — and stops here, so one sentinel table and one set of
+# assertions cover the archives written on this host AND the one pulled off
+# smaug (ADR-0045). Nothing above this line may gain a side effect beyond
+# `set -euo pipefail`, `umask 077` and definitions: a sourcing caller has not
+# parsed its own arguments yet, and OUT_DIR, KEEP and VOLUMES are what it
+# overrides after this returns.
+# ---------------------------------------------------------------------------
+[[ ${BASH_SOURCE[0]} == "$0" ]] || return 0
 
 # ---------------------------------------------------------------------------
 # Arguments

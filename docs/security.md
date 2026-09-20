@@ -249,8 +249,15 @@ reaches it on `9100` and `22`: four host- and port-scoped passes above *Block
 access to CasaBonita*, verified in position with `pfctl` rather than read off
 the web UI, where an appended rule looks present while matching nothing.
 ADR-0016 wrote three and four exist, because the Hicks pass is split rather
-than carrying a port list, and the `22` is inert — TrueNAS ships SSH disabled
-([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)).
+than carrying a port list, and the `22` is inert until
+[`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switches SSH on for the
+backup pull — TrueNAS ships it disabled
+([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)),
+and [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md) is
+the decision that turns it on: key authentication only, one unprivileged
+read-only user, reachable from `10.0.99.20` alone by the rule that already
+exists. §6.2's checklist rewrites this sentence on the day, and the residual
+it leaves is one more service on the NAS with one more key that reads it.
 [`network.md`](network.md) holds the current list. **Skids' does not exist.**
 `10.0.99.40 → 10.0.20.104:80,443/tcp` — Home Assistant to the Hue bridge, the
 one device on that segment with a local API — still waits above the block that
