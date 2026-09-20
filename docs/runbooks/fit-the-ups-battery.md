@@ -220,6 +220,13 @@ curl -sS http://localhost:9093/api/v2/silences |
 Delete it **before** the self-test, not after. Run in the other order, the one
 result you most need to see is the one that is suppressed.
 
+> **Since [#575](https://github.com/Gerrrt/HomeLab/issues/575)** a silence's comment begins with the
+> number of the open issue that owns its expiry, and `SilenceExpiresSoon`
+> gives a week's notice before one lapses —
+> [`../observability.md`](../observability.md#silences). Neither replaces this
+> step: the notice is for a silence whose work is not yet done, and this
+> one's is the moment the pack is in.
+
 ## 4. Run one self-test, and read it from both ends
 
 From the management card's diagnostics page, start a single self-test. Then

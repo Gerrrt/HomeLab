@@ -305,6 +305,15 @@ gateway-state: ## Collect the firewall's view of its uplinks (#353)
 	@# answer echo. One measurement alone cannot tell those apart.
 	./scripts/collect-gateway-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
 
+.PHONY: silence-state
+silence-state: ## Collect Alertmanager's silences as metrics (#575)
+	@# One series per active silence, with the owning issue parsed from its
+	@# comment. alertmanager_silences is a count per state and cannot say which
+	@# alert a silence covers, when it ends or who owns it — and a silence that
+	@# lapses returns its alert to a phone with nothing to say why. Loopback
+	@# only: Alertmanager binds to 127.0.0.1 (ADR-0012), so this runs here.
+	python3 scripts/collect_silences.py
+
 .PHONY: pkg-state
 pkg-state: ## Collect package state from morpheus over SSH (FreeBSD, runs as robo)
 	@# morpheus is the one host `patch-state` cannot cover: it is FreeBSD, with

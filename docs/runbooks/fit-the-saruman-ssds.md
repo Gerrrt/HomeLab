@@ -210,8 +210,10 @@ populate the ratio" than one column was. Step 6 is where that gets settled.
 ## 1. Silence the two alerts a new array legitimately trips — on `prometheus`
 
 The repo documents *deleting* a silence
-([`fit-the-ups-battery.md`](fit-the-ups-battery.md) §3) and has never written
-down creating one. This is that call.
+([`fit-the-ups-battery.md`](fit-the-ups-battery.md) §3), and
+[`../observability.md`](../observability.md#silences) holds the convention for
+creating one: the comment begins with the number of the issue that owns the
+expiry, which is what `SilenceWithoutIssue` checks. This is the call that does it.
 
 **Create these immediately before step 5, not before step 4.** On 2026-09-18
 the drives went into bays 3 and 4 with no silence standing and nothing fired:
@@ -232,15 +234,16 @@ END=$(date -u -d '+5 hours' +%Y-%m-%dT%H:%M:%SZ)
 ```
 
 ```bash
-curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' --data "$(printf '{"matchers":[{"name":"alertname","value":"IloHardwareDegraded","isRegex":false,"isEqual":true},{"name":"device","value":"shiva","isRegex":false,"isEqual":true},{"name":"cpqDaLogDrvIndex","value":"2","isRegex":false,"isEqual":true}],"startsAt":"%s","endsAt":"%s","createdBy":"#418 fit the SSDs in Saruman","comment":"New RAID 1 logical drive on the P440ar may report degraded while the controller syncs it. Scoped to the NEW logical drive index so temperature, supplies, the controller and LD 1 stay live. Delete BEFORE the proving reading."}' "$START" "$END")" | python3 -m json.tool
+curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' --data "$(printf '{"matchers":[{"name":"alertname","value":"IloHardwareDegraded","isRegex":false,"isEqual":true},{"name":"device","value":"shiva","isRegex":false,"isEqual":true},{"name":"cpqDaLogDrvIndex","value":"2","isRegex":false,"isEqual":true}],"startsAt":"%s","endsAt":"%s","createdBy":"#418 fit the SSDs in Saruman","comment":"#418 New RAID 1 logical drive on the P440ar may report degraded while the controller syncs it. Scoped to the NEW logical drive index so temperature, supplies, the controller and LD 1 stay live. Delete BEFORE the proving reading."}' "$START" "$END")" | python3 -m json.tool
 ```
 
 ```bash
-curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' --data "$(printf '{"matchers":[{"name":"alertname","value":"IloHardwareDegraded","isRegex":false,"isEqual":true},{"name":"device","value":"shiva","isRegex":false,"isEqual":true},{"name":"cpqDaPhyDrvIndex","value":"2|3","isRegex":true,"isEqual":true}],"startsAt":"%s","endsAt":"%s","createdBy":"#418 fit the SSDs in Saruman","comment":"Two newly inserted physical drives on the P440ar. Scoped to the NEW drive indexes so drives 0 and 1 stay live. Delete BEFORE the proving reading."}' "$START" "$END")" | python3 -m json.tool
+curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' --data "$(printf '{"matchers":[{"name":"alertname","value":"IloHardwareDegraded","isRegex":false,"isEqual":true},{"name":"device","value":"shiva","isRegex":false,"isEqual":true},{"name":"cpqDaPhyDrvIndex","value":"2|3","isRegex":true,"isEqual":true}],"startsAt":"%s","endsAt":"%s","createdBy":"#418 fit the SSDs in Saruman","comment":"#418 Two newly inserted physical drives on the P440ar. Scoped to the NEW drive indexes so drives 0 and 1 stay live. Delete BEFORE the proving reading."}' "$START" "$END")" | python3 -m json.tool
 ```
 
-Record both UUIDs — they go in the roadmap and in the rules-file comment
-afterwards:
+Record both UUIDs for step 10's delete. The `#418` at the head of each
+comment is the record of who owns them, and `SilenceWithoutIssue` fires within
+minutes on one that has none:
 
 ```bash
 curl -sS http://localhost:9093/api/v2/silences | python3 -c 'import json,sys; [print(s["id"], s["status"]["state"], s["endsAt"], [(m["name"],m["value"]) for m in s["matchers"]]) for s in json.load(sys.stdin)]'

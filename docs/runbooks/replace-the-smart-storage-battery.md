@@ -141,6 +141,13 @@ Then update [`../roadmap.md`](../roadmap.md) and the section header comment in
 `stacks/observability/prometheus/rules/network.rules.yaml`, both of which record
 the silence by UUID and expiry.
 
+> **Since [#575](https://github.com/Gerrrt/HomeLab/issues/575)** a silence's comment begins with the
+> number of the open issue that owns its expiry, and `SilenceExpiresSoon`
+> gives a week's notice before one lapses —
+> [`../observability.md`](../observability.md#silences). Neither replaces this
+> step: the notice is for a silence whose work is not yet done, and this
+> one's is the moment the pack is in.
+
 ## What is still open
 
 Two values did not move when everything else did, and neither has an alert

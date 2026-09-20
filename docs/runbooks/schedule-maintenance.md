@@ -103,6 +103,7 @@ the host.
 | `recipient-state` | `make recipient-state` | daily 09:15 | 2 days |
 | `ca-key-state` | `make ca-key-state` | daily 09:30 | 2 days |
 | `gateway-state` | `make gateway-state` | every 15 minutes | 90 minutes |
+| `silence-state` | `make silence-state` | every 15 minutes | 90 minutes |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 | `verify-ca-key-backup` | **you**, `make certs-verify-backup KEY=…` | no timer | 90 days |
 
@@ -607,6 +608,7 @@ expected rather than a second fault.
 | `smart-state` exits 1 | A local disk failed SMART, or smartctl could not read one | `SmartDriveUnhealthy` is the firmware's own verdict and means replace the drive, not investigate a counter. `SmartDriveSpareLow` compares against the threshold the drive publishes for itself. A `SKIP` line is not a failure — it means smartctl is absent, or a human ran a root job by hand |
 | `smart-state-remote` exits 1 | `morpheus` could not be read over SSH | The warning line carries ssh's own message — `Permission denied (publickey)` means the key or the user is wrong, `No route to host` means the firewall is unreachable. This job runs as `robo` and uses the same key as `backup-firewall`, so if that job is also failing the cause is shared |
 | `pkg-state` exits 1 | `morpheus` could not be read, or its catalogue fetch failed | The message carries ssh's or pkg's own words. A catalogue fetch needs the firewall to reach its update servers, so a WAN outage looks exactly like this and is not a fault in the collector — check `BlackboxProbeFailed` for the gateway before investigating. It runs as `robo` with the same key as `backup-firewall`, so if that is failing too the cause is shared |
+| `silence-state` exits 1 | Alertmanager could not be read on loopback, or answered something that is not a silence list | The previous `alertmanager-silences.prom` is left in place, so the last known silences stay served and a silence deleted during the outage looks alive until the next successful run — by design, because an empty file would read as "no silences". `docker ps` for the container, then `make silence-state` by hand |
 | `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |

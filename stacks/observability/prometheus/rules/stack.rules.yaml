@@ -21,6 +21,19 @@
 # remote_write, which `up == 0` structurally cannot see. Between them every
 # collected target is covered; the Observability Stack dashboard draws the same
 # split, because which of the two applies decides how you read the Up column.
+#
+# THE TWO EXCEPTIONS, AND WHY. SilenceExpiresSoon and SilenceWithoutIssue at
+# the end read nothing Alertmanager publishes about itself. `alertmanager_silences`
+# is a count per state, and a count cannot say which alert a silence covers,
+# when it ends or who owns it — the three facts a person reading the silence
+# list during a triage pass has found by hand three times (#76, #531, #572).
+# scripts/collect_silences.py reads /api/v2/silences every fifteen minutes on
+# the monitoring host and writes one series per live silence, with the owning
+# issue parsed from a comment that begins with #NNN; the convention is in
+# docs/observability.md under Silences (#575). The collector's own absence is
+# not a rule here: it is the `silence-state` row in install-timers.sh, which
+# ScheduledJobStale, ScheduledJobFailed and ScheduledJobNeverRan cover without
+# naming it.
 groups:
   - name: stack
     interval: 60s
@@ -349,3 +362,69 @@ groups:
             still produces about three entries an hour, so zero is a fault
             rather than a quiet night. Check the reader's position file in the
             alloy-data volume and whether /var/log/journal is still mounted.
+
+      - alert: SilenceExpiresSoon
+        # A silence that lapses returns its alert to a phone as if new, at
+        # whatever hour, with nothing to say why it was quiet. A week's notice
+        # is what the owning issue needs to extend it or to finish the work.
+        #
+        # THE SECOND CLAUSE IS THE RULE'S HONESTY. The silence this repository
+        # encourages is a short one — fit-the-saruman-ssds.md makes five-hour
+        # silences and says a silence should expire embarrassingly soon — and
+        # a five-hour silence is "within seven days" from the moment it is
+        # created. A warning that fires the instant you do the recommended
+        # thing is a warning you learn to ignore. So only a silence that has
+        # already stood a week gets the week's notice: a thirty-day silence
+        # warns on day 23, a fourteen-day one on day 7, a short one never. A
+        # pending silence has a negative age and stays quiet for the same
+        # reason. Re-creating a silence with different matchers gives it a
+        # new UUID and a fresh start, so its notice moves out a week.
+        #
+        # `$value` is the left-hand side of the `and`: days remaining, which
+        # is what the summary prints. `and on (id)` names the join key rather
+        # than relying on both gauges carrying identical labels forever.
+        expr: |
+          (homelab_silence_expires_timestamp_seconds - time()) / 86400 < 7
+          and on (id)
+          (time() - homelab_silence_starts_timestamp_seconds) > 7 * 86400
+        for: 1h
+        labels:
+          component: stack
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: >-
+            silence{{ if $labels.alert }} on {{ $labels.alert }}{{ end }}
+            expires in {{ $value | printf "%.0f" }} days
+          description: >-
+            Silence {{ $labels.id }} has stood for more than a week and lapses
+            within one. When it lapses the alert it covers notifies again as if
+            new, at whatever hour, with nothing to say why it was quiet. Extend
+            it from the issue that owns it, or delete it now because the work
+            is done — docs/observability.md, Silences, has the convention.
+
+      - alert: SilenceWithoutIssue
+        # A silence nobody owns is the finding. Every silence here is meant to
+        # begin its comment with the number of the open issue that owns its
+        # expiry; #531's did not, #572's did not exist until the day the
+        # silence was found, and #76 before them had neither silence nor owner.
+        #
+        # `{issue=""}` MATCHES SERIES THAT LACK THE LABEL. Prometheus drops a
+        # label whose value is empty on ingest, and the collector omits the
+        # label rather than writing issue="" for the same reason — so the
+        # selector reads as "no issue", which is what it means. Do not "fix"
+        # it to `absent()`: that would need to name every silence in advance.
+        expr: homelab_silence_expires_timestamp_seconds{issue=""}
+        for: 5m
+        labels:
+          component: stack
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "silence{{ if $labels.alert }} on {{ $labels.alert }}{{ end }} names no owning issue"
+          description: >-
+            Silence {{ $labels.id }}'s comment does not begin with the number
+            of the open issue that owns its expiry, so nothing records why it
+            exists or when it can go. Re-post it with the same id, matchers and
+            startsAt and a comment that starts with #NNN — the UUID survives —
+            or delete it. docs/observability.md, Silences, has the convention.

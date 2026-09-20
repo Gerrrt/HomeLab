@@ -141,6 +141,7 @@ JOBS=(
   "recipient-state   homelab-recipient-state     172800  recipient-state"
   "ca-key-state      homelab-ca-key-state        172800  ca-key-state"
   "gateway-state     homelab-gateway-state         5400  gateway-state"
+  "silence-state     homelab-silence-state         5400  silence-state"
   "verify-key-backup -                          7776000  secrets-verify-backup"
   "verify-ca-key-backup -                       7776000  certs-verify-backup"
 )
