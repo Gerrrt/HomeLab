@@ -369,9 +369,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   *defective*; the label is due by 2026-09-24, and the seller had not
   chosen refund or replacement when this was written — a replacement means
   no purchase, a refund means an 18 TB bought outright and a row in
-  [`roadmap.md`](roadmap.md)'s buy list. Seagate's own warranty by serial
-  is **not yet checked**, and the answer belongs here whichever way it
-  goes. The disk ships before any replacement exists, so the wipe comes
+  [`roadmap.md`](roadmap.md)'s buy list. Seagate's own warranty is **not
+  yet checked**: the form asks for the BPID printed on the drive label
+  beside its QR code, which no SMART or FARM field carries, so it is read
+  with the tray out at step 4, and the answer belongs here whichever way
+  it goes. The disk ships before any replacement exists, so the wipe comes
   first: `shred`, or `labelclear` and a `dd` over each end if the drive
   refuses a full pass, or the refusal itself — which of the three, and the
   date, is owed here from step 4 of the runbook. One correction from the

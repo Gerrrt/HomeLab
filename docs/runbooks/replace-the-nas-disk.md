@@ -214,17 +214,23 @@ The pair is eBay item
 [237056026029](https://www.ebay.com/itm/237056026029). Open a return under
 the Money Back Guarantee as *item not as described / defective* **before
 2026-10-18**; the seller chooses refund or replacement, and either is fine
-for the pool. Check Seagate's own warranty by serial at
-<https://www.seagate.com/support/warranty-and-replacements/> — an "0HR" lot
-may be OEM stock Seagate will not cover, and the answer, either way, goes in
+for the pool. Check Seagate's own warranty at
+<https://www.seagate.com/support/warranty-and-replacements/> — the form
+wants the serial and the **BPID** off the drive label, so this is done with
+the tray out at step 4; an "0HR" lot may be OEM stock Seagate will not
+cover, and the answer, either way, goes in
 [`hardware.md`](../hardware.md)'s Exos entry.
 
 > **Done 2026-09-20, as far as this house can do it.** The return was opened
 > under the guarantee on 2026-09-20 as *defective*, and eBay says the label
 > arrives by **2026-09-24**. The seller has not yet chosen refund or
 > replacement, so the decision below is pending on them, not on this
-> runbook. Seagate's warranty by serial has not been checked and is still
-> owed to `hardware.md`. Nothing was bought, so
+> runbook. Seagate's warranty check could not be done from the console:
+> the form asks for the **BPID**, which is printed on the drive label
+> between the QR code and *verify.seagate.com* and is in no SMART or FARM
+> field, so it is read at step 4 with the tray out — scanning the label's
+> QR code opens the verification page with it filled in — and the answer
+> is still owed to `hardware.md`. Nothing was bought, so
 > [`roadmap.md`](../roadmap.md)'s buy list did not move.
 
 The decision point, and the seller answers it first: a replacement from
@@ -286,7 +292,11 @@ block and in [`hardware.md`](../hardware.md)'s Exos entry either way.
 Then **System → Shut Down.** Power lead out, five seconds on the button to
 drain the supply, ground yourself (§1 of the build runbook). Pull the tray
 whose drive label reads `ZVTBSDL3` — read the label, not the letter — and
-slide the tray back empty. Leave the `AUX1_FAN` cage fan alone; it is the
+slide the tray back empty. **With the label in hand, photograph it and scan
+its QR code**: that opens Seagate's verification page with the BPID filled
+in, which is the warranty check step 3 could not do from the console, and
+the answer goes in [`hardware.md`](../hardware.md). `ZVTBS4NL`'s label is
+not read — its tray stays in, because the pool is on it. Leave the `AUX1_FAN` cage fan alone; it is the
 airflow over both trays and §1 says why it is not optional. Power on:
 `zpool status erebor` still reads `ONLINE` on one member with the other
 `OFFLINE` or `REMOVED`, and `lsblk` shows one 18 TB device. Ship on eBay's
@@ -408,6 +418,8 @@ line.
   bought outright and a row in [`roadmap.md`](../roadmap.md)'s buy list in
   the same commit. Whether a third drive follows as a cold spare is the same
   question asked once more.
-- **Seagate's warranty by serial is unchecked.** Whether an "0HR" lot is
-  covered is a lookup at Seagate's site, and the answer goes in
-  [`hardware.md`](../hardware.md)'s Exos entry either way.
+- **Seagate's warranty is unchecked, and cannot be from the console.** The
+  form wants the BPID off the drive label, which SMART and FARM do not
+  carry, so the lookup is a step 4 reading with the tray out; whether an
+  "0HR" lot is covered goes in [`hardware.md`](../hardware.md)'s Exos entry
+  either way.
