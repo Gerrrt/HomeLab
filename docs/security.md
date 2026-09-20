@@ -17,9 +17,9 @@ What this network is actually built to survive:
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 102 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 106 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
-| Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 % and unbought ([#454](https://github.com/Gerrrt/HomeLab/issues/454)) — and **how long either laptop runs on its cell has never been measured**, so this row is answered as far as the cells being healthy and no further — see below |
+| Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
 
 What it explicitly does **not** defend against: a determined attacker with
@@ -390,6 +390,28 @@ assumption consistent with what they are.
   `grafana-data` already does.
   [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) records
   the deviation and what would retire it.
+- **The media tier keeps its admin credential outside SOPS too, and has no
+  secrets file at all.** Jellyfin's `admin` is created by its own setup wizard
+  and kept as a hash in `jellyfin.db` inside the `jellyfin-config` volume; no
+  environment variable or rendered file is a way to hand it in, so
+  `stacks/media` has no `secrets/media.*` and no `.sops.yaml` rule — on
+  purpose, decided on [#528](https://github.com/Gerrrt/HomeLab/issues/528),
+  and not because the stack was deployed by hand. The plaintext is in the
+  operator's password manager, where pfSense's and iLO's already are. What
+  protects it is a hash at rest, VLAN 40's terminal property, the `50 → 40`
+  passes being the only way in, and
+  [ADR-0008](adr/0008-place-services-by-data-trust.md)'s blast radius — a
+  media server whose data is replaceable. Audiobookshelf
+  ([#140](https://github.com/Gerrrt/HomeLab/issues/140)) and Navidrome
+  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) create their first
+  user the same way and join this bullet when they land. What would retire
+  it: a service on that tier taking a credential from outside. Then the tier
+  gets `secrets/media.sops.yaml` and a rule of its own under
+  [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md),
+  and because `smaug` runs no `sops` the key would be the operator's rather
+  than the host's — a decision for that day and not before. Recovering the
+  admin without the password is in
+  [`stacks/media/README.md`](../stacks/media/README.md).
 
 ### Known historical exposure
 

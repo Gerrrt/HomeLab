@@ -22,13 +22,21 @@ by the TP-Link in U4, and eero Pro 6E units distributed through the house.
 Both laptops ride a mains cut out on their own cells, so each cell is a
 dependency of the mains-cut path and is watched as one: Alloy's node collector
 exports `node_power_supply_*` from both, and `host.rules.yaml` alerts when the
-shelf is off mains, when a cell falls below 80 % of its design capacity, and
-when a laptop reports no cell at all
-([#454](https://github.com/Gerrrt/HomeLab/issues/454)). `prometheus`'s cell was
+shelf is off mains, when a cell falls below 80 % of its design capacity, when a
+laptop reports no cell at all
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)), when a cell reads above
+45 °C, and when a host on its cell has under thirty minutes left
+([#532](https://github.com/Gerrrt/HomeLab/issues/532)). `prometheus`'s cell was
 replaced on 2026-09-18 and reads 101 % of its design capacity at one cycle;
-`oracle`'s is the original, reads 72 %, and is identified as a Dell M5Y1K and
-unbought ([#531](https://github.com/Gerrrt/HomeLab/issues/531)). How long
-either laptop actually runs on its cell has never been measured.
+`oracle`'s is the original, reads 72 %, and its replacement — a Dell M5Y1K —
+was bought on 2026-09-19 and is in transit
+([#531](https://github.com/Gerrrt/HomeLab/issues/531)). `prometheus`'s runtime
+was measured on 2026-09-19: 2.72 Ah/h at the stack's load, about 2.5 hours
+from a full pack, one measurement on one day. `oracle`'s has never been
+measured. Neither pack reports a moving cell temperature — the Dell exports
+none, and the A1437 fitted to `prometheus` returns a constant — so the
+temperature alert is blind until a pack that measures is fitted, and
+`HostBatteryTempNotMeasured` says so.
 
 The patch panel and the PDU were listed the other way round here until
 2026-08-29. U8 is the panel and U7 is the PDU, confirmed against the rack.
@@ -465,22 +473,28 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   Compute table changes; a cell is not a spec.
   **Checked at the fit:** `charge_full` above `charge_full_design`,
   `cyclecount` 1, `charge_ampere` moving, and both design figures changed — all
-  read from this host's own Prometheus on 2026-09-18. **Not checked, and the
-  reason [#454](https://github.com/Gerrrt/HomeLab/issues/454) is still open:**
-  the mains pull on the fully charged pack, which is the property the cell was
-  bought for and a runtime the estate has never had. The pack was still
-  charging when the fit was recorded.
+  read from this host's own Prometheus on 2026-09-18. **Checked on
+  2026-09-19, and the check that closed
+  [#454](https://github.com/Gerrrt/HomeLab/issues/454):** the mains pull on the
+  fully charged pack. The host stayed up for a bounded 22 minutes on the cell,
+  `HostOnBattery` fired for it alone, and the draw measured 2.72 Ah/h — about
+  2.5 hours from full at the load the stack presents, the first runtime figure
+  the estate has had for either laptop, and one measurement on one day.
   ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) carries
   the baseline, the stack-down window — 14:53 to about 18:12 on the day, over
   its own two-hour bound — and the disposal.) `oracle`'s cell reads 72 % and is
-  second in line, unbought — the entry below.
-- Dell M5Y1K 4-cell pack for `oracle` — 14.8 V, 40 Wh, the latched pack the
-  Inspiron 15-3565 in the Compute table takes. **Identified 2026-09-19 and
-  unbought**, under [#531](https://github.com/Gerrrt/HomeLab/issues/531): the
-  part is written down before the money is spent, which is the order that
-  issue asks for, and the seller, the listing, the purchase date and a
-  footnote go here when it is bought. The number comes off the machine rather
-  than off a listing: `/sys/class/power_supply/BAT0` reports `model_name`
+  second in line, bought 2026-09-19 — the entry below.
+- Dell M5Y1K 4-cell pack for `oracle`[^M5Y1K] — 14.8 V, 40 Wh, the latched
+  pack the Inspiron 15-3565 in the Compute table takes. **Identified and
+  bought 2026-09-19, in transit**, under
+  [#531](https://github.com/Gerrrt/HomeLab/issues/531): the part was written
+  down here before the money was spent, which is the order that issue asks
+  for, and the purchase followed the same day. The listing calls it genuine
+  Dell, which — as with the A1437 above — is the listing's claim until the
+  pack is looked at; a Dell label and a `serial_number` that is not `1650`
+  are what would settle it, and the fit records which it turned out to be.
+  The listing quoted delivery in two to four days. The number comes off the
+  machine rather than off the listing: `/sys/class/power_supply/BAT0` reports `model_name`
   `DELL VN3N047`, and `VN3N0` is one of the interchangeable Dell part numbers
   for this pack — `M5Y1K` is the primary, and `WKRJ2`, `HD4J0`, `991XP` and
   `GXVJ3` the others listings carry — with `manufacturer` `SMP-Sanyo2` and
@@ -527,6 +541,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446)
 [^A1437]: [A1437 battery for the MacBook Pro 13" A1425 Retina](https://www.ebay.com/itm/356174101017)
+[^M5Y1K]: [Dell M5Y1K 40 Wh 4-cell battery for the Inspiron 15 3000 series](https://www.ebay.com/itm/357495025211)
 [^ProDeskRackmount]: [1U rackmount for ProDesk Mini](https://a.co/d/4d7klOL)
 [^I226]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N)
 [^Sliderail]: [Sliding rails for ProLiant](https://a.co/d/5d4A4FO)

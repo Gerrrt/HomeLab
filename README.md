@@ -69,7 +69,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 7 provisioned dashboards, 141 panels, and
-  102 alert rules — 84 metric-based in Prometheus, 18 log-based in Loki — sharing
+  106 alert rules — 88 metric-based in Prometheus, 18 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -195,7 +195,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 .
 ├── stacks/observability/     # the deployed stack — one compose file, eight services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 84 alert rules
+│   ├── prometheus/           # config, file_sd targets, 88 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 18 LogQL rules
 │   ├── alloy/                # the agent config directory, shipped to every host
@@ -210,6 +210,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │                             #   Assistant, AdGuard Home, Immich, Paperless-ngx
 │                             #   and Vaultwarden so far; its own CA, leaves over
 │                             #   ACME (ADR-0037); for a host not yet built (ADR-0034, #404)
+├── stacks/media/             # Jellyfin on smaug, under TrueNAS's own Docker —
+│                             #   deployed by hand, no secrets file by decision
+│                             #   (ADR-0040, #528)
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
 ├── scripts/                  # bootstrap, render, validate, pin-digests, purge
 ├── SECURITY.md               # disclosure policy and known exposure
@@ -356,7 +359,7 @@ The current top items: rehearse the firewall restore on the ProDesk bought on
 I226 card and the installer stick and no longer the box — and then build the
 sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
 roadmap's [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-three items now, one later, and a rule that nothing joins them without a
+two items now, one later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs.
@@ -365,8 +368,9 @@ self-test, and the card is set to test itself every fortnight
 ([#93](https://github.com/Gerrrt/HomeLab/issues/93)) — and since 2026-09-08 the
 switch between the monitoring host and the network draws from it too, racked in
 U4 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the config export
-itself now leaves the monitoring host nightly, so the rehearsal is what is left
-([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
+leaves the monitoring host nightly and the volume backup sets weekly
+([#535](https://github.com/Gerrrt/HomeLab/issues/535)), so the rehearsal is
+what is left ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
 
 ## License
 

@@ -10,6 +10,10 @@ decrypted only in memory at deploy time.
 | `observability.sops.yaml` | yes — created by `make secrets-init`, committed encrypted | **yes** | Real credentials |
 | `~/.config/sops/age/keys.txt` | **never** | n/a | The private key |
 
+Every stack under `stacks/` has an example here in the same shape, except
+`stacks/media`, which has none by decision:
+[`docs/security.md`](../docs/security.md) § Secrets says why.
+
 > What is committed is ciphertext: the values are encrypted to the age
 > recipients listed in [`.sops.yaml`](../.sops.yaml), and the key names are left
 > in plaintext on purpose, so the set of required credentials is discoverable

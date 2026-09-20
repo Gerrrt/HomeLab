@@ -90,7 +90,11 @@ hosts, and `host.rules.yaml` reads it — `HostBatteryHealthLow` when a cell's
 `prometheus` read 94 % after 108 cycles until its cell was replaced on
 2026-09-18, and now reads 101 % at one cycle), `HostOnBattery` when the mains
 adapter loses
-input, `HostBatteryNotReported` when a laptop stops reporting a cell. The cell
+input, `HostBatteryNotReported` when a laptop stops reporting a cell, and, from
+[#532](https://github.com/Gerrrt/HomeLab/issues/532), `HostBatteryHot` above
+45 °C, `HostBatteryRuntimeLow` under thirty minutes of projected runtime on a
+cut, and `HostBatteryTempNotMeasured` for as long as a pack reports no moving
+temperature — which on 2026-09-19 was both of them. The cell
 for `prometheus`, an A1437, was bought 2026-09-13, **fitted 2026-09-18**, and
 is recorded in [`hardware.md`](../hardware.md#accessories). The swap and the tests that prove
 it are [`replace-the-laptop-cell.md`](replace-the-laptop-cell.md), which is
@@ -102,8 +106,12 @@ pack did not carry. What it proves is the same shape as step 5 here:
 then that laptop's mains pulled with the host staying up and `HostOnBattery`
 firing — the property the cell is there for, and untested since the machine was
 commissioned. The first half was proved at the fit on 2026-09-18: `charge_full`
-above design, `cyclecount` 1. **The mains pull on the charged pack has still
-not been run**, so that property remains untested and #454 is still open.
+above design, `cyclecount` 1. **The second half was proved on 2026-09-19**: the
+brick pulled on a full pack, `HostOnBattery` firing for `prometheus` alone
+inside three minutes with `UpsOnBattery` quiet, the host up throughout, and a
+measured draw of 2.72 Ah/h — about 2.5 hours from full at the stack's load, one
+measurement on one day. That closed #454. `oracle`'s half is untested and its
+cell is [#531](https://github.com/Gerrrt/HomeLab/issues/531).
 
 ## Before you start
 

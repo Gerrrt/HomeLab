@@ -8,7 +8,8 @@
 #              Authored on 2026-09-16, before the pool existed, as
 #              stacks/sensitive was authored before trinity was built.
 # Deploy with:  NOT `make up STACK=media`. That target renders a secrets file
-#              this stack does not have, on a box with neither make nor sops.
+#              this stack does not have — by decision, #528 and
+#              docs/security.md § Secrets — on a box with neither make nor sops.
 #              A change here reaches smaug by re-fetching compose.yaml and
 #              .env.example from main into that folder and running
 #              `docker compose up -d` there, by hand — nothing on smaug pulls

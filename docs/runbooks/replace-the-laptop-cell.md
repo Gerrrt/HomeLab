@@ -3,11 +3,34 @@
 **One glued-in cell, one power-down of the host that watches everything else,
 and one test that only works with the machine running.**
 
-> **Status — 2026-09-18: the cell is fitted. Step 8, the mains pull on the new
-> cell, has not been run, so
-> [#454](https://github.com/Gerrrt/HomeLab/issues/454) stays open.**
+> **Status — 2026-09-19: step 8 ran. The A1437 held `prometheus` up through a
+> 22-minute mains pull, `HostOnBattery` fired for it alone, and the runtime the
+> cell was bought for is measured — about 2.5 hours from full at the stack's
+> load. [#454](https://github.com/Gerrrt/HomeLab/issues/454) closes on this.**
 >
-> The host was down from 14:53:37 to about 18:12 UTC — roughly three hours and
+> | | |
+> | --- | --- |
+> | Brick pulled — `ADP1` `online` 0 on sysfs | 22:12:20 UTC, pack `Full` at 101 %, 6.887 Ah |
+> | First `online == 0` sample in Prometheus; `HostOnBattery` pending | 22:12:50 |
+> | `HostOnBattery` firing, active in Alertmanager | 22:14:52 — 2 min 32 s after the pull; the budget in step 2 is four minutes |
+> | Bound reached: twenty minutes, 87 % | 22:32:36 |
+> | Brick back; `status` `Charging` | 22:34:38, at 86 % |
+> | `online == 1` in Prometheus; alert gone from `ALERTS` | 22:35:39 |
+>
+> On battery 22 min 19 s, 6.887 → 5.875 Ah: **2.72 Ah/h — 2.71 A at 12.0 V,
+> about 33 W** — which empties this 6.889 Ah pack in **about 2.5 hours**. That
+> is one measurement at one load on one day: the stack as it ran on a Saturday
+> evening, lid closed, nothing else. `UpsOnBattery` never appeared and
+> `HostOnBattery` never fired for `oracle`, so the plug pulled was the right
+> one. Alertmanager sent two webhook notifications in the window — the firing
+> and the resolve — and none failed. `temp_celsius` read 25.5 °C throughout,
+> which is not a cool cell but a gauge that returns a constant: the A1437 has
+> not moved off that figure since it was fitted, where the old pack ranged
+> 32.7–39.2 °C in step 3. The runtime projection and the temperature rules
+> that landed the same day, and which of them can see anything, are
+> [#532](https://github.com/Gerrrt/HomeLab/issues/532).
+>
+> **Fitted 2026-09-18.** The host was down from 14:53:37 to about 18:12 UTC — roughly three hours and
 > eighteen minutes, over the two-hour bound this page sets below, and *not* the
 > 184 minutes the series appear to show. Step 6 has why.
 >
@@ -34,9 +57,9 @@ and one test that only works with the machine running.**
 > finding [#454](https://github.com/Gerrrt/HomeLab/issues/454) produced rather
 > than a fault in this procedure, and that cell is second in line. **Since
 > 2026-09-19 it is identified — a Dell M5Y1K — and tracked by
-> [#531](https://github.com/Gerrrt/HomeLab/issues/531), still unbought**; what
-> changes when this page is reused there is in *Reusing this page on `oracle`*
-> below. The silence suppresses 72 % **and anything lower**, so that cell's
+> [#531](https://github.com/Gerrrt/HomeLab/issues/531), bought the same day
+> and in transit**; what changes when this page is reused there is in
+> *Reusing this page on `oracle`* below. The silence suppresses 72 % **and anything lower**, so that cell's
 > further decay is not visible until it expires — see *What is still open*.
 >
 > **No silence is created anywhere in this runbook, and that is deliberate.**
@@ -77,13 +100,12 @@ different questions and only one of them is measured.
 link of the mains-cut path that [#93](https://github.com/Gerrrt/HomeLab/issues/93)
 and [#110](https://github.com/Gerrrt/HomeLab/issues/110) built — the TP-Link in
 U4 is on UPS power so the laptops stay *reachable* through a cut, and the cell
-is what keeps this one *running* through it. That half has never been tested
-since the machine was commissioned. Step 8 is where it stops being an
-assumption.
+is what keeps this one *running* through it. That half was never tested from
+the day the machine was commissioned until step 8 ran on 2026-09-19.
 
 What this is **not** is a fix for `oracle`, whose cell measures worse at 72 %
-and is already firing. That cell is identified, unbought and second in line
-([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and this runbook is
+and is already firing. That cell is second in line, bought 2026-09-19 and in
+transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and this runbook is
 written to be reused for it — *Reusing this page on `oracle`* has the
 differences between the two machines.
 
@@ -181,8 +203,11 @@ journalctl -b -u systemd-timesyncd --no-pager | grep -i 'jumped\|restored\|unset
 
 The new boot's first timestamp is the true time, and the grep prints nothing.
 Anything else is the #519 failure on a machine that was not supposed to have
-it. Record the result on that issue either way: a pass here is the datum it
-is short of.
+it, and `HostClockUnsynchronised` fires from the stack — which stays up — about
+six minutes into any such window, seeing all of it on this host. The journal
+check is still the record, because the rule reads the flag and not the size
+of the step. Record the result on that issue either way: a pass here is the
+datum it is short of.
 
 **Every query changes `instance`, and one changes the supply.** Step 1's
 loop, the ratio, and step 2's and step 8's alert queries all take
@@ -333,7 +358,7 @@ pack across a cycle; step 8 is what settles it.
 | `node_power_supply_current_ampere` | `0` | non-zero while discharging | `1.677`, charging |
 | `node_power_supply_voltage_volt` | `12.43` on mains (24h span `12.425`–`12.438`) | `10.9`–`12.6`, and varying under load | `12.607` |
 | `node_power_supply_voltage_min_design` | `11.21` | **may move — see below** | `11.4` |
-| `node_power_supply_temp_celsius` | `32.7`–`39.2` over 24h, averaging `33.3` | a similar band, never far above it | `25.5`, one sample |
+| `node_power_supply_temp_celsius` | `32.7`–`39.2` over 24h, averaging `33.3` | a similar band, never far above it | `25.5`, and every sample since — the pack's gauge returns a constant, see step 3 |
 | `node_power_supply_present` | `1` | `1` | `1` |
 | `node_power_supply_online{power_supply="ADP1"}` | `1` | `1` | `1` |
 | info `manufacturer` | `SMP` | may or may not change | `SMP` — unchanged |
@@ -453,10 +478,22 @@ The case against silencing, which is the one that wins here:
 - **The temperature baseline is the one number that speaks to this, and it
   is a band rather than a figure.** `node_power_supply_temp_celsius` ranged
   `32.7`–`39.2` over the 24 hours to 2026-09-17, averaging `33.3`, idling on
-  mains. Nothing alerts on it and nothing watches it; it is written down here
-  so a reading far above that band has something to be far above. One
+  mains, and never above `40.3` in thirty days of retention. Since
+  [#532](https://github.com/Gerrrt/HomeLab/issues/532) `HostBatteryHot` reads
+  it: critical, above `45` for five minutes, measured against that band. One
   instantaneous sample proves nothing on its own — a single reading near `39`
-  is ordinary for this cell.
+  is ordinary for this cell, which is why the rule wants five.
+- **The pack now fitted does not measure its temperature, and neither does
+  the other laptop's.** The A1437 has reported `25.5` on every one of its
+  1,560 samples since it was fitted — zero changes, against 99 changes in the
+  old cell's last 26 hours — and the SMC's own battery thermistors
+  (`TB0T`/`TB1T`/`TB2T` under `node_hwmon_temp_celsius`) froze at the same
+  moment, because the SMC reads them from the pack. `oracle`'s Dell exports no
+  `temp_celsius` at all. `HostBatteryTempNotMeasured` (info: recorded, never
+  notified) fires for both hosts and clears by itself the day a pack reports a
+  moving figure, which is the day `HostBatteryHot` stops being blind. Until
+  then the inspection in the first bullet is the only hot-cell detection this
+  machine has, and a reading of `25.5` is not evidence that the cell is cool.
 - **Order of operations, and it is not negotiable.** Machine off (step 4),
   bottom case off, then **disconnect the battery connector from the logic board
   before touching anything else.** A metal tool near a live cell's terminals is
@@ -559,11 +596,17 @@ Then, in order:
   > fourteen minutes of real post-swap operation filed inside the outage. The
   > true window was 14:53:37 to about 18:12. **Take it from
   > `journalctl --list-boots` and the recorded shutdown, not from
-  > `query_range`.** Nothing noticed the backdated boot — `HostClockSkew` reads
-  > `node_timex_offset_seconds`, which is small once timesyncd has restored a
-  > wrong but stable clock — and whether anything should is
-  > [#519](https://github.com/Gerrrt/HomeLab/issues/519). A further reboot at
-  > 18:28 is in the series too and is not part of the swap.
+  > `query_range`.** Nothing noticed the backdated boot at the time:
+  > `HostClockSkew` reads `node_timex_offset_seconds`, which held exactly `0`
+  > once timesyncd had restored a wrong but stable clock. `HostClockUnsynchronised`
+  > now reads `node_timex_sync_status`, the field that was `0` for precisely
+  > that window ([#519](https://github.com/Gerrrt/HomeLab/issues/519)), and
+  > would have fired about six minutes in. Read it for what it is: the
+  > notification arrives on the phone in real time, the alert record it leaves
+  > in the TSDB is stamped by the same wrong clock, and it sees nothing of the
+  > hours the stack was down. It is a prompt to come to this paragraph, not a
+  > measurement of the window. A further reboot at 18:28 is in the series too
+  > and is not part of the swap.
 
   ```bash
   for j in snmp oracle-metrics; do
@@ -632,27 +675,45 @@ Two more failure shapes worth naming:
 > makes a claim about capacity. Only this one makes the claim the cell was
 > bought for.
 >
-> **Not done as of 2026-09-18.** The pack was still charging when the fit was
-> recorded — `capacity` 51 % and rising — and this step needs it full. Until it
-> runs, the property the cell was bought for is untested and that issue stays
-> open. The accidental discharge on the day is not a substitute: it began at
-> 41 %, was not bounded, measured no runtime, and its timestamps are the
-> backdated ones step 6 describes.
+> **Done 2026-09-19, 22:12–22:35 UTC**, on the pack reading `Full` at 101 %,
+> read off this host while it ran on the cell. The timeline and the figures are
+> in the status banner at the top of this page. In short: pulled at 22:12:20,
+> pending at the first offline sample, firing and active in Alertmanager at
+> 22:14:52, stopped at the twenty-minute bound with 87 % left, back on mains at
+> 22:34:38, resolved at 22:35:39. Draw 2.72 Ah/h — 2.71 A at 12.0 V — so a full
+> pack lasts about 2.5 hours at the load the stack presents. Not the four to
+> five hours the accidental discharge of 2026-09-18 suggested: that reading was
+> taken on a skewed clock during a partial boot, and it is the reason this step
+> says *measure rather than estimate*. The twenty-minute bound came first, as
+> it will on any healthy pack — twenty minutes at this draw is 14 % of the cell.
+>
+> The two queries below were run every 30 seconds through the test and read
+> 2.75 Ah/h at minute ten, rising to 2.85 by minute twenty as the `[10m]`
+> window filled with discharge samples; the whole-window figure from sysfs —
+> charge at the pull minus charge at the plug-in, over the time on battery — is
+> the one recorded.
 
 Same procedure as step 2, now on the new cell and with the machine fully
 charged. Because the numbers are finally meaningful, also **measure the runtime
-rather than estimating it** — a figure the estate has never had:
+rather than estimating it** — a figure the estate has never had. Since
+[#532](https://github.com/Gerrrt/HomeLab/issues/532) the stack computes it for
+you on every cut, from the pack's own instantaneous draw, and only while the
+adapter reports no input:
 
 ```bash
-# Ampere-hours per hour being drawn, at the load the stack actually presents
+# Seconds left at the draw the stack is presenting right now — recorded only
+# while on battery, so an empty result on mains is correct, not broken
 curl -sG http://localhost:9090/api/v1/query --data-urlencode \
-  'query=-deriv(node_power_supply_charge_ampere{instance="prometheus",power_supply="BAT0"}[10m]) * 3600'
+  'query=homelab_battery_runtime_seconds{instance="prometheus"} / 60'
 
-# Hours left at that draw
+# The draw itself, in amps, for the record
 curl -sG http://localhost:9090/api/v1/query --data-urlencode \
-  'query=node_power_supply_charge_ampere{instance="prometheus",power_supply="BAT0"}
-         / (-deriv(node_power_supply_charge_ampere{instance="prometheus",power_supply="BAT0"}[10m]) * 3600)'
+  'query=node_power_supply_current_ampere{instance="prometheus",power_supply="BAT0"}'
 ```
+
+`HostBatteryRuntimeLow` pages under thirty minutes of that projection. A
+healthy pack near full projects hours, so it should stay quiet through this
+bounded test; if it fires, the cell or the draw is not what step 7 said.
 
 Bound the test: **stop at twenty minutes or 50 % capacity, whichever comes
 first.** The point is that the property holds and is measurable, not that the
@@ -709,24 +770,21 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
 
 ## What is still open
 
-- **Step 8 has not been run, and it is the whole of what keeps
-  [#454](https://github.com/Gerrrt/HomeLab/issues/454) open.** Everything else
-  the issue asked for is done and measured. The cell needs a full charge first.
+- **Nothing on this page is owed to
+  [#454](https://github.com/Gerrrt/HomeLab/issues/454) any more.** Step 8 ran
+  on 2026-09-19 and the issue closes on it. What the swap surfaced went to
+  issues of its own — `oracle`'s cell, the runtime projection and the blind
+  temperature rules below, the RTC reset under *Closed since this page was
+  written*.
 - **Step 2 can never be run for this swap: the old cell is gone.** The
   discrimination it was written to buy — a step-8 failure being the cell or the
   adapter and nothing else, because the path was already proven — is
-  unavailable. A failure in step 8 will be ambiguous between the pack, the brick
-  and the rule. The only evidence the path works is the accidental firing on
-  2026-09-18, which did at least exercise the real rule against the real
-  adapter. Run step 2 properly when this page is reused on `oracle`.
-- **A battery disconnect resets the RTC, and the TSDB records the result as a
-  hole that is not one** — [#519](https://github.com/Gerrrt/HomeLab/issues/519).
-  Nothing notices a backward boot: `HostClockSkew` reads the kernel's current
-  offset, which stays small once the clock is wrong but stable, and
-  `node_timex_sync_status` — which was `0` for exactly the backdated window — is
-  read by no rule. Step 6 says what to do instead; whether anything should alert
-  is that issue's question.
-- **`oracle`'s cell reads 72 %, is identified and unbought
+  unavailable. Step 8 passed on 2026-09-19, so the ambiguity a failure would
+  have carried never had to be resolved, and that pass — plus the accidental
+  firing of 2026-09-18 — is now the evidence the path works against the real
+  rule and the real adapter. Run step 2 properly when this page is reused on
+  `oracle`.
+- **`oracle`'s cell reads 72 %, its replacement is bought and in transit
   ([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and its alert is
   silenced until 2026-10-08** — `01cb81d7-5e19-4e6d-b386-f5c8c843032b`, matching
   `alertname="HostBatteryHealthLow"`, `instance="oracle"`,
@@ -747,14 +805,36 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
   proof row this machine lacks and the cleanest of them all; and its clock is
   expected to survive the disconnect, because the coin cell that backs it is
   separate from the pack — expected, and checked at the fit rather than
-  assumed, for [#519](https://github.com/Gerrrt/HomeLab/issues/519).
-- **Nothing watches runtime-on-battery continuously.** The figure step 8
-  produces is one measurement, at one load, on one day. There is no rule and no
-  series that would notice it halving.
+  assumed, for [#519](https://github.com/Gerrrt/HomeLab/issues/519). If it
+  does not survive, `HostClockUnsynchronised` is what will say so, and because
+  `oracle` is not the monitoring host it sees that whole window rather than
+  the slice this one caught.
+- **Runtime-on-battery is projected on every cut, and was measured once.**
+  `homelab_battery_runtime_seconds` and `HostBatteryRuntimeLow`
+  ([#532](https://github.com/Gerrrt/HomeLab/issues/532)) read the pack's draw
+  whenever the adapter loses input, so the series that would notice the figure
+  halving now exists. The bounded measurement step 8 asks for ran on
+  2026-09-19 — 2.72 Ah/h, about 2.5 hours from full, one load on one day — and
+  is what the projection is proven against; the next cut is the first chance
+  to compare the two.
+- **Cell temperature is unmeasured on both laptops, by the packs' own doing.**
+  `HostBatteryHot` is loaded and cannot fire: the A1437 returns a constant and
+  the Dell exports nothing (step 3). `HostBatteryTempNotMeasured` records that
+  for each host and clears when a pack that measures is fitted; until then the
+  trackpad inspection is the only detection for the failure mode
+  [#454](https://github.com/Gerrrt/HomeLab/issues/454) opened with.
 
 **Closed since this page was written:** `HostBatteryHealthLow`'s description
 named [`fit-the-ups-battery.md`](fit-the-ups-battery.md) — the rack pack in
 `mjolnir`, not this cell — because that was the only runbook there was when the
 rule was written. [#506](https://github.com/Gerrrt/HomeLab/pull/506) retargeted
 it at this file on 2026-09-17, moving the `exp_annotations` blocks in
-`stacks/observability/prometheus/tests/host.test.yaml` with it.
+`stacks/observability/prometheus/tests/host.test.yaml` with it. And **a battery
+disconnect resets the RTC, and the TSDB records the result as a hole that is
+not one** — [#519](https://github.com/Gerrrt/HomeLab/issues/519) asked whether
+anything should notice. `HostClockUnsynchronised` in `host.rules.yaml` now reads
+`node_timex_sync_status == 0` for five minutes: on the thirty days of retention
+before it landed, eight ordinary boots produced no `0` sample at all and the
+only run was this swap's backdated window. What it can and cannot see is in
+step 6 and in the rule's own comment; the runbook instruction — take the window
+from the journal — stands.

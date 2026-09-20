@@ -237,6 +237,21 @@ outgoing operator directly:
 
 - The pfSense, MokerLink, iLO and APC network-card **admin passwords**. None of
   them are in this repository in any form.
+- Jellyfin's `admin` on `smaug`, and TrueNAS's own web-UI admin. Neither is in
+  this repository in any form — `stacks/media` has no secrets file by
+  decision, and [`security.md`](../security.md) § Secrets says why. You do not
+  need Jellyfin's: from a workstation on Hicks, *Forgot Password* on
+  `http://10.0.40.30:8096` writes a PIN file into the container's config
+  volume, the login page then takes the PIN, and the file is read from a
+  TrueNAS shell:
+
+  ```bash
+  docker exec media-jellyfin sh -c 'cat /config/passwordreset*.json /config/data/passwordreset*.json 2>/dev/null'
+  ```
+
+  That flow only answers an address Jellyfin counts as local, which every
+  RFC 1918 range is until its *LAN networks* setting says otherwise. TrueNAS's
+  admin has no such path from here; get it from the outgoing operator.
 - The internal CAs' private keys — there are two, and both live on
   `prometheus` with one offline copy each on the medium that holds the age
   key. `certificates/` is gitignored and host-local, so a clean clone has no
@@ -327,6 +342,7 @@ new keypair whose public half matches nothing.
 | --- | --- |
 | The whole observability stack (`make down`) | The record, and only the record. Nothing in the house depends on it, dashboards and alert rules are in git, and metrics and logs re-accumulate. `grafana-data` is the exception — users, annotations and any un-exported dashboard edit live only there |
 | `stacks/lab` | Nothing. It is committed and deployable and has never been deployed |
+| `stacks/media` | Film night, and the watch positions if `jellyfin-config` goes with it. Nothing else depends on it, and [ADR-0008](../adr/0008-place-services-by-data-trust.md) already ruled the library replaceable |
 | `homelab-converge.timer` | Automatic deployment. The host stays on whatever revision it is on until someone runs `make up`, which is exactly how it worked before |
 | `dashboards-drift` | The daily proof that Grafana holds no uncommitted dashboard edit |
 | Suricata on the terminal segments | Detection, not connectivity. It is alert-only — `Block Offenders` is off on both interfaces and stays off. [`enable-suricata.md`](enable-suricata.md) |
