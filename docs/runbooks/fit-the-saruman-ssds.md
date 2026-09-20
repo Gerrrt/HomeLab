@@ -15,7 +15,7 @@ both arrays — not assumed from either.**
 > from that first scrape with `PercentRebuild` never populated; both SSDs went
 > `notConfigured(3)` → `configured(2)` in the same minute. Proxmox booted at
 > 13:43 UTC and saw the new `LOGICAL_VOLUME` as `sdb`. The thin pool is
-> **`Large_data`** — that is the volume group, the pool and the storage id,
+> **`large_data`** — that is the volume group, the pool and the storage id,
 > which is what `pvesh create ... lvmthin --name` makes of one word — and its
 > three device-mapper volumes appeared between 15:46 and 15:47 UTC, with one
 > write burst of roughly 2.6 GB to `sdb` for the metadata and nothing since.
@@ -528,14 +528,24 @@ Then create the thin pool the way the GUI does, substituting the device that
 actually appeared:
 
 ```bash
-pvesh create /nodes/Saruman/disks/lvmthin --name Large_data --device /dev/sdb --add_storage 1
+pvesh create /nodes/Saruman/disks/lvmthin --name large_data --device /dev/sdb --add_storage 1
 pvesm status
 ```
 
-> **Done 2026-09-19, and the name is `Large_data`, not `ssd`.** One word to
+> **Done 2026-09-19, and the name is `large_data`, not `ssd`.** One word to
 > `--name` becomes the volume group, the thin pool and the PVE storage id, so
 > every `ssd` this runbook used to write in steps 8 and 9 now reads
-> `Large_data`. The device was `sdb`: Proxmox came up at 13:43 UTC after the
+> `large_data`. **Lowercase.** This runbook, `hardware.md` and the roadmap
+> wrote it as `Large_data` for a day, and step 8 was run once against that
+> spelling the same evening: the `lvcreate` and every fio line naming the SSD
+> pool failed on a volume group that does not exist, while the `pve` side
+> ran. LVM and PVE storage ids are case-sensitive; copy the name out of
+> `pvesm status`, not out of a document. **The fio lines did worse than
+> fail**: fio creates a missing directory for its `--filename`, so
+> `/dev/Large_data/fiotest` came into being as an 8 GB regular file on
+> devtmpfs — RAM — and the two runs against it "succeeded" with memory's
+> numbers. Discarded; `rm -rf /dev/Large_data` once `stat` says regular
+> file. Step 8's troubleshooting row carries this now. The device was `sdb`: Proxmox came up at 13:43 UTC after the
 > SSA session with a second `LOGICAL_VOLUME` there — no rescan needed, because
 > the host booted fresh, which is why item 10 below is still not settled. The
 > pool's three device-mapper volumes (`_tmeta`, `_tdata`, `-tpool`) appeared in
@@ -562,7 +572,7 @@ what [`build-the-lab-guest.md`](build-the-lab-guest.md) already assumes.
 > `collect-guest-state.sh`. This is the same shape of gap as
 > [#351](https://github.com/Gerrrt/HomeLab/issues/351) and deserves its own
 > issue, not a step here: [#538](https://github.com/Gerrrt/HomeLab/issues/538),
-> opened 2026-09-19 with `Large_data` live and nothing on it yet, which is the
+> opened 2026-09-19 with `large_data` live and nothing on it yet, which is the
 > cheapest moment to close it.
 
 ## 8. Measure what the array actually does — both of them
@@ -584,16 +594,16 @@ re-derivation.
 
 ```bash
 apt-get install -y fio
-vgs                                        # expect VFree near 0 on Large_data: pvesh gave the pool the whole VG
-lvs -a -o +data_percent,metadata_percent   # pve/data and Large_data/Large_data, and their headroom
-lvcreate -V 8G -T Large_data/Large_data -n fiotest
+vgs                                        # expect VFree near 0 on large_data: pvesh gave the pool the whole VG
+lvs -a -o +data_percent,metadata_percent   # pve/data and large_data/large_data, and their headroom
+lvcreate -V 8G -T large_data/large_data -n fiotest
 lvcreate -V 8G -T pve/data -n fiotest
 ```
 
 > **Thin volumes, not linear ones — corrected 2026-09-19, before the step
 > ran.** `pvesh create ... lvmthin` sizes the pool to the whole volume group
 > less its metadata, so the `lvcreate -L 8G` linear form this step used to
-> write would have failed for lack of free extents on `Large_data`, and `pve`
+> write would have failed for lack of free extents on `large_data`, and `pve`
 > was never checked. A thin volume in each pool is the same overhead on both
 > sides — and `pve/data` is literally the pool `vm-140-disk-0` lives in, so
 > M1 measures the path the guest actually takes. The fill below is now
@@ -605,7 +615,7 @@ Precondition both targets identically, so the SSD is measured in steady state
 rather than on fresh flash:
 
 ```bash
-fio --name=fill --filename=/dev/Large_data/fiotest --rw=write --bs=1M --iodepth=8 --ioengine=libaio --direct=1 --size=8G
+fio --name=fill --filename=/dev/large_data/fiotest --rw=write --bs=1M --iodepth=8 --ioengine=libaio --direct=1 --size=8G
 fio --name=fill --filename=/dev/pve/fiotest --rw=write --bs=1M --iodepth=8 --ioengine=libaio --direct=1 --size=8G
 ```
 
@@ -618,7 +628,7 @@ fio --name=adr0029 --filename=/dev/pve/fiotest --rw=randwrite --bs=4k --iodepth=
 The new ceiling, on the SSD array only:
 
 ```bash
-fio --name=ceiling --filename=/dev/Large_data/fiotest --rw=randwrite --bs=4k --iodepth=32 --numjobs=4 --ioengine=libaio --direct=1 --size=8G --time_based --runtime=60 --ramp_time=10 --group_reporting
+fio --name=ceiling --filename=/dev/large_data/fiotest --rw=randwrite --bs=4k --iodepth=32 --numjobs=4 --ioengine=libaio --direct=1 --size=8G --time_based --runtime=60 --ramp_time=10 --group_reporting
 ```
 
 Record IOPS, `clat` mean and `clat` p99 from every run.
@@ -628,7 +638,7 @@ Record IOPS, `clat` mean and `clat` p99 from every run.
 | | Target | State | What it is for |
 | --- | --- | --- | --- |
 | **M1** | HDD `pve` | guest running | what the array delivers *today, under its real load*. Deliberately a loaded number |
-| **M2** | SSD `Large_data` | idle, before any guest data | the number that replaces ADR-0029's |
+| **M2** | SSD `large_data` | idle, before any guest data | the number that replaces ADR-0029's |
 | **M3** | HDD `pve` | idle, **after step 9's move** | the clean re-derivation of the 83. Only obtainable once the array is quiet |
 
 M3 is why the measurement is not finished when step 8 ends. Until `alexander`
@@ -646,7 +656,7 @@ that variant is confined to M3.
 Clean up. This is part of the step, not a footnote:
 
 ```bash
-lvremove /dev/Large_data/fiotest
+lvremove /dev/large_data/fiotest
 lvremove /dev/pve/fiotest
 ```
 
@@ -665,7 +675,7 @@ here is a refusal halfway through rather than an error up front. Delete them
 first if there are any.
 
 ```bash
-qm move-disk 140 scsi0 Large_data
+qm move-disk 140 scsi0 large_data
 ```
 
 **It is genuinely online.** `qm move-disk` on a running VM drives a QEMU
@@ -693,7 +703,7 @@ reports and preserving the flags
 [`build-the-lab-guest.md`](build-the-lab-guest.md) §1 already sets:
 
 ```bash
-qm set 140 --scsi0 Large_data:vm-140-disk-0,discard=on,iothread=1,ssd=1
+qm set 140 --scsi0 large_data:vm-140-disk-0,discard=on,iothread=1,ssd=1
 ```
 
 `ssd=1` sets the emulated rotation rate so the guest's own scheduler and TRIM
@@ -717,7 +727,7 @@ lab.
 **Backups.** `vzdump` jobs are per-VM, not per-storage, so nothing here changes
 them — confirm with `cat /etc/pve/jobs.cfg`. Existing backups stay restorable,
 but a restore defaults back to the storage recorded in the archive, so pass
-`--storage Large_data` explicitly when the time comes.
+`--storage large_data` explicitly when the time comes.
 
 **Now run M3** from step 8: the HDD mirror is finally idle, and that is the
 reading ADR-0029's `83` gets compared against.
@@ -819,9 +829,9 @@ comfortably under 30 s.
 | `IloHardwareDegraded` pages anyway | The silence named the wrong `cpqDaLogDrvIndex` | Read the real index, silence that, delete the wrong one. Then check whether the alert is *true* |
 | `cpqDaAccelStatus` moves to `4` tmpDisabled | The controller parked the cache | Wait — the rule's 1 h `for:` exists for this. If it persists, it is real and #76 wants to know |
 | `qm move-disk` refuses | Snapshots on vmid 140 | `qm listsnapshot 140`, delete them, retry |
-| Move completes, guest will not boot | Storage moved, guest config did not | `qm config 140` — `scsi0` must name the `Large_data` storage. `unused0` is still the intact original |
+| Move completes, guest will not boot | Storage moved, guest config did not | `qm config 140` — `scsi0` must name the `large_data` storage. `unused0` is still the intact original |
 | The new pool fills | Thin overprovisioning, and nothing alerts on it | Step 7's blind spot, arriving. `pvesm status`, `lvs` |
-| fio numbers are wildly high | Caching somewhere in the path | `--direct=1` on every run, and a raw LV target — never a file, never `/dev/sda` |
+| fio numbers are wildly high | Caching somewhere in the path — or the target is not the LV at all: fio creates a missing directory for `--filename`, so a misspelt `/dev/<vg>/` path becomes a regular file on devtmpfs and the run measures RAM | `--direct=1` on every run, and a raw LV target — never a file, never `/dev/sda`. `stat -c %F` the target before the fill: it must say `block special file` |
 
 ## Flipping the documents
 

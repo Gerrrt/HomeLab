@@ -1035,7 +1035,7 @@ what left this one unfireable for months.
   `Saruman`, and [#527](https://github.com/Gerrrt/HomeLab/issues/527) do
   everything the fit left.** Two Samsung SM863a 960 GB SATA enterprise
   drives, bought 2026-09-09, delivered 2026-09-11, fitted 2026-09-18, and
-  **since 2026-09-19 logical drive 2 with the thin pool `Large_data` on it —
+  **since 2026-09-19 logical drive 2 with the thin pool `large_data` on it —
   and still with no guest on them and no measurement taken**. #418 closed at
   the bays; #527 carries steps 5–11 of the runbook and is open.
   ADR-0007's constraint — "the
@@ -1071,7 +1071,7 @@ what left this one unfireable for months.
   from the first scrape with no sync the iLO ever showed — made through the
   offline Smart Storage Administrator, the runbook's path 3, because `ssacli`
   is still not on the host and neither way of getting it there was tried.
-  The thin pool on it is **`Large_data`**, made that afternoon; the runbook's
+  The thin pool on it is **`large_data`**, made that afternoon; the runbook's
   `ssd` is renamed throughout. Two things that path cost: the controller has
   still never been read from the host, so the cache reading #76 has waited on
   since 2026-09-02 is still owed and needs `ssacli` or a second SSA session;
@@ -1084,7 +1084,7 @@ what left this one unfireable for months.
   on the newest drives in the estate needs `smartctl` through the `hpsa`
   path — [#529](https://github.com/Gerrrt/HomeLab/issues/529), filed against
   exactly that condition, is no longer gated on anything. A thin pool is also
-  not a filesystem, so `HostDiskCritical` cannot see `Large_data` fill;
+  not a filesystem, so `HostDiskCritical` cannot see `large_data` fill;
   [#538](https://github.com/Gerrrt/HomeLab/issues/538) is that blind spot,
   opened while the pool is still empty. `alexander` is still on the HDD
   mirror.
