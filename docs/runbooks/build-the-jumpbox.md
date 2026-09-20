@@ -17,12 +17,17 @@ this one ends
 > `alexander`.**
 >
 > Ubuntu 26.04 LTS, `10.0.30.70`, VMID 170, `bc:24:11` OUI, ISO
-> `ubuntu-26.04.1-live-server-amd64.iso`.
-> §4's `curl`: *(pending the §4 report)*. §7: *(pending the §7 report — both
-> `up{instance="phoenix"}` jobs and the Loki job count go here)*.
-> The lab's ports were opened ahead of the guest by #543 and applied on
-> `alexander` in §5, the first time `deploy-agent.sh`'s `--monitoring-host`
-> flag was used.
+> `ubuntu-26.04.1-live-server-amd64.iso`. §4's `curl`: *(pending the §4
+> report)*. §7 passed: `make validate` green in the guest's own checkout (16
+> host-specific skips — no Docker, no age key, by design), both
+> `up{instance="phoenix"}` jobs at `1`, and four Loki jobs — `auth.log`,
+> `syslog`, `/var/log/*.log` and the journal — so 26.04.1 ships rsyslog as
+> 26.04 did. The lab's ports were opened ahead of the guest by #543 and
+> applied on `alexander` in §5, the first time `deploy-agent.sh`'s
+> `--monitoring-host` flag was used. Two things the first run found and this
+> runbook now carries: `VM.Monitor` is not a privilege on PVE 9, and the node
+> is `Saruman`, capitalised — and one it could not fix, #566: the hypervisor's
+> firewall was never on, so the `8006` line was not written.
 
 This builds the host [ADR-0043](../adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
 decided: the one machine whose purpose is to hold credentials for other
