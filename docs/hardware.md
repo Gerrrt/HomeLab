@@ -55,7 +55,7 @@ quietly swapped.
 | `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
-SNMP devices at a 60-second interval, four Alloy agents, and 30 days of metric
+SNMP devices at a 60-second interval, five Alloy agents, and 30 days of metric
 retention without complaint — which is a useful thing to know before spending
 money on a monitoring host. Its RAM is soldered at 8 GB and it has no built-in
 Ethernet, so it reaches the network over a USB NIC.

@@ -91,13 +91,14 @@ truth for what a box actually does.
   address ([`security.md`](security.md#what-this-repository-deliberately-does-not-publish)).
   Before it, `morpheus` carried no `rdr` and no inbound WAN pass beyond DHCP
   client replies — the state ADR-0011 measured in 2026-08. **Not built:** the
-  jumpbox ([#436](https://github.com/Gerrrt/HomeLab/issues/436)) does not exist,
-  so this describes a decision rather than a rule on the box. The endpoint
+  jumpbox exists — `phoenix`, built 2026-09-20
+  ([#436](https://github.com/Gerrrt/HomeLab/issues/436)) — and the endpoint
   question is answered —
   [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md):
   a dynamic DNS record kept current by `morpheus`'s own client, on a WAN
-  address measured to be public rather than carrier-grade NAT — and the client
-  is not yet configured either.
+  address measured to be public rather than carrier-grade NAT — but no `rdr`
+  has been written and the client is not yet configured, so this still
+  describes a decision rather than a rule on the box.
 
 [^modem]: [Xfinity Gateway (XB7)](https://www.xfinity.com/support/articles/broadband-gateways-userguides)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
@@ -360,6 +361,7 @@ Where things get broken on purpose.
 | shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
 | Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
+| phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
 
 ### Notes
 
@@ -368,8 +370,10 @@ Where things get broken on purpose.
   dedicated port, `Saruman` is the Proxmox install. They are separate addresses
   and separate names, and conflating them is a mistake this document previously
   made.
-- `Saruman` runs one guest, `alexander`, built 2026-09-05
-  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)). It runs
+- `Saruman` runs two guests: `alexander`, built 2026-09-05
+  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), and `phoenix`, built
+  2026-09-20 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), described
+  below. `alexander` runs
   [`stacks/lab`](../stacks/lab) — the lab's own Prometheus, Loki, Grafana and
   Alloy. **It is a guest and not the hypervisor for a reason**: a compose stack
   is Docker, and Docker would rewrite the iptables of the box whose own
@@ -390,13 +394,13 @@ Where things get broken on purpose.
   pushes to `alexander` and not to Winterfell — "guests get no such rule"
   covers it — and ADR-0029's six machines report to it as agents. Every path
   it needs is intra-segment, so it adds no firewall rule.
-- A third guest, `phoenix`, is planned at `10.0.30.70` — the next decade — as
+- A third guest, `phoenix`, is at `10.0.30.70` — the next decade — as
   the deployment host: the Proxmox API token, the SSH key and the checkout
   that the Packer, OpenTofu and Ansible work after
   [#436](https://github.com/Gerrrt/HomeLab/issues/436) runs from, placed by
-  [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md).
-  **Not built**; it enters the table above when it is
-  ([`build-the-jumpbox.md`](runbooks/build-the-jumpbox.md)). It runs no stack
+  [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
+  and built 2026-09-20 by
+  [`build-the-jumpbox.md`](runbooks/build-the-jumpbox.md). It runs no stack
   and holds no key that signs anything — the estate's CA stays on
   `prometheus`, and that ADR says why. It is also where
   [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
@@ -406,10 +410,13 @@ Where things get broken on purpose.
   not to Winterfell, and it gets no pass out of this segment: a rule from it
   into 99 would make it the bastion ADR-0002 and ADR-0012 declined. It adds
   nothing on `morpheus`. What it adds is on `Saruman`: one line in the
-  hypervisor's own firewall admitting `10.0.30.70` to `8006`, the first
-  address on this segment with a path to the Proxmox API, which
+  hypervisor's own firewall admitting `10.0.30.70` to `8006`, which
   `firewall-claims.yaml` cannot see because it lives in `/etc/pve` and not in
-  pf.
+  pf. That line is decided and not written: on 2026-09-20 the build found
+  `Saruman`'s firewall disabled and ADR-0014's rules never applied, so today
+  every address on this segment reaches `8006`, and
+  [#566](https://github.com/Gerrrt/HomeLab/issues/566) carries closing it
+  with all four rules.
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
   into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry

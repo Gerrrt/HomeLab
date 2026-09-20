@@ -11,7 +11,12 @@ ADR-0007's decision — lab telemetry stays in the lab, so that deliberately
 hostile data never lands in the store the estate is actually run from — and
 [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)
 settles its shape. It runs on `alexander`, the guest
-[#262](https://github.com/Gerrrt/HomeLab/issues/262) built on 2026-09-05.
+[#262](https://github.com/Gerrrt/HomeLab/issues/262) built on 2026-09-05. Its
+first client from off that guest is `phoenix`, the deployment host
+([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
+built 2026-09-20): its native Alloy pushes over the two ports the lab stack
+published for it ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and
+it too reaches nothing here.
 
 There is a third, and it reports to the second. [`stacks/soc`](../stacks/soc)
 is Wazuh and Velociraptor on `odin`, another guest on `Saruman`

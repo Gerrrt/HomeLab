@@ -5,6 +5,20 @@
 and amends the first consequence of
 [ADR-0039](0039-decline-proxmox-clustering-while-ifrit-is-the-range.md)
 
+> [!NOTE]
+> **One premise was wrong, 2026-09-20.** The Context below says that today
+> nothing on VLAN 30 is admitted to `8006` on `Saruman`, and the Decision
+> widens ADR-0014's rule by one line. Building `phoenix` found the Proxmox
+> firewall on `Saruman` disabled, with neither `cluster.fw` nor `host.fw`
+> present: ADR-0014's rule was decided, and the runbook that applies it —
+> `build-the-playground.md` §4 — is gated on #101 and has not run. So every
+> address on the segment reaches `8006`, and the line this ADR adds has no
+> wall to go in. The decision stands as written — the line is what to write
+> when the wall goes up, and the runbook's CAUTION not to raise it as a side
+> effect of a guest build held. Enabling the firewall with all four rules is
+> [#566](https://github.com/Gerrrt/HomeLab/issues/566). The text below is
+> left as written, per ADR-0001.
+
 ## Context
 
 [#436](https://github.com/Gerrrt/HomeLab/issues/436) is the prerequisite for
