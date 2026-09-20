@@ -245,8 +245,8 @@ records the correction; it had originally claimed the rules were untouched by
 the operating-system change, and the ports were the part of them that was not.
 
 Port 22 stays on the Winterfell rule, which is `prometheus` pulling the
-metadata backup. **TrueNAS ships SSH disabled**, so that rule is inert until
-the service is switched on — and **§6.2 is where it is switched on**, with the
+metadata backup. **TrueNAS ships SSH disabled**, so that rule was inert from
+2026-09-16 until 2026-09-19, when **§6.2 switched the service on** — with the
 pull built, bench-tested and its user created first, per
 [ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md). Not
 before, and not for administration.
@@ -355,10 +355,12 @@ is Seagate's jumper header, which stays empty.
 > [`hardware.md`](../hardware.md).
 
 From **option 8, Open Linux Shell**, at the console — **not over SSH**.
-TrueNAS ships SSH disabled, and §0.5's port-22 pass is inert until someone
-turns it on. Enabling it here to save a walk to the machine widens this host's
-attack surface for the sake of five commands; §6.2's backup pull is the reason
-to turn it on, and this is not it.
+TrueNAS ships SSH disabled, and on the day this ran §0.5's port-22 pass was
+inert. Enabling it here to save a walk to the machine would have widened this
+host's attack surface for the sake of five commands; §6.2's backup pull was
+the reason to turn it on, on 2026-09-19, and this was not it. The service
+now answers one key-only user, `frodo`, who can read a snapshot and nothing
+else — still not a way to administer the box.
 
 ```bash
 lsblk
@@ -433,20 +435,18 @@ the optical bay exists for.
 > The Add Dataset dialog calls these *Dataset Presets*; the record size and
 > atime are under its advanced options.
 >
-> **One row of the table below is decided and not yet done, and it is the
-> one that says "backed up".** As deployed on 2026-09-19, Jellyfin's `/config`
-> was a Docker named volume, and TrueNAS keeps named volumes on the pool it
-> was given for Apps, in a dataset of its own — `erebor/ix-apps/docker`, not
-> `erebor/apps`. So `erebor/apps` held the compose file and its `.env` (§6)
-> and nothing Jellyfin writes
+> **The row that says "backed up" became true on 2026-09-20.** As deployed
+> on 2026-09-19, Jellyfin's `/config` was a Docker named volume, and TrueNAS
+> keeps named volumes on the pool it was given for Apps, in a dataset of its
+> own — `erebor/ix-apps/docker`, not `erebor/apps`. So `erebor/apps` held the
+> compose file and its `.env` (§6) and nothing Jellyfin writes
 > ([#484](https://github.com/Gerrrt/HomeLab/issues/484)).
 > [ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)
-> settles it: `/config` becomes a **bind mount** at
-> `/mnt/erebor/apps/jellyfin/config` (§6 migrates the state that already
-> exists), this dataset gets the nightly snapshot task in §4.1, and the
-> monitoring host pulls the newest snapshot's copy over the port-22 rule
-> (§6.2). The row reads **yes** because that is the decision; §6.2's Done
-> block is where the date goes once its checklist is complete.
+> settled it: `/config` is a **bind mount** at
+> `/mnt/erebor/apps/jellyfin/config` (§6 migrated the state that already
+> existed), this dataset has the nightly snapshot task in §4.1, and the
+> monitoring host pulled the newest snapshot's copy over the port-22 rule
+> for the first time on 2026-09-20 — §6.2's Done block has the set.
 
 **Storage → `erebor` → Add Dataset.** Two of them, and the split is the backup
 decision made deliberately rather than drifted into.
@@ -506,8 +506,16 @@ left at its default.
 ls -1 /mnt/erebor/apps/.zfs/snapshot/
 ```
 
-> **Not yet created** as of the day this section was written; the Done block
-> goes here.
+> **Done 2026-09-19, 23:00 PDT.** Created with every value in the table and
+> run once by hand from the task's menu rather than waiting for 03:00, which
+> produced `auto-2026-09-19_23-00` — the name the pull in §6.2 read minutes
+> later. The host's zone is **`America/Los_Angeles`** (System → General;
+> `date` on the box prints PDT while `/etc/timezone` says UTC, because
+> TrueNAS keeps the zone in its own config, so read it from the UI and not
+> from that file). §6.2 step 5's cross-check agreed to the second:
+> `zfs get -Hp creation` on the snapshot and the script's parse of its name
+> both gave `1789884000`. Recursive is off for the reason the table now
+> states, not the one it used to.
 
 ## §5 — The household share
 
@@ -830,9 +838,20 @@ is what makes step 7 safe.
     [#535](https://github.com/Gerrrt/HomeLab/issues/535) built. Off-host
     twice, offsite never: one shelf holds all of it.
 
-> **Not yet done** as of the day this section was written. The Done block
-> goes here, with the date, what step 2 read off the dataset, and the first
-> set's stamp.
+> **Done 2026-09-20.** Steps 1 to 8 in order over 2026-09-19 and 2026-09-20
+> local time. Step 2 read `acltype nfsv4`, `aclmode passthrough` off the
+> dataset, and `root:root 770` on `/mnt/erebor/apps` and its `jellyfin`
+> directory with `nobody:nogroup 770` on `config`; `frodo`'s entry is
+> `r-x---a-R-c---:fd-----:allow`, inherited, beneath the preset's own. Step 5
+> tarred `auto-2026-09-19_23-00/jellyfin/config` to nowhere as `frodo` and
+> exited 0. Step 6, the first set, is **`20260920T060234Z`** — 76 entries,
+> 2.7 MB, `./data/jellyfin.db` present, Jellyfin never stopped — copied to
+> `oracle` and hashed there in the same run, and `make verify-backups`
+> re-read it beside the six observability sets. Step 7 installed
+> `homelab-backup-nas.timer` on the same day; its priming run failed only
+> because it came before step 6, exactly as this section warned. Step 8:
+> the `igc0.40` tripwire read **0 packets** on 2026-09-20 with the pull
+> done. Step 9 is the commit this block landed in.
 
 ### §6.3 — Restore Jellyfin's state
 
