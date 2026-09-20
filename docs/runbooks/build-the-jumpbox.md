@@ -143,7 +143,7 @@ pveum acl modify /vms --users phoenix@pve --roles PhoenixBuilder
 pveum acl modify /storage/local --users phoenix@pve --roles PhoenixBuilder
 pveum acl modify /storage/local-lvm --users phoenix@pve --roles PhoenixBuilder
 pveum acl modify /sdn/zones/localnetwork/vmbr0 --users phoenix@pve --roles PhoenixBuilder
-pveum acl modify /nodes/saruman --users phoenix@pve --roles PVEAuditor
+pveum acl modify /nodes/Saruman --users phoenix@pve --roles PVEAuditor
 pveum user token add phoenix@pve builder --privsep 0
 ```
 
@@ -162,8 +162,11 @@ Five of those are worth knowing rather than copying:
   read-only. When Packer or OpenTofu fail with `Permission check failed`,
   the fix is a privilege added to `PhoenixBuilder`, not the role granted at
   `/`.
-- **`/nodes/saruman`** is the node name as `pvesh get /nodes` prints it, which
-  is lower-case whatever the documents call the box.
+- **`/nodes/Saruman`** is the node name as `pvesh get /nodes` prints it — the
+  hostname, case and all, and the same string names the directory under
+  `/etc/pve/nodes/` and the path in every API URL. This runbook first said
+  lower-case and the ACL went onto a path that does not exist; `pveum acl
+  modify` does not check. `pveum acl list | grep phoenix` is the check.
 - **`--privsep 0`** is the issue's choice: the token carries the user's
   permissions and there is no second set to keep in step. The trade is that
   it is exactly as powerful as the user, which is why the user is this narrow.
@@ -173,21 +176,27 @@ Five of those are worth knowing rather than copying:
   rotated, not kept. `pveum user token remove phoenix@pve builder` and the
   `token add` line again is the whole rotation.
 
-**Then the door.** ADR-0014 closes `8006` on `Saruman` to `10.0.50.0/24` and
-this guest is not on it. ADR-0043 admits one address, on this port and no
-other. In `/etc/pve/nodes/saruman/host.fw`, beneath the three rules ADR-0014
-wrote:
+**Then the door — which, on the day, had no wall.** ADR-0014 closes `8006`
+on `Saruman` to `10.0.50.0/24` and this guest is not on it. ADR-0043 admits
+one address, on this port and no other. The line is, in
+`/etc/pve/nodes/Saruman/host.fw`, beneath the three rules ADR-0014 wrote:
 
 ```ini
 IN ACCEPT -source 10.0.30.70 -p tcp -dport 8006 -log nolog
 ```
 
 > [!CAUTION]
-> If that file does not exist yet, ADR-0014's rules were never applied on
-> `Saruman` and the firewall is off. Do not turn it on as a side effect of
-> this line — read [`build-the-playground.md`](build-the-playground.md) §4
-> first, with the KVM console to hand, because a `DROP` input policy with the
-> rules unrendered locks you out of a machine whose console is a switch away.
+> **Check before writing it:** `pve-firewall status` and
+> `ls /etc/pve/firewall/cluster.fw /etc/pve/nodes/Saruman/host.fw`. On
+> 2026-09-20 the answer was `disabled/running` and neither file — ADR-0014's
+> rules had never been applied on `Saruman`, because the runbook that applies
+> them, [`build-the-playground.md`](build-the-playground.md) §4, is gated on
+> #101 and had not run. Do not turn the firewall on as a side effect of this
+> line: a `DROP` input policy with the rules unrendered locks you out of a
+> machine whose console is a KVM switch away. **The line above was not
+> written**; [#566](https://github.com/Gerrrt/HomeLab/issues/566) carries
+> enabling the firewall with all four rules, with the console to hand, and
+> until it is done every address on this segment reaches `8006`.
 
 **On `phoenix`**, the credential and the key:
 
@@ -219,13 +228,15 @@ Prove the door and the token together, from `phoenix`:
 ```bash
 set -a; . ~/.config/proxmox/phoenix.env; set +a
 curl -sk -H "Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}" \
-  "${PROXMOX_URL}/nodes/saruman/qemu" | python3 -m json.tool | grep '"name"'
+  "${PROXMOX_URL}/nodes/Saruman/qemu" | python3 -m json.tool | grep '"name"'
 ```
 
 `alexander` and `phoenix` at minimum. A connection timeout is the door — the
 `host.fw` line is missing or the firewall was not reloaded (`pve-firewall
-compile` shows what it thinks the rules are). A `401` is the token. An empty
-list with a `200` is the ACL: the user can reach the node and see no guests.
+compile` shows what it thinks the rules are) — or, while #566 is open, the
+network, because there is no door to be shut. A `401` is the token. An empty
+list with a `200` is the ACL: the user can reach the node and see no guests,
+which is also what a `PVEAuditor` grant on a mis-cased node path looks like.
 
 ## 5. Open the lab's doors
 
