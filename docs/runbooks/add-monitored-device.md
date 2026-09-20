@@ -165,7 +165,7 @@ than about the machine.
 
 **When this path applies.** The host sits on a segment that may not initiate
 upward — a terminal segment, in the sense
-[ADR-0013](../adr/0013-read-the-firewall-before-writing-about-it.md) uses —
+[ADR-0013](../adr/0013-segment-access-as-implemented.md) uses —
 or it cannot run an agent at all. `smaug` is the estate's only one today: the
 NAS is on CasaBonita, and
 [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)

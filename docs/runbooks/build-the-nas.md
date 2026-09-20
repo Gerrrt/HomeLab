@@ -645,7 +645,7 @@ until now: [#256](https://github.com/Gerrrt/HomeLab/issues/256) wrote the `node`
 job and `prometheus/targets/node.yaml` with **the target commented out**,
 because a scrape aimed at a port with nothing behind it means `up == 0` and
 `InstanceDown` paging `urgent` every four hours until the drives arrive —
-[ADR-0017](../adr/0017-buy-ifrit-and-give-it-no-monitoring.md)'s refusal.
+[ADR-0017](../adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)'s refusal.
 
 From the monitoring host, which can reach `9100` and nothing else on this
 segment:
