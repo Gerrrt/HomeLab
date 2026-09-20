@@ -24,10 +24,12 @@ and the two Exos X20 drives for §1 onward.
 > render node is present and the process carries GID 107 — the two halves of
 > ADR-0040's condition that a shell can check. **By the evening of 2026-09-19
 > the transcode had passed, a television had played something, and the
-> tripwire and port 15 were re-read** (§6.1, §7). **Still open in §7, and the
-> one line between this runbook and done:** the two extended self-tests,
-> about 28 hours each, started 2026-09-18 and at **10 % remaining** that
-> evening.
+> tripwire and port 15 were re-read** (§6.1, §7). **Both extended self-tests
+> completed without error**, read at the console on 2026-09-20 at lifetime
+> hours 25 and 26 (§7). **Every line of §7 is read, and
+> [#413](https://github.com/Gerrrt/HomeLab/issues/413) closed on the last
+> of them.** What this runbook leaves open is §8, and each item there has an
+> issue of its own.
 >
 > **Status — 2026-09-16: §0 is the work that can be done before the drives
 > land, and it is the whole of what is blocking.**
@@ -344,7 +346,9 @@ is Seagate's jumper header, which stays empty.
 > partition and an NTFS volume labelled `New Volume` — with about 370 MB
 > written and one short self-test at hour 0, which is a seller's bench check
 > and nothing more; the pool creation wiped it. Extended tests started on
-> both the same evening, at about 28 hours each. Full readings are in
+> both the same evening, at about 28 hours each, and **both completed without
+> error** — read on 2026-09-20 at lifetime hours 25 (`sda`) and 26 (`sdb`),
+> no LBA of first error on either. Full readings are in
 > [`hardware.md`](../hardware.md).
 
 From **option 8, Open Linux Shell**, at the console — **not over SSH**.
@@ -629,12 +633,14 @@ measurement.
 > evening of 2026-09-19**, read by the operator on the screen and with no
 > firewall rule in the path — this line had been claimed once earlier that
 > day and withdrawn within the hour, so this is the reading and that was not.
-> **Not yet read:** the two extended self-tests, at **10 % remaining** the
-> same evening (20 % through at six lifetime hours that morning), so they
-> complete overnight or the next morning. Read them at the console with
-> `smartctl -l selftest` on both drives; the result goes in
-> [`hardware.md`](../hardware.md)'s Exos entry and closes
-> [#413](https://github.com/Gerrrt/HomeLab/issues/413).
+> **Both extended self-tests completed without error**, read at the console
+> on 2026-09-20 with `smartctl -l selftest`: `sda` (`ZVTBS4NL`) logged the
+> completion at lifetime hour 25, `sdb` (`ZVTBSDL3`) at 26, no LBA of first
+> error on either. They were at 10 % remaining the evening before and 20 %
+> through at six lifetime hours that morning. The result is in
+> [`hardware.md`](../hardware.md)'s Exos entry, and it was the last line of
+> this list: **every line below is read**, and
+> [#413](https://github.com/Gerrrt/HomeLab/issues/413) closed on it.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
