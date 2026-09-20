@@ -75,7 +75,11 @@ make backup ARGS=--copy-only
 that *differs* on `oracle`, nothing removes it for you: look at it, remove that
 one directory there, and run the copy again. Two things this does not change.
 Off-host is not offsite — `oracle` is on the same shelf, mains and room, and a
-fire takes both ([`roadmap.md`](../roadmap.md)). And `oracle`'s disk is a
+fire takes both; the copy beyond it is the newest set on the second age
+recipient's medium, made on its ninety-day visit
+([ADR-0047](../adr/0047-carry-the-estates-backup-sets-with-the-second-recipient.md),
+[`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)), and that
+runbook says how to put it back here first. And `oracle`'s disk is a
 2016 laptop HDD carrying 32 static reallocated sectors, recorded as a baseline
 in `scripts/render-smart-baselines.sh`; `SmartDriveBadSectorsGrowing` is what
 watches it, and the daily far-side hash is what reads every archive it holds.

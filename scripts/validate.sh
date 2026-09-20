@@ -554,6 +554,20 @@ else
   fail "verify-ca-key-backup.sh --self-test"
 fi
 
+# The offsite copy (ADR-0047) is the same shape one artefact over: the real run
+# needs the second recipient's medium mounted and cannot happen in CI, so the
+# refusals — a destination inside this repository or on the same filesystem as
+# the sets — and the copy, the proof, the retention and the tamper detection
+# run against a fake backups/ tree in a temp directory and a destination on
+# /dev/shm. OFFSITE_SOURCE keeps it off the host's backups/, and the wrapper
+# is not involved, so nothing here touches the textfile directory.
+if "${REPO_ROOT}/scripts/backup-offsite.sh" --self-test >/dev/null 2>&1; then
+  pass "backup-offsite.sh --self-test (22 fixtures)"
+else
+  "${REPO_ROOT}/scripts/backup-offsite.sh" --self-test || true
+  fail "backup-offsite.sh --self-test"
+fi
+
 head_ "Documentation"
 # ---------------------------------------------------------------------------
 # Asserts the prose still agrees with the configs it describes: rule and panel

@@ -247,6 +247,59 @@ tests:
         alertname: CaKeyBackupUnproven
         exp_alerts: []
 
+  # --- OffsiteCopyStale: the third human job, one series -------------------
+  #
+  # offsite-copy last succeeded at t=0 against a 1h threshold: over it at
+  # t=2h30m, and it must surface as OffsiteCopyStale ("mount the medium") and
+  # not as ScheduledJobStale ("check the journal"). A fresh one fires neither.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="offsite-copy", instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="offsite-copy", instance="prometheus"}'
+        values: "3600+0x180"
+    alert_rule_test:
+      # Inside the `for`: over threshold from t=1h, pending until t=2h.
+      - eval_time: 1h30m
+        alertname: OffsiteCopyStale
+        exp_alerts: []
+      - eval_time: 2h30m
+        alertname: OffsiteCopyStale
+        exp_alerts:
+          - exp_labels:
+              alertname: OffsiteCopyStale
+              homelab_job: offsite-copy
+              instance: prometheus
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The offsite copy of the backup sets is 2h 30m 0s old"
+              description: >-
+                Nothing else here proves the firewall export, the volume sets
+                and the NAS set exist anywhere a fire in the rack would not
+                reach — oracle is on the same shelf. Mount the second
+                recipient's medium and run `make backup-offsite DEST=<path>`;
+                it re-verifies what is there, copies the newest of each kind
+                and proves the copy: docs/runbooks/copy-the-backups-offsite.md.
+      - eval_time: 2h30m
+        alertname: ScheduledJobStale
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="offsite-copy", instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="offsite-copy", instance="prometheus"}'
+        values: "100000+0x180"
+    alert_rule_test:
+      - eval_time: 2h30m
+        alertname: OffsiteCopyStale
+        exp_alerts: []
+      - eval_time: 2h30m
+        alertname: ScheduledJobStale
+        exp_alerts: []
+
   # --- ScheduledJobFailed: fires on non-zero, silent on zero ---------------
   - interval: 1m
     input_series:

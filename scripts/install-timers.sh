@@ -100,6 +100,14 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # ninety days, and CaKeyBackupUnproven reading it. ca-key-state is its
 # recipient-state — the daily writer that makes the series exist at all.
 #
+# offsite-copy is the third of that shape, and the first that is not a key
+# (ADR-0047): the newest set of each kind is carried onto the medium that holds
+# the second age recipient, on the same visit that proves it, so one ninety-day
+# deadline covers three alerts. backup-offsite.sh refuses a destination on this
+# host's own filesystem for the reason the key proofs refuse the live key, and
+# OffsiteCopyStale reads its job series directly — one copy of record, so one
+# series is the honest count.
+#
 # The threshold is still declared once here, but since ADR-0024 it is applied
 # once PER RECIPIENT rather than once per job: scripts/key-recipients.sh emits a
 # series for each key the secrets are encrypted to, and the alert joins against
@@ -143,6 +151,7 @@ JOBS=(
   "gateway-state     homelab-gateway-state         5400  gateway-state"
   "verify-key-backup -                          7776000  secrets-verify-backup"
   "verify-ca-key-backup -                       7776000  certs-verify-backup"
+  "offsite-copy      -                          7776000  backup-offsite"
 )
 
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -488,4 +497,5 @@ info "  sudo systemctl start homelab-backup-volumes.service"
 info "verify-key-backup has no timer and never will — docs/runbooks/back-up-the-age-key.md"
 info "recipient-state was primed, so SecretsKeyBackupUnproven has a series per recipient to read (#400)"
 info "verify-ca-key-backup has no timer either — docs/runbooks/back-up-the-ca-key.md"
+info "offsite-copy has no timer either — docs/runbooks/copy-the-backups-offsite.md"
 info "ca-key-state was primed, so CaKeyBackupUnproven has the CA key's fingerprint to read (#496)"
