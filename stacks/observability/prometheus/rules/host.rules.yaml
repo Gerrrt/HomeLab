@@ -379,11 +379,43 @@ groups:
         # families are covered: reallocated and pending sectors are the ATA
         # spelling, media errors the NVMe one.
         #
-        # `> 0` and not an increase(): a remapped sector never un-remaps, so the
-        # count only ever grows and the first one is the finding. A rate would
-        # go quiet on a drive that failed once and is sitting there degraded.
+        # ABOVE THE RECORDED COUNT, NOT `> 0`, for the reallocated family. A
+        # remapped sector never un-remaps, so the count only ever grows and the
+        # first one is the finding — that is how oracle's 32 were found (#351).
+        # But once a count has been looked at it is a fact about the drive, not
+        # an event, and a rule that pages on it for ever says nothing new. Until
+        # 2026-09-20 the answer was an Alertmanager silence, and a silence
+        # matches labels, not values, expires on a date nobody keeps, and lives
+        # outside git (#572). The record is scripts/render-smart-baselines.sh:
+        # one row per drive already judged, rendered on the monitoring host as
+        # homelab_smart_reallocated_sectors_baseline. This rule means "more
+        # than the number we wrote down"; SmartDriveBadSectorsGrowing below
+        # means "moving now", and never reads the baseline.
+        #
+        # THE SECOND CLAUSE IS THE DEFAULT OF ZERO. A drive with no row has no
+        # baseline series, and a comparison with nothing to match against
+        # returns nothing — without it a new disk would be uncovered. `unless`
+        # selects exactly the drives with no row and holds them to `> 0`, which
+        # is what this rule always did. The same shape makes a mistake loud: a
+        # row naming the wrong host or device matches nothing, so the drive
+        # falls back to `> 0` and pages. A baseline cannot hide growth, because
+        # it is a ceiling and growth is above it.
+        #
+        # `group_left()` on the join, or `instance` and `job` are silently
+        # dropped from the alert — measured in backup.rules.yaml, not assumed.
+        #
+        # Reallocated only. Pending sectors are transient by definition, and no
+        # drive here has a static uncorrectable or media-error count to record;
+        # the day one does, it gets a baseline of its own kind, not a silence.
         expr: >-
-          homelab_smart_reallocated_sectors > 0
+          (
+            homelab_smart_reallocated_sectors
+              > on(host, device) group_left() homelab_smart_reallocated_sectors_baseline
+          )
+          or (
+            homelab_smart_reallocated_sectors
+              unless on(host, device) homelab_smart_reallocated_sectors_baseline
+          ) > 0
           or homelab_smart_pending_sectors > 0
           or homelab_smart_uncorrectable_sectors > 0
           or homelab_smart_media_errors_total > 0
@@ -396,9 +428,12 @@ groups:
           summary: "{{ $labels.host }}: {{ $labels.device }} has unreadable sectors"
           description: >-
             {{ $value }} sector(s) or media error(s) the drive could not read
-            back. The count only grows, so this stays firing until the disk is
-            replaced — that is deliberate, because a drive that failed once and
-            went quiet is still a drive that failed. Check backups first.
+            back — above the count recorded for this drive in
+            scripts/render-smart-baselines.sh, or on a drive with no count
+            recorded. Look at it: if the number is static and the drive's own
+            assessment passes, record it there and this goes quiet; if it is
+            rising, SmartDriveBadSectorsGrowing will say so and the answer is a
+            disk. Check backups first.
 
       # --- ZFS pool state, for the one host whose disks ARE a pool (#558) ---
       #
@@ -569,13 +604,16 @@ groups:
         # acting on.
         #
         # WHY IT IS A SEPARATE RULE RATHER THAN A BETTER THRESHOLD. Its sibling
-        # is `> 0`, which is correct — a remapped sector never un-remaps, so the
-        # first one is a finding and the count only ever grows. But that makes it
-        # fire forever once tripped, so it gets silenced, and an Alertmanager
-        # silence matches LABELS, not values: silencing 32 reallocated sectors on
-        # oracle silences 90 just as effectively, because no label carries the
-        # count. The static fact and the trend need different alertnames or the
-        # trend cannot survive the silence. That happened on 2026-09-07 (#351).
+        # holds a drive to the count already recorded for it, or to zero, and
+        # goes quiet once a static count is written down (#572). Right for a
+        # fact, wrong for a trend: a baseline is a ceiling, and a drive gaining
+        # a sector a week sits under it for a long while before it is over.
+        # Before the baseline existed the static fact was held down by an
+        # Alertmanager silence, and a silence matches LABELS, not values:
+        # silencing 32 reallocated sectors on oracle silenced 90 just as
+        # effectively, because no label carries the count. The static fact and
+        # the trend need different alertnames or the trend cannot survive
+        # whatever quiets the fact. That happened on 2026-09-07 (#351).
         #
         # SUBTRACTION, NOT increase(). These are gauges, and increase() assumes
         # counter semantics — it extrapolates and handles resets, neither of
@@ -603,9 +641,10 @@ groups:
             {{ $value }} bad sector(s) in seven days
           description: >-
             The count is rising, which is the difference between a drive that
-            failed once and a drive that is failing now. A static count is
-            expected and is usually silenced; this is not that. Replace the disk
-            rather than waiting for the drive's own assessment to fail —
+            failed once and a drive that is failing now. A static count is a
+            fact and is recorded in scripts/render-smart-baselines.sh; this is
+            not that. Replace the disk rather than waiting for the drive's own
+            assessment to fail —
             SmartDriveUnhealthy is the firmware conceding, and it concedes late.
             Check backups first.
 

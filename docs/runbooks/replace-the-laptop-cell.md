@@ -286,10 +286,13 @@ docker exec alertmanager amtool silence expire \
 docker exec alertmanager amtool silence query --alertmanager.url=http://localhost:9093
 ```
 
-The second command must still list `b06d032c-8150-47c1-8f46-ed7a8ed52b2e` —
-[#351](https://github.com/Gerrrt/HomeLab/issues/351)'s silence on this
-host's 32 reallocated sectors, which shares the expiry so one look covered
-both. That one stays.
+The second command should list nothing else for this host.
+[#351](https://github.com/Gerrrt/HomeLab/issues/351)'s silence on its 32
+reallocated sectors used to share this expiry; it was deleted when
+[#572](https://github.com/Gerrrt/HomeLab/issues/572) recorded the count in
+`scripts/render-smart-baselines.sh` instead, so if a `SmartDriveBadSectors`
+silence is listed, someone recreated it by hand and the table is where the
+answer belongs.
 
 **Step 9 is the same.** Tape the terminals — there is no loose connector on a
 latched pack, but the contacts are exposed — and the same disposal, within
