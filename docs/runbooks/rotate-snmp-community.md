@@ -471,6 +471,7 @@ declared, and every tool reads the device's shape from it. For the iLO:
 
 ```yaml
   auth_ilo:
+    community: ""
     username: prometheus
     password: ${SNMP_AUTHPASS_ILO}
     priv_password: ${SNMP_PRIVPASS_ILO}
@@ -480,8 +481,14 @@ declared, and every tool reads the device's shape from it. For the iLO:
     version: 3
 ```
 
-Replacing the `community:` line, which must not survive — `make validate`
-refuses a v3 block that still carries one. Then:
+The `community:` placeholder must not survive — `make validate` refuses a v3
+block that still carries one — but the line itself stays, as an explicit
+empty string. The generator fills every unset auth field from its defaults,
+and its default community is `public`: a v3 block with no community line at
+all comes out of `make snmp-generate` as `community: public` beside the
+user, which is the string the gitleaks community rule exists to catch, and
+`make validate` goes red on the generated `snmp.yaml`. Found on the first
+move, 2026-09-20. The empty string is dropped from the output. Then:
 
 ```bash
 make snmp-generate      # copies the block into snmp.yaml; needs make snmp-mibs once
