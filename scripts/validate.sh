@@ -539,6 +539,21 @@ else
   fail "collect-guest-state.sh --self-test"
 fi
 
+# Not a parser, but the same reason: the real run needs a private key on a
+# mounted medium and can never happen in CI, so the refusals — a symlink or a
+# hard link back to the live key, an unrelated key, a file that is not a key —
+# and the proof itself are exercised against a throwaway CA in a temp
+# directory. One fixture pins the case the fingerprint label exists for: a
+# re-minted CA starts at 0 and the old key's proof is dropped, not inherited
+# (#496). Every case overrides CA_CERT, LIVE_KEY and TEXTFILE_DIR, so nothing
+# here reads certificates/ or writes the host's textfile directory.
+if "${REPO_ROOT}/scripts/verify-ca-key-backup.sh" --self-test >/dev/null 2>&1; then
+  pass "verify-ca-key-backup.sh --self-test (9 fixtures)"
+else
+  "${REPO_ROOT}/scripts/verify-ca-key-backup.sh" --self-test || true
+  fail "verify-ca-key-backup.sh --self-test"
+fi
+
 head_ "Documentation"
 # ---------------------------------------------------------------------------
 # Asserts the prose still agrees with the configs it describes: rule and panel

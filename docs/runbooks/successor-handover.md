@@ -199,6 +199,7 @@ inherits without knowing.
 | **Alert delivery to a destination you do not own** | Immediately, and silently | You do not. This is step 2 above, and it is the reason it is step 2 |
 | **The external heartbeat watcher** — a free-tier cron-monitor on somebody else's account | Whenever that account lapses | Nothing here can tell you. A watcher on this host would fail with the thing it watches, which is why it is off-host and therefore outside anything this repository can check |
 | **The age key backup goes unproven** | 90 days after the last verification, *per recipient* | `SecretsKeyBackupUnproven`, routed to the normal alert channel, naming the recipient — proving one copy does not clear another ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)). A recipient never proved is recorded as never, and fires; `SecretsKeyRecipientsUnrecorded` fires instead if the record itself is missing ([#400](https://github.com/Gerrrt/HomeLab/issues/400)) |
+| **The CA key backup goes unproven** | 90 days after the last proof, and immediately after a re-mint | `CaKeyBackupUnproven`, routed to the normal alert channel. The proof is a comparison of public keys against a copy on the offline medium, keyed on the key's fingerprint so a re-minted root starts at never ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)) |
 | **Grafana's leaf certificate** | 825 days from issue; the APC card's own certificate expires on its own clock | `TlsCertificateExpiringSoon` at 30 days, `TlsCertificateExpiryImminent` at 7 — read off the served handshake by `blackbox-exporter`, not off a file. Let it lapse and `up{job="grafana"}` goes to 0 as well |
 | **The sensitive tier's certificates**, once `trinity` exists | Seven days after step-ca last answered Caddy — every leaf there is renewed automatically and lives a week, so the tier stays up for as long as its CA does ([ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)) | Nothing pages on it yet: the estate's expiry rules are sized for 825-day leaves and would fire permanently on seven-day ones, so the tier is deliberately outside them until [#426](https://github.com/Gerrrt/HomeLab/issues/426) lands. Until then a dead step-ca is found by a browser refusing the handshake, a week late |
 | **The UPS battery pack** | A pack was fitted 2026-08-28 and passed its self-test; packs are consumables and this one is on a biweekly test schedule | `UpsSelfTestFailed` and `UpsBatteryUnproven` key on the self-test result, which is the single honest signal this card emits — every charge, runtime and alarm value it reports was fabricated while the bay was empty. Two things remain open: the card's test *schedule* is unwatched ([#249](https://github.com/Gerrrt/HomeLab/issues/249)), and `upsBasicBatteryLastReplaceDate` still reads a pre-fit date, so it is not a usable record of the pack's age |
@@ -230,6 +231,7 @@ fitted and proven.
 | The encrypted values | `secrets/observability.sops.yaml` | Yes, as ciphertext. Key names are left in plaintext on purpose, so the required set is discoverable without a key |
 | The public recipients | [`.sops.yaml`](../../.sops.yaml) | Yes. It can only encrypt |
 | **The private key** | `~/.config/sops/age/keys.txt` on `prometheus`, mode 600, plus one offline copy | **Never.** Nothing in this repository or any backup of it can recover the private half |
+| **The estate CA's private key** | `certificates/ca-key.pem` on `prometheus`, mode 600, plus one offline copy on the same medium, proved with `make certs-verify-backup` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)) | **Never.** It was, once, and was purged; `certificates/` is gitignored and CI asserts it |
 
 The encrypted file holds the Grafana admin login and renderer token, one SNMP
 community per polled device, and the four Alertmanager URLs. Details in
@@ -255,15 +257,19 @@ outgoing operator directly:
   That flow only answers an address Jellyfin counts as local, which every
   RFC 1918 range is until its *LAN networks* setting says otherwise. TrueNAS's
   admin has no such path from here; get it from the outgoing operator.
-- The internal CAs' private keys — there are two, and both live only on
-  `prometheus`. `certificates/` is gitignored and host-local, so a clean clone
-  has no CA at all. The estate's: reissuing is
-  [`generate-certificates.md`](generate-certificates.md) step 1, and the cost is
-  re-trusting the new `ca.pem` everywhere it was trusted. The sensitive
-  tier's: its root key is cold on `prometheus` and its intermediate runs on
-  `trinity`, so nothing stops until the intermediate needs re-minting;
-  [`build-the-tier-ca.md`](build-the-tier-ca.md) covers both the rebuild and
-  the re-root, and the re-root costs a re-trust on every household device.
+- The internal CAs' private keys — there are two, and both live on
+  `prometheus` with one offline copy each on the medium that holds the age
+  key. `certificates/` is gitignored and host-local, so a clean clone has no
+  CA at all. The estate's: [`back-up-the-ca-key.md`](back-up-the-ca-key.md)
+  restores it from the copy, and `CaKeyBackupUnproven` says whether that copy
+  was ever proved; failing that, reissuing is
+  [`generate-certificates.md`](generate-certificates.md) step 1, and the cost
+  is re-trusting the new `ca.pem` everywhere in that runbook's step 4 table.
+  The sensitive tier's: its root key is cold on `prometheus` and its
+  intermediate runs on `trinity`, so nothing stops until the intermediate
+  needs re-minting; [`build-the-tier-ca.md`](build-the-tier-ca.md) covers
+  both the rebuild and the re-root, and the re-root costs a re-trust on every
+  household device.
 - Access to whatever holds the alert webhooks and the heartbeat check.
 
 ### If you do not have the age key
@@ -356,6 +362,7 @@ new keypair whose public half matches nothing.
 | The external heartbeat watcher | Turning it off does not stop alerts — it stops anything noticing that alerts have stopped, which is the failure it exists for |
 | `oracle` | It serves the wiki ([ADR-0011](../adr/0011-keep-the-wiki-internal.md)) and holds the only off-host copy of the firewall export. `make backup-firewall` **fails** if it cannot reach it, by design |
 | The age key, and the proof that a copy of it decrypts | Above |
+| The CA key's offline copy, and the proof that it is this key | Losing the key is a new root and a re-trust everywhere [`generate-certificates.md`](generate-certificates.md) §4 lists, due the next time a leaf is needed |
 
 ### Do not change without reading first
 
@@ -420,6 +427,6 @@ The remaining runbooks are task-shaped and are best read when you have the task:
 
 It does not replace the outgoing operator. Three things have no representation
 in this repository at all — the device admin passwords, the account holding the
-alert destinations, and the offline copy of the age key — and a handover that
+alert destinations, and the offline copy of the age key and the CA key — and a handover that
 does not transfer those has not happened, however carefully it is documented
 here.

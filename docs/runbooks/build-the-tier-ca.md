@@ -88,8 +88,10 @@ shred -u /path/to/password
 > directory; `--install` refuses a bundle that carries the root key whatever
 > built it. Copy the bundle. Do not `scp -r certificates/tier-ca`.
 
-Add the root key to the offline copy that holds the age key
-([`back-up-the-age-key.md`](back-up-the-age-key.md)). It is useless without
+Add the root key to the offline copy that holds the age key and, since
+[#496](https://github.com/Gerrrt/HomeLab/issues/496), the estate's
+`ca-key.pem` ([`back-up-the-age-key.md`](back-up-the-age-key.md),
+[`back-up-the-ca-key.md`](back-up-the-ca-key.md)). It is useless without
 `STEPCA_PASSWORD`, which is in SOPS, so the backup of the tier's root is
 that copy plus this file — and losing both costs a new root and a re-trust on
 every household device, not an outage: the intermediate on `trinity` keeps

@@ -1195,7 +1195,9 @@ what left this one unfireable for months.
   `certificates/ca-key.pem` has no backup or custody story at all, unlike
   the age key and the tier's root — found, named in the ADR with what the
   answer is not, and carried by
-  [#496](https://github.com/Gerrrt/HomeLab/issues/496). The same host is
+  [#496](https://github.com/Gerrrt/HomeLab/issues/496) — delivered on
+  2026-09-19 as a proved offline copy and `CaKeyBackupUnproven`
+  (→ [runbook](runbooks/back-up-the-ca-key.md)). The same host is
   where [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)
   terminates the remote path; that ADR left the `8006` question to this issue,
   and it is taken here.
