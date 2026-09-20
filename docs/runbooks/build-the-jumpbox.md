@@ -17,7 +17,7 @@ this one ends
 > `alexander`.**
 >
 > Ubuntu 26.04 LTS, `10.0.30.70`, VMID 170, `bc:24:11` OUI, ISO
-> `ubuntu-26.04.1-live-server-amd64.iso` *(OUI pending the §1 report)*.
+> `ubuntu-26.04.1-live-server-amd64.iso`.
 > §4's `curl`: *(pending the §4 report)*. §7: *(pending the §7 report — both
 > `up{instance="phoenix"}` jobs and the Loki job count go here)*.
 > The lab's ports were opened ahead of the guest by #543 and applied on
