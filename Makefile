@@ -270,7 +270,7 @@ install-agent-collectors: ## Put the textfile collectors on an agent host (needs
 	@test -n "$(AGENT)" || { echo "set AGENT=user@host (e.g. AGENT=atropos@10.0.99.30)"; exit 1; }
 	./scripts/install-agent-collectors.sh $(ARGS) $(AGENT)
 .PHONY: smart-state
-smart-state: ## Collect SMART health from THIS host's disks (needs root)
+smart-state: ## Collect SMART health from THIS host's disks (needs root) and render the recorded baselines
 	@# The local half, and the only half that needs root — smartctl issues ATA and
 	@# NVMe pass-through ioctls. morpheus is `smart-state-remote`, a separate job
 	@# running as robo, because the key that reaches the firewall is robo's and
@@ -280,6 +280,13 @@ smart-state: ## Collect SMART health from THIS host's disks (needs root)
 	@# Two reasons to skip, and they are different findings. smartctl absent is a
 	@# provisioning gap; smartctl present but run by a non-root user is a human
 	@# running a root job by hand. Neither may read as success.
+	@#
+	@# The baseline table renders first and unconditionally: it needs neither
+	@# smartctl nor root, and SmartDriveBadSectors reads it for EVERY host from
+	@# this one file, so a count recorded in git reaches the rule on the next
+	@# daily run of this job (#572). scripts/render-smart-baselines.sh says why
+	@# it is rendered here and not by the collector on each host.
+	./scripts/render-smart-baselines.sh
 	@if ! command -v smartctl >/dev/null 2>&1; then \
 		printf '\033[0;33m  SKIP\033[0m local disks: smartctl is not installed — %s\n' 'sudo apt install smartmontools'; \
 	elif [ "$$(id -u)" != 0 ]; then \

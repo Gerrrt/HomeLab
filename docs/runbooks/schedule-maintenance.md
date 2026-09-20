@@ -278,7 +278,7 @@ right.
 
 | job | user | needs | reads |
 | --- | --- | --- | --- |
-| `smart-state` | **root** | raw device access for `smartctl` | this host's disks |
+| `smart-state` | **root** | raw device access for `smartctl` | this host's disks, and the baseline table |
 | `smart-state-remote` | `robo` | the operator SSH key | `morpheus` |
 
 `smart-state` is the only job in this table that runs as root: `smartctl` issues
@@ -322,21 +322,36 @@ into this host's textfile directory under `host="morpheus"`. Those series carry
 stated in the collector rather than left to surprise someone grouping by
 instance.
 
-**`oracle` is not collecting yet, and that is visible rather than silent.**
-`smartmontools` is installed on this host but not on `oracle`:
-
-```bash
-sudo apt install smartmontools
-```
-
-Until then `make smart-state` there prints a `SKIP` line naming that command, and
+**A host without `smartmontools` is visible rather than silent.** `make
+smart-state` prints a `SKIP` line naming `sudo apt install smartmontools`, and
 the gap shows as a missing `homelab_smart_devices` series for the host rather than
-as healthy disks. The same `SKIP` appears when a human runs `make smart-state` on
-this host without `sudo`, which is not a fault — the timer runs as root. The four rules read the drive's own verdict rather
+as healthy disks — which is how `oracle` looked until `make
+install-agent-collectors` put `smartctl` and the timer there
+([#351](https://github.com/Gerrrt/HomeLab/issues/351)). The same `SKIP` appears
+when a human runs `make smart-state` on this host without `sudo`, which is not a
+fault — the timer runs as root. The four rules read the drive's own verdict rather
 than a threshold chosen here — `morpheus` idles at 62 °C against an operational
 limit of 100 °C, so any fixed temperature number would be wrong for some drive in
 this estate. Temperature is collected and deliberately not alerted on for that
 reason.
+
+**A known reallocated count is recorded, not silenced.** `SmartDriveBadSectors`
+holds each drive to the count in `scripts/render-smart-baselines.sh` — one row
+per drive already looked at, with the day it was read and the issue that read
+it — and to zero for a drive with no row. `smart-state` renders the table into
+`smart-baselines.prom` on every run, so recording a count is: read it, add the
+row, and on this host
+
+```bash
+sudo make smart-state
+```
+
+The rule is quiet on the next evaluation and nothing expires. `oracle`'s 32 and
+`smaug`'s 4 are the rows so far
+([#572](https://github.com/Gerrrt/HomeLab/issues/572)); the silence #351 held
+`oracle`'s under is gone, and a new one would be the wrong tool — it matches
+labels, not values, so it would hide 90 sectors as readily as 32. A rising count
+is `SmartDriveBadSectorsGrowing`'s finding and is never answered with a row.
 
 `pkg-state` is `patch-state` for the one host that cannot run it.
 [#378](https://github.com/Gerrrt/HomeLab/issues/378): `morpheus` is FreeBSD, with

@@ -422,13 +422,17 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   **Four reallocated sectors, and that is a number to watch rather than to
   reject** — normalised 099 against a threshold of 000, with nothing pending
   and nothing uncorrectable behind it. It has a consequence that is better
-  written down now than discovered later: `SmartDriveBadSectors` fires on
-  `homelab_smart_reallocated_sectors > 0`, deliberately, because a remapped
-  sector never un-remaps and the first one is the finding. **So this drive will
-  trip that alert on the day SMART collection reaches `smaug`**, exactly as
-  `oracle`'s 32 static sectors do, and the answer is the one #351 already built:
-  silence the static fact and let `SmartDriveBadSectorsGrowing` carry the trend,
-  because a silence matches labels and no label carries the count.
+  written down now than discovered later: `SmartDriveBadSectors` holds every
+  drive to the reallocated count already recorded for it, and to zero when
+  none is, because a remapped sector never un-remaps and the first one is the
+  finding. **So this drive's four are recorded**, in
+  `scripts/render-smart-baselines.sh` beside `oracle`'s 32 with the day they
+  were read — the answer [#572](https://github.com/Gerrrt/HomeLab/issues/572)
+  built in place of the silence #351 used, because a silence matches labels
+  and no label carries the count, and a baseline lives in git and does not
+  expire. `SmartDriveBadSectorsGrowing` carries the trend above it. The row
+  is inert until [#483](https://github.com/Gerrrt/HomeLab/issues/483)
+  delivers SMART from `smaug`, and its device label is confirmed that day.
   `SmartDriveWearHigh` will not fire — it wants 80 % of rated life used and this
   is near a tenth. No self-tests had ever been logged in 13,182 hours, so a
   baseline was taken on 2026-09-16 before the machine carried anything:
