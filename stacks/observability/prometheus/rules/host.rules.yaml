@@ -427,6 +427,17 @@ groups:
       # dead, InstanceDown is the signal, and the runbook's first step is at
       # the console either way.
       #
+      # AND THE RESOLUTION IT HAS. Read at the console on 2026-09-19 23:19
+      # PDT with the exporter restarted: `zpool status` printed the pool
+      # ONLINE, mirror-0 ONLINE and one leaf FAULTED (3 read, 99 write
+      # errors), and this kstat read online=1 for erebor. The kstat is the
+      # POOL state, and a two-disk mirror with one faulted leaf is, to the
+      # pool, online. So this rule cannot see the fault that produced it; it
+      # sees a pool that is degraded, suspended or unavailable as a whole —
+      # a resilver in progress, or the second disk gone. A per-vdev signal
+      # is #558's open line, and until it exists a one-disk mirror pages
+      # nothing here once the exporter is back.
+      #
       # `state!="online"` == 1 rather than `state="online"` == 0, so the label
       # carries WHICH state the pool is in and a state name the collector
       # learns later is caught without editing this line. boot-pool is covered

@@ -261,7 +261,44 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#418](https://github.com/Gerrrt/HomeLab/issues/418) is the cautionary tale
   for, and `CSM [Disabled]`, so it boots UEFI as TrueNAS wants.
   Two 3.5" trays, filled by the Exos pair on 2026-09-18 — exactly the mirror
-  and no spare.
+  and no spare. **The trays are not on those six ports.** Read with `lspci`
+  and `readlink` at the console on 2026-09-19, while triaging the faulted
+  disk: both Exos enumerate under `host0` at PCI `01:00.0`, a **Broadcom /
+  LSI MegaRAID SAS-3 3008 "Fury"**, PCI ID `1000:005f` — the SAS3008 in its
+  MegaRAID personality, which is the ThinkServer RAID 520i option for this
+  chassis, sitting in the PCIe slot and cabled to the bays. The chipset AHCI
+  at `00:17.0` carries only the boot SSD on `ata6`; `ata1`–`ata5` read *SATA
+  link down* at boot. So `Configure SATA as [AHCI]` protects the boot disk
+  and nothing else, and the pool has had a RAID controller between ZFS and
+  its disks since the day it was built — the arrangement the line above
+  calls #418's cautionary tale. It is the MegaRAID firmware, not the
+  chipset, that handled `sdb`'s failure with 60-second command timeouts,
+  task aborts and a target reset. `smartctl` reaches the drives without a
+  `-d megaraid` option and reports them by their own model and serial, which
+  is what a JBOD pass-through looks like — and `dmesg` confirms it, read the
+  same night: driver `megaraid_sas` 07.727.03.00-rc1, controller type
+  **`iMR(0MB)`** — the cacheless entry-level MegaRAID, no write cache and
+  no battery to worry about — subsystem `1000:9340`, which is the 9340-8i
+  family the ThinkServer RAID 520i is built on, *Secure JBOD support: Yes*,
+  and **`JBOD sequence map : enabled`**, which is the driver's way of
+  saying the disks are JBOD devices rather than virtual drives. So ZFS sees
+  the drives themselves through a RAID firmware's error handling, which is
+  the better of the two arrangements a MegaRAID offers and still not an
+  IT-mode HBA. The firmware version is not in `dmesg` and not in sysfs
+  either — `/sys/class/scsi_host/host0/fw_ver` does not exist, read
+  2026-09-19, and `megaraid_sas` exposes crash-dump and queue attributes
+  there and nothing about its firmware. TrueNAS ships no `storcli`. So the
+  version is read off the card's own POST banner, or from *Ctrl-R* →
+  controller properties during boot, and it is owed here from the next
+  time the machine is at POST — which the swap will be. The driver
+  logged a disable/enable of its interrupts at 21:03:51 on 2026-09-19, the
+  same second as the target reset in the fault's `dmesg` — the controller
+  resetting itself around a disk that had stopped answering, which is the
+  Online Controller Reset it advertises as enabled. `1000:005f` is the ID to watch:
+  `1000:0097` is the same silicon in IT mode, and the card was never
+  recorded here, like the optical drive was not. Cabling below, in
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §1, says `SATA2` and
+  `SATA3`; that is now known to be wrong, and the same reading corrects it.
   **The 5.25" bay was not empty**: a PLDS `DVD-RW DU8AESH` answered on SATA5.
   A photograph of the open case had been read here as an empty cage and was
   wrong; the BIOS summary is what caught it. The optical drive came out on
@@ -318,7 +355,16 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   said at the console, and the outcome, belong in
   [`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md)'s status
   block and then here; [#558](https://github.com/Gerrrt/HomeLab/issues/558)
-  carries it.
+  carries it. **Read at the console on 2026-09-19 at 23:19 PDT, at lifetime
+  hour 32: it is the drive.** `zpool status` counts 3 read and 99 write
+  errors on the leaf; `dmesg` is *Logical unit not ready* and 60-second
+  command timeouts from 20:47 on, with no link resets and no CRC errors;
+  SMART reads **850 pending and 850 offline-uncorrectable sectors** against
+  the 0 and 0 of the day before, `Command_Timeout` normalised to 1, overall
+  health still `PASSED`; and FARM puts **all 850 reallocation candidates on
+  head 5**, with 124 command timeouts and 179 hardware resets, both rails
+  in spec, 28 °C. `ZVTBS4NL` is unaffected. The extended self-test that
+  completed at hour 26 was true when it was read and is not evidence now.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches
