@@ -1179,7 +1179,7 @@ what left this one unfireable for months.
 - **[#436](https://github.com/Gerrrt/HomeLab/issues/436) Build a deployment
   jumpbox on ImaginationLAN, and decide where the CA lives.** Decided by
   [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md);
-  the guest was built 2026-09-DD. The host is `phoenix`, `10.0.30.70`, a guest on
+  the guest was built 2026-09-20. The host is `phoenix`, `10.0.30.70`, a guest on
   `Saruman` that holds the estate's first Proxmox API credential and the SSH
   key the toolchain will inject into what it builds — the prerequisite for
   the Packer, OpenTofu and Ansible issues, which today have nowhere to run

@@ -14,7 +14,7 @@ settles its shape. It runs on `alexander`, the guest
 [#262](https://github.com/Gerrrt/HomeLab/issues/262) built on 2026-09-05. Its
 first client from off that guest is `phoenix`, the deployment host
 ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
-built 2026-09-DD): its native Alloy pushes over the two ports the lab stack
+built 2026-09-20): its native Alloy pushes over the two ports the lab stack
 published for it ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and
 it too reaches nothing here.
 

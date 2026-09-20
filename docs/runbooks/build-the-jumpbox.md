@@ -13,11 +13,11 @@ remote path is wanted —
 terminates the WireGuard tunnel on this host, and its runbook begins where
 this one ends
 
-> **Status — 2026-09-DD: `phoenix` is built and its agent is pushing to
+> **Status — 2026-09-20: `phoenix` is built and its agent is pushing to
 > `alexander`.**
 >
 > Ubuntu 26.04 LTS, `10.0.30.70`, VMID 170, `bc:24:11` OUI, ISO
-> `ubuntu-26.04-live-server-amd64.iso` *(ISO and OUI pending the §1 report)*.
+> `ubuntu-26.04.1-live-server-amd64.iso` *(OUI pending the §1 report)*.
 > §4's `curl`: *(pending the §4 report)*. §7: *(pending the §7 report — both
 > `up{instance="phoenix"}` jobs and the Loki job count go here)*.
 > The lab's ports were opened ahead of the guest by #543 and applied on

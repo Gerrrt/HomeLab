@@ -91,7 +91,7 @@ truth for what a box actually does.
   address ([`security.md`](security.md#what-this-repository-deliberately-does-not-publish)).
   Before it, `morpheus` carried no `rdr` and no inbound WAN pass beyond DHCP
   client replies — the state ADR-0011 measured in 2026-08. **Not built:** the
-  jumpbox exists — `phoenix`, built 2026-09-DD
+  jumpbox exists — `phoenix`, built 2026-09-20
   ([#436](https://github.com/Gerrrt/HomeLab/issues/436)) — and the endpoint
   question is answered —
   [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md):
@@ -372,7 +372,7 @@ Where things get broken on purpose.
   made.
 - `Saruman` runs two guests: `alexander`, built 2026-09-05
   ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), and `phoenix`, built
-  2026-09-DD ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), described
+  2026-09-20 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), described
   below. `alexander` runs
   [`stacks/lab`](../stacks/lab) — the lab's own Prometheus, Loki, Grafana and
   Alloy. **It is a guest and not the hypervisor for a reason**: a compose stack
@@ -399,7 +399,7 @@ Where things get broken on purpose.
   that the Packer, OpenTofu and Ansible work after
   [#436](https://github.com/Gerrrt/HomeLab/issues/436) runs from, placed by
   [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
-  and built 2026-09-DD by
+  and built 2026-09-20 by
   [`build-the-jumpbox.md`](runbooks/build-the-jumpbox.md). It runs no stack
   and holds no key that signs anything — the estate's CA stays on
   `prometheus`, and that ADR says why. It is also where

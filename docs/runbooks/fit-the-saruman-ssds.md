@@ -789,7 +789,7 @@ lvremove /dev/pve/fiotest
 
 ## 9. Move the guest
 
-There are two guests — `alexander` (140) and, since 2026-09-DD, `phoenix`
+There are two guests — `alexander` (140) and, since 2026-09-20, `phoenix`
 (170, [#436](https://github.com/Gerrrt/HomeLab/issues/436)), created on
 `local-lvm` like the first — so this is one command run twice rather than a
 campaign. The commands below name 140; repeat them for 170 once it has
