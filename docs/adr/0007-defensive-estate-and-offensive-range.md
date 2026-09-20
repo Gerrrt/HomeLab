@@ -28,6 +28,19 @@
 > carries its own Prometheus alongside Loki, Grafana and Alloy. Nothing here is
 > amended — "lab telemetry stays in the lab" is what makes both answers follow.
 > The text here is left as written, per ADR-0001.
+>
+> "A single mirrored pair of 7.2K disks" (Consequences, below) stopped being
+> the whole of `Saruman`'s storage on 2026-09-19, when two SM863a SSDs became
+> the P440ar's second logical drive, and on 2026-09-20 the constraint the
+> sentence names was measured rather than assumed
+> ([#527](https://github.com/Gerrrt/HomeLab/issues/527)): the mirror does
+> 741 random write IOPS at queue depth 1 with the controller's cache in front
+> of it, the SSD pair 7,952. The lab guest lives on the SSD pool since that
+> day, and the domain [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
+> sizes will too. The fleet is still sized against spindles, not RAM; the
+> spindles are now a choice of pool. One word is wrong rather than stale: the
+> pair is **SATA**, per `ssacli`'s `Interface Type`, not SAS. The text here is
+> left as written, per ADR-0001.
 
 ## Context
 

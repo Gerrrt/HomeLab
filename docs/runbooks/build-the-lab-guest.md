@@ -69,6 +69,13 @@ VMID `140`, so the last octet is legible from `qm list`. Storage is `local-lvm`
 on a stock Proxmox install — check `pvesm status` if yours differs, and the ISO
 name will be whatever you uploaded.
 
+> **Since 2026-09-20 the built guest lives on `large_data`, not `local-lvm`,
+> and its disk is 100 GiB, not 64.** The SSD pool exists since 2026-09-19
+> ([`fit-the-saruman-ssds.md`](fit-the-saruman-ssds.md)); the disk was moved
+> across online and the guest rebooted with `ssd=1`. A rebuild from this page
+> should write `large_data:64` below and add `ssd=1` to the `--scsi0` line.
+> The commands are left as run.
+
 ```bash
 qm create 140 \
   --name alexander \
@@ -101,12 +108,33 @@ Four of those are worth knowing rather than copying:
   nothing without the `-single` controller, and this is a spinning RAID 1 pair
   that benefits from not serialising behind the emulator thread.
 
-Leave the disk cache at the Proxmox default. The DL360's Smart Array cache is
+**`--agent enabled=1` tells QEMU to expect a guest agent; it installs
+nothing.** This page never installed one either, which was found on
+2026-09-20 when `qm guest exec` and `qm reboot` both answered *"QEMU guest
+agent is not running"*. Inside the guest, once it has a network:
+
+```bash
+sudo apt-get install -y qemu-guest-agent && sudo systemctl start qemu-guest-agent
+```
+
+The unit is static on Ubuntu and starts itself on the next boot; `qm guest
+exec 140 -- uptime` from `Saruman` is the check. Without it `qm shutdown` and
+`qm reboot` fail, and `vzdump` cannot quiesce the filesystem.
+
+Leave the disk cache at the Proxmox default. ~~The DL360's Smart Array cache is
 enabled and battery-backed again since the pack was fitted on 2026-09-02
 ([#76](https://github.com/Gerrrt/HomeLab/issues/76)) — but that runbook records
 `cpqDaAccelWriteCachePercent` still reading `0`, unexplained. Until that is
 understood, `writeback` here would be leaning on a cache nobody has confirmed
-is absorbing writes.
+is absorbing writes.~~ The reason changed on 2026-09-19 and the setting did
+not: `ssacli` reads the controller's cache at `10% Read / 90% Write`,
+battery-backed and enabled on the HDD logical drive — the iLO's `0` was the
+iLO's blind spot ([#76](https://github.com/Gerrrt/HomeLab/issues/76), settled
+by [#527](https://github.com/Gerrrt/HomeLab/issues/527)) — so on `local-lvm`
+the writes are absorbed below the hypervisor, and `writeback` would add a
+layer of host RAM that nothing backs. On `large_data` the SSD array runs
+Smart Path with no controller cache at all, and the SM863a's own buffer is
+capacitor-backed; the default is right there for the same reason.
 
 ## 2. Install Ubuntu Server
 
@@ -241,11 +269,12 @@ Three of the files there go to `alexander`:
 | `grafana-lab.matrix.elysium-key.pem` | Its private key |
 
 > [!CAUTION]
-> **`ca-key.pem` is not on that list and must never leave the monitoring
-> host.** It is the key that signs every certificate in the estate; a copy of
-> it on a machine that sits on the segment built to hold attackers is a
-> different class of problem from a leaked leaf. Copy the three files by name.
-> Do not `scp certificates/*`.
+> **`ca-key.pem` is not on that list and must never go to another host.** It
+> is the key that signs every certificate in the estate; a copy of it on a
+> machine that sits on the segment built to hold attackers is a different
+> class of problem from a leaked leaf. Its one copy is offline, on the medium
+> that holds the age key ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)),
+> and nowhere else. Copy the three files by name. Do not `scp certificates/*`.
 
 ### Do it from Hicks, because the two hosts cannot reach each other
 

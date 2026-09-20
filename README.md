@@ -69,7 +69,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 7 provisioned dashboards, 141 panels, and
-  101 alert rules — 83 metric-based in Prometheus, 18 log-based in Loki — sharing
+  107 alert rules — 89 metric-based in Prometheus, 18 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -98,8 +98,8 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 44 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 30
+- **Documented decisions and runbooks.** 45 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 32
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
 
@@ -195,7 +195,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 .
 ├── stacks/observability/     # the deployed stack — one compose file, eight services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 83 alert rules
+│   ├── prometheus/           # config, file_sd targets, 89 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 18 LogQL rules
 │   ├── alloy/                # the agent config directory, shipped to every host
@@ -219,7 +219,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md
-│   ├── adr/                  # 44 architecture decision records
+│   ├── adr/                  # 45 architecture decision records
 │   └── runbooks/             # successor handover (start here), deploy, converge,
 │                             #   add device, rotate creds, certs, key backup,
 │                             #   purge, restore the firewall, restore the stack,
@@ -357,9 +357,9 @@ why it is in that order.
 The current top items: rehearse the firewall restore on the ProDesk bought on
 2026-09-08 — on hand since 2026-09-14, so what the rehearsal waits on is the
 I226 card and the installer stick and no longer the box — and then build the
-sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
+sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
 roadmap's [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-three items now, one later, and a rule that nothing joins them without a
+two items now, one later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs.
@@ -368,9 +368,10 @@ self-test, and the card is set to test itself every fortnight
 ([#93](https://github.com/Gerrrt/HomeLab/issues/93)) — and since 2026-09-08 the
 switch between the monitoring host and the network draws from it too, racked in
 U4 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the config export
-leaves the monitoring host nightly and the volume backup sets weekly
-([#535](https://github.com/Gerrrt/HomeLab/issues/535)), so the rehearsal is
-what is left ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
+leaves the monitoring host nightly, the volume backup sets weekly
+([#535](https://github.com/Gerrrt/HomeLab/issues/535)) and Jellyfin's state
+weekly by way of it ([#484](https://github.com/Gerrrt/HomeLab/issues/484)),
+so the rehearsal is what is left ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
 
 ## License
 

@@ -303,6 +303,18 @@ curl -sG http://localhost:9090/api/v1/query \
 
 ---
 
+## Jellyfin's state is a different set
+
+`make restore` and everything above it read `backups/volumes/`, the sets of
+the stack on this host. Jellyfin's state on `smaug` is pulled into
+`backups/nas/` by `make backup-nas` — one archive per set, read out of a ZFS
+snapshot rather than a stopped container, and copied to `oracle` in the same
+run under `backups/nas` beside these sets
+([ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)) —
+and it is restored on `smaug`, by hand, per
+[`build-the-nas.md`](build-the-nas.md) §6.3. Nothing in this runbook touches
+it, and `make restore` cannot: the volumes it would write do not exist here.
+
 ## What is proven, and what is not
 
 The whole-stack restore in §3 was performed on 2026-08-29. It is no longer a

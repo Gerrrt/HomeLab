@@ -185,9 +185,11 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
   the off-host copies of the firewall export that `make backup-firewall` pushes
-  to it and of the weekly volume sets that `make backup` pushes
-  ([#535](https://github.com/Gerrrt/HomeLab/issues/535)), as ciphertext with
-  no key. Its role is the estate's small off-host
+  to it, of the weekly volume sets that `make backup` pushes
+  ([#535](https://github.com/Gerrrt/HomeLab/issues/535)) and of Jellyfin's
+  state that `make backup-nas` pulls off `smaug` and pushes on
+  ([ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)), as
+  ciphertext with no key. Its role is the estate's small off-host
   jobs: [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md). Its NIC
   supports 10/100 only, so that link runs at 100 Mb/s — measured 2026-09-03 —
   and no cable will lift it. `prometheus` links at a gigabit through the same
@@ -331,10 +333,14 @@ Televisions and consoles. Internet only.
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
   [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)).
-  Nothing answers there yet — the exporter is a container and the container
-  needs the pool — so `prometheus/targets/node.yaml` carries the target
-  commented out rather than pointing a live check at a port with nothing behind
-  it. Port `22` is inert for a different reason: TrueNAS ships SSH disabled.
+  It has answered since 2026-09-19, and the target in
+  `prometheus/targets/node.yaml` has been live since the same morning
+  ([#522](https://github.com/Gerrrt/HomeLab/pull/522)). Port `22` was inert
+  for a different reason — TrueNAS ships SSH disabled — until 2026-09-19,
+  when [`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switched it on
+  for the backup pull [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)
+  decided: key-only, one read-only user, `frodo`, and the rule already scopes
+  it to `10.0.99.20`. The first pull landed on 2026-09-20.
 
 [^OLEDTV]: [LG OLED TV](https://www.lg.com/us/tvs/oled)
 [^PS5]: [PlayStation 5](https://www.playstation.com/en-us/ps5/)

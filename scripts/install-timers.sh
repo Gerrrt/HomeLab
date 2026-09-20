@@ -95,6 +95,11 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # SecretsKeyBackupUnproven can still nag. The one thing that proves the secrets
 # are recoverable now has a deadline even though it has no schedule.
 #
+# verify-ca-key-backup is the same shape for the estate CA's private key (#496):
+# a human proof against a copy on the same offline medium, no unit, the same
+# ninety days, and CaKeyBackupUnproven reading it. ca-key-state is its
+# recipient-state — the daily writer that makes the series exist at all.
+#
 # The threshold is still declared once here, but since ADR-0024 it is applied
 # once PER RECIPIENT rather than once per job: scripts/key-recipients.sh emits a
 # series for each key the secrets are encrypted to, and the alert joins against
@@ -112,7 +117,7 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # the file is missing anyway.
 #
 # converge is the only hourly row, and the only one whose threshold is three
-# times its period rather than two. It shares the `backups` lock with the two
+# times its period rather than two. It shares the `backups` lock with the
 # backup jobs, so a run that collides with the weekly archive can legitimately
 # spend its whole 900s lock wait and then be an hour late; twice the period
 # would alert on that, and being late for a reason is not the finding.
@@ -121,7 +126,8 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 JOBS=(
   "converge          homelab-converge             10800  converge"
   "backup-volumes    homelab-backup-volumes     1209600  backup"
-  "verify-backups    homelab-verify-backups      259200  backup"
+  "backup-nas        homelab-backup-nas         1209600  backup-nas"
+  "verify-backups    homelab-verify-backups      259200  verify-backups"
   "backup-firewall   homelab-backup-firewall     259200  backup-firewall"
   "snmp-verify       homelab-snmp-verify        1209600  snmp-verify"
   "check-versions    homelab-check-versions     1209600  check-versions"
@@ -133,8 +139,10 @@ JOBS=(
   "smart-state-remote homelab-smart-state-remote 172800  smart-state-remote"
   "pkg-state         homelab-pkg-state           172800  pkg-state"
   "recipient-state   homelab-recipient-state     172800  recipient-state"
+  "ca-key-state      homelab-ca-key-state        172800  ca-key-state"
   "gateway-state     homelab-gateway-state         5400  gateway-state"
   "verify-key-backup -                          7776000  secrets-verify-backup"
+  "verify-ca-key-backup -                       7776000  certs-verify-backup"
 )
 
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -479,3 +487,5 @@ info "backup-volumes was NOT primed: it stops the stack. Run it when you can wat
 info "  sudo systemctl start homelab-backup-volumes.service"
 info "verify-key-backup has no timer and never will — docs/runbooks/back-up-the-age-key.md"
 info "recipient-state was primed, so SecretsKeyBackupUnproven has a series per recipient to read (#400)"
+info "verify-ca-key-backup has no timer either — docs/runbooks/back-up-the-ca-key.md"
+info "ca-key-state was primed, so CaKeyBackupUnproven has the CA key's fingerprint to read (#496)"

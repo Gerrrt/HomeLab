@@ -70,16 +70,17 @@ the rack pack in `mjolnir`, not this cell — which is the same wrong pointer
 description. `oracle`'s cell, the one that measures worse, stays unbought and
 second in line, as that issue ranked it.
 
-**2026-09-18: the cell is fitted, and the issue stays open.** The A1437 went
+**2026-09-18: the cell is fitted, and the issue stayed open.** The A1437 went
 into `prometheus` the day it was delivered; the host was down from 14:53 to
 about 18:12 UTC. The new pack reads `charge_full` 6.889 Ah of 6.8 Ah design at
 one cycle, and both of its design figures differ from the old pack's — an
 aftermarket cell reports its own, which is the only proof of a changed part on
 a machine that exports no serial number. **The buy table does not move**: the
-cell left it on 2026-09-13, and fitting is not buying. What is still owed is
-the mains pull on the charged pack and the runtime it measures, so
-[#454](https://github.com/Gerrrt/HomeLab/issues/454) stays open and this gets
-no *Done* entry.
+cell left it on 2026-09-13, and fitting is not buying. What was still owed was
+the mains pull on the charged pack and the runtime it measures; that ran on
+2026-09-19 — 2.72 Ah/h, about 2.5 hours from full — and
+[#454](https://github.com/Gerrrt/HomeLab/issues/454) closed on it, with its
+*Done* entry below.
 
 **2026-09-19: the second cell is identified and enters the list.** `oracle`'s
 pack is a Dell M5Y1K — 14.8 V, 40 Wh, four cells, the latched pack the
@@ -96,13 +97,20 @@ going blind. What closes #531 is not the cell landing but the fit and the
 test after it, as with #454, and the silence deleted rather than left to
 expire.
 
+**2026-09-19, later the same day: the second cell is bought.** The M5Y1K for
+`oracle`, from the listing recorded in [`hardware.md`](hardware.md), sold as
+genuine Dell and recorded as the listing's claim until the pack is in hand.
+The row leaves the table the day it joined it — three rows back to two, and
+neither of them a part again: two licences and a drive kept at another
+address. What closes [#531](https://github.com/Gerrrt/HomeLab/issues/531) is
+unchanged: the fit, step 8's mains pull, and the silence deleted.
+
 **Buy these, and the estate as decided is fully bought:**
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 | An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
-| A Dell M5Y1K 4-cell pack for `oracle` | The second laptop cell, at 72 % of design and alerting under a silence. A consumable whose failure is a safety and an availability event — the exception to *Never* below, not an upgrade | [#531](https://github.com/Gerrrt/HomeLab/issues/531), [#454](https://github.com/Gerrrt/HomeLab/issues/454) | Now — the silence on its alert expires 2026-10-08, and a cell below the line is the one that swells |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
@@ -175,6 +183,15 @@ drive, nothing has moved to them, and the measurement the purchase exists for
 has not been taken; [#418](https://github.com/Gerrrt/HomeLab/issues/418)
 carries that. Neither the SSDs nor the trays appear in either paragraph above
 now: they are parts, and [`hardware.md`](hardware.md) has them.
+
+**2026-09-20: the SSD pair is measured and carrying `alexander`.** What the
+paragraph above called not finished is: logical drive 2 on 2026-09-19,
+`ssacli` on the host that evening, both arrays measured at 4 KiB queue depth
+1 — the 7.2K mirror 741 IOPS, the SSD mirror 7,952 — and the lab guest moved
+across and rebooted from flash on 2026-09-20.
+[#527](https://github.com/Gerrrt/HomeLab/issues/527) closed on it; the
+numbers are in [`hardware.md`](hardware.md) and the reasoning that used the
+old number carries dated notes. Nothing here was bought.
 
 **No row on the table above moves** — arriving is not buying, and this section
 tracks money. Nothing was racked, fitted or built by it either. What it changed
@@ -256,11 +273,11 @@ mains-cut path depends on it, `host.rules.yaml` has measured it since
 and the failure mode of a thirteen-year-old cell is a fire on a shelf. **That
 cell was bought 2026-09-13 and fitted 2026-09-18**, so this is the exception
 being exercised rather than restated; the new pack reads 101 % of its design
-capacity at one cycle, and the runtime it was bought for is still unmeasured. `oracle` has the same kind of cell and it measures
+capacity at one cycle, and the runtime it was bought for was measured on 2026-09-19: about 2.5 hours from full at the stack's load. `oracle` has the same kind of cell and it measures
 worse, 72 %, so `HostBatteryHealthLow` fires for it first; it stays second in
 line only because `prometheus` is the host whose death is the estate going
-blind. The cell for `prometheus` was bought on 2026-09-13, and `oracle`'s is
-identified and on the list above since 2026-09-19
+blind. The cell for `prometheus` was bought on 2026-09-13, and `oracle`'s on
+2026-09-19, the day it was identified
 ([#531](https://github.com/Gerrrt/HomeLab/issues/531)); nothing else about
 either machine is.
 
@@ -538,7 +555,8 @@ new since this file was last honest:
   cut on its own cell — measured since 2026-09-12 and, on `prometheus`, replaced
   on 2026-09-18 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). So the
   off-host check *can* report a mains cut, for exactly as long as `prometheus`
-  stays up on its cell, which is the one thing still unmeasured.
+  stays up on its cell — about 2.5 hours from full, measured on 2026-09-19
+  ([#454](https://github.com/Gerrrt/HomeLab/issues/454)).
 
 Two collection faults of the same kind were fixed in
 [#62](https://github.com/Gerrrt/HomeLab/pull/62): the agent was answering to the
@@ -864,7 +882,13 @@ what left this one unfireable for months.
   the `22` that ADR-0016's table names — that port assumed a box administered
   over SSH, which was an operating-system decision inside a firewall table, and
   ADR-0040 carries the correction against its own text. Port 22 survives on the
-  Winterfell rule and is **inert**, because TrueNAS ships SSH disabled. The scrape target is
+  Winterfell rule and was **inert** until 2026-09-19, when
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switched SSH on for
+  the backup pull — decided by
+  [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md),
+  built under [#484](https://github.com/Gerrrt/HomeLab/issues/484), and
+  deployed by hand on `smaug`, where nothing pulls from `main`; the first set
+  landed on 2026-09-20. The scrape target is
   **`node_exporter` on `9100`**, settled by
   [#256](https://github.com/Gerrrt/HomeLab/issues/256) on 2026-09-17 — the pass
   that exists and a dashboard built entirely on `node_*` series, against an
@@ -877,7 +901,11 @@ what left this one unfireable for months.
   four-bay chassis with two bays filled, because the bay count is the half that
   cannot be changed later and the library's size is a number nobody has; the
   two filled trays have held the Exos pair since 2026-09-19, and `erebor` is
-  their mirror.
+  their mirror. **One of them faulted on 2026-09-19**, a day in, with the
+  exporter hung ahead of it and nothing yet pulling `erebor/apps` off the
+  box; [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries the
+  swap, the return, and the rule that now reads pool state.
+  → [runbook](runbooks/replace-the-nas-disk.md)
 - **[#101](https://github.com/Gerrrt/HomeLab/issues/101) Build ADR-0007's
   defended estate on `Saruman`** — a Windows domain, Wazuh, Velociraptor, PBS
   and a second observability stack. The umbrella. The observability half is
@@ -928,10 +956,14 @@ what left this one unfireable for months.
   DC-plus-workstations domain is the DC itself. The servers run continuously and
   the endpoints per session, because a 7.2K mirror serves about ninety random
   write IOPS and six idle Windows guests would be most of them — the number
-  #418's SSDs were bought against, and the one their *fit* re-derives. The
-  drives went into bays 3 and 4 on 2026-09-18 and are still unassigned, and an
-  unassigned drive changes no duty cycle either — the sentence above holds
-  until the runbook's step 8 measures both arrays.
+  #418's SSDs were bought against, and the one their *fit* re-derived on
+  2026-09-20: the mirror does **741** random write IOPS at queue depth 1, not
+  ninety, because the controller cache the derivation assumed absent is
+  present, and the SSD pair does **7,952** — so the six guests go on
+  `large_data`, and continuous-versus-per-session is a choice this build
+  makes for its own reasons, not one the array makes for it. ADR-0029's
+  duty cycle stands as written under a dated note; what it costs #266 to
+  run the endpoints continuously is now a question, not a constraint.
   Three things
   that ADR left explicit because they fail quietly: the DC takes its clock from
   the gateway, not `time.windows.com` — ADR-0014 named that failure and did not
@@ -1026,9 +1058,9 @@ what left this one unfireable for months.
   `Saruman`, and [#527](https://github.com/Gerrrt/HomeLab/issues/527) do
   everything the fit left.** Two Samsung SM863a 960 GB SATA enterprise
   drives, bought 2026-09-09, delivered 2026-09-11, fitted 2026-09-18, and
-  **since 2026-09-19 logical drive 2 with the thin pool `Large_data` on it —
-  and still with no guest on them and no measurement taken**. #418 closed at
-  the bays; #527 carries steps 5–11 of the runbook and is open.
+  **since 2026-09-19 logical drive 2 with the thin pool `large_data` on it,
+  measured and carrying `alexander` since 2026-09-20**. #418 closed at the
+  bays; #527 carried steps 5–11 of the runbook and closed on the numbers.
   ADR-0007's constraint — "the
   fleet is sized against spindles, not RAM" — became a number in ADR-0029,
   about ninety random write IOPS for the whole machine, and that number sized
@@ -1062,7 +1094,7 @@ what left this one unfireable for months.
   from the first scrape with no sync the iLO ever showed — made through the
   offline Smart Storage Administrator, the runbook's path 3, because `ssacli`
   is still not on the host and neither way of getting it there was tried.
-  The thin pool on it is **`Large_data`**, made that afternoon; the runbook's
+  The thin pool on it is **`large_data`**, made that afternoon; the runbook's
   `ssd` is renamed throughout. Two things that path cost: the controller has
   still never been read from the host, so the cache reading #76 has waited on
   since 2026-09-02 is still owed and needs `ssacli` or a second SSA session;
@@ -1075,21 +1107,33 @@ what left this one unfireable for months.
   on the newest drives in the estate needs `smartctl` through the `hpsa`
   path — [#529](https://github.com/Gerrrt/HomeLab/issues/529), filed against
   exactly that condition, is no longer gated on anything. A thin pool is also
-  not a filesystem, so `HostDiskCritical` cannot see `Large_data` fill;
+  not a filesystem, so `HostDiskCritical` cannot see `large_data` fill;
   [#538](https://github.com/Gerrrt/HomeLab/issues/538) is that blind spot,
-  opened while the pool is still empty. `alexander` is still on the HDD
-  mirror.
+  opened while the pool was still empty.
 
-  What is still open after that is the only thing the purchase was for.
-  **ADR-0029's
-  ninety is derived, not measured** — seek plus half a rotation at 7200 rpm —
-  so the runbook measures both arrays at the parameters that derivation
-  implies, 4 KiB at queue depth 1, and three times: the HDD mirror loaded, the
-  SSD array idle, and the HDD mirror idle once the guest has moved off it.
-  Until that reading exists, ADR-0029, ADR-0007, ADR-0017 and the #414
-  paragraph above all stand as written. The measurement makes them stale on
-  the day it lands, not the day the drives did, and it gets a dated note on
-  each rather than a silent edit — ADR-0001 makes them immutable.
+  **The rest ran on the evening of 2026-09-19 and the small hours of
+  2026-09-20, and the number the purchase was for is measured.** `ssacli`
+  went on through path 1 after all — HPE publishes a `trixie` suite, which
+  the runbook had said it did not — and read the controller for the first
+  time from the host: `Cache Ratio: 10% Read / 90% Write`, battery-backed,
+  LD 1 `Caching: Enabled`. That is #76's answer, and it is **(a)**: the iLO's
+  cache columns are not populated on this hardware, the ratio was set all
+  along, and the change #76 would have owned does not exist. The spinners
+  are SATA, not SAS, which `hardware.md` now says. The SSD array is on Smart
+  Path, which excludes the controller cache and is the controller's design
+  point for it. Then fio at 4 KiB, queue depth 1, on a thin volume in each
+  pool: **the 7.2K mirror does 741 IOPS** idle and 734 with the guest live —
+  nine times ADR-0029's derived 83, because the derivation assumed no write
+  cache and there is one — and 712 at queue depth 32, so ~700 is the array's
+  sustained rate; **the SSD mirror does 7,952** at queue depth 1 and 51,600
+  at queue depth 32. `alexander`'s 100 GiB disk mirrored across online in
+  7 min 28 s, `ssd=1` went on, and the guest rebooted from flash at about
+  02:58 UTC. No silence was created or needed for any of it. Two things the
+  run cost are in the runbook: a capitalised pool name that had fio
+  benchmark RAM for a block, and a guest built with `--agent enabled=1` and
+  no agent installed. ADR-0029, ADR-0007 and ADR-0017 carry dated notes
+  rather than edits — ADR-0001 makes them immutable — and the #414 paragraph
+  above says what the number now is.
   → [runbook](runbooks/fit-the-saruman-ssds.md)
 
 ## Automation
@@ -1152,7 +1196,9 @@ what left this one unfireable for months.
   `certificates/ca-key.pem` has no backup or custody story at all, unlike
   the age key and the tier's root — found, named in the ADR with what the
   answer is not, and carried by
-  [#496](https://github.com/Gerrrt/HomeLab/issues/496). The same host is
+  [#496](https://github.com/Gerrrt/HomeLab/issues/496) — delivered on
+  2026-09-19 as a proved offline copy and `CaKeyBackupUnproven`
+  (→ [runbook](runbooks/back-up-the-ca-key.md)). The same host is
   where [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)
   terminates the remote path; that ADR left the `8006` question to this issue,
   and it is taken here.
@@ -1295,6 +1341,43 @@ them name the condition that would change the answer.
 
 ## Done
 
+- [x] **[#527](https://github.com/Gerrrt/HomeLab/issues/527) `Saruman`'s
+      SSDs measured, cached-or-not settled, and `alexander` moved onto them.**
+      2026-09-20. Steps 2, 3, 6, 8, 9, 10 and 11 of the fit runbook, run from
+      the Mac between 22:50 UTC on 2026-09-19 and 03:03 UTC on 2026-09-20.
+      `ssacli 6.60` installed from HPE's `trixie` suite in one `apt-get`
+      (path 1; the runbook had believed no such suite existed). The
+      controller, read from the host for the first time: `Cache Ratio: 10%
+      Read / 90% Write`, `1.8` GB battery-backed, LD 1 `Caching: Enabled`, LD 2
+      on Smart Path with caching refused for that reason — so #76's reading
+      is branch (a), the iLO's cache columns are blind on this hardware, and
+      no rule may be written on them. Both spinners `Interface Type: SATA`.
+      fio, 4 KiB random write at queue depth 1 on a thin volume per pool: HDD
+      mirror **741** IOPS idle (734 loaded; 712 at queue depth 32), SSD mirror
+      **7,952** (51,600 at queue depth 32). `alexander`'s 100 GiB disk moved
+      online in 7 min 28 s, `unused0` removed after the guest answered,
+      `ssd=1`, rebooted: `ROTA 0`. No silence created; none needed. Two
+      costs: `Large_data` for `large_data` had fio write 8 GB into devtmpfs
+      and report RAM's numbers for a block, and `qemu-guest-agent` was never
+      installed in the guest, so `qm reboot` needed it first. `hardware.md`
+      carries the numbers and loses the word SAS; ADR-0029, ADR-0007 and
+      ADR-0017 carry dated notes; the #414 paragraph says what the number is
+      now. → [runbook](runbooks/fit-the-saruman-ssds.md)
+
+- [x] **[#454](https://github.com/Gerrrt/HomeLab/issues/454) Replaced
+      `prometheus`'s battery, watched it, and proved the mains-cut path on it.**
+      2026-09-19. Opened for a thirteen-year-old cell that nothing monitored and
+      no document named as a dependency. The collector it proposed was never
+      needed — Alloy exported `node_power_supply_*` all along, and the family is
+      `charge_*`, not the `energy_*` the issue wrote — so #461 wrote three rules
+      against what existed. The A1437 was bought 2026-09-13 as the one exception
+      the *Never* line above names, fitted 2026-09-18, and on 2026-09-19 the
+      brick was pulled on the full pack: the host stayed up, `HostOnBattery`
+      fired for it alone inside three minutes, and the draw measured 2.72 Ah/h —
+      about 2.5 hours from full, the first runtime figure the estate has had.
+      Left behind as issues of their own: the RTC reset the disconnect caused
+      (#519), `oracle`'s cell at 72 % (#531), and continuous watching of
+      runtime and cell temperature (#532).
 - [x] **[#441](https://github.com/Gerrrt/HomeLab/issues/441) Alerted on a sensor
       that stops logging, and closed the Zeek half by deciding it elsewhere.**
       2026-09-17. `SuricataLogsStopped` landed on 2026-09-12 in
@@ -2448,6 +2531,17 @@ them name the condition that would change the answer.
       that resolves the first; the metrics before 2026-09-02 show the failed
       pack and a write-through array, which any range crossing that date will
       include.
+
+      **The `ssacli` check ran on 2026-09-19, seventeen days later, and the
+      first reading is a blind spot, not a fault.** `Cache Ratio: 10% Read /
+      90% Write`, `Battery Backed Cache Size: 1.8`, LD 1 `Caching: Enabled` —
+      while `cpqDaAccelWriteCachePercent` and its three siblings still read
+      `0`. The iLO does not populate those columns on this hardware; the
+      ratio was set and the cache was absorbing writes all along, which the
+      fit's fio then showed as a 7.2K mirror completing 4 KiB writes in 1.3
+      ms. No `modify cacheratio=` was ever needed. `cpqDaAccelFailedBatteries`
+      `1` is still unexplained and still not alerted on. Recorded by #527;
+      this issue stays closed.
       → [runbook](runbooks/replace-the-smart-storage-battery.md)
 
 - [x] **[#88](https://github.com/Gerrrt/HomeLab/issues/88) Deploy Alloy to

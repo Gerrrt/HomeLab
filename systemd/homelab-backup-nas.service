@@ -1,0 +1,58 @@
+# Weekly pull of Jellyfin's state off smaug (#484, ADR-0045).
+#
+# WHY IT IS ITS OWN UNIT AND NOT A ROW IN homelab-backup-volumes. That unit
+# stops the observability stack and archives volumes on this host's docker
+# daemon. This one stops nothing and touches no daemon: it reads a directory on
+# another machine over ssh — in the pull direction ADR-0016 requires of
+# CasaBonita, since nothing there may initiate upward — and encrypts what
+# arrives. Different privileges (the operator key and the age identity, no
+# docker group), different timer reasoning (see the .timer), and a failure that
+# means "smaug could not be read" rather than "the stack did not come back".
+# homelab-smart-state-remote.service is the precedent for a job that needs a
+# key and a network path and nothing else; this one adds the age identity,
+# because it verifies what it writes by decrypting it.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: pull Jellyfin's state off smaug from its newest snapshot
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=SOPS_AGE_KEY_FILE=/home/robo/.config/sops/age/keys.txt
+# NAS_KEEP=, NAS_SNAPSHOT_TZ= and NAS_SSH_TARGET= are host facts, not
+# repository facts. The leading - means an absent file is not an error.
+EnvironmentFile=-/etc/default/homelab-timers
+# The `backups` lock, shared with the volume backup and the nightly verify.
+# The verify reads backups/nas/ as well as backups/volumes/, and this run's
+# prune must not remove a set it is mid-read on.
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job backup-nas --lock backups --lock-wait 900 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab backup-nas
+# Nothing is down while this runs, so the ceiling only bounds a hung ssh
+# session. A first-boot config directory is under two megabytes compressed.
+TimeoutStartSec=1800
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+# PrivateTmp is fine here, unlike the volume unit: nothing this job starts is
+# a container, so no -v source path is resolved in the host's namespace.
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-backup-nas
+
+# No [Install] section, on purpose — the timer is what enables this.

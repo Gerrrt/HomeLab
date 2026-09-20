@@ -84,6 +84,74 @@ groups:
             Clock skew breaks log correlation across hosts and can invalidate
             rate() calculations.
 
+      - alert: HostClockUnsynchronised
+        # THE CLOCK HostClockSkew CANNOT SEE.
+        #
+        # Replacing prometheus's laptop cell on 2026-09-18 (#454) cleared the
+        # RTC. systemd-timesyncd restored the clock from its own clock file,
+        # whose timestamp is the second the machine went down, and the stack
+        # ran 13.8 minutes writing samples BACKDATED inside the outage before
+        # NTP stepped the clock forward about three hours. Nothing alerted
+        # (#519). HostClockSkew reads node_timex_offset_seconds, the kernel's
+        # current correction estimate; a clock that is wrong but stable has
+        # nothing to correct, and the offset read exactly 0 for the whole
+        # window. The field that carried the event is one over:
+        # node_timex_sync_status was 0 from the first post-swap scrape to the
+        # NTP step. This is ADR-0029's pair on Linux — DomainControllerClockDrifting
+        # reads the offset, DomainControllerTimeSourceIsLocalClock reads the
+        # source — because the obvious metric reads zero for exactly the
+        # failure being hunted.
+        #
+        # NOT node_boot_time_seconds. The issue's other candidate was a
+        # backward jump in the boot time, and the series never jumped
+        # backward: the 2026-07-28 value the RTC came up with never reached a
+        # scrape, the restored 14:53:27 is later than the previous boot, and
+        # the NTP step moved it FORWARD to 18:00:52. HostRebooted did fire, at
+        # info, into the null receiver.
+        #
+        # for: 5m IS MEASURED, NOT PICKED. Over the 30 days of retention on
+        # 2026-09-19 the estate booted eight times (Saruman three, oracle
+        # three, prometheus twice) and, read at 15s resolution around each
+        # boot, produced not one sample of 0: timesyncd syncs before the
+        # first 60s scrape on an ordinary boot. The only run of 0 in retention
+        # was the backdated window, 14:54:27 to 15:08:12 in TSDB time. Five
+        # minutes is five scrapes above the measured normal, fires about six
+        # minutes into that window, and would have said so roughly eight
+        # minutes before NTP repaired it. 15m would have missed the event
+        # entirely. The kernel also re-raises STA_UNSYNC on its own about
+        # nine hours after the last NTP update (maxerror grows at 500 us/s
+        # to the 16 s phase limit), so an NTP path that dies quietly is
+        # reported here before it has produced any drift for HostClockSkew.
+        #
+        # WHAT IT CAN AND CANNOT SEE. For a remote-writing host other than
+        # this one (oracle, next in line for the same swap), Prometheus is on
+        # a correct clock: the alert fires in real time, the ALERTS record is
+        # stamped correctly, and only that host's own samples are backdated.
+        # For prometheus itself the rule sees only the part of the window in
+        # which Prometheus was running on the wrong clock — 13.8 minutes of a
+        # roughly 3h18m outage on 2026-09-18. The notification reaches ntfy
+        # in real time; the alert's own startsAt and its ALERTS series carry
+        # the same wrong clock. It sees nothing of the hours the stack was
+        # down, and says nothing about samples written before the first 0.
+        expr: node_timex_sync_status == 0
+        for: 5m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} clock has no time source"
+          description: >-
+            The kernel reports its clock unsynchronised: no NTP source has
+            confirmed the time. HostClockSkew stays quiet here because a clock
+            that is wrong but stable has nothing to correct. Every sample and
+            log line this host stamps while this fires is on an unconfirmed
+            clock — after a battery or RTC loss it is backdated into the outage
+            it follows. Check `timedatectl timesync-status` and
+            `journalctl -b -u systemd-timesyncd`;
+            docs/runbooks/replace-the-laptop-cell.md step 6 says how to read
+            the TSDB afterwards.
+
       - alert: HostRebooted
         expr: time() - node_boot_time_seconds < 600
         labels:
@@ -332,6 +400,61 @@ groups:
             replaced — that is deliberate, because a drive that failed once and
             went quiet is still a drive that failed. Check backups first.
 
+      # --- ZFS pool state, for the one host whose disks ARE a pool (#558) ---
+      #
+      # node_exporter's zfs collector reads /proc/spl/kstat/zfs/<pool>/state
+      # and exports one 0/1 series per pool per state:
+      # node_zfs_zpool_state{zpool="erebor",state="online|degraded|faulted|
+      # offline|removed|suspended|unavail"}. smaug exported it from the day the
+      # scrape went live (2026-09-19, #522) and nothing read it: the SMART
+      # family above is homelab_smart_*, which #483 says cannot reach smaug,
+      # and every other disk rule in this file is per-filesystem.
+      #
+      # WHAT THE FIRST INCIDENT LOOKED LIKE, and why this rule did not see it.
+      # 2026-09-19 20:55 PDT, TrueNAS: "Pool erebor state is ONLINE: One or
+      # more devices are faulted in response to persistent errors ... Disk
+      # ST18000NM003D-3DL103 ZVTBSDL3 is FAULTED" — one day after the drive
+      # arrived, an hour after its extended self-test completed clean. Nine
+      # minutes EARLIER, at 20:46, up{instance="smaug"} went to 0 and stayed
+      # there: TCP 9100 still accepted, GET /metrics never returned — a
+      # collector blocked behind the faulted device. So InstanceDown, firing
+      # from 20:50, was the page, and this series stopped being written before
+      # the pool state had anything to say. This rule catches only the case
+      # where the exporter SURVIVES the fault, and for a collector that reads
+      # kstats through the failing disk that may be the exception rather than
+      # the rule. InstanceDown inhibits it on the same instance
+      # (alertmanager.yaml), which is the right order: when the exporter is
+      # dead, InstanceDown is the signal, and the runbook's first step is at
+      # the console either way.
+      #
+      # `state!="online"` == 1 rather than `state="online"` == 0, so the label
+      # carries WHICH state the pool is in and a state name the collector
+      # learns later is caught without editing this line. boot-pool is covered
+      # by the same selector. A resilver after a replacement holds the pool at
+      # degraded for its whole duration; the alert firing throughout is the
+      # intended reading, not noise — the runbook says so where it happens.
+      #
+      # for: 5m is five scrapes at the node job's 60s. Critical, on the
+      # hardware route: a two-disk mirror with a device out has no redundancy
+      # left, and erebor/apps is the dataset ADR-0008 calls irreplaceable.
+      - alert: ZpoolNotOnline
+        expr: node_zfs_zpool_state{state!="online"} == 1
+        for: 5m
+        labels:
+          component: host
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "{{ $labels.instance }}: zpool {{ $labels.zpool }} is {{ $labels.state }}"
+          description: >-
+            The pool's own state, read from its kstat, has not been online for
+            five minutes. On a two-disk mirror that is one disk carrying
+            everything, the replaceable library and the irreplaceable Jellyfin
+            state alike. `zpool status -v {{ $labels.zpool }}` at the console
+            names the device; docs/runbooks/replace-the-nas-disk.md is the
+            order to do things in, and copying erebor/apps off comes before
+            touching a tray.
+
       - alert: SystemUpdateAvailable
         # A pfSense system upgrade has been available for a week (#378).
         #
@@ -497,10 +620,13 @@ groups:
       # `or` in HostBatteryHealthLow keeps the energy_* spelling for a future
       # machine whose driver reports watt-hours instead.
       #
-      # THREE RULES, THREE QUESTIONS. Is the shelf on mains right now; is the
-      # cell still worth relying on; is there a cell at all. Only the last
-      # needs to know which hosts are laptops, and that list lives in its
-      # expression and nowhere else.
+      # SIX ALERTS AND ONE RECORDING RULE, FIVE QUESTIONS. Is the shelf on
+      # mains right now; is the cell still worth relying on; is there a cell at
+      # all; is the cell hot; and how long does the host have left on it. Only
+      # "is there a cell" needs to know which hosts are laptops, and that list
+      # lives in its expression and nowhere else. The sixth alert,
+      # HostBatteryTempNotMeasured, asks whether the fourth question can be
+      # answered at all — on 2026-09-19 it cannot, on either host; see below.
       #
       # PROMETHEUS'S CELL WAS REPLACED ON 2026-09-18 (#454). The figures above
       # are the pack that came out, and they stay: they are what these rules
@@ -515,9 +641,50 @@ groups:
       # depends on either figure: HostBatteryHealthLow reads the RATIO, so a
       # design figure that moves is absorbed rather than breaking the rule.
       #
-      # oracle's cell is unchanged, unbought and still firing.
-      # docs/runbooks/replace-the-laptop-cell.md has the fit, and what it still
-      # owes: the mains pull on the charged pack, which is why #454 is open.
+      # oracle's cell is unchanged and still firing; its replacement was bought
+      # on 2026-09-19 and is in transit (#531).
+      # docs/runbooks/replace-the-laptop-cell.md has the fit and the mains pull
+      # that closed #454 on 2026-09-19: HostOnBattery pending at the first
+      # offline sample, firing 2m32s after the plug, resolved a minute after it
+      # went back; 2.72 Ah/h drawn, about 2.5 h from full. One measurement.
+      #
+      # THE SWAP ALSO CLEARED THE RTC, and the stack came back writing samples
+      # three hours in the past. HostClockUnsynchronised above is the rule
+      # that reads the field which carried that event (#519).
+      #
+      # CELL TEMPERATURE, READ ON 2026-09-19 (#532). Neither laptop measures
+      # it. oracle's BAT0 has never exported node_power_supply_temp_celsius —
+      # the Dell's driver exposes no temp attribute, and its dell_smm hwmon
+      # carries CPU, GPU and Ambient only. prometheus's did: the cell that came
+      # out ran 32.7–39.2 °C over its last 24 h and never above 40.3 °C in
+      # thirty days of retention, changing 99 times in 26 h. The A1437 fitted
+      # on 2026-09-18 has reported 25.5 °C on every one of its 1,560 samples
+      # since — zero changes — and the Apple SMC's own battery thermistors
+      # (hwmon TB0T/TB1T/TB2T) froze at the same moment, because the SMC reads
+      # them from the pack. There is no independent sensor to fall back on.
+      # HostBatteryHot is written anyway, at 45 °C for five minutes: it costs
+      # nothing, and it goes live the day a pack that measures is fitted.
+      # HostBatteryTempNotMeasured says, per host, that today is not that day.
+      # It is `info` on purpose — true on both hosts for as long as these packs
+      # are in, and a warning would be two twelve-hour nags forever on the
+      # channel whose ntfy budget the heartbeat already spends (#407). Until
+      # it resolves, the trackpad inspection in replace-the-laptop-cell.md §3
+      # is the only hot-cell detection there is.
+      #
+      # RUNTIME ON BATTERY: A RULE, NOT THE ANNUAL FIGURE. #532 allowed either.
+      # Step 8 of the runbook measures runtime once, at one load, on one day;
+      # homelab_battery_runtime_seconds computes it on every cut from the
+      # pack's own instantaneous draw, and HostBatteryRuntimeLow pages when it
+      # falls under thirty minutes — the last page before the estate goes
+      # blind. node_power_supply_current_ampere rather than deriv() of
+      # charge_ampere: the draw is non-zero from the first sample after mains
+      # drops (1.35 A on prometheus, 0.44 A on oracle, 2026-09-08), where a
+      # ten-minute derivative of a three-decimal gauge is ten minutes late and
+      # steppy. The draw is also non-zero while CHARGING (1.68 A and 0.97 A on
+      # the same day), which is why the recording rule is gated on the same
+      # online=0/type="Mains" join HostOnBattery uses rather than on the sign
+      # of anything. "Would notice it halving" is the recorded series read
+      # over months, and the capacity half of halving is HostBatteryHealthLow.
 
       - alert: HostOnBattery
         # The mains adapter reports online=0, joined to the info series so that
@@ -605,3 +772,111 @@ groups:
             are both blind to it until it comes back. Check
             /sys/class/power_supply/ on the host, and whether the cell was
             removed on purpose.
+
+      - alert: HostBatteryHot
+        # THE THRESHOLD IS MEASURED, NOT CHOSEN — against the pack that came
+        # out, because the one fitted measures nothing (header). Its highest
+        # reading in thirty days of retention was 40.3 °C, its 99.9th
+        # percentile 39.6, the runbook's 24 h band 32.7–39.2. 45 °C is 4.7 °C
+        # above anything that cell ever produced, and it is the charge
+        # temperature ceiling lithium-ion datasheets put on a pack: a cell
+        # above it on a shelf, idling on mains, is outside its own envelope.
+        # Five minutes and not one sample, per the runbook — a single reading
+        # proves nothing; five consecutive ones at Alloy's 60 s push do.
+        #
+        # Critical, the hardware route: a hot cell in an occupied room is the
+        # one alert in this section that should wake someone. Not `power` —
+        # that route is for the mains being out. No host selector: only a host
+        # with a cell has the series, and the list of laptops stays written
+        # once, in HostBatteryNotReported.
+        expr: node_power_supply_temp_celsius > 45
+        for: 5m
+        labels:
+          component: host
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $labels.power_supply }} reads {{ $value }} °C"
+          description: >-
+            The cell's own gauge has read above 45 °C for five minutes. The
+            pack this threshold was measured against never read above 40.3 °C
+            idling on a shelf. Treat the machine as a hazard: unplug it, do not
+            leave it unattended, and read
+            docs/runbooks/replace-the-laptop-cell.md §3 before touching it.
+
+      - alert: HostBatteryTempNotMeasured
+        # A cell that is present and whose temperature either does not exist
+        # as a series (oracle) or has not changed in 24 hours (the A1437 in
+        # prometheus, 25.5 °C on every sample since it was fitted). A real
+        # thermistor on an idle laptop still jitters by a tenth of a degree
+        # many times a day — the old cell changed 99 times in 26 h — so zero
+        # changes in a day is a gauge returning a constant, not a quiet room.
+        # It fires for both hosts the day it lands, and that is the finding:
+        # HostBatteryHot is blind until this resolves, which it does by itself
+        # the first day a pack reports a moving figure. `info`, for the reason
+        # in the header: recorded, never notified.
+        expr: >-
+          node_power_supply_present{power_supply=~"BAT.*"} == 1
+          unless on (instance, power_supply)
+          changes(node_power_supply_temp_celsius[24h]) > 0
+        for: 1h
+        labels:
+          component: host
+          severity: info
+          category: hardware
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $labels.power_supply }} reports no moving temperature"
+          description: >-
+            The cell is present but its temperature is either not exported or
+            has not changed in 24 hours, so HostBatteryHot cannot fire for it.
+            Nothing to do on the host: the pack's gauge is what it is. Until
+            this resolves, the inspection in
+            docs/runbooks/replace-the-laptop-cell.md §3 is the only check on a
+            hot cell here.
+
+      - record: homelab_battery_runtime_seconds
+        # Seconds the host has left on its cell at the draw it is presenting
+        # right now, and only while it is on that cell. charge_ampere is what
+        # the kernel calls charge_now, in Ah; current_ampere is the pack's
+        # instantaneous draw in A. The `> 0` on the divisor drops the sample
+        # instead of recording +Inf for the first scrape after the plug is
+        # pulled, when the draw still reads 0. The `or` branch keeps the
+        # watt-hour spelling for a future driver, as HostBatteryHealthLow does.
+        # The gate is HostOnBattery's own join, not the ALERTS series: ALERTS
+        # lags by that rule's `for`, and the same expression in the same group
+        # is the honest "while on battery".
+        expr: >-
+          (
+            node_power_supply_charge_ampere / (node_power_supply_current_ampere > 0)
+            or
+            node_power_supply_energy_watthour / (node_power_supply_power_watt > 0)
+          ) * 3600
+          and on (instance)
+          (
+            node_power_supply_online == 0
+            and on (instance, power_supply)
+            node_power_supply_info{type="Mains"}
+          )
+
+      - alert: HostBatteryRuntimeLow
+        # Thirty minutes: the last page before the estate goes blind, with time
+        # to act on it — a clean shutdown, or a generator lead. Both cells
+        # project four hours and more from full at the loads measured on
+        # 2026-09-08 (6.2 Ah at 1.35 A on prometheus, 1.9 Ah at 0.44 A on
+        # oracle), so a healthy pack never gets here and the runbook's bounded
+        # 50 % test does not either. Critical on the power route beside
+        # HostOnBattery, which is already firing by the time this can.
+        expr: homelab_battery_runtime_seconds < 30 * 60
+        for: 5m
+        labels:
+          component: host
+          severity: critical
+          category: power
+        annotations:
+          summary: "{{ $labels.instance }} has {{ $value | humanizeDuration }} of battery left"
+          description: >-
+            The host is on its own cell and, at the draw it is presenting now,
+            has under thirty minutes before it dies with the cut it is supposed
+            to outlast. If this is prometheus, that is the monitoring host:
+            shut it down cleanly rather than letting the cell decide.
+            HostOnBattery says why the mains is out.

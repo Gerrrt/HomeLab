@@ -33,6 +33,14 @@ nothing else that would ever write it, and the nag was silent for as long as
 that lasted ([#400](https://github.com/Gerrrt/HomeLab/issues/400)).
 `SecretsKeyRecipientsUnrecorded` fires if the file is missing anyway.
 
+The estate CA's private key has the same arrangement since
+[#496](https://github.com/Gerrrt/HomeLab/issues/496): `make certs-verify-backup`
+is the human proof — a comparison of public keys against a copy on the same
+offline medium, no timer, ninety days — `CaKeyBackupUnproven` is the nag, and
+the `ca-key-state` timer writes the series it reads every day, keyed on the
+key's fingerprint so a re-minted CA starts at never rather than inheriting the
+old key's proof ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)).
+
 Two jobs' output leaves this host. `backup-firewall` copies every export to
 `oracle` and **fails if it cannot**, so its `ScheduledJobFailed` also means "the
 config has stopped leaving `prometheus`" — a file that never left is a failed
@@ -48,7 +56,20 @@ the sets, on both sides — so neither job can fill either disk;
 [`restore-the-stack.md`](restore-the-stack.md) §0 have the windows and how to
 change them. Both copies ride on one key exchange between the two laptops, in
 [`restore-the-firewall.md`](restore-the-firewall.md) §0, and fail on purpose
-until that is done. Deployment itself is now
+until that is done. One job's output
+*arrives* from another host before it leaves: `backup-nas` reaches into
+`smaug` over `99 → 40:22` — the direction
+[ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+requires of CasaBonita, which may initiate nothing — reads Jellyfin's state
+out of the dataset's newest ZFS snapshot, encrypts it here, and then copies
+the set to `oracle` by the same helpers and under the same rules as the
+volume sets
+([ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)).
+It stops nothing on either side. Its retention is `NAS_KEEP`, beside
+`FW_KEEP` and for the same reason: every unit reads the one environment
+file, and `KEEP` is the volume sets'. `verify-backups` reads both
+directories, here and on `oracle`, so one nightly job proves both kinds of
+set. Deployment itself is now
 one of these jobs rather than something a human remembers to do —
 [#99](https://github.com/Gerrrt/HomeLab/issues/99),
 [ADR-0021](../adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md), and
@@ -67,7 +88,8 @@ the host.
 | --- | --- | --- | --- |
 | `converge` | `make converge` | hourly, :25 | 3 hours |
 | `backup-volumes` | `make backup` | Sundays 03:30 | 14 days |
-| `verify-backups` | `make backup ARGS='--verify-only --all'` | daily 05:30 | 3 days |
+| `backup-nas` | `make backup-nas` | Saturdays 03:30 | 14 days |
+| `verify-backups` | `make verify-backups` | daily 05:30 | 3 days |
 | `backup-firewall` | `make backup-firewall` | daily 04:30 | 3 days |
 | `snmp-verify` | `make snmp-verify` | Wednesdays 06:30 | 14 days |
 | `check-versions` | `make check-versions` | Wednesdays 06:45 | 14 days |
@@ -79,8 +101,10 @@ the host.
 | `smart-state-remote` | `make smart-state-remote` | daily 08:45 | 2 days |
 | `pkg-state` | `make pkg-state` | daily 09:00 | 2 days |
 | `recipient-state` | `make recipient-state` | daily 09:15 | 2 days |
+| `ca-key-state` | `make ca-key-state` | daily 09:30 | 2 days |
 | `gateway-state` | `make gateway-state` | every 15 minutes | 90 minutes |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
+| `verify-ca-key-backup` | **you**, `make certs-verify-backup KEY=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
 period fires on every run that slips past its jitter window, whereas twice
@@ -550,7 +574,8 @@ expected rather than a second fault.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` until you first verify the key. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `CaKeyBackupUnproven` | No offline copy of `certificates/ca-key.pem` has been proved in ninety days — or ever, or not since the CA was re-minted, which the fingerprint label tells apart | Mount the medium and `make certs-verify-backup KEY=…` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)). After a re-mint, copy the new key there first; the old copy is refused |
 | `SecretsKeyRecipientsUnrecorded` | The ninety-day deadline is declared and no recipient has a proof series, so `SecretsKeyBackupUnproven` cannot fire however stale the proof is | `systemctl start homelab-recipient-state.service`. If that unit does not exist the timers predate [#400](https://github.com/Gerrrt/HomeLab/issues/400): `make install-timers` adds it and primes it. On a host with one recipient the first write inherits the old `verify-key-backup` proof rather than starting from never |
 | `ScheduledJobMetricsAbsent` | Nothing from the textfile directory has reached Prometheus in six hours | This is the whole directory, not one file — check Alloy is up and the directory still exists. A single malformed file shows as `node_textfile_scrape_error 1` and costs only that file |
 | One job's series missing, `node_textfile_scrape_error` is 1 | That job's `.prom` failed to parse — a truncated write, or something wrote it without the temp-then-rename | The other files are unaffected. Re-run the job; if it recurs, something is writing the file directly instead of through `run-scheduled.sh` |
@@ -560,6 +585,7 @@ expected rather than a second fault.
 | `backup-firewall` exits 1 with *off-host copy FAILED* | `oracle` is down, its host key is not in `robo`'s `known_hosts`, or this host's key is not authorised there | The export was written locally and is intact. Repair the path to `oracle` — [`restore-the-firewall.md`](restore-the-firewall.md) §0 — and the next run copies every file that never left |
 | `backup-volumes` exits 1 with *off-host copy FAILED* | The same three causes, or `oracle` ran out of room | The set was written and verified here and the stack is up. Repair the path, then `make backup ARGS=--copy-only` — it copies every set `oracle` lacks without stopping the stack, and the next weekly run would do the same |
 | `verify-backups` exits 1 naming a set on `oracle` as *missing* or *differs* | The copy of that set never landed, was removed, or its bytes no longer hash to the manifest | Every local set still decrypts, or the message would say so first. *Missing*: `make backup ARGS=--copy-only`. *Differs*: nothing removes it for you — look at it, `rm -rf` that one directory on `oracle`, then the same command. [`restore-the-stack.md`](restore-the-stack.md) §0 |
+| `backup-nas` exits 1 | The message says which: *cannot reach* means SSH is off on `smaug`, the `99 → 40:22` pass is out of position, or the key or host key is missing; *newest snapshot … is N hours old* means the periodic task on `smaug` has stopped; *tar could not read* means Jellyfin wrote a file `frodo` cannot read | Nothing is stopped on either side and the last complete set is intact. [`build-the-nas.md`](build-the-nas.md) §6.2 is the setup this checks against, and names the fallback for the third case. A snapshot named in the *future* means `NAS_SNAPSHOT_TZ` is not `smaug`'s zone |
 | `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
 | `loki-coverage` exits 1 | A Loki alerting rule cannot see a host that is producing exactly the lines it hunts | Not an outage — nothing is broken, but an alert cannot fire for that host, which is how [#261](https://github.com/Gerrrt/HomeLab/issues/261) went unnoticed. The FAIL line names the rule, the host and the log type the lines are arriving under; the fix is usually an `or` branch on the rule for that host's stream. A `WARN` is the latent form — the rule cannot reach the host at all, but nothing there matches it today — and does not fail the job |
 | `firewall-claims` exits 1 | A segmentation claim in `docs/firewall-claims.yaml` no longer matches the running ruleset | Not an outage, and the firewall is not the thing that is wrong — a document is. The FAIL line names the interface, the segment and the direction: *now reaches X* means a block was removed or a VLAN was added, *no longer reaches X* means a block landed and the prose still describes the world before it. Re-derive with `scripts/check_firewall_claims.py --derive`, then move the prose that cites it — `docs/network.md` and `docs/security.md`. Never edit an ADR in place: [ADR-0001](../adr/0001-record-architecture-decisions.md) makes them immutable, so a stale one gets a marked amendment or a superseding ADR |

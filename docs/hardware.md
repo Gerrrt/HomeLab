@@ -22,13 +22,21 @@ by the TP-Link in U4, and eero Pro 6E units distributed through the house.
 Both laptops ride a mains cut out on their own cells, so each cell is a
 dependency of the mains-cut path and is watched as one: Alloy's node collector
 exports `node_power_supply_*` from both, and `host.rules.yaml` alerts when the
-shelf is off mains, when a cell falls below 80 % of its design capacity, and
-when a laptop reports no cell at all
-([#454](https://github.com/Gerrrt/HomeLab/issues/454)). `prometheus`'s cell was
+shelf is off mains, when a cell falls below 80 % of its design capacity, when a
+laptop reports no cell at all
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)), when a cell reads above
+45 °C, and when a host on its cell has under thirty minutes left
+([#532](https://github.com/Gerrrt/HomeLab/issues/532)). `prometheus`'s cell was
 replaced on 2026-09-18 and reads 101 % of its design capacity at one cycle;
-`oracle`'s is the original, reads 72 %, and is identified as a Dell M5Y1K and
-unbought ([#531](https://github.com/Gerrrt/HomeLab/issues/531)). How long
-either laptop actually runs on its cell has never been measured.
+`oracle`'s is the original, reads 72 %, and its replacement — a Dell M5Y1K —
+was bought on 2026-09-19 and is in transit
+([#531](https://github.com/Gerrrt/HomeLab/issues/531)). `prometheus`'s runtime
+was measured on 2026-09-19: 2.72 Ah/h at the stack's load, about 2.5 hours
+from a full pack, one measurement on one day. `oracle`'s has never been
+measured. Neither pack reports a moving cell temperature — the Dell exports
+none, and the A1437 fitted to `prometheus` returns a constant — so the
+temperature alert is blind until a pack that measures is fitted, and
+`HostBatteryTempNotMeasured` says so.
 
 The patch panel and the PDU were listed the other way round here until
 2026-08-29. U8 is the panel and U7 is the PDU, confirmed against the rack.
@@ -41,7 +49,7 @@ quietly swapped.
 | Host | Hardware | CPU | RAM | Storage | OS |
 | --- | --- | --- | --- | --- | --- |
 | `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB NVMe SSD | FreeBSD 16.0 (pfSense) |
-| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SAS HDD, RAID 1 (`pve`); 2× 960 GB SATA SSD, RAID 1, LVM-thin `Large_data` | Proxmox VE 9 |
+| `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SATA HDD, RAID 1 (`pve`); 2× 960 GB SATA SSD, RAID 1, LVM-thin `large_data` | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
 | `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
@@ -262,7 +270,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   that fan is **not optional**: it is the airflow over the drive bays, and two
   7200 rpm Exos under a scrub will want it. Reconnected after the swap and
   reading `Aux Fan: Operating`.
-- 2× Seagate Exos X20 18 TB (`ST18000NM003D`, firmware `SN03`), 3.5" SATA —
+- 2× Seagate Exos X20 18 TB (`ST18000NM003D`, firmware `SN03`), 3.5" SATA[^Exos] —
   bought 2026-09-11, **in hand since 2026-09-18**, a day after the carrier's
   window lapsed. `smaug`'s ZFS mirror
   ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
@@ -288,6 +296,29 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   2026-09-18, so this supply puts nothing on pin 3 and the Power Disable trap
   `build-the-nas.md` §1 records does not apply on this box — it would on a
   supply that does. They entered the Compute table with the pool.
+  **Both extended self-tests completed without error.** Started 2026-09-18 at
+  lifetime hour 0, under the pool creation and the first day of the stack, and
+  read on 2026-09-20 with `smartctl -l selftest`: `ZVTBS4NL` (`sda`) logged
+  the completion at lifetime hour 25 and `ZVTBSDL3` (`sdb`) at 26, no LBA of
+  first error on either, and `sdb`'s log still carries the seller's short
+  test at hour 0 above it. That was the last open line of
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §7, and
+  [#413](https://github.com/Gerrrt/HomeLab/issues/413) closed on it.
+  **`ZVTBSDL3` (`sdb`) FAULTED on 2026-09-19 at 20:55 PDT (03:55 UTC
+  2026-09-20), at about lifetime hour 27** — one day after arrival and about
+  an hour after the extended self-test above completed clean. TrueNAS
+  raised *"Pool erebor state is ONLINE: One or more devices are faulted in
+  response to persistent errors … Disk ST18000NM003D-3DL103 ZVTBSDL3 is
+  FAULTED"*. node_exporter's `/metrics` had stopped answering at 20:46, nine
+  minutes earlier, with the port still accepting connections, so
+  `InstanceDown` was the page and `ZpoolNotOnline` — the rule this fault
+  produced — never got a sample. `ZVTBS4NL` carries the pool alone until a
+  replacement is fitted; the return runs under the eBay guarantee, thirty
+  days from the 2026-09-18 delivery, to 2026-10-18. What `dmesg` and SMART
+  said at the console, and the outcome, belong in
+  [`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md)'s status
+  block and then here; [#558](https://github.com/Gerrrt/HomeLab/issues/558)
+  carries it.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches
@@ -347,11 +378,19 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, delivered
   2026-09-11, fitted 2026-09-18 in bays 3 and 4 of the ProLiant, and **since
   2026-09-19 the P440ar's logical drive 2: RAID 1, `915683` MB, carrying the
-  LVM-thin pool `Large_data`** (volume group, pool and Proxmox storage id are
+  LVM-thin pool `large_data`** (volume group, pool and Proxmox storage id are
   all that one word). Bought against the number every sizing decision on
   `Saruman` starts from: a 7.2K mirror serving about ninety random write IOPS
   ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
-  Serial `S3F3NX0K601487` in Bay 3 and `S3F3NX0K806107` in Bay 4, firmware
+  **Measured 2026-09-20** (fit runbook step 8: 4 KiB random write, queue
+  depth 1, `direct=1`, an 8 GiB thin volume on each pool): the HDD mirror
+  does **741 IOPS** idle and 734 with the guest live, 1.3 ms mean and 12.5 ms
+  p99, against the derived 83 — the controller's battery-backed write cache,
+  which `ssacli` reads as `10% Read / 90% Write` and the iLO reads as `0`, is
+  absorbing writes; at queue depth 32 the mirror sustains 712. The SSD mirror
+  does **7,952 IOPS** at queue depth 1, 102 µs mean and 198 µs p99, and
+  51,600 at queue depth 32 — on SSD Smart Path, with no controller cache in
+  the path. Serial `S3F3NX0K601487` in Bay 3 and `S3F3NX0K806107` in Bay 4, firmware
   `GXM5304Q`, both negotiated at 6 Gb/s — **as the iLO reports them over
   SNMP, not as read off the labels.** The fit runbook asked for the labels
   first, because reading a serial back through the controller means reading
@@ -364,7 +403,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   and `notConfigured` from the first scrape they appeared in, at 20:11 UTC on
   2026-09-18, and `configured` from 13:40 UTC the next day, the scrape the
   logical drive first appeared in — created through the offline Smart Storage
-  Administrator, not `ssacli`, which is still not on the host. The array read
+  Administrator, not `ssacli`, which reached the host that evening from HPE's
+  `trixie` suite and read the controller for the first time. The array read
   `ok` from its first scrape and nothing alerted for it; what did alert was
   the fourteen-and-a-half-hour power-off the SSA session sat inside, which the
   runbook now records. **The iLO's wear columns stayed blank once the drives
@@ -372,13 +412,20 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   unknown — which is the condition
   [#529](https://github.com/Gerrrt/HomeLab/issues/529) was filed against, so
   wear on these two drives is [#529](https://github.com/Gerrrt/HomeLab/issues/529)'s
-  to read through `hpsa`. What has not moved is everything after the pool:
-  `alexander` still on the HDD mirror, no cache reading for
-  [#76](https://github.com/Gerrrt/HomeLab/issues/76), and no measurement — so
-  [#527](https://github.com/Gerrrt/HomeLab/issues/527) stays open and the
-  ADRs whose arithmetic it names stand as written until step 8 of
-  [`fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md) produces a
-  number. This entry is where the serials live, which is the question
+  to read through `hpsa`, and `ssacli` agrees: both report `SSD Smart Trip
+  Wearout: Not Supported`. **`alexander` has lived on `large_data` since
+  02:41 UTC on 2026-09-20** — a 100 GiB disk mirrored across online in
+  7 min 28 s, `unused0` removed, `ssd=1` set, and rebooted so the guest sees
+  a non-rotational disk. The cache reading
+  [#76](https://github.com/Gerrrt/HomeLab/issues/76) waited on since
+  2026-09-02 is taken and is the iLO's blind spot, not the controller's:
+  the ratio is set and the cache is working. The numbers above are what
+  [#527](https://github.com/Gerrrt/HomeLab/issues/527) closed on, and the
+  ADRs whose arithmetic they replace carry dated notes rather than edits.
+  The two spinners in bays 1 and 2 are **SATA**, not the SAS this table
+  said until 2026-09-20 — `Interface Type: SATA`, `MM1000GBKAL`, read by
+  `ssacli` — which changes no decision and one word. This entry is where the
+  serials live, which is the question
   [#148](https://github.com/Gerrrt/HomeLab/issues/148) asked.
 - 2× HP 2.5" SFF drive tray, `651687-001`[^Caddy] — bought 2026-09-11,
   **arrived and fitted 2026-09-18**, one under each SM863a in bays 3 and 4.
@@ -465,22 +512,28 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   Compute table changes; a cell is not a spec.
   **Checked at the fit:** `charge_full` above `charge_full_design`,
   `cyclecount` 1, `charge_ampere` moving, and both design figures changed — all
-  read from this host's own Prometheus on 2026-09-18. **Not checked, and the
-  reason [#454](https://github.com/Gerrrt/HomeLab/issues/454) is still open:**
-  the mains pull on the fully charged pack, which is the property the cell was
-  bought for and a runtime the estate has never had. The pack was still
-  charging when the fit was recorded.
+  read from this host's own Prometheus on 2026-09-18. **Checked on
+  2026-09-19, and the check that closed
+  [#454](https://github.com/Gerrrt/HomeLab/issues/454):** the mains pull on the
+  fully charged pack. The host stayed up for a bounded 22 minutes on the cell,
+  `HostOnBattery` fired for it alone, and the draw measured 2.72 Ah/h — about
+  2.5 hours from full at the load the stack presents, the first runtime figure
+  the estate has had for either laptop, and one measurement on one day.
   ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) carries
   the baseline, the stack-down window — 14:53 to about 18:12 on the day, over
   its own two-hour bound — and the disposal.) `oracle`'s cell reads 72 % and is
-  second in line, unbought — the entry below.
-- Dell M5Y1K 4-cell pack for `oracle` — 14.8 V, 40 Wh, the latched pack the
-  Inspiron 15-3565 in the Compute table takes. **Identified 2026-09-19 and
-  unbought**, under [#531](https://github.com/Gerrrt/HomeLab/issues/531): the
-  part is written down before the money is spent, which is the order that
-  issue asks for, and the seller, the listing, the purchase date and a
-  footnote go here when it is bought. The number comes off the machine rather
-  than off a listing: `/sys/class/power_supply/BAT0` reports `model_name`
+  second in line, bought 2026-09-19 — the entry below.
+- Dell M5Y1K 4-cell pack for `oracle`[^M5Y1K] — 14.8 V, 40 Wh, the latched
+  pack the Inspiron 15-3565 in the Compute table takes. **Identified and
+  bought 2026-09-19, in transit**, under
+  [#531](https://github.com/Gerrrt/HomeLab/issues/531): the part was written
+  down here before the money was spent, which is the order that issue asks
+  for, and the purchase followed the same day. The listing calls it genuine
+  Dell, which — as with the A1437 above — is the listing's claim until the
+  pack is looked at; a Dell label and a `serial_number` that is not `1650`
+  are what would settle it, and the fit records which it turned out to be.
+  The listing quoted delivery in two to four days. The number comes off the
+  machine rather than off the listing: `/sys/class/power_supply/BAT0` reports `model_name`
   `DELL VN3N047`, and `VN3N0` is one of the interchangeable Dell part numbers
   for this pack — `M5Y1K` is the primary, and `WKRJ2`, `HD4J0`, `991XP` and
   `GXVJ3` the others listings carry — with `manufacturer` `SMP-Sanyo2` and
@@ -518,6 +571,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^Shiva]: [HPE ProLiant DL360 Gen9](https://buy.hpe.com/us/en/servers/rack-servers/proliant-dl300-servers/proliant-dl360-server/p/1010026922)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
 [^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
+[^Exos]: [Seagate Exos X20 18TB SATA 6Gb/s 7200RPM Enterprise HDD ST18000NM003D 0HR Drives](https://www.ebay.com/itm/237056026029)
 [^SM863a]: [Samsung SM863a 960 GB, MZ-7KM960N](https://www.ebay.com/itm/800210578217)
 [^Caddy]: [HP 2.5" SFF drive tray, 651687-001, for DL360/DL380/ML350 Gen8 and Gen9](https://www.ebay.com/itm/126297185368)
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)
@@ -527,6 +581,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446)
 [^A1437]: [A1437 battery for the MacBook Pro 13" A1425 Retina](https://www.ebay.com/itm/356174101017)
+[^M5Y1K]: [Dell M5Y1K 40 Wh 4-cell battery for the Inspiron 15 3000 series](https://www.ebay.com/itm/357495025211)
 [^ProDeskRackmount]: [1U rackmount for ProDesk Mini](https://a.co/d/4d7klOL)
 [^I226]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N)
 [^Sliderail]: [Sliding rails for ProLiant](https://a.co/d/5d4A4FO)

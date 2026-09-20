@@ -90,6 +90,14 @@ services:
       # out there is heap-per-shard, not disk. Wazuh is still the heaviest thing
       # arriving; it is not going to be the thing that fills this pair.
       #
+      # Since 2026-09-20 this volume is not on those two spindles at all: the
+      # guest's disk lives on Saruman's SSD pool, large_data, which measured
+      # 7,952 random write IOPS at queue depth 1 against the mirror's measured
+      # 741 (#527; the ~90 above was derived, and wrong by the controller's
+      # write cache). The domain's guests go there too. The retention figure
+      # below is unchanged: it was sized on what is worth keeping, and the
+      # instruction to re-derive it against real ingest stands.
+      #
       # Re-derive it the way the estate's was, once the domain exists and this
       # has run for a fortnight:
       #   rate(prometheus_tsdb_head_samples_appended_total[1d])

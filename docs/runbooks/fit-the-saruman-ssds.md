@@ -3,8 +3,51 @@
 **Two drives, no maintenance window, and a number that has to be measured on
 both arrays — not assumed from either.**
 
-> **Status — 2026-09-19: logical drive 2 and the thin pool exist, `alexander`
-> is still on the spinners, and the number is still not measured.**
+> **Status — 2026-09-20: done. `alexander` boots from `large_data`, both
+> arrays are measured, and the cache reading #76 waited on is taken.**
+>
+> **Every step has run.** Path 1 of step 2 worked at 22:51 UTC on 2026-09-19:
+> `ssacli` 6.60 from HPE's `trixie` suite, one `apt-get`, and it finds the
+> P440ar through `hpsa` 3.4.20. Step 3 read the controller from the host for
+> the first time, and step 6's reading is **branch (a)**: `Cache Ratio: 10%
+> Read / 90% Write`, `Battery Backed Cache Size: 1.8` GB, LD 1 `Caching:
+> Enabled` — while the iLO reads `0` on every cache column it has. LD 2 is on
+> **SSD Smart Path**, and the controller refuses to cache it: `aa=enable` was
+> ignored *because* Smart Path is on, and `ssdsmartpath=enable` was refused
+> because it already is. Step 8 measured both arrays; step 9 moved
+> `alexander`'s 100 GiB disk in 7 min 28 s on 2026-09-20, removed `unused0`
+> once the guest answered, set `ssd=1` and rebooted it, and the guest sees
+> `sda` with `ROTA 0`. Step 10 had nothing to delete. Step 11's Observed
+> column is filled.
+>
+> | 4 KiB random write, `direct=1` | Target | IOPS | clat mean | clat p99 |
+> | --- | --- | --- | --- | --- |
+> | M3, idle | HDD mirror, QD1 | **741** | 1.30 ms | 12.5 ms |
+> | M1, guest live | HDD mirror, QD1 | 734 | 1.32 ms | 12.6 ms |
+> | ceiling | HDD mirror, QD32 × 4 jobs | 712 | 179 ms | 300 ms |
+> | M2 | SSD mirror, QD1 | **7,952** | 102 µs | 198 µs |
+> | ceiling | SSD mirror, QD32 × 4 jobs | 51,600 | 2.45 ms | 6.3 ms |
+>
+> **What the numbers say.** The mirror does ~740 random write IOPS at queue
+> depth 1, not the 83 ADR-0029 derived, and 712 at queue depth 32 — so ~700
+> is what the array sustains, and queueing buys nothing but latency. A mean
+> of 1.3 ms is below one half-rotation of a 7200 rpm platter, and a fifth of
+> the writes completed in 50 µs: that is the controller's battery-backed
+> write cache acknowledging writes, the thing #76 could not see through the
+> iLO. Two caveats travel with the number. The 8 GiB test region keeps seeks
+> short, so a whole-disk working set would do worse than 740 and better than
+> 83; and the guest's load made no difference (M1 and M3 agree), because
+> `alexander` idles at a few writes a second. The SSD pair is 10.7× the
+> mirror at queue depth 1 and 72× at queue depth 32, on Smart Path with no
+> controller cache in the path at all.
+>
+> **Two things the run cost, both recorded below.** Step 8 was first run
+> against `Large_data`, and fio made `/dev/Large_data/fiotest` an 8 GB file
+> on devtmpfs and benchmarked RAM until the spelling was caught (step 7's
+> note, step 8's troubleshooting row). And `alexander` never had
+> `qemu-guest-agent` installed, so `qm guest exec` and `qm reboot` both
+> failed until it was; [`build-the-lab-guest.md`](build-the-lab-guest.md)
+> now installs it.
 >
 > Both SM863a drives were fitted on 2026-09-18 (step 4; the reading is kept in
 > step 11's table). On 2026-09-19 they became **logical drive 2** — RAID 1,
@@ -15,23 +58,19 @@ both arrays — not assumed from either.**
 > from that first scrape with `PercentRebuild` never populated; both SSDs went
 > `notConfigured(3)` → `configured(2)` in the same minute. Proxmox booted at
 > 13:43 UTC and saw the new `LOGICAL_VOLUME` as `sdb`. The thin pool is
-> **`Large_data`** — that is the volume group, the pool and the storage id,
+> **`large_data`** — that is the volume group, the pool and the storage id,
 > which is what `pvesh create ... lvmthin --name` makes of one word — and its
 > three device-mapper volumes appeared between 15:46 and 15:47 UTC, with one
 > write burst of roughly 2.6 GB to `sdb` for the metadata and nothing since.
 > [#527](https://github.com/Gerrrt/HomeLab/issues/527) tracks the rest.
 >
-> **Steps 4, 5 and 7 are done; 2, 3, 6, 8, 9, 10 and 11 are not.** Path 3
-> means no `ssacli`, so the controller has never been read from the host and
-> the cache reading owed to
-> [#76](https://github.com/Gerrrt/HomeLab/issues/76) is still owed. Step 2's
-> premise was wrong, though: HPE does publish a `trixie` suite, read from the
-> SDR on 2026-09-19, so path 1 is an `apt-get` and is the next thing to run.
-> LD 2 has
-> `HasAccel` `1` other and `SSDSmartPathStatus` `1` other, the same as LD 1:
-> step 6's two `modify` lines have not run. No fio on either array, no
-> `move-disk`: `sda` reads are flat at the host's own ~50 KB/s and `sdb` has
-> carried nothing since the pool was made. Step 1's silences were never
+> **As it stood at 16:00 UTC on 2026-09-19: steps 4, 5 and 7 done; 2, 3, 6,
+> 8, 9, 10 and 11 not.** Path 3 meant no `ssacli`, so the controller had never
+> been read from the host and the cache reading owed to
+> [#76](https://github.com/Gerrrt/HomeLab/issues/76) was still owed. LD 2 read
+> `HasAccel` `1` other and `SSDSmartPathStatus` `1` other, the same as LD 1 —
+> and it still does, with `ssacli` saying Smart Path is on: those iLO columns
+> are blind on this box, like the cache ones. Step 1's silences were never
 > created, and nothing needed them — `IloHardwareDegraded` never went pending.
 >
 > **What did fire was not what the runbook said would.** Step 2 said a reboot
@@ -54,14 +93,12 @@ both arrays — not assumed from either.**
 > filed against, and it holds: wear on the newest drives in the estate needs
 > `smartctl` through `hpsa`, and #529 is no longer gated.
 >
-> **The layout is decided and the measurement is still not taken.** The SSDs
-> are the *second* logical drive on the P440ar, RAID 1, Smart Array managed;
-> the two 7.2K disks keep Proxmox, the ISOs and the backups. What that does
-> not answer is the one thing the purchase exists for: the write IOPS this
-> machine actually has. Step 8 measures it, on both arrays, with the
-> parameters ADR-0029 derived its number from — and until that reading exists,
-> no ADR here changes. The 2026-09-17 baseline in step 0 is still the *Before*
-> column of every table here; the controller rows in it have not moved.
+> **The layout is the second logical drive, and the documents are flipped.**
+> The SSDs are logical drive 2 on the P440ar, RAID 1, Smart Path; the two
+> 7.2K disks — **SATA, not SAS**, which step 3 settled — keep Proxmox, the
+> ISOs and `local-lvm`, now empty. "Flipping the documents" below records
+> what moved on 2026-09-20 and where. The 2026-09-17 baseline in step 0 is
+> still the *Before* column of every table here.
 
 `shiva` is the iLO, not the hypervisor. The host behind it is `Saruman` at
 `10.0.30.110`; see [`../hardware.md`](../hardware.md). Both are on VLAN 30.
@@ -270,6 +307,14 @@ ssacli ctrl all show status     # the real test: it must print "Smart Array P440
 dependency is `libc6`. Two dearmored keyrings concatenated into one file is a
 valid keyring, which is why the loop writes both into it.
 
+> **Path 1 worked, 2026-09-19 22:51 UTC.** `apt-get update` took the suite's
+> signed `Release` and `Packages` without complaint, `ssacli 6.60-8.0` (build
+> 2025-11-10) installed in thirteen seconds, and `ctrl all show status`
+> printed `Smart Array P440ar in Slot 0 (Embedded)` with controller, cache and
+> battery all `OK`. `show detail` names the driver: `hpsa 3.4.20`. Item 1 of
+> "What this runbook does not know" is closed on both halves — it installs
+> on PVE 9, and it runs. No reboot, no silence, nothing fired.
+
 Path 2 — take the `.deb` directly from
 `https://downloads.linux.hpe.com/SDR/repo/mcp/pool/non-free/` —
 `ssacli-6.60-8.0_amd64.deb` is the one the `trixie` index names — and
@@ -333,6 +378,33 @@ this estate has ever taken:
 - from `ld 1 show detail`: the **Caching** line
 - from `pd all show detail`: the **Interface Type** of drives 1I:1:1 and
   1I:1:2 — see item 12 at the end
+
+> **Read 2026-09-19 22:52 UTC, the first time from the host.** Verbatim, the
+> lines this runbook said nothing in the estate had ever taken:
+>
+> - `Cache Ratio: 10% Read / 90% Write` · `Total Cache Size: 2.0` · `Total
+>   Cache Memory Available: 1.8` · `Battery Backed Cache Size: 1.8`
+> - `No-Battery Write Cache: Disabled` · `Drive Write Cache: Disabled` ·
+>   `Battery/Capacitor Count: 1`, `Status: OK` · `Cache Backup Power Source:
+>   Batteries`
+> - `Elevator Sort: Enabled` · `Queue Depth: Automatic` · `Latency Scheduler
+>   Setting: Disabled` · `Current Power Mode: MaxPerformance` · `Driver Name:
+>   hpsa`, `Driver Version: 3.4.20` · `Driver Supports SSD Smart Path: True`
+> - LD 1: `Caching: Enabled`, `LD Acceleration Method: Controller Cache`,
+>   `Strip Size: 256 KB`, `Surface Scan In Progress: True`
+> - LD 2: `Caching: Disabled`, `LD Acceleration Method: Smart Path` — created
+>   that way by the offline SSA, which defaults an SSD array to Smart Path
+> - 1I:1:1 and 1I:1:2: `Interface Type: SATA`, `Model: ATA MM1000GBKAL`,
+>   `Rotational Speed: 7200`, firmware `HPGC`, `SATA NCQ Enabled: True`,
+>   `Write Cache Status: Disabled`, maximum temperatures `55` and `54` °C.
+>   **SATA, not SAS** — item 12
+> - 1I:1:3 and 1I:1:4: `Interface Type: Solid State SATA`, `Model: ATA SAMSUNG
+>   MZ7KM960` — the part number the iLO withholds — firmware `GXM5304Q`, the
+>   serials `hardware.md` carries, `SSD Smart Trip Wearout: Not Supported`,
+>   `Sanitize Erase Supported: True`
+>
+> Array A is `SATA`, Array B `Solid State SATA`, both `Unused Space: 0 MB`.
+> Controller serial `PDNLH0BRH9S2KK`, firmware `7.00`, hardware revision B.
 
 ## 4. Fit the drives
 
@@ -474,6 +546,32 @@ contradict you:
 
 **The four columns in step 0 lean towards (b).** Either answer resolves #76.
 
+> **It is (a), read 2026-09-19 22:55 UTC, and the four columns were wrong.**
+> `ssacli` reports `Cache Ratio: 10% Read / 90% Write` with `1.8` GB battery
+> backed and LD 1 `Caching: Enabled`, while the iLO reads `0` for
+> `cpqDaAccelWriteCachePercent`, `ReadCachePercent`, `Memory` and
+> `ReadMemory`, and `1` other for `cpqDaLogDrvHasAccel` on a logical drive
+> the controller says is cached. So: the iLO's agentless view does not
+> populate those columns on this iLO 4, **#76 resolves as "not readable on
+> this hardware"**, no rule may be written on them, and `IloWriteCacheDisabled`
+> reading `cpqDaAccelStatus` was right. The ratio is already the `10/90`
+> this step said suited the machine, so the change #76 would have owned does
+> not exist. Step 8 read the same answer from the other side: a 7.2K mirror
+> completing 4 KiB writes in 1.3 ms on average, a fifth of them in 50 µs, is
+> a mirror with a write-back cache in front of it.
+>
+> **The two `modify` lines did nothing, and the refusals are the finding.**
+> `ld 2 modify aa=enable` printed *"Caching cannot be enabled on this logical
+> drive because the SSD Smart Path feature is currently enabled on the array
+> — Ignoring caching=enable"*; `array B modify ssdsmartpath=enable` printed
+> *"not a valid option for array B — available options are: disable (default
+> value)"*. Smart Path is on, was on from creation, and excludes the array
+> accelerator — item 7. That is the configuration the SSDs were measured in
+> and the one they stay in: Smart Path is the design point for a RAID 1 SSD
+> array on this controller, and step 8's 7,952 IOPS at queue depth 1 with a
+> 198 µs p99 is what it delivers. The iLO shows none of it —
+> `cpqDaLogDrvSSDSmartPathStatus{2}` reads `1` other with Smart Path on.
+
 **The fix, if it is (b), is not taken here.** `modify cacheratio=` is
 controller-wide: it flushes and re-partitions the 2 GiB module, and the pause
 lands on logical drive 1 — Proxmox and `alexander`. It would also move two
@@ -510,6 +608,13 @@ If `ssacli ctrl slot=0 help modify` shows a per-array form on the installed
 version, that changes the answer and this runbook should take it. Check; do not
 assume either way.
 
+> **Checked 2026-09-19: controller-wide.** On 6.60 the form is
+> `modify drivewritecache=enable|disable|unchanged|default usage=configured|unconfigured|hba`
+> and "the target can be any valid controller target". `usage=` chooses which
+> *class* of drive the policy applies to, not which array, so enabling it for
+> configured drives would enable it on the two spinners too. Left alone, as
+> written; every physical drive reads `Write Cache Status: Disabled`.
+
 ## 7. Give Proxmox the new logical drive
 
 ```bash
@@ -528,14 +633,24 @@ Then create the thin pool the way the GUI does, substituting the device that
 actually appeared:
 
 ```bash
-pvesh create /nodes/Saruman/disks/lvmthin --name Large_data --device /dev/sdb --add_storage 1
+pvesh create /nodes/Saruman/disks/lvmthin --name large_data --device /dev/sdb --add_storage 1
 pvesm status
 ```
 
-> **Done 2026-09-19, and the name is `Large_data`, not `ssd`.** One word to
+> **Done 2026-09-19, and the name is `large_data`, not `ssd`.** One word to
 > `--name` becomes the volume group, the thin pool and the PVE storage id, so
 > every `ssd` this runbook used to write in steps 8 and 9 now reads
-> `Large_data`. The device was `sdb`: Proxmox came up at 13:43 UTC after the
+> `large_data`. **Lowercase.** This runbook, `hardware.md` and the roadmap
+> wrote it as `Large_data` for a day, and step 8 was run once against that
+> spelling the same evening: the `lvcreate` and every fio line naming the SSD
+> pool failed on a volume group that does not exist, while the `pve` side
+> ran. LVM and PVE storage ids are case-sensitive; copy the name out of
+> `pvesm status`, not out of a document. **The fio lines did worse than
+> fail**: fio creates a missing directory for its `--filename`, so
+> `/dev/Large_data/fiotest` came into being as an 8 GB regular file on
+> devtmpfs — RAM — and the two runs against it "succeeded" with memory's
+> numbers. Discarded; `rm -rf /dev/Large_data` once `stat` says regular
+> file. Step 8's troubleshooting row carries this now. The device was `sdb`: Proxmox came up at 13:43 UTC after the
 > SSA session with a second `LOGICAL_VOLUME` there — no rescan needed, because
 > the host booted fresh, which is why item 10 below is still not settled. The
 > pool's three device-mapper volumes (`_tmeta`, `_tdata`, `-tpool`) appeared in
@@ -562,7 +677,7 @@ what [`build-the-lab-guest.md`](build-the-lab-guest.md) already assumes.
 > `collect-guest-state.sh`. This is the same shape of gap as
 > [#351](https://github.com/Gerrrt/HomeLab/issues/351) and deserves its own
 > issue, not a step here: [#538](https://github.com/Gerrrt/HomeLab/issues/538),
-> opened 2026-09-19 with `Large_data` live and nothing on it yet, which is the
+> opened 2026-09-19 with `large_data` live and nothing on it yet, which is the
 > cheapest moment to close it.
 
 ## 8. Measure what the array actually does — both of them
@@ -584,16 +699,16 @@ re-derivation.
 
 ```bash
 apt-get install -y fio
-vgs                                        # expect VFree near 0 on Large_data: pvesh gave the pool the whole VG
-lvs -a -o +data_percent,metadata_percent   # pve/data and Large_data/Large_data, and their headroom
-lvcreate -V 8G -T Large_data/Large_data -n fiotest
+vgs                                        # expect VFree near 0 on large_data: pvesh gave the pool the whole VG
+lvs -a -o +data_percent,metadata_percent   # pve/data and large_data/large_data, and their headroom
+lvcreate -V 8G -T large_data/large_data -n fiotest
 lvcreate -V 8G -T pve/data -n fiotest
 ```
 
 > **Thin volumes, not linear ones — corrected 2026-09-19, before the step
 > ran.** `pvesh create ... lvmthin` sizes the pool to the whole volume group
 > less its metadata, so the `lvcreate -L 8G` linear form this step used to
-> write would have failed for lack of free extents on `Large_data`, and `pve`
+> write would have failed for lack of free extents on `large_data`, and `pve`
 > was never checked. A thin volume in each pool is the same overhead on both
 > sides — and `pve/data` is literally the pool `vm-140-disk-0` lives in, so
 > M1 measures the path the guest actually takes. The fill below is now
@@ -605,7 +720,7 @@ Precondition both targets identically, so the SSD is measured in steady state
 rather than on fresh flash:
 
 ```bash
-fio --name=fill --filename=/dev/Large_data/fiotest --rw=write --bs=1M --iodepth=8 --ioengine=libaio --direct=1 --size=8G
+fio --name=fill --filename=/dev/large_data/fiotest --rw=write --bs=1M --iodepth=8 --ioengine=libaio --direct=1 --size=8G
 fio --name=fill --filename=/dev/pve/fiotest --rw=write --bs=1M --iodepth=8 --ioengine=libaio --direct=1 --size=8G
 ```
 
@@ -618,17 +733,39 @@ fio --name=adr0029 --filename=/dev/pve/fiotest --rw=randwrite --bs=4k --iodepth=
 The new ceiling, on the SSD array only:
 
 ```bash
-fio --name=ceiling --filename=/dev/Large_data/fiotest --rw=randwrite --bs=4k --iodepth=32 --numjobs=4 --ioengine=libaio --direct=1 --size=8G --time_based --runtime=60 --ramp_time=10 --group_reporting
+fio --name=ceiling --filename=/dev/large_data/fiotest --rw=randwrite --bs=4k --iodepth=32 --numjobs=4 --ioengine=libaio --direct=1 --size=8G --time_based --runtime=60 --ramp_time=10 --group_reporting
 ```
 
 Record IOPS, `clat` mean and `clat` p99 from every run.
+
+> **Recorded.** Thin volumes on both pools (`vgs` read `124.00m` free on
+> `large_data` and `16.00g` on `pve`, so the linear form would have failed on
+> the pool that mattered). Fills: SSD 456 MiB/s, HDD 130 MiB/s at 1 MiB
+> queue depth 8.
+>
+> | Run | UTC | Target | IOPS | clat mean | clat p99 |
+> | --- | --- | --- | --- | --- | --- |
+> | M1, guest live | 2026-09-20 02:29 | `pve/fiotest` QD1 | 734 | 1.32 ms | 12.6 ms |
+> | M2 | 2026-09-20 02:30 | `large_data/fiotest` QD1 | 7,952 | 102 µs | 198 µs |
+> | SSD ceiling | 2026-09-20 02:31 | `large_data/fiotest` QD32 × 4 | 51,600 | 2.45 ms | 6.3 ms |
+> | M3, idle | 2026-09-20 03:00 | `pve/fiotest` QD1 | 741 | 1.30 ms | 12.5 ms |
+> | HDD ceiling | 2026-09-20 03:01 | `pve/fiotest` QD32 × 4 | 712 | 179 ms | 300 ms |
+>
+> M2 had also run the night before, at 23:06 UTC on 2026-09-19 after the
+> `Large_data` mistake was caught: 7,832 IOPS, 101 µs, 198 µs — the same
+> number, which is the repeatability check the design did not ask for. The
+> HDD QD1 percentiles are bimodal — 20 % under 56 µs, 50 % under 416 µs, 90 %
+> under 3.7 ms — which is a write-back cache absorbing what it can and the
+> platters taking the rest; the SSD's are bimodal too, 70 % at ~72 µs and
+> the rest at ~194 µs, which looks like the mirror's two drives answering at
+> two speeds. Both `fiotest` volumes were removed at 03:02 UTC.
 
 **Three runs, and the ordering is the design:**
 
 | | Target | State | What it is for |
 | --- | --- | --- | --- |
 | **M1** | HDD `pve` | guest running | what the array delivers *today, under its real load*. Deliberately a loaded number |
-| **M2** | SSD `Large_data` | idle, before any guest data | the number that replaces ADR-0029's |
+| **M2** | SSD `large_data` | idle, before any guest data | the number that replaces ADR-0029's |
 | **M3** | HDD `pve` | idle, **after step 9's move** | the clean re-derivation of the 83. Only obtainable once the array is quiet |
 
 M3 is why the measurement is not finished when step 8 ends. Until `alexander`
@@ -646,7 +783,7 @@ that variant is confined to M3.
 Clean up. This is part of the step, not a footnote:
 
 ```bash
-lvremove /dev/Large_data/fiotest
+lvremove /dev/large_data/fiotest
 lvremove /dev/pve/fiotest
 ```
 
@@ -669,7 +806,7 @@ here is a refusal halfway through rather than an error up front. Delete them
 first if there are any.
 
 ```bash
-qm move-disk 140 scsi0 Large_data
+qm move-disk 140 scsi0 large_data
 ```
 
 **It is genuinely online.** `qm move-disk` on a running VM drives a QEMU
@@ -692,12 +829,28 @@ qm set 140 --delete unused0
 
 Prove, then destroy — the same order as step 5's refusal to use `drives=all`.
 
+> **Moved 2026-09-20, 02:34–02:41 UTC.** `qm listsnapshot 140` printed only
+> `current`. The disk is **100 GiB**, not the 64 the build runbook created
+> (`lvs` showed `vm-140-disk-0` at 22.76 % of 100 G on `pve/data`); the
+> mirror ran at 100–500 MiB/s and finished in 7 min 28 s, the guest up
+> throughout and `homelab_guest_running` never moving. Then the STOP that
+> earned its place: `qm guest exec 140 -- uptime` answered *"QEMU guest agent
+> is not running"*, because `--agent enabled=1` tells QEMU to expect one and
+> nothing had installed it in the guest. `apt-get install qemu-guest-agent`
+> inside `alexander` fixed that in a minute (`uptime` then answered: 13 h
+> 13 min, the host's 13:43 boot the day before), `unused0` was removed —
+> `Logical volume "vm-140-disk-0" successfully removed` on `pve` — `ssd=1`
+> set, and `qm reboot 140` (which needs the same agent) took about ten
+> seconds. `lsblk` inside the guest: `sda 0 100G`. `/etc/pve/jobs.cfg` does
+> not exist: no `vzdump` job names this guest, which is ADR-0027's *revert,
+> not backup* as configured.
+
 Then tell the guest it is on flash, using the exact volid `qm config` now
 reports and preserving the flags
 [`build-the-lab-guest.md`](build-the-lab-guest.md) §1 already sets:
 
 ```bash
-qm set 140 --scsi0 Large_data:vm-140-disk-0,discard=on,iothread=1,ssd=1
+qm set 140 --scsi0 large_data:vm-140-disk-0,discard=on,iothread=1,ssd=1
 ```
 
 `ssd=1` sets the emulated rotation rate so the guest's own scheduler and TRIM
@@ -721,7 +874,7 @@ lab.
 **Backups.** `vzdump` jobs are per-VM, not per-storage, so nothing here changes
 them — confirm with `cat /etc/pve/jobs.cfg`. Existing backups stay restorable,
 but a restore defaults back to the storage recorded in the archive, so pass
-`--storage Large_data` explicitly when the time comes.
+`--storage large_data` explicitly when the time comes.
 
 **Now run M3** from step 8: the HDD mirror is finally idle, and that is the
 reading ADR-0029's `83` gets compared against.
@@ -733,6 +886,11 @@ Both rack runbooks in this repository record getting this order inverted —
 both cost nothing only by luck. **Delete first, then read.** A silence standing
 over freshly fitted hardware suppresses exactly the thing you most want to hear
 about.
+
+> **Nothing to delete, 2026-09-20.** No silence was created at any step:
+> not step 1's two (LD 2 never read degraded), and not step 2's three (path 1
+> worked, so there was no second power-off). Recorded as run, not skipped —
+> the check below was made and found two silences, both `oracle`'s.
 
 ```bash
 curl -sS -X DELETE http://localhost:9093/api/v2/silence/<id>
@@ -785,8 +943,8 @@ right-hand value.
 | `cpqDaLogDrvCondition{2}` / `Status{2}` | absent | `2` ok / `2` ok (`5`, `7`, `18`, `19` while syncing) | `2` / `2` from the first scrape; `PercentRebuild` `4294967295` throughout. No syncing state was ever shown |
 | `cpqDaLogDrvFaultTol{2}` | absent | `3` mirroring | `3` |
 | `cpqDaLogDrvSize{2}` | absent | roughly `915700` MB | `915683` MB; `PhyDrvIDs` `0x0203`, `StripeSize` `256` |
-| `cpqDaLogDrvHasAccel{2}` | absent (`{1}` = `1` other) | `3` enabled — **or `1` other, if the existing drive's reading is the iLO's habit rather than a fault.** Which one it is, is itself the #76 answer arriving from a second direction | `1` other — the same as LD 1, before step 6's `aa=enable` has run. Not yet a #76 answer from either direction |
-| `cpqDaLogDrvSSDSmartPathStatus{2}` | absent | `4` ssdSmartPathEnabled | `1` other — step 6's `ssdsmartpath=enable` has not run |
+| `cpqDaLogDrvHasAccel{2}` | absent (`{1}` = `1` other) | `3` enabled — **or `1` other, if the existing drive's reading is the iLO's habit rather than a fault.** Which one it is, is itself the #76 answer arriving from a second direction | `1` other, and it is the iLO's habit: `ssacli` reads LD 1 `Caching: Enabled` against the same `1`. The #76 answer from the second direction |
+| `cpqDaLogDrvSSDSmartPathStatus{2}` | absent | `4` ssdSmartPathEnabled | `1` other **with Smart Path enabled** per `ld 2 show detail`. Another column the iLO does not populate |
 | `cpqDaLogDrvCondition{1}` | `2` ok | `2` ok — **must not move** | `2` |
 | `cpqDaAccelStatus` | `3` enabled | `3` enabled — **must not move**; no `modify cacheratio=` means no flush | `3` |
 | `cpqDaAccelBadData` | `2` none | `2` none. `3` means dirty cache was lost and is a different conversation | `2` — through a 14.5 h power-off as well |
@@ -796,18 +954,23 @@ right-hand value.
 | `cpqDaAccelFailedBatteries` | `1` | unchanged — a #76 curiosity, not a target | `1` |
 | `cpqDaCntlrCondition` / `BoardCondition` | `2` / `2` | `2` / `2` | `2` / `2` |
 | `cpqDaCntlrDriveWriteCacheState` | `1` other | `1` other — **unchanged is the pass condition** | `1` |
-| `ssacli ctrl slot=0 show detail` → Cache Ratio | never read | a real ratio, or `0/0` — **this is the #76 reading, and either answer resolves it** | still never read — no `ssacli`; path 3 |
-| `ssacli ctrl slot=0 ld 1 show detail` → Caching | never read | `Enabled`, or the (b) branch of step 6 | still never read |
+| `ssacli ctrl slot=0 show detail` → Cache Ratio | never read | a real ratio, or `0/0` — **this is the #76 reading, and either answer resolves it** | **`10% Read / 90% Write`**, 2026-09-19 22:52 UTC — branch (a). The iLO does not populate the column |
+| `ssacli ctrl slot=0 ld 1 show detail` → Caching | never read | `Enabled`, or the (b) branch of step 6 | `Enabled`; LD 2 `Disabled` on Smart Path |
 | `scrape_duration_seconds{device="shiva"}` | `11.8` s | ~~roughly 13–17 s~~ unchanged, and well under 30 | `11.4` s averaged over two hours either side of the fit. Two more drives cost the walk nothing measurable; the estimate was wrong. `12.0` s with the second logical drive in the walk |
-| `rate(node_disk_writes_completed_total{device="sda"}[1h])` | current | falls to the host's own writes | unchanged — `alexander` is still here |
-| the same for `sdb` | absent | present, carrying `alexander`'s writes | present since 13:43 UTC 2026-09-19 as the second `LOGICAL_VOLUME`, carrying nothing: one 2.6 GB burst when the pool was made, zero since |
-| **fio 4k QD1 randwrite, HDD** | ADR-0029's **derived** `83` | **measured** — M1 loaded, M3 idle | |
-| **fio 4k QD1 randwrite, SSD** | n/a | **measured** — M2. The number that replaces ADR-0029's | |
-| **fio 4k QD32 randwrite** | n/a | measured on both — the new ceiling, a different benchmark | |
+| `rate(node_disk_writes_completed_total{device="sda"}[1h])` | current | falls to the host's own writes | fell: the M3 and ceiling runs are the last thing on it, then the host's own trickle |
+| the same for `sdb` | absent | present, carrying `alexander`'s writes | carrying them from 02:41 UTC 2026-09-20; the copy peaked at 165 MB/s in the 5-minute rate |
+| **fio 4k QD1 randwrite, HDD** | ADR-0029's **derived** `83` | **measured** — M1 loaded, M3 idle | **741** idle, 734 loaded; 1.3 ms mean, 12.5 ms p99. Nine times the derivation, because the cache the derivation assumed absent is present |
+| **fio 4k QD1 randwrite, SSD** | n/a | **measured** — M2. The number that replaces ADR-0029's | **7,952**; 102 µs mean, 198 µs p99 |
+| **fio 4k QD32 randwrite** | n/a | measured on both — the new ceiling, a different benchmark | HDD **712** at 179 ms; SSD **51,600** at 2.45 ms |
 
 The runbook is done when every row has moved, `cpqDaAccelBadData` still reads
 `2`, `cpqDaLogDrvCondition{1}` still reads `2`, and the walk is still
 comfortably under 30 s.
+
+> **Done, read 2026-09-20 03:05 UTC.** `BadData` `2`, `Condition{1}` `2`,
+> `AccelStatus` `3`, `DriveWriteCacheState` `1`, the walk `12.0` s, the guest
+> running, nothing on `Saruman` or `shiva` firing, no silence standing but
+> `oracle`'s two.
 
 ## If something goes wrong
 
@@ -823,14 +986,23 @@ comfortably under 30 s.
 | `IloHardwareDegraded` pages anyway | The silence named the wrong `cpqDaLogDrvIndex` | Read the real index, silence that, delete the wrong one. Then check whether the alert is *true* |
 | `cpqDaAccelStatus` moves to `4` tmpDisabled | The controller parked the cache | Wait — the rule's 1 h `for:` exists for this. If it persists, it is real and #76 wants to know |
 | `qm move-disk` refuses | Snapshots on vmid 140 | `qm listsnapshot 140`, delete them, retry |
-| Move completes, guest will not boot | Storage moved, guest config did not | `qm config 140` — `scsi0` must name the `Large_data` storage. `unused0` is still the intact original |
+| Move completes, guest will not boot | Storage moved, guest config did not | `qm config 140` — `scsi0` must name the `large_data` storage. `unused0` is still the intact original |
 | The new pool fills | Thin overprovisioning, and nothing alerts on it | Step 7's blind spot, arriving. `pvesm status`, `lvs` |
-| fio numbers are wildly high | Caching somewhere in the path | `--direct=1` on every run, and a raw LV target — never a file, never `/dev/sda` |
+| fio numbers are wildly high | Caching somewhere in the path — or the target is not the LV at all: fio creates a missing directory for `--filename`, so a misspelt `/dev/<vg>/` path becomes a regular file on devtmpfs and the run measures RAM | `--direct=1` on every run, and a raw LV target — never a file, never `/dev/sda`. `stat -c %F` the target before the fill: it must say `block special file` |
 
 ## Flipping the documents
 
 The fit does not finish when the drives are in. These are the documents it makes
 stale, in the order they should be touched:
+
+> **Flipped 2026-09-20, in this order, in the PR that closed #527.** Two
+> bullets moved differently from how they were written: the silence paragraph
+> in `network.rules.yaml` records that the fit needed no silence, because
+> none was created; and `hardware.md` also lost the word **SAS**, because
+> step 3 read `Interface Type: SATA` on both spinners. `README.md` did not
+> move — no runbook was added. One document not on this list moved too:
+> `stacks/lab/compose.yaml`'s retention comment, which said the lab's volume
+> shared the two spindles.
 
 - **[`../hardware.md`](../hardware.md)** — the Compute table's Storage column
   for `Saruman`, which reads `2× 1 TB SAS HDD, RAID 1` and is the reason the
@@ -883,7 +1055,9 @@ settling it is most of the value of doing the fit carefully.
    waiting on it. *Narrowed the same evening:* the SDR does publish a
    `trixie` suite, and the package in it depends on `libc6` alone, so
    "installable" is no longer the question — "runs against the P440ar
-   through `hpsa`" is.
+   through `hpsa`" is. **Settled at 22:51 UTC the same evening: it does.**
+   `ssacli 6.60-8.0` from `trixie/current`, `hpsa 3.4.20`, every `show` and
+   both `modify` forms answered.
 2. ~~**When the drive trays arrive, and whether both do.**~~ **Settled
    2026-09-18.** Both `651687-001` arrived, both took a drive, and the iLO reads
    the same carrier firmware (`11` / `6`) on all four bays.
@@ -903,25 +1077,38 @@ settling it is most of the value of doing the fit carefully.
    Both read `2` ok from the first scrape they appeared in, unconfigured, and
    `IloDriveSmartUnreadable` never went pending. The test fixture's `other(1)`
    case describes a state this drive did not pass through.
-6. **Whether `cpqDaAccelWriteCachePercent = 0` is a reporting gap or a real
+6. ~~**Whether `cpqDaAccelWriteCachePercent = 0` is a reporting gap or a real
    0 % allocation.** Four columns lean towards real. Only step 6's `ssacli`
-   reading decides, and it has never been run on this machine.
-7. **Whether SSD Smart Path and the array accelerator conflict** on a P440ar —
+   reading decides, and it has never been run on this machine.~~ **Settled
+   2026-09-19: a reporting gap.** `ssacli` reads `10% Read / 90% Write` and
+   `Caching: Enabled` on LD 1 against the iLO's four zeros. The four
+   columns leaned the wrong way together, which is what a shared blind spot
+   looks like.
+7. ~~**Whether SSD Smart Path and the array accelerator conflict** on a P440ar —
    specifically whether enabling Smart Path disables caching for that logical
-   drive. Read both lines out of `ld 2 show detail`; do not predict.
-8. **Whether `dwc` has a per-array form** on the installed `ssacli`. The
+   drive. Read both lines out of `ld 2 show detail`; do not predict.~~
+   **Settled 2026-09-19: they exclude each other.** `Caching: Disabled` and
+   `LD Acceleration Method: Smart Path` on LD 2, and `caching=enable` is
+   ignored with a warning naming Smart Path as the reason.
+8. ~~**Whether `dwc` has a per-array form** on the installed `ssacli`. The
    recommendation to leave drive write cache alone depends on it being
-   controller-wide.
-9. **Whether `qm move-disk` refuses with snapshots present**, and whether
-   `alexander` has any. Check; do not learn it from the error message.
+   controller-wide.~~ **Settled 2026-09-19: it does not.** `drivewritecache=`
+   takes a controller target and a `usage=` class. Left alone.
+9. **Whether `qm move-disk` refuses with snapshots present**, ~~and whether
+   `alexander` has any. Check; do not learn it from the error message.~~
+   *Half settled 2026-09-20:* `alexander` had none (`qm listsnapshot` printed
+   only `current`) and the move ran. Whether it refuses with one present is
+   still unobserved.
 10. **Whether `hpsa` surfaces the new logical drive without a SCSI rescan.**
     *Not settled on 2026-09-19:* the host booted fresh after the offline SSA
     session and `sdb` was there at boot, which says nothing about a live
-    rescan. Path 1 or 2 next time would answer it.
+    rescan. Path 1 or 2 next time would answer it. *Still open after
+    2026-09-20:* `ssacli` is on the host now, so the next logical drive is
+    the experiment; nothing in this fit needed a rescan.
 11. **Whether discard reaches the SSDs** through LVM-thin → hpsa → P440ar, or
     stops at the thin pool. It affects long-term steady-state write performance
     and nothing in the first day's readings will show it.
-12. **Whether the existing drives are SAS or SATA.** `cpqDaPhyDrvType` reads
+12. ~~**Whether the existing drives are SAS or SATA.**~~ `cpqDaPhyDrvType` reads
     `3` (sata) for both, on a metric whose enumeration carries a distinct
     `4: sas`, and the model string is `MM1000GBKAL` — while
     [`../hardware.md`](../hardware.md) and ADR-0007 both say **SAS**. Step 3's
@@ -929,6 +1116,11 @@ settling it is most of the value of doing the fit carefully.
     it is a free by-product of a visit that is happening anyway. **Do not
     correct either document from an SNMP enum alone**, and note that ADR-0007
     is immutable — if it is wrong, it gets a dated note like everything else.
+    **Settled 2026-09-19: SATA.** `Interface Type: SATA`, `Model: ATA
+    MM1000GBKAL`, `Rotational Speed: 7200`, on both. The SNMP enum was right.
+    `hardware.md` is corrected on 2026-09-20 as a present-tense document;
+    ADR-0007 and ADR-0029 (which derives from "a 7.2K SAS drive") carry the
+    dated note.
 13. ~~**That the new logical drive's index will be `2`.** Predicted, load-bearing
     for step 1's silence, and verifiable within a minute of creating it.~~
     **Settled 2026-09-19: it is `2`.** The silence it was load-bearing for was
@@ -941,11 +1133,23 @@ settling it is most of the value of doing the fit carefully.
     UTC, present at 13:40, with both drives reading `configured` in the same
     walk, and all of it while the host was still in the SSA session, four
     minutes before Proxmox booted. The iLO reports the controller, not the OS.
-15. **The exact option spellings** on the installed `ssacli` — `aa=`,
+15. ~~**The exact option spellings** on the installed `ssacli` — `aa=`,
     `ssdsmartpath=`, `dwc=` have all moved between versions.
-    `ssacli ctrl slot=0 help create` and `help modify` are the authority.
+    `ssacli ctrl slot=0 help create` and `help modify` are the authority.~~
+    **Settled 2026-09-19 on 6.60.** `aa=` is taken as an alias of
+    `arrayaccelerator=` / `caching=` on a logical-drive target; `ssdsmartpath=`
+    and `ssdiobypass=` are aliases on an array target; drive write cache is
+    `drivewritecache=` with `usage=`, controller target only. `help modify`
+    lists every one, and the log has the whole text.
 
-Two things the fit showed that nothing here had asked about:
+Three things the fit showed that nothing here had asked about:
+
+- **The iLO's Smart Array columns for caching are blind on this box, all of
+  them.** `cpqDaAccelWriteCachePercent`, `ReadCachePercent`, `Memory` and
+  `ReadMemory` read `0`; `cpqDaLogDrvHasAccel` reads `1` other on a cached
+  logical drive and `cpqDaLogDrvSSDSmartPathStatus` reads `1` other on a
+  Smart Path one. `ssacli` disagrees with every one of them. The iLO's
+  *condition* and *status* columns, the ones the rules read, are fine.
 
 - **The iLO names a third-party SATA drive by vendor only.** `cpqDaPhyDrvModel`
   reads `SAMSUNG` where the HPE drives read their part number `MM1000GBKAL`.
@@ -971,4 +1175,6 @@ through the `hpsa` path and would close it. The reading was re-taken after step
 5, on 2026-09-19 with both drives configured, and it is still blank — so it is
 an issue, not a step here: [#529](https://github.com/Gerrrt/HomeLab/issues/529),
 filed against that condition before it was known to hold, and gated on nothing
-now.
+now. `ssacli` adds one line to it, read 2026-09-19: both SSDs report `SSD Smart
+Trip Wearout: Not Supported`, so the controller will not raise a wear-out
+either; direct SMART is the only reading there is.

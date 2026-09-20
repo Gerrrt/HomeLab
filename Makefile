@@ -320,6 +320,17 @@ recipient-state: ## Record which age recipients can open the secrets, and when e
 	@# the ninety-day nag is silent. secrets-verify-backup is what sets a proof.
 	./scripts/key-recipients.sh --record --stack $(STACK)
 
+.PHONY: ca-key-state
+ca-key-state: ## Record the estate CA key's fingerprint and when a copy of it was last proved (#496)
+	@# The CA-key twin of recipient-state. Reads the PUBLIC certificate, hashes
+	@# its public key, and writes one series for that fingerprint into the
+	@# textfile dir, carrying an existing proof forward and setting none. Never
+	@# opens ca-key.pem. This is what CaKeyBackupUnproven reads; without it a
+	@# host that has never proved the key has no series and the nag is silent,
+	@# and a re-minted CA would inherit the old key's proof. certs-verify-backup
+	@# is what sets a proof.
+	./scripts/ca-key-state.sh --record
+
 .PHONY: smart-state-remote
 smart-state-remote: ## Collect SMART health from morpheus over SSH (runs as robo)
 	@# morpheus is FreeBSD with no node_exporter and no textfile directory, but
@@ -561,6 +572,26 @@ secrets-verify-backup: ## Check a backup age key decrypts the secrets (KEY=/path
 	./scripts/run-scheduled.sh --job verify-key-backup --lock keys \
 		-- ./scripts/verify-key-backup.sh "$(KEY)" $(STACK)
 
+.PHONY: certs-verify-backup
+certs-verify-backup: ## Check an offline copy of the CA key is this CA's key (KEY=/path/to/ca-key.pem)
+	@# Maintenance, not Validation, for the reason secrets-verify-backup gives:
+	@# it needs a private key on a mounted medium and must never reach CI.
+	@# KEY rather than ARGS, and guarded here, for the same reasons too — a bare
+	@# `make certs-verify-backup` is a typo and must not reach run-scheduled.sh
+	@# to be recorded as a failed verification.
+	@[[ -n "$(KEY)" ]] || { \
+		printf '\033[0;31merror:\033[0m KEY is required\n' >&2; \
+		printf 'Mount the offline copy, then:  make certs-verify-backup KEY=/path/to/ca-key.pem\n' >&2; \
+		printf 'See docs/runbooks/back-up-the-ca-key.md\n' >&2; \
+		exit 2; \
+	}
+	@# Wrapped so the run is recorded, though a human runs it: verify-ca-key-backup.sh
+	@# refuses the live key by device:inode so that a copy is what gets tested,
+	@# and no timer can mount one. The deadline is enforced from the other end —
+	@# CaKeyBackupUnproven fires when the proof passes ninety days old.
+	./scripts/run-scheduled.sh --job verify-ca-key-backup --lock keys \
+		-- ./scripts/verify-ca-key-backup.sh "$(KEY)"
+
 .PHONY: certs
 certs: ## Create the internal CA / issue a leaf (ARGS="--host x.matrix.elysium --ip 10.0.0.1")
 	@# certificates/ is gitignored, so a clean clone has neither the CA nor the
@@ -669,6 +700,35 @@ backup: ## Quiesce the stack, archive its volumes to ./backups/, verify, copy to
 	@# stopping the stack, which is how the existing sets were seeded. KEEP
 	@# bounds both sides; ARGS=--list shows both.
 	STACK=$(STACK) ./scripts/backup-volumes.sh $(ARGS)
+
+.PHONY: backup-nas
+backup-nas: ## Pull Jellyfin's state off smaug from its newest ZFS snapshot, encrypt and verify
+	@# The one backup that leaves this host to FETCH rather than to deliver.
+	@# smaug cannot run backup-volumes.sh — no age, no checkout, no key, and
+	@# ADR-0016 forbids it initiating anything upward — so this host reads a
+	@# snapshot of erebor/apps over the 99 → 40:22 pass and encrypts what
+	@# arrives here (ADR-0045). Jellyfin is never stopped: the snapshot is the
+	@# quiesce. NAS_KEEP and not KEEP, for the reason backup-firewall gives
+	@# for FW_KEEP. Sets land in backups/nas/, apart from the volume sets, and
+	@# `make verify-backups` reads both. The copy to oracle is a step of this
+	@# target too, by the helpers `backup` gained under #535 — same far-side
+	@# rules, its own directory there — so ARGS=--local-only and
+	@# ARGS=--copy-only mean here what they mean above.
+	./scripts/backup-nas.sh $(ARGS)
+
+.PHONY: verify-backups
+verify-backups: ## Re-verify every retained set of both kinds: the volume sets and the NAS set
+	@# What homelab-verify-backups.timer runs nightly. Two directories, one
+	@# job: backups/volumes/ is verified against the stack's derived volume
+	@# list and backups/nas/ against its own, and a media set in the volume
+	@# directory would fail the first — which is why they are apart, and why
+	@# one target walks both rather than a second unit doing the second half.
+	@# Both halves run even when the first fails, so one morning's journal
+	@# says which sets are bad rather than stopping at the first directory.
+	@rc=0; \
+	STACK=$(STACK) ./scripts/backup-volumes.sh --verify-only --all || rc=1; \
+	./scripts/backup-nas.sh --verify-only --all || rc=1; \
+	exit $$rc
 
 .PHONY: restore
 restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>")

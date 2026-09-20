@@ -129,7 +129,10 @@ tests:
   #   HostHighLoad        drop the / count without (cpu, mode) normaliser;
   #                       without (cpu, mode) -> without (cpu);  for: 30m -> 0m
   #   HostClockSkew       drop abs();  for: 10m -> 0m
+  #   HostClockUnsynchronised  == 0 -> == 1;  for: 5m -> 0m  (both killed 2026-09-19)
   #   HostRebooted        < 600 -> < 60;  < 600 -> < 6000
+  #   ZpoolNotOnline      state!="online" -> state="online";  == 1 -> == 0;
+  #                       for: 5m -> 0m  (all three killed 2026-09-20)
   #
   # The two HostRebooted mutations are in opposite directions on purpose: one
   # silences the firing case, the other fires the quiet one. A single-direction
@@ -422,6 +425,76 @@ tests:
     alert_rule_test:
       - eval_time: 15m
         alertname: HostClockSkew
+        exp_alerts: []
+
+  # --- HostClockUnsynchronised: fires on a clock with no source, and clears --
+  # The fixture is the 2026-09-18 event (#519) in shape: synchronised, then
+  # node_timex_sync_status drops to 0 from 6m to 24m — the RTC-cleared boot,
+  # 13.8 minutes of it in the real TSDB — then NTP steps the clock and the flag
+  # returns to 1. Three reads: inside `for:` (quiet), past it (firing), after
+  # the source is back (resolved).
+  #
+  # The evaluation points are chosen against this file's 5m evaluation_interval,
+  # not against the sample times. The first evaluation to see a 0 is at 10m, so
+  # that is where the `for:` clock starts and where `for: 5m -> 0m` would fire;
+  # an eval at 8m reads the state from the 5m evaluation, when the series was
+  # still 1, and is quiet whatever `for:` says — a case that cannot fail, the
+  # #189 trap. The 5m boundary then falls at 15m, so the firing read is at 20m,
+  # a full interval clear of it; 30m is the second evaluation after recovery.
+  #
+  # HostClockSkew is deliberately not read here. Its input is
+  # node_timex_offset_seconds, which the real event held at exactly 0 the whole
+  # time — that silence is the finding, not a gap in this test.
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_sync_status{instance="prometheus",job="integrations/node_exporter"}'
+        values: "1x5 0x18 1x10"
+    alert_rule_test:
+      # The first evaluation to see the 0 — pending, for: 5m has not elapsed.
+      - eval_time: 10m
+        alertname: HostClockUnsynchronised
+        exp_alerts: []
+
+      - eval_time: 20m
+        alertname: HostClockUnsynchronised
+        exp_alerts:
+          - exp_labels:
+              alertname: HostClockUnsynchronised
+              instance: prometheus
+              job: integrations/node_exporter
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "prometheus clock has no time source"
+              description: >-
+                The kernel reports its clock unsynchronised: no NTP source has
+                confirmed the time. HostClockSkew stays quiet here because a clock
+                that is wrong but stable has nothing to correct. Every sample and
+                log line this host stamps while this fires is on an unconfirmed
+                clock — after a battery or RTC loss it is backdated into the outage
+                it follows. Check `timedatectl timesync-status` and
+                `journalctl -b -u systemd-timesyncd`;
+                docs/runbooks/replace-the-laptop-cell.md step 6 says how to read
+                the TSDB afterwards.
+
+      # NTP is back — the flag has read 1 since 25m.
+      - eval_time: 30m
+        alertname: HostClockUnsynchronised
+        exp_alerts: []
+
+  # --- HostClockUnsynchronised: quiet on a synchronised estate ---------------
+  # Two hosts holding 1 throughout, which is what every ordinary boot in the
+  # 30 days before this rule landed looked like. `== 0 -> == 1` fires this.
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_sync_status{instance="prometheus",job="integrations/node_exporter"}'
+        values: "1x30"
+      - series: 'node_timex_sync_status{instance="Saruman",job="integrations/node_exporter"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostClockUnsynchronised
         exp_alerts: []
 
   # --- HostRebooted: fires inside 10m of boot, quiet after -------------------
@@ -1251,4 +1324,378 @@ tests:
     alert_rule_test:
       - eval_time: 20m
         alertname: HostBatteryNotReported
+        exp_alerts: []
+
+  # --- HostBatteryHot: fires at 48 °C after five minutes --------------------
+  # 48 is inside the band a swollen or charging-out-of-spec cell produces and
+  # comfortably over the 45 the rule reads. The cell this threshold was measured
+  # against never exceeded 40.3 in thirty days.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_temp_celsius{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "48x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HostBatteryHot
+        exp_alerts:
+          - exp_labels:
+              instance: prometheus
+              job: prometheus-metrics
+              power_supply: BAT0
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "prometheus: BAT0 reads 48 °C"
+              description: >-
+                The cell's own gauge has read above 45 °C for five minutes. The
+                pack this threshold was measured against never read above
+                40.3 °C idling on a shelf. Treat the machine as a hazard: unplug
+                it, do not leave it unattended, and read
+                docs/runbooks/replace-the-laptop-cell.md §3 before touching it.
+
+  # --- HostBatteryHot: the same for oracle ----------------------------------
+  # oracle's BAT0 exports no temp_celsius today (#532), so this proves the
+  # expression is host-agnostic rather than that oracle is covered — the day
+  # a pack that measures is fitted there, nothing in the rule needs to change.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_temp_celsius{instance="oracle",job="oracle-metrics",power_supply="BAT0"}'
+        values: "48x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HostBatteryHot
+        exp_alerts:
+          - exp_labels:
+              instance: oracle
+              job: oracle-metrics
+              power_supply: BAT0
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "oracle: BAT0 reads 48 °C"
+              description: >-
+                The cell's own gauge has read above 45 °C for five minutes. The
+                pack this threshold was measured against never read above
+                40.3 °C idling on a shelf. Treat the machine as a hazard: unplug
+                it, do not leave it unattended, and read
+                docs/runbooks/replace-the-laptop-cell.md §3 before touching it.
+
+  # --- HostBatteryHot: QUIET at the old cell's hottest, and at the new one --
+  # 40.3 is the highest reading the thirteen-year-old cell produced in thirty
+  # days of retention, kept as the tight guard on 45: a threshold quietly
+  # lowered to 40 fails this case. 25.5 is every sample the A1437 has produced.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_temp_celsius{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "40.3x20"
+      - series: 'node_power_supply_temp_celsius{instance="oracle",job="oracle-metrics",power_supply="BAT0"}'
+        values: "25.5x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HostBatteryHot
+        exp_alerts: []
+
+  # --- HostBatteryTempNotMeasured: a gauge returning a constant fires -------
+  # The A1437 fitted to prometheus on 2026-09-18: 25.5 on every sample. Two
+  # hours of it is enough — changes() over a 24 h window of a series that has
+  # only ever held one value is 0 however short the series is.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_present{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "1x200"
+      - series: 'node_power_supply_temp_celsius{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "25.5x200"
+    alert_rule_test:
+      - eval_time: 120m
+        alertname: HostBatteryTempNotMeasured
+        exp_alerts:
+          - exp_labels:
+              instance: prometheus
+              job: prometheus-metrics
+              power_supply: BAT0
+              component: host
+              severity: info
+              category: hardware
+            exp_annotations:
+              summary: "prometheus: BAT0 reports no moving temperature"
+              description: >-
+                The cell is present but its temperature is either not exported
+                or has not changed in 24 hours, so HostBatteryHot cannot fire
+                for it. Nothing to do on the host: the pack's gauge is what it
+                is. Until this resolves, the inspection in
+                docs/runbooks/replace-the-laptop-cell.md §3 is the only check on
+                a hot cell here.
+
+  # --- HostBatteryTempNotMeasured: no temperature series at all fires -------
+  # oracle's shape: the cell is present and the Dell exports no temp_celsius.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_present{instance="oracle",job="oracle-metrics",power_supply="BAT0"}'
+        values: "1x200"
+    alert_rule_test:
+      - eval_time: 120m
+        alertname: HostBatteryTempNotMeasured
+        exp_alerts:
+          - exp_labels:
+              instance: oracle
+              job: oracle-metrics
+              power_supply: BAT0
+              component: host
+              severity: info
+              category: hardware
+            exp_annotations:
+              summary: "oracle: BAT0 reports no moving temperature"
+              description: >-
+                The cell is present but its temperature is either not exported
+                or has not changed in 24 hours, so HostBatteryHot cannot fire
+                for it. Nothing to do on the host: the pack's gauge is what it
+                is. Until this resolves, the inspection in
+                docs/runbooks/replace-the-laptop-cell.md §3 is the only check on
+                a hot cell here.
+
+  # --- HostBatteryTempNotMeasured: QUIET for a thermistor that moves, and ---
+  # --- for a host with no cell to measure -----------------------------------
+  # The old cell's shape: a tenth of a degree at a time, up and back down
+  # across the band it lived in. Saruman has no present series and is nothing
+  # to this rule.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_present{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "1x200"
+      - series: 'node_power_supply_temp_celsius{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "32.7+0.1x60 38.7-0.1x60 32.7+0.1x60"
+      - series: 'up{instance="Saruman",job="saruman-metrics"}'
+        values: "1x200"
+    alert_rule_test:
+      - eval_time: 120m
+        alertname: HostBatteryTempNotMeasured
+        exp_alerts: []
+
+  # --- homelab_battery_runtime_seconds: recorded while on battery -----------
+  # 6.75 Ah at a 1.5 A draw is 4.5 h, 16200 s — a shade above the load
+  # prometheus presented on 2026-09-08, near a full cell. Both figures are
+  # exact in binary, so the sample compares exactly; 6 Ah at 1.35 A is the
+  # same shape and came out 2e-12 short. The series carries the battery's
+  # labels, not the adapter's.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_online{instance="prometheus",job="prometheus-metrics",power_supply="ADP1"}'
+        values: "0x20"
+      - series: 'node_power_supply_info{instance="prometheus",job="prometheus-metrics",power_supply="ADP1",type="Mains"}'
+        values: "1x20"
+      - series: 'node_power_supply_charge_ampere{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "6.75x20"
+      - series: 'node_power_supply_current_ampere{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "1.5x20"
+    promql_expr_test:
+      - expr: homelab_battery_runtime_seconds
+        eval_time: 10m
+        exp_samples:
+          - labels: '{__name__="homelab_battery_runtime_seconds",instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+            value: 16200
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HostBatteryRuntimeLow
+        exp_alerts: []
+
+  # --- homelab_battery_runtime_seconds: NOT recorded on mains ---------------
+  # The same pack charging: 0.5 Ah in it and 1.677 A flowing, which the ratio
+  # would call eighteen minutes if it were runtime. It is time-to-full, and the
+  # online=1 gate is what keeps it out of the series and away from the alert.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_online{instance="prometheus",job="prometheus-metrics",power_supply="ADP1"}'
+        values: "1x20"
+      - series: 'node_power_supply_info{instance="prometheus",job="prometheus-metrics",power_supply="ADP1",type="Mains"}'
+        values: "1x20"
+      - series: 'node_power_supply_charge_ampere{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "0.5x20"
+      - series: 'node_power_supply_current_ampere{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "1.677x20"
+    promql_expr_test:
+      - expr: homelab_battery_runtime_seconds
+        eval_time: 10m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HostBatteryRuntimeLow
+        exp_alerts: []
+
+  # --- HostBatteryRuntimeLow: fires under thirty minutes on prometheus ------
+  # 0.5 Ah left at the 1.35 A the stack draws: 1333 s, twenty-two minutes.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_online{instance="prometheus",job="prometheus-metrics",power_supply="ADP1"}'
+        values: "0x20"
+      - series: 'node_power_supply_info{instance="prometheus",job="prometheus-metrics",power_supply="ADP1",type="Mains"}'
+        values: "1x20"
+      - series: 'node_power_supply_charge_ampere{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "0.5x20"
+      - series: 'node_power_supply_current_ampere{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "1.35x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HostBatteryRuntimeLow
+        exp_alerts:
+          - exp_labels:
+              instance: prometheus
+              job: prometheus-metrics
+              power_supply: BAT0
+              component: host
+              severity: critical
+              category: power
+            exp_annotations:
+              summary: "prometheus has 22m 13s of battery left"
+              description: >-
+                The host is on its own cell and, at the draw it is presenting
+                now, has under thirty minutes before it dies with the cut it is
+                supposed to outlast. If this is prometheus, that is the
+                monitoring host: shut it down cleanly rather than letting the
+                cell decide. HostOnBattery says why the mains is out.
+
+  # --- HostBatteryRuntimeLow: the Dell, adapter AC, fires the same ----------
+  # 0.2 Ah at the 0.442 A oracle drew on 2026-09-08: 1628 s, twenty-seven
+  # minutes.
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_online{instance="oracle",job="oracle-metrics",power_supply="AC"}'
+        values: "0x20"
+      - series: 'node_power_supply_info{instance="oracle",job="oracle-metrics",power_supply="AC",type="Mains"}'
+        values: "1x20"
+      - series: 'node_power_supply_charge_ampere{instance="oracle",job="oracle-metrics",power_supply="BAT0"}'
+        values: "0.2x20"
+      - series: 'node_power_supply_current_ampere{instance="oracle",job="oracle-metrics",power_supply="BAT0"}'
+        values: "0.442x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HostBatteryRuntimeLow
+        exp_alerts:
+          - exp_labels:
+              instance: oracle
+              job: oracle-metrics
+              power_supply: BAT0
+              component: host
+              severity: critical
+              category: power
+            exp_annotations:
+              summary: "oracle has 27m 8s of battery left"
+              description: >-
+                The host is on its own cell and, at the draw it is presenting
+                now, has under thirty minutes before it dies with the cut it is
+                supposed to outlast. If this is prometheus, that is the
+                monitoring host: shut it down cleanly rather than letting the
+                cell decide. HostOnBattery says why the mains is out.
+
+  # --- HostBatteryRuntimeLow: QUIET while the draw still reads 0 ------------
+  # The first scrape after the plug is pulled: online has dropped, the gauge
+  # has not yet reported a draw. The `> 0` on the divisor drops the sample
+  # rather than recording +Inf, and nothing fires on a runtime of "unknown".
+  - interval: 1m
+    input_series:
+      - series: 'node_power_supply_online{instance="prometheus",job="prometheus-metrics",power_supply="ADP1"}'
+        values: "0x20"
+      - series: 'node_power_supply_info{instance="prometheus",job="prometheus-metrics",power_supply="ADP1",type="Mains"}'
+        values: "1x20"
+      - series: 'node_power_supply_charge_ampere{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "0.5x20"
+      - series: 'node_power_supply_current_ampere{instance="prometheus",job="prometheus-metrics",power_supply="BAT0"}'
+        values: "0x20"
+    promql_expr_test:
+      - expr: homelab_battery_runtime_seconds
+        eval_time: 10m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HostBatteryRuntimeLow
+        exp_alerts: []
+
+  # --- ZpoolNotOnline: fires for a degraded pool, quiet for the online one --
+  # The 2026-09-19 fault (#558) as the exporter WOULD have reported it had it
+  # kept answering: erebor's online series drops to 0 and degraded rises to 1;
+  # boot-pool stays online throughout. The boot-pool pair is in the same
+  # fixture on purpose — drop the `state!="online"` matcher and its online=1
+  # series fires here; drop the `== 1` and its degraded=0 series does.
+  - interval: 1m
+    input_series:
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="online"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="degraded"}'
+        values: "1x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="boot-pool",state="online"}'
+        values: "1x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="boot-pool",state="degraded"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolNotOnline
+        exp_alerts:
+          - exp_labels:
+              alertname: ZpoolNotOnline
+              instance: smaug
+              job: node
+              zpool: erebor
+              state: degraded
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "smaug: zpool erebor is degraded"
+              description: >-
+                The pool's own state, read from its kstat, has not been online
+                for five minutes. On a two-disk mirror that is one disk
+                carrying everything, the replaceable library and the
+                irreplaceable Jellyfin state alike. `zpool status -v erebor`
+                at the console names the device;
+                docs/runbooks/replace-the-nas-disk.md is the order to do
+                things in, and copying erebor/apps off comes before touching
+                a tray.
+
+      # Degraded, but inside `for: 5m` — this read is what kills
+      # `for: 5m -> 0m`, since the 0m evaluation already saw the 1.
+      - eval_time: 3m
+        alertname: ZpoolNotOnline
+        exp_alerts: []
+
+  # --- ZpoolNotOnline: quiet when the pool comes back inside the window -----
+  # Three minutes degraded — a `zpool clear` after a reseated cable — then
+  # online again. The 5m evaluation sees online, so nothing was ever held for
+  # five minutes, and the rule must not latch the way the SMART rules do.
+  - interval: 1m
+    input_series:
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="online"}'
+        values: "0x3 1x17"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="degraded"}'
+        values: "1x3 0x17"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolNotOnline
+        exp_alerts: []
+
+  # --- ZpoolNotOnline: quiet on a healthy NAS, every state series present ---
+  # What smaug exported from 2026-09-19 until 20:46 PDT: online=1 and six
+  # other states at 0, for each pool. Seven series per pool is the real shape,
+  # and it is what a rule that lost its `== 1` would fire on.
+  - interval: 1m
+    input_series:
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="online"}'
+        values: "1x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="degraded"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="faulted"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="offline"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="removed"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="suspended"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="unavail"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="boot-pool",state="online"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolNotOnline
         exp_alerts: []

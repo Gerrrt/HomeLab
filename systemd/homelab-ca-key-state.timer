@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: daily CA key record
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/back-up-the-ca-key.md
+
+[Timer]
+Unit=homelab-ca-key-state.service
+# 09:30 daily, a quarter-hour after recipient-state, its sibling: the two
+# together are the daily answer to "which root secrets have a proved copy".
+# It reads one public certificate and writes one small .prom; the slot only
+# has to not coincide with anything that stops the stack.
+OnCalendar=*-*-* 09:30:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
