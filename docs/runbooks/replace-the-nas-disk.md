@@ -320,7 +320,10 @@ refund fight — is the operator's, and it is recorded here.
   HBA ZFS is designed for: the sixty-second timeouts, task aborts and the
   21:03:51 controller reset in the fault's `dmesg` are its firmware's error
   path, and ZFS waited on them. The firmware version is the one reading
-  still owed, from `/sys/class/scsi_host/host0/fw_ver`. Whether to leave the
+  still owed, and it is not in sysfs — `/sys/class/scsi_host/host0/fw_ver`
+  does not exist, and TrueNAS ships no `storcli` — so it is read off the
+  card's POST banner or its *Ctrl-R* controller properties, at step 4,
+  when the machine is at POST anyway. Whether to leave the
   card as it is, flash the 3008 to IT firmware (`1000:0097`), or cable the
   bays to the chipset's free `SATA0`–`SATA3` and take the card out is a
   decision for [#558](https://github.com/Gerrrt/HomeLab/issues/558) after

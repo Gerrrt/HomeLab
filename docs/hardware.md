@@ -284,8 +284,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   saying the disks are JBOD devices rather than virtual drives. So ZFS sees
   the drives themselves through a RAID firmware's error handling, which is
   the better of the two arrangements a MegaRAID offers and still not an
-  IT-mode HBA. The firmware version is not in `dmesg`; it is in
-  `/sys/class/scsi_host/host0/fw_ver` and is still owed here. The driver
+  IT-mode HBA. The firmware version is not in `dmesg` and not in sysfs
+  either — `/sys/class/scsi_host/host0/fw_ver` does not exist, read
+  2026-09-19, and `megaraid_sas` exposes crash-dump and queue attributes
+  there and nothing about its firmware. TrueNAS ships no `storcli`. So the
+  version is read off the card's own POST banner, or from *Ctrl-R* →
+  controller properties during boot, and it is owed here from the next
+  time the machine is at POST — which the swap will be. The driver
   logged a disable/enable of its interrupts at 21:03:51 on 2026-09-19, the
   same second as the target reset in the fault's `dmesg` — the controller
   resetting itself around a disk that had stopped answering, which is the
