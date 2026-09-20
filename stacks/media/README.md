@@ -60,6 +60,7 @@ every television would have to trust, and a second thing to be down.
 | Televisions on CasaBonita | Natively, same broadcast domain — the firewall never sees the packet |
 | A Hicks workstation | Two of the four rules in [`build-the-nas.md`] §0.5 — `50 → 10.0.40.30:443` and `50 → 10.0.40.30:8096`, one per port |
 | Prometheus, on `9100` | A third — `10.0.99.20 → 10.0.40.30:9100` |
+| Prometheus, on `22` | The fourth — `10.0.99.20 → 10.0.40.30:22`, inert until [`build-the-nas.md`] §6.2 switches SSH on for the backup pull, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and

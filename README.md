@@ -368,9 +368,10 @@ self-test, and the card is set to test itself every fortnight
 ([#93](https://github.com/Gerrrt/HomeLab/issues/93)) — and since 2026-09-08 the
 switch between the monitoring host and the network draws from it too, racked in
 U4 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the config export
-leaves the monitoring host nightly and the volume backup sets weekly
-([#535](https://github.com/Gerrrt/HomeLab/issues/535)), so the rehearsal is
-what is left ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
+leaves the monitoring host nightly, the volume backup sets weekly
+([#535](https://github.com/Gerrrt/HomeLab/issues/535)) and Jellyfin's state
+weekly by way of it ([#484](https://github.com/Gerrrt/HomeLab/issues/484)),
+so the rehearsal is what is left ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
 
 ## License
 
