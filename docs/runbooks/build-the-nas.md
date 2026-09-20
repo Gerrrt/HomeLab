@@ -937,9 +937,12 @@ as `65534` across two hosts that spell it differently.
 > clean, and node_exporter stopped answering nine minutes earlier, so
 > `up{job="node",instance="smaug"}` reads 0 as well. The pool runs on
 > `ZVTBS4NL` alone. [`replace-the-nas-disk.md`](replace-the-nas-disk.md) is
-> the procedure, and §6.2 — still not done — is its step 2, because
-> `erebor/apps` has no copy off this host.
-> [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries it.
+> the procedure. Its step 2 — the copy off this host — was §6.2, and §6.2
+> ran on 2026-09-20: set `20260920T060234Z`, `jellyfin.db` present, hashed
+> on `oracle`, the timer installed;
+> [#484](https://github.com/Gerrrt/HomeLab/issues/484) closed on it. The
+> tray can be touched.
+> [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries the swap.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
@@ -967,7 +970,8 @@ as `65534` across two hosts that spell it differently.
   pool is a mirror of one until it is replaced;
   [`replace-the-nas-disk.md`](replace-the-nas-disk.md) is the procedure and
   [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries it. Its step
-  2 is §6.2.
+  2, the copy off this host, ran on 2026-09-20 (§6.2); what is left is the
+  return, the replacement and the swap.
 - **[#255](https://github.com/Gerrrt/HomeLab/issues/255)**, the residual saying
   this host ships no logs, which is true the day it exists.
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s

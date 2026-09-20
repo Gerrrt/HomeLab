@@ -1,11 +1,13 @@
 # Runbook: Replace a disk in `erebor`
 
-**One faulted Exos, two trays and no spare, and a dataset with no copy
-anywhere else — so the copy comes first and the tray comes last.**
+**One faulted Exos, two trays and no spare, and a dataset that had no copy
+anywhere else — so the copy came first, on 2026-09-20, and the tray comes
+last.**
 
-> **Status — 2026-09-20: step 1 is read and it is the drive; steps 2–6 are
-> not done. The pool runs on one disk, `erebor/apps` exists only on it, and
-> since the exporter came back nothing is paging for either.**
+> **Status — 2026-09-20: step 1 is read and it is the drive; step 2 is done
+> by path A; steps 3–6 are not. The pool runs on one disk, `erebor/apps`
+> has a copy off it since 2026-09-20, and since the exporter came back
+> nothing is paging for the pool.**
 >
 > | When (PDT, 2026-09-19) | What |
 > | --- | --- |
@@ -19,13 +21,19 @@ anywhere else — so the copy comes first and the tray comes last.**
 > error at hour 26. The other half of the mirror, `ZVTBS4NL` (`sda`), carries
 > everything.
 >
-> **`erebor/apps` has zero copies off `smaug`.** `scripts/backup-nas.sh`
-> merged on 2026-09-19 ([#554](https://github.com/Gerrrt/HomeLab/pull/554)),
-> but on the monitoring host `backups/nas` does not exist,
-> `homelab-backup-nas.timer` is not installed, `ssh frodo@10.0.40.30` is
-> refused, and §6.2 is marked *Not yet done*. That is step 2, and it is why
-> the tray waits.
-> [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries this.
+> **`erebor/apps` had zero copies off `smaug` when this was written.**
+> `scripts/backup-nas.sh` had merged on 2026-09-19
+> ([#554](https://github.com/Gerrrt/HomeLab/pull/554)), but on the
+> monitoring host `backups/nas` did not exist, `homelab-backup-nas.timer`
+> was not installed, `ssh frodo@10.0.40.30` was refused, and §6.2 was marked
+> *Not yet done*. That was step 2, and it was why the tray waited.
+> **Done 2026-09-20, path A:** §6.2 steps 1–8 ran; the first set is
+> `20260920T060234Z` — 76 entries, `./data/jellyfin.db` present, Jellyfin
+> never stopped — copied to `oracle` and hashed there in the same run,
+> `make verify-backups` re-read it, and the timer is installed.
+> [#484](https://github.com/Gerrrt/HomeLab/issues/484) closed on it, so the
+> tray no longer waits on this.
+> [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries the swap.
 >
 > **Step 1 read at the console, 2026-09-19 23:19 PDT. It is the drive, and
 > the return is the answer.** `zpool status -v erebor`: pool `ONLINE`,
@@ -57,8 +65,8 @@ anywhere else — so the copy comes first and the tray comes last.**
 
 `smaug` is the TrueNAS host at `10.0.40.30` on CasaBonita, which is terminal
 outward ([ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)):
-the monitoring host reaches `9100` and, once §6.2 is done, `22`, and nothing
-else. So the console steps below are done **at the machine** (option 8, *Open
+the monitoring host reaches `9100` and, since §6.2 was done on 2026-09-20,
+`22`, and nothing else. So the console steps below are done **at the machine** (option 8, *Open
 Linux Shell*) or in the TrueNAS UI at `https://10.0.40.30` from a Hicks
 workstation, and the monitoring host's part is reading the result. The pool
 is a mirror of two Seagate Exos X20 18 TB in the TS150's two 3.5" trays;
@@ -164,6 +172,10 @@ make backup-nas && make backup-nas ARGS=--list && make verify-backups
 
 and §6.2 step 7, `make install-timers`, once the first pull has passed, so
 this copy is the first of a series rather than the only one.
+
+> **Done 2026-09-20 for this fault, by path A.** The set is
+> `20260920T060234Z`, on the monitoring host and on `oracle`; the timer's
+> next run is Sat 2026-09-26 03:30 UTC.
 
 Path B is for the evening §6.2 cannot be done. A USB stick at the console,
 reading from the **newest snapshot** (§4.1) so that Jellyfin never stops and
@@ -328,6 +340,4 @@ refund fight — is the operator's, and it is recorded here.
   bays to the chipset's free `SATA0`–`SATA3` and take the card out is a
   decision for [#558](https://github.com/Gerrrt/HomeLab/issues/558) after
   the swap, not before it.
-- **§6.2**, until step 2 path A has run — and `oracle`'s copy of the NAS
-  set, which `backup-nas.sh` makes and nothing has yet made.
 - **The replacement decision**, and whether a third drive follows.
