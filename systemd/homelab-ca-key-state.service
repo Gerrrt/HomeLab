@@ -1,0 +1,49 @@
+# Daily record of which key the estate's CA signs with, and when an offline
+# copy of it was last proved to be that key (#496).
+#
+# WHY A TIMER WRITES A FILE THAT A HUMAN RUN ALREADY WRITES. The same reason
+# homelab-recipient-state.service exists: CaKeyBackupUnproven reads one series
+# that only a human proof would otherwise write, and a host that has never
+# proved its CA key would never write it — so the alert for the state that
+# most needs an alert would have nothing to read (#400 is that failure, for
+# the age key). This unit is the unconditional statement: the CA's fingerprint
+# is on disk every day with its last proof beside it, 0 if there has never been
+# one, whether or not anyone has mounted a medium lately.
+#
+# Needs no root, no network and no private key. ca-key-state.sh reads the
+# PUBLIC certificate, hashes its public key, and carries the existing proof
+# timestamp forward; it never opens ca-key.pem and never sets a timestamp of
+# its own except through --proved, which this unit does not pass. A run here
+# cannot make the key look proved — it can only make an unproved one visible,
+# and it is what turns a re-minted CA (make certs ARGS='--ca --force') into a
+# new row at 0 the next morning instead of ninety days of inherited green.
+#
+# The job is `ca-key-state`, not `ca-key-backup`, on purpose: the wrapper
+# writes <job>.prom and the collector writes ca-key-backup.prom, and #360 is
+# what happens when those are the same file.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: record the CA key's fingerprint and last proof
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/back-up-the-ca-key.md
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job ca-key-state -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab ca-key-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=true
+PrivateNetwork=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-ca-key-state

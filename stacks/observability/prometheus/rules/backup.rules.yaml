@@ -22,9 +22,11 @@
 # JOBS table that also decides the cadence, so a threshold and a schedule cannot
 # drift apart. It also means NO RULE HERE NAMES A JOB: adding a timer is a row in
 # that table, not an edit to this file. That is deliberate — a rule file listing
-# job names is a list that silently stops growing. The two rules at the bottom
-# are the one exception, and they name the one job that is not a timer:
-# verify-key-backup, the human proof, whose deadline is applied per recipient.
+# job names is a list that silently stops growing. The three rules at the bottom
+# are the one exception, and they name the two jobs that are not timers: the
+# human proofs — verify-key-backup, whose deadline is applied per age
+# recipient, and verify-ca-key-backup, whose deadline is applied to the CA
+# key's current fingerprint (#496).
 #
 # That claim has since been tested rather than merely asserted. #99 added
 # `converge`, an hourly job on a different cadence to everything above, and
@@ -71,9 +73,12 @@ groups:
         # first, and the two would collide into one alert.
         #
         # verify-key-backup is excluded because SecretsKeyBackupUnproven says
-        # something different about it and earns its own description.
+        # something different about it and earns its own description, and
+        # verify-ca-key-backup for the same reason — CaKeyBackupUnproven.
+        # Both are human runs against a mounted medium: "check the journal"
+        # would be wrong advice for either.
         expr: |
-          (time() - homelab_job_last_success_timestamp_seconds{homelab_job!="verify-key-backup"})
+          (time() - homelab_job_last_success_timestamp_seconds{homelab_job!~"verify-key-backup|verify-ca-key-backup"})
             > on(homelab_job) group_left() homelab_job_max_age_seconds
         for: 30m
         labels:
@@ -264,3 +269,47 @@ groups:
             stale the proof is. `systemctl start homelab-recipient-state.service`
             writes it; if that unit does not exist, the timers predate #400 and
             `make install-timers` adds it. docs/runbooks/back-up-the-age-key.md.
+
+      - alert: CaKeyBackupUnproven
+        # The estate CA's private key, held to the same ninety days as the age
+        # key (#496, ADR-0043 decision 4). verify-ca-key-backup.sh refuses the
+        # live key by device:inode and a copy inside a git tree, so what gets
+        # proved is a real offline copy, a human has to mount it, and no timer
+        # can. What a timer CAN do is notice that nobody has.
+        #
+        # ONE SERIES PER KEY FINGERPRINT, for ADR-0024's reason one key over:
+        # `make certs ARGS='--ca --force'` mints a new root, and a proof of the
+        # old key must not vouch for the new one. scripts/ca-key-state.sh
+        # writes homelab_ca_key_backup_last_proof_timestamp_seconds against the
+        # SHA-256 of the current ca.pem's public key, drops the old
+        # fingerprint's row on a re-mint, and records never-proved as 0 — so
+        # a re-minted CA fires here the next morning with an absurd duration
+        # rather than inheriting ninety days of green.
+        #
+        # Same join as SecretsKeyBackupUnproven, and for the same reasons:
+        # on(instance) because the left side has no homelab_job label, and
+        # group_left() so that `ca` and `spki_sha256` survive the join. The
+        # threshold is the verify-ca-key-backup row in install-timers.sh.
+        #
+        # No `…Unrecorded` sibling. The age key needed one because its series
+        # was invented after its proof (#400); the ca-key-state timer is born
+        # with this series, gen-certs.sh writes it at the mint, and a host where
+        # it has never been written is ScheduledJobNeverRan{homelab_job=
+        # "ca-key-state"}. A deleted file heals on the next daily run.
+        expr: |
+          (time() - homelab_ca_key_backup_last_proof_timestamp_seconds)
+            > on(instance) group_left() homelab_job_max_age_seconds{homelab_job="verify-ca-key-backup"}
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "No proven backup of the {{ $labels.ca }} CA key in {{ $value | humanizeDuration }}"
+          description: >-
+            Nothing else here proves certificates/ca-key.pem exists anywhere but
+            this host. Losing it is a re-mint and a re-trust on every device in
+            generate-certificates.md's trust list, due the next time a leaf is
+            needed. A re-minted CA starts here at never, on purpose. Get the
+            offline copy out and run `make certs-verify-backup KEY=<path>`:
+            docs/runbooks/back-up-the-ca-key.md.

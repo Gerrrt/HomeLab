@@ -269,11 +269,12 @@ Three of the files there go to `alexander`:
 | `grafana-lab.matrix.elysium-key.pem` | Its private key |
 
 > [!CAUTION]
-> **`ca-key.pem` is not on that list and must never leave the monitoring
-> host.** It is the key that signs every certificate in the estate; a copy of
-> it on a machine that sits on the segment built to hold attackers is a
-> different class of problem from a leaked leaf. Copy the three files by name.
-> Do not `scp certificates/*`.
+> **`ca-key.pem` is not on that list and must never go to another host.** It
+> is the key that signs every certificate in the estate; a copy of it on a
+> machine that sits on the segment built to hold attackers is a different
+> class of problem from a leaked leaf. Its one copy is offline, on the medium
+> that holds the age key ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)),
+> and nowhere else. Copy the three files by name. Do not `scp certificates/*`.
 
 ### Do it from Hicks, because the two hosts cannot reach each other
 

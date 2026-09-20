@@ -14,7 +14,7 @@
 > | Leaves issued by | You, by hand, with `make certs` | step-ca over ACME; Caddy asks and renews on its own |
 > | Leaf lifetime | 825 days | 7 days |
 > | Root certificate | `certificates/ca.pem` | `certificates/tier-ca.pem` |
-> | Root key lives | `prometheus`, and nowhere else | `prometheus`, and nowhere else — never on `trinity` |
+> | Root key lives | `prometheus`, plus one proved offline copy ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)) | `prometheus`, and the same offline copy — never on `trinity` |
 > | Who trusts it | The operator's browsers; Prometheus and blackbox by `ca_file` | The household's devices, and the operator's |
 > | Runbook | This one | [`build-the-tier-ca.md`](build-the-tier-ca.md) |
 >
@@ -53,7 +53,7 @@ and CI assert it.
 
 | File | Mode | Secret? |
 | --- | --- | --- |
-| `certificates/ca-key.pem` | 0600 | **yes** — never copy it off this host |
+| `certificates/ca-key.pem` | 0600 | **yes** — one copy, on the offline medium that holds the age key ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)), and nowhere else. Never to another host |
 | `certificates/ca.pem` | 0644 | no — this is what clients trust, distribute freely |
 | `certificates/<host>-key.pem` | 0640 | **yes** — belongs only to that service |
 | `certificates/<host>.pem` | 0644 | no |
@@ -123,7 +123,7 @@ Shows each certificate, its subject and its expiry, and marks expired ones. Wort
 running before you debug a TLS error — an expired leaf and a misconfigured one
 look identical from the client side.
 
-## 4. Trust the CA where you need it
+## 4. Trust the CA where you need it — and write down where
 
 Distribute `certificates/ca.pem` — never the key.
 
@@ -135,6 +135,25 @@ sudo update-ca-certificates
 
 Firefox keeps its own store and will not read the system one; import it under
 **Settings → Privacy & Security → Certificates → View Certificates → Authorities**.
+
+**Then add a row here.** This table is the re-mint path's list: a new root
+(`--ca --force`, or the key lost) has to be re-trusted in every one of these
+places, and [ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
+could only say "the Mac's system store and Firefox's separate one, at least,
+and whatever else nobody wrote down". Nothing checks this table; importing
+the certificate somewhere and not recording it is how it goes stale
+([#496](https://github.com/Gerrrt/HomeLab/issues/496)).
+
+| Where | How it trusts `ca.pem` | After a re-mint |
+| --- | --- | --- |
+| Prometheus on `prometheus` | `ca_file` — bind-mounted read-only by [`compose.yaml`](../../stacks/observability/compose.yaml), verifies the `grafana` scrape | Nothing to import: `make up` restarts it on the new file |
+| blackbox-exporter on `prometheus` | `ca_file` in [`blackbox.yaml`](../../stacks/observability/blackbox/blackbox.yaml), same mount — the `http_2xx_lab_ca` probes | Same |
+| Prometheus on `alexander` (the lab guest) | `ca_file`, the copy carried there with the lab leaf by [`build-the-lab-guest.md`](build-the-lab-guest.md) §5 | Reissue the lab leaf and carry both files through the Mac again — `99 → 30` is closed |
+| The operator's Mac — system keychain | Imported by hand for Grafana in Safari and Chrome | Re-import in Keychain Access; delete the old entry. *Recorded from ADR-0037 — confirm on the device* |
+| The operator's Mac — Firefox | Its own store, imported as above | Re-import under Authorities. *Recorded from ADR-0037 — confirm on the device* |
+| The monitoring host's own OS store | **Not imported.** Checked 2026-09-19: nothing under `/usr/local/share/ca-certificates/` and no match in the system bundle | Nothing |
+| The Grafana image renderer | **Does not trust it** and cannot — Chromium reads NSS, not `SSL_CERT_FILE`; it ignores certificate errors instead ([`compose.yaml`](../../stacks/observability/compose.yaml), the renderer's `BROWSER_FLAGS`) | Nothing |
+| Household devices, phones | **Never.** The estate's CA is the operator's; the household trusts the tier's root only ([`build-the-tier-ca.md`](build-the-tier-ca.md) §6) | Nothing |
 
 ## Renewal
 
@@ -223,12 +242,18 @@ root of its own instead of sitting beneath this one — a decision made after
 the alternative was built and measured to fail
 ([ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)).
 Lifting it means `--ca --force`, re-issuing every leaf, and re-trusting the
-new `ca.pem` on every device that holds the old one.
+new `ca.pem` on every device that holds the old one — the table in
+[step 4](#4-trust-the-ca-where-you-need-it--and-write-down-where) is that
+list. A re-mint also starts `CaKeyBackupUnproven` the same minute: the new
+key has no offline copy until you make one
+([`back-up-the-ca-key.md`](back-up-the-ca-key.md)).
 
 The CA key is **not** passphrase-protected, which is a deliberate trade. A
 passphrase is what made the previous leak survivable, but it also makes every
 issuance interactive — which is how a lab ends up with one ancient certificate
-nobody dares reissue. The exposure is bounded instead by the key never leaving
-this host and never becoming a tracked file. To change that, add `-aes256` to
-the CA key generation in [`gen-certs.sh`](../../scripts/gen-certs.sh) and accept
-the prompt on every issue.
+nobody dares reissue. The exposure is bounded instead by the key never becoming
+a tracked file and never leaving this host except as one offline copy, on the
+medium that holds the age key's, proved on the same ninety days
+([`back-up-the-ca-key.md`](back-up-the-ca-key.md)). To change that, add
+`-aes256` to the CA key generation in [`gen-certs.sh`](../../scripts/gen-certs.sh)
+and accept the prompt on every issue.
