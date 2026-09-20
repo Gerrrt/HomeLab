@@ -485,7 +485,7 @@ is load-bearing for the script, not a preference:
 | Setting | Value | Why the script depends on it |
 | --- | --- | --- |
 | Dataset | `erebor/apps` | The bind mount in §6 is a directory on it, not a child dataset, so this is enough |
-| Recursive | **off** | Nothing beneath it is a dataset |
+| Recursive | **off** | One thing beneath it is a dataset, and the pull needs nothing in it. `erebor/apps/home` is `frodo`'s home directory — TrueNAS made it a child dataset when §6.2 step 1 created the user, at 21:53 on 2026-09-19 — and it holds that user's shell files and authorized key, nothing Jellyfin writes. `jellyfin/config` is a directory on `erebor/apps` itself, so a non-recursive snapshot freezes all of it. Recursive on would be harmless and buy nothing: the script reads one dataset's `.zfs/snapshot/`, and a child's snapshot is not visible there |
 | Naming schema | `auto-%Y-%m-%d_%H-%M` | The default. The script accepts only names of this shape, and reads the snapshot's age out of the name — in this host's zone, which is why §6.2 records that zone |
 | Schedule | daily, `03:00` | The pull runs weekly and fails if the newest snapshot is older than **two days**, twice the period; a daily task tolerates one missed night |
 | Lifetime | 2 weeks | Local rollback history; the off-host copy is the backup |
@@ -735,7 +735,12 @@ is what makes step 7 safe.
    and `oracle` — into **Authorized Keys**. If the form will not store a key
    against the default home directory, give the user one at
    `/mnt/erebor/apps/home/frodo` — on the dataset the user already needs to
-   read, so nothing new is created for it — and record that here.
+   read — and record that here. **Done 2026-09-19:** the form did need a
+   home, and it is there. One thing *was* created for it: TrueNAS made
+   `erebor/apps/home` a **child dataset** rather than a directory, which is
+   why §4.1's snapshot task is non-recursive on purpose and not by accident —
+   the pull needs nothing under it, and a recursive task would only be
+   snapshotting an authorized key.
 
 2. **Give the user read on the dataset, and nothing else.** From the console
    shell, read what the Apps preset set on the dataset root before changing
