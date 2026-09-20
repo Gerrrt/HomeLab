@@ -7,9 +7,25 @@ route, one port forward and five rules on `morpheus` (`10.0.99.1`)
 enrol, and a dynamic DNS account — §0 turns it into **the endpoint**, which
 used to be the step this runbook could not do for you
 **Before this:** the jumpbox exists
-([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and
+([#436](https://github.com/Gerrrt/HomeLab/issues/436)), `Saruman`'s own
+firewall is on ([#566](https://github.com/Gerrrt/HomeLab/issues/566)) so that
+a peer which reaches the lab does not reach `8006`, and
 [ADR-0042](../adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)
 is read rather than skimmed
+
+> **Status — 2026-09-DD: the tunnel is up, and it reaches the lab and nothing
+> else.**
+>
+> Built by this runbook on `phoenix` (`10.0.30.70`) with *(pending the §3
+> report)* peer(s), each pinned to a `/32`; the endpoint is ADR-0044's dynamic
+> DNS record, verified from `prometheus` and from mobile data on the same day.
+> §8 passed from off-estate: `wg show wg0 allowed-ips` printed only `/32`s,
+> `10.0.30.1` answered, the four pings into Winterfell, Hicks and CasaBonita
+> timed out, and with the tunnel down `ip_forward` read `0`, both masquerade
+> greps printed nothing and the lab was gone. The leak drill produced a
+> `172.31.` row in `filterlog` *(pending the §8 report)*. #566 was closed
+> first, on 2026-09-DD, so the hypervisor's login surface was never reachable
+> from a peer; the sequence and its reasoning are on #442.
 
 This opens the estate's **first inbound path from the internet**. It terminates
 on the lab and reaches the lab, and the thing that keeps it there is the

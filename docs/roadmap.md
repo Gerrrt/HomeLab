@@ -283,6 +283,28 @@ either machine is.
 
 ## Security
 
+- **[#442](https://github.com/Gerrrt/HomeLab/issues/442) WireGuard to the lab
+  jumpbox, terminating on VLAN 30 and not on Winterfell.** Built 2026-09-DD by
+  [`open-the-remote-path.md`](runbooks/open-the-remote-path.md): the estate's
+  first inbound path, a UDP `rdr` on `morpheus` to `phoenix` at `10.0.30.70`,
+  named by [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)'s
+  dynamic DNS record and designed by
+  [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md).
+  Routed, not masqueraded: every peer keeps its own `172.31.0.x` across the
+  jumpbox, `morpheus` carries one static route back, and the ImaginationLAN
+  interface carries a second set of blocks and a second tripwire sourced from
+  the peers — so a peer that reaches the house is a `filterlog` line that
+  names it, and `LabSegmentReachedInternalNetwork` fires on it. Peers are
+  pinned to a `/32` on the server, *(pending the §3 report)* of them to
+  start, and reach the lab and nothing else; §8 proved both directions from
+  off-estate, and the leak drill produced its row. Two things decided in the
+  building: [#566](https://github.com/Gerrrt/HomeLab/issues/566) was closed
+  first, because until `Saruman`'s own firewall was on every peer would have
+  reached the hypervisor's login page; and ADR-0042's two residuals stand —
+  removing a peer is a `wg0.conf` edit, and the one externally reachable host
+  reports to the lab's store, where no house alert reads. The endpoint, the
+  port and the provider are on `security.md`'s withheld list and nowhere
+  else. → [runbook](runbooks/open-the-remote-path.md)
 - **[#229](https://github.com/Gerrrt/HomeLab/issues/229) The switch LAN still
   carries pfSense's stock *Default allow LAN to any*.** `10.7.7.0/24` reaches
   every VLAN; `network.md` said "Nothing". Bounded by that segment holding only
@@ -1242,12 +1264,12 @@ months.
   a dynamic DNS record kept current by `morpheus`'s own client, on a free
   provider, after measuring that the WAN address is public rather than
   carrier-grade NAT and that the residential service sells no static one.
-  Nothing is configured: the client is §0 of
-  [`open-the-remote-path.md`](runbooks/open-the-remote-path.md), which
-  [#442](https://github.com/Gerrrt/HomeLab/issues/442) runs once `phoenix`
-  exists ([#436](https://github.com/Gerrrt/HomeLab/issues/436)). Neither issue
-  has an entry above, because the remote path is a decision with a runbook and
-  not yet a piece of work anyone can start.
+  Configured 2026-09-DD as §0 of
+  [`open-the-remote-path.md`](runbooks/open-the-remote-path.md), the first
+  step of [#442](https://github.com/Gerrrt/HomeLab/issues/442)'s build, and
+  verified from outside the house the same day. The record's freshness is
+  still unwatched, which ADR-0044 records and a probe of its own owns. The
+  tunnel it names has its entry under *Security* above.
 
 ## Considered and declined
 

@@ -90,15 +90,16 @@ truth for what a box actually does.
   lab only. The endpoint hostname and the listen port are withheld with the WAN
   address ([`security.md`](security.md#what-this-repository-deliberately-does-not-publish)).
   Before it, `morpheus` carried no `rdr` and no inbound WAN pass beyond DHCP
-  client replies — the state ADR-0011 measured in 2026-08. **Not built:** the
-  jumpbox exists — `phoenix`, built 2026-09-20
-  ([#436](https://github.com/Gerrrt/HomeLab/issues/436)) — and the endpoint
-  question is answered —
-  [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md):
-  a dynamic DNS record kept current by `morpheus`'s own client, on a WAN
-  address measured to be public rather than carrier-grade NAT — but no `rdr`
-  has been written and the client is not yet configured, so this still
-  describes a decision rather than a rule on the box.
+  client replies — the state ADR-0011 measured in 2026-08. **Built
+  2026-09-DD** ([#442](https://github.com/Gerrrt/HomeLab/issues/442)): the
+  `rdr` and its associated WAN pass exist, to `phoenix` at `10.0.30.70`, and
+  the dynamic DNS client of
+  [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
+  is bound to this interface — a record in a free provider's zone, kept
+  current by `morpheus` itself, on a WAN address measured to be public rather
+  than carrier-grade NAT. What the rule admits is one UDP port to one host;
+  what arrives through it is a keyed peer or nothing, and how far a peer
+  reaches is decided on the ImaginationLAN interface, not here.
 
 [^modem]: [Xfinity Gateway (XB7)](https://www.xfinity.com/support/articles/broadband-gateways-userguides)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
@@ -404,12 +405,17 @@ Where things get broken on purpose.
   and holds no key that signs anything — the estate's CA stays on
   `prometheus`, and that ADR says why. It is also where
   [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
-  WireGuard tunnel terminates once the endpoint it records as blocking exists;
-  the peers reach the lab through it and nothing else. Its Alloy pushes to
+  WireGuard tunnel terminates, built 2026-09-DD
+  ([#442](https://github.com/Gerrrt/HomeLab/issues/442)); the peers reach the
+  lab through it and nothing else. Its Alloy pushes to
   `alexander` and
   not to Winterfell, and it gets no pass out of this segment: a rule from it
-  into 99 would make it the bastion ADR-0002 and ADR-0012 declined. It adds
-  nothing on `morpheus`. What it adds is on `Saruman`: one line in the
+  into 99 would make it the bastion ADR-0002 and ADR-0012 declined. What it
+  adds on `morpheus` is the tunnel's, and only that: a gateway and a static
+  route for `172.31.0.0/24` toward `10.0.30.70`, the one WAN `rdr` above, and
+  on this interface the `Tunnel_Peers` alias with *(pending the §7 report)*
+  logged blocks and one tripwire — the peers' copy of the segment's own rules.
+  Nothing from it into another segment. What it adds on `Saruman` is one line in the
   hypervisor's own firewall admitting `10.0.30.70` to `8006`, which
   `firewall-claims.yaml` cannot see because it lives in `/etc/pve` and not in
   pf. That line is decided and not written: on 2026-09-20 the build found
@@ -449,7 +455,9 @@ Where things get broken on purpose.
 
 - **The WireGuard peers live on `172.31.0.0/24`, and it is routed rather than
   translated**
-  ([ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)).
+  ([ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md);
+  built 2026-09-DD, [#442](https://github.com/Gerrrt/HomeLab/issues/442),
+  *(pending the §3 report)* peer(s), each a `/32`).
   `morpheus` carries one static route for it toward the jumpbox, so a peer's
   own address is what arrives on this interface and what a firewall log
   carries — which is what lets a rule name a peer and an alert say which one.

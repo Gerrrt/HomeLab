@@ -22,6 +22,18 @@
 > public address, not carrier-grade NAT, on a residential service that sells
 > no static one — is there, not here. Nothing here is amended; the text below
 > is left as written, per ADR-0001.
+>
+> ---
+>
+> **Built 2026-09-DD**, by
+> [`open-the-remote-path.md`](../runbooks/open-the-remote-path.md) under
+> [#442](https://github.com/Gerrrt/HomeLab/issues/442), after #566 put
+> `Saruman`'s own firewall in front of `8006` so that no peer ever reached the
+> hypervisor's login surface. The consequence below that says *nothing here is
+> deployed* is dated from that day; the residuals it lists — a peer is a
+> credential with no revocation story, and the internet-facing host reports to
+> the store no house alert reads — stand as written. Nothing here is amended,
+> per ADR-0001.
 
 ## Context
 
