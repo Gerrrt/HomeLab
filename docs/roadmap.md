@@ -325,9 +325,11 @@ either machine is.
   MokerLink's UI is not checked for one. The tooling is done: a device's
   version and key names come from its auth block in `generator.yaml`, and
   `snmp-verify.sh` speaks v3. **`shiva` is polled over v3 since 2026-09-20**:
-  the user exists on the iLO, `auth_ilo` is the v3 block, and
-  `snmp-verify.sh` passed over SNMPv3 before the exporter switched. Whether
-  *SNMPv1 Request* is off yet, proved with `--old`, is recorded on the issue.
+  the user exists on the iLO, `auth_ilo` is the v3 block, *SNMPv1 Request*
+  is off, and the iLO refuses its own former community over v2c — the whole
+  of §4 including §4.5, proved with `--old` and recorded on the issue. The
+  v3 discovery round trip cost nothing measurable: 12.09 s averaged over the
+  hour after the move against 12.05 s over the day before it.
   `mjolnir` is next, same procedure, device first —
   [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
