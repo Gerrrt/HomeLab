@@ -330,8 +330,12 @@ either machine is.
   of §4 including §4.5, proved with `--old` and recorded on the issue. The
   v3 discovery round trip cost nothing measurable: 12.09 s averaged over the
   hour after the move against 12.05 s over the day before it.
-  `mjolnir` is next, same procedure, device first —
-  [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
+  **`mjolnir` followed the same day**: a user profile on the NMC with an
+  access-control entry for `10.0.99.20`, `auth_apc` the v3 block, and
+  `snmp-verify.sh` passing over SNMPv3 before the exporter switched.
+  Whether the card's SNMPv1 access is off yet, proved with `--old`, is
+  recorded on the issue, and that is the last thing this issue is waiting
+  on — [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
   Prometheus and Loki ingest ports.** Both are published and unauthenticated, so
   anything that can route to `10.0.99.20` can read every metric and log line,
