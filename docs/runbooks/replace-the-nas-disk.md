@@ -220,7 +220,15 @@ leads, so a cable that was the fault is found by the next reading rather
 than hidden by a fresh one. Leave the `AUX1_FAN` cage fan alone; it is the
 airflow over both trays and §1 says why it is not optional.
 
-Power on. **Read the new drive before trusting it**, §2-style:
+Power on, and **check that the new drive is there at all**: `lsblk` must
+show a third 18 TB device. The bays are behind a MegaRAID SAS3008, not the
+chipset (see *What is still open*), and a RAID card that is not in JBOD
+mode holds a fresh disk as *Unconfigured Good* and shows the operating
+system nothing. If `lsblk` has no new device, the card's own boot-time
+utility (`Ctrl-R` during POST on a MegaRAID) is where the disk is made a
+JBOD, and that reading — the card's firmware, its mode — goes in
+[`hardware.md`](../hardware.md) the same evening. Then **read the new drive
+before trusting it**, §2-style:
 
 ```bash
 smartctl -a /dev/sdX
@@ -298,15 +306,23 @@ refund fight — is the operator's, and it is recorded here.
   restart within seven minutes of the console session, so `InstanceDown` is
   the NAS disk alert only while the device is still timing out I/O. The
   runbook now says so at the top.
-- **Which controller the pair is on.** `readlink /sys/block/sdb` resolves
-  under `host0` at PCI `0000:01:00.0`, and `dmesg` handles it with task
-  aborts and target resets — a SCSI host on the PCIe slot, not the board's
-  AHCI, whose `ata2` and `ata3` read *SATA link down* at boot while
-  [`build-the-nas.md`](build-the-nas.md) §1 says the trays are cabled to
-  `SATA2` and `SATA3`. Either there is a controller in the slot that
-  [`hardware.md`](../hardware.md) does not list, or §1's port names are
-  wrong. `lspci -nn` and `readlink /sys/block/sda` at the console settle
-  it, and the answer belongs in the hardware entry.
+- **Settled 2026-09-19: the pair is behind a RAID card.** `lspci -nn` reads
+  a **Broadcom / LSI MegaRAID SAS-3 3008 "Fury"**, `1000:005f`, at
+  `01:00.0`, and both `sda` and `sdb` resolve under its `host0`; the
+  chipset AHCI carries the boot SSD alone. [`build-the-nas.md`](build-the-nas.md)
+  §1's `SATA2`/`SATA3` was wrong and now says so;
+  [`hardware.md`](../hardware.md) carries the card. What is **not** read
+  yet, and belongs in the hardware entry: the card's firmware and whether
+  the disks are JBOD pass-through or single-disk virtual drives.
+  `cat /sys/class/scsi_host/host0/proc_name` names the driver, and
+  `dmesg -T | grep -iE 'megaraid|megasas'` prints the firmware and, on a
+  JBOD, says so. `smartctl` reaching the drives by their own model without
+  `-d megaraid` says pass-through, which is the better of the two answers
+  and still not the IT-mode HBA ZFS is designed for. Whether to leave the
+  card as it is, flash the 3008 to IT firmware (`1000:0097`), or cable the
+  bays to the chipset's free `SATA0`–`SATA3` and take the card out is a
+  decision for [#558](https://github.com/Gerrrt/HomeLab/issues/558) after
+  the swap, not before it.
 - **§6.2**, until step 2 path A has run — and `oracle`'s copy of the NAS
   set, which `backup-nas.sh` makes and nothing has yet made.
 - **The replacement decision**, and whether a third drive follows.

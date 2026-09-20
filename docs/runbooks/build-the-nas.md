@@ -309,6 +309,18 @@ anything in this runbook.
 > alone. **The power lead had four wires and no orange one**, so the pin-3
 > trap below did not fire on this supply; both drives spun up and appeared in
 > `lsblk` first time.
+>
+> **Corrected 2026-09-19: the trays are not on `SATA2` and `SATA3`.** Read
+> with `lspci` and `readlink /sys/block/sd?` while triaging the faulted disk
+> ([`replace-the-nas-disk.md`](replace-the-nas-disk.md)): both Exos sit
+> behind a **Broadcom / LSI MegaRAID SAS-3 3008** at PCI `01:00.0`, the RAID
+> card in the PCIe slot that no document had recorded, and the chipset's
+> `ata1`–`ata5` read *SATA link down* at boot. The board's AHCI carries the
+> boot SSD alone. The cabling instruction below is kept as written, because
+> it is what was believed when the drives went in; what is actually cabled is
+> in [`hardware.md`](../hardware.md)'s `smaug` entry, and the consequence —
+> a controller between ZFS and its disks, and what that means for the swap —
+> is in the disk runbook's step 4 and open list.
 
 Power down, unplug, hold the power button five seconds, ground yourself.
 

@@ -261,7 +261,27 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#418](https://github.com/Gerrrt/HomeLab/issues/418) is the cautionary tale
   for, and `CSM [Disabled]`, so it boots UEFI as TrueNAS wants.
   Two 3.5" trays, filled by the Exos pair on 2026-09-18 — exactly the mirror
-  and no spare.
+  and no spare. **The trays are not on those six ports.** Read with `lspci`
+  and `readlink` at the console on 2026-09-19, while triaging the faulted
+  disk: both Exos enumerate under `host0` at PCI `01:00.0`, a **Broadcom /
+  LSI MegaRAID SAS-3 3008 "Fury"**, PCI ID `1000:005f` — the SAS3008 in its
+  MegaRAID personality, which is the ThinkServer RAID 520i option for this
+  chassis, sitting in the PCIe slot and cabled to the bays. The chipset AHCI
+  at `00:17.0` carries only the boot SSD on `ata6`; `ata1`–`ata5` read *SATA
+  link down* at boot. So `Configure SATA as [AHCI]` protects the boot disk
+  and nothing else, and the pool has had a RAID controller between ZFS and
+  its disks since the day it was built — the arrangement the line above
+  calls #418's cautionary tale. It is the MegaRAID firmware, not the
+  chipset, that handled `sdb`'s failure with 60-second command timeouts,
+  task aborts and a target reset. `smartctl` reaches the drives without a
+  `-d megaraid` option and reports them by their own model and serial, which
+  is what a JBOD pass-through looks like; whether the card is in JBOD mode
+  or presenting two single-disk virtual drives, and which firmware it runs,
+  are unread and belong here when they are. `1000:005f` is the ID to watch:
+  `1000:0097` is the same silicon in IT mode, and the card was never
+  recorded here, like the optical drive was not. Cabling below, in
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §1, says `SATA2` and
+  `SATA3`; that is now known to be wrong, and the same reading corrects it.
   **The 5.25" bay was not empty**: a PLDS `DVD-RW DU8AESH` answered on SATA5.
   A photograph of the open case had been read here as an empty cage and was
   wrong; the BIOS summary is what caught it. The optical drive came out on
