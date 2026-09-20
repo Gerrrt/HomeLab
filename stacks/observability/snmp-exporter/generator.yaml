@@ -19,9 +19,17 @@
 # flags `make snmp-generate` passes through. A v2c device is one community
 # placeholder. A device moved to SNMPv3 authPriv (ADR-0036) looks like this —
 # the user name a literal, because USM sends it in the clear header of every
-# message, and the two passphrases placeholders:
+# message, and the two passphrases placeholders. The empty community is
+# load-bearing: the generator fills every unset field from its defaults, and
+# its default community is the stock `public` string, so a v3 block without
+# that line comes out of `make snmp-generate` with a community line holding
+# that string beside the user — which .gitleaks.toml's community rule exists
+# to catch (it matches this file's comments too, hence the wording here), and
+# `make validate` goes red on the generated file. An explicit empty string is
+# dropped (omitempty), and snmp-targets.sh --check holds the block to it:
 #
 #   auth_ilo:
+#     community: ""
 #     username: prometheus
 #     password: ${SNMP_AUTHPASS_ILO}
 #     priv_password: ${SNMP_PRIVPASS_ILO}
@@ -32,7 +40,9 @@
 #
 # authPriv only — snmp-targets.sh --check refuses the other two levels — and
 # the device is changed BEFORE this file is, per the runbook's order. Which
-# devices are v3 today is the version: line below, nothing else.
+# devices are v3 today is the version: line below, nothing else — the iLO
+# since 2026-09-20; the UPS card is next, and the firewall and the switch stay
+# on v2c for the reasons the ADR gives.
 
 auths:
   auth_apc:
@@ -42,12 +52,18 @@ auths:
     priv_protocol: DES
     version: 2
 
+  # shiva moved on 2026-09-20 (#85): the user below exists on the iLO for
+  # 10.0.99.20 and nothing else, per ADR-0036. The empty community is
+  # explained in the header; it is not a leftover.
   auth_ilo:
-    community: ${SNMP_COMMUNITY_ILO}
-    security_level: noAuthNoPriv
-    auth_protocol: MD5
-    priv_protocol: DES
-    version: 2
+    community: ""
+    username: prometheus
+    password: ${SNMP_AUTHPASS_ILO}
+    priv_password: ${SNMP_PRIVPASS_ILO}
+    security_level: authPriv
+    auth_protocol: SHA
+    priv_protocol: AES
+    version: 3
 
   auth_mokerlink:
     community: ${SNMP_COMMUNITY_MOKERLINK}

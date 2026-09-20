@@ -141,8 +141,17 @@ while IFS=$'\t' read -r ip auth dev version keys; do
       || note "${dev} (${ip}): ${auth} has auth_protocol '${SNMP_AUTH_AUTHPROTO}'; snmp-exporter accepts MD5, SHA, SHA224, SHA256, SHA384 or SHA512"
     [[ "${SNMP_AUTH_PRIVPROTO}" =~ ^(DES|AES|AES192|AES256|AES192C|AES256C)$ ]] \
       || note "${dev} (${ip}): ${auth} has priv_protocol '${SNMP_AUTH_PRIVPROTO}'; snmp-exporter accepts DES, AES, AES192, AES192C, AES256 or AES256C"
-    [[ -z "${SNMP_AUTH_COMMUNITY}" ]] \
-      || note "${dev} (${ip}): ${auth} is version 3 and still carries a 'community:' line — a leftover from the v2c block, and a leftover placeholder render-config.sh will demand a value for"
+    # A v3 block carries `community: ""` and nothing else there. The generator
+    # fills every unset auth field from its defaults, and the default community
+    # is `public` — so a v3 block with no community line at all comes out of
+    # `make snmp-generate` as `community: public` beside the USM user, which
+    # is exactly the string .gitleaks.toml's snmp-community-plaintext rule
+    # exists to catch, and `make validate` goes red on the generated file. An
+    # explicit empty string is marshalled with omitempty and the line is
+    # dropped. Anything else here is a leftover from the v2c block, and a
+    # leftover placeholder render-config.sh will demand a value for.
+    [[ "${SNMP_AUTH_COMMUNITY}" == '""' || "${SNMP_AUTH_COMMUNITY}" == "''" ]] \
+      || note "${dev} (${ip}): ${auth} is version 3 and its 'community:' is '${SNMP_AUTH_COMMUNITY:-<missing>}' — a v3 block carries community: \"\" (an explicit empty string), which stops the generator writing its 'public' default into snmp.yaml"
   else
     [[ -z "${SNMP_AUTH_PASSWORD}${SNMP_AUTH_PRIVPASS}" ]] \
       || note "${dev} (${ip}): ${auth} is version ${version} and carries v3 passphrase fields; either the version is wrong or the fields are leftovers"

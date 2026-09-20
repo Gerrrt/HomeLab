@@ -341,11 +341,19 @@ either machine is.
   because bsnmpd is the only daemon that serves the pf MIB and pfSense writes
   no v3 user for it; that was the issue's "three can", checked on the box on
   2026-09-09, and the switch was never what blocked it. The switch stays on
-  v2c and its UI gets checked once for a v3 user page — its agent answers v3
-  on the wire, which ADR-0018 did not know. The tooling is done: a device's
+  v2c until [#444](https://github.com/Gerrrt/HomeLab/issues/444) replaces it —
+  [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  commissions the CRS326 with an authPriv user by the same runbook, so the
+  MokerLink's UI is not checked for one. The tooling is done: a device's
   version and key names come from its auth block in `generator.yaml`, and
-  `snmp-verify.sh` speaks v3. What is left is the device side, one at a time,
-  device first — [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
+  `snmp-verify.sh` speaks v3. **`shiva` is polled over v3 since 2026-09-20**:
+  the user exists on the iLO, `auth_ilo` is the v3 block, *SNMPv1 Request*
+  is off, and the iLO refuses its own former community over v2c — the whole
+  of §4 including §4.5, proved with `--old` and recorded on the issue. The
+  v3 discovery round trip cost nothing measurable: 12.09 s averaged over the
+  hour after the move against 12.05 s over the day before it.
+  `mjolnir` is next, same procedure, device first —
+  [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
   Prometheus and Loki ingest ports.** Both are published and unauthenticated, so
   anything that can route to `10.0.99.20` can read every metric and log line,
@@ -1214,7 +1222,11 @@ what left this one unfireable for months.
   because VLAN 30 is the segment ADR-0014 built to hold attackers. Two things
   the issue did not count: the Proxmox firewall on `Saruman` admits `8006`
   from Hicks only, so the build widens ADR-0014's rule by one address on one
-  port, recorded as a marked amendment there and on ADR-0039; and
+  port, recorded as a marked amendment there and on ADR-0039 — and the build
+  then found that firewall never enabled at all, closed the same day by
+  [#566](https://github.com/Gerrrt/HomeLab/issues/566), which also found that
+  Proxmox had been admitting the whole segment through a `management` set
+  derived from the node's own subnet; and
   `certificates/ca-key.pem` has no backup or custody story at all, unlike
   the age key and the tier's root — found, named in the ADR with what the
   answer is not, and carried by
@@ -1245,9 +1257,9 @@ months.
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85)** SNMPv3 on the iLO and
   the UPS card, decided by
   [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
-  with the repository side built and the device side not yet done. Under
-  **Security** above, because it has a procedure now rather than only a
-  decision.
+  with the repository side built, the iLO moved on 2026-09-20 and the UPS
+  card's device side not yet done. Under **Security** above, because it has
+  a procedure now rather than only a decision.
 - **[#444](https://github.com/Gerrrt/HomeLab/issues/444)** The CRS326's
   operating system and management posture, decided by
   [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)

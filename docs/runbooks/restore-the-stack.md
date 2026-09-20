@@ -76,9 +76,9 @@ that *differs* on `oracle`, nothing removes it for you: look at it, remove that
 one directory there, and run the copy again. Two things this does not change.
 Off-host is not offsite — `oracle` is on the same shelf, mains and room, and a
 fire takes both ([`roadmap.md`](../roadmap.md)). And `oracle`'s disk is a
-2016 laptop HDD carrying 32 static reallocated sectors, silenced as a known
-fact; `SmartDriveBadSectorsGrowing` is what watches it, and the daily far-side
-hash is what reads every archive it holds.
+2016 laptop HDD carrying 32 static reallocated sectors, recorded as a baseline
+in `scripts/render-smart-baselines.sh`; `SmartDriveBadSectorsGrowing` is what
+watches it, and the daily far-side hash is what reads every archive it holds.
 
 **The age key is backed up.** A volume archive you cannot decrypt is a disk you
 cannot read. See [`back-up-the-age-key.md`](back-up-the-age-key.md) and

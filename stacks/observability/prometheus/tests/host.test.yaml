@@ -821,9 +821,10 @@ tests:
         alertname: SmartDriveWearHigh
         exp_alerts: []
 
-  # --- SmartDriveBadSectors: fires on the first reallocated sector ----------
-  # And keeps firing. A remapped sector never un-remaps, which is why the rule
-  # is `> 0` rather than a rate.
+  # --- SmartDriveBadSectors: fires on the first sector of an UNRECORDED drive
+  # No baseline series for this drive, so the `unless` clause holds it to `> 0`,
+  # which is what the rule always did. A remapped sector never un-remaps, which
+  # is why it is a count and not a rate.
   - interval: 1m
     input_series:
       - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda"}'
@@ -841,11 +842,105 @@ tests:
             exp_annotations:
               summary: "oracle: /dev/sda has unreadable sectors"
               description: >-
-                8 sector(s) or media error(s) the drive could not read back. The
-                count only grows, so this stays firing until the disk is
-                replaced — that is deliberate, because a drive that failed once
-                and went quiet is still a drive that failed. Check backups
-                first.
+                8 sector(s) or media error(s) the drive could not read
+                back — above the count recorded for this drive in
+                scripts/render-smart-baselines.sh, or on a drive with no count
+                recorded. Look at it: if the number is static and the drive's own
+                assessment passes, record it there and this goes quiet; if it is
+                rising, SmartDriveBadSectorsGrowing will say so and the answer is
+                a disk. Check backups first.
+
+  # --- SmartDriveBadSectors: fires ABOVE the recorded baseline ---------------
+  # oracle's real shape, then a change: 32 recorded and 32 measured, then 40.
+  # The baseline is rendered on the monitoring host, so it carries
+  # instance="prometheus" while the drive carries instance="oracle" — the join
+  # is on(host, device) and must not care. The alert must keep the DRIVE's
+  # instance, which is what `group_left()` is for; without it the label is
+  # silently dropped (backup.rules.yaml measured this).
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda",instance="oracle",job="oracle-metrics"}'
+        values: "32x30 40x90"
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",device="/dev/sda",instance="prometheus",job="prometheus-metrics"}'
+        values: "32x120"
+    alert_rule_test:
+      # 32 against a baseline of 32 is not above it.
+      - eval_time: 25m
+        alertname: SmartDriveBadSectors
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: SmartDriveBadSectors
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              device: /dev/sda
+              instance: oracle
+              job: oracle-metrics
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "oracle: /dev/sda has unreadable sectors"
+              description: >-
+                40 sector(s) or media error(s) the drive could not read
+                back — above the count recorded for this drive in
+                scripts/render-smart-baselines.sh, or on a drive with no count
+                recorded. Look at it: if the number is static and the drive's own
+                assessment passes, record it there and this goes quiet; if it is
+                rising, SmartDriveBadSectorsGrowing will say so and the answer is
+                a disk. Check backups first.
+
+  # --- SmartDriveBadSectors: QUIET at the recorded baseline ------------------
+  # oracle as it stands: 32 reallocated, static, recorded. This is the case the
+  # baseline exists for — the count that used to be held down by a silence
+  # (#351, #572). Pending and uncorrectable at zero, as on the real drive, so
+  # the `or` chain is exercised and not just the first branch.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda",instance="oracle"}'
+        values: "32x120"
+      - series: 'homelab_smart_pending_sectors{host="oracle",device="/dev/sda",instance="oracle"}'
+        values: "0x120"
+      - series: 'homelab_smart_uncorrectable_sectors{host="oracle",device="/dev/sda",instance="oracle"}'
+        values: "0x120"
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",device="/dev/sda",instance="prometheus"}'
+        values: "32x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: SmartDriveBadSectors
+        exp_alerts: []
+
+  # --- SmartDriveBadSectors: the baseline covers reallocated ONLY -------------
+  # A recorded reallocated count says nothing about pending sectors, which are
+  # transient by definition. One pending sector on the recorded drive fires.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda"}'
+        values: "32x120"
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",device="/dev/sda"}'
+        values: "32x120"
+      - series: 'homelab_smart_pending_sectors{host="oracle",device="/dev/sda"}'
+        values: "0x30 1x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: SmartDriveBadSectors
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              device: /dev/sda
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "oracle: /dev/sda has unreadable sectors"
+              description: >-
+                1 sector(s) or media error(s) the drive could not read
+                back — above the count recorded for this drive in
+                scripts/render-smart-baselines.sh, or on a drive with no count
+                recorded. Look at it: if the number is static and the drive's own
+                assessment passes, record it there and this goes quiet; if it is
+                rising, SmartDriveBadSectorsGrowing will say so and the answer is
+                a disk. Check backups first.
 
   # --- SmartDriveBadSectors: quiet on a clean drive -------------------------
   # All four inputs at zero, including the NVMe spelling, so the `or` chain is
@@ -1033,16 +1128,17 @@ tests:
               summary: "oracle: /dev/sda has gained 8 bad sector(s) in seven days"
               description: >-
                 The count is rising, which is the difference between a drive that
-                failed once and a drive that is failing now. A static count is
-                expected and is usually silenced; this is not that. Replace the
-                disk rather than waiting for the drive's own assessment to fail —
-                SmartDriveUnhealthy is the firmware conceding, and it concedes
-                late. Check backups first.
+                failed once and a drive that is failing now. A static count is a
+                fact and is recorded in scripts/render-smart-baselines.sh; this is
+                not that. Replace the disk rather than waiting for the drive's own
+                assessment to fail — SmartDriveUnhealthy is the firmware
+                conceding, and it concedes late. Check backups first.
 
   # --- SmartDriveBadSectorsGrowing: QUIET for oracle's real state ----------
   # 32 reallocated sectors, static. This is the case the whole rule exists to
-  # distinguish: SmartDriveBadSectors fires on it forever and was silenced, and
-  # this one must stay silent so that the silence does not also hide growth.
+  # distinguish: SmartDriveBadSectors reads it against the recorded baseline
+  # and is quiet; this one must be quiet on its own account, so that it is
+  # growth and only growth that it reports.
   - interval: 5m
     input_series:
       - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda"}'
@@ -1073,11 +1169,11 @@ tests:
               summary: "morpheus: /dev/nvme0 has gained 3 bad sector(s) in seven days"
               description: >-
                 The count is rising, which is the difference between a drive that
-                failed once and a drive that is failing now. A static count is
-                expected and is usually silenced; this is not that. Replace the
-                disk rather than waiting for the drive's own assessment to fail —
-                SmartDriveUnhealthy is the firmware conceding, and it concedes
-                late. Check backups first.
+                failed once and a drive that is failing now. A static count is a
+                fact and is recorded in scripts/render-smart-baselines.sh; this is
+                not that. Replace the disk rather than waiting for the drive's own
+                assessment to fail — SmartDriveUnhealthy is the firmware
+                conceding, and it concedes late. Check backups first.
 
   # --- SmartDriveBadSectorsGrowing: quiet for a clean drive ----------------
   - interval: 5m

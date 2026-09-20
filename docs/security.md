@@ -569,8 +569,12 @@ rather than for the fleet:
   The iLO's poll is the one that matters: it is delivered into ImaginationLAN,
   where [ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)
   puts the attack VM on purpose, so a guest there that ARP-spoofs `10.0.30.10`
-  reads the community every minute. `shiva` moves to v3 with SHA and AES and
-  SNMPv1 off, then the UPS card on the same procedure. The firewall **cannot**
+  reads the community every minute. **`shiva` has been polled over v3 with
+  SHA and AES since 2026-09-20, and its *SNMPv1 Request* switch is off** —
+  the iLO refuses its own former community over v2c, proved with
+  `snmp-verify.sh --old` the same day, so that poll is no longer readable
+  from the lab segment. The UPS card follows on the same procedure. The
+  firewall **cannot**
   move without losing what it is polled for: bsnmpd is the only daemon that
   serves the pf MIB, and pfSense writes no v3 user for it — checked on the box
   on 2026-09-09. The switch stays on v2c; its agent answers v3 on the wire,
