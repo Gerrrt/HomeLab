@@ -146,8 +146,9 @@ make validate
 
 `make validate` runs everything CI runs, plus one check that is about *this
 host*: whether the stack runs here while no `homelab-*` units are installed. The
-schedule covers convergence, the volume backups, the firewall export, the SNMP
-verification and the dashboard drift check —
+schedule covers convergence, the volume backups, the pull of Jellyfin's state
+off `smaug`, the firewall export, the SNMP verification and the dashboard
+drift check —
 [`schedule-maintenance.md`](schedule-maintenance.md) has the table and the
 staleness threshold on each.
 
@@ -166,6 +167,10 @@ make certs ARGS=--list
 
 ```bash
 make backup ARGS=--list
+```
+
+```bash
+make backup-nas ARGS=--list
 ```
 
 ```bash

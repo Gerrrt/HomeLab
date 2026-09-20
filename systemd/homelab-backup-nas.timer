@@ -1,0 +1,22 @@
+[Unit]
+Description=HomeLab: weekly pull of Jellyfin's state off smaug
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-backup-nas.service
+# Saturday, not Sunday: the volume backup takes the observability stack down
+# on Sunday 03:30 and the two share the `backups` lock, so a Sunday slot would
+# queue this behind an outage. The hour is this host's (UTC); smaug's periodic
+# snapshot task runs in its own zone, and nothing here waits on it — the run
+# reads whichever snapshot is newest and fails by name if that one is older
+# than two days, so the alignment only decides how fresh "newest" is.
+OnCalendar=Sat *-*-* 03:30:00
+# Jitter and a replayed missed run are both fine here, and both are the
+# opposite of the volume timer's reasoning: nothing is stopped, and a run at
+# an odd hour reads a snapshot, not a live service.
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

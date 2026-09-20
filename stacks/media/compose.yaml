@@ -136,10 +136,25 @@ services:
       # This is the half of this tier that IS backed up, and the reason the
       # split exists: ADR-0008 ruled the library replaceable, but re-acquiring
       # a series does not restore which episode anyone was on.
-      # scripts/backup-volumes.sh is what copies it off-host.
-      - jellyfin-config:/config
+      #
+      # A BIND MOUNT ON erebor/apps, not a named volume, and that is the whole
+      # of ADR-0045's second decision. As a named volume this lived on
+      # erebor/ix-apps/docker — the dataset TrueNAS gives its Docker — while
+      # build-the-nas.md §4 called erebor/apps the dataset that is backed up,
+      # so the dataset the table named held nothing Jellyfin writes (#484).
+      # A path under erebor/apps makes that table true, and it is a path a
+      # ZFS snapshot can name: scripts/backup-nas.sh, on the monitoring host,
+      # reads this directory out of the dataset's newest periodic snapshot
+      # over the 99 → 40:22 pass and encrypts what arrives THERE. Jellyfin is
+      # never stopped for it; the snapshot is the quiesce. The directory is
+      # created 0755 65534:65534 before first start (§6) — a bind mount does
+      # not inherit the image's world-writable /config the way a fresh volume
+      # would, so the user: line above has to own it.
+      - ${JELLYFIN_CONFIG_PATH:?}:/config
       # Transcode scratch and image caches. Regenerated on demand, so this is
-      # the volume whose loss costs CPU rather than anything.
+      # the volume whose loss costs CPU rather than anything. Still a named
+      # volume, still on ix-apps, still not backed up — DISPOSABLE by name in
+      # scripts/backup-volumes.sh.
       - jellyfin-cache:/cache
       # READ-ONLY, deliberately. Jellyfin keeps metadata in /config by default,
       # so it has no need to write into the library — and mounting the library
@@ -321,10 +336,11 @@ networks:
         - subnet: 172.28.40.0/24
 
 volumes:
-  # Backed up. See the mount comment above, and §4 of build-the-nas.md for why
-  # this is the half of the tier that is.
-  jellyfin-config:
-  # Not worth backing up: transcode scratch and regenerable image caches. The
-  # same reasoning stacks/sensitive applies to immich-model-cache, which
-  # scripts/backup-volumes.sh skips by name for exactly this reason.
+  # ONE volume, and it is the one that is not backed up. Jellyfin's state is
+  # the bind mount above, on erebor/apps, so that it can be snapshotted and
+  # pulled — see the mount comment and ADR-0045. What is declared here is
+  # transcode scratch and regenerable image caches, and scripts/backup-volumes.sh
+  # lists it as DISPOSABLE by name, for the reason stacks/sensitive gives for
+  # immich-model-cache; `STACK=media backup-volumes.sh --inventory` therefore
+  # reports nothing to archive, which is the true answer on this host.
   jellyfin-cache:
