@@ -13,6 +13,7 @@ and one test that only works with the machine running.**
 > | Brick pulled — `ADP1` `online` 0 on sysfs | 22:12:20 UTC, pack `Full` at 101 %, 6.887 Ah |
 > | First `online == 0` sample in Prometheus; `HostOnBattery` pending | 22:12:50 |
 > | `HostOnBattery` firing, active in Alertmanager | 22:14:52 — 2 min 32 s after the pull; the budget in step 2 is four minutes |
+> | Notification on the phone | 22:14, the same minute — read off the phone, so to the minute only |
 > | Bound reached: twenty minutes, 87 % | 22:32:36 |
 > | Brick back; `status` `Charging` | 22:34:38, at 86 % |
 > | `online == 1` in Prometheus; alert gone from `ALERTS` | 22:35:39 |
@@ -679,7 +680,8 @@ Two more failure shapes worth naming:
 > read off this host while it ran on the cell. The timeline and the figures are
 > in the status banner at the top of this page. In short: pulled at 22:12:20,
 > pending at the first offline sample, firing and active in Alertmanager at
-> 22:14:52, stopped at the twenty-minute bound with 87 % left, back on mains at
+> 22:14:52 and on the phone the same minute, stopped at the twenty-minute bound
+> with 87 % left, back on mains at
 > 22:34:38, resolved at 22:35:39. Draw 2.72 Ah/h — 2.71 A at 12.0 V — so a full
 > pack lasts about 2.5 hours at the load the stack presents. Not the four to
 > five hours the accidental discharge of 2026-09-18 suggested: that reading was
