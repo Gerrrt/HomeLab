@@ -218,7 +218,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── SECURITY.md               # disclosure policy and known exposure
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
-│   ├── observability.md  security.md  roadmap.md
+│   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── adr/                  # 46 architecture decision records
 │   └── runbooks/             # successor handover (start here), deploy, converge,
 │                             #   add device, rotate creds, certs, key backup,
@@ -351,8 +351,9 @@ one but a missing one, and no amount of grepping finds those.
 
 Open work is tracked in
 [Issues](https://github.com/Gerrrt/HomeLab/issues);
-[`docs/roadmap.md`](docs/roadmap.md) is the narrative — what is outstanding and
-why it is in that order.
+[`docs/roadmap.md`](docs/roadmap.md) is the shape of it — what is outstanding,
+what gates it, and why it is in that order. What happened, and what it found,
+is [`docs/changelog.md`](docs/changelog.md), dated and never rewritten.
 
 The current top items: rehearse the firewall restore on the ProDesk bought on
 2026-09-08 — on hand since 2026-09-14, so what the rehearsal waits on is the

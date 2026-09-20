@@ -405,9 +405,10 @@ new keypair whose public half matches nothing.
    threat model, and every residual accepted rather than fixed. Read these
    before concluding that something here is an oversight.
 9. [`docs/adr/`](../adr) — when you want to know why, including the costs that
-   were accepted knowingly. [`roadmap.md`](../roadmap.md) is the narrative of
-   what is outstanding and why it is in that order; the tracking itself is in
-   [Issues](https://github.com/Gerrrt/HomeLab/issues).
+   were accepted knowingly. [`roadmap.md`](../roadmap.md) is the shape of
+   what is outstanding, what gates it and why it is in that order; the
+   tracking itself is in [Issues](https://github.com/Gerrrt/HomeLab/issues),
+   and what happened, dated, is [`changelog.md`](../changelog.md).
 
 The remaining runbooks are task-shaped and are best read when you have the task:
 [`add-monitored-device.md`](add-monitored-device.md),
