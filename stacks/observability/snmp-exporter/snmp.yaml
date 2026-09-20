@@ -7,11 +7,13 @@ auths:
     priv_protocol: DES
     version: 2
   auth_ilo:
-    community: ${SNMP_COMMUNITY_ILO}
-    security_level: noAuthNoPriv
-    auth_protocol: MD5
-    priv_protocol: DES
-    version: 2
+    security_level: authPriv
+    username: prometheus
+    password: ${SNMP_AUTHPASS_ILO}
+    auth_protocol: SHA
+    priv_protocol: AES
+    priv_password: ${SNMP_PRIVPASS_ILO}
+    version: 3
   auth_mokerlink:
     community: ${SNMP_COMMUNITY_MOKERLINK}
     security_level: noAuthNoPriv

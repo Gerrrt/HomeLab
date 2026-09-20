@@ -302,6 +302,7 @@ and two placeholders in place of the community
 ```yaml
 auths:
   auth_newdevice:
+    community: ""
     username: prometheus
     password: ${SNMP_AUTHPASS_NEWDEVICE}
     priv_password: ${SNMP_PRIVPASS_NEWDEVICE}
@@ -314,7 +315,10 @@ auths:
 Everything below reads the version out of this block — the key names, the
 `make snmp-generate` flags, what `snmp-verify.sh` hands net-snmp — so the
 rest of the procedure is the same, with two keys where it says one.
-`make validate` refuses a v3 block that is not `authPriv`.
+`make validate` refuses a v3 block that is not `authPriv`, and one whose
+`community:` is anything but that explicit empty string: without the line
+the generator writes its `public` default into `snmp.yaml`, which the
+gitleaks community rule then catches (the generator header says why).
 
 Keep the OID list tight. The `ilo` module walks the HP Insight tree and produces
 ~1,600 metrics from one device; that is fine once and a cardinality problem if
