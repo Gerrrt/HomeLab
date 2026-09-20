@@ -1,13 +1,20 @@
 # Runbook: Replace a disk in `erebor`
 
 **One faulted Exos, two trays and no spare, and a dataset that had no copy
-anywhere else — so the copy came first, on 2026-09-20, and the tray comes
-last.**
+anywhere else — so the copy came first, on 2026-09-20, and the tray waits
+for the copy, the wipe and the return label.**
 
-> **Status — 2026-09-20: step 1 is read and it is the drive; step 2 is done
-> by path A; steps 3–6 are not. The pool runs on one disk, `erebor/apps`
-> has a copy off it since 2026-09-20, and since the exporter came back
-> nothing is paging for the pool.**
+> **Status — 2026-09-20, evening: steps 1–3 are done and the runbook waits
+> where the return does.** Step 1 is read and it is the drive; step 2 is
+> done by path A; step 3 is open: the eBay return was started on 2026-09-20,
+> the label is due by **2026-09-24**, the seller has not yet chosen refund or
+> replacement, and Seagate's warranty by serial is unchecked. The pool runs
+> on one disk, `erebor/apps` has a copy off it since 2026-09-20, and since
+> the exporter came back nothing in the estate is paging for the pool —
+> though TrueNAS's own alert did reach a mailbox, see below. **What does not
+> wait is step 4**: the faulted disk is offlined, wiped and shipped before
+> any replacement exists, because the return runs that way round; step 5 is
+> what happens when a drive arrives, from the seller or from a purchase.
 >
 > | When (PDT, 2026-09-19) | What |
 > | --- | --- |
@@ -60,8 +67,11 @@ last.**
 > `node_zfs_zpool_state` reads `online` for `erebor` — the pool state, which
 > `zpool status` also prints as `ONLINE` — so `ZpoolNotOnline` sees nothing,
 > and from 23:27 PDT **no alert in the estate is firing for a mirror running
-> on one disk.** The only thing that noticed is TrueNAS's own alert, which
-> reaches the web UI and nothing else. See *What is still open*.
+> on one disk.** The only thing that noticed is TrueNAS's own alert — and it
+> reached further than the web UI, which this block said until 2026-09-20:
+> TrueNAS Connect emailed it to the operator's mailbox at 03:55:49 UTC, 37 s
+> after it fired, and it was read there the next day. Whether a mailbox is a
+> phone channel is in *What is still open*.
 
 `smaug` is the TrueNAS host at `10.0.40.30` on CasaBonita, which is terminal
 outward ([ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)):
@@ -121,7 +131,7 @@ be matched to it. Two shapes, read differently:
   does not apply, but a data cable seated on the day the drive went in is a
   real suspect. Power down, reseat both connectors on that drive, power up,
   `zpool clear erebor`, and watch `zpool status` for an hour. If it stays
-  clean, this runbook ends at step 5 with a cable named instead of a disk.
+  clean, this runbook ends at step 6 with a cable named instead of a disk.
 - **`UNC`, `media error`, `I/O error`, `Buffer I/O error on dev sdb`** —
   the platter. Continue.
 
@@ -209,31 +219,92 @@ for the pool. Check Seagate's own warranty by serial at
 may be OEM stock Seagate will not cover, and the answer, either way, goes in
 [`hardware.md`](../hardware.md)'s Exos entry.
 
-The decision point: a replacement from the seller means no purchase; a
-refund, or a return that will take weeks, means buying an 18 TB outright to
-close the redundancy gap sooner — and a purchase means a row in
-[`roadmap.md`](../roadmap.md)'s buy list in the same commit, which is its
-rule. A third drive as a cold spare is the same question asked once more,
+> **Done 2026-09-20, as far as this house can do it.** The return was opened
+> under the guarantee on 2026-09-20 as *defective*, and eBay says the label
+> arrives by **2026-09-24**. The seller has not yet chosen refund or
+> replacement, so the decision below is pending on them, not on this
+> runbook. Seagate's warranty by serial has not been checked and is still
+> owed to `hardware.md`. Nothing was bought, so
+> [`roadmap.md`](../roadmap.md)'s buy list did not move.
+
+The decision point, and the seller answers it first: a replacement from
+the seller means no purchase; a refund, or a return that will take weeks,
+means buying an 18 TB outright to close the redundancy gap sooner — and a
+purchase means a row in [`roadmap.md`](../roadmap.md)'s buy list in the same
+commit, which is its rule. A third drive as a cold spare is the same question asked once more,
 and the answer is recorded here when it is made.
 
-Ship the faulted drive only after step 2's copy is verified and step 6 is
-done. The pool loses nothing by keeping it in the tray until then; it is
-contributing nothing.
+Ship the faulted drive only after step 2's copy is verified and step 4's
+wipe is done, or its refusal recorded. The pool loses nothing by keeping it
+in the tray until the label is in hand; it is contributing nothing.
 
-## 4. Offline, power down, swap
+## 4. Offline, wipe, and ship
+
+This runs now, before any replacement exists, because the return runs that
+way round: the seller receives the faulted disk first and chooses afterwards.
+The pool is not encrypted (§3 of the build runbook) and the disk held the
+library and Jellyfin's password hashes, so it is wiped — or its refusal to be
+wiped is recorded — before it goes in the box.
 
 In the UI: **Storage → `erebor` → Manage Devices → the disk showing
-FAULTED (`ZVTBSDL3`) → Offline.** Then **System → Shut Down.** Power lead
-out, five seconds on the button to drain the supply, ground yourself (§1).
+FAULTED (`ZVTBSDL3`) → Offline.** Then, at the console, **find the device by
+serial and not by letter**, because a reboot can swap `sda` and `sdb`, and
+`shred` on the wrong one is the pool:
 
-Pull the tray whose drive label reads `ZVTBSDL3` — read the label, not the
-letter. Fit the replacement in the same tray on the same data and power
-leads, so a cable that was the fault is found by the next reading rather
-than hidden by a fresh one. Leave the `AUX1_FAN` cage fan alone; it is the
-airflow over both trays and §1 says why it is not optional.
+```bash
+lsblk -o NAME,SIZE,SERIAL
+smartctl -i /dev/sdX | grep -i serial
+```
+
+Only when both read `ZVTBSDL3` for the same `sdX`:
+
+```bash
+shred -n 1 -v /dev/sdX
+```
+
+One pass over 18 TB is about a day on a healthy drive. On this one, know what
+stalling looks like: the fault's `dmesg` was sixty-second command timeouts
+and *Logical unit not ready* on reads and writes alike, at sector 0 and at
+the far end, so a `shred` whose progress line does not move for minutes is
+the drive refusing writes, not a slow pass — and the MegaRAID spends a minute
+on each one before it gives up. If it stalls, or never starts:
+
+```bash
+zpool labelclear -f /dev/sdX
+dd if=/dev/zero of=/dev/sdX bs=1M count=1024 status=progress
+dd if=/dev/zero of=/dev/sdX bs=1M count=1024 status=progress \
+  seek=$(( $(blockdev --getsz /dev/sdX) / 2048 - 1024 ))
+```
+
+That removes the pool labels and the partition table, which is what makes
+the disk mountable elsewhere; the data blocks remain, on a drive that would
+not read them for its own controller. If the drive takes no writes at all,
+the choice — ship it as it is, or keep it and take the refund fight — is the
+operator's. Which of the three paths ran, and the date, go in the status
+block and in [`hardware.md`](../hardware.md)'s Exos entry either way.
+
+Then **System → Shut Down.** Power lead out, five seconds on the button to
+drain the supply, ground yourself (§1 of the build runbook). Pull the tray
+whose drive label reads `ZVTBSDL3` — read the label, not the letter — and
+slide the tray back empty. Leave the `AUX1_FAN` cage fan alone; it is the
+airflow over both trays and §1 says why it is not optional. Power on:
+`zpool status erebor` still reads `ONLINE` on one member with the other
+`OFFLINE` or `REMOVED`, and `lsblk` shows one 18 TB device. Ship on eBay's
+label, and the date it shipped goes in the status block.
+
+## 5. Fit the replacement, resilver, scrub
+
+When a drive arrives — the seller's replacement or a purchase, whichever
+step 3 ends in. Power down as above. Fit it in the tray `ZVTBSDL3` left, on
+the same data and power leads, so a cable that was the fault is found by the
+next reading rather than hidden by a fresh one. **While the machine is at
+POST, read the card's firmware version off its banner, or from *Ctrl-R* →
+controller properties** — it is the one reading
+[#571](https://github.com/Gerrrt/HomeLab/issues/571) is still owed, and
+there is no other way to get it.
 
 Power on, and **check that the new drive is there at all**: `lsblk` must
-show a third 18 TB device. The bays are behind a MegaRAID SAS3008, not the
+show a second 18 TB device. The bays are behind a MegaRAID SAS3008, not the
 chipset (see *What is still open*), and a RAID card that is not in JBOD
 mode holds a fresh disk as *Unconfigured Good* and shows the operating
 system nothing. If `lsblk` has no new device, the card's own boot-time
@@ -265,7 +336,7 @@ data errors` with `0 0 0` on every row. Start `smartctl -t long /dev/sdX`
 on the new disk; it takes about 28 hours, and the result is a `hardware.md`
 line.
 
-## 5. Verify, and write it down
+## 6. Verify, and write it down
 
 - `zpool status -v erebor` reads `ONLINE`, zeros on every row, scrub
   completed with 0 errors
@@ -278,25 +349,10 @@ line.
   step 2 (path A), and `homelab-backup-nas.timer` is in `systemctl
   list-timers`
 - [`hardware.md`](../hardware.md)'s Exos entry carries the new serial, its
-  readings, and the outcome of the return; [`build-the-nas.md`](build-the-nas.md)
-  §7's `zpool status` line is true again
+  readings, the outcome of the return and which wipe path step 4 took;
+  [`build-the-nas.md`](build-the-nas.md) §7's `zpool status` line is true
+  again
 - [#558](https://github.com/Gerrrt/HomeLab/issues/558) closes on this list
-
-## 6. Before the faulted disk leaves the house
-
-The pool is not encrypted (§3), and the disk held the library and Jellyfin's
-password hashes. A FAULTED drive may or may not still take writes:
-
-```bash
-shred -n 1 -v /dev/sdX
-```
-
-is one pass over 18 TB, about a day. If that is more than the drive will
-sit still for, `zpool labelclear -f /dev/sdX` and a `dd if=/dev/zero` over
-the first and last GiB removes the pool labels and the partition table, which
-is what makes the disk mountable elsewhere; the data blocks remain. If the
-drive takes no writes at all, the choice — ship it, or keep it and take the
-refund fight — is the operator's, and it is recorded here.
 
 ## What is still open
 
@@ -308,12 +364,18 @@ refund fight — is the operator's, and it is recorded here.
 - **No vdev-level metric, and now nothing fires.** node_exporter exports
   pool state and nothing per device; [#483](https://github.com/Gerrrt/HomeLab/issues/483)
   is why nothing on `smaug` can push more. With the exporter restarted,
-  `InstanceDown` has resolved and no alert covers the degraded mirror. Two
-  ways out, neither built: point TrueNAS's own alert service at a channel
-  that reaches a phone (System → Alert Settings → Add; the estate's ntfy
-  receiver is the obvious candidate if the type list offers it), or have a
-  periodic task on `smaug` write `zpool status` vdev states to a textfile
-  the exporter serves — the mechanism #483 argues about.
+  `InstanceDown` has resolved and no alert in the estate covers the
+  degraded mirror. **What does cover it, read 2026-09-20: TrueNAS Connect
+  emailed the alert to the operator's mailbox 37 s after it fired**, so the
+  line this runbook and #558 carried — that the alert reaches the web UI and
+  nothing else — was wrong. It is a mailbox, not a phone, and it is a cloud
+  service `smaug` initiates a connection to, which is
+  [#483](https://github.com/Gerrrt/HomeLab/issues/483)'s subject. Two ways
+  to something that pages, neither built: point TrueNAS's own alert service
+  at a channel that reaches a phone (System → Alert Settings → Add; the
+  estate's ntfy receiver is the obvious candidate if the type list offers
+  it), or have a periodic task on `smaug` write `zpool status` vdev states
+  to a textfile the exporter serves — the mechanism #483 argues about.
 - **The exporter's hang was the fault, not a habit.** It came back on a
   restart within seven minutes of the console session, so `InstanceDown` is
   the NAS disk alert only while the device is still timing out I/O. The
@@ -334,10 +396,18 @@ refund fight — is the operator's, and it is recorded here.
   path, and ZFS waited on them. The firmware version is the one reading
   still owed, and it is not in sysfs — `/sys/class/scsi_host/host0/fw_ver`
   does not exist, and TrueNAS ships no `storcli` — so it is read off the
-  card's POST banner or its *Ctrl-R* controller properties, at step 4,
+  card's POST banner or its *Ctrl-R* controller properties, at step 4 or 5,
   when the machine is at POST anyway. Whether to leave the
   card as it is, flash the 3008 to IT firmware (`1000:0097`), or cable the
   bays to the chipset's free `SATA0`–`SATA3` and take the card out is a
   decision for [#558](https://github.com/Gerrrt/HomeLab/issues/558) after
   the swap, not before it.
-- **The replacement decision**, and whether a third drive follows.
+- **The replacement decision is the seller's first.** The return is open
+  since 2026-09-20; refund or replacement is chosen after the faulted disk
+  lands with them. A replacement means no purchase; a refund means an 18 TB
+  bought outright and a row in [`roadmap.md`](../roadmap.md)'s buy list in
+  the same commit. Whether a third drive follows as a cold spare is the same
+  question asked once more.
+- **Seagate's warranty by serial is unchecked.** Whether an "0HR" lot is
+  covered is a lookup at Seagate's site, and the answer goes in
+  [`hardware.md`](../hardware.md)'s Exos entry either way.

@@ -365,6 +365,21 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   head 5**, with 124 command timeouts and 179 hardware resets, both rails
   in spec, 28 °C. `ZVTBS4NL` is unaffected. The extended self-test that
   completed at hour 26 was true when it was read and is not evidence now.
+  **The return was opened on 2026-09-20** under the eBay guarantee, as
+  *defective*; the label is due by 2026-09-24, and the seller had not
+  chosen refund or replacement when this was written — a replacement means
+  no purchase, a refund means an 18 TB bought outright and a row in
+  [`roadmap.md`](roadmap.md)'s buy list. Seagate's own warranty by serial
+  is **not yet checked**, and the answer belongs here whichever way it
+  goes. The disk ships before any replacement exists, so the wipe comes
+  first: `shred`, or `labelclear` and a `dd` over each end if the drive
+  refuses a full pass, or the refusal itself — which of the three, and the
+  date, is owed here from step 4 of the runbook. One correction from the
+  same day: TrueNAS's alert did not stop at the web UI. TrueNAS Connect
+  emailed it to the operator's mailbox 37 s after it fired, which is a
+  mailbox rather than a page, and a cloud service this host initiates a
+  connection to — [#483](https://github.com/Gerrrt/HomeLab/issues/483)'s
+  subject.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches
