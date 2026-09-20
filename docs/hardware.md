@@ -270,7 +270,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   that fan is **not optional**: it is the airflow over the drive bays, and two
   7200 rpm Exos under a scrub will want it. Reconnected after the swap and
   reading `Aux Fan: Operating`.
-- 2× Seagate Exos X20 18 TB (`ST18000NM003D`, firmware `SN03`), 3.5" SATA —
+- 2× Seagate Exos X20 18 TB (`ST18000NM003D`, firmware `SN03`), 3.5" SATA[^Exos] —
   bought 2026-09-11, **in hand since 2026-09-18**, a day after the carrier's
   window lapsed. `smaug`'s ZFS mirror
   ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md),
@@ -304,6 +304,21 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   test at hour 0 above it. That was the last open line of
   [`build-the-nas.md`](runbooks/build-the-nas.md) §7, and
   [#413](https://github.com/Gerrrt/HomeLab/issues/413) closed on it.
+  **`ZVTBSDL3` (`sdb`) FAULTED on 2026-09-19 at 20:55 PDT (03:55 UTC
+  2026-09-20), at about lifetime hour 27** — one day after arrival and about
+  an hour after the extended self-test above completed clean. TrueNAS
+  raised *"Pool erebor state is ONLINE: One or more devices are faulted in
+  response to persistent errors … Disk ST18000NM003D-3DL103 ZVTBSDL3 is
+  FAULTED"*. node_exporter's `/metrics` had stopped answering at 20:46, nine
+  minutes earlier, with the port still accepting connections, so
+  `InstanceDown` was the page and `ZpoolNotOnline` — the rule this fault
+  produced — never got a sample. `ZVTBS4NL` carries the pool alone until a
+  replacement is fitted; the return runs under the eBay guarantee, thirty
+  days from the 2026-09-18 delivery, to 2026-10-18. What `dmesg` and SMART
+  said at the console, and the outcome, belong in
+  [`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md)'s status
+  block and then here; [#558](https://github.com/Gerrrt/HomeLab/issues/558)
+  carries it.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches
@@ -556,6 +571,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^Shiva]: [HPE ProLiant DL360 Gen9](https://buy.hpe.com/us/en/servers/rack-servers/proliant-dl300-servers/proliant-dl360-server/p/1010026922)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
 [^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
+[^Exos]: [Seagate Exos X20 18TB SATA 6Gb/s 7200RPM Enterprise HDD ST18000NM003D 0HR Drives](https://www.ebay.com/itm/237056026029)
 [^SM863a]: [Samsung SM863a 960 GB, MZ-7KM960N](https://www.ebay.com/itm/800210578217)
 [^Caddy]: [HP 2.5" SFF drive tray, 651687-001, for DL360/DL380/ML350 Gen8 and Gen9](https://www.ebay.com/itm/126297185368)
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)

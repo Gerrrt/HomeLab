@@ -131,6 +131,8 @@ tests:
   #   HostClockSkew       drop abs();  for: 10m -> 0m
   #   HostClockUnsynchronised  == 0 -> == 1;  for: 5m -> 0m  (both killed 2026-09-19)
   #   HostRebooted        < 600 -> < 60;  < 600 -> < 6000
+  #   ZpoolNotOnline      state!="online" -> state="online";  == 1 -> == 0;
+  #                       for: 5m -> 0m  (all three killed 2026-09-20)
   #
   # The two HostRebooted mutations are in opposite directions on purpose: one
   # silences the firing case, the other fires the quiet one. A single-direction
@@ -1607,4 +1609,93 @@ tests:
     alert_rule_test:
       - eval_time: 10m
         alertname: HostBatteryRuntimeLow
+        exp_alerts: []
+
+  # --- ZpoolNotOnline: fires for a degraded pool, quiet for the online one --
+  # The 2026-09-19 fault (#558) as the exporter WOULD have reported it had it
+  # kept answering: erebor's online series drops to 0 and degraded rises to 1;
+  # boot-pool stays online throughout. The boot-pool pair is in the same
+  # fixture on purpose — drop the `state!="online"` matcher and its online=1
+  # series fires here; drop the `== 1` and its degraded=0 series does.
+  - interval: 1m
+    input_series:
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="online"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="degraded"}'
+        values: "1x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="boot-pool",state="online"}'
+        values: "1x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="boot-pool",state="degraded"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolNotOnline
+        exp_alerts:
+          - exp_labels:
+              alertname: ZpoolNotOnline
+              instance: smaug
+              job: node
+              zpool: erebor
+              state: degraded
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "smaug: zpool erebor is degraded"
+              description: >-
+                The pool's own state, read from its kstat, has not been online
+                for five minutes. On a two-disk mirror that is one disk
+                carrying everything, the replaceable library and the
+                irreplaceable Jellyfin state alike. `zpool status -v erebor`
+                at the console names the device;
+                docs/runbooks/replace-the-nas-disk.md is the order to do
+                things in, and copying erebor/apps off comes before touching
+                a tray.
+
+      # Degraded, but inside `for: 5m` — this read is what kills
+      # `for: 5m -> 0m`, since the 0m evaluation already saw the 1.
+      - eval_time: 3m
+        alertname: ZpoolNotOnline
+        exp_alerts: []
+
+  # --- ZpoolNotOnline: quiet when the pool comes back inside the window -----
+  # Three minutes degraded — a `zpool clear` after a reseated cable — then
+  # online again. The 5m evaluation sees online, so nothing was ever held for
+  # five minutes, and the rule must not latch the way the SMART rules do.
+  - interval: 1m
+    input_series:
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="online"}'
+        values: "0x3 1x17"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="degraded"}'
+        values: "1x3 0x17"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolNotOnline
+        exp_alerts: []
+
+  # --- ZpoolNotOnline: quiet on a healthy NAS, every state series present ---
+  # What smaug exported from 2026-09-19 until 20:46 PDT: online=1 and six
+  # other states at 0, for each pool. Seven series per pool is the real shape,
+  # and it is what a rule that lost its `== 1` would fire on.
+  - interval: 1m
+    input_series:
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="online"}'
+        values: "1x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="degraded"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="faulted"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="offline"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="removed"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="suspended"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="erebor",state="unavail"}'
+        values: "0x20"
+      - series: 'node_zfs_zpool_state{instance="smaug",job="node",zpool="boot-pool",state="online"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolNotOnline
         exp_alerts: []
