@@ -79,11 +79,24 @@ copied config-20260920T051013Z.sops.yaml to /path/to/the/medium/backups/firewall
 the medium holds the newest of each kind, proved — offsite, not just off-host. Keep it out of the house.
 ```
 
-**What it proves.** That a real medium was mounted — the script refuses a
-destination on this host's own filesystem, by device number, so a symlink or
-a bind mount into the root disk is caught the way the key proofs catch the
-live key — and that every byte on it is the byte the MANIFEST was computed
-from, which is the same column `oracle` is held to every morning.
+**What it proves.** That every byte on the medium is the byte the MANIFEST was
+computed from, which is the same column `oracle` is held to every morning; and
+that the destination was not one of the places that are provably not a medium.
+The script refuses the filesystem the sets already live on, by device number,
+so a symlink or a bind mount into the root disk is caught the way the key
+proofs catch the live key; it refuses `tmpfs` and `ramfs` anywhere they are
+mounted; and it refuses `/tmp`, `/run`, `/dev`, `/proc` and `/sys` whatever is
+mounted there.
+
+**What it does not prove, and this is the one that bit.** That the destination
+*leaves the house*. No check can establish that, and a green line is not the
+claim. `/dev/shm` passed the first version of this runbook's advice because it
+genuinely is a different filesystem — and it is this host's RAM, so the copy
+was gone on the next reboot while the alert stayed quiet for ninety days. If
+the destination is not a thing you can unplug and carry out of the building,
+this procedure has not been performed, whatever it printed. The script warns
+when the destination does not report as removable media, which catches the
+common shape of that mistake and not all of it.
 
 **What it deliberately does not prove.** That the medium will still exist
 after a fire at the other address, a theft, or a lost bag; that its cells will
@@ -149,6 +162,9 @@ medium, and the cost of it.
 | --- | --- | --- |
 | `DEST is required` | A bare `make backup-offsite` | Mount the medium and pass `DEST=`. This guard is what keeps a typo from being recorded as a failed copy |
 | `the destination is on the same filesystem as the sets it would copy` | `DEST` is a directory on this host's disk, or a symlink or bind mount into it | Point it at the mounted medium. This is the check working |
+| `the destination is a tmpfs filesystem, which is not a medium` | `DEST` is `/dev/shm` or another in-memory filesystem | Point it at the mounted medium. A copy in RAM is gone on the next reboot, and the recorded success would have vouched for it for ninety days |
+| `the destination is under /…, which this host clears or recreates` | `DEST` is under `/tmp`, `/run`, `/dev`, `/proc` or `/sys` | The same. Whatever is mounted there, it does not leave the house |
+| `… does not report as removable media` (a warning, the run continues) | The destination is a fixed disk or a network mount | Only you can say whether it leaves the house. If it does not, stop and mount the medium |
 | `the destination is inside this repository` | `DEST` is under the working tree | This tree is published. Use the medium |
 | `not enough room on the medium` | A volume set is about 1.7 GB and the medium is small or full of something else | `ARGS=--prune` if an older set of the estate's is what fills it; otherwise a larger medium. Nothing was written |
 | `differs from its MANIFEST entry` or `differs from its recorded sha256` | A byte on the medium changed since it was written — media do fade | Remove *that one* set directory (or that export and its `.sha256`) from the medium, then run the copy again. The script names it and never deletes it for you |
