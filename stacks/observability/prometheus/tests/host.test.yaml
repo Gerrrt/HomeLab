@@ -1257,7 +1257,7 @@ tests:
                 stopped without telling the disk — a mains cut that outlasted the
                 UPS with nothing acting on its signal, a crash, or a plug. Find the
                 event: UpsOnBattery and InstanceDown around the same time say
-                which. If a UPS shutdown sequence exists for this host (ADR-0048),
+                which. If a UPS shutdown sequence exists for this host (ADR-0049),
                 it did not run, and runbooks/shut-down-on-the-ups.md says how to
                 check it.
 

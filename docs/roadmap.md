@@ -83,7 +83,7 @@ Closes when it is empty.
   → [runbook](runbooks/copy-the-backups-offsite.md)
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
   UPS's signal.** Decided by
-  [ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
+  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
   nothing is built. No purchase and no new path between segments — the gate is
   a rack visit, which builds it, proves the order with `upsmon -c fsd`, and
   pulls the mains once to replace the card's 47-minute claim with a number.

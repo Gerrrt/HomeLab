@@ -23,7 +23,7 @@ is on the UPS, so a mains cut longer than the pack stops all of it at once,
 and until that day nothing in this repository said which hosts that was. The
 UPS's model is read off the card as `upsIdentModel` and was in no document
 before then either. Who acts on the pack running out — and who does not — is
-[ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md),
+[ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md),
 and the runtime the pack actually gives at this load is **not measured**: the
 card claimed 47 minutes at 21 % load on 2026-09-20, and the one mains pull
 that turns that estimate into a number is
@@ -32,7 +32,7 @@ that turns that estimate into a number is
 Off-rack: two Ubuntu Server laptops on a shelf (`prometheus`, `oracle`), fed
 by the TP-Link in U4; the NAS `smaug`, a tower in the media room **powered
 from the rack's PDU by a long cord**, so on the UPS like everything else on
-that strip and a subscriber under ADR-0048; and eero Pro 6E units distributed
+that strip and a subscriber under ADR-0049; and eero Pro 6E units distributed
 through the house.
 Both laptops ride a mains cut out on their own cells, so each cell is a
 dependency of the mains-cut path and is watched as one: Alloy's node collector
@@ -219,7 +219,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the fact [#574](https://github.com/Gerrrt/HomeLab/issues/574) could not
   find: the box is on the UPS, so a cut longer than the pack is a deferred
   unclean stop for the mirror rather than an immediate one, and
-  [ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
+  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
   makes it a subscriber that halts on the signal instead. The Storage
   column reads the boot disk alone on purpose: the ZFS mirror does not exist
   until the two Exos drives land, and a Storage column describing a pool nobody
@@ -463,7 +463,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `SmartDriveWearHigh` can see it, and its unsafe-shutdown counter, which is
   the number [#574](https://github.com/Gerrrt/HomeLab/issues/574) asked for
   and `SmartDriveUnsafeShutdownsGrowing` now reads
-  ([ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)).
+  ([ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)).
   `SmartDriveWearHigh` will not fire — it wants 80 % of rated life used and this
   is near a tenth. No self-tests had ever been logged in 13,182 hours, so a
   baseline was taken on 2026-09-16 before the machine carried anything:

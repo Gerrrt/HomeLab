@@ -38,7 +38,7 @@ docstring gives: it is a record, not a claim about now.
   state with them.
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Decided: the estate
   shuts down on `mjolnir`'s signal from a NUT server on the firewall.**
-  [ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md),
+  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md),
   not built. The issue found that nothing subscribed to the card for the one
   thing a UPS is for, and that no document said what powers `smaug` — read at
   the rack, it is the PDU by a long cord to the media room, so it is on the UPS
