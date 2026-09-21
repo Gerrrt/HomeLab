@@ -2247,7 +2247,7 @@
     {
       "type": "timeseries",
       "title": "Silences and config reloads",
-      "description": "Silences by state, and whether the last config reload was accepted. docs/observability.md records every deliberate silence by UUID and expiry in three places; a count here that the docs do not account for is a silence somebody forgot to write down.",
+      "description": "Silences by state, and whether the last config reload was accepted. Every silence's comment begins with the issue that owns it, and homelab_silence_expires_timestamp_seconds{alert,issue,id} carries that back per silence: SilenceWithoutIssue fires on one that names none, SilenceExpiresSoon a week before one lapses (#575). This count is the state; that series is the names.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
