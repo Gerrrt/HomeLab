@@ -44,9 +44,10 @@ Ten assertions, each comparing prose against something machine-readable:
                            is the one place a purchase may enter or leave, so
                            it is what README's count answers to.
 
-Only present-tense documents are checked. `docs/roadmap.md` and `docs/adr/`
-record what was true when the work landed — `roadmap.md` still says "(34 rules)"
-in a Done entry, and that is correct as written. Failing on those would need an
+Only present-tense documents are checked. `docs/changelog.md`, `docs/roadmap.md`
+and `docs/adr/` record what was true when the work landed — `changelog.md`
+still says "(34 rules)" in a 2026-08 entry, and that is correct as written.
+Failing on those would need an
 ignore list, and this repository has already learned where that leads: the
 `.gitleaksignore` deleted in the history purge "was an acknowledgement, not a
 fix, and it existed because a CI job that is permanently red for a known reason
@@ -92,8 +93,9 @@ ARCH_MD = REPO / "docs/architecture.md"
 HARDWARE_MD = REPO / "docs/hardware.md"
 ROADMAP_MD = REPO / "docs/roadmap.md"
 
-# Present-tense documents. See the module docstring for why roadmap.md and
-# adr/ are deliberately absent — they are records, not claims about now.
+# Present-tense documents. See the module docstring for why roadmap.md,
+# changelog.md and adr/ are deliberately absent — they are records, not claims
+# about now.
 PROSE = (
     "README.md",
     "SECURITY.md",
