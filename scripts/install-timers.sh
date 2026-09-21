@@ -101,7 +101,7 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # recipient-state — the daily writer that makes the series exist at all.
 #
 # offsite-copy is the third of that shape, and the first that is not a key
-# (ADR-0047): the newest set of each kind is carried onto the medium that holds
+# (ADR-0048): the newest set of each kind is carried onto the medium that holds
 # the second age recipient, on the same visit that proves it, so one ninety-day
 # deadline covers three alerts. backup-offsite.sh refuses a destination on this
 # host's own filesystem for the reason the key proofs refuse the live key, and

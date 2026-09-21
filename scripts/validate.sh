@@ -554,7 +554,7 @@ else
   fail "verify-ca-key-backup.sh --self-test"
 fi
 
-# The offsite copy (ADR-0047) is the same shape one artefact over: the real run
+# The offsite copy (ADR-0048) is the same shape one artefact over: the real run
 # needs the second recipient's medium mounted and cannot happen in CI, so the
 # refusals — a destination inside this repository or on the same filesystem as
 # the sets — and the copy, the proof, the retention and the tamper detection

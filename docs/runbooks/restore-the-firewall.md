@@ -61,7 +61,7 @@ make backup-firewall ARGS=--verify-only   # newest export decrypts here, and is 
 That is off-host, not offsite. Both laptops share a shelf, a mains circuit and
 a roof. The copy beyond them is the newest export on the second age
 recipient's medium, carried there on its ninety-day visit
-([ADR-0047](../adr/0047-carry-the-estates-backup-sets-with-the-second-recipient.md),
+([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
 [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)); restoring from it starts by
 copying that one file back into `backups/firewall/`.
 

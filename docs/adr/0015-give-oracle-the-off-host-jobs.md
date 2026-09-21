@@ -14,7 +14,7 @@
 >
 > [!NOTE]
 > "Off-host is not off-site", in the Consequences, has an owner since
-> 2026-09-20: [ADR-0047](0047-carry-the-estates-backup-sets-with-the-second-recipient.md)
+> 2026-09-20: [ADR-0048](0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
 > carries the newest of each set onto the medium that holds the second age
 > recipient, on its ninety-day visit. `oracle`'s role is unchanged.
 

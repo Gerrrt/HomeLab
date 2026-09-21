@@ -20,7 +20,7 @@ Three things leave this host on their own — `make backup-firewall` nightly,
 `oracle` and fails if it cannot. That is off-host. It is not offsite: both
 laptops share a shelf, a switch, a circuit and a roof, and `verify-backups`
 proving every morning that `oracle` still holds every byte says nothing about
-the room. [ADR-0047](../adr/0047-carry-the-estates-backup-sets-with-the-second-recipient.md)
+the room. [ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
 sends one copy of each beyond it, on the medium that already leaves the estate
 and already visits: the newest complete set of each kind, encrypted exactly as
 it is here, carried in a pocket.

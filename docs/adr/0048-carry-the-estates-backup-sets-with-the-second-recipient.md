@@ -1,4 +1,4 @@
-# ADR-0047: Carry the estate's backup sets on the second recipient's medium, and prove the copy on its visit
+# ADR-0048: Carry the estate's backup sets on the second recipient's medium, and prove the copy on its visit
 
 **Status:** Accepted · 2026-09 · answers the *off-site* consequence of
 [ADR-0015](0015-give-oracle-the-off-host-jobs.md), which that ADR left with

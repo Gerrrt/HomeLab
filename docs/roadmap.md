@@ -110,7 +110,7 @@ unchanged: the fit, step 8's mains pull, and the silence deleted.
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
-| An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on. Not the estate's own backup sets: those ride with the second age recipient, [ADR-0047](adr/0047-carry-the-estates-backup-sets-with-the-second-recipient.md) | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
+| An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on. Not the estate's own backup sets: those ride with the second age recipient, [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md) | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
@@ -325,9 +325,11 @@ either machine is.
   MokerLink's UI is not checked for one. The tooling is done: a device's
   version and key names come from its auth block in `generator.yaml`, and
   `snmp-verify.sh` speaks v3. **`shiva` is polled over v3 since 2026-09-20**:
-  the user exists on the iLO, `auth_ilo` is the v3 block, and
-  `snmp-verify.sh` passed over SNMPv3 before the exporter switched. Whether
-  *SNMPv1 Request* is off yet, proved with `--old`, is recorded on the issue.
+  the user exists on the iLO, `auth_ilo` is the v3 block, *SNMPv1 Request*
+  is off, and the iLO refuses its own former community over v2c — the whole
+  of §4 including §4.5, proved with `--old` and recorded on the issue. The
+  v3 discovery round trip cost nothing measurable: 12.09 s averaged over the
+  hour after the move against 12.05 s over the day before it.
   `mjolnir` is next, same procedure, device first —
   [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
@@ -667,7 +669,7 @@ what left this one unfireable for months.
   verified — but not yet from the copy on `oracle`. What remained for the sets
   was what remained for the export — off-host is not offsite — and since
   2026-09-20 that is owned rather than residual: [#573](https://github.com/Gerrrt/HomeLab/issues/573), decided by
-  [ADR-0047](adr/0047-carry-the-estates-backup-sets-with-the-second-recipient.md). The newest set of each kind rides on the medium that holds the
+  [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md). The newest set of each kind rides on the medium that holds the
   second age recipient, carried there by `make backup-offsite` on the
   ninety-day visit that medium already owes, re-verified and hashed there,
   and nagged by `OffsiteCopyStale` when the proof passes ninety days
@@ -884,10 +886,11 @@ what left this one unfireable for months.
   property ADR-0008 claims to keep. The ADR reverses the direction instead —
   scraped rather than Alloy pushing, the metadata backup pulled
   by `prometheus` rather than sent — which costs the NAS its logs, because Loki
-  has no pull and its ingest is unauthenticated, and costs it its SMART and its
-  patch state for the same reason
-  ([#255](https://github.com/Gerrrt/HomeLab/issues/255),
-  [#483](https://github.com/Gerrrt/HomeLab/issues/483)). ADR-0016 wrote down
+  has no pull and its ingest is unauthenticated
+  ([#255](https://github.com/Gerrrt/HomeLab/issues/255)). It cost SMART and
+  patch state too until [#483](https://github.com/Gerrrt/HomeLab/issues/483):
+  ADR-0047 puts SMART under the scrape by a root cron job on the host, and
+  declines patch state for an appliance on the record. ADR-0016 wrote down
   three rules, all inbound, all host- and port-scoped, and deliberately did not
   create them: a `pass` to an address with nothing behind it is a rule nobody
   can test. **Four exist since 2026-09-16**, because the Hicks pass is split
@@ -1205,7 +1208,11 @@ what left this one unfireable for months.
   because VLAN 30 is the segment ADR-0014 built to hold attackers. Two things
   the issue did not count: the Proxmox firewall on `Saruman` admits `8006`
   from Hicks only, so the build widens ADR-0014's rule by one address on one
-  port, recorded as a marked amendment there and on ADR-0039; and
+  port, recorded as a marked amendment there and on ADR-0039 — and the build
+  then found that firewall never enabled at all, closed the same day by
+  [#566](https://github.com/Gerrrt/HomeLab/issues/566), which also found that
+  Proxmox had been admitting the whole segment through a `management` set
+  derived from the node's own subnet; and
   `certificates/ca-key.pem` has no backup or custody story at all, unlike
   the age key and the tier's root — found, named in the ADR with what the
   answer is not, and carried by
@@ -1250,7 +1257,7 @@ months.
   [`swap-the-switch.md`](runbooks/swap-the-switch.md) — rather than only a
   decision.
 - **[#573](https://github.com/Gerrrt/HomeLab/issues/573)** Where the estate's three backup sets
-  go beyond the shelf, decided by [ADR-0047](adr/0047-carry-the-estates-backup-sets-with-the-second-recipient.md): on the
+  go beyond the shelf, decided by [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md): on the
   medium that holds the second age recipient, on its ninety-day visit, one
   copy of record with its own deadline. Everything that can be built is —
   `make backup-offsite`, the `offsite-copy` row, `OffsiteCopyStale`,

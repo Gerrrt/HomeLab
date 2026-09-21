@@ -1544,7 +1544,7 @@ else
     exit 1
   fi
   printf '\n'
-  info "Copied to ${OFFHOST_TARGET}:${OFFHOST_DIR} — off-host, not offsite; a fire takes both. Offsite is make backup-offsite, on the medium's visit (ADR-0047)."
+  info "Copied to ${OFFHOST_TARGET}:${OFFHOST_DIR} — off-host, not offsite; a fire takes both. Offsite is make backup-offsite, on the medium's visit (ADR-0048)."
 fi
 info "On a timer: systemctl list-timers 'homelab-*' — docs/runbooks/schedule-maintenance.md."
 case "${STACK}" in

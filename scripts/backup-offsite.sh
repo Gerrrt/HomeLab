@@ -8,7 +8,7 @@
 # Three artefacts leave the monitoring host today — the firewall export
 # (backup-firewall.sh, nightly), the volume sets (backup-volumes.sh, weekly)
 # and the NAS set (backup-nas.sh, weekly) — and every copy of each sits on the
-# same shelf: here, and on oracle. ADR-0047 sends one copy of each beyond it,
+# same shelf: here, and on oracle. ADR-0048 sends one copy of each beyond it,
 # on the offline medium that holds the second age recipient (ADR-0024, #294),
 # which is off-estate by construction and already owes this host a visit every
 # ninety days to prove that key. This script is what that visit runs against
@@ -78,7 +78,7 @@
 #   OFFSITE_KEEP    default 1               complete sets of each kind to keep on the medium
 #   OFFSITE_SOURCE  default <repo>/backups  where the sets are read from (the self-test overrides it)
 #
-# See docs/runbooks/copy-the-backups-offsite.md and ADR-0047.
+# See docs/runbooks/copy-the-backups-offsite.md and ADR-0048.
 
 # shellcheck disable=SC2016
 # ^ the self-test hands assert() test expressions as single-quoted strings, on purpose.
@@ -293,7 +293,7 @@ if [[ -n ${dest_fs} ]] && { [[ ${dest_fs} == "$(fs_of "${src_probe}")" ]] || [[ 
   ${DEST_ABS}
 
 A copy on this host's own disk is off-host to nowhere. Point this at the
-mounted medium — the one the second age recipient lives on (ADR-0047):
+mounted medium — the one the second age recipient lives on (ADR-0048):
 docs/runbooks/copy-the-backups-offsite.md"
 fi
 

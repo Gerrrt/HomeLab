@@ -27,7 +27,7 @@
 # human proofs — verify-key-backup, whose deadline is applied per age
 # recipient, verify-ca-key-backup, whose deadline is applied to the CA key's
 # current fingerprint (#496), and offsite-copy, the newest set of each kind
-# carried onto the second recipient's medium on the same visit (ADR-0047).
+# carried onto the second recipient's medium on the same visit (ADR-0048).
 #
 # That claim has since been tested rather than merely asserted. #99 added
 # `converge`, an hourly job on a different cadence to everything above, and
@@ -320,7 +320,7 @@ groups:
       - alert: OffsiteCopyStale
         # The estate's three backup sets — the firewall export, the volume sets
         # and the NAS set — are off-host on oracle and offsite on the medium
-        # that holds the second age recipient (ADR-0047). That medium visits
+        # that holds the second age recipient (ADR-0048). That medium visits
         # this host every ninety days to prove its key, and backup-offsite.sh
         # runs against it on the same visit: it re-verifies what the medium
         # already holds, copies the newest set of each kind, and hashes the

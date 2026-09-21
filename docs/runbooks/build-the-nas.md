@@ -582,14 +582,19 @@ one: **Apps → Configuration → Choose Pool → `erebor`**, and wait for Apps 
 report running. That creates `erebor/ix-apps`, where Docker's images and named
 volumes live from then on.
 
-**Then fetch the two files the stack is.** The repository is public and this
+**Then fetch the files the stack is.** The repository is public and this
 host has egress, so they come straight from `main`. The `.env` is copied
-as-is, because every value in it is a plain host fact:
+as-is, because every value in it is a plain host fact. The third file is the
+SMART collector §6.4 runs from cron
+([ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md));
+`curl` does not preserve an exec bit, hence the `chmod`:
 
 ```bash
 mkdir -p /mnt/erebor/apps/stack && cd /mnt/erebor/apps/stack \
   && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/stacks/media/compose.yaml \
-  && curl -fsSL  https://raw.githubusercontent.com/Gerrrt/HomeLab/main/stacks/media/.env.example -o .env
+  && curl -fsSL  https://raw.githubusercontent.com/Gerrrt/HomeLab/main/stacks/media/.env.example -o .env \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-smart-state.sh \
+  && chmod 0755 collect-smart-state.sh
 ```
 
 The folder is under `erebor/apps` because that is the dataset §4 set aside
@@ -910,6 +915,129 @@ The proof is the same as the migration's: the users and the watch history
 are back in the web UI. `--numeric-owner` on both ends is what keeps `65534`
 as `65534` across two hosts that spell it differently.
 
+### §6.4 — Turn SMART collection on, and confirm the boot disk's row
+
+The exporter §6.1 stood up reads nothing a drive says: it is uid 65534,
+read-only and cap-dropped, and its image has no `smartctl`. The estate's SMART
+collector needs root and is a systemd timer everywhere else; this host has an
+immutable root and no Alloy.
+[ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)
+runs the same script from the copy §6 fetched, as a **root cron job in
+TrueNAS's own UI**, writing into a directory the exporter bind-mounts
+read-only. Nothing here initiates anything: the file is local, and Prometheus
+reads it over the scrape that already exists.
+
+**The boot SSD's four static reallocated sectors are already recorded**, in
+`scripts/render-smart-baselines.sh` as `smaug /dev/sdc 4`
+([ADR-0046](../adr/0046-record-a-known-static-smart-count-as-a-baseline-not-a-silence.md)),
+and that row is live on the monitoring host — so `SmartDriveBadSectors` is
+quiet on that drive from the first scrape **if the letter is right**, and
+pages at `> 0` if it is not. The row guessed `sdc` from `node_disk_info`;
+step 1 is what confirms it, which is why the collector is run and read
+*before* the redeploy that turns the series on. The faulted Exos will fire,
+and it gets **no row**: that alert is the first in the estate that covers
+the degraded mirror, and [#558](https://github.com/Gerrrt/HomeLab/issues/558)
+is what resolves it.
+
+**1. The directory, and a dry run.** From the console shell, as root:
+
+```bash
+mkdir -p /mnt/erebor/apps/textfile && chmod 0755 /mnt/erebor/apps/textfile
+PATH=/usr/sbin:/usr/bin:/sbin:/bin timeout 600 /bin/bash /mnt/erebor/apps/stack/collect-smart-state.sh --print --host smaug
+```
+
+`--print` writes nothing. Read three things off it: `homelab_smart_devices`
+is **3**; which `/dev/sdX` carries `model="INTEL SSDSC2BB240G7"` on its
+`homelab_smart_healthy` line and `4` on its `homelab_smart_reallocated_sectors`
+line — **if it is not `sdc`, the baseline row is wrong and step 4 fixes
+it**, because the S3520 sits on the chipset AHCI, the Exos pair on the
+MegaRAID, and nothing but this run says which letter it drew; and that
+`sdb`, if it is still the faulted disk, answered at all (the `timeout` is
+there for the case it did not). Each piece of that command line is
+load-bearing: cron's default `PATH` has no `/usr/sbin`, which is where
+`smartctl` lives; `--host` pins the label to the `instance` §6.1's target
+gives the scrape, rather than to whatever `hostname` says.
+
+**2. The first real write**, same command without `--print` and with the
+directory named:
+
+```bash
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 600 /bin/bash /mnt/erebor/apps/stack/collect-smart-state.sh --host smaug
+ls -l /mnt/erebor/apps/textfile
+```
+
+One file, `smart-state-smaug.prom`, mode `-rw-r--r--`, owned by root. It is
+world-readable on purpose — uid 65534 has to read it — and carries no serial
+numbers by the script's design.
+
+**3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**, and
+every field is load-bearing:
+
+| Field | Value | Why |
+| --- | --- | --- |
+| Description | `homelab smart-state (#483, ADR-0047)` | So the next person finds the decision from the job |
+| Command | the step-2 command line, exactly, without the `ls` | `PATH`, `TEXTFILE_DIR`, `timeout 600` and `--host smaug` each for the reason step 1 gives; `/bin/bash` so the exec bit is not relied on |
+| Run As User | `root` | `smartctl` issues pass-through ioctls and no group substitutes; without root the script counts devices it cannot read and emits no attributes |
+| Schedule | daily, `08:30` | The estate's `smart-state` slot on the monitoring host, in this host's zone (`America/Los_Angeles`, §4.1); `SmartStateStale` fires at two days, twice the period |
+| Hide Standard Output | **on** | Success is one line and TrueNAS would mail it daily |
+| Hide Standard Error | **off** | A failure is the thing worth seeing |
+| Enabled | on | |
+
+The job lives in TrueNAS's config database and the script on the pool, so a
+TrueNAS upgrade — which replaces the root — touches neither. A config restore
+from before this section would drop the job and leave the file serving that
+day's numbers forever; `SmartStateStale` in `host.rules.yaml` exists for
+exactly that.
+
+**4. The baseline row, only if step 1 disagreed with it.** The row in
+`scripts/render-smart-baselines.sh` reads `smaug /dev/sdc 4`. If the S3520
+printed as another letter, change the row — the letter only, never the
+count — merge it, and on the monitoring host:
+
+```bash
+sudo make smart-state
+```
+
+That re-renders `smart-baselines.prom`; confirm with
+`homelab_smart_reallocated_sectors_baseline{host="smaug"}` in Prometheus
+before step 5. Nothing is silenced, here or later: a silence matches labels
+and not values, and the table is where a static count belongs.
+
+**5. The redeploy.** From the console shell, the two `curl` lines from §6 for
+`compose.yaml` and `.env` — the compose file now carries the mount and the
+`.env` the path — then:
+
+```bash
+cd /mnt/erebor/apps/stack && docker compose up -d
+docker exec media-node-exporter ls -la /textfile
+```
+
+**6. Prove it from the monitoring host**, which is the only place that can:
+
+```bash
+curl -s http://10.0.40.30:9100/metrics | grep -E '^(homelab_smart_|node_textfile_)'
+```
+
+`node_textfile_scrape_error` is **0**, `node_textfile_mtime_seconds` for the
+file is minutes old, and `homelab_smart_devices{host="smaug"}` is **3**. Then,
+after the rule's thirty minutes,
+`ALERTS{alertname="SmartDriveBadSectors",host="smaug"}` shows the faulted
+Exos and nothing else — the boot SSD is quiet at its recorded 4, and if it
+is listed the letter in the row is wrong (step 4). `SmartStateStale` must be
+quiet on every file, and
+`homelab_smart_unsafe_shutdowns_total{host="smaug"}` reads the S3520's
+counter for [#574](https://github.com/Gerrrt/HomeLab/issues/574).
+
+**What is deliberately not collected here: patch state.** TrueNAS is an
+appliance updated from its own UI, there is no `apt` to ask, and a collector
+would report nothing. ADR-0047 writes the no down, with the one condition that
+reopens it.
+
+> **Not yet done.** The repository side merged on 2026-09-20 with ADR-0047;
+> steps 1–6 wait on a walk to the console. Fill this block in with the
+> device letter as printed, whether the row needed changing, the cron job as
+> created, and the first `homelab_smart_devices` reading when they run.
+
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the
@@ -964,6 +1092,9 @@ as `65534` across two hosts that spell it differently.
   count will have climbed, and that is not a finding
 - `zpool status erebor` is `ONLINE` with no errors
 - Both Exos self-tests from §2 completed without error
+- `homelab_smart_devices{host="smaug"}` reads **3** from the monitoring host,
+  and `SmartDriveBadSectors` is quiet on the boot SSD at its recorded 4
+  (§6.4)
 
 ## §8 — What this leaves open
 
@@ -983,10 +1114,16 @@ as `65534` across two hosts that spell it differently.
 - **Offsite** — owned, since 2026-09-20. §6.2 gets Jellyfin's state off
   `smaug`, onto the monitoring host and onto `oracle`, and every one of those
   copies is on the same shelf under the same roof — the position the volume
-  sets and the firewall export are in. [ADR-0047](../adr/0047-carry-the-estates-backup-sets-with-the-second-recipient.md)
+  sets and the firewall export are in. [ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
   sends the newest of each beyond it, on the second age recipient's medium,
   by [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md); what is left is
   the first visit, which is [#573](https://github.com/Gerrrt/HomeLab/issues/573)'s last box.
 - **Plex**, deferred by ADR-0016 against a test nobody has run: whether any
   screen on 40 lacks a working Jellyfin client.
   [#139](https://github.com/Gerrrt/HomeLab/issues/139) carries the test.
+- **SMART is decided and not yet running** — §6.4 waits on the console; and
+  **patch state is decided and will not run**, by
+  [ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),
+  which closed [#483](https://github.com/Gerrrt/HomeLab/issues/483). The
+  vdev-state textfile [`replace-the-nas-disk.md`](replace-the-nas-disk.md)
+  asks for rides the same mechanism and is its own follow-up.
