@@ -110,7 +110,7 @@ unchanged: the fit, step 8's mains pull, and the silence deleted.
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
-| An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
+| An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on. Not the estate's own backup sets: those ride with the second age recipient, [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md) | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
@@ -457,6 +457,28 @@ either machine is.
   in Loki, which trades a flood for silently dropped lines and is its own
   decision. `loki`'s `mem_limit` is unchanged until a fortnight without the
   flood exists to re-derive from — 2026-09-18.
+- **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
+  UPS's signal, and measure the pack once.** Decided 2026-09-20 by
+  [ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
+  not built. The issue found that nothing subscribes to `mjolnir` for the one
+  thing a UPS card is for and that no document said what powers `smaug` —
+  the answer, read at the rack, is the PDU by a long cord to the media room,
+  so it is on the UPS with `morpheus`, `Saruman` and `neo`, and
+  [`hardware.md`](hardware.md#rack) now carries a *Powered by* column. The
+  decision costs no purchase and no new path between segments: the pfSense
+  NUT package has been installed on the firewall since 2026-08-20 and never
+  configured, the firewall reaches the card with no rule, and both
+  subscribers already reach their own gateway on 3493 under the catch-all —
+  the rules are two pass/block pairs that *narrow* that to one host per
+  segment. What remains is the rack visit:
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) builds it,
+  proves the order with `upsmon -c fsd`, and pulls the mains once to replace
+  the card's 47-minute claim with a number. The S3520's unsafe-shutdown
+  counter is the measure of any cut the sequence misses:
+  `SmartDriveUnsafeShutdownsGrowing` reads it, over the cron job
+  [ADR-0047](adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)
+  put under the scrape the same day — the rule that ADR left to this issue.
+  → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#249](https://github.com/Gerrrt/HomeLab/issues/249) Scrape the UPS
   self-test schedule.** [#93](https://github.com/Gerrrt/HomeLab/issues/93) left
   `mjolnir` testing itself every fortnight and nothing able to see that it does.
@@ -616,8 +638,8 @@ what left this one unfireable for months.
   `make backup-firewall` copies every export to `oracle` — ciphertext only, the
   key stays here — and exits non-zero if it cannot, so the nightly job's metric
   says "stopped leaving this host" rather than "fine". Off-host, not offsite:
-  both laptops share a shelf and a roof, and nothing copies anywhere a fire
-  would not reach. The copy needs a one-time key exchange between the two
+  both laptops share a shelf and a roof, and the copy beyond it is
+  [#573](https://github.com/Gerrrt/HomeLab/issues/573)'s, below. The copy needs a one-time key exchange between the two
   laptops before its first run can succeed, and fails on purpose until then.
   That copy shipped defaulting to the wrong account — `robo@10.0.99.30`, where
   the login is `atropos` — so every nightly run would have failed on
@@ -671,8 +693,15 @@ what left this one unfireable for months.
   exports and fails if it cannot, the daily verify hashes the far side, and the
   restore runbook starts from that copy. Unlike the firewall, the sets have been
   restored — the whole stack was brought up on a restored set on 2026-08-29 and
-  verified — but not yet from the copy on `oracle`. What remains for the sets is
-  what remains for the export: off-host is not offsite.
+  verified — but not yet from the copy on `oracle`. What remained for the sets
+  was what remained for the export — off-host is not offsite — and since
+  2026-09-20 that is owned rather than residual: [#573](https://github.com/Gerrrt/HomeLab/issues/573), decided by
+  [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md). The newest set of each kind rides on the medium that holds the
+  second age recipient, carried there by `make backup-offsite` on the
+  ninety-day visit that medium already owes, re-verified and hashed there,
+  and nagged by `OffsiteCopyStale` when the proof passes ninety days
+  ([`copy-the-backups-offsite.md`](runbooks/copy-the-backups-offsite.md)). The mechanism is built; the copy itself is a
+  visit, and #573 closes on the first one.
 - **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put the wiki on
   `oracle` into the repository, and back up its database.** ADR-0015 ratified a
   host whose main service is not described anywhere here: `wiki` and its
@@ -884,10 +913,11 @@ what left this one unfireable for months.
   property ADR-0008 claims to keep. The ADR reverses the direction instead —
   scraped rather than Alloy pushing, the metadata backup pulled
   by `prometheus` rather than sent — which costs the NAS its logs, because Loki
-  has no pull and its ingest is unauthenticated, and costs it its SMART and its
-  patch state for the same reason
-  ([#255](https://github.com/Gerrrt/HomeLab/issues/255),
-  [#483](https://github.com/Gerrrt/HomeLab/issues/483)). ADR-0016 wrote down
+  has no pull and its ingest is unauthenticated
+  ([#255](https://github.com/Gerrrt/HomeLab/issues/255)). It cost SMART and
+  patch state too until [#483](https://github.com/Gerrrt/HomeLab/issues/483):
+  ADR-0047 puts SMART under the scrape by a root cron job on the host, and
+  declines patch state for an appliance on the record. ADR-0016 wrote down
   three rules, all inbound, all host- and port-scoped, and deliberately did not
   create them: a `pass` to an address with nothing behind it is a rule nobody
   can test. **Four exist since 2026-09-16**, because the Hicks pass is split
@@ -1205,7 +1235,11 @@ what left this one unfireable for months.
   because VLAN 30 is the segment ADR-0014 built to hold attackers. Two things
   the issue did not count: the Proxmox firewall on `Saruman` admits `8006`
   from Hicks only, so the build widens ADR-0014's rule by one address on one
-  port, recorded as a marked amendment there and on ADR-0039; and
+  port, recorded as a marked amendment there and on ADR-0039 — and the build
+  then found that firewall never enabled at all, closed the same day by
+  [#566](https://github.com/Gerrrt/HomeLab/issues/566), which also found that
+  Proxmox had been admitting the whole segment through a `management` set
+  derived from the node's own subnet; and
   `certificates/ca-key.pem` has no backup or custody story at all, unlike
   the age key and the tier's root — found, named in the ADR with what the
   answer is not, and carried by
@@ -1249,6 +1283,16 @@ months.
   MokerLink. Under **Security** above, because it has a procedure now —
   [`swap-the-switch.md`](runbooks/swap-the-switch.md) — rather than only a
   decision.
+- **[#573](https://github.com/Gerrrt/HomeLab/issues/573)** Where the estate's three backup sets
+  go beyond the shelf, decided by [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md): on the
+  medium that holds the second age recipient, on its ninety-day visit, one
+  copy of record with its own deadline. Everything that can be built is —
+  `make backup-offsite`, the `offsite-copy` row, `OffsiteCopyStale`,
+  [`copy-the-backups-offsite.md`](runbooks/copy-the-backups-offsite.md) — and the one thing that
+  cannot is the visit: the medium has not yet been brought to the host, so
+  `ScheduledJobNeverRan` names the job, which is the honest state. Under
+  **Infrastructure** above, in #92's paragraph, because that is where the
+  residual lived.
 - **[#530](https://github.com/Gerrrt/HomeLab/issues/530)** The WireGuard
   endpoint, the prerequisite ADR-0042 recorded as blocking, decided by
   [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md):

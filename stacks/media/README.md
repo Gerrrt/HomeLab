@@ -10,6 +10,9 @@ without `make` or `sops` — so a change here reaches `smaug` by re-fetching
 `compose.yaml` and `.env.example` from `main` into `/mnt/erebor/apps/stack`
 and running `docker compose up -d` there. Nothing pulls from `main` on that
 host on its own: a Dependabot bump is merged here and deployed there by hand.
+A third file lives beside them since [ADR-0047]: `scripts/collect-smart-state.sh`,
+fetched the same way and run by TrueNAS's cron — a change to it reaches
+`smaug` only by the same re-fetch.
 
 ```bash
 cd /mnt/erebor/apps/stack && docker compose up -d
@@ -22,7 +25,7 @@ runbook creates it, and says why it is a bind mount and not a volume.
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | jellyfin | `jellyfin/jellyfin` | 8096 (http), on the segment | The media server the televisions reach directly, with Quick Sync hardware transcoding on the E3-1225 v6's HD P630 ([#138], [ADR-0016]) |
-| node-exporter | `prom/node-exporter` | 9100 (http), to `10.0.99.20` only | How this host is monitored at all — Prometheus scrapes it, because nothing on this segment may push ([#256], [ADR-0016]) |
+| node-exporter | `prom/node-exporter` | 9100 (http), to `10.0.99.20` only | How this host is monitored at all — Prometheus scrapes it, because nothing on this segment may push ([#256], [ADR-0016]); it also serves the SMART textfile a root cron job on the host writes ([#483], [ADR-0047]) |
 
 Two services, and only one of them is the tier. `node-exporter` is here
 because of the section below; everything else in this file is about Jellyfin.
@@ -97,6 +100,30 @@ What this does **not** buy is logs. Loki has no pull, and its ingest is
 unauthenticated by [ADR-0012], so centralising this host's logs would mean a
 `40 → 99:3100` rule that lets anything reaching the NAS write to the log store.
 The NAS gets metrics and no logs; [#255] is where that residual lives.
+
+## SMART, and why it is a cron job on the host
+
+The exporter above reads nothing a drive says: it is uid 65534, read-only and
+cap-dropped, and its image has no `smartctl`. The estate's SMART collector
+needs root. Everywhere else it is a systemd timer installed beside Alloy;
+this host has an immutable root and no Alloy, so [ADR-0047] runs the same
+script from a copy on the pool as a **root cron job in TrueNAS's own UI**,
+writing `smart-state-smaug.prom` into `SMART_TEXTFILE_PATH`, which the
+exporter bind-mounts read-only at `/textfile`. The series ride the scrape
+that already exists, carry `host="smaug"` and `instance="smaug"`, and every
+SMART rule in `host.rules.yaml` applies unchanged — including
+`SmartDriveBadSectors`, which holds the boot SSD to the four static
+reallocated sectors recorded for it in `scripts/render-smart-baselines.sh`
+and pages above them, with the growth rule armed on its own account.
+Nothing on this host initiates anything: the file is local
+and Prometheus reads it. [`build-the-nas.md`] §6.4 is the procedure, with
+the cron job's fields recorded there.
+
+**Patch state is deliberately not collected here.** TrueNAS is an appliance
+updated as an image from its own UI; there is no `apt` to ask, so the
+estate's `homelab_apt_*` rules have no referent on this host and a collector
+would report nothing. [ADR-0047] writes the no down rather than leaving it
+to be rediscovered.
 
 ## The backup split
 
@@ -220,12 +247,14 @@ reopen condition is closed; the stack stays here.
 [ADR-0016]: ../../docs/adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md
 [ADR-0040]: ../../docs/adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md
 [ADR-0045]: ../../docs/adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md
+[ADR-0047]: ../../docs/adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md
 [`build-the-nas.md`]: ../../docs/runbooks/build-the-nas.md
 [#138]: https://github.com/Gerrrt/HomeLab/issues/138
 [#140]: https://github.com/Gerrrt/HomeLab/issues/140
 [#141]: https://github.com/Gerrrt/HomeLab/issues/141
 [#255]: https://github.com/Gerrrt/HomeLab/issues/255
 [#256]: https://github.com/Gerrrt/HomeLab/issues/256
+[#483]: https://github.com/Gerrrt/HomeLab/issues/483
 [#413]: https://github.com/Gerrrt/HomeLab/issues/413
 [#528]: https://github.com/Gerrrt/HomeLab/issues/528
 [#484]: https://github.com/Gerrrt/HomeLab/issues/484

@@ -17,9 +17,9 @@ What this network is actually built to survive:
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 107 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 109 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
-| Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below |
+| Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below. **What the UPS cannot answer is what happens when the cut outlasts the pack: as of 2026-09-20 nothing shuts down on its signal, and everything on the PDU — `morpheus`, `Saruman`, `neo` and `smaug`, which is in the media room on a long cord from that PDU — stops uncleanly when the pack empties, about 47 minutes in at 21 % load by the card's own unmeasured estimate.** [ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides that the firewall's NUT server halts `Saruman` and `smaug` first and itself last, and [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) is the build, the forced-shutdown proof and the one mains pull that measures the pack; until those are done the decision is a configuration nobody has tested ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
 
 What it explicitly does **not** defend against: a determined attacker with
@@ -72,6 +72,20 @@ credential, photo or document — and none of them is built. **The copy leaving
 the house is a new residual**: it is the first household data to sit in someone
 else's building, reduced to an availability problem by encryption at rest with a
 key that never leaves here, and accepted on that basis.
+
+**The estate's own backup sets leave the house too, and with a key.** Decided
+2026-09-20: the newest firewall export, volume set and NAS set are carried onto
+the offline medium that holds the second age recipient, on its ninety-day
+visit, from that medium's first visit onward ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)). That medium
+is the one place where the estate's ciphertext sits beside a key that opens
+it — the property ADR-0015 refused `oracle`, and still does; the argument there
+turned on a powered, networked host in the same room, and this is an offline
+medium held off the estate by the technical second. **The residual is the
+disclosure delta on losing it**: the key alone already means rotating every
+credential in the repository, and the sets add the firewall's rule bodies and
+WAN address, the device password hashes in the export, and `grafana.db`.
+Accepted, because the alternative is a successor who holds the key and not
+the thing it opens.
 
 **Intrusion detection has been running** on **Skids (VLAN 20)** since
 2026-08-21 and on **Degens (VLAN 10)** since 2026-09-02, one Suricata process
@@ -307,13 +321,21 @@ restore runbook checks for them.
 and since 2026-09-16 there is something on it worth watching. `smaug` at
 `10.0.40.30` is scraped rather than pushing, by the same ADR-0016 decision that
 keeps the segment terminal outward: it runs no Alloy agent, and with the agent
-go its logs, its SMART attributes and its patch state, because every one of
-those rides a push this host does not make. Loki has no pull — ingest is a push
-or it is nothing — so the only rule that would centralise the logs is the
-`40 → 99:3100` the ADR refused, and refusing it is the residual recorded in
+go its logs, because Loki has no pull — ingest is a push or it is nothing — so
+the only rule that would centralise them is the `40 → 99:3100` the ADR
+refused, and refusing it is the residual recorded in
 [`SECURITY.md`](../SECURITY.md)
-([#255](https://github.com/Gerrrt/HomeLab/issues/255) for the logs,
-[#483](https://github.com/Gerrrt/HomeLab/issues/483) for the rest). Suricata
+([#255](https://github.com/Gerrrt/HomeLab/issues/255)). Its SMART attributes
+were the same residual until
+[ADR-0047](adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)
+put them under the scrape instead — a root cron job in TrueNAS's UI runs the
+estate's collector from a copy on `erebor/apps`, which root writes, `frodo`
+reads and the SMB share does not reach, and the exporter serves a
+world-readable `.prom` with no serial numbers in it; the disclosure that adds
+to the unauthenticated `9100` is the host's disk models and their health,
+which is accepted for the same reason the port is. Its patch state is
+deliberately not collected — an appliance with no `apt` to ask — and the ADR
+records that ([#483](https://github.com/Gerrrt/HomeLab/issues/483)). Suricata
 does not watch `igc0.40` either; it runs on Skids and Degens only. So the
 tripwire is what is left, and it is worth being exact about what that buys:
 `TerminalSegmentReachedInternalNetwork` fires on a `pass` from 10, 20 or 40

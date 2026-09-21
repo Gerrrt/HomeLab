@@ -167,6 +167,14 @@ documents:
 
 ## 4. Close the management plane
 
+> **Ran on `Saruman` 2026-09-20**
+> ([#566](https://github.com/Gerrrt/HomeLab/issues/566)), out of order with the
+> rest of this runbook and ahead of `ifrit`, because
+> [ADR-0042](../adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
+> remote path was about to put a device that is not on Hicks in front of this
+> hypervisor's login page. Everything below was found by doing it. `ifrit` gets
+> the same treatment when it is built, including the alias.
+
 ADR-0014: the Proxmox firewall on `Saruman` and on `ifrit` admits `8006`,
 `8007` and `22` from `10.0.50.0/24` only. This is the one gap the design opens —
 an attacker sharing a broadcast domain with a hypervisor — and it is closed on
@@ -174,19 +182,19 @@ the host rather than at a segment boundary, because there is no boundary between
 them.
 
 > [!CAUTION]
-> Enabling the Proxmox firewall with a `DROP` input policy will lock you out of
-> a machine whose console is a KVM switch away. Write both files, check the
-> rules render, and only then enable. Have the console to hand.
+> **Enable with a permissive policy first, then flip it.** `pve-firewall
+> compile` renders *nothing* while the firewall is disabled — empty cmdlists
+> and `firewall disabled` — so "write the files and check the rules render"
+> cannot be done from the off state. The order that works is: write `host.fw`,
+> enable with `policy_in: ACCEPT`, read the rules back, and only then set
+> `DROP`. A `DROP` policy with the rules unrendered locks you out of a machine
+> whose console is a KVM switch away. Have the console to hand; `pve-firewall
+> stop` is the way back.
 
-`/etc/pve/firewall/cluster.fw`:
-
-```ini
-[OPTIONS]
-enable: 1
-policy_in: DROP
-```
-
-`/etc/pve/nodes/ifrit/host.fw`:
+`/etc/pve/nodes/<NODE>/host.fw`, where `<NODE>` is the name **exactly as
+`pvesh get /nodes` prints it** — `Saruman` is capitalised and `ifrit` is not. A
+mis-cased path is a file Proxmox never reads, which is a rule set that silently
+does not exist:
 
 ```ini
 [OPTIONS]
@@ -198,9 +206,66 @@ IN ACCEPT -source 10.0.50.0/24 -p tcp -dport 8007 -log nolog
 IN ACCEPT -source 10.0.50.0/24 -p tcp -dport 22 -log nolog
 ```
 
+On `Saruman` there is a fourth line, admitting the deployment host to the API
+and to nothing else
+([ADR-0043](../adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)):
+
+```ini
+IN ACCEPT -source 10.0.30.70 -p tcp -dport 8006 -log nolog
+```
+
 `8007` is Proxmox Backup Server and nothing on `ifrit` listens on it — ADR-0017
 gives the range no backups. The rule is written as ADR-0014 specifies rather
 than narrowed here; ADR-0017's Consequences record that it admits nothing.
+
+### The rule nobody wrote, and it is wider than the ones you did
+
+**This is the step that makes the difference between ADR-0014 being true and
+merely being written down.** Proxmox detects a "local network" from the node's
+own address, puts that CIDR in a `management` IP set, and gives the set five
+RETURN rules in the host input chain. `Saruman` is `10.0.30.110/24`, so the
+detected value was **the entire lab segment** — and with `policy_in: DROP` in
+place, every address on VLAN 30 still reached the GUI, SSH, the VNC range, the
+SPICE proxy and the migration range. ADR-0014's three rules were redundant
+against it, and nothing about the ruleset looked wrong.
+
+Read what it detected:
+
+```bash
+pve-firewall localnet
+```
+
+`using detected local_network: 10.0.30.0/24` is the finding. Override it in
+`cluster.fw`, which is where the alias belongs:
+
+```ini
+[OPTIONS]
+enable: 1
+policy_in: ACCEPT
+
+[ALIASES]
+local_network 10.0.30.110
+```
+
+Use the node's own address, and check that `localnet` now reports it as user
+defined. This estate runs no Proxmox cluster
+([ADR-0039](../adr/0039-decline-proxmox-clustering-while-ifrit-is-the-range.md)),
+so the detected `/24` bought nothing at all; Proxmox's own documentation
+advises assigning the address explicitly for a single host on a network it does
+not trust, and here that network is the one built to hold an attacker.
+
+What narrowing withdraws from the segment, and why each is right to lose:
+
+| Port | What it is | After |
+| --- | --- | --- |
+| 8006 | Web UI and console proxy | Open, by ADR-0014's rule and ADR-0043's |
+| 22 | SSH | Open from Hicks, by ADR-0014's rule |
+| 5900-5999 | Direct VNC | Closed — the browser console rides 8006 |
+| 3128 | SPICE proxy | Closed — no SPICE client in the estate |
+| 60000-60050 | Cluster migration | Closed — ADR-0039 declined clustering |
+
+ADR-0014 granted three ports. This is what stops the box from quietly granting
+eight.
 
 **Then turn the firewall off on every guest NIC** (`firewall=0`, or the
 checkbox clear in the hardware tab). This is what makes ADR-0014's "guests are
@@ -209,6 +274,55 @@ brings the per-NIC flag to life, and that flag is set by default on any NIC
 added through the GUI. A range whose hypervisor quietly filters its own guests
 is a range that lies to you about what your tooling did — and the isolation
 here is the bridge, not the guest firewall, so clearing it costs nothing.
+
+> [!WARNING]
+> **Do not retype `--net0` by hand.** `qm set` replaces the whole option, and a
+> value without the MAC makes Proxmox mint a new one — which breaks that
+> guest's DHCP reservation and the OUI column in
+> [`network.md`](../network.md). Read the current value and append to it:
+>
+> ```bash
+> for id in 140 170; do cur=$(qm config $id | sed -n 's/^net0: //p'); case "$cur" in *firewall=*) echo "$id already set";; *) qm set $id --net0 "$cur,firewall=0";; esac; done
+> ```
+>
+> An absent `firewall=` key already means off. Setting it explicitly is so that
+> a later edit in the GUI cannot flip it back without the diff showing.
+
+### Only now, the flip
+
+Set `policy_in: DROP`, keep the alias, and read the chain back rather than
+trusting the file:
+
+```bash
+pve-firewall status
+pve-firewall compile | sed -n '/^exists PVEFW-HOST-IN/,/^exists PVEFW-HOST-OUT/p'
+```
+
+Four things to see. `enabled/running`. The three or four explicit RETURN rules.
+The `management` rules now reachable only by the node's own address. And a
+trailing `-j PVEFW-Drop` where a bare `-j RETURN` used to be, which is the
+policy in force. The IPv6 chain keeps its neighbour-discovery RETURNs above the
+policy, so address resolution survives the `DROP`.
+
+Then prove it from off the host. `10.0.30.1` is `morpheus`, which is on this
+segment and is not Hicks, so it is the right prober; a second probe to a host
+that should answer keeps a broken `nc` from reading as a closed port:
+
+```bash
+ssh admin@10.0.99.1 'nc -z -w 3 10.0.30.110 8006; echo "8006 exit=$?"; nc -z -w 3 10.0.30.40 3100; echo "control exit=$?"'
+```
+
+Expect `8006 exit=1` and `control exit=0`. Then confirm the hypervisor's own
+telemetry is unaffected — `policy_in` does not touch outbound, and this agent
+remote-writes rather than being scraped:
+
+```promql
+up{instance="Saruman"}
+```
+
+**Capitalised**, like the node. `instance="saruman"` matches no series and
+reads as a failure when nothing is wrong. Both jobs, `Saruman-metrics` and
+`Saruman-alloy`, should be at `1`.
 
 ---
 
@@ -373,6 +487,9 @@ Addresses are parsed at query time rather than indexed, per
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | Locked out of the Proxmox UI after §4 | `policy_in: DROP` with the rules unrendered, or reaching it from somewhere other than Hicks | Console via the KVM; `pve-firewall stop` |
+| §4 done, and the whole segment still reaches `8006` | The `local_network` alias was not narrowed, so the auto-detected `/24` is in the `management` IP set | `pve-firewall localnet`; §4's alias block |
+| `pve-firewall compile` prints nothing but `firewall disabled` | It renders only while enabled, so this is the off state rather than a broken file | Enable with `policy_in: ACCEPT` first, per §4's CAUTION |
+| `up{instance="saruman"}` returns no data after §4 | The label is capitalised; the series is `Saruman` | Not a firewall problem. Outbound is unaffected by `policy_in` |
 | A target can reach the internet | Its NIC is on `vmbr0` | Move it to `vmbr1`, then §8 and §9 |
 | A target can reach `10.0.30.x` but not the internet | The attack VM is forwarding | §8, check three. Look for Docker |
 | The attack VM's tools see nothing on VLAN 30 | The guest firewall flag is still set on `net0` | Clear it — end of §4 |
