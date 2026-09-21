@@ -901,10 +901,11 @@ what left this one unfireable for months.
   property ADR-0008 claims to keep. The ADR reverses the direction instead —
   scraped rather than Alloy pushing, the metadata backup pulled
   by `prometheus` rather than sent — which costs the NAS its logs, because Loki
-  has no pull and its ingest is unauthenticated, and costs it its SMART and its
-  patch state for the same reason
-  ([#255](https://github.com/Gerrrt/HomeLab/issues/255),
-  [#483](https://github.com/Gerrrt/HomeLab/issues/483)). ADR-0016 wrote down
+  has no pull and its ingest is unauthenticated
+  ([#255](https://github.com/Gerrrt/HomeLab/issues/255)). It cost SMART and
+  patch state too until [#483](https://github.com/Gerrrt/HomeLab/issues/483):
+  ADR-0047 puts SMART under the scrape by a root cron job on the host, and
+  declines patch state for an appliance on the record. ADR-0016 wrote down
   three rules, all inbound, all host- and port-scoped, and deliberately did not
   create them: a `pass` to an address with nothing behind it is a rule nobody
   can test. **Four exist since 2026-09-16**, because the Hicks pass is split

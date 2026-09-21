@@ -18,7 +18,7 @@ What this network is actually built to survive:
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 107 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 108 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -308,13 +308,21 @@ restore runbook checks for them.
 and since 2026-09-16 there is something on it worth watching. `smaug` at
 `10.0.40.30` is scraped rather than pushing, by the same ADR-0016 decision that
 keeps the segment terminal outward: it runs no Alloy agent, and with the agent
-go its logs, its SMART attributes and its patch state, because every one of
-those rides a push this host does not make. Loki has no pull — ingest is a push
-or it is nothing — so the only rule that would centralise the logs is the
-`40 → 99:3100` the ADR refused, and refusing it is the residual recorded in
+go its logs, because Loki has no pull — ingest is a push or it is nothing — so
+the only rule that would centralise them is the `40 → 99:3100` the ADR
+refused, and refusing it is the residual recorded in
 [`SECURITY.md`](../SECURITY.md)
-([#255](https://github.com/Gerrrt/HomeLab/issues/255) for the logs,
-[#483](https://github.com/Gerrrt/HomeLab/issues/483) for the rest). Suricata
+([#255](https://github.com/Gerrrt/HomeLab/issues/255)). Its SMART attributes
+were the same residual until
+[ADR-0047](adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)
+put them under the scrape instead — a root cron job in TrueNAS's UI runs the
+estate's collector from a copy on `erebor/apps`, which root writes, `frodo`
+reads and the SMB share does not reach, and the exporter serves a
+world-readable `.prom` with no serial numbers in it; the disclosure that adds
+to the unauthenticated `9100` is the host's disk models and their health,
+which is accepted for the same reason the port is. Its patch state is
+deliberately not collected — an appliance with no `apt` to ask — and the ADR
+records that ([#483](https://github.com/Gerrrt/HomeLab/issues/483)). Suricata
 does not watch `igc0.40` either; it runs on Skids and Degens only. So the
 tripwire is what is left, and it is worth being exact about what that buys:
 `TerminalSegmentReachedInternalNetwork` fires on a `pass` from 10, 20 or 40

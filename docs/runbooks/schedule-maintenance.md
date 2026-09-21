@@ -242,6 +242,17 @@ not part of `scripts/deploy-agent.sh`, which goes out of its way to need no
 privilege there. It is run once per host; `ARGS=--check` re-verifies an existing
 install and changes nothing.
 
+**`smaug` takes neither, and collects SMART anyway.** It runs no Alloy and
+has an immutable root, so `install-agent-collectors.sh` cannot land there;
+[ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)
+runs the same `collect-smart-state.sh` from a copy on the pool as a root
+cron job in TrueNAS's UI, and the scraped node_exporter serves the file
+([`build-the-nas.md`](build-the-nas.md) §6.4). That job has no `homelab_job_*`
+series and no unit for `ScheduledJobFailed` to see; `SmartStateStale` on the
+file's mtime is its two-day cover. Patch state is deliberately not collected
+there — TrueNAS is an appliance with no `apt` to ask — and the ADR records
+the no.
+
 Those runs have no `homelab_job_*` metrics, because `run-scheduled.sh` needs a
 checkout and a Makefile that an agent host does not have. `PatchStateStopped`
 covers them from the data side instead: it fires for a host that *was* reporting
@@ -320,7 +331,10 @@ this host already has a key that reaches it — so it is read over SSH and writt
 into this host's textfile directory under `host="morpheus"`. Those series carry
 `instance="prometheus"`, which is the price of the host having no agent and is
 stated in the collector rather than left to surprise someone grouping by
-instance.
+instance. `smaug` is the third shape: the same script, run by TrueNAS's cron
+on the host itself and served by the exporter Prometheus already scrapes, so
+its series carry `instance="smaug"` — the right host, because the scrape is
+the host's own (ADR-0047).
 
 **A host without `smartmontools` is visible rather than silent.** `make
 smart-state` prints a `SKIP` line naming `sudo apt install smartmontools`, and
