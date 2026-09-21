@@ -416,7 +416,7 @@ And when the shelf is racked, which is a separate visit and separate issue:
 | --- | --- |
 | `docs/hardware.md` | The 1U shelf into the rack table at U4, and into Accessories |
 | `docs/network.md` | The TP-Link note — now racked and on UPS power |
-| `docs/roadmap.md` | Move #110 into Done |
+| `docs/roadmap.md` | The #110 entry leaves; the fit goes to `docs/changelog.md` under the date |
 
 One coupling to know about before you start editing: **deleting the banner panel
 changes the dashboard's panel count**, and `scripts/check_docs.py` asserts every
