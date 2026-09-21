@@ -41,6 +41,16 @@ the `ca-key-state` timer writes the series it reads every day, keyed on the
 key's fingerprint so a re-minted CA starts at never rather than inheriting the
 old key's proof ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)).
 
+The third of that shape is not a key. `make backup-offsite DEST=…` carries
+the newest firewall export, volume set and NAS set onto the same medium that
+holds the second age recipient, on the same visit — it refuses a destination
+on this host's own filesystem, re-verifies what the medium already holds,
+copies, and hashes the copy — and records `offsite-copy`; `OffsiteCopyStale`
+is the nag, the same ninety days, read straight off the job series because
+there is one copy of record
+([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
+[`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)).
+
 Two jobs' output leaves this host. `backup-firewall` copies every export to
 `oracle` and **fails if it cannot**, so its `ScheduledJobFailed` also means "the
 config has stopped leaving `prometheus`" — a file that never left is a failed
@@ -105,6 +115,7 @@ the host.
 | `gateway-state` | `make gateway-state` | every 15 minutes | 90 minutes |
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 | `verify-ca-key-backup` | **you**, `make certs-verify-backup KEY=…` | no timer | 90 days |
+| `offsite-copy` | **you**, `make backup-offsite DEST=…` | no timer | 90 days |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
 period fires on every run that slips past its jitter window, whereas twice
@@ -603,7 +614,8 @@ expected rather than a second fault.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key, and for `offsite-copy` until the first visit makes the copy. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `OffsiteCopyStale` | Ninety days since the newest sets were last copied to the second recipient's medium and proved there | Mount it and run `make backup-offsite DEST=…` — [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md). `--list`, `--verify-only` and `--prune` do not clear it, on purpose |
 | `CaKeyBackupUnproven` | No offline copy of `certificates/ca-key.pem` has been proved in ninety days — or ever, or not since the CA was re-minted, which the fingerprint label tells apart | Mount the medium and `make certs-verify-backup KEY=…` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)). After a re-mint, copy the new key there first; the old copy is refused |
 | `SecretsKeyRecipientsUnrecorded` | The ninety-day deadline is declared and no recipient has a proof series, so `SecretsKeyBackupUnproven` cannot fire however stale the proof is | `systemctl start homelab-recipient-state.service`. If that unit does not exist the timers predate [#400](https://github.com/Gerrrt/HomeLab/issues/400): `make install-timers` adds it and primes it. On a host with one recipient the first write inherits the old `verify-key-backup` proof rather than starting from never |
 | `ScheduledJobMetricsAbsent` | Nothing from the textfile directory has reached Prometheus in six hours | This is the whole directory, not one file — check Alloy is up and the directory still exists. A single malformed file shows as `node_textfile_scrape_error 1` and costs only that file |

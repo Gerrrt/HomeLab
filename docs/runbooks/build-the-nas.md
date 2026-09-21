@@ -1111,10 +1111,13 @@ reopens it.
   PBS**, whose sync job wants another PBS instance — on TrueNAS that is PBS in
   a VM or a change to an NFS/SMB datastore.
   [#485](https://github.com/Gerrrt/HomeLab/issues/485) carries it.
-- **Offsite.** §6.2 gets Jellyfin's state off `smaug`, onto the monitoring
-  host and onto `oracle`, and every one of those copies is on the same shelf
-  under the same roof — the position the volume sets and the firewall export
-  are in, and [`roadmap.md`](../roadmap.md) is where that residual lives.
+- **Offsite** — owned, since 2026-09-20. §6.2 gets Jellyfin's state off
+  `smaug`, onto the monitoring host and onto `oracle`, and every one of those
+  copies is on the same shelf under the same roof — the position the volume
+  sets and the firewall export are in. [ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
+  sends the newest of each beyond it, on the second age recipient's medium,
+  by [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md); what is left is
+  the first visit, which is [#573](https://github.com/Gerrrt/HomeLab/issues/573)'s last box.
 - **Plex**, deferred by ADR-0016 against a test nobody has run: whether any
   screen on 40 lacks a working Jellyfin client.
   [#139](https://github.com/Gerrrt/HomeLab/issues/139) carries the test.
