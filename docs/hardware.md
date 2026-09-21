@@ -437,7 +437,14 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   zero reported-uncorrectable, zero CRC errors, zero end-to-end errors, and
   24 °C in the bay with the fan on.
   **509 unsafe shutdowns out of 538 power cycles**, which is the number that
-  says what this drive did before: it was almost never shut down cleanly. It is
+  says what this drive did before: it was almost never shut down cleanly.
+  **Re-read at the console on 2026-09-21: 519**, at 13,301 power-on hours —
+  ten more in the five days since the install, on a host that has been up
+  throughout, which is the counter
+  [#574](https://github.com/Gerrrt/HomeLab/issues/574) wants watched and the
+  reason ADR-0047's collector now reads it. Note that this drive reports it
+  under **two** attributes, 174 and 192, both of which `smartctl` names
+  `Unsafe_Shutdown_Count`; the collector renders one series and says why. It is
   also the argument above, tested. This part was chosen because *a boot disk
   that survives a power cut is worth more here than one that is merely fast*,
   and `Power_Loss_Cap_Test` still passes after 509 of them — the capacitor works

@@ -933,15 +933,25 @@ reads it over the scrape that already exists.
 and that row is live on the monitoring host — so `SmartDriveBadSectors` is
 quiet on that drive from the first scrape **if the letter is right**, and
 pages at `> 0` if it is not. The row took `sdc` from `node_disk_info`, and
-that reading holds: on 2026-09-21 `node_disk_info{instance="smaug"}` shows
-`sda` and `sdb` with `rotational="1"` and **`sdc` the only
-`rotational="0"`**, which is the S3520 against the two Exos and matches
-[`hardware.md`](../hardware.md)'s three drives exactly. Step 1 is still what
-confirms it by model string rather than by inference, which is why the
-collector is run and read *before* the redeploy that turns the series on. The faulted Exos will fire,
+**that is confirmed at the console on 2026-09-21**: `smartctl -i /dev/sdc`
+reads `INTEL SSDSC2BB240G7`, serial `PHDV706401TM240AGN`, with `sda`
+(`ZVTBS4NL`) and `sdb` (`ZVTBSDL3`) the two Exos at 7200 rpm. The row is
+right and needs no edit. Step 1 below is still how it is checked, because a
+letter is assigned at enumeration and a reboot can move it. The faulted Exos will fire,
 and it gets **no row**: that alert is the first in the estate that covers
 the degraded mirror, and [#558](https://github.com/Gerrrt/HomeLab/issues/558)
 is what resolves it.
+
+> **This shell traces what it spawns, and the collector is written for it.**
+> TrueNAS's console shell runs under `sudo` with ptrace-based subcommand
+> interception. Handing a traced child a very large argument kills it: the
+> first run of this section, on 2026-09-21, printed
+> `sudo: process NNNN unexpected status 0x57f` and `Killed` when the collector
+> passed ~150 KB of `smartctl --json -x` output to `python3` on the command
+> line, while `python3 - "hello"` with the same heredoc on the same shell was
+> fine. The collector now writes that JSON to a temp file and passes the path,
+> so this no longer bites — but if you see that message from anything else
+> here, it is the tracer and the argument size, not the machine.
 
 **1. The script, the directory, and a dry run.** From the console shell, as
 root. **The `curl` is here and not only in §6 because §6 ran on 2026-09-19,
