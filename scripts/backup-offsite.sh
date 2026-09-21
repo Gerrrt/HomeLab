@@ -77,6 +77,10 @@
 #   STACK           default observability   whose volume sets travel
 #   OFFSITE_KEEP    default 1               complete sets of each kind to keep on the medium
 #   OFFSITE_SOURCE  default <repo>/backups  where the sets are read from (the self-test overrides it)
+#   OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS   the self-test's, and nobody else's. It
+#                   turns off every check that the destination is a real medium
+#                   rather than this host's RAM, and a run with it set still
+#                   records a success. Never set it by hand.
 #
 # See docs/runbooks/copy-the-backups-offsite.md and ADR-0048.
 
@@ -90,22 +94,34 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # --self-test: the refusals and the proof, against a throwaway tree
 # ---------------------------------------------------------------------------
 # The real run needs a mounted medium and cannot happen in CI; the logic can,
-# against a fake backups/ tree in a temp directory and a DEST on /dev/shm,
-# which is a different filesystem from anything under /tmp on every Linux this
-# runs on. OFFSITE_SOURCE points the script at the fake tree, so nothing here
-# reads the host's backups/ or writes its textfile directory (the wrapper is
-# not involved: this calls the script directly).
+# against a fake backups/ tree in a temp directory. OFFSITE_SOURCE points the
+# script at that tree, so nothing here reads the host's backups/ or writes its
+# textfile directory (the wrapper is not involved: this calls the script
+# directly).
+#
+# THE DESTINATION IS THE HARD PART, and getting it wrong once is why the
+# refusals below exist. This used to hand the copy fixtures /dev/shm and call
+# it the medium, on the reasoning that it is a different filesystem from /tmp
+# — true, and worthless: it is RAM on the host being insured. A real stand-in
+# needs a loop mount, which needs root, which CI does not have. So the copy
+# fixtures set OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS and every refusal gets a
+# fixture of its own with it unset, /dev/shm first among them. What no test
+# here can cover is a real medium; docs/runbooks/copy-the-backups-offsite.md
+# is where that is a human step.
 if [[ "${1:-}" == "--self-test" ]]; then
   T="$(mktemp -d)"
   INSIDE="${REPO_ROOT}/backups/.offsite-selftest.$$"
-  trap 'rm -rf "${T}" "${INSIDE}"; rmdir "${REPO_ROOT}/backups" 2>/dev/null; [[ -n "${M:-}" ]] && rm -rf "${M}"' EXIT INT TERM
-  if [[ -d /dev/shm && -w /dev/shm ]]; then
-    M="$(mktemp -d -p /dev/shm homelab-offsite-selftest.XXXXXX)"
-  else
-    M=""
-  fi
+  # The same-device fixture cannot live under ${T}: mktemp puts that in /tmp,
+  # which 2b refuses first and for a different reason, so the device check
+  # would never be the thing under test. ${HOME} is on the same filesystem as
+  # the repository on any host this runs on, which is exactly what 2c is about.
+  SAME_DEV=""
+  [[ -n ${HOME:-} && -w ${HOME} ]] && SAME_DEV="$(mktemp -d -p "${HOME}" homelab-offsite-selftest.XXXXXX)"
+  trap 'rm -rf "${T}" "${INSIDE}" ${SAME_DEV:+"${SAME_DEV}"}; rmdir "${REPO_ROOT}/backups" 2>/dev/null' EXIT INT TERM
+  M="${T}/medium"
+  mkdir -p "${M}"
   SRC="${T}/backups"
-  mkdir -p "${SRC}/volumes" "${SRC}/nas" "${SRC}/firewall" "${T}/same-device" "${INSIDE}"
+  mkdir -p "${SRC}/volumes" "${SRC}/nas" "${SRC}/firewall" "${INSIDE}"
 
   # A set is a directory of *.tar.gz.age files and a MANIFEST whose five-field
   # rows are volume, service, mount, bytes, sha256 — the columns
@@ -137,7 +153,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
   fail=0
   run() {  # <args...>  → OUT, RC
     set +e
-    OUT="$(OFFSITE_SOURCE="${SRC}" STACK=observability OFFSITE_KEEP="${KEEP_FOR_TEST:-1}" "${BASH_SOURCE[0]}" "$@" 2>&1)"
+    OUT="$(OFFSITE_SOURCE="${SRC}" STACK=observability OFFSITE_KEEP="${KEEP_FOR_TEST:-1}" \
+           OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS="${SKIP_MEDIUM-1}" "${BASH_SOURCE[0]}" "$@" 2>&1)"
     RC=$?
     set -e
   }
@@ -161,13 +178,26 @@ if [[ "${1:-}" == "--self-test" ]]; then
   run;                            check "no DEST is a usage error" 2 "usage"
   run "${T}/nowhere";             check "a DEST that does not exist is refused" 1 "no such directory"
   run "${INSIDE}";                check "a DEST inside this repository is refused" 1 "inside this repository"
-  run "${T}/same-device";         check "a DEST on the same filesystem as the sets is refused" 1 "same filesystem"
-  # ^ mktemp makes ${T} on the same device as ${SRC} by construction.
 
-  if [[ -z "${M}" ]]; then
-    printf '\033[0;33m  SKIP\033[0m /dev/shm is not available — the copy fixtures need a second filesystem\n'
-    exit "${fail}"
+  # Every refusal below runs with the medium checks ON — the state a human
+  # gets. SKIP_MEDIUM="" is what distinguishes these from the copy fixtures.
+  if [[ -n ${SAME_DEV} ]]; then
+    SKIP_MEDIUM="" run "${SAME_DEV}"
+    check "a DEST on the same filesystem as the sets is refused" 1 "same filesystem"
+  else
+    printf '\033[0;33m  SKIP\033[0m no writable HOME — the same-filesystem refusal is unexercised\n'
   fi
+
+  # The regression this script shipped with, 2026-09-21: tmpfs passes the
+  # same-filesystem check and is RAM on the host being insured.
+  if [[ -d /dev/shm && -w /dev/shm ]]; then
+    SKIP_MEDIUM="" run /dev/shm
+    check "a DEST on tmpfs is refused" 1 "not a medium"
+  else
+    printf '\033[0;33m  SKIP\033[0m /dev/shm is not available — the tmpfs refusal is unexercised\n'
+  fi
+  SKIP_MEDIUM="" run /tmp
+  check "a DEST under /tmp is refused whatever is mounted there" 1 "clears or recreates"
 
   run "${M}" --list;              check "--list on an empty medium says so" 0 "nothing on the medium"
   run "${M}" --verify-only;       check "--verify-only on an empty medium is not a proof" 1 "nothing to verify"
@@ -280,21 +310,94 @@ This tree is published. A copy of the estate's backups belongs on a medium
 that leaves the house, not in a working tree of a public repository."
 fi
 
-# 2. Not on this host's own disk. Device number, not path: a bind mount or a
-#    symlink into the root filesystem would otherwise pass. The comparison is
-#    against the filesystem the sets live on and against /, since a laptop
-#    with one partition has those be the same thing and a medium never is.
-fs_of() { stat -c %d "$1" 2>/dev/null; }
-src_probe="${SOURCE_ROOT}"
-while [[ ! -e ${src_probe} && ${src_probe} != / ]]; do src_probe="$(dirname "${src_probe}")"; done
-dest_fs="$(fs_of "${DEST_ABS}")"
-if [[ -n ${dest_fs} ]] && { [[ ${dest_fs} == "$(fs_of "${src_probe}")" ]] || [[ ${dest_fs} == "$(fs_of /)" ]]; }; then
-  die "the destination is on the same filesystem as the sets it would copy:
+# 2. Is the destination a medium, or is it this host wearing one's costume?
+#
+# Three refusals and a warning, ordered so each one gives the diagnosis that
+# fits it rather than whichever fires first alphabetically.
+#
+# The history is worth the lines. This shipped with only the device-number
+# check below, on the reasoning that a medium is never the filesystem the sets
+# live on. True, and far weaker than it reads: /dev/shm is a different
+# filesystem too, and it is RAM on the host being insured. On 2026-09-21, an
+# hour after this script merged, `make backup-offsite DEST=/dev/shm` ran to a
+# green line — 1.7 GB into tmpfs on a host with 216 MB free, gone on the next
+# reboot, and a recorded success buying ninety days of silence from
+# OffsiteCopyStale for a copy that existed nowhere. A backup that cannot
+# survive a power cut is not a backup, so these are refusals, not warnings.
+#
+# The self-test sets OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS to reach the copy
+# fixtures — a real stand-in medium needs a loop mount, which needs root,
+# which CI does not have — and asserts each refusal below with it unset.
+if [[ -n ${OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS:-} ]]; then
+  warn "OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS is set — the medium checks are OFF."
+  warn "This run will accept RAM, /tmp or this host's own disk as the destination,"
+  warn "and record a success for it. That is the self-test's setting, not yours."
+else
+  # 2a. Not an in-memory or synthetic filesystem, wherever it is mounted.
+  dest_fstype="$(stat -f -c %T "${DEST_ABS}" 2>/dev/null || true)"
+  case "${dest_fstype}" in
+    tmpfs | ramfs | devtmpfs | overlay | overlayfs | squashfs | proc | sysfs | devpts | configfs | debugfs | tracefs | cgroup*)
+      die "the destination is a ${dest_fstype} filesystem, which is not a medium:
+  ${DEST_ABS}
+
+tmpfs and ramfs live in this host's RAM. A copy there disappears on the next
+reboot, and this run would record a success that silences OffsiteCopyStale for
+ninety days on a copy that no longer exists — which is worse than no copy,
+because it is read with confidence. Mount the medium and point DEST at it:
+docs/runbooks/copy-the-backups-offsite.md"
+      ;;
+  esac
+
+  # 2b. Not one of the trees this host clears or recreates, whatever is
+  #     mounted there — a separate /tmp partition passes 2a and 2c both.
+  case "${DEST_ABS}" in
+    /dev | /dev/* | /proc | /proc/* | /sys | /sys/* | /run | /run/* | /tmp | /tmp/*)
+      die "the destination is under /${DEST_ABS#/}, which this host clears or recreates:
+  ${DEST_ABS}
+
+Whatever filesystem is mounted there, it is not a medium that leaves the
+house. Mount the medium and point DEST at it:
+docs/runbooks/copy-the-backups-offsite.md"
+      ;;
+  esac
+
+  # 2c. Not the filesystem the sets already live on. Device number, not path,
+  #     so a bind mount or a symlink into the root filesystem is caught too;
+  #     compared against both the sets' filesystem and /, since a laptop with
+  #     one partition has those be the same and a medium never is.
+  fs_of() { stat -c %d "$1" 2>/dev/null; }
+  src_probe="${SOURCE_ROOT}"
+  while [[ ! -e ${src_probe} && ${src_probe} != / ]]; do src_probe="$(dirname "${src_probe}")"; done
+  dest_fs="$(fs_of "${DEST_ABS}")"
+  if [[ -n ${dest_fs} ]] && { [[ ${dest_fs} == "$(fs_of "${src_probe}")" ]] || [[ ${dest_fs} == "$(fs_of /)" ]]; }; then
+    die "the destination is on the same filesystem as the sets it would copy:
   ${DEST_ABS}
 
 A copy on this host's own disk is off-host to nowhere. Point this at the
 mounted medium — the one the second age recipient lives on (ADR-0048):
 docs/runbooks/copy-the-backups-offsite.md"
+  fi
+
+  # 2d. Does it look removable? A warning, not a verdict: a second internal
+  #     disk and a network mount are both legitimate for someone who has
+  #     decided so, and neither reports as removable. What no check here can
+  #     establish is the property the ADR actually requires — that the medium
+  #     leaves the house — so this says what it sees and stops.
+  if command -v findmnt >/dev/null 2>&1; then
+    dest_src="$(findmnt -no SOURCE --target "${DEST_ABS}" 2>/dev/null || true)"
+    if [[ ${dest_src} == /dev/* ]]; then
+      dest_base="$(basename "${dest_src}")"
+      while [[ -n ${dest_base} && ! -e /sys/block/${dest_base} && ${dest_base} =~ [0-9]$ ]]; do
+        dest_base="${dest_base%[0-9]}"
+      done
+      if [[ -r /sys/block/${dest_base}/removable ]] \
+         && [[ "$(cat "/sys/block/${dest_base}/removable")" == 0 ]]; then
+        warn "${dest_src} does not report as removable media."
+        warn "That is fine for a disk you unplug and carry; it is not fine for a second"
+        warn "drive that stays in this house. Only you can tell the two apart."
+      fi
+    fi
+  fi
 fi
 
 # 3. Advice, not a verdict, as verify-key-backup.sh gives it. The script cannot
