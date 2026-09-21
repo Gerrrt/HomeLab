@@ -325,9 +325,11 @@ either machine is.
   MokerLink's UI is not checked for one. The tooling is done: a device's
   version and key names come from its auth block in `generator.yaml`, and
   `snmp-verify.sh` speaks v3. **`shiva` is polled over v3 since 2026-09-20**:
-  the user exists on the iLO, `auth_ilo` is the v3 block, and
-  `snmp-verify.sh` passed over SNMPv3 before the exporter switched. Whether
-  *SNMPv1 Request* is off yet, proved with `--old`, is recorded on the issue.
+  the user exists on the iLO, `auth_ilo` is the v3 block, *SNMPv1 Request*
+  is off, and the iLO refuses its own former community over v2c — the whole
+  of §4 including §4.5, proved with `--old` and recorded on the issue. The
+  v3 discovery round trip cost nothing measurable: 12.09 s averaged over the
+  hour after the move against 12.05 s over the day before it.
   `mjolnir` is next, same procedure, device first —
   [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
@@ -877,10 +879,11 @@ what left this one unfireable for months.
   property ADR-0008 claims to keep. The ADR reverses the direction instead —
   scraped rather than Alloy pushing, the metadata backup pulled
   by `prometheus` rather than sent — which costs the NAS its logs, because Loki
-  has no pull and its ingest is unauthenticated, and costs it its SMART and its
-  patch state for the same reason
-  ([#255](https://github.com/Gerrrt/HomeLab/issues/255),
-  [#483](https://github.com/Gerrrt/HomeLab/issues/483)). ADR-0016 wrote down
+  has no pull and its ingest is unauthenticated
+  ([#255](https://github.com/Gerrrt/HomeLab/issues/255)). It cost SMART and
+  patch state too until [#483](https://github.com/Gerrrt/HomeLab/issues/483):
+  ADR-0047 puts SMART under the scrape by a root cron job on the host, and
+  declines patch state for an appliance on the record. ADR-0016 wrote down
   three rules, all inbound, all host- and port-scoped, and deliberately did not
   create them: a `pass` to an address with nothing behind it is a rule nobody
   can test. **Four exist since 2026-09-16**, because the Hicks pass is split
@@ -1198,7 +1201,11 @@ what left this one unfireable for months.
   because VLAN 30 is the segment ADR-0014 built to hold attackers. Two things
   the issue did not count: the Proxmox firewall on `Saruman` admits `8006`
   from Hicks only, so the build widens ADR-0014's rule by one address on one
-  port, recorded as a marked amendment there and on ADR-0039; and
+  port, recorded as a marked amendment there and on ADR-0039 — and the build
+  then found that firewall never enabled at all, closed the same day by
+  [#566](https://github.com/Gerrrt/HomeLab/issues/566), which also found that
+  Proxmox had been admitting the whole segment through a `management` set
+  derived from the node's own subnet; and
   `certificates/ca-key.pem` has no backup or custody story at all, unlike
   the age key and the tier's root — found, named in the ADR with what the
   answer is not, and carried by
