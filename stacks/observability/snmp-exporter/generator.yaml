@@ -41,16 +41,24 @@
 # authPriv only — snmp-targets.sh --check refuses the other two levels — and
 # the device is changed BEFORE this file is, per the runbook's order. Which
 # devices are v3 today is the version: line below, nothing else — the iLO
-# since 2026-09-20; the UPS card is next, and the firewall and the switch stay
-# on v2c for the reasons the ADR gives.
+# since 2026-09-20 and the UPS card since 2026-09-21; the firewall and the
+# switch stay on v2c for the reasons the ADR gives.
 
 auths:
+  # The card's profile was created on 2026-09-20 and this poll switched on
+  # 2026-09-21 (#85), on the same procedure as the iLO
+  # below: the profile exists on the NMC with an access-control entry for
+  # 10.0.99.20 and nothing else. The empty community is explained in the
+  # header; it is not a leftover.
   auth_apc:
-    community: ${SNMP_COMMUNITY_APC}
-    security_level: noAuthNoPriv
-    auth_protocol: MD5
-    priv_protocol: DES
-    version: 2
+    community: ""
+    username: prometheus
+    password: ${SNMP_AUTHPASS_APC}
+    priv_password: ${SNMP_PRIVPASS_APC}
+    security_level: authPriv
+    auth_protocol: SHA
+    priv_protocol: AES
+    version: 3
 
   # shiva moved on 2026-09-20 (#85): the user below exists on the iLO for
   # 10.0.99.20 and nothing else, per ADR-0036. The empty community is
