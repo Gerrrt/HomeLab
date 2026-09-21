@@ -48,6 +48,29 @@
 #             of the host having no agent, and it is cheaper than putting one on
 #             the firewall.
 #
+#   cron      `smaug`, TrueNAS, which runs no Alloy and may not push at all
+#             (ADR-0016): Prometheus scrapes its node_exporter, a container that
+#             is uid 65534, read-only and cap-dropped, so SMART is not free off
+#             the back of it. ADR-0047 runs THIS SCRIPT, unmodified, from a copy
+#             on the pool as a root cron job in TrueNAS's own UI, and the
+#             container serves the file over the scrape that already exists.
+#             Not a systemd timer: the root is immutable and install-agent-
+#             collectors.sh cannot land there. The command line it runs is
+#
+#               PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+#               TEXTFILE_DIR=/mnt/erebor/apps/textfile \
+#               timeout 600 /bin/bash /mnt/erebor/apps/stack/collect-smart-state.sh --host smaug
+#
+#             and each piece is there for a reason: cron's default PATH has no
+#             /usr/sbin, which is where smartctl lives; TEXTFILE_DIR is the
+#             directory the container bind-mounts; `timeout` because a faulted
+#             disk answers each command in sixty-second I/O timeouts and this
+#             script has none of its own; `--host` because the label has to
+#             match the `instance` targets/node.yaml gives the scrape. Those
+#             series carry instance="smaug" — the right host, for once, because
+#             the scrape is the host's own. build-the-nas.md §6.4 is the
+#             procedure.
+#
 # WHY TWO UNITS AND NOT ONE THAT SWITCHES USER. One job tried to do both and
 # failed twice, each time in the gap between "works by hand as robo" and "works
 # as the unit". As root it could not read robo's key
@@ -250,6 +273,12 @@ for d in docs:
 
     # ATA. Named attributes rather than raw IDs, since the id-to-meaning map is
     # vendor-specific and smartctl has already done that work.
+    #
+    # ONE WEAR SERIES PER DEVICE. Two spellings below map to
+    # homelab_smart_percentage_used, and a drive that reports both would emit
+    # the same series twice — which node_exporter rejects as a duplicate, and
+    # it rejects the WHOLE FILE, taking every other disk on the host with it.
+    wear_emitted = False
     for attr in ((d.get("ata_smart_attributes") or {}).get("table") or []):
         name = (attr.get("name") or "").lower()
         raw = (attr.get("raw") or {}).get("value")
@@ -263,20 +292,33 @@ for d in docs:
         elif name == "offline_uncorrectable":
             add("homelab_smart_uncorrectable_sectors",
                 "Sectors that failed to read and could not be recovered.", plain, raw)
-        elif name == "unsafe_shutdown_count":
-            # Intel's attribute 174, the ATA spelling of the NVMe field above
-            # and the same metric name on purpose: smaug's S3520 arrived with
-            # 509 of these in 538 power cycles (#483), and ADR-0047 makes the
-            # count the measure of any cut its shutdown sequence missed.
-            add("homelab_smart_unsafe_shutdowns_total",
-                "Power lost without a clean shutdown notification.", plain, raw)
         elif name in ("percent_lifetime_remain", "ssd_life_left"):
             # Reported as REMAINING; inverted so it means the same thing as the
             # NVMe metric of the same name rather than the opposite.
-            if raw is not None:
+            if raw is not None and not wear_emitted:
                 add("homelab_smart_percentage_used",
                     "Vendor estimate of endurance consumed, percent. 100 means the rated life is used.",
                     plain, 100 - int(raw))
+                wear_emitted = True
+        elif name == "media_wearout_indicator":
+            # Intel's spelling (attribute 233, the DC S3520 in smaug). The
+            # NORMALISED value is the one that means something — it starts at
+            # 100 and falls — and the raw column is not defined for it, unlike
+            # the two spellings above. Same inversion, same metric, so
+            # SmartDriveWearHigh reads this drive too (#483).
+            value = attr.get("value")
+            if value is not None and not wear_emitted:
+                add("homelab_smart_percentage_used",
+                    "Vendor estimate of endurance consumed, percent. 100 means the rated life is used.",
+                    plain, 100 - int(value))
+                wear_emitted = True
+        elif name == "unsafe_shutdown_count":
+            # Intel attribute 174: power lost without a clean shutdown, the ATA
+            # twin of the NVMe counter above under the same name. smaug's boot
+            # disk arrived with 509 of them (hardware.md) and #574 asks how
+            # often that keeps happening; this is the number that answers.
+            add("homelab_smart_unsafe_shutdowns_total",
+                "Power lost without a clean shutdown notification.", plain, raw)
 
 if not seen:
     # smartctl puts its own reason in the JSON rather than only on stderr, and

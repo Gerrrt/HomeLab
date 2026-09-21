@@ -23,7 +23,7 @@ is on the UPS, so a mains cut longer than the pack stops all of it at once,
 and until that day nothing in this repository said which hosts that was. The
 UPS's model is read off the card as `upsIdentModel` and was in no document
 before then either. Who acts on the pack running out — and who does not — is
-[ADR-0047](adr/0047-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md),
+[ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md),
 and the runtime the pack actually gives at this load is **not measured**: the
 card claimed 47 minutes at 21 % load on 2026-09-20, and the one mains pull
 that turns that estimate into a number is
@@ -32,7 +32,7 @@ that turns that estimate into a number is
 Off-rack: two Ubuntu Server laptops on a shelf (`prometheus`, `oracle`), fed
 by the TP-Link in U4; the NAS `smaug`, a tower in the media room **powered
 from the rack's PDU by a long cord**, so on the UPS like everything else on
-that strip and a subscriber under ADR-0047; and eero Pro 6E units distributed
+that strip and a subscriber under ADR-0048; and eero Pro 6E units distributed
 through the house.
 Both laptops ride a mains cut out on their own cells, so each cell is a
 dependency of the mains-cut path and is watched as one: Alloy's node collector
@@ -110,7 +110,7 @@ version component in either table.
 
 | Host | BMC | Address | Notes |
 | --- | --- | --- | --- |
-| `Saruman` | `shiva` — HPE iLO 4, firmware 2.82 | `10.0.30.10` | iLO Advanced licensed. Dedicated network port. DHCP with a reservation. Hardened 2026-09-09 per [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md): IPMI-over-LAN, SSH and iLO Federation off; HTTPS, the remote console and SNMP stay on; the account's credential is shared with nothing else; the security log was read for a baseline. Polled over SNMPv3 authPriv (SHA, AES, user `prometheus`) since 2026-09-20 per [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) |
+| `Saruman` | `shiva` — HPE iLO 4, firmware 2.82 | `10.0.30.10` | iLO Advanced licensed. Dedicated network port. DHCP with a reservation. Hardened 2026-09-09 per [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md): IPMI-over-LAN, SSH and iLO Federation off; HTTPS, the remote console and SNMP stay on; the account's credential is shared with nothing else; the security log was read for a baseline. Polled over SNMPv3 authPriv (SHA, AES, user `prometheus`) since 2026-09-20 per [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md), with *SNMPv1 Request* off — it answers no community at all |
 
 The BMC and the host it manages carry different names and different addresses:
 `shiva` is the iLO, `Saruman` is the hypervisor at `10.0.30.110`. Earlier
@@ -219,7 +219,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the fact [#574](https://github.com/Gerrrt/HomeLab/issues/574) could not
   find: the box is on the UPS, so a cut longer than the pack is a deferred
   unclean stop for the mirror rather than an immediate one, and
-  [ADR-0047](adr/0047-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
+  [ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
   makes it a subscriber that halts on the signal instead. The Storage
   column reads the boot disk alone on purpose: the ZFS mirror does not exist
   until the two Exos drives land, and a Storage column describing a pool nobody
@@ -454,8 +454,16 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   built in place of the silence #351 used, because a silence matches labels
   and no label carries the count, and a baseline lives in git and does not
   expire. `SmartDriveBadSectorsGrowing` carries the trend above it. The row
-  is inert until [#483](https://github.com/Gerrrt/HomeLab/issues/483)
-  delivers SMART from `smaug`, and its device label is confirmed that day.
+  is inert until [`build-the-nas.md`](runbooks/build-the-nas.md) §6.4 runs
+  the collector on this host — a root cron job under the scrape, by
+  [ADR-0047](adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),
+  which closed [#483](https://github.com/Gerrrt/HomeLab/issues/483) — and
+  its device letter is confirmed that day from what the collector prints.
+  Since that ADR the collector also reads this drive's wearout indicator, so
+  `SmartDriveWearHigh` can see it, and its unsafe-shutdown counter, which is
+  the number [#574](https://github.com/Gerrrt/HomeLab/issues/574) asked for
+  and `SmartDriveUnsafeShutdownsGrowing` now reads
+  ([ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)).
   `SmartDriveWearHigh` will not fire — it wants 80 % of rated life used and this
   is near a tenth. No self-tests had ever been logged in 13,182 hours, so a
   baseline was taken on 2026-09-16 before the machine carried anything:
@@ -463,7 +471,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   drive took far longer than its own two-minute estimate because it advertises
   *Suspend Offline collection upon new command* and TrueNAS was live underneath
   it — worth knowing before reading a slow self-test as a sick disk. TrueNAS's
-  scheduled tests take it from here.
+  scheduled tests take it from here; they run the tests, and ADR-0047
+  publishes the attributes.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, delivered
   2026-09-11, fitted 2026-09-18 in bays 3 and 4 of the ProLiant, and **since

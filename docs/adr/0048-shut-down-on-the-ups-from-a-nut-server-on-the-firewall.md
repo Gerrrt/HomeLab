@@ -1,4 +1,4 @@
-# ADR-0047: Shut down on the UPS's signal from a NUT server on the firewall, and scope its listener rather than open a segment
+# ADR-0048: Shut down on the UPS's signal from a NUT server on the firewall, and scope its listener rather than open a segment
 
 **Status:** Accepted · 2026-09 · decides the question
 [#574](https://github.com/Gerrrt/HomeLab/issues/574) asked, and records the
@@ -217,13 +217,15 @@ The S3520's unsafe-shutdown count is the measure of every cut the sequence
 did not catch, and it stays the measure after the sequence exists: a clean
 `LB` shutdown does not move it, and a mains cut shorter than the pack does
 not either, so any growth is a stop nobody planned.
-`scripts/collect-smart-state.sh` exports it for NVMe drives and, from this
-decision, for ATA drives that report Intel's attribute 174;
+`scripts/collect-smart-state.sh` exports it for NVMe drives and, since
+[ADR-0047](0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)
+put a root cron job on `smaug` under the scrape and taught the collector
+Intel's attribute 174, for the S3520 itself — that ADR closed
+[#483](https://github.com/Gerrrt/HomeLab/issues/483) and named a rule on the
+counter as the decision #574 would take. This is that rule:
 `SmartDriveUnsafeShutdownsGrowing` in `host.rules.yaml` fires on any growth
-over a day. Both wait on [#483](https://github.com/Gerrrt/HomeLab/issues/483)
-for the collector to reach `smaug` at all — the rule is written against a
-series that does not exist yet, deliberately, so that the day the collector
-lands the counter is watched rather than remembered.
+over a day, stays quiet on the 509 the drive arrived with, and clears a day
+after the event, so the counter is watched rather than remembered.
 
 ## Consequences
 

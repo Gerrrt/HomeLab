@@ -18,6 +18,23 @@ and amends the first consequence of
 > effect of a guest build held. Enabling the firewall with all four rules is
 > [#566](https://github.com/Gerrrt/HomeLab/issues/566). The text below is
 > left as written, per ADR-0001.
+>
+> ---
+>
+> **The wall is up, 2026-09-20** (#566). `cluster.fw` and
+> `/etc/pve/nodes/Saruman/host.fw` exist, `pve-firewall status` reports
+> `enabled/running`, and all four rules render — ADR-0014's three and this
+> ADR's `10.0.30.70 → 8006`. Verified from `morpheus`, which is on VLAN 30 and
+> is not Hicks: `8006` and `22` both refused, with a control probe to
+> `alexander` answering on the same path. **The premise above was wrong in a
+> second way nobody had noticed.** Proxmox derives a `management` IP set from
+> the node's own subnet, so `10.0.30.0/24` was admitted to the GUI, SSH, VNC,
+> SPICE and migration by an auto-generated rule, and a `DROP` policy alone
+> would not have closed any of it. The `local_network` alias is now pinned to
+> the node's own address, which is what makes this ADR's one-line grant mean
+> one host instead of the segment. Nothing here is amended, per ADR-0001;
+> [`build-the-playground.md`](../runbooks/build-the-playground.md) §4 carries
+> the procedure and the finding.
 
 ## Context
 

@@ -239,6 +239,15 @@ missing from the file rather than the host going down.
 and giving a scraped job a `<hostname>-metrics` name would quietly enrol it in a
 rule whose notification text is false for it.
 
+The one exception to "nothing else" is a host fact that needs root — SMART,
+on a host whose exporter runs unprivileged. The answer is not a privilege for
+the container: a root job on the host writes a `.prom` into a directory the
+exporter mounts read-only, and the series ride the scrape. `smaug` does it
+from TrueNAS's cron
+([ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),
+`build-the-nas.md` §6.4), and `SmartStateStale` watches the file's age
+because a dead job does not delete its last output.
+
 ### Verify
 
 ```promql

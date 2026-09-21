@@ -13,7 +13,10 @@
 #              A change here reaches smaug by re-fetching compose.yaml and
 #              .env.example from main into that folder and running
 #              `docker compose up -d` there, by hand — nothing on smaug pulls
-#              from main on its own. README.md has the procedure.
+#              from main on its own. README.md has the procedure. A third
+#              file sits beside those two since ADR-0047:
+#              scripts/collect-smart-state.sh, fetched the same way and run
+#              by TrueNAS's cron rather than by this file (§6.4).
 #
 # ---------------------------------------------------------------------------
 # Why this stack is one service
@@ -248,6 +251,17 @@ services:
       - --path.procfs=/host/proc
       - --path.sysfs=/host/sys
       - --web.listen-address=:9100
+      # SMART, by textfile (#483, ADR-0047). This container cannot read a
+      # drive — uid 65534, cap_drop ALL, no smartctl in the image — and the
+      # estate's collector needs root, so on this host it runs as a cron job in
+      # TrueNAS's own UI and writes smart-state-smaug.prom into the directory
+      # mounted below. node_exporter serves whatever .prom is there on the
+      # scrape that already exists: the container gains a read-only directory
+      # and nothing else. A missing or unreadable directory shows as
+      # node_textfile_scrape_error 1, and a file that stops being rewritten as
+      # SmartStateStale in host.rules.yaml — a dead cron does not delete its
+      # last output, so presence alone would look healthy forever.
+      - --collector.textfile.directory=/textfile
       # NO NETWORK METRICS FROM THIS HOST, deliberately, and this is the one
       # line in the file worth reading twice.
       #
@@ -300,6 +314,15 @@ services:
       # rslave so datasets mounted after the container starts — which is every
       # dataset on erebor, on every boot — are visible without a restart.
       - /:/host:ro,rslave
+      # The SMART textfile directory, read-only — see the command flag above.
+      # A mount of its own rather than a path under /host, so the contract is
+      # one host fact in .env like every other path this stack takes, and not
+      # coupled to the whole-root mount's propagation. Root writes it (the
+      # cron job, mode 0644 by the script); this container only reads it.
+      # Docker would create a missing source as root 0755 — the same premise
+      # Jellyfin's bind mount relies on — but build-the-nas.md §6.4 creates it
+      # first so the first scrape after `up` has a file to serve.
+      - ${SMART_TEXTFILE_PATH:?}:/textfile:ro
     # PUBLISHED, with a named off-host consumer as ADR-0012 asks: Prometheus at
     # 10.0.99.20, through the `99 → 40:9100` pass created and verified in
     # position on 2026-09-16 (build-the-nas.md §0.5). That pass is what makes

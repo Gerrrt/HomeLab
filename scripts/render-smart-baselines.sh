@@ -33,8 +33,9 @@
 # happen, because a baseline is a ceiling and growth is above it.
 #
 # WHY IT IS RENDERED HERE AND NOT BY THE COLLECTOR. collect-smart-state.sh runs
-# on each host: oracle carries a copy installed once and not updated, smaug has
-# no collector at all (#483), and morpheus is read over SSH. One table rendered
+# on each host: oracle carries a copy installed once and not updated, smaug's
+# is a root cron job in TrueNAS's UI with no `make` to render a table (#483,
+# ADR-0047), and morpheus is read over SSH. One table rendered
 # on the monitoring host covers all of them, because the alert joins on
 # `on(host, device)` and does not care which instance scraped the baseline —
 # the same shape homelab_job_max_age_seconds already has (install-timers.sh).
@@ -66,9 +67,10 @@ PROM="${TEXTFILE_DIR}/smart-baselines.prom"
 #           Pending and uncorrectable both 0, overall assessment passing.
 # smaug     Intel DC S3520 boot disk (docs/hardware.md). Nothing pending or
 #           uncorrectable; normalised 099 against a threshold of 000. INERT
-#           until #483 delivers SMART from smaug: the device label is whatever
-#           that collector emits, and /dev/sdc is node_disk_info's name for the
-#           one non-rotational disk there on 2026-09-20. Confirm it that day.
+#           until build-the-nas.md §6.4 runs the collector on smaug (#483,
+#           ADR-0047): the device label is whatever it emits, and /dev/sdc is
+#           node_disk_info's name for the one non-rotational disk there on
+#           2026-09-20. §6.4 step 1 confirms it and step 4 corrects this row.
 BASELINES=(
   "oracle   /dev/sda   32   2026-09-07   351"
   "smaug    /dev/sdc    4   2026-09-16   483"

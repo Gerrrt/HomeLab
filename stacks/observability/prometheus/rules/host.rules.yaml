@@ -301,8 +301,10 @@ groups:
       #
       # #151 already covers Saruman's array: cpqDaPhyDrvSmartStatus arrives over
       # SNMP and IloDrivePredictiveFailure is armed on it. These four cover the
-      # rest — oracle's 5400 rpm HDD, the monitoring host's 2012 SSD, and
-      # morpheus's NVMe — which had nothing at all.
+      # rest — oracle's 5400 rpm HDD, the monitoring host's 2012 SSD,
+      # morpheus's NVMe, and since ADR-0047 smaug's three: the S3520 boot SSD
+      # and the Exos mirror, read by a root cron job on the NAS and served
+      # over the scrape (#483) — which had nothing at all.
       #
       # Every one of them reads the DRIVE'S OWN verdict rather than a threshold
       # invented here. That matters more than it sounds: morpheus idles at 62 C
@@ -442,8 +444,11 @@ groups:
       # node_zfs_zpool_state{zpool="erebor",state="online|degraded|faulted|
       # offline|removed|suspended|unavail"}. smaug exported it from the day the
       # scrape went live (2026-09-19, #522) and nothing read it: the SMART
-      # family above is homelab_smart_*, which #483 says cannot reach smaug,
-      # and every other disk rule in this file is per-filesystem.
+      # family above is homelab_smart_*, which did not reach smaug until
+      # ADR-0047 (#483) put a textfile under the scrape, and every other disk
+      # rule in this file is per-filesystem. Pool state and per-device SMART
+      # are different questions, and the incident below is the proof: SMART
+      # saw 850 pending sectors on a disk the pool still called ONLINE.
       #
       # WHAT THE FIRST INCIDENT LOOKED LIKE, and why this rule did not see it.
       # 2026-09-19 20:55 PDT, TrueNAS: "Pool erebor state is ONLINE: One or
@@ -649,16 +654,17 @@ groups:
             Check backups first.
 
       - alert: SmartDriveUnsafeShutdownsGrowing
-        # The measure of a power cut nobody planned for (#574, ADR-0047).
+        # The measure of a power cut nobody planned for (#574, ADR-0048).
         #
         # A clean shutdown on the UPS's signal does not move a drive's
         # unsafe-shutdown counter, and a cut shorter than the pack does not
-        # either, so any growth is a stop that the sequence ADR-0047 decides
+        # either, so any growth is a stop that the sequence ADR-0048 decides
         # did not catch — or, before that sequence exists, a stop nothing
         # tried to catch. smaug's boot disk arrived carrying 509 of them in 538
         # power cycles from its previous owner, which is how a box with no
-        # UPS client looks from the disk's side, and this rule is written
-        # against that drive before the collector reaches it (#483).
+        # UPS client looks from the disk's side. ADR-0047's cron job under
+        # the scrape carries the counter off smaug and named this rule as the
+        # decision left to #574; the series exists and reads 509.
         #
         # SUBTRACTION over a day, not a week: a cut is an event with a date,
         # and the day it happened is the thing worth knowing. The same gauge
@@ -682,9 +688,57 @@ groups:
             stopped without telling the disk — a mains cut that outlasted the
             UPS with nothing acting on its signal, a crash, or a plug. Find the
             event: UpsOnBattery and InstanceDown around the same time say
-            which. If a UPS shutdown sequence exists for this host (ADR-0047),
+            which. If a UPS shutdown sequence exists for this host (ADR-0048),
             it did not run, and runbooks/shut-down-on-the-ups.md says how to
             check it.
+      - alert: SmartStateStale
+        # The SMART collector has stopped rewriting its file, on any host.
+        #
+        # A TIMESTAMP RATHER THAN PRESENCE, for DriftCheckStopped's reason: the
+        # .prom persists and node_exporter re-serves it on every scrape, so
+        # every homelab_smart_* series stays present and every number in it
+        # stays plausible when the collector dies. The file's mtime is the one
+        # thing that stops moving, and node_exporter exports it per file as
+        # node_textfile_mtime_seconds — Alloy's embedded exporter on the pushed
+        # hosts, the container on smaug. The script renders to a temp file and
+        # mv's it into place, so the mtime is the render time and not a touch.
+        #
+        # WHY IT EXISTS NOW (#483, ADR-0047). Every other collector is a systemd
+        # timer, with ScheduledJobStale or a failed unit to say so. smaug's is a
+        # cron job in TrueNAS's UI: no homelab_job_*, nothing on the monitoring
+        # host that knows it should run, and a config restore that drops the
+        # job would leave the file serving the day-of-restore numbers forever.
+        # Two days against a daily schedule — twice the period, the estate's
+        # rule for every other threshold — so one missed run is tolerated and
+        # two are not.
+        #
+        # ONE FILENAME PATTERN, NO HOST LIST. The collector writes
+        # smart-state-<host>.prom everywhere, so this covers the monitoring
+        # host's two files, oracle's the day it collects, and smaug's, without
+        # naming any of them — and says nothing about a host that has never
+        # collected, which is a gap tracked elsewhere and not a fault. Keyed on
+        # `instance`, not `host`: the mtime series is the exporter's, not the
+        # script's, and carries no host label. The leading `.*` is because the
+        # label may be a bare name or a full path depending on the exporter.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*smart-state-.*\\.prom"} > 2 * 86400
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten {{ $labels.file }} in two days"
+          description: >-
+            The SMART textfile is {{ $value | humanizeDuration }} old and
+            node_exporter re-serves its last contents on every scrape, so every
+            homelab_smart_* series from it is present, plausible and stale —
+            SmartDriveBadSectors and its siblings are blind to this host until
+            it is rewritten. On smaug the writer is a cron job in TrueNAS's UI
+            (System → Advanced Settings → Cron Jobs; build-the-nas.md §6.4);
+            on an Alloy host it is homelab-smart-state.timer or, for morpheus,
+            homelab-smart-state-remote.timer on the monitoring host. Check the
+            job still exists and that its last run wrote the file.
 
       # --- Laptop batteries, the mains-cut path nobody was watching (#454) ---
       #
