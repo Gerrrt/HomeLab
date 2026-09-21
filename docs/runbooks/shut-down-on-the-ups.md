@@ -9,6 +9,11 @@ and one mains pull that turns the card's estimate into a number.**
 > has been done, and the two proofs in §5 and §6 are what closes
 > [#574](https://github.com/Gerrrt/HomeLab/issues/574). Every number this
 > runbook quotes for the pack is the card's claim.
+>
+> **One thing was read from the card on 2026-09-21 and it moved a step to the
+> front.** `upsAdvConfigLowBatteryRunTime` is **two minutes**, APC's factory
+> default — a smaller budget than the shutdown sequence below needs, so
+> raising it is now §0 rather than a check at the end of §6.
 
 The pfSense NUT package has been installed on `morpheus` since 2026-08-20 and
 has never been configured — `MODE=none`, no `ups.conf`, nothing on 3493. This
@@ -17,7 +22,9 @@ runbook configures it as the estate's NUT server, subscribes `Saruman` and
 those two hosts can reach it, proves the sequence with a forced shutdown that
 does not touch the pack, and then measures the pack with a real pull.
 
-The order of the sections is the order of the work. §2 before §3 and §4,
+The order of the sections is the order of the work. §0 before everything,
+because it sets the time budget every later section is spent out of, and
+finding it too small after the build is a wasted visit. §2 before §3 and §4,
 because a client configured before the pass is above the block will fail in
 a way that looks like a wrong password. §5 before §6, because a mains pull on
 a sequence that has not been proved is a hard stop of the rack with extra
@@ -55,6 +62,47 @@ steps.
   KVM in U6 for the firewall, the iLO from a Mac on VLAN 30 for `Saruman`, and
   the front button on `smaug` in the media room. §5 ends with all three off.
 
+## 0. Raise the card's low-battery threshold, before anything else
+
+Read off the card on 2026-09-21, with
+`scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.5.2`:
+
+```text
+.1.3.6.1.4.1.318.1.1.1.5.2.8.0   0:0:02:00.00
+```
+
+That is `upsAdvConfigLowBatteryRunTime`: **two minutes**, APC's factory
+default, never changed on this card. It is the moment the card raises `LB`,
+and `LB` is the starting gun — every subscriber begins halting there, and
+everything has to finish before the pack is actually empty.
+
+**Two minutes does not fit.** `HOSTSYNC 120` and `FINALDELAY 30` in §1 are 150
+seconds before the firewall so much as begins halting, against a 120-second
+window, and that is before two guests and a pool export are counted. Built as
+written against the factory value, the hosts would lose power part-way through
+the shutdown that exists to stop exactly that.
+
+So raise it **first**, at the card's web interface — the one place in this
+estate that writes to the card, since every SNMP path in this repository
+reads. Set it to **8 minutes**.
+
+That number is chosen to be safely too large rather than to be right. At the
+load measured on 2026-09-20 — 21 %, about 47 claimed minutes — eight minutes
+is roughly a sixth of the pack, spent buying margin on a sequence nobody has
+timed. §5 times the sequence and §6 measures the pack; the final value is set
+from those two readings, downward.
+
+**Write down what it read before you changed it**, so it can be put back. And
+read it at the card's own interface as well as over SNMP, where it is labelled
+in words rather than as an object identifier — this is the number the whole
+sequence is budgeted against, and it is worth two readings.
+
+Confirm the change took:
+
+```bash
+scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.5.2 | grep '5\.2\.8\.0'
+```
+
 ## 1. `morpheus`: the NUT server
 
 *Services → UPS* on the firewall's web UI. The field names below are the
@@ -79,11 +127,18 @@ When the primary decides to shut down it sets the forced-shutdown flag, then
 waits up to `HOSTSYNC` seconds for every secondary to disconnect before it
 proceeds, then waits `FINALDELAY` seconds more before halting itself. NUT's
 defaults are 15 and 5. Fifteen seconds is not long enough for a Proxmox host
-to halt four guests, and a primary that gives up waiting halts the firewall
-with the hypervisor still shutting down — which still works, because
-`Saruman` needs no route to halt, but it is the wrong order and it is not
-what §5 is proving. 120 and 30 are starting values; §5 measures how long
-`Saruman` actually takes and this table is corrected to it.
+to halt its guests — `Saruman` runs two, `alexander` (VMID 140) and `phoenix`
+(VMID 170), both QEMU, read from `homelab_guest_running` on 2026-09-21 — and a
+primary that gives up waiting halts the firewall with the hypervisor still
+shutting down, which still works, because `Saruman` needs no route to halt,
+but it is the wrong order and it is not what §5 is proving.
+
+**Both numbers are spent out of §0's budget**, and together they are why that
+section exists: 150 seconds overruns the card's factory 120-second window on
+their own, before a single guest is counted. Against the 8 minutes §0 sets
+they are comfortable, and they are deliberately generous rather than tuned —
+§5 times what `Saruman` actually takes and this table is corrected to it,
+downward.
 
 Save, then read back on the firewall over SSH — configuration, not
 credentials, so the lines below drop anything that looks like one:
@@ -208,7 +263,7 @@ one.
 `pve-guests.service` stops every running guest on the way down, in the order
 and with the per-guest timeout the datacenter's shutdown policy sets. Read
 that policy before §5 — a guest with a long timeout is what `HOSTSYNC` in §1
-has to cover. The Proxmox host firewall was enabled on 2026-09-20
+has to cover, and there are two of them, `alexander` and `phoenix`. The Proxmox host firewall was enabled on 2026-09-20
 ([#566](https://github.com/Gerrrt/HomeLab/issues/566)) with `policy_in`
 accepting and the `local_network` alias narrowed; `policy_in` does not touch
 outbound, so this client — an outbound connection to `10.0.30.1` — needs
@@ -287,8 +342,12 @@ Expected, in order, with the clock running from the `fsd`:
    `UpsOnBattery` never fires — which is the point of proving the sequence
    this way.
 
-**Write down how long step 1 took.** That is the number `HOSTSYNC` in §1 has
-to exceed, with margin, and it is corrected there now rather than remembered.
+**Write down how long step 1 took, and how long the whole sequence took.**
+The first is the number `HOSTSYNC` in §1 has to exceed with margin, and it is
+corrected there now rather than remembered. The second is what §0's threshold
+has to exceed: if the `fsd` to the firewall's last breath ran to four minutes,
+eight is right and could come down; if it ran to seven, eight is too close and
+goes up.
 
 Then power everything back, in this order, by hand: the firewall (KVM),
 `Saruman` (iLO), `smaug` (the button). `Saruman`'s guests come back on their
@@ -344,18 +403,22 @@ claim.
    say so, and `fit-the-ups-battery.md` §5's warning about that series can
    be softened; if it did not, the warning stands and the measured number is
    the only one to plan on.
-5. **Compare it to `battery.runtime.low` from §1.3.** The card raises `LB`
-   that many seconds before it thinks the pack is empty, and §5 measured how
-   long the sequence takes. If the sequence is longer than the threshold, the
-   threshold is raised on the card — a write to the NMC's web UI, the one
-   place in this estate that writes to it — and this step is repeated.
+5. **Set §0's threshold to its final value.** §0 raised it to 8 minutes
+   sight-unseen; by here two things are known that were not. §5 timed the
+   sequence, and this step measured what a minute of pack is actually worth at
+   this load. The threshold wants to be the sequence's duration plus a margin
+   for a pack that will be older and weaker than today's — and no larger,
+   because every minute of it is runtime the estate spends before it starts
+   shutting down rather than riding the cut out. Set it at the card's web UI,
+   record it beside the measured runtime, and note the factory value it
+   replaced.
 
 ## 7. What becomes true afterwards
 
 | File | What changes |
 | --- | --- |
 | This file | The status block: built on *date*, sequence proved in *N* seconds, pack measured at *M* minutes at *L* % |
-| [`hardware.md`](../hardware.md) | The Rack paragraph's "not measured" becomes the measured number |
+| [`hardware.md`](../hardware.md) | The Rack paragraph's "not measured" becomes the measured number, and the UPS entry in Accessories gains the low-battery threshold this visit set, beside the `08/15/2026` replace-date note already there |
 | [`security.md`](../security.md) | The *Mains power loss* row stops saying nothing shuts down on the signal |
 | [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) | Its "a configuration nobody has tested" line is amended with the dates, per ADR-0001 — a `> [!NOTE]` block, not an edit |
 | [`network.md`](../network.md) | The VLAN 30 and VLAN 40 notes gain the pass/block pair each, counted where their other exceptions are counted |
@@ -377,6 +440,14 @@ firewall.
 
 **The firewall halted before `Saruman` finished.** `HOSTSYNC` is too short
 for the guests' shutdown timeouts; raise it in §1 and re-run §5.
+
+**A real cut ended with a host stopping uncleanly anyway.** The sequence
+overran the window §0 set: the card reached an empty pack while something was
+still shutting down. `SmartDriveUnsafeShutdownsGrowing` is what tells you,
+because a clean `LB` shutdown does not move that counter and this does. Time
+the sequence again with `upsmon -c fsd` as in §5, and raise §0's threshold
+past it — the pack ages, so a margin that fitted when this was built will stop
+fitting, and this is the failure mode that arrives years later.
 
 **`smaug` did not halt.** TrueNAS's UPS service logs to the system log at
 *System → Advanced → System Log*; a slave that never saw `FSD` is a slave that
