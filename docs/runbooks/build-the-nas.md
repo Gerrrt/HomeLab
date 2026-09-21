@@ -932,16 +932,29 @@ reads it over the scrape that already exists.
 ([ADR-0046](../adr/0046-record-a-known-static-smart-count-as-a-baseline-not-a-silence.md)),
 and that row is live on the monitoring host — so `SmartDriveBadSectors` is
 quiet on that drive from the first scrape **if the letter is right**, and
-pages at `> 0` if it is not. The row guessed `sdc` from `node_disk_info`;
-step 1 is what confirms it, which is why the collector is run and read
-*before* the redeploy that turns the series on. The faulted Exos will fire,
+pages at `> 0` if it is not. The row took `sdc` from `node_disk_info`, and
+that reading holds: on 2026-09-21 `node_disk_info{instance="smaug"}` shows
+`sda` and `sdb` with `rotational="1"` and **`sdc` the only
+`rotational="0"`**, which is the S3520 against the two Exos and matches
+[`hardware.md`](../hardware.md)'s three drives exactly. Step 1 is still what
+confirms it by model string rather than by inference, which is why the
+collector is run and read *before* the redeploy that turns the series on. The faulted Exos will fire,
 and it gets **no row**: that alert is the first in the estate that covers
 the degraded mirror, and [#558](https://github.com/Gerrrt/HomeLab/issues/558)
 is what resolves it.
 
-**1. The directory, and a dry run.** From the console shell, as root:
+**1. The script, the directory, and a dry run.** From the console shell, as
+root. **The `curl` is here and not only in §6 because §6 ran on 2026-09-19,
+before that block named a third file** — so on a host built to that section's
+done block, `/mnt/erebor/apps/stack` holds `compose.yaml` and `.env` and
+nothing else, and step 2 would fail on a file that was never fetched.
+Confirmed from the monitoring host on 2026-09-21, over the read path §6.2
+opened. It is idempotent: run it whether or not the file is there.
 
 ```bash
+cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-smart-state.sh \
+  && chmod 0755 collect-smart-state.sh
 mkdir -p /mnt/erebor/apps/textfile && chmod 0755 /mnt/erebor/apps/textfile
 PATH=/usr/sbin:/usr/bin:/sbin:/bin timeout 600 /bin/bash /mnt/erebor/apps/stack/collect-smart-state.sh --print --host smaug
 ```
