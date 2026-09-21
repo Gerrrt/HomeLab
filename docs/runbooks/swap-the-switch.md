@@ -252,7 +252,9 @@ all of it is the point.
 - `SECURITY.md` and [`security.md`](../security.md) — the GETBULK and plain-HTTP
   residuals close. Both are the accepted-residual record, so they close with the
   date and the proof, not by deletion.
-- [`roadmap.md`](../roadmap.md) — #84 and #444 move to *Done*.
+- [`roadmap.md`](../roadmap.md) — the #84 and #444 entries leave it, and
+  what the swap found goes to [`changelog.md`](../changelog.md) under the
+  day's date.
 
 Close [#84](https://github.com/Gerrrt/HomeLab/issues/84) on `snmp-verify.sh`
 clean over GET **and** GETBULK, against the new device and against the old
