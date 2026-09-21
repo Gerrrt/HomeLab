@@ -31,14 +31,19 @@ steps.
   [`schedule-maintenance.md`](schedule-maintenance.md) window outside anyone's
   working hours, not an evening's tinkering.
 - **The card's credential.** The driver on `morpheus` needs what the exporter
-  has: the v2c community until
+  has, and since 2026-09-21 that is SNMPv3 authPriv:
   [ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
-  moves the card, the v3 `SNMP_AUTHPASS_MJOLNIR` / `SNMP_PRIVPASS_MJOLNIR` pair
-  after. Both come out of SOPS with `make render` on the main checkout and go
-  into a browser form, never onto a command line where `ps` can read them,
-  and never into this file. **If the card moves to v3 after this is built,
-  the driver's copy moves in the same visit** — a driver left on v2c is the
-  thing that keeps v2c enabled on the card.
+  moved the card ([#85](https://github.com/Gerrrt/HomeLab/issues/85)), so the
+  driver takes the user `prometheus` with SHA, AES and the
+  `SNMP_AUTHPASS_APC` / `SNMP_PRIVPASS_APC` pair — named for the auth label
+  `auth_apc` in `generator.yaml`, not for the device, which is where every
+  tool derives these names from. There is no v2c community for this card to
+  fall back on. It comes out of SOPS with `make render` on the main checkout
+  and goes into a browser form, never onto a command line where `ps` can read
+  it, and never into this file. **If the card's passphrases are ever rotated
+  after this is built, the driver's copy moves in the same visit** — a driver
+  left on a stale credential is a shutdown path that fails silently until the
+  mains go.
 - **One NUT credential for the subscribers**, made up now and kept in the
   operator's password manager: a username and a password that `Saruman` and
   `smaug` will both present. It is a *secondary* credential. What it buys
@@ -62,7 +67,7 @@ that must result are the ones quoted after the table, and those are what
 | UPS Name | `mjolnir` | Every client's `MONITOR` line names it |
 | UPS Type | *Remote SNMP* | The card speaks SNMP and nothing else this estate reads |
 | Remote IP address | `10.0.99.10` | The card, on the segment the firewall is on natively — no rule |
-| SNMP community | the v2c community from SOPS | Until ADR-0036 moves the card; then blank, and the v3 lines go in the advanced box |
+| SNMP community | blank | The card has moved to v3 (ADR-0036, 2026-09-21) and answers no community; the v3 lines go in the advanced box below |
 | Additional `ups.conf` lines | `mibs = apcc`, `pollfreq = 15`, and for v3: `snmp_version = v3`, `secLevel = authPriv`, `secName`, `authProtocol = SHA`, `privProtocol = AES`, `authPassword`, `privPassword` | `apcc` is NUT's PowerNet MIB; `snmp-ups` autodetects it and the line just makes the choice visible |
 | Additional `upsd.conf` lines | `LISTEN 10.0.30.1 3493` and `LISTEN 10.0.40.1 3493` | The two subscriber segments' gateway addresses, and **nothing else** — not `0.0.0.0`, not the Winterfell address, not the WAN |
 | Additional `upsd.users` lines | a `[<secondary user>]` block with `password = <the secondary credential>` and `upsmon secondary` | The one credential both subscribers present |
