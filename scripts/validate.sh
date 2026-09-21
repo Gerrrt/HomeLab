@@ -539,6 +539,22 @@ else
   fail "collect-guest-state.sh --self-test"
 fi
 
+# The SMART renderer, which is the one collector here that shipped WITHOUT
+# fixtures and then produced a real defect (#483). A drive reports what it
+# reports: no host in this estate can be asked for a pending sector, a second
+# wear attribute or a duplicate on demand, so the branches that matter are
+# reachable only this way. Two fixtures pin what was actually read off smaug at
+# the console on 2026-09-21 — an Intel DC S3520 whose attributes 174 and 192
+# are BOTH named Unsafe_Shutdown_Count, which rendered one series twice, and a
+# faulted Exos with 850 pending sectors whose own assessment still says PASSED,
+# which is why SmartDriveBadSectors cannot be written against smart_healthy.
+if "${REPO_ROOT}/scripts/collect-smart-state.sh" --self-test >/dev/null 2>&1; then
+  pass "collect-smart-state.sh --self-test (14 fixtures)"
+else
+  "${REPO_ROOT}/scripts/collect-smart-state.sh" --self-test || true
+  fail "collect-smart-state.sh --self-test"
+fi
+
 # Not a parser, but the same reason: the real run needs a private key on a
 # mounted medium and can never happen in CI, so the refusals — a symlink or a
 # hard link back to the live key, an unrelated key, a file that is not a key —

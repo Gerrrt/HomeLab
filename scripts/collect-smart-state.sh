@@ -95,12 +95,14 @@
 # Usage: scripts/collect-smart-state.sh [--print]
 #        scripts/collect-smart-state.sh --ssh USER@HOST --host NAME
 #                                       --device TYPE:/dev/NODE [...]
+#        scripts/collect-smart-state.sh --self-test
 set -uo pipefail
 
 TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
 PROM="${TEXTFILE_DIR}/smart-state.prom"
 
 PRINT_ONLY=0
+SELF_TEST=0
 SSH_TARGET=""
 HOST_LABEL=""
 DEVICES=()
@@ -115,6 +117,7 @@ trap 'rm -f "${STDERR_FILE}"' EXIT
 while (($#)); do
   case "$1" in
     --print)  PRINT_ONLY=1; shift ;;
+    --self-test) SELF_TEST=1; shift ;;
     --ssh)    SSH_TARGET="${2:-}"; shift 2 ;;
     --host)   HOST_LABEL="${2:-}"; shift 2 ;;
     --device) DEVICES+=("${2:-}"); shift 2 ;;
@@ -147,75 +150,62 @@ run_smartctl() {
   fi
 }
 
-if [[ -z "$SSH_TARGET" ]]; then
-  command -v smartctl >/dev/null 2>&1 \
-    || die "smartctl is not installed on this host.
-  sudo apt install smartmontools
-This collector reads it; it does not bundle it (#351)."
-
-  # Real block devices only: no loop, no ram, no device-mapper, no optical.
-  # /sys rather than lsblk output parsing, because a model name with a space in
-  # it turns a column split into a wrong answer.
-  for dev in /sys/block/*; do
-    name="$(basename "$dev")"
-    case "$name" in loop*|ram*|dm-*|sr*|fd*|zram*) continue ;; esac
-    [[ -e "${dev}/device" ]] || continue
-    DEVICES+=("auto:/dev/${name}")
-  done
-  ((${#DEVICES[@]})) || die "no physical block devices found under /sys/block"
-fi
-
-payload="["
-first=1
-for spec in "${DEVICES[@]}"; do
-  devtype="${spec%%:*}"
-  node="${spec#*:}"
-  [[ "$devtype" == "$spec" ]] && die "--device wants TYPE:/dev/NODE, got ${spec@Q}"
-  out="$(run_smartctl "$devtype" "$node")"
-  # smartctl exits non-zero for conditions that are not failures to read — bit 2
-  # is "some SMART command failed", bit 6 is "errors in the log" — so the exit
-  # code is deliberately not the gate. Valid JSON with a device in it is.
-  #
-  # But the REASON there is no output has to survive. The first scheduled run of
-  # this job logged "no output for /dev/nvme0" and nothing else, because stderr
-  # went to /dev/null — so a plain SSH permission failure looked like a disk
-  # that would not answer, and the actual message ("Permission denied
-  # (publickey)") existed nowhere. Anything a check hides is a check that sends
-  # you to the wrong place.
-  if [[ -z "$out" ]]; then
-    detail="$(tr -d '\r' < "${STDERR_FILE}" | grep -v '^$' | tail -2 | paste -sd'; ' -)"
-    printf 'warning: no output for %s%s\n' \
-      "$node" "${detail:+ — ${detail}}" >&2
-    continue
-  fi
-  ((first)) || payload+=","
-  payload+="$out"
-  first=0
-done
-payload+="]"
-
-[[ "$payload" == "[]" ]] && die "no device produced readable SMART output"
-
-# ---------------------------------------------------------------------------
-# Render. Python because the JSON shape differs between NVMe and ATA and a
-# shell parser for that is how a wrong number gets reported confidently.
-# ---------------------------------------------------------------------------
 emit() {
-  HOST_LABEL="$HOST_LABEL" python3 - "$payload" <<'PY'
+  # THE JSON GOES THROUGH A FILE AND NOT argv, and that is not a style
+  # preference. Measured on smaug 2026-09-21 (#483): TrueNAS's console shell
+  # runs under sudo with ptrace-based subcommand interception, and handing it
+  # ~150 KB of `smartctl --json -x` on a command line makes that tracer report
+  #   sudo: process NNNN unexpected status 0x57f
+  # and SIGKILL python3 before it reads a byte, while `python3 - "hello"` with
+  # the same heredoc on the same shell is fine — so it is the SIZE of the
+  # argument and not the heredoc. A path is a few bytes and survives anywhere.
+  # It also keeps a host's SMART JSON out of `ps`, which argv would not.
+  local payload_file rc
+  payload_file="$(mktemp)"
+  printf '%s' "$payload" > "$payload_file"
+  HOST_LABEL="$HOST_LABEL" python3 - "$payload_file" <<'PY'
 import json, os, sys
 
 host = os.environ["HOST_LABEL"]
 try:
-    docs = json.loads(sys.argv[1])
+    with open(sys.argv[1], encoding="utf-8") as fh:
+        docs = json.load(fh)
 except json.JSONDecodeError as exc:
     sys.exit(f"smartctl returned something that is not JSON: {exc}")
+except OSError as exc:
+    sys.exit(f"could not read the collected SMART JSON: {exc}")
 
 rows: dict[str, list[str]] = {}
+seen_series: set[tuple[str, str]] = set()
 
 def add(metric: str, help_: str, labels: dict, value) -> None:
     if value is None:
         return
     lab = ",".join(f'{k}="{v}"' for k, v in labels.items())
+    # ONE SERIES PER METRIC AND LABEL SET, FIRST VALUE WINS.
+    #
+    # MEASURED 2026-09-21 on the pinned prom/node-exporter image, because the
+    # comment this replaces asserted the opposite and was wrong. A repeated
+    # series does NOT make node_exporter reject the file and does NOT raise
+    # node_textfile_scrape_error: it keeps the first line, drops the rest, and
+    # says nothing — tested with the values agreeing and disagreeing, same
+    # result both times.
+    #
+    # Which is exactly why the choice is made here. The drive that forces it is
+    # smaug's Intel DC S3520: smartctl's drive database names BOTH attribute
+    # 174 and attribute 192 Unsafe_Shutdown_Count, read at the console on
+    # 2026-09-21, both 519 (#483). Today they agree, so the duplicate is
+    # harmless and would have stayed invisible. On a drive where they disagree
+    # the exporter picks one with nothing written down about which, and a
+    # number this collector cannot account for is worse than one it declines to
+    # guess at. The wear branch below is the same shape from the other side:
+    # two attribute spellings, one metric.
+    #
+    # Guarded here rather than per metric, because a per-metric flag only
+    # protects the metrics someone remembered to think about.
+    if (metric, lab) in seen_series:
+        return
+    seen_series.add((metric, lab))
     rows.setdefault(metric, [f"# HELP {metric} {help_}", f"# TYPE {metric} gauge"])
     rows[metric].append(f"{metric}{{{lab}}} {value}")
 
@@ -274,11 +264,9 @@ for d in docs:
     # ATA. Named attributes rather than raw IDs, since the id-to-meaning map is
     # vendor-specific and smartctl has already done that work.
     #
-    # ONE WEAR SERIES PER DEVICE. Two spellings below map to
-    # homelab_smart_percentage_used, and a drive that reports both would emit
-    # the same series twice — which node_exporter rejects as a duplicate, and
-    # it rejects the WHOLE FILE, taking every other disk on the host with it.
-    wear_emitted = False
+    # Two spellings below map to homelab_smart_percentage_used, and a drive
+    # reporting both would render it twice; add() above holds every metric to
+    # one series per device and takes the first, so there is no flag here.
     for attr in ((d.get("ata_smart_attributes") or {}).get("table") or []):
         name = (attr.get("name") or "").lower()
         raw = (attr.get("raw") or {}).get("value")
@@ -295,11 +283,10 @@ for d in docs:
         elif name in ("percent_lifetime_remain", "ssd_life_left"):
             # Reported as REMAINING; inverted so it means the same thing as the
             # NVMe metric of the same name rather than the opposite.
-            if raw is not None and not wear_emitted:
+            if raw is not None:
                 add("homelab_smart_percentage_used",
                     "Vendor estimate of endurance consumed, percent. 100 means the rated life is used.",
                     plain, 100 - int(raw))
-                wear_emitted = True
         elif name == "media_wearout_indicator":
             # Intel's spelling (attribute 233, the DC S3520 in smaug). The
             # NORMALISED value is the one that means something — it starts at
@@ -307,16 +294,17 @@ for d in docs:
             # the two spellings above. Same inversion, same metric, so
             # SmartDriveWearHigh reads this drive too (#483).
             value = attr.get("value")
-            if value is not None and not wear_emitted:
+            if value is not None:
                 add("homelab_smart_percentage_used",
                     "Vendor estimate of endurance consumed, percent. 100 means the rated life is used.",
                     plain, 100 - int(value))
-                wear_emitted = True
         elif name == "unsafe_shutdown_count":
-            # Intel attribute 174: power lost without a clean shutdown, the ATA
-            # twin of the NVMe counter above under the same name. smaug's boot
-            # disk arrived with 509 of them (hardware.md) and #574 asks how
-            # often that keeps happening; this is the number that answers.
+            # Intel attributes 174 and 192, BOTH of which smartctl names
+            # Unsafe_Shutdown_Count on this drive — the ATA twin of the NVMe
+            # counter above. add() takes the first and drops the second; see
+            # the duplicate note there, which this drive is the reason for.
+            # smaug's boot disk arrived with 509 (hardware.md) and read 519 on
+            # 2026-09-21, and #574 asks how often that keeps happening.
             add("homelab_smart_unsafe_shutdowns_total",
                 "Power lost without a clean shutdown notification.", plain, raw)
 
@@ -345,8 +333,160 @@ add("homelab_smart_devices", "Devices this collector read on this host.",
 for metric in sorted(rows):
     print("\n".join(rows[metric]))
 PY
+  rc=$?
+  rm -f "$payload_file"
+  return $rc
 }
 
+# ---------------------------------------------------------------------------
+# Self-test. The renderer above is the part of this collector that can be wrong
+# quietly, and it cannot be exercised by running it: a drive reports what it
+# reports, and no host here can be asked to produce a pending sector or a
+# second wear attribute on demand. The siblings settled this shape already —
+# collect-patch-state.sh, collect-pkg-state.sh and collect-pve-version.sh each
+# carry fixtures and `make validate` runs them.
+#
+# Every fixture below is a reading that actually happened, and the first one is
+# why this section exists at all (#483): smaug's boot SSD reports attribute 174
+# and attribute 192, both named Unsafe_Shutdown_Count, and the first draft of
+# the 174 mapping had no duplicate guard, so it rendered the series twice. That
+# was found by reading the drive at the console rather than by any test here —
+# which is the argument for these fixtures, not against them.
+# ---------------------------------------------------------------------------
+if ((SELF_TEST)); then
+  fail=0
+  HOST_LABEL="fixture"
+  out=""
+
+  check() {
+    local name="$1" expect="$2" pattern="$3" got
+    got="$(printf '%s\n' "$out" | grep -cE -- "$pattern")"
+    if [[ "$got" == "$expect" ]]; then
+      printf '\033[0;32m  PASS\033[0m %s\n' "$name"
+    else
+      printf '\033[0;31m  FAIL\033[0m %s -> %s line(s) matching %s, expected %s\n' \
+        "$name" "$got" "${pattern}" "$expect"
+      fail=1
+    fi
+  }
+
+  # 1. smaug's Intel DC S3520, read at the console 2026-09-21. Two attributes
+  #    named Unsafe_Shutdown_Count, and Intel's wearout counter, which reports
+  #    REMAINING life in its normalised column and 0 in its raw one — so the
+  #    raw column would render a brand-new drive as 100 % consumed.
+  payload='[{"device":{"name":"/dev/sdc"},"model_name":"INTEL SSDSC2BB240G7","smart_status":{"passed":true},"temperature":{"current":24},"power_on_time":{"hours":13301},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":99,"raw":{"value":4}},{"id":174,"name":"Unsafe_Shutdown_Count","value":100,"raw":{"value":519}},{"id":192,"name":"Unsafe_Shutdown_Count","value":100,"raw":{"value":519}},{"id":197,"name":"Current_Pending_Sector","value":100,"raw":{"value":0}},{"id":233,"name":"Media_Wearout_Indicator","value":88,"raw":{"value":0}}]}}]'
+  out="$(emit)"
+  check "S3520: Unsafe_Shutdown_Count 174 and 192 render ONCE" \
+    1 '^homelab_smart_unsafe_shutdowns_total\{host="fixture",device="/dev/sdc"\} 519$'
+  check "S3520: wearout reads the normalised column, not the raw one" \
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sdc"\} 12$'
+  check "S3520: its four reallocated sectors" \
+    1 '^homelab_smart_reallocated_sectors\{host="fixture",device="/dev/sdc"\} 4$'
+  check "S3520: one device seen" 1 '^homelab_smart_devices\{host="fixture"\} 1$'
+
+  # 2. smaug's faulted Exos, the same evening. Overall assessment still PASSED,
+  #    which is the whole reason SmartDriveBadSectors does not read healthy.
+  payload='[{"device":{"name":"/dev/sdb"},"model_name":"ST18000NM003D-3DL103","smart_status":{"passed":true},"power_on_time":{"hours":54},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":100,"raw":{"value":0}},{"id":197,"name":"Current_Pending_Sector","value":96,"raw":{"value":850}},{"id":198,"name":"Offline_Uncorrectable","value":96,"raw":{"value":850}}]}}]'
+  out="$(emit)"
+  check "faulted Exos: 850 pending" \
+    1 '^homelab_smart_pending_sectors\{host="fixture",device="/dev/sdb"\} 850$'
+  check "faulted Exos: 850 uncorrectable" \
+    1 '^homelab_smart_uncorrectable_sectors\{host="fixture",device="/dev/sdb"\} 850$'
+  check "faulted Exos: the drive still calls itself healthy" \
+    1 '^homelab_smart_healthy\{.*device="/dev/sdb".*\} 1$'
+
+  # 3. Two wear spellings on one drive. No drive here reports both today; the
+  #    guard is what makes that safe to be wrong about.
+  payload='[{"device":{"name":"/dev/sdd"},"model_name":"TWO SPELLINGS","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":231,"name":"SSD_Life_Left","value":97,"raw":{"value":97}},{"id":233,"name":"Media_Wearout_Indicator","value":90,"raw":{"value":0}}]}}]'
+  out="$(emit)"
+  check "two wear spellings render ONE series" \
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sdd"\}'
+
+  # 4. morpheus's NVMe, the other vocabulary entirely.
+  payload='[{"device":{"name":"/dev/nvme0"},"model_name":"NVME DRIVE","smart_status":{"passed":true},"temperature":{"current":62},"nvme_smart_health_information_log":{"percentage_used":3,"available_spare":100,"available_spare_threshold":10,"media_errors":0,"unsafe_shutdowns":41,"critical_warning":0}}]'
+  out="$(emit)"
+  check "NVMe: media errors, which ATA never reports" \
+    1 '^homelab_smart_media_errors_total\{host="fixture",device="/dev/nvme0"\} 0$'
+  check "NVMe: percentage_used is used DIRECTLY, not inverted" \
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/nvme0"\} 3$'
+  check "NVMe: the spare threshold the drive sets for itself" \
+    1 '^homelab_smart_available_spare_threshold_percent\{.*\} 10$'
+
+  # 5. Two drives at once, because the marker counts devices and a rendering
+  #    that dropped one would still look like a healthy host.
+  payload='[{"device":{"name":"/dev/sda"},"model_name":"ST18000NM003D-3DL103","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":100,"raw":{"value":0}}]}},{"device":{"name":"/dev/sdc"},"model_name":"INTEL SSDSC2BB240G7","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":99,"raw":{"value":4}}]}}]'
+  out="$(emit)"
+  check "two drives: both counted" 1 '^homelab_smart_devices\{host="fixture"\} 2$'
+  check "two drives: both reallocated series, distinct" \
+    2 '^homelab_smart_reallocated_sectors\{host="fixture",device="/dev/sd(a|c)"\} [04]$'
+
+  # 6. smartctl answering with no device in the JSON. The exit has to carry
+  #    smartctl's own reason, which is usually a permission problem rather than
+  #    a disk problem — the run that made that necessary is in the header.
+  payload='[{"smartctl":{"messages":[{"string":"Permission denied"}]}}]'
+  if out="$(emit 2>&1)"; then
+    printf '\033[0;31m  FAIL\033[0m no readable device -> exit 0, expected non-zero\n'
+    fail=1
+  else
+    check "no readable device: smartctl's own reason survives" 1 'Permission denied'
+  fi
+
+  exit $fail
+fi
+
+if [[ -z "$SSH_TARGET" ]]; then
+  command -v smartctl >/dev/null 2>&1 \
+    || die "smartctl is not installed on this host.
+  sudo apt install smartmontools
+This collector reads it; it does not bundle it (#351)."
+
+  # Real block devices only: no loop, no ram, no device-mapper, no optical.
+  # /sys rather than lsblk output parsing, because a model name with a space in
+  # it turns a column split into a wrong answer.
+  for dev in /sys/block/*; do
+    name="$(basename "$dev")"
+    case "$name" in loop*|ram*|dm-*|sr*|fd*|zram*) continue ;; esac
+    [[ -e "${dev}/device" ]] || continue
+    DEVICES+=("auto:/dev/${name}")
+  done
+  ((${#DEVICES[@]})) || die "no physical block devices found under /sys/block"
+fi
+
+payload="["
+first=1
+for spec in "${DEVICES[@]}"; do
+  devtype="${spec%%:*}"
+  node="${spec#*:}"
+  [[ "$devtype" == "$spec" ]] && die "--device wants TYPE:/dev/NODE, got ${spec@Q}"
+  out="$(run_smartctl "$devtype" "$node")"
+  # smartctl exits non-zero for conditions that are not failures to read — bit 2
+  # is "some SMART command failed", bit 6 is "errors in the log" — so the exit
+  # code is deliberately not the gate. Valid JSON with a device in it is.
+  #
+  # But the REASON there is no output has to survive. The first scheduled run of
+  # this job logged "no output for /dev/nvme0" and nothing else, because stderr
+  # went to /dev/null — so a plain SSH permission failure looked like a disk
+  # that would not answer, and the actual message ("Permission denied
+  # (publickey)") existed nowhere. Anything a check hides is a check that sends
+  # you to the wrong place.
+  if [[ -z "$out" ]]; then
+    detail="$(tr -d '\r' < "${STDERR_FILE}" | grep -v '^$' | tail -2 | paste -sd'; ' -)"
+    printf 'warning: no output for %s%s\n' \
+      "$node" "${detail:+ — ${detail}}" >&2
+    continue
+  fi
+  ((first)) || payload+=","
+  payload+="$out"
+  first=0
+done
+payload+="]"
+
+[[ "$payload" == "[]" ]] && die "no device produced readable SMART output"
+
+# ---------------------------------------------------------------------------
+# Render. Python because the JSON shape differs between NVMe and ATA and a
+# shell parser for that is how a wrong number gets reported confidently.
+# ---------------------------------------------------------------------------
 if ((PRINT_ONLY)); then
   emit
   exit 0
