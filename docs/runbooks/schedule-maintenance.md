@@ -44,7 +44,8 @@ old key's proof ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)).
 The third of that shape is not a key. `make backup-offsite DEST=…` carries
 the newest firewall export, volume set and NAS set onto the same medium that
 holds the second age recipient, on the same visit — it refuses a destination
-on this host's own filesystem, re-verifies what the medium already holds,
+on this host's own filesystem, on RAM, or under the trees this host clears on
+boot, then re-verifies what the medium already holds,
 copies, and hashes the copy — and records `offsite-copy`; `OffsiteCopyStale`
 is the nag, the same ninety days, read straight off the job series because
 there is one copy of record
