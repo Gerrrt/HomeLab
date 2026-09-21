@@ -392,7 +392,8 @@ otherwise assert it never happened:
 - [`docs/security.md`](../security.md) — the historical-exposure row and the
   SNMPv2c bullets, which `SECURITY.md` points at for detail. Leaving this one
   stale makes the two disagree, which is worse than either being stale alone.
-- [`docs/roadmap.md`](../roadmap.md) — the checkbox.
+- [`docs/roadmap.md`](../roadmap.md) — the entry leaves, and the rotation
+  goes to [`docs/changelog.md`](../changelog.md) under the date.
 
 [`secrets/README.md`](../../secrets/README.md) points at `SECURITY.md` rather
 than restating the status, and needs no edit. Keep it that way.
