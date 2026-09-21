@@ -1230,6 +1230,63 @@ tests:
                 assessment to fail — SmartDriveUnhealthy is the firmware
                 conceding, and it concedes late. Check backups first.
 
+
+  # --- SmartDriveUnsafeShutdownsGrowing: fires the day the count moves -----
+  # smaug's S3520 at its recorded 509 for a day, then one more. Evaluated at
+  # 36h, the `offset 1d` lands inside the 509 run with twelve hours of the
+  # condition behind it for the `for`. 5m interval for the same lookback
+  # reason as above.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sda"}'
+        values: "509x288 510x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sda
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sda lost power uncleanly 1 time(s) in the last day"
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means the host
+                stopped without telling the disk — a mains cut that outlasted the
+                UPS with nothing acting on its signal, a crash, or a plug. Find the
+                event: UpsOnBattery and InstanceDown around the same time say
+                which. If a UPS shutdown sequence exists for this host (ADR-0048),
+                it did not run, and runbooks/shut-down-on-the-ups.md says how to
+                check it.
+
+  # --- SmartDriveUnsafeShutdownsGrowing: QUIET on the recorded 509 ---------
+  # The count the drive arrived with is history, not an event. A static 509
+  # must never page, or the first day of collection on smaug is a page about
+  # its previous owner.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sda"}'
+        values: "509x600"
+    alert_rule_test:
+      - eval_time: 2d
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts: []
+
+  # --- SmartDriveUnsafeShutdownsGrowing: QUIET again once a day has passed --
+  # The event has a date. Two days after it the day-old comparison is
+  # 510 against 510, and the alert must have resolved rather than following
+  # the drive around for the rest of its life the way a static count would.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sda"}'
+        values: "509x288 510x600"
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts: []
+
   # --- SmartDriveBadSectorsGrowing: quiet for a clean drive ----------------
   - interval: 5m
     input_series:

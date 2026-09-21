@@ -653,6 +653,44 @@ groups:
             SmartDriveUnhealthy is the firmware conceding, and it concedes late.
             Check backups first.
 
+      - alert: SmartDriveUnsafeShutdownsGrowing
+        # The measure of a power cut nobody planned for (#574, ADR-0048).
+        #
+        # A clean shutdown on the UPS's signal does not move a drive's
+        # unsafe-shutdown counter, and a cut shorter than the pack does not
+        # either, so any growth is a stop that the sequence ADR-0048 decides
+        # did not catch — or, before that sequence exists, a stop nothing
+        # tried to catch. smaug's boot disk arrived carrying 509 of them in 538
+        # power cycles from its previous owner, which is how a box with no
+        # UPS client looks from the disk's side. ADR-0047's cron job under
+        # the scrape carries the counter off smaug and named this rule as the
+        # decision left to #574; the series exists and reads 509.
+        #
+        # SUBTRACTION over a day, not a week: a cut is an event with a date,
+        # and the day it happened is the thing worth knowing. The same gauge
+        # reasoning as SmartDriveBadSectorsGrowing applies — served
+        # continuously by the textfile collector, so the point-against-point
+        # comparison is exact. The metric has one name for both drive types
+        # by design: NVMe's health log and ATA attribute 174 both land on it.
+        expr: >-
+          (homelab_smart_unsafe_shutdowns_total - homelab_smart_unsafe_shutdowns_total offset 1d) > 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: >-
+            {{ $labels.host }}: {{ $labels.device }} lost power uncleanly
+            {{ $value }} time(s) in the last day
+          description: >-
+            The drive's unsafe-shutdown counter moved, which means the host
+            stopped without telling the disk — a mains cut that outlasted the
+            UPS with nothing acting on its signal, a crash, or a plug. Find the
+            event: UpsOnBattery and InstanceDown around the same time say
+            which. If a UPS shutdown sequence exists for this host (ADR-0048),
+            it did not run, and runbooks/shut-down-on-the-ups.md says how to
+            check it.
       - alert: SmartStateStale
         # The SMART collector has stopped rewriting its file, on any host.
         #

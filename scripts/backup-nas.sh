@@ -114,7 +114,8 @@
 # BEFORE the source line because backup-volumes.sh reads VOL_OFFHOST as it
 # loads; the value the volume unit puts in /etc/default/homelab-timers is
 # deliberately not inherited, since it names the wrong directory. Same shelf,
-# same room, not offsite. A fire takes all three.
+# same room, not offsite. A fire takes all three; the copy beyond them is
+# scripts/backup-offsite.sh, on the second recipient's medium (ADR-0048).
 #
 # Usage:
 #   scripts/backup-nas.sh                        pull the newest snapshot, encrypt, verify, copy to oracle
@@ -508,7 +509,7 @@ else
     exit 1
   fi
   printf '\n'
-  info "Copied to ${OFFHOST_TARGET}:${OFFHOST_DIR} — off-host, not offsite; a fire takes all three. See docs/roadmap.md."
+  info "Copied to ${OFFHOST_TARGET}:${OFFHOST_DIR} — off-host, not offsite; a fire takes all three. Offsite is make backup-offsite, on the medium's visit (ADR-0048)."
 fi
 info "Restoring it: docs/runbooks/build-the-nas.md §6.3."
 info "On a timer: systemctl list-timers 'homelab-*' — docs/runbooks/schedule-maintenance.md."

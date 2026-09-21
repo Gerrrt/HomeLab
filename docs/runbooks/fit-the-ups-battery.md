@@ -343,6 +343,17 @@ rather than decorative ones, reading values that finally correspond to hardware.
 **No rule edits are needed** — the file was written so that its rules become
 correct the moment a pack exists, and nothing in it changes today.
 
+What does not become true is a measured runtime. Step 5 says why the card's
+runtime-remaining series cannot be leaned on, and nothing in this runbook
+drains the pack against a known load to find out what it actually gives —
+as of 2026-09-20 the card claims 47 minutes at 21 % and no cut has ever been
+observed. That measurement, and the shutdown sequence that has to exist
+before it is worth making, are
+[`shut-down-on-the-ups.md`](shut-down-on-the-ups.md) §6, decided by
+[ADR-0048](../adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
+the number lands under the Rack table in
+[`hardware.md`](../hardware.md#rack), which is where to look for it.
+
 ## If something goes wrong
 
 **The self-test still reports `4` (aborted).** Do not re-create the silence. A
