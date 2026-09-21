@@ -1056,10 +1056,40 @@ appliance updated from its own UI, there is no `apt` to ask, and a collector
 would report nothing. ADR-0047 writes the no down, with the one condition that
 reopens it.
 
-> **Not yet done.** The repository side merged on 2026-09-20 with ADR-0047;
-> steps 1–6 wait on a walk to the console. Fill this block in with the
-> device letter as printed, whether the row needed changing, the cron job as
-> created, and the first `homelab_smart_devices` reading when they run.
+> **Done 2026-09-21.** All six steps ran, and two of them found something.
+>
+> **The collector could not run at all on the first attempt**, for the reason
+> the block above now warns about: `sudo: process 335972 unexpected status
+> 0x57f` and `Killed`, from this shell's tracer meeting ~150 KB of JSON on a
+> command line. The readings were taken with `smartctl -i` and `smartctl -A`
+> directly while that was fixed, and the collector now passes its JSON by
+> path ([#593](https://github.com/Gerrrt/HomeLab/pull/593)).
+>
+> **The boot disk reports its unsafe-shutdown count twice**, under attribute
+> 174 and attribute 192, both named `Unsafe_Shutdown_Count` by `smartctl` and
+> both **519**. The collector rendered the series twice until the same PR
+> gave `add()` a duplicate guard, and that PR also corrects a comment which
+> claimed node_exporter rejects a file over a duplicate — measured against the
+> pinned image, it does not; it keeps the first line and says nothing.
+>
+> **`/dev/sdc` is the S3520**, confirmed by model string `INTEL SSDSC2BB240G7`
+> and serial, with `sda` (`ZVTBS4NL`) and `sdb` (`ZVTBSDL3`) the two Exos —
+> so ADR-0046's baseline row was already right and step 4 changed nothing.
+>
+> **Read from the monitoring host the same hour:**
+> `node_textfile_scrape_error` **0**, `node_textfile_mtime_seconds` for
+> `/textfile/smart-state-smaug.prom` seconds old, and
+> `homelab_smart_devices{host="smaug"}` **3**. The S3520 reads 4 reallocated
+> sectors, 12 % of rated life used and 519 unsafe shutdowns at 13,302 hours;
+> `sdb` reads **850 pending and 850 uncorrectable** with its own assessment
+> still `PASSED`. `SmartDriveBadSectors` went **pending for `/dev/sdb` and
+> for nothing else** — the boot disk quiet at its recorded four, the faulted
+> disk caught, which is the first alert in this estate to cover the degraded
+> mirror. `SmartStateStale` is quiet on all five `smart-state-*.prom` files
+> it now watches across `prometheus`, `oracle` and this host.
+>
+> The cron job is as the table says: daily 08:30, `root`, stdout hidden,
+> stderr not.
 
 ## §7 — Verify
 
@@ -1117,7 +1147,8 @@ reopens it.
 - Both Exos self-tests from §2 completed without error
 - `homelab_smart_devices{host="smaug"}` reads **3** from the monitoring host,
   and `SmartDriveBadSectors` is quiet on the boot SSD at its recorded 4
-  (§6.4)
+  (§6.4) — **read 2026-09-21**, with `/dev/sdb`'s 850 pending sectors the one
+  thing firing
 
 ## §8 — What this leaves open
 
