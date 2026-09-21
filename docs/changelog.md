@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-21
 
+- **[#599](https://github.com/Gerrrt/HomeLab/issues/599) Opened: memory for
+  `smaug` enters the buy table, and the entry that said nothing was
+  outstanding for that box is corrected.** The TS150 was bought on 2026-09-09
+  as a bare NAS and read off the board on 2026-09-15 as **8192 MB in one of
+  four slots** — one Samsung `M391A1G43EB1-CPBQ`, 8 GB 2Rx8 PC4-2133P, ECC
+  unbuffered. Since then it has taken the mirror `erebor` (2026-09-18) and
+  Jellyfin with Quick Sync (2026-09-19), and neither was weighed against that
+  DIMM when the box was specced. The board holds 64 GB across four DDR4
+  UDIMMs at 2133 or 2400 ([Lenovo Press LP0625](https://lenovopress.lenovo.com/lp0625-ts150-intel-xeon-e3-1200-v5-v6-core-i3-pentium-celeron-g-series)),
+  so this is an add and not a replace, and the part has to be ECC
+  **unbuffered** — `hardware.md` recorded that constraint on the day it read
+  the stick, which is the reason this purchase needed no research to specify.
+  What is decided is the type, 32 GB, and two slots left free; the vendor and
+  whether the 2133 stick stays fitted are chosen on cost and recorded in
+  [`hardware.md`](hardware.md) then. **It is an upgrade and says so** — not
+  the consumable exception, and not inside `roadmap.md`'s prohibition, which
+  names `prometheus`, `oracle` and Wazuh and does not name this machine.
+  README's count moves to three, which `check_buy_list` asserts against the
+  table rather than against this sentence.
+
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Closed: both devices
   ADR-0036 names are on SNMPv3 authPriv, and neither answers a community.**
   SNMPv1 went off on the UPS card the same day its poll moved, and

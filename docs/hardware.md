@@ -227,10 +227,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   ([ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md))
   and the bracket that carries it in the optical bay are the entries below and
   landed with it; the two drives for the mirror, bought 2026-09-11, landed on
-  2026-09-18 and were in the bays that evening. Nothing
-  for this machine is outstanding on the roadmap's
-  [list](roadmap.md#everything-still-to-buy) any more, and the Storage column
-  reads the mirror since 2026-09-19.
+  2026-09-18 and were in the bays that evening. The Storage column reads the
+  mirror since 2026-09-19. **Nothing for this machine was outstanding on the
+  roadmap's [list](roadmap.md#everything-still-to-buy) from 2026-09-18 until
+  2026-09-21, when memory re-entered it**
+  ([#599](https://github.com/Gerrrt/HomeLab/issues/599)) — the pool and the
+  transcoder both landed after the box was specced, and neither was weighed
+  against the one DIMM below when it was.
   **Read off the machine on 2026-09-15**, where everything above it came off a
   listing: `ThinkServer TS150`, machine type-model `70UB000AUX`, serial
   `MJ05N4NK`. Xeon E3-1225 v6 at 3.30 GHz, four cores, and `Active Video: IGD`
@@ -243,7 +246,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `M391A1G43EB1-CPBQ` — 8 GB 2Rx8 PC4-2133P, ECC unbuffered, date code 1728 —
   in one of four slots. More memory is therefore an add and not a replace, and
   the part to match is ECC **unbuffered**: a registered DIMM will not run on
-  this board. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
+  this board. The board takes four DDR4 UDIMMs at 2133 or 2400 to a maximum of
+  64 GB, so 8 GB is an eighth of what it holds and three slots are empty.
+  [#599](https://github.com/Gerrrt/HomeLab/issues/599) takes it to 32 GB —
+  half the ceiling, with two slots still free — and the kit lands in this
+  entry when it is bought. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
   other address here. BIOS **`S06KT81L` dated 2024-02-05**, boot block `1.81`, flashed
   2026-09-16 while the box was still empty. It shipped on `S06KT03R` dated
   2017-05-22 with boot block `1.03` — a firmware predating the Spectre and
