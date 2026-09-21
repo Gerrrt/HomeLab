@@ -1,9 +1,21 @@
-# ADR-0048: Shut down on the UPS's signal from a NUT server on the firewall, and scope its listener rather than open a segment
+# ADR-0049: Shut down on the UPS's signal from a NUT server on the firewall, and scope its listener rather than open a segment
 
 **Status:** Accepted · 2026-09 · decides the question
 [#574](https://github.com/Gerrrt/HomeLab/issues/574) asked, and records the
 power source [#413](https://github.com/Gerrrt/HomeLab/issues/413) owed
 `hardware.md`
+
+> [!NOTE]
+> **Renumbered to 0049 on 2026-09-21.** This landed as ADR-0048 in
+> [#586](https://github.com/Gerrrt/HomeLab/pull/586) and
+> [#588](https://github.com/Gerrrt/HomeLab/pull/588) took the same number
+> **thirty-five seconds earlier** — 03:10:18Z against 03:10:53Z — for
+> [ADR-0048](0048-carry-the-estates-backup-sets-with-the-second-recipient.md).
+> Two files claimed one number on `main` until this commit;
+> `check_adr_numbers()` in [`check_docs.py`](../../scripts/check_docs.py) is
+> what caught it, and its rule — the one that landed second renumbers — is
+> what chose this file. The decision is untouched. Text that predates the
+> renumber, including #586's own commits and description, calls it 0048.
 
 ## Context
 

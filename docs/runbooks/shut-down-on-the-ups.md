@@ -4,7 +4,7 @@
 and one mains pull that turns the card's estimate into a number.**
 
 > **Status — 2026-09-20: decided, not built.**
-> [ADR-0048](../adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
+> [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
 > decides who shuts down on `mjolnir`'s signal and who does not; nothing below
 > has been done, and the two proofs in §5 and §6 are what closes
 > [#574](https://github.com/Gerrrt/HomeLab/issues/574). Every number this
@@ -298,7 +298,7 @@ ProDesk, the TS150 and the ProLiant) and the card's own behaviour, and the
 UPS off at the end — which would make a real cut end with the UPS cycling its
 outlets and every host restarting when mains returns — is left open: it
 needs a write credential on the card, which nothing in this estate holds, and
-it is a decision for an amendment to ADR-0048 rather than a line here.
+it is a decision for an amendment to ADR-0049 rather than a line here.
 
 ## 6. Measure the pack, once, with the load on
 
@@ -352,7 +352,7 @@ claim.
 | This file | The status block: built on *date*, sequence proved in *N* seconds, pack measured at *M* minutes at *L* % |
 | [`hardware.md`](../hardware.md) | The Rack paragraph's "not measured" becomes the measured number |
 | [`security.md`](../security.md) | The *Mains power loss* row stops saying nothing shuts down on the signal |
-| [ADR-0048](../adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) | Its "a configuration nobody has tested" line is amended with the dates, per ADR-0001 — a `> [!NOTE]` block, not an edit |
+| [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) | Its "a configuration nobody has tested" line is amended with the dates, per ADR-0001 — a `> [!NOTE]` block, not an edit |
 | [`network.md`](../network.md) | The VLAN 30 and VLAN 40 notes gain the pass/block pair each, counted where their other exceptions are counted |
 | [`rotate-snmp-community.md`](rotate-snmp-community.md) | Gains the step: the NUT driver's copy of the card's credential moves with the card's |
 | [`fit-the-saruman-ssds.md`](fit-the-saruman-ssds.md) | Its reason for withholding the HDD write cache is now answered; whether to enable it is a separate re-reading, not a step here |
