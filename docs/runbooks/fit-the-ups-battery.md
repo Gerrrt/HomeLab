@@ -336,6 +336,17 @@ rather than decorative ones, reading values that finally correspond to hardware.
 **No rule edits are needed** — the file was written so that its rules become
 correct the moment a pack exists, and nothing in it changes today.
 
+What does not become true is a measured runtime. Step 5 says why the card's
+runtime-remaining series cannot be leaned on, and nothing in this runbook
+drains the pack against a known load to find out what it actually gives —
+as of 2026-09-20 the card claims 47 minutes at 21 % and no cut has ever been
+observed. That measurement, and the shutdown sequence that has to exist
+before it is worth making, are
+[`shut-down-on-the-ups.md`](shut-down-on-the-ups.md) §6, decided by
+[ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
+the number lands under the Rack table in
+[`hardware.md`](../hardware.md#rack), which is where to look for it.
+
 ## If something goes wrong
 
 **The self-test still reports `4` (aborted).** Do not re-create the silence. A
@@ -398,7 +409,7 @@ And when the shelf is racked, which is a separate visit and separate issue:
 | --- | --- |
 | `docs/hardware.md` | The 1U shelf into the rack table at U4, and into Accessories |
 | `docs/network.md` | The TP-Link note — now racked and on UPS power |
-| `docs/roadmap.md` | Move #110 into Done |
+| `docs/roadmap.md` | The #110 entry leaves; the fit goes to `docs/changelog.md` under the date |
 
 One coupling to know about before you start editing: **deleting the banner panel
 changes the dashboard's panel count**, and `scripts/check_docs.py` asserts every

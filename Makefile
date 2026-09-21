@@ -737,6 +737,38 @@ verify-backups: ## Re-verify every retained set of both kinds: the volume sets a
 	./scripts/backup-nas.sh --verify-only --all || rc=1; \
 	exit $$rc
 
+.PHONY: backup-offsite
+backup-offsite: ## Copy the newest set of each kind to the offline medium and prove it (DEST=/path/to/the/medium)
+	@# The third human job with a deadline and no timer, after
+	@# secrets-verify-backup and certs-verify-backup, and for the same reason:
+	@# the destination is the medium that holds the second age recipient
+	@# (ADR-0048), which is off-estate by construction and visits this host
+	@# every ninety days to prove that key. No timer can mount it. What a
+	@# timer CAN do is notice that nobody has: a successful run records
+	@# offsite-copy, and OffsiteCopyStale fires when that passes ninety days.
+	@#
+	@# DEST rather than ARGS for the reason secrets-verify-backup takes KEY:
+	@# exactly one required argument, guarded here so that a bare
+	@# `make backup-offsite` never reaches run-scheduled.sh and gets recorded
+	@# as a FAILED copy. A forgotten argument is a typo, not evidence.
+	@[[ -n "$(DEST)" ]] || { \
+		printf '\033[0;31merror:\033[0m DEST is required\n' >&2; \
+		printf 'Mount the medium, then:  make backup-offsite DEST=/path/to/the/medium\n' >&2; \
+		printf 'See docs/runbooks/copy-the-backups-offsite.md\n' >&2; \
+		exit 2; \
+	}
+	@# Wrapped only for the copy of record. ARGS=--list, --verify-only and
+	@# --prune inspect or tidy the medium and run unwrapped on purpose: looking
+	@# at a ninety-day-old copy is not the same as refreshing it, and must not
+	@# reset the deadline. The `backups` lock is shared with the backup jobs so
+	@# a set is never copied while its own retention is removing it.
+	@if [[ -n "$(ARGS)" ]]; then \
+		STACK=$(STACK) ./scripts/backup-offsite.sh "$(DEST)" $(ARGS); \
+	else \
+		STACK=$(STACK) ./scripts/run-scheduled.sh --job offsite-copy --lock backups \
+			-- ./scripts/backup-offsite.sh "$(DEST)"; \
+	fi
+
 .PHONY: restore
 restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>")
 	@# Deliberately a separate script from `backup`. One script that both writes

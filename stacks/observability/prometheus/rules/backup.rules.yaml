@@ -22,11 +22,12 @@
 # JOBS table that also decides the cadence, so a threshold and a schedule cannot
 # drift apart. It also means NO RULE HERE NAMES A JOB: adding a timer is a row in
 # that table, not an edit to this file. That is deliberate — a rule file listing
-# job names is a list that silently stops growing. The three rules at the bottom
-# are the one exception, and they name the two jobs that are not timers: the
+# job names is a list that silently stops growing. The four rules at the bottom
+# are the one exception, and they name the three jobs that are not timers: the
 # human proofs — verify-key-backup, whose deadline is applied per age
-# recipient, and verify-ca-key-backup, whose deadline is applied to the CA
-# key's current fingerprint (#496).
+# recipient, verify-ca-key-backup, whose deadline is applied to the CA key's
+# current fingerprint (#496), and offsite-copy, the newest set of each kind
+# carried onto the second recipient's medium on the same visit (ADR-0048).
 #
 # That claim has since been tested rather than merely asserted. #99 added
 # `converge`, an hourly job on a different cadence to everything above, and
@@ -73,12 +74,14 @@ groups:
         # first, and the two would collide into one alert.
         #
         # verify-key-backup is excluded because SecretsKeyBackupUnproven says
-        # something different about it and earns its own description, and
-        # verify-ca-key-backup for the same reason — CaKeyBackupUnproven.
-        # Both are human runs against a mounted medium: "check the journal"
-        # would be wrong advice for either.
+        # something different about it and earns its own description,
+        # verify-ca-key-backup for the same reason — CaKeyBackupUnproven —
+        # and offsite-copy for OffsiteCopyStale. All three are human runs
+        # against a mounted medium: "check the journal" would be wrong advice
+        # for any of them.
         expr: |
-          (time() - homelab_job_last_success_timestamp_seconds{homelab_job!~"verify-key-backup|verify-ca-key-backup"})
+          (time() - homelab_job_last_success_timestamp_seconds{
+              homelab_job!~"verify-key-backup|verify-ca-key-backup|offsite-copy"})
             > on(homelab_job) group_left() homelab_job_max_age_seconds
         for: 30m
         labels:
@@ -313,3 +316,44 @@ groups:
             needed. A re-minted CA starts here at never, on purpose. Get the
             offline copy out and run `make certs-verify-backup KEY=<path>`:
             docs/runbooks/back-up-the-ca-key.md.
+
+      - alert: OffsiteCopyStale
+        # The estate's three backup sets — the firewall export, the volume sets
+        # and the NAS set — are off-host on oracle and offsite on the medium
+        # that holds the second age recipient (ADR-0048). That medium visits
+        # this host every ninety days to prove its key, and backup-offsite.sh
+        # runs against it on the same visit: it re-verifies what the medium
+        # already holds, copies the newest set of each kind, and hashes the
+        # copy. It refuses a destination on this host's own filesystem, so a
+        # recorded success means a real medium was mounted. No timer can do
+        # that. What a timer CAN do is notice that nobody has.
+        #
+        # ONE SERIES, keyed on homelab_job, unlike the two key proofs. There is
+        # one copy of record — ADR-0024's "nothing records a copy" applies to
+        # sets as it does to keys, and a second medium would share this
+        # timestamp — so the wrapper's own job series is the honest count.
+        # Excluded from ScheduledJobStale above so the advice is "mount the
+        # medium" rather than "check the journal". The threshold is the
+        # offsite-copy row in install-timers.sh, the same ninety days as the
+        # key proofs, so one visit clears three alerts.
+        #
+        # ScheduledJobNeverRan covers the cold start: the row is declared at
+        # install and no success series exists until the first visit, which
+        # is the honest state and is expected until then.
+        expr: |
+          (time() - homelab_job_last_success_timestamp_seconds{homelab_job="offsite-copy"})
+            > on(homelab_job) group_left() homelab_job_max_age_seconds
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The offsite copy of the backup sets is {{ $value | humanizeDuration }} old"
+          description: >-
+            Nothing else here proves the firewall export, the volume sets and
+            the NAS set exist anywhere a fire in the rack would not reach —
+            oracle is on the same shelf. Mount the second recipient's medium
+            and run `make backup-offsite DEST=<path>`; it re-verifies what is
+            there, copies the newest of each kind and proves the copy:
+            docs/runbooks/copy-the-backups-offsite.md.
