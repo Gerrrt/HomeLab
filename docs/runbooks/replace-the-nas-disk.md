@@ -381,11 +381,20 @@ line.
   nothing else — was wrong. It is a mailbox, not a phone, and it is a cloud
   service `smaug` initiates a connection to, which is
   [#483](https://github.com/Gerrrt/HomeLab/issues/483)'s subject. Two ways
-  to something that pages, neither built: point TrueNAS's own alert service
-  at a channel that reaches a phone (System → Alert Settings → Add; the
-  estate's ntfy receiver is the obvious candidate if the type list offers
-  it), or have a periodic task on `smaug` write `zpool status` vdev states
-  to a textfile the exporter serves — the mechanism #483 argues about.
+  to something that pages were named here, and #483 chose the second for
+  SMART:
+  [ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)
+  runs the estate's collector as a root cron job on `smaug` and the exporter
+  serves the file, so once [`build-the-nas.md`](build-the-nas.md) §6.4 runs,
+  `SmartDriveBadSectors` fires per device on this host — and on this disk's
+  850 pending sectors it would have, thirty minutes in, while the pool still
+  said `ONLINE`. The faulted disk gets **no** baseline row; only the boot
+  SSD's four static sectors are recorded, and that row is confirmed on the
+  day (§6.4). The other half — a
+  periodic task writing `zpool status` vdev states into the same textfile
+  directory — rides the mechanism the ADR built and is its own follow-up.
+  TrueNAS's own alert service stays where it is, a mailbox and the web UI,
+  by decision rather than by default: the ADR declines it as the paging path.
 - **The exporter's hang was the fault, not a habit.** It came back on a
   restart within seven minutes of the console session, so `InstanceDown` is
   the NAS disk alert only while the device is still timing out I/O. The

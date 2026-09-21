@@ -26,8 +26,11 @@ this one ends
 > applied on `alexander` in §5, the first time `deploy-agent.sh`'s
 > `--monitoring-host` flag was used. Two things the first run found and this
 > runbook now carries: `VM.Monitor` is not a privilege on PVE 9, and the node
-> is `Saruman`, capitalised — and one it could not fix, #566: the hypervisor's
-> firewall was never on, so the `8006` line was not written.
+> is `Saruman`, capitalised — and one it could not fix here, #566: the
+> hypervisor's firewall was never on, so the `8006` line was not written that
+> day. It was written on 2026-09-20 under #566, with the firewall enabled and
+> the `local_network` alias narrowed; §4's CAUTION below records what that
+> found.
 
 This builds the host [ADR-0043](../adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
 decided: the one machine whose purpose is to hold credentials for other
@@ -198,10 +201,14 @@ IN ACCEPT -source 10.0.30.70 -p tcp -dport 8006 -log nolog
 > them, [`build-the-playground.md`](build-the-playground.md) §4, is gated on
 > #101 and had not run. Do not turn the firewall on as a side effect of this
 > line: a `DROP` input policy with the rules unrendered locks you out of a
-> machine whose console is a KVM switch away. **The line above was not
-> written**; [#566](https://github.com/Gerrrt/HomeLab/issues/566) carries
-> enabling the firewall with all four rules, with the console to hand, and
-> until it is done every address on this segment reaches `8006`.
+> machine whose console is a KVM switch away. **The line above was not written
+> that day**; [#566](https://github.com/Gerrrt/HomeLab/issues/566) did it on
+> 2026-09-20, with the console to hand, and found a second thing: enabling the
+> firewall is not enough on its own, because Proxmox admits the node's whole
+> subnet through a `management` set it builds itself.
+> [`build-the-playground.md`](build-the-playground.md) §4 has the ordering and
+> the `local_network` alias that close it. If you are reading this on a rebuilt
+> host where the files are absent again, start there rather than here.
 
 **On `phoenix`**, the credential and the key:
 
@@ -238,8 +245,8 @@ curl -sk -H "Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECR
 
 `alexander` and `phoenix` at minimum. A connection timeout is the door — the
 `host.fw` line is missing or the firewall was not reloaded (`pve-firewall
-compile` shows what it thinks the rules are) — or, while #566 is open, the
-network, because there is no door to be shut. A `401` is the token. An empty
+compile` shows what it thinks the rules are, and renders nothing at all while
+the firewall is disabled). A `401` is the token. An empty
 list with a `200` is the ACL: the user can reach the node and see no guests,
 which is also what a `PVEAuditor` grant on a mis-cased node path looks like.
 

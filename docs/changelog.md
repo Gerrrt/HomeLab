@@ -19,6 +19,48 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-20
 
+- **[#566](https://github.com/Gerrrt/HomeLab/issues/566) `Saruman`'s Proxmox
+  firewall is on, and ADR-0014's rule is true for the first time.** The rule
+  existed only in a runbook. Enabling it found a second thing: Proxmox had been
+  admitting the whole segment through a `management` set derived from the
+  node's own subnet, so narrowing `local_network` is what makes the ADR true
+  rather than the switch alone.
+  [#576](https://github.com/Gerrrt/HomeLab/issues/576) is the gauge and the
+  rule that keep it on.
+- **[#483](https://github.com/Gerrrt/HomeLab/issues/483) `smaug`'s SMART
+  arrives, and its patch state is declined on the record.**
+  [ADR-0047](adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)
+  puts SMART under the scrape by a root cron job on the host and the textfile
+  collector; patch state is declined for an appliance rather than left as a
+  silent gap. The boot disk's reallocated count is a confirmed baseline. So the
+  cost ADR-0016's scrape-don't-push reversal carried is now the logs alone
+  ([#255](https://github.com/Gerrrt/HomeLab/issues/255)), not SMART and patch
+  state with them.
+- **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Decided: the estate
+  shuts down on `mjolnir`'s signal from a NUT server on the firewall.**
+  [ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md),
+  not built. The issue found that nothing subscribed to the card for the one
+  thing a UPS is for, and that no document said what powers `smaug` — read at
+  the rack, it is the PDU by a long cord to the media room, so it is on the UPS
+  with `morpheus`, `Saruman` and `neo`, and `hardware.md` now carries a
+  *Powered by* column. It costs no purchase and no new path: the pfSense NUT
+  package has been installed since 2026-08-20 and never configured, the
+  firewall reaches the card with no rule, and both subscribers already reach
+  their gateway on 3493 under the catch-all — the two pass/block pairs
+  *narrow* that to one host per segment. The S3520's unsafe-shutdown counter
+  measures any cut the sequence misses, and
+  `SmartDriveUnsafeShutdownsGrowing` reads it over ADR-0047's cron job.
+- **[#573](https://github.com/Gerrrt/HomeLab/issues/573) Decided: the backup
+  sets ride with the second age recipient.**
+  [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md).
+  The newest set of each kind goes on the medium holding the second recipient,
+  carried by `make backup-offsite` on the ninety-day visit that medium already
+  owes, re-verified and hashed there, and nagged by `OffsiteCopyStale` past
+  ninety days. Everything that can be built is; the one thing that cannot is
+  the visit, so `ScheduledJobNeverRan` names the job, which is the honest
+  state. This retires the "off-host is not offsite" residual that #92 and the
+  volume sets had carried since 2026-09-19: it is owned now rather than
+  accepted.
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) `shiva` is polled over
   SNMPv3.** The user exists on the iLO, `auth_ilo` is the v3 block,
   *SNMPv1 Request* is off, and the iLO refuses its own former community over

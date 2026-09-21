@@ -199,6 +199,7 @@ inherits without knowing.
 | **Alert delivery to a destination you do not own** | Immediately, and silently | You do not. This is step 2 above, and it is the reason it is step 2 |
 | **The external heartbeat watcher** — a free-tier cron-monitor on somebody else's account | Whenever that account lapses | Nothing here can tell you. A watcher on this host would fail with the thing it watches, which is why it is off-host and therefore outside anything this repository can check |
 | **The age key backup goes unproven** | 90 days after the last verification, *per recipient* | `SecretsKeyBackupUnproven`, routed to the normal alert channel, naming the recipient — proving one copy does not clear another ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)). A recipient never proved is recorded as never, and fires; `SecretsKeyRecipientsUnrecorded` fires instead if the record itself is missing ([#400](https://github.com/Gerrrt/HomeLab/issues/400)) |
+| **The offsite copy of the backup sets goes stale** | 90 days after the last visit that carried them | `OffsiteCopyStale`, routed to the normal alert channel. Before the first visit it is `ScheduledJobNeverRan` naming `offsite-copy` instead, which is the honest state of a copy nobody has made ([`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)) |
 | **The CA key backup goes unproven** | 90 days after the last proof, and immediately after a re-mint | `CaKeyBackupUnproven`, routed to the normal alert channel. The proof is a comparison of public keys against a copy on the offline medium, keyed on the key's fingerprint so a re-minted root starts at never ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)) |
 | **Grafana's leaf certificate** | 825 days from issue; the APC card's own certificate expires on its own clock | `TlsCertificateExpiringSoon` at 30 days, `TlsCertificateExpiryImminent` at 7 — read off the served handshake by `blackbox-exporter`, not off a file. Let it lapse and `up{job="grafana"}` goes to 0 as well |
 | **The sensitive tier's certificates**, once `trinity` exists | Seven days after step-ca last answered Caddy — every leaf there is renewed automatically and lives a week, so the tier stays up for as long as its CA does ([ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)) | Nothing pages on it yet: the estate's expiry rules are sized for 825-day leaves and would fire permanently on seven-day ones, so the tier is deliberately outside them until [#426](https://github.com/Gerrrt/HomeLab/issues/426) lands. Until then a dead step-ca is found by a browser refusing the handshake, a week late |
@@ -232,6 +233,7 @@ fitted and proven.
 | The public recipients | [`.sops.yaml`](../../.sops.yaml) | Yes. It can only encrypt |
 | **The private key** | `~/.config/sops/age/keys.txt` on `prometheus`, mode 600, plus one offline copy | **Never.** Nothing in this repository or any backup of it can recover the private half |
 | **The estate CA's private key** | `certificates/ca-key.pem` on `prometheus`, mode 600, plus one offline copy on the same medium, proved with `make certs-verify-backup` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)) | **Never.** It was, once, and was purged; `certificates/` is gitignored and CI asserts it |
+| **The backup sets** — the firewall export, the volume sets, the NAS set | `backups/` on `prometheus`; the same on `oracle`, hashed there every morning; and the newest of each kind on the medium that holds the second age recipient — so whoever holds that key holds the sets it opens ([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md), [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)) | **Never.** Ciphertext to the estate's age recipients everywhere it exists; `backups/` is gitignored and CI asserts it |
 
 The encrypted file holds the Grafana admin login and renderer token, one SNMP
 community per polled device, and the four Alertmanager URLs. Details in
@@ -428,6 +430,7 @@ The remaining runbooks are task-shaped and are best read when you have the task:
 
 It does not replace the outgoing operator. Three things have no representation
 in this repository at all — the device admin passwords, the account holding the
-alert destinations, and the offline copy of the age key and the CA key — and a handover that
-does not transfer those has not happened, however carefully it is documented
-here.
+alert destinations, and the offline media: the one holding the age key's copy
+and the CA key, and the one holding the second recipient and, with it, the
+newest of the backup sets — and a handover that does not transfer those has
+not happened, however carefully it is documented here.

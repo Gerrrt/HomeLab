@@ -11,6 +11,12 @@
 > once the lab stops being a one-person project: that makes a loss problem read
 > as a headcount one. A second recipient, held offline and off this estate, is
 > now the design. The text here is left as written, per ADR-0001.
+>
+> [!NOTE]
+> "Off-host is not off-site", in the Consequences, has an owner since
+> 2026-09-20: [ADR-0048](0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
+> carries the newest of each set onto the medium that holds the second age
+> recipient, on its ninety-day visit. `oracle`'s role is unchanged.
 
 ## Context
 

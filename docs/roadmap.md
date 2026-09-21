@@ -74,11 +74,21 @@ Closes when it is empty.
 - **[#575](https://github.com/Gerrrt/HomeLab/issues/575) Silence hygiene.**
   Shares that date: the active silences expire 2026-10-08 and nothing warns
   before an expiry. Settled before the day, not after it.
-- **[#566](https://github.com/Gerrrt/HomeLab/issues/566) Enable `Saruman`'s
-  Proxmox firewall.** ADR-0014's rule exists only in a runbook, and the
-  `8006` line ADR-0043 added has no wall to go in.
-  [#576](https://github.com/Gerrrt/HomeLab/issues/576), under Saruman below,
-  watches what this turns on and follows it.
+- **[#573](https://github.com/Gerrrt/HomeLab/issues/573) Carry the backup sets
+  off the shelf.** Decided by
+  [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md):
+  the newest set of each kind rides on the medium that holds the second age
+  recipient, on the ninety-day visit that medium already owes. The mechanism
+  is built; the gate is the visit, and the issue closes on the first one.
+  → [runbook](runbooks/copy-the-backups-offsite.md)
+- **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
+  UPS's signal.** Decided by
+  [ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
+  nothing is built. No purchase and no new path between segments — the gate is
+  a rack visit, which builds it, proves the order with `upsmon -c fsd`, and
+  pulls the mains once to replace the card's 47-minute claim with a number.
+  Shares a window with #531's fit and, if its parts have landed, #444.
+  → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#442](https://github.com/Gerrrt/HomeLab/issues/442) WireGuard to the
   lab jumpbox.** Was gated on `phoenix`, which is built; the record
   [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
@@ -186,7 +196,9 @@ Closes when Wazuh and Velociraptor report the six agents in.
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
   [#562](https://github.com/Gerrrt/HomeLab/issues/562) and
   [#576](https://github.com/Gerrrt/HomeLab/issues/576)** are the host's own
-  blind spots, with no order between them; #576 follows #566 above.
+  blind spots, with no order between them. #576 watches the Proxmox firewall
+  that #566 turned on, so it is the one of the four that has already lost its
+  excuse for waiting.
 
 ## automation
 
@@ -244,7 +256,7 @@ in [`hardware.md`](hardware.md); a part in transit is its issue's to track.
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
-| An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
+| An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on. Not the estate's own backup sets: those ride with the second age recipient, [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md) | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC

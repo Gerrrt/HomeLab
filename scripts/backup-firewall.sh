@@ -56,7 +56,8 @@
 # checkout the timer runs from was behind this commit's parent.
 #
 # Same room, so this is off-host and not offsite. A fire still takes both.
-# Offsite is the half that still has no destination; see docs/roadmap.md.
+# Offsite is scripts/backup-offsite.sh (ADR-0048): the newest export rides on
+# the second age recipient's medium, carried there on its ninety-day visit.
 #
 # The verification pulls the bytes BACK and compares them against the file that
 # was just proven to decrypt — proving the remote holds a restorable backup

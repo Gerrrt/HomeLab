@@ -942,6 +942,48 @@ tests:
                 rising, SmartDriveBadSectorsGrowing will say so and the answer is
                 a disk. Check backups first.
 
+  # --- SmartDriveBadSectors: smaug, whose series arrive by scrape, at and above
+  # its recorded baseline. Every other host's SMART series come from Alloy and
+  # carry host + device; smaug's are a textfile under a scraped node_exporter
+  # (ADR-0047), so they also carry the target's instance, job, role and vlan,
+  # while the baseline row rendered on the monitoring host carries
+  # instance="prometheus". The join is on(host, device) and must not care, and
+  # the alert must keep the DRIVE's labels. 4 is the S3520's real, static count
+  # (hardware.md, render-smart-baselines.sh): quiet at 4, firing at 5.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "4x30 5x90"
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="smaug",device="/dev/sdc",instance="prometheus",job="prometheus-metrics"}'
+        values: "4x120"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: SmartDriveBadSectors
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: SmartDriveBadSectors
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdc
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdc has unreadable sectors"
+              description: >-
+                5 sector(s) or media error(s) the drive could not read
+                back — above the count recorded for this drive in
+                scripts/render-smart-baselines.sh, or on a drive with no count
+                recorded. Look at it: if the number is static and the drive's own
+                assessment passes, record it there and this goes quiet; if it is
+                rising, SmartDriveBadSectorsGrowing will say so and the answer is
+                a disk. Check backups first.
+
   # --- SmartDriveBadSectors: quiet on a clean drive -------------------------
   # All four inputs at zero, including the NVMe spelling, so the `or` chain is
   # exercised rather than only its first branch.
@@ -1148,6 +1190,19 @@ tests:
         alertname: SmartDriveBadSectorsGrowing
         exp_alerts: []
 
+  # --- SmartDriveBadSectorsGrowing: QUIET for smaug's boot SSD -------------
+  # The same shape as oracle's, with the scrape labels: four static sectors on
+  # the S3520, recorded as a baseline SmartDriveBadSectors reads, and this rule
+  # never reads it. It must stay quiet on a count that does not move.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "4x2600"
+    alert_rule_test:
+      - eval_time: 8d
+        alertname: SmartDriveBadSectorsGrowing
+        exp_alerts: []
+
   # --- SmartDriveBadSectorsGrowing: the NVMe spelling counts too -----------
   # A drive fails in whichever vocabulary its firmware uses; without this the
   # `or` chain could lose every branch after the first and still pass.
@@ -1175,6 +1230,63 @@ tests:
                 assessment to fail — SmartDriveUnhealthy is the firmware
                 conceding, and it concedes late. Check backups first.
 
+
+  # --- SmartDriveUnsafeShutdownsGrowing: fires the day the count moves -----
+  # smaug's S3520 at its recorded 509 for a day, then one more. Evaluated at
+  # 36h, the `offset 1d` lands inside the 509 run with twelve hours of the
+  # condition behind it for the `for`. 5m interval for the same lookback
+  # reason as above.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sda"}'
+        values: "509x288 510x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sda
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sda lost power uncleanly 1 time(s) in the last day"
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means the host
+                stopped without telling the disk — a mains cut that outlasted the
+                UPS with nothing acting on its signal, a crash, or a plug. Find the
+                event: UpsOnBattery and InstanceDown around the same time say
+                which. If a UPS shutdown sequence exists for this host (ADR-0048),
+                it did not run, and runbooks/shut-down-on-the-ups.md says how to
+                check it.
+
+  # --- SmartDriveUnsafeShutdownsGrowing: QUIET on the recorded 509 ---------
+  # The count the drive arrived with is history, not an event. A static 509
+  # must never page, or the first day of collection on smaug is a page about
+  # its previous owner.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sda"}'
+        values: "509x600"
+    alert_rule_test:
+      - eval_time: 2d
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts: []
+
+  # --- SmartDriveUnsafeShutdownsGrowing: QUIET again once a day has passed --
+  # The event has a date. Two days after it the day-old comparison is
+  # 510 against 510, and the alert must have resolved rather than following
+  # the drive around for the rest of its life the way a static count would.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sda"}'
+        values: "509x288 510x600"
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts: []
+
   # --- SmartDriveBadSectorsGrowing: quiet for a clean drive ----------------
   - interval: 5m
     input_series:
@@ -1183,6 +1295,59 @@ tests:
     alert_rule_test:
       - eval_time: 8d
         alertname: SmartDriveBadSectorsGrowing
+        exp_alerts: []
+
+  # --- SmartStateStale: fires when the file stops being rewritten ------------
+  # node_exporter re-serves the .prom on every scrape, so the series is present
+  # throughout; only the mtime it exports goes stale. A file written at t=0 and
+  # never again is 49 hours old at 49h, past the two-day line for 55 minutes —
+  # longer than `for`. smaug's labels, because smaug's cron is the collector
+  # with nothing else watching it (ADR-0047); the `file` value is the full path
+  # the container sees, and the rule's regex has to match that spelling.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="smaug",job="node",role="nas",vlan="40",file="/textfile/smart-state-smaug.prom"}'
+        values: "0x700"
+    alert_rule_test:
+      - eval_time: 49h
+        alertname: SmartStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              file: /textfile/smart-state-smaug.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "smaug has not rewritten /textfile/smart-state-smaug.prom in two days"
+              description: >-
+                The SMART textfile is 2d 1h 0m 0s old and node_exporter
+                re-serves its last contents on every scrape, so every
+                homelab_smart_* series from it is present, plausible and stale —
+                SmartDriveBadSectors and its siblings are blind to this host
+                until it is rewritten. On smaug the writer is a cron job in
+                TrueNAS's UI (System → Advanced Settings → Cron Jobs;
+                build-the-nas.md §6.4); on an Alloy host it is
+                homelab-smart-state.timer or, for morpheus,
+                homelab-smart-state-remote.timer on the monitoring host. Check
+                the job still exists and that its last run wrote the file.
+
+  # --- SmartStateStale: quiet while a daily job keeps rewriting it ----------
+  # The mtime jumps by a day once a day, so at any instant the file is at most
+  # a day old — half the line. And a textfile that is NOT the SMART one, at any
+  # age, must not match: the regex is the whole scope of the rule.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="smaug",job="node",role="nas",vlan="40",file="/textfile/smart-state-smaug.prom"}'
+        values: "0x288 86400x288 172800x288"
+      - series: 'node_textfile_mtime_seconds{instance="prometheus",job="prometheus-metrics",file="apt-patch-state.prom"}'
+        values: "0x864"
+    alert_rule_test:
+      - eval_time: 49h
+        alertname: SmartStateStale
         exp_alerts: []
 
   # --- HostOnBattery: fires when the mains adapter reports no input ---------
