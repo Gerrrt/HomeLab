@@ -594,9 +594,12 @@ rather than for the fleet:
   SHA and AES since 2026-09-20, and its *SNMPv1 Request* switch is off** —
   the iLO refuses its own former community over v2c, proved with
   `snmp-verify.sh --old` the same day, so that poll is no longer readable
-  from the lab segment. The UPS card follows on the same procedure. The
-  firewall **cannot**
-  move without losing what it is polled for: bsnmpd is the only daemon that
+  from the lab segment. **The UPS card followed on the same procedure** —
+  its profile created the same day, its poll over authPriv from 2026-09-21 —
+  and whether its SNMPv1 access is switched off yet is on the issue. So two
+  of the four polls are encrypted, and the two that are not both ride on
+  Winterfell. The firewall **cannot** move without losing what it is polled
+  for: bsnmpd is the only daemon that
   serves the pf MIB, and pfSense writes no v3 user for it — checked on the box
   on 2026-09-09. The switch stays on v2c; its agent answers v3 on the wire,
   and whether its UI can create a user is the unchecked half. Which devices

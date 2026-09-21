@@ -17,6 +17,33 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-21
+
+- **[#85](https://github.com/Gerrrt/HomeLab/issues/85) `mjolnir` is polled
+  over SNMPv3 too, and the UPS shutdown runbook was waiting on a key name
+  that never existed.** The card's profile was created on 2026-09-20 beside
+  the iLO's — `prometheus`, SHA, AES, an access-control entry for
+  `10.0.99.20` and nothing else — and `auth_apc` became the v3 block today,
+  verified against the live card before the exporter switched. Both devices
+  ADR-0036 names are now encrypted; the firewall and the switch stay on v2c
+  for the reasons it gives, and both of those polls ride on Winterfell. The
+  card's SNMPv1 is still enabled, so §4.5 is what is left and the issue is
+  still open.
+
+  Moving it found two things. The
+  [shutdown runbook](runbooks/shut-down-on-the-ups.md), written while the
+  card was still on v2c, named the v3 keys `SNMP_AUTHPASS_MJOLNIR` /
+  `SNMP_PRIVPASS_MJOLNIR` — names that have never existed, because every
+  tool derives them from the auth label, `auth_apc`, and not from the device.
+  Someone building the NUT server would have searched SOPS for a key that is
+  not there. And §4.5 gained the check
+  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
+  asked it for: anything else holding the device's community moves before v1
+  goes off, because a consumer left on v2c is what keeps v2c enabled, and it
+  fails silently — the exporter stays green throughout. That consumer does
+  not exist yet here, so there was nothing to move.
+  → [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3)
+
 ## 2026-09-20
 
 - **[#566](https://github.com/Gerrrt/HomeLab/issues/566) `Saruman`'s Proxmox

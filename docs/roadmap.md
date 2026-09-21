@@ -62,10 +62,13 @@ Closes when it is empty.
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Move the iLO and the
   UPS card to SNMPv3.** Decided by
   [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md);
-  the repository side is built and the iLO is polled over v3. What is left is
-  `mjolnir`, same procedure, device first. Independent of #444 — the switch
-  was never what blocked it, and the CRS326 is commissioned with an authPriv
-  user by the same runbook.
+  the repository side is built and **both devices are polled over v3** — the
+  iLO since 2026-09-20, the UPS card since 2026-09-21. What is left is one
+  step on the card: SNMPv1 access switched off in its web UI and the old
+  community proved refused with `snmp-verify.sh --old`, which is what §4.5
+  is and what closes this. Independent of #444 — the switch was never what
+  blocked it, and the CRS326 is commissioned with an authPriv user by the
+  same runbook.
   → [runbook §4](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3)
 - **[#531](https://github.com/Gerrrt/HomeLab/issues/531) Fit `oracle`'s
   cell.** The cell is bought. What closes it is the fit, the mains pull, and

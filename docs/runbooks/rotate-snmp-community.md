@@ -531,7 +531,20 @@ discarding`, measured against the pinned image.
 ### 4.5 Turn SNMPv1 off, then prove it
 
 Only once §4.4 is green. On the iLO, *SNMPv1 Request* → Disabled; on the
-card, **Configuration → Network → SNMPv1 → Access** → disabled. Then:
+card, **Configuration → Network → SNMPv1 → Access** → disabled.
+
+> **Anything else holding this device's community has to move first.** A
+> second consumer left on v2c is what keeps v2c enabled, and switching it off
+> underneath one breaks that consumer rather than the exporter — which is the
+> failure this repository is worst at noticing, because the exporter stays
+> green. For `mjolnir` that consumer is the NUT driver the
+> shutdown-on-the-UPS decision puts on `morpheus`; on 2026-09-21, when the
+> card moved, it did not exist yet — the package is installed and
+> unconfigured — so there was nothing to move.
+> [`shut-down-on-the-ups.md`](shut-down-on-the-ups.md) builds it with the v3
+> pair from the start. Check for a consumer before this step, not after.
+
+Then:
 
 ```bash
 ./scripts/snmp-verify.sh --old
