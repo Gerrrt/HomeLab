@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-107 rules in total: 89 metric-based in `prometheus/rules/`, and 18 log-based in
+108 rules in total: 90 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -450,7 +450,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-89 rules across eleven files in `prometheus/rules/`:
+90 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -473,7 +473,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is sixty-nine rules of 89 so far — the five
+against the broken rule too. Coverage is seventy rules of 90 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
@@ -481,7 +481,7 @@ in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `backup.test.yaml`, all five in `deploy.test.yaml`, `RemoteWriteJobStale`,
 `ScrapeTargetDisappeared`,
 `SuricataStopped`, the two gateway rules from
-[#353](https://github.com/Gerrrt/HomeLab/issues/353), and all twenty-six in
+[#353](https://github.com/Gerrrt/HomeLab/issues/353), and all twenty-seven in
 `host.rules.yaml` —
 `HostDiskWillFillIn24h` from [#189](https://github.com/Gerrrt/HomeLab/issues/189),
 six more from [#320](https://github.com/Gerrrt/HomeLab/issues/320), the four
@@ -493,8 +493,9 @@ the two guest rules from [#257](https://github.com/Gerrrt/HomeLab/issues/257),
 the three laptop-battery rules from
 [#454](https://github.com/Gerrrt/HomeLab/issues/454),
 `HostClockUnsynchronised` from [#519](https://github.com/Gerrrt/HomeLab/issues/519),
-and the cell-temperature and runtime rules from
-[#532](https://github.com/Gerrrt/HomeLab/issues/532).
+the cell-temperature and runtime rules from
+[#532](https://github.com/Gerrrt/HomeLab/issues/532), and `SmartStateStale`
+from [#483](https://github.com/Gerrrt/HomeLab/issues/483).
 The other 20 are still validated for syntax only, which is exactly the
 standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
 sentence they replaced claimed six and named two, and had been wrong for
