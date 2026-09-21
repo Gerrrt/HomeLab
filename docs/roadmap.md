@@ -459,7 +459,7 @@ either machine is.
   flood exists to re-derive from — 2026-09-18.
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
   UPS's signal, and measure the pack once.** Decided 2026-09-20 by
-  [ADR-0048](adr/0048-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
+  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
   not built. The issue found that nothing subscribes to `mjolnir` for the one
   thing a UPS card is for and that no document said what powers `smaug` —
   the answer, read at the rack, is the PDU by a long cord to the media room,

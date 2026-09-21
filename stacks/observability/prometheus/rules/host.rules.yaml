@@ -654,11 +654,11 @@ groups:
             Check backups first.
 
       - alert: SmartDriveUnsafeShutdownsGrowing
-        # The measure of a power cut nobody planned for (#574, ADR-0048).
+        # The measure of a power cut nobody planned for (#574, ADR-0049).
         #
         # A clean shutdown on the UPS's signal does not move a drive's
         # unsafe-shutdown counter, and a cut shorter than the pack does not
-        # either, so any growth is a stop that the sequence ADR-0048 decides
+        # either, so any growth is a stop that the sequence ADR-0049 decides
         # did not catch — or, before that sequence exists, a stop nothing
         # tried to catch. smaug's boot disk arrived carrying 509 of them in 538
         # power cycles from its previous owner, which is how a box with no
@@ -688,7 +688,7 @@ groups:
             stopped without telling the disk — a mains cut that outlasted the
             UPS with nothing acting on its signal, a crash, or a plug. Find the
             event: UpsOnBattery and InstanceDown around the same time say
-            which. If a UPS shutdown sequence exists for this host (ADR-0048),
+            which. If a UPS shutdown sequence exists for this host (ADR-0049),
             it did not run, and runbooks/shut-down-on-the-ups.md says how to
             check it.
       - alert: SmartStateStale
