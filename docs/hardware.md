@@ -246,7 +246,18 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `M391A1G43EB1-CPBQ` — 8 GB 2Rx8 PC4-2133P, ECC unbuffered, date code 1728 —
   in one of four slots. More memory is therefore an add and not a replace, and
   the part to match is ECC **unbuffered**: a registered DIMM will not run on
-  this board. The board takes four DDR4 UDIMMs at 2133 or 2400 to a maximum of
+  this board. **The label was photographed on 2026-09-21 and reads
+  `PC4-2133P-EE1-11`**, which is the same constraint in the form a listing
+  photograph can be checked against: in the JEDEC module marking the two
+  letters after the speed grade are the module type, and `EE` is ECC
+  unbuffered. `RA` or `RB` is registered and will not POST here, `LD` is
+  load-reduced and will not either, and `UA` or `UB` is unbuffered without
+  ECC — which this board does accept, and which
+  [ADR-0040](adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)
+  rules out anyway, ECC being ZFS's home ground. Read those two letters rather
+  than the vendor part number: most DDR4 sold as server memory is `RA`. The
+  same label confirms every field this entry already carried, which is why it
+  is recorded as a check rather than a correction. The board takes four DDR4 UDIMMs at 2133 or 2400 to a maximum of
   64 GB, so 8 GB is an eighth of what it holds and three slots are empty.
   [#599](https://github.com/Gerrrt/HomeLab/issues/599) takes it to 32 GB —
   half the ceiling, with two slots still free — and the kit lands in this
