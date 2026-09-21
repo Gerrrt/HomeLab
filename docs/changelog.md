@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-21
 
+- **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Closed: both devices
+  ADR-0036 names are on SNMPv3 authPriv, and neither answers a community.**
+  SNMPv1 went off on the UPS card the same day its poll moved, and
+  `snmp-verify.sh --old` reported its former community `rejected` — the
+  check that proves it, because that probe is v2c whatever the device speaks
+  now. The confirming verify afterwards is green, as is the whole fleet.
+  The estate is mixed on purpose and the documents say which is which: the
+  firewall stays on v2c because bsnmpd is the only daemon that serves the pf
+  MIB, the switch until [#444](https://github.com/Gerrrt/HomeLab/issues/444)
+  replaces it, and both of those polls ride on Winterfell.
+
+  **What v3 costs, measured on the card rather than assumed** — the walk is
+  58 varbinds, so one engine-discovery round trip is the whole difference:
+  0.038 s over the ten minutes after the switchover against 0.031 s over the
+  24 hours before it. Two transients, both explained rather than left in the
+  average: the first v3 scrape took 0.188 s, and one scrape took 10.0 s at
+  the moment SNMPv1 was switched off, which is the NMC restarting its network
+  interface on save exactly as the runbook warns. The next scrape was 0.041 s
+  and `up` never dropped. On the iLO the same measurement was 12.09 s against
+  12.05 s.
+
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) `mjolnir` is polled
   over SNMPv3 too, and the UPS shutdown runbook was waiting on a key name
   that never existed.** The card's profile was created on 2026-09-20 beside
