@@ -80,12 +80,17 @@ Closes when it is empty.
   → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#294](https://github.com/Gerrrt/HomeLab/issues/294) Add a second age
   recipient.** The implementation half of
-  [#106](https://github.com/Gerrrt/HomeLab/issues/106), which states the risk
-  and stops where the decision starts: `.sops.yaml` takes multiple recipients,
-  so the mechanism costs nothing and what it needs is somewhere to put the
-  second key. Decryption depends on one key held by one person until it lands,
-  and [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
-  already assumes that medium exists — #573's offsite copy rides on it.
+  [#106](https://github.com/Gerrrt/HomeLab/issues/106), decided by
+  [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
+  and held by the technical second named on the break-glass card. The
+  recipient is added and the file re-keyed: `.sops.yaml` and the ciphertext
+  carry two, and either opens the secrets. The gate is the first proof of the
+  new copy, which is the visit #573 also rides — the check refuses the live
+  key by device and inode, so no timer can clear it and the medium has to be
+  brought to this host. `SecretsKeyBackupUnproven` names that recipient until
+  then, which the runbook calls the honest reading of a backup nobody has
+  tested rather than a fault.
+  → [runbook](runbooks/back-up-the-age-key.md)
 - **[#604](https://github.com/Gerrrt/HomeLab/issues/604) Watch the dynamic DNS
   record.** [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
   recorded the gap and left it to a follow-up. Since
