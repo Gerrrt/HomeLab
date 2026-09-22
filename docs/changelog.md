@@ -19,6 +19,38 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-22
 
+- **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf is
+  authored for `stacks/media`, and the issue's one-line firewall claim was
+  wrong.** It said no rule beyond #138's 50→40 would be needed; there is no
+  such rule, only `443` and `8096` passes, one per port, and the phones are on
+  Hicks. So the service brings a fifth pass, `Allow 13378 to smaug`, created
+  when it is deployed rather than now.
+  [ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)
+  records that, and records audiobooks only, with podcasts deferred behind a
+  read-only library mount. It also records that `scripts/backup-nas.sh`
+  pulls a table of archives, not one path, all from one snapshot. Without
+  that, the database holding every listener's position would have been
+  snapshotted nightly and never left the NAS.
+
+  **Measured on the pinned image before a line was written.** It binds port
+  80 by default, which a capability-less non-root process cannot. `/config`
+  and `/metadata` don't exist in the image. Its entrypoint is `tini`. The
+  database is in rollback-journal mode, not WAL. Idle RSS is 91 MiB. The
+  admin reset was proved on a scratch boot rather than described from
+  upstream: clear `root`'s hash, sign in blank, and the old password is
+  refused.
+
+  **The pull learned to wait for a deploy.** The mirror is degraded (#558),
+  and the deploy waits on it. A pull that demanded Audiobookshelf's directory
+  would therefore have failed every Saturday's Jellyfin set until then. The
+  row is `pending`: skipped by name while its directory is absent, pulled
+  strictly once it is present, and flipped to `required` by §6.5's Done
+  commit. Verification now reads each set against its own MANIFEST, so the
+  two retained Jellyfin-only sets still verify. Both were re-verified with
+  the new script, and a bench pull against a fake snapshot tree on `oracle`
+  covered all three branches: skipped, refused for a missing sentinel with no
+  MANIFEST, and two archives verified.
+
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate drive
   is bought, and buying it settles less than the row implied.** A WD Elements
   Portable 5 TB, `WDBU6Y0050BBK-WESN`, bus-powered USB 3.2 Gen 1. The second

@@ -121,7 +121,7 @@
 # WHEN SOURCED
 #
 # scripts/backup-nas.sh sources this file rather than running it: it pulls
-# Jellyfin's state off smaug over ssh (ADR-0045), a job this script's docker-
+# the media tier's state off smaug over ssh (ADR-0045), a job this script's docker-
 # and-quiesce shape cannot do, and it wants the same sentinel table, the same
 # verify() and the same set layout rather than a second copy of them. The
 # guard just above the argument parsing returns to the caller, so everything
@@ -339,6 +339,16 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # checkpoints it into a 536 KB main file with no -wal at all. A ZFS snapshot
 # taken while Jellyfin runs carries all three files (db, -wal, -shm) at one
 # instant, which is what makes reading one consistent; see COMPANIONS.
+#
+# Audiobookshelf's (audiobookshelf-state) is the second such archive name, and
+# the one directory holds both of its bind mounts, config/ and metadata/
+# (ADR-0050). Read off a boot of the pinned image on 2026-09-22, read-only as
+# 65534: ./config/absdatabase.sqlite exists before the listener answers, with
+# ./config/migrations beside it; ./metadata/items/<id>/metadata.json appears
+# on the first scan and ./metadata/logs on the first boot. The database is in
+# rollback-journal mode, not WAL (`PRAGMA journal_mode` reads `delete`), so
+# there is no -wal to list: a hot -journal is only ever present mid-write, and
+# a snapshot that caught one carries it at the same instant as the database.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -357,6 +367,7 @@ declare -A SENTINEL=(
   [paperless-db-data]="./18/docker/PG_VERSION"
   [paperless-broker-data]="./dump.rdb"
   [jellyfin-config]="./data/jellyfin.db"
+  [audiobookshelf-state]="./config/absdatabase.sqlite"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -388,6 +399,7 @@ declare -A COMPANIONS=(
   [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
   [paperless-broker-data]=""
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
+  [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and
@@ -403,9 +415,9 @@ declare -A COMPANIONS=(
 # on smaug, where this script does not, so the entry exists to make
 # `STACK=media backup-volumes.sh --inventory` say the true thing — nothing in
 # that file is this script's to archive — instead of dying over a sentinel.
-# What IS archived from that host is backup-nas.sh's, and it is a bind mount
-# on erebor/apps rather than a volume, which is why no jellyfin-config is
-# declared there at all (ADR-0045).
+# What IS archived from that host is backup-nas.sh's, and it is bind mounts
+# on erebor/apps rather than volumes, which is why neither jellyfin-config nor
+# audiobookshelf-state is declared there at all (ADR-0045, ADR-0050).
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
   [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"
@@ -439,7 +451,11 @@ parse_compose() {
     in_services && /^    volumes:[[:space:]]*$/ { inlist = 1; next }
     in_services && /^    [A-Za-z_<]/           { inlist = 0 }
     in_services && inlist && /^      - / {
-      if ($2 ~ /^[.\/]/) next
+      # A bind mount is a host path, and one spelled as a variable is still
+      # one: stacks/media names every host path through .env, and a source
+      # like ${X:?}/config would otherwise split on its own colon into a
+      # "volume" called ${X that two mounts share (#140).
+      if ($2 ~ /^[.\/$]/) next
       split($2, p, ":")
       if (p[1] == "" || p[2] == "") next
       printf "mount\t%s\t%s\t%s\n", p[1], svc, p[2]

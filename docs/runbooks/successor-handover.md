@@ -146,7 +146,7 @@ make validate
 
 `make validate` runs everything CI runs, plus one check that is about *this
 host*: whether the stack runs here while no `homelab-*` units are installed. The
-schedule covers convergence, the volume backups, the pull of Jellyfin's state
+schedule covers convergence, the volume backups, the pull of the media tier's state
 off `smaug`, the firewall export, the SNMP verification and the dashboard
 drift check —
 [`schedule-maintenance.md`](schedule-maintenance.md) has the table and the
@@ -349,7 +349,7 @@ new keypair whose public half matches nothing.
 | --- | --- |
 | The whole observability stack (`make down`) | The record, and only the record. Nothing in the house depends on it, dashboards and alert rules are in git, and metrics and logs re-accumulate. `grafana-data` is the exception — users, annotations and any un-exported dashboard edit live only there |
 | `stacks/lab` | Nothing. It is committed and deployable and has never been deployed |
-| `stacks/media` | Film night, and the watch positions if `jellyfin-config` goes with it. Nothing else depends on it, and [ADR-0008](../adr/0008-place-services-by-data-trust.md) already ruled the library replaceable |
+| `stacks/media` | Film night and the audiobooks, and the watch and listening positions if `/mnt/erebor/apps` goes with it. Nothing else depends on it, and [ADR-0008](../adr/0008-place-services-by-data-trust.md) already ruled the library replaceable |
 | `homelab-converge.timer` | Automatic deployment. The host stays on whatever revision it is on until someone runs `make up`, which is exactly how it worked before |
 | `dashboards-drift` | The daily proof that Grafana holds no uncommitted dashboard edit |
 | Suricata on the terminal segments | Detection, not connectivity. It is alert-only — `Block Offenders` is off on both interfaces and stays off. [`enable-suricata.md`](enable-suricata.md) |

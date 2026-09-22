@@ -784,7 +784,7 @@ has stopped leaving this host"; since
 [#535](https://github.com/Gerrrt/HomeLab/issues/535) `backup-volumes` does the
 same with each weekly set; and since
 [#484](https://github.com/Gerrrt/HomeLab/issues/484) `backup-nas` — the one
-job that first *fetches* from another host, Jellyfin's state off `smaug` —
+job that first *fetches* from another host, the media tier's state off `smaug` —
 copies its set the same way. `verify-backups` hashes the far side of both
 set directories every morning. No rule names any of the three; the generic
 pair carries them all.

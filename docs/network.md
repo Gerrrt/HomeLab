@@ -341,7 +341,14 @@ Televisions and consoles. Internet only.
   on `9100` and `22` — four host-scoped, port-scoped passes above *Block access
   to CasaBonita* on their interfaces. Everything else on every other segment is
   still refused, and the televisions need no rule at all because they share this
-  broadcast domain with the server.
+  broadcast domain with the server. **A fifth is specified and not yet
+  created**: Hicks to `10.0.40.30:13378`, `Allow 13378 to smaug`, for
+  Audiobookshelf, whose clients are the phones on this list rather than the
+  televisions
+  ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
+  It is created when the service is deployed
+  ([`build-the-nas.md`](runbooks/build-the-nas.md) §6.5), and this bullet
+  says five on that day.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
