@@ -274,7 +274,15 @@ read-only user, reachable from `10.0.99.20` alone by the rule that already
 existed. The residual it leaves, accepted, is one more service on the NAS
 with one more key that reads it — a key that lives on the host already
 holding the estate's age identity, and reads a directory that includes
-Jellyfin's users' password hashes.
+Jellyfin's users' password hashes — and, once Audiobookshelf is deployed,
+its users' hashes too, in the same pull
+([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
+**A fifth is specified and not created:** `vlan50 net → 10.0.40.30:13378`
+for Audiobookshelf, whose clients are phones on Hicks. The issue that
+proposed it said no new rule would be needed; the Hicks passes are per
+port, so one is. It is created when the service is deployed
+([`build-the-nas.md`](runbooks/build-the-nas.md) §6.5), because a pass to a
+port nothing answers on cannot be proved.
 [`network.md`](network.md) holds the current list. **Skids' does not exist.**
 `10.0.99.40 → 10.0.20.104:80,443/tcp` — Home Assistant to the Hue bridge, the
 one device on that segment with a local API — still waits above the block that
@@ -290,7 +298,9 @@ game consoles share that broadcast domain and the firewall never sees those
 packets — the same property that lets them reach Jellyfin, working the other
 way. node_exporter has no write API, so the exposure is disclosure of the
 host's shape: filesystems, uptime, load. Accepted, and the same class as the
-unauthenticated ports the observability stack publishes.
+unauthenticated ports the observability stack publishes. Audiobookshelf's
+`13378` is reachable the same way and is not the same residual: everything
+there but its health and status endpoints wants a login.
 
 The row ADR-0008wrote as `99 → 20` is narrower than it read: one host to one device on two
 ports, with the twenty other devices on Skids still unreachable from anywhere,
@@ -424,8 +434,11 @@ assumption consistent with what they are.
   the deviation and what would retire it.
 - **The media tier keeps its admin credential outside SOPS too, and has no
   secrets file at all.** Jellyfin's `admin` is created by its own setup wizard
-  and kept as a hash in `jellyfin.db` inside the `jellyfin-config` volume; no
-  environment variable or rendered file is a way to hand it in, so
+  and kept as a hash in `jellyfin.db` under its `/config` bind mount, and
+  Audiobookshelf's `root` is created on its first-run screen and kept as a
+  hash in `absdatabase.sqlite`
+  ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md));
+  no environment variable or rendered file is a way to hand either in, so
   `stacks/media` has no `secrets/media.*` and no `.sops.yaml` rule — on
   purpose, decided on [#528](https://github.com/Gerrrt/HomeLab/issues/528),
   and not because the stack was deployed by hand. The plaintext is in the
@@ -433,10 +446,9 @@ assumption consistent with what they are.
   protects it is a hash at rest, VLAN 40's terminal property, the `50 → 40`
   passes being the only way in, and
   [ADR-0008](adr/0008-place-services-by-data-trust.md)'s blast radius — a
-  media server whose data is replaceable. Audiobookshelf
-  ([#140](https://github.com/Gerrrt/HomeLab/issues/140)) and Navidrome
-  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) create their first
-  user the same way and join this bullet when they land. What would retire
+  media server whose data is replaceable. Navidrome
+  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) creates its first
+  user the same way and joins this bullet when it lands. What would retire
   it: a service on that tier taking a credential from outside. Then the tier
   gets `secrets/media.sops.yaml` and a rule of its own under
   [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md),
