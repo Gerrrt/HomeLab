@@ -297,12 +297,16 @@ smart-state: ## Collect SMART health from THIS host's disks (needs root) and ren
 	fi
 
 .PHONY: gateway-state
-gateway-state: ## Collect the firewall's view of its uplinks (#353)
+gateway-state: ## Collect the firewall's view of its uplinks and DDNS record (#353, #604)
 	@# Two measurements per family: what pfSense reports, and whether traffic of
 	@# that family actually leaves the building. They disagreed on 2026-09-07 —
 	@# WAN_DHCP6 reported 100% loss while v6 reached the internet through it in
 	@# 11ms, because dpinger was pointed at a link-local address that does not
 	@# answer echo. One measurement alone cannot tell those apart.
+	@#
+	@# And whether the remote path's dynamic DNS name still resolves, at a
+	@# public resolver, to the WAN address (#604). Compared on the firewall:
+	@# the name and the address are both withheld, and only the verdict comes back.
 	./scripts/collect-gateway-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
 
 .PHONY: silence-state

@@ -559,3 +559,86 @@ tests:
       - eval_time: 45m
         alertname: GatewayDown
         exp_alerts: []
+
+  # --- DdnsRecordStale: fires once a mismatch outlasts an update ------------
+  # The textfile is rewritten every 15 minutes; a 1m interval stands in for
+  # the scrape. Mismatch from 10m, so 45m is too soon and 80m is not.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_ddns_record_checked{host="morpheus"}'
+        values: "1x120"
+      - series: 'homelab_ddns_record_matches_wan{host="morpheus"}'
+        values: "1x10 0x110"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: DdnsRecordStale
+        exp_alerts: []
+      - eval_time: 80m
+        alertname: DdnsRecordStale
+        exp_alerts:
+          - exp_labels:
+              host: morpheus
+              component: network
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "morpheus: the remote path's DNS name does not resolve to the WAN address"
+              description: >-
+                A public resolver answers the dynamic DNS name with something
+                other than the address the WAN holds, or with nothing. Either
+                the record is stale — the updater failed, its token was
+                rotated, the provider dropped the entry — or the WAN address
+                changed and the update has not landed. The tunnel cannot be
+                reached by name until it matches. First move: Services →
+                Dynamic DNS on morpheus, Force update. Then
+                docs/runbooks/open-the-remote-path.md §0.
+      - eval_time: 80m
+        alertname: DdnsRecordUnchecked
+        exp_alerts: []
+
+  # --- A check that cannot run is Unchecked, and never Stale ----------------
+  # The collector omits matches_wan when the comparison did not run, so a
+  # resolver outage must not read as a wrong record.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_ddns_record_checked{host="morpheus"}'
+        values: "0x480"
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: DdnsRecordUnchecked
+        exp_alerts: []
+      - eval_time: 7h
+        alertname: DdnsRecordUnchecked
+        exp_alerts:
+          - exp_labels:
+              host: morpheus
+              component: network
+              severity: warning
+              category: config
+            exp_annotations:
+              summary: "morpheus: the dynamic DNS record has not been checked for 6h"
+              description: >-
+                The collector could not compare the dynamic DNS name with the
+                WAN address — the public resolver did not answer, ssh to the
+                firewall failed, or no enabled Dynamic DNS entry exists. This
+                says nothing about whether the record is right; it says
+                nothing is watching it. Run `make gateway-state` and read its
+                last line.
+      - eval_time: 7h
+        alertname: DdnsRecordStale
+        exp_alerts: []
+
+  # --- A matching record stays quiet ----------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_ddns_record_checked{host="morpheus"}'
+        values: "1x480"
+      - series: 'homelab_ddns_record_matches_wan{host="morpheus"}'
+        values: "1x480"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: DdnsRecordStale
+        exp_alerts: []
+      - eval_time: 7h
+        alertname: DdnsRecordUnchecked
+        exp_alerts: []

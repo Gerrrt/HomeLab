@@ -395,3 +395,53 @@ groups:
             gateway's Monitor IP at something that answers, or set it to
             not-monitored. Until then the gateway's real state cannot be read
             from its status.
+
+      # --- The remote path's dynamic DNS record (#604) -----------------------
+      #
+      # ADR-0044 keeps the WireGuard endpoint as a name updated by `morpheus`,
+      # and the WAN address is sticky: a broken updater hides until the day
+      # the address moves, and the person who finds out is outside the house.
+      # scripts/collect-gateway-state.sh compares the name, as a public
+      # resolver answers it, with the WAN address — on the firewall, so the
+      # series carries the verdict and neither value.
+
+      - alert: DdnsRecordStale
+        # 1h is four consecutive 15-minute samples. A DHCP change pushes the
+        # update on the event and a free zone's TTL is about a minute, so a
+        # mismatch that outlasts an hour is not an update in flight.
+        expr: homelab_ddns_record_matches_wan == 0
+        for: 1h
+        labels:
+          component: network
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }}: the remote path's DNS name does not resolve to the WAN address"
+          description: >-
+            A public resolver answers the dynamic DNS name with something other
+            than the address the WAN holds, or with nothing. Either the record
+            is stale — the updater failed, its token was rotated, the provider
+            dropped the entry — or the WAN address changed and the update has
+            not landed. The tunnel cannot be reached by name until it matches.
+            First move: Services → Dynamic DNS on morpheus, Force update. Then
+            docs/runbooks/open-the-remote-path.md §0.
+
+      - alert: DdnsRecordUnchecked
+        # The comparison could not run: the resolver did not answer, the
+        # firewall could not be asked, or config.xml holds no enabled entry.
+        # Without this a broken check reads as silence, which is the failure
+        # #604 exists to close. 6h, because a resolver blink is not news.
+        expr: homelab_ddns_record_checked == 0
+        for: 6h
+        labels:
+          component: network
+          severity: warning
+          category: config
+        annotations:
+          summary: "{{ $labels.host }}: the dynamic DNS record has not been checked for 6h"
+          description: >-
+            The collector could not compare the dynamic DNS name with the WAN
+            address — the public resolver did not answer, ssh to the firewall
+            failed, or no enabled Dynamic DNS entry exists. This says nothing
+            about whether the record is right; it says nothing is watching it.
+            Run `make gateway-state` and read its last line.
