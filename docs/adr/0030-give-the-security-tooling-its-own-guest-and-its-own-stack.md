@@ -8,6 +8,18 @@
 > The address, the rules and the decision are unchanged — only the label. The
 > text here is left as written, per ADR-0001. `zion` is now reserved for the
 > dedicated firewall cold spare ADR-0034 defers, which does not exist.
+>
+> **2026-09-22: `odin` goes on `large_data`, the SSD pool.** The "~90 random
+> write IOPS" this ADR prices against was derived, not measured;
+> [#527](https://github.com/Gerrrt/HomeLab/issues/527) measured the HDD mirror
+> at 741 and the SSD mirror fitted as `large_data` at 7,952, at 4 KiB queue
+> depth 1, and `alexander` already lives there. The `refresh_interval` row's
+> IOPS argument is therefore gone; **`30s` stays** on the half that is left —
+> one segment per shard per second, and the merges after, buy nothing on a
+> lab where thirty seconds of alert lag costs nothing. The runbook's
+> fortnight re-derivation is where to revisit it. The binding constraint was
+> heap-per-shard, which no disk changes, so the 30-day delete stands. The
+> text here is left as written, per ADR-0001.
 
 ## Context
 

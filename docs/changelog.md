@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-22
 
+- **[#266](https://github.com/Gerrrt/HomeLab/issues/266) `odin` goes on
+  `large_data`, before anyone runs its runbook.** `build-the-soc-guest.md`
+  was written before [#527](https://github.com/Gerrrt/HomeLab/issues/527)
+  and still created the guest on `local-lvm` — "the same spindles as
+  everything else" — while the heaviest writer ADR-0007 names would have been
+  the only guest left on them. §1 now creates it on the SSD pool with
+  `ssd=1`, rewritten in place because the page has never been run, and
+  installs `qemu-guest-agent`, which `alexander`'s build found missing on
+  2026-09-20. ADR-0030 gets a dated note: its `refresh_interval` row was
+  priced on ~90 IOPS, the pool measured 7,952, and `30s` stays on the
+  segment-churn half of the argument. Nothing in `stacks/soc` changes. #266
+  still closes on the six agents, behind
+  [#414](https://github.com/Gerrrt/HomeLab/issues/414).
+
 - **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf is
   authored for `stacks/media`, and the issue's one-line firewall claim was
   wrong.** It said no rule beyond #138's 50→40 would be needed; there is no
