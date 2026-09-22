@@ -4,17 +4,16 @@
 anywhere else — so the copy came first, on 2026-09-20, and the tray waits
 for the copy, the wipe and the return label.**
 
-> **Status — 2026-09-20, evening: steps 1–3 are done and the runbook waits
-> where the return does.** Step 1 is read and it is the drive; step 2 is
-> done by path A; step 3 is open: the eBay return was started on 2026-09-20,
-> the label is due by **2026-09-24**, the seller has not yet chosen refund or
-> replacement, and Seagate's warranty by serial is unchecked. The pool runs
-> on one disk, `erebor/apps` has a copy off it since 2026-09-20, and since
-> the exporter came back nothing in the estate is paging for the pool —
-> though TrueNAS's own alert did reach a mailbox, see below. **What does not
-> wait is step 4**: the faulted disk is offlined, wiped and shipped before
-> any replacement exists, because the return runs that way round; step 5 is
+> **Status — 2026-09-22: steps 1–4 are done and the runbook waits for a
+> drive.** Step 4 ran on 2026-09-22: `ZVTBSDL3` was offlined, wiped by the
+> fallback path (shred stopped at 93 GiB for time, then `dd` over each
+> end), pulled and shipped on eBay's label. Seagate says no warranty, so
+> the return is the only remedy. `erebor` now reads **`DEGRADED`** on
+> `ZVTBS4NL` alone, and `ZpoolNotOnline` sees that. It is silenced for
+> `state=degraded` only until the replacement resilvers; see step 4's
+> note. The seller has not yet chosen refund or replacement, and step 5 is
 > what happens when a drive arrives, from the seller or from a purchase.
+> What follows is the record as it stood through step 3.
 >
 > | When (PDT, 2026-09-19) | What |
 > | --- | --- |
@@ -302,6 +301,40 @@ airflow over both trays and §1 says why it is not optional. Power on:
 `OFFLINE` or `REMOVED`, and `lsblk` shows one 18 TB device. Ship on eBay's
 label, and the date it shipped goes in the status block.
 
+> **Done 2026-09-22, by the fallback.** Offlined in the UI. `smartctl -i`
+> and `lsblk` both put `ZVTBSDL3` at `/dev/sdb`. `shred` wrote at about
+> 215 MB/s, which is a day or more for 18 TB, not a stall, and it was
+> stopped at **93 GiB** because the box had to go that day.
+> `zpool labelclear -f /dev/sdb` refused (*failed to clear label*, because
+> the vdev was on `sdb1` and shred had already overwritten the front). Both
+> `dd` runs completed, at 233 and 114 MB/s. After that, `wipefs /dev/sdb`
+> listed nothing, and `zdb -l /dev/sdb1` found no such device. The drive
+> took every write, so this was a choice made for time and not a refusal.
+> The data blocks between 93 GiB and the last GiB were never overwritten.
+>
+> The tray was pulled by its label. Its QR code verifies as a genuine
+> 18000 GB drive. Seagate's lookup by serial says **not under warranty,
+> contact the place of purchase**, so the eBay return is the only remedy.
+> The card's firmware was read in the UEFI setup at the power-on: package
+> 24.16.0-0104, firmware 4.660.01-8219
+> ([#571](https://github.com/Gerrrt/HomeLab/issues/571)). The drive shipped
+> on eBay's label on 2026-09-22.
+>
+> **What the monitoring saw.** Offlining the leaf changed the pool's own
+> state: `zpool status` and the kstat both read **`DEGRADED`**, *"taken
+> offline by the administrator"*, `0 0 0` on `52dfceb0…` (`ZVTBS4NL`),
+> `No known data errors`. So `ZpoolNotOnline` went pending for the first
+> time, a critical page it would repeat every day until step 5. It is
+> silenced on `alertname=ZpoolNotOnline, instance=smaug, zpool=erebor,
+> state=degraded` for seven days, with a comment beginning `#558`. A second
+> disk lost makes the pool `unavail` or `suspended`, which the silence does
+> not match, so that still pages. Delete the silence when step 5's resilver
+> starts, or re-comment it in place if the seller takes longer than a week.
+> A two-hour silence on `InstanceDown` covered the shutdown and was deleted
+> once `up` read 1 again. `SmartDriveBadSectors` for `/dev/sdb` stayed
+> pending after the reboot on the textfile written before it, and it clears
+> when the collector's cron rewrites the file.
+
 ## 5. Fit the replacement, resilver, scrub
 
 When a drive arrives — the seller's replacement or a purchase, whichever
@@ -412,11 +445,10 @@ line.
   the better of the two answers a MegaRAID offers and still not the IT-mode
   HBA ZFS is designed for: the sixty-second timeouts, task aborts and the
   21:03:51 controller reset in the fault's `dmesg` are its firmware's error
-  path, and ZFS waited on them. The firmware version is the one reading
-  still owed, and it is not in sysfs — `/sys/class/scsi_host/host0/fw_ver`
-  does not exist, and TrueNAS ships no `storcli` — so it is read off the
-  card's POST banner or its *Ctrl-R* controller properties, at step 4 or 5,
-  when the machine is at POST anyway. Whether to leave the
+  path, and ZFS waited on them. The firmware version is not in sysfs and
+  TrueNAS ships no `storcli`, so it was **read at step 4 on 2026-09-22** in
+  the UEFI setup's *Controller Management* page: a **9340-8i**, package
+  24.16.0-0104, firmware 4.660.01-8219. Whether to leave the
   card as it is, flash the 3008 to IT firmware (`1000:0097`), or cable the
   bays to the chipset's free `SATA0`–`SATA3` and take the card out is a
   decision for [#558](https://github.com/Gerrrt/HomeLab/issues/558) after
@@ -427,8 +459,8 @@ line.
   bought outright and a row in [`roadmap.md`](../roadmap.md)'s buy list in
   the same commit. Whether a third drive follows as a cold spare is the same
   question asked once more.
-- **Seagate's warranty is unchecked, and cannot be from the console.** The
-  form wants the BPID off the drive label, which SMART and FARM do not
-  carry, so the lookup is a step 4 reading with the tray out; whether an
-  "0HR" lot is covered goes in [`hardware.md`](../hardware.md)'s Exos entry
-  either way.
+- **Settled 2026-09-22: Seagate's warranty does not cover it.** The lookup
+  was done at step 4 from the label's QR code. The drive is genuine and
+  "not under warranty", so the "0HR" lot is covered by the seller and by
+  nobody else. `ZVTBS4NL` is from the same lot and was not looked up.
+  Recorded in [`hardware.md`](../hardware.md)'s Exos entry.
