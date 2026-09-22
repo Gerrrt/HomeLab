@@ -117,7 +117,20 @@ if [[ "${1:-}" == "--self-test" ]]; then
   # the repository on any host this runs on, which is exactly what 2c is about.
   SAME_DEV=""
   [[ -n ${HOME:-} && -w ${HOME} ]] && SAME_DEV="$(mktemp -d -p "${HOME}" homelab-offsite-selftest.XXXXXX)"
-  trap 'rm -rf "${T}" "${INSIDE}" ${SAME_DEV:+"${SAME_DEV}"}; rmdir "${REPO_ROOT}/backups" 2>/dev/null' EXIT INT TERM
+  # The trap must not decide the exit status. `rmdir ${REPO_ROOT}/backups` is
+  # housekeeping for the one case where this run created that directory, and it
+  # fails whenever the checkout has real sets in it — which is every monitoring
+  # host. A bash EXIT trap's final $? becomes the script's, so 31 PASS and 0
+  # FAIL still exited 1 there, and `make validate` reported the self-test red on
+  # the only host whose backups/ is populated.
+  #
+  # Two things are needed and neither alone is enough. `|| :` keeps set -e from
+  # ending the trap on the failing rmdir before it can exit; `exit "${rc}"`
+  # restores the status captured on entry. `|| :` on its own would end the trap
+  # at 0 and mask `exit "${fail}"` — the same class of bug one direction over, a
+  # check that cannot report the failure it found — and `exit "${rc}"` on its
+  # own never runs, because set -e has already left.
+  trap 'rc=$?; rm -rf "${T}" "${INSIDE}" ${SAME_DEV:+"${SAME_DEV}"}; rmdir "${REPO_ROOT}/backups" 2>/dev/null || :; exit "${rc}"' EXIT INT TERM
   M="${T}/medium"
   mkdir -p "${M}"
   SRC="${T}/backups"
