@@ -793,8 +793,11 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
   ([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and its alert is
   silenced until 2026-10-08** — `01cb81d7-5e19-4e6d-b386-f5c8c843032b`, matching
   `alertname="HostBatteryHealthLow"`, `instance="oracle"`,
-  `power_supply="BAT0"`. It shares an expiry with the `#351` disk silence on the
-  same host so one look covers both. Because the rule is `< 0.8` and no label
+  `power_supply="BAT0"`. It is the one silence Alertmanager holds since
+  [#572](https://github.com/Gerrrt/HomeLab/issues/572) deleted the disk one, and its
+  comment begins with `#531` so that `SilenceExpiresSoon` names the owner when
+  it warns a week before 2026-10-08 ([#575](https://github.com/Gerrrt/HomeLab/issues/575)).
+  Because the rule is `< 0.8` and no label
   carries the ratio, that silence hides any *further* decay of the cell as well
   as the 72 % it was created for; re-read
   `node_power_supply_charge_full{instance="oracle"} /

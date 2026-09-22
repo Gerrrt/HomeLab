@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-110 rules in total: 92 metric-based in `prometheus/rules/`, and 18 log-based in
+112 rules in total: 94 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -450,7 +450,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-92 rules across eleven files in `prometheus/rules/`:
+94 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -458,7 +458,7 @@ argument and for what to do when it exits 1.
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, iLO hardware and Smart Array cache. `shiva`'s Smart Storage Battery read failed from 2026-08-18 until it was replaced on 2026-09-02, with the array in write-through as a result, so stored metrics before that date show the failed pack — `IloBatteryCondition` names the spare part to order, and the controller rollups are deliberately read at *failed* rather than *degraded* ([#76](https://github.com/Gerrrt/HomeLab/issues/76)) |
 | `ups.rules.yaml` | On battery, low battery, runtime, load, temperature. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
-| `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion, and the two cases `up == 0` structurally cannot see — a remote-writing agent that stops pushing, and a scraped target that stops being a target at all. The second is `ScrapeTargetDisappeared`, added with the first scraped host ([#256](https://github.com/Gerrrt/HomeLab/issues/256)): an emptied or unparseable `targets/node.yaml` makes the series vanish rather than fall to 0, so `InstanceDown` stays silent and `RemoteWriteJobStale` excludes scraped jobs by design. The target for `smaug` was written into `targets/node.yaml` disabled on 2026-09-17 and enabled on 2026-09-19, once the exporter answered from the pool. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault |
+| `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion, and the two cases `up == 0` structurally cannot see — a remote-writing agent that stops pushing, and a scraped target that stops being a target at all. The second is `ScrapeTargetDisappeared`, added with the first scraped host ([#256](https://github.com/Gerrrt/HomeLab/issues/256)): an emptied or unparseable `targets/node.yaml` makes the series vanish rather than fall to 0, so `InstanceDown` stays silent and `RemoteWriteJobStale` excludes scraped jobs by design. The target for `smaug` was written into `targets/node.yaml` disabled on 2026-09-17 and enabled on 2026-09-19, once the exporter answered from the pool. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault. Since [#575](https://github.com/Gerrrt/HomeLab/issues/575) also whether an Alertmanager silence is about to lapse or names no owning issue, read from the per-silence series `scripts/collect_silences.py` writes every fifteen minutes — `alertmanager_silences` is a count per state and cannot say which alert, when, or whose |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http. The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense — a probe sent down the normal resolver path always passes, because Unbound's fallback is doing its job. [ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md) made losing the filter silent on purpose, and these two rules are what distinguishes "this site was never on a list" from "AdGuard has been dead for three weeks". Warning, not critical: nothing is down and nobody is blocked. The targets are written into `targets/blackbox-dns.yaml` and left disabled until [#102](https://github.com/Gerrrt/HomeLab/issues/102) builds the mini PC ([#126](https://github.com/Gerrrt/HomeLab/issues/126)) |
@@ -473,7 +473,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is seventy-two rules of 92 so far — the five
+against the broken rule too. Coverage is seventy-four rules of 94 so far — the five
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
@@ -494,8 +494,9 @@ the three laptop-battery rules from
 [#454](https://github.com/Gerrrt/HomeLab/issues/454),
 `HostClockUnsynchronised` from [#519](https://github.com/Gerrrt/HomeLab/issues/519),
 the cell-temperature and runtime rules from
-[#532](https://github.com/Gerrrt/HomeLab/issues/532), and `SmartStateStale`
-from [#483](https://github.com/Gerrrt/HomeLab/issues/483).
+[#532](https://github.com/Gerrrt/HomeLab/issues/532), `SmartStateStale`
+from [#483](https://github.com/Gerrrt/HomeLab/issues/483), and the two silence rules from
+[#575](https://github.com/Gerrrt/HomeLab/issues/575).
 The other 20 are still validated for syntax only, which is exactly the
 standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
 sentence they replaced claimed six and named two, and had been wrong for
@@ -553,6 +554,79 @@ dead `snmp-exporter` suppresses the "every device is unreachable" storm that
 would otherwise follow, and a certificate inside seven days of expiry suppresses
 its own thirty-day warning rather than resolving it — a "resolved" for a
 certificate three days from expiry would be a lie.
+
+### Silences
+
+A silence is how monitoring gets switched off, and the record of the act
+lives in the system being switched off
+([ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)).
+Nothing read that record until [#575](https://github.com/Gerrrt/HomeLab/issues/575): both silences
+active on 2026-09-20 had been found by a person reading the list during a
+triage pass, one stood over an issue closed by accident, and the other had no
+issue behind it until that day — the third time that shape had been found by
+hand ([#76](https://github.com/Gerrrt/HomeLab/issues/76), [#531](https://github.com/Gerrrt/HomeLab/issues/531),
+[#572](https://github.com/Gerrrt/HomeLab/issues/572)). Three times is a pattern, and the answer to a
+pattern is to watch the control, not to remember harder.
+
+**The convention.** A silence's comment begins with the number of the open
+issue that owns its expiry — `#531 …` — and the expiry is a date written on
+that issue. The issue is where the work that ends the silence is tracked; the
+comment is where a person, or a program, looking at the silence finds it.
+Whatever else the comment says comes after the number, and `createdBy` is
+free text. A silence is deleted when the work is done, not left to lapse
+([`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) §3):
+one left standing over a freshly fitted part suppresses precisely the thing
+you most want to hear about, and both battery runbooks record deleting late as
+their one regret.
+
+**What watches it.** The `silence-state` job runs `scripts/collect_silences.py`
+every fifteen minutes on the monitoring host — the one host that can reach
+Alertmanager, which binds to loopback — and writes two gauges per active or
+pending silence:
+
+| Series | Value |
+| --- | --- |
+| `homelab_silence_expires_timestamp_seconds{alert, issue, id}` | when it ends |
+| `homelab_silence_starts_timestamp_seconds{alert, issue, id}` | when it began, or will |
+
+`alert` is the silence's `alertname` matcher, verbatim. It is named `alert`
+because Prometheus writes `alertname` on every alert it raises, so a series
+label of that name would be overwritten in the notification by the rule's own.
+`issue` is the number from the comment, present only when the comment begins
+with one — a parser that took the first `#NNN` anywhere would have credited
+both 2026-09-20 silences to closed issues cited in their prose and hidden the
+finding. `id` is the UUID, the handle every runbook here deletes by. A label
+with nothing to say is omitted rather than written empty, which is what
+Prometheus stores either way.
+
+Two rules in `prometheus/rules/stack.rules.yaml` read them. `SilenceWithoutIssue`
+fires within minutes on a silence whose comment names no owner: a silence
+nobody owns is the finding. `SilenceExpiresSoon` gives a week's notice, and
+only to a silence that has already stood a week — the silence this repository
+recommends is a five-hour one
+([`runbooks/fit-the-saruman-ssds.md`](runbooks/fit-the-saruman-ssds.md) §1),
+and a warning that fires the moment you create one is a warning you learn to
+ignore. A thirty-day silence warns on day 23, a fourteen-day one on day 7, a
+short one never. Both are warnings and route to `default`. The collector
+stopping is `ScheduledJobStale`'s to report, like every other job in
+[`runbooks/schedule-maintenance.md`](runbooks/schedule-maintenance.md).
+
+**An expired silence stays visible without a second window.** Alertmanager
+keeps one for five days after it ends, and `endsAt` is the difference between
+deleted and lapsed — the moment of deletion, or the mark. Prometheus keeps the
+series' history for thirty days, so
+`last_over_time(homelab_silence_expires_timestamp_seconds[7d])` matches a page
+that has returned to the silence that ended. The collector emits only live
+silences for that reason: emitting expired ones would add nothing the history
+does not hold, and would make the expiry rule count backwards from every
+lapsed silence.
+
+To list them from the monitoring host:
+
+```bash
+curl -sS http://localhost:9093/api/v2/silences |
+  python3 -c 'import json,sys; [print(s["id"], s["status"]["state"], s["endsAt"], s["comment"][:60]) for s in json.load(sys.stdin)]'
+```
 
 ### The dead man's switch
 

@@ -275,11 +275,12 @@ security  severity=warning category=security
 urgent    severity=critical category=availability
 default   severity=warning category=capacity
 default   severity=warning category=hardware
+default   severity=warning category=monitoring
 null      severity=info category=correctness
 ROUTES
 
   if ((routes_ok)); then
-    pass "${stack}: amtool config routes test (8 assertions)"
+    pass "${stack}: amtool config routes test (9 assertions)"
   else
     fail "${stack}: amtool config routes test"
   fi
@@ -578,10 +579,28 @@ fi
 # /dev/shm. OFFSITE_SOURCE keeps it off the host's backups/, and the wrapper
 # is not involved, so nothing here touches the textfile directory.
 if "${REPO_ROOT}/scripts/backup-offsite.sh" --self-test >/dev/null 2>&1; then
-  pass "backup-offsite.sh --self-test (22 fixtures)"
+  pass "backup-offsite.sh --self-test (24 fixtures)"
 else
   "${REPO_ROOT}/scripts/backup-offsite.sh" --self-test || true
   fail "backup-offsite.sh --self-test"
+fi
+
+# The silence collector's parser, for the one rule that depends on it being
+# strict. Both live silences on 2026-09-20 cited an issue somewhere in their
+# comment, and it was a closed one that did not own the expiry — so `issue` is
+# read only from a comment that BEGINS with #NNN, and the fixture that fails
+# when it does not is the point (#575). The rest pin the exposition format:
+# a regex matcher's backslashes survive, an absent label is absent rather
+# than empty, and zero silences still write HELP and TYPE.
+if have python3; then
+  if python3 "${REPO_ROOT}/scripts/collect_silences.py" --self-test >/dev/null 2>&1; then
+    pass "collect_silences.py --self-test (13 fixtures)"
+  else
+    python3 "${REPO_ROOT}/scripts/collect_silences.py" --self-test || true
+    fail "collect_silences.py --self-test"
+  fi
+else
+  skip "collect_silences.py --self-test: python3 not installed"
 fi
 
 head_ "Documentation"

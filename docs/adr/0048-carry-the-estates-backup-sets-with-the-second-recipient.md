@@ -4,6 +4,22 @@
 [ADR-0015](0015-give-oracle-the-off-host-jobs.md), which that ADR left with
 [#92](https://github.com/Gerrrt/HomeLab/issues/92)
 
+> [!NOTE]
+> Decision 2 below says the script "refuses a destination on this host's own
+> filesystem". That was the claim and it was too strong: the check compared
+> filesystems, and `/dev/shm` is a different filesystem *and* this host's RAM.
+> On 2026-09-21 a first run against it reached the green line and recorded a
+> success. The script now also refuses in-memory filesystems and the trees
+> this host clears on boot, and warns when the destination does not report as
+> removable. The text below is left as written, per ADR-0001.
+>
+> [!NOTE]
+> What no check can establish is the property this ADR actually requires —
+> that the medium leaves the house. The refusals rule out the destinations
+> that are provably not media; the last step is the operator's, and
+> [`copy-the-backups-offsite.md`](../runbooks/copy-the-backups-offsite.md)
+> says so where the reader is standing.
+
 ## Context
 
 Three artefacts leave the monitoring host now, and every copy of each is on

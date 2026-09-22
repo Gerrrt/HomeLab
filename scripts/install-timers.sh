@@ -104,7 +104,8 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # (ADR-0048): the newest set of each kind is carried onto the medium that holds
 # the second age recipient, on the same visit that proves it, so one ninety-day
 # deadline covers three alerts. backup-offsite.sh refuses a destination on this
-# host's own filesystem for the reason the key proofs refuse the live key, and
+# host's own filesystem, on RAM, or under /tmp and its neighbours — for the
+# reason the key proofs refuse the live key — and
 # OffsiteCopyStale reads its job series directly — one copy of record, so one
 # series is the honest count.
 #
@@ -149,6 +150,7 @@ JOBS=(
   "recipient-state   homelab-recipient-state     172800  recipient-state"
   "ca-key-state      homelab-ca-key-state        172800  ca-key-state"
   "gateway-state     homelab-gateway-state         5400  gateway-state"
+  "silence-state     homelab-silence-state         5400  silence-state"
   "verify-key-backup -                          7776000  secrets-verify-backup"
   "verify-ca-key-backup -                       7776000  certs-verify-backup"
   "offsite-copy      -                          7776000  backup-offsite"

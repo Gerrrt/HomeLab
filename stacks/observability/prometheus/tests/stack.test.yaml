@@ -43,6 +43,17 @@
 # it: the series ends at 30m, ages out of the instant selector at 35m, and is
 # pending until 50m. A green run without that assertion was proving less than it
 # appeared to.
+#
+# The silence cases at the end (#575) are the expiry shape blackbox.test.yaml
+# uses: time() in a test is seconds since the start of the test, so a
+# timestamp is written as an absolute small number chosen to come out whole
+# at the eval time — 266400 is "three days from 2h", and a negative startsAt
+# is simply "before the epoch", twenty days before it for the silence that has
+# stood long enough to earn its notice. The 59m evaluation is the `for: 1h`
+# pin; without it a `for: 0m` mutation would survive. The fixture with no
+# `issue` label at all is how `{issue=""}` is exercised, because Prometheus
+# drops an empty label and a fixture written as issue="" would test a series
+# that cannot exist.
 
 rule_files:
   - ../rules/stack.rules.yaml
@@ -402,4 +413,113 @@ tests:
     alert_rule_test:
       - eval_time: 290m
         alertname: JournalSourceStopped
+        exp_alerts: []
+
+  # --- SilenceExpiresSoon: three days left on a silence that stood 20 days --
+  # Exactly the live shape on 2026-09-20: #531's silence, created 2026-09-17,
+  # ending 2026-10-08. At 2h, time() is 7200: 266400 is three days out and
+  # -1720800 is twenty days back. Fires, with the days in the summary. The
+  # same series carries issue="531", so SilenceWithoutIssue must stay quiet —
+  # the pairing that proves the two rules partition rather than overlap.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_silence_expires_timestamp_seconds{alert="HostBatteryHealthLow",issue="531",id="01cb81d7-5e19-4e6d-b386-f5c8c843032b",instance="prometheus",job="prometheus-metrics"}'
+        values: "266400+0x180"
+      - series: 'homelab_silence_starts_timestamp_seconds{alert="HostBatteryHealthLow",issue="531",id="01cb81d7-5e19-4e6d-b386-f5c8c843032b",instance="prometheus",job="prometheus-metrics"}'
+        values: "-1720800+0x180"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: SilenceExpiresSoon
+        exp_alerts:
+          - exp_labels:
+              alertname: SilenceExpiresSoon
+              alert: HostBatteryHealthLow
+              issue: "531"
+              id: 01cb81d7-5e19-4e6d-b386-f5c8c843032b
+              instance: prometheus
+              job: prometheus-metrics
+              component: stack
+              severity: warning
+              category: monitoring
+            exp_annotations:
+              summary: "silence on HostBatteryHealthLow expires in 3 days"
+              description: >-
+                Silence 01cb81d7-5e19-4e6d-b386-f5c8c843032b has stood for more
+                than a week and lapses within one. When it lapses the alert it
+                covers notifies again as if new, at whatever hour, with nothing
+                to say why it was quiet. Extend it from the issue that owns it,
+                or delete it now because the work is done —
+                docs/observability.md, Silences, has the convention.
+      # The `for: 1h` pin: true from the first evaluation, pending until 60m.
+      - eval_time: 59m
+        alertname: SilenceExpiresSoon
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: SilenceWithoutIssue
+        exp_alerts: []
+
+  # --- SilenceExpiresSoon: quiet for a short silence and a distant one -----
+  # Three silences that must not fire. The first is the recommended kind:
+  # three days left because it was created two days ago with five to live —
+  # a rack-job silence, and a warning the moment it is created would teach
+  # you to ignore the rule. The second has stood thirty days and has ten
+  # left. The third is pending — it starts tomorrow — so its age is negative
+  # and the guard keeps it quiet however soon it ends.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_silence_expires_timestamp_seconds{alert="IloHardwareDegraded",issue="418",id="short",instance="prometheus",job="prometheus-metrics"}'
+        values: "266400+0x180"
+      - series: 'homelab_silence_starts_timestamp_seconds{alert="IloHardwareDegraded",issue="418",id="short",instance="prometheus",job="prometheus-metrics"}'
+        values: "-165600+0x180"
+      - series: 'homelab_silence_expires_timestamp_seconds{alert="UpsSelfTestFailed",issue="93",id="distant",instance="prometheus",job="prometheus-metrics"}'
+        values: "871200+0x180"
+      - series: 'homelab_silence_starts_timestamp_seconds{alert="UpsSelfTestFailed",issue="93",id="distant",instance="prometheus",job="prometheus-metrics"}'
+        values: "-2584800+0x180"
+      - series: 'homelab_silence_expires_timestamp_seconds{alert="IloHardwareDegraded",issue="418",id="pending",instance="prometheus",job="prometheus-metrics"}'
+        values: "266400+0x180"
+      - series: 'homelab_silence_starts_timestamp_seconds{alert="IloHardwareDegraded",issue="418",id="pending",instance="prometheus",job="prometheus-metrics"}'
+        values: "93600+0x180"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: SilenceExpiresSoon
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: SilenceWithoutIssue
+        exp_alerts: []
+
+  # --- SilenceWithoutIssue: a silence whose comment names no owner ----------
+  # The series has no `issue` label, which is what the collector writes for a
+  # comment that does not begin with #NNN — and what Prometheus would store
+  # even if it had written issue="". Fires after `for: 5m`; the 4m evaluation
+  # is the pin. A no-`alert` label case is deliberately not here: the summary
+  # handles it, but the alert with no alertname matcher is a silence on
+  # everything, and that is a different finding for a different day.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_silence_expires_timestamp_seconds{alert="SmartDriveBadSectors",id="b06d032c-8150-47c1-8f46-ed7a8ed52b2e",instance="prometheus",job="prometheus-metrics"}'
+        values: "266400+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SilenceWithoutIssue
+        exp_alerts:
+          - exp_labels:
+              alertname: SilenceWithoutIssue
+              alert: SmartDriveBadSectors
+              id: b06d032c-8150-47c1-8f46-ed7a8ed52b2e
+              instance: prometheus
+              job: prometheus-metrics
+              component: stack
+              severity: warning
+              category: monitoring
+            exp_annotations:
+              summary: "silence on SmartDriveBadSectors names no owning issue"
+              description: >-
+                Silence b06d032c-8150-47c1-8f46-ed7a8ed52b2e's comment does not
+                begin with the number of the open issue that owns its expiry,
+                so nothing records why it exists or when it can go. Re-post it
+                with the same id, matchers and startsAt and a comment that
+                starts with #NNN — the UUID survives — or delete it.
+                docs/observability.md, Silences, has the convention.
+      - eval_time: 4m
+        alertname: SilenceWithoutIssue
         exp_alerts: []

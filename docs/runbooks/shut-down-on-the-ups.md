@@ -1,188 +1,354 @@
 # Runbook: Shut down on the UPS's signal, and measure the pack once
 
-**One rack visit that halts the rack on purpose, in an order that matters,
-and one mains pull that turns the card's estimate into a number.**
+**Do the steps in order. Each one says what to do, what you should see, and
+what to do if you see something else. The reasoning is at the end, under
+[Why it is built this way](#why-it-is-built-this-way) — you do not need it to
+follow the steps.**
 
-> **Status — 2026-09-20: decided, not built.**
+> **Status — 2026-09-21: decided, not built.**
 > [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
-> decides who shuts down on `mjolnir`'s signal and who does not; nothing below
-> has been done, and the two proofs in §5 and §6 are what closes
-> [#574](https://github.com/Gerrrt/HomeLab/issues/574). Every number this
-> runbook quotes for the pack is the card's claim.
+> decides who shuts down on `mjolnir`'s signal and who does not. Nothing below
+> has been done. Steps 5 and 6 are what closes
+> [#574](https://github.com/Gerrrt/HomeLab/issues/574).
 
-The pfSense NUT package has been installed on `morpheus` since 2026-08-20 and
-has never been configured — `MODE=none`, no `ups.conf`, nothing on 3493. This
-runbook configures it as the estate's NUT server, subscribes `Saruman` and
-`smaug` to it on their own gateway address, scopes the listener so that only
-those two hosts can reach it, proves the sequence with a forced shutdown that
-does not touch the pack, and then measures the pack with a real pull.
+## What this does
 
-The order of the sections is the order of the work. §2 before §3 and §4,
-because a client configured before the pass is above the block will fail in
-a way that looks like a wrong password. §5 before §6, because a mains pull on
-a sequence that has not been proved is a hard stop of the rack with extra
-steps.
+| Host | What it ends up doing |
+| --- | --- |
+| `morpheus` | Runs the NUT server, talks to the UPS card, halts **last** |
+| `Saruman` | Subscribes, halts its two guests then itself, **first** |
+| `smaug` | Subscribes, exports `erebor` and halts, **first** |
+| `neo` | Nothing. It loses power with the pack |
+| `prometheus`, `oracle` | Nothing. They ride the cut on their own cells |
 
 ## Before you start
 
-- **A window.** §5 halts `Saruman`, every guest on it, `smaug` and the
-  firewall, and §6 pages the urgent receiver for real. `neo` carries every
-  VLAN and the firewall is the house's DNS and DHCP, so this is a
-  [`schedule-maintenance.md`](schedule-maintenance.md) window outside anyone's
-  working hours, not an evening's tinkering.
-- **The card's credential.** The driver on `morpheus` needs what the exporter
-  has, and since 2026-09-21 that is SNMPv3 authPriv:
-  [ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
-  moved the card ([#85](https://github.com/Gerrrt/HomeLab/issues/85)), so the
-  driver takes the user `prometheus` with SHA, AES and the
-  `SNMP_AUTHPASS_APC` / `SNMP_PRIVPASS_APC` pair — named for the auth label
-  `auth_apc` in `generator.yaml`, not for the device, which is where every
-  tool derives these names from. There is no v2c community for this card to
-  fall back on. It comes out of SOPS with `make render` on the main checkout
-  and goes into a browser form, never onto a command line where `ps` can read
-  it, and never into this file. **If the card's passphrases are ever rotated
-  after this is built, the driver's copy moves in the same visit** — a driver
-  left on a stale credential is a shutdown path that fails silently until the
-  mains go.
-- **One NUT credential for the subscribers**, made up now and kept in the
-  operator's password manager: a username and a password that `Saruman` and
-  `smaug` will both present. It is a *secondary* credential. What it buys
-  anyone who steals it is the pack's status; it cannot set the forced-shutdown
-  flag, and the primary's credential is never given to a subscriber.
-- **The stack up on `prometheus`**, which stays up on its own cell through
-  everything below and is how you watch it.
-- **A way to power hosts back on** that does not depend on the network: the
-  KVM in U6 for the firewall, the iLO from a Mac on VLAN 30 for `Saruman`, and
-  the front button on `smaug` in the media room. §5 ends with all three off.
+Tick all six. Steps 1 to 6 assume every one of these is done.
 
-## 1. `morpheus`: the NUT server
+- [ ] **A maintenance window outside anyone's working hours.** Step 5 halts
+      `Saruman`, both its guests, `smaug` and `morpheus`. While `morpheus` is
+      down the house has no DNS and no DHCP.
+- [ ] **Physical or out-of-band access to all three hosts**, because step 5
+      leaves them all powered off: the KVM in U6 for `morpheus`, the iLO at
+      `10.0.30.10` from a Mac on VLAN 30 for `Saruman`, and the power button
+      on the front of `smaug` in the media room.
+- [ ] **The UPS card's SNMP community**, rendered on the **main checkout**
+      and never in a worktree (the command is below this list). It is
+      `SNMP_COMMUNITY_APC` in the rendered file. Below it is written
+      `<COMMUNITY>`. Do not paste it into a terminal — it goes into a browser
+      form only.
+- [ ] **A username and password you invent now** for the two subscribers to
+      log in with. Below they are written `<NUTUSER>` and `<NUTPASS>`. Put
+      them in Apple Passwords before you start. `upsslave` is a fine username.
+- [ ] **The monitoring stack up on `prometheus`.** It stays up on its own cell
+      throughout and is how you watch every step.
+- [ ] **A browser that can reach three web interfaces**: the UPS card at
+      `https://10.0.99.10`, the firewall at `https://10.0.99.1`, and TrueNAS
+      at `https://10.0.40.30` (that one from a Hicks workstation).
 
-*Services → UPS* on the firewall's web UI. The field names below are the
-package's as of `pfSense-pkg-nut 2.8.2_9`; if the UI has moved, the files
-that must result are the ones quoted after the table, and those are what
-`upsc` in step 1.3 verifies.
+Rendering the secrets, for the third box above:
 
-| Field | Value | Why |
+```bash
+cd /home/robo/code/Gerrrt/HomeLab && make render
+```
+
+---
+
+## Step 0 — Raise the card's low-battery threshold
+
+**Do this first.** Everything below has to finish inside the window this sets,
+and the factory value is too short. See
+[Why step 0 comes first](#why-step-0-comes-first).
+
+### 0.1 Read what it is now
+
+On `prometheus`:
+
+```bash
+cd /home/robo/code/Gerrrt/HomeLab && scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.5.2 | grep '5\.2\.8\.0'
+```
+
+**You should see:**
+
+```text
+.1.3.6.1.4.1.318.1.1.1.5.2.8.0 0:0:02:00.00
+```
+
+That is 2 minutes. **Write the value down** before you change it, so it can be
+put back.
+
+**If you see nothing:** the community is wrong or the card is not answering.
+Stop and fix that first — every later step depends on reaching this card.
+
+### 0.2 Change it at the card
+
+1. Open `https://10.0.99.10` in a browser and log in.
+2. Go to **Configuration → UPS → General** (on AOS 2.x; on an older firmware
+   it is **UPS → Configuration**).
+3. Find the field for **low battery duration**. It is the setting whose value
+   is currently **2** and whose units are minutes.
+4. Change it to **8**.
+5. Apply or Save.
+
+**The label wording varies by firmware.** It is the only setting on that page
+measured in minutes and currently reading 2. If two fields could match, come
+back and confirm with 0.3 rather than guessing — 0.3 reads the exact object
+you need to have changed.
+
+### 0.3 Confirm it took
+
+Re-run the command from 0.1.
+
+**You should see:**
+
+```text
+.1.3.6.1.4.1.318.1.1.1.5.2.8.0 0:0:08:00.00
+```
+
+**If it still reads `0:0:02:00.00`:** you changed a different field. Go back
+to 0.2.
+
+---
+
+## Step 1 — Configure the NUT server on `morpheus`
+
+### 1.1 Open the settings page
+
+Browse to `https://10.0.99.1`, then **Services → UPS**, then the
+**UPS Settings** tab.
+
+### 1.2 Fill in General Settings
+
+| Field | What to set it to |
+| --- | --- |
+| **UPS Type** | `Remote snmp` |
+| **UPS Name** | `mjolnir` |
+| **Notifcations** / E-Mail | Leave unchecked |
+
+Set **UPS Type** first. The page hides and shows fields based on it, and the
+Driver Settings fields in 1.3 only appear once it reads `Remote snmp`.
+
+> The *Notifcations* label is misspelled in the package itself. That is not
+> your browser. Leave it alone — this estate alerts through Alertmanager.
+
+### 1.3 Fill in Driver Settings
+
+| Field | What to set it to |
+| --- | --- |
+| **Remote IP address or hostname** | `10.0.99.10` |
+| **Remote port (optional)** | Leave empty |
+| **Remote username** | **Leave empty** |
+| **Remote password** | **Leave empty** |
+
+**Leave the username and password empty even though the form offers them.**
+For the `Remote snmp` type the package ignores both. The credential goes in
+the next box instead, and putting it here means the driver never sees it.
+
+In **Extra Arguments to driver (optional)**, type exactly these three lines,
+with your community in place of `<COMMUNITY>`:
+
+```text
+community=<COMMUNITY>
+snmp_version=v2c
+pollfreq=15
+```
+
+### 1.4 Reveal and fill in Advanced settings
+
+Click the **Display Advanced** button at the bottom of Driver Settings. Four
+text boxes appear. Fill in three of them and leave one empty.
+
+**Additional configuration lines for upsmon.conf:**
+
+```text
+HOSTSYNC 120
+FINALDELAY 30
+```
+
+**Additional configuration lines for ups.conf:** leave empty.
+
+**Additional configuration lines for upsd.conf:**
+
+```text
+LISTEN 10.0.30.1 3493
+LISTEN 10.0.40.1 3493
+```
+
+**Additional configuration lines for upsd.users**, with your invented username
+and password in place of `<NUTUSER>` and `<NUTPASS>`:
+
+```text
+[<NUTUSER>]
+password=<NUTPASS>
+upsmon secondary
+```
+
+### 1.5 Save
+
+Click **Save**. The page restarts the service for you.
+
+### 1.6 Check what it wrote
+
+On `prometheus`:
+
+```bash
+ssh admin@10.0.99.1 'grep -vE "^\s*#|^\s*$" /usr/local/etc/nut/nut.conf; grep -vE "^\s*#|^\s*$|password|community" /usr/local/etc/nut/ups.conf /usr/local/etc/nut/upsd.conf /usr/local/etc/nut/upsmon.conf; sockstat -l4 | grep 3493'
+```
+
+**You should see**, among other lines:
+
+```text
+MODE=netserver
+[mjolnir]
+driver=snmp-ups
+port=10.0.99.10
+snmp_version=v2c
+pollfreq=15
+LISTEN 127.0.0.1
+LISTEN ::1
+LISTEN 10.0.30.1 3493
+LISTEN 10.0.40.1 3493
+HOSTSYNC 120
+FINALDELAY 30
+```
+
+and three `sockstat` lines showing `upsd` bound to `127.0.0.1:3493`,
+`10.0.30.1:3493` and `10.0.40.1:3493`.
+
+The command hides the community and password lines on purpose, so their
+absence here is correct and not a problem.
+
+**If `sockstat` shows `*:3493` or `0.0.0.0:3493`:** the `LISTEN` lines did not
+take. Go back to 1.4. Do not continue — the listener would be reachable from
+every segment.
+
+### 1.7 Check the driver is really talking to the card
+
+```bash
+ssh admin@10.0.99.1 'upsc mjolnir@localhost 2>&1 | grep -E "^(ups.status|ups.model|battery.charge|ups.load|battery.runtime.low)"'
+```
+
+**You should see:**
+
+```text
+ups.status: OL
+ups.model: Smart-UPS X 1500
+battery.charge: 100
+ups.load: 21
+battery.runtime.low: 480
+```
+
+`battery.runtime.low: 480` is step 0 in seconds. Seeing it here proves both
+that step 0 worked and that this driver is reading the same card.
+
+**If you see `Driver not connected`:** the community in 1.3 is wrong, or the
+card refuses SNMPv2c. Try `snmp_version=v1` in the Extra Arguments box, save,
+and retry.
+
+**If you see `Unknown UPS`:** the name in 1.2 is not `mjolnir`.
+
+**If `ups.model` is blank or the driver logs a MIB error:** add a fourth line
+`mibs=apcc` to Extra Arguments, save, and retry.
+
+---
+
+## Step 2 — Add four firewall rules
+
+Two per interface: a **pass** for the one host that should reach the listener,
+and a **block** for everything else on that segment, in that order, both above
+the existing *Allow internet* rule.
+
+### 2.1 Add the ImaginationLAN pass
+
+**Firewall → Rules → ImaginationLAN**, then Add.
+
+| Setting | Value |
+| --- | --- |
+| Action | Pass |
+| Interface | ImaginationLAN |
+| Protocol | TCP |
+| Source | Single host or alias, `10.0.30.110` |
+| Destination | Single host or alias, `10.0.30.1` |
+| Destination port range | From `3493` to `3493` |
+| Description | `Allow NUT from Saruman` |
+
+### 2.2 Add the ImaginationLAN block
+
+Add another rule on the same interface.
+
+| Setting | Value |
+| --- | --- |
+| Action | Block |
+| Interface | ImaginationLAN |
+| Protocol | TCP |
+| Source | ImaginationLAN net |
+| Destination | Single host or alias, `10.0.30.1` |
+| Destination port range | From `3493` to `3493` |
+| Description | `Block NUT to pfSense` |
+
+### 2.3 Add the same pair on CasaBonita
+
+**Firewall → Rules → CasaBonita**, twice.
+
+| Setting | Pass rule | Block rule |
 | --- | --- | --- |
-| UPS Name | `mjolnir` | Every client's `MONITOR` line names it |
-| UPS Type | *Remote SNMP* | The card speaks SNMP and nothing else this estate reads |
-| Remote IP address | `10.0.99.10` | The card, on the segment the firewall is on natively — no rule |
-| SNMP community | blank | The card has moved to v3 (ADR-0036, 2026-09-21) and answers no community; the v3 lines go in the advanced box below |
-| Additional `ups.conf` lines | `mibs = apcc`, `pollfreq = 15`, and for v3: `snmp_version = v3`, `secLevel = authPriv`, `secName`, `authProtocol = SHA`, `privProtocol = AES`, `authPassword`, `privPassword` | `apcc` is NUT's PowerNet MIB; `snmp-ups` autodetects it and the line just makes the choice visible |
-| Additional `upsd.conf` lines | `LISTEN 10.0.30.1 3493` and `LISTEN 10.0.40.1 3493` | The two subscriber segments' gateway addresses, and **nothing else** — not `0.0.0.0`, not the Winterfell address, not the WAN |
-| Additional `upsd.users` lines | a `[<secondary user>]` block with `password = <the secondary credential>` and `upsmon secondary` | The one credential both subscribers present |
-| Additional `upsmon.conf` lines | `HOSTSYNC 120` and `FINALDELAY 30` | See below |
-| Enable | on | |
+| Action | Pass | Block |
+| Protocol | TCP | TCP |
+| Source | `10.0.40.30` | CasaBonita net |
+| Destination | `10.0.40.1` | `10.0.40.1` |
+| Port | `3493` | `3493` |
+| Description | `Allow NUT from smaug` | `Block NUT to pfSense` |
 
-**`HOSTSYNC` and `FINALDELAY` are the two numbers this runbook chooses.**
-When the primary decides to shut down it sets the forced-shutdown flag, then
-waits up to `HOSTSYNC` seconds for every secondary to disconnect before it
-proceeds, then waits `FINALDELAY` seconds more before halting itself. NUT's
-defaults are 15 and 5. Fifteen seconds is not long enough for a Proxmox host
-to halt four guests, and a primary that gives up waiting halts the firewall
-with the hypervisor still shutting down — which still works, because
-`Saruman` needs no route to halt, but it is the wrong order and it is not
-what §5 is proving. 120 and 30 are starting values; §5 measures how long
-`Saruman` actually takes and this table is corrected to it.
+### 2.4 Put them in the right order and apply
 
-Save, then read back on the firewall over SSH — configuration, not
-credentials, so the lines below drop anything that looks like one:
+On each interface, drag the rules so the order reads:
 
-```bash
-ssh admin@10.0.99.1 'grep -vE "^\s*#|^\s*$" /usr/local/etc/nut/nut.conf; \
-  grep -vE "^\s*#|^\s*$|[Pp]assword|community" /usr/local/etc/nut/ups.conf /usr/local/etc/nut/upsd.conf /usr/local/etc/nut/upsmon.conf; \
-  sockstat -l4 | grep 3493'
-```
+1. the **pass** rule
+2. the **block** rule
+3. the existing **Allow internet** rule
 
-Expected: `MODE=netserver`, a `[mjolnir]` block with `driver = snmp-ups` and
-`port = 10.0.99.10`, exactly two `LISTEN` lines, a `MONITOR mjolnir@localhost
-1 … primary` line, and `upsd` bound to `10.0.30.1:3493` and `10.0.40.1:3493`
-and to nothing else. A `LISTEN 127.0.0.1` line is fine — the primary's own
-`upsmon` uses it.
+They belong up with the existing *Block SSH to pfSense* rules, not at the
+bottom. Then click **Apply Changes**.
 
-### 1.3 The driver sees the card
-
-```bash
-ssh admin@10.0.99.1 'upsc mjolnir@localhost 2>&1 | grep -E "^(ups.status|ups.model|battery.charge|battery.runtime|ups.load|battery.runtime.low|driver.name)"'
-```
-
-`ups.status` must read `OL` and `ups.model` the same `Smart-UPS X 1500` the
-exporter reports as `upsIdentModel`. Compare `battery.charge`,
-`battery.runtime` (seconds) and `ups.load` against Prometheus — same card,
-same numbers, or the driver is talking to something else:
-
-```bash
-for m in upsEstimatedChargeRemaining upsEstimatedMinutesRemaining upsOutputPercentLoad; do
-  printf '%-32s ' "$m"
-  curl -sG http://localhost:9090/api/v1/query \
-    --data-urlencode "query=${m}{device=\"mjolnir\"}" |
-    python3 -c 'import json,sys; r=json.load(sys.stdin)["data"]["result"]; print(r[0]["value"][1] if r else "no data")'
-done
-```
-
-**Write down `battery.runtime.low`.** That is the card's low-battery
-threshold in seconds, the point at which it raises `LB` and every subscriber
-starts halting. It is the card's number, not one chosen here, and §6 is what
-says whether it is enough. The same value is `upsAdvConfigLowBatteryRunTime`
-in PowerNet, under `1.3.6.1.4.1.318.1.1.1.5.2`, if you want it from the wire
-with `scripts/snmp-walk.sh --device mjolnir`.
-
-## 2. The two pass/block pairs, above the catch-all
-
-Read with `pfctl -sr` on 2026-09-20: on both `igc0.30` and `igc0.40` the only
-blocks to the gateway's own address are HTTP, HTTPS and SSH, and the *Allow
-internet* catch-all then passes the segment to `any` — which includes the
-gateway's address on that segment. So both subscribers **already reach the
-listener**, and so does every television. These rules do not open anything;
-they narrow it to the one host per segment that should have it.
-
-On each interface, **two rules, in this order, both above *Allow internet*
-and next to the three *Block … to pfSense* rules already there:**
-
-| On interface | Rule | Position | Description |
-| --- | --- | --- | --- |
-| ImaginationLAN (30) | `pass tcp 10.0.30.110 → 10.0.30.1:3493` | above the block below | `Allow NUT from Saruman` |
-| ImaginationLAN (30) | `block tcp ImaginationLAN net → 10.0.30.1:3493` | below the pass, above *Allow internet* | `Block NUT to pfSense` |
-| CasaBonita (40) | `pass tcp 10.0.40.30 → 10.0.40.1:3493` | above the block below | `Allow NUT from smaug` |
-| CasaBonita (40) | `block tcp CasaBonita net → 10.0.40.1:3493` | below the pass, above *Allow internet* | `Block NUT to pfSense` |
-
-Apply, then verify from `morpheus` rather than from the UI, the way
-[`build-the-nas.md`](build-the-nas.md) §0.6 did:
+### 2.5 Verify the order from the firewall itself
 
 ```bash
 ssh admin@10.0.99.1 'pfctl -sr | grep -E "igc0\.(30|40)" | grep -nE "3493|Allow internet"'
 ```
 
-Each interface must print the pass, then the block, then *Allow internet*,
-in that order by line number. A pass that prints after *Allow internet* is
-the fault ADR-0016 warned about and will never match.
+**You should see**, for each of the two interfaces, three numbered lines in
+this order: the `pass` on 3493, the `block` on 3493, then `Allow internet`.
 
-**The strong test is the block's counter, not "the NAS can connect".** The
-NAS could connect before these rules existed. After them, `pfctl -vsr` shows
-each block's packet counter; it should stay at zero for the NAS and rise the
-first time anything else on 40 tries port 3493 — which nothing legitimate
-will, so a rising counter on `igc0.40` is a finding about a television.
+**If a `pass` line prints after its `Allow internet` line:** the rule is below
+the catch-all and will never match. Go back to 2.4.
 
-## 3. `Saruman`: a NUT secondary
+---
 
-From a Mac on VLAN 30 (the monitoring host cannot reach 30 —
-[ADR-0033](../adr/0033-keep-the-ilo-on-the-lab-segment.md)):
+## Step 3 — Subscribe `Saruman`
+
+Do this from a Mac on VLAN 30. `prometheus` cannot reach `Saruman`.
+
+### 3.1 Install the client
 
 ```bash
 sudo apt install nut-client
 ```
 
-`/etc/nut/nut.conf`:
+### 3.2 Set the mode
+
+Replace the contents of `/etc/nut/nut.conf` with exactly this one line:
 
 ```text
 MODE=netclient
 ```
 
-`/etc/nut/upsmon.conf` — the credential is the secondary one from *Before
-you start*, typed in with an editor and not echoed from the shell:
+### 3.3 Write the monitor configuration
+
+Open `/etc/nut/upsmon.conf` in an editor and replace its contents with this,
+substituting your username and password:
 
 ```text
-MONITOR mjolnir@10.0.30.1 1 <secondary user> <password> secondary
+MONITOR mjolnir@10.0.30.1 1 <NUTUSER> <NUTPASS> secondary
 MINSUPPLIES 1
 SHUTDOWNCMD "/sbin/shutdown -h +0"
 POWERDOWNFLAG /etc/killpower
@@ -191,199 +357,328 @@ POLLFREQALERT 5
 DEADTIME 15
 ```
 
-Then:
+Type the password into the editor. Do not echo it from a shell.
+
+### 3.4 Fix the permissions and start it
 
 ```bash
-sudo chmod 640 /etc/nut/upsmon.conf && sudo chown root:nut /etc/nut/upsmon.conf
-sudo systemctl enable --now nut-monitor
+sudo chown root:nut /etc/nut/upsmon.conf && sudo chmod 640 /etc/nut/upsmon.conf && sudo systemctl enable --now nut-monitor
+```
+
+### 3.5 Verify
+
+```bash
 upsc mjolnir@10.0.30.1 ups.status
 ```
 
-`OL`, from the firewall's VLAN 30 address, or the pass in §2 is in the wrong
-place. `journalctl -u nut-monitor` should read *Login on UPS
-[mjolnir@10.0.30.1] failed* for a wrong credential and nothing for a right
-one.
+**You should see:**
 
-**What `shutdown -h` does to the guests** is Proxmox's business, not NUT's:
-`pve-guests.service` stops every running guest on the way down, in the order
-and with the per-guest timeout the datacenter's shutdown policy sets. Read
-that policy before §5 — a guest with a long timeout is what `HOSTSYNC` in §1
-has to cover. The Proxmox host firewall was enabled on 2026-09-20
-([#566](https://github.com/Gerrrt/HomeLab/issues/566)) with `policy_in`
-accepting and the `local_network` alias narrowed; `policy_in` does not touch
-outbound, so this client — an outbound connection to `10.0.30.1` — needs
-nothing from it.
+```text
+OL
+```
 
-## 4. `smaug`: TrueNAS's UPS service in slave mode
+**If you see `Connection refused`:** the `LISTEN 10.0.30.1 3493` line from 1.4
+is missing, or the pass rule from 2.1 is in the wrong place.
 
-From a Hicks workstation, on the UI at `https://10.0.40.30`:
+**If you see `Access denied`:** the username or password does not match what
+you put in 1.4. Check `journalctl -u nut-monitor` — a wrong credential logs
+*Login on UPS [mjolnir@10.0.30.1] failed*.
 
-*System → Services → UPS*, configure:
+### 3.6 Read the guest shutdown policy
 
-| Field | Value |
+In the Proxmox web interface, **Datacenter → Options → HA Settings** and each
+guest's **Options → Start/Shutdown order**. Note the shutdown timeout.
+
+`Saruman` runs two guests, `alexander` (VMID 140) and `phoenix` (VMID 170).
+`shutdown -h` stops both before the host goes down. You need to know the
+timeout because step 5 measures how long that actually takes, and
+`HOSTSYNC 120` from 1.4 has to be larger than the answer.
+
+---
+
+## Step 4 — Subscribe `smaug`
+
+From a Hicks workstation, at `https://10.0.40.30`.
+
+### 4.1 Note the tripwire counter first
+
+On `prometheus`:
+
+```bash
+ssh admin@10.0.99.1 'pfctl -vsr | grep -A2 "TRIPWIRE" | grep -E "igc0\.40|Packets"'
+```
+
+Write the packet count down. It should be zero, and it should still be zero at
+the end of step 5.
+
+### 4.2 Configure the service
+
+**System → Services → UPS**, then the edit (pencil) icon.
+
+| Field | What to set it to |
 | --- | --- |
 | Identifier | `mjolnir` |
-| UPS Mode | *Slave* |
+| UPS Mode | `Slave` |
 | Remote Host | `10.0.40.1` |
 | Remote Port | `3493` |
-| Monitor User | the secondary user |
-| Monitor Password | its password |
-| Shutdown Mode | *UPS reaches low battery* |
-| Shutdown Timer | leave at default — it applies to the other mode |
-| Power Off UPS | **off** — a subscriber must never command the UPS |
-| Start Automatically | on |
+| Monitor User | `<NUTUSER>` |
+| Monitor Password | `<NUTPASS>` |
+| Shutdown Mode | `UPS reaches low battery` |
+| Shutdown Timer | Leave at its default |
+| Power Off UPS | **Unchecked** |
+| Start Automatically | Checked |
 
-Start the service, then from the TrueNAS shell at the console — not over
-SSH, which is `frodo`'s read-only key and nothing else
-([ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)):
+**Leave Power Off UPS unchecked.** A subscriber must never command the UPS.
+
+If a label differs on this TrueNAS release, match it by meaning: mode is
+slave or secondary, the host is the firewall's CasaBonita address, and the
+shutdown trigger is low battery rather than a timer.
+
+Save, then start the service.
+
+### 4.3 Verify from the NAS console
+
+At the machine's own console — **not** over SSH, which is a read-only key —
+choose **8) Open Linux Shell** and run:
 
 ```bash
 upsc mjolnir@10.0.40.1 ups.status
 ```
 
-`OL`. TrueNAS's own alerting will now also raise a UPS alert when the pack is
-low; that is a second place alerts come from, the same residual
-[#483](https://github.com/Gerrrt/HomeLab/issues/483) named for SMART, and it
-is accepted for the same reason — the host cannot push to Loki, and a
-subscriber that halts is more valuable than a single alert path.
+**You should see:**
 
-**The `igc0.40` tripwire must not have moved.** Read it now, before §5 —
-`pfctl -vsr | grep -A1 TRIPWIRE` on the firewall — and again after. The NAS
-talking to its own gateway is not a packet the tripwire can see, and the
-counter staying at zero is the proof that this runbook kept ADR-0016's
-property.
-
-## 5. Prove the sequence without draining the pack
-
-This is the test, and it halts everything. Window open, pages expected,
-`prometheus` watching.
-
-On the firewall:
-
-```bash
-ssh admin@10.0.99.1 'upsmon -c fsd'
+```text
+OL
 ```
 
-That sets the forced-shutdown flag on `mjolnir` as if the card had raised
-`LB`. Watch from `prometheus`, on the Alertmanager UI or with:
+**If you see `Connection refused`:** check the `LISTEN 10.0.40.1 3493` line
+from 1.4 and the pass rule from 2.3.
+
+---
+
+## Step 5 — Prove the shutdown order
+
+This halts everything. Your window must be open and you must be able to power
+the three hosts back on by hand.
+
+### 5.1 Start watching, on `prometheus`
+
+In one terminal, leave this running:
 
 ```bash
 watch -n 5 'curl -s http://localhost:9093/api/v2/alerts | python3 -c "import json,sys; [print(a[\"labels\"][\"alertname\"], a[\"labels\"].get(\"instance\",\"\")) for a in json.load(sys.stdin)]"'
 ```
 
-Expected, in order, with the clock running from the `fsd`:
+### 5.2 Note the time, then fire it
 
-1. `Saruman`'s guests stop — `HypervisorGuestStopped` for each, then
-   `InstanceDown` for `Saruman` itself.
-2. `InstanceDown` for `smaug`, at about the same time; `erebor` is exported
-   on the way down.
-3. The firewall halts after every secondary has disconnected, or after
-   `HOSTSYNC` seconds, plus `FINALDELAY` — `SnmpTargetDown` for `morpheus`,
-   the blackbox probes for its UI, and then, because DNS is gone, a great deal
-   else.
-4. `mjolnir` stays on. Nothing in this configuration writes to the card
-   (every SNMP path in this repository reads, and the driver's credential is
-   the exporter's read-only one), so the UPS keeps its outlets live and
-   `UpsOnBattery` never fires — which is the point of proving the sequence
-   this way.
+Note the wall-clock time to the second, then in another terminal:
 
-**Write down how long step 1 took.** That is the number `HOSTSYNC` in §1 has
-to exceed, with margin, and it is corrected there now rather than remembered.
+```bash
+ssh admin@10.0.99.1 'upsmon -c fsd'
+```
 
-Then power everything back, in this order, by hand: the firewall (KVM),
-`Saruman` (iLO), `smaug` (the button). `Saruman`'s guests come back on their
-own if their *Start at boot* is set. When the stack shows every target up,
-read the tripwire's counter again (§4) and every block's counter (§2).
+### 5.3 Watch the order and time it
 
-**Two things this test does not prove, named rather than assumed.** Whether
-each host powers back on by itself when mains returns after a real cut is a
-BIOS setting per host (*Restore on AC Power Loss* or its equivalent on the
-ProDesk, the TS150 and the ProLiant) and the card's own behaviour, and the
-`fsd` test never removed power. And whether the primary *should* command the
-UPS off at the end — which would make a real cut end with the UPS cycling its
-outlets and every host restarting when mains returns — is left open: it
-needs a write credential on the card, which nothing in this estate holds, and
-it is a decision for an amendment to ADR-0049 rather than a line here.
+**You should see, in this order:**
 
-## 6. Measure the pack, once, with the load on
+1. `HypervisorGuestStopped` for `alexander` and `phoenix`, then `InstanceDown`
+   for `Saruman`.
+2. `InstanceDown` for `smaug`, at roughly the same time.
+3. `SnmpTargetDown` for `morpheus`, then a cascade of other alerts as DNS goes
+   away.
 
-Everything running, the sequence from §5 proved and every host back up. The
-card claims 47 minutes at 21 % load (2026-09-20); this is what replaces the
-claim.
+**Write down two times:** how long from firing to `Saruman` being down, and
+how long from firing until `morpheus` goes down. You need both in step 6.
 
-1. Baseline, from `prometheus`:
+**The UPS itself stays on.** `UpsOnBattery` should never fire during this
+step. Nothing here writes to the card.
 
-   ```bash
-   for m in upsEstimatedChargeRemaining upsEstimatedMinutesRemaining \
-            upsOutputPercentLoad upsBatteryVoltage upsSecondsOnBattery; do
-     printf '%-32s ' "$m"
-     curl -sG http://localhost:9090/api/v1/query \
-       --data-urlencode "query=${m}{device=\"mjolnir\"}" |
-       python3 -c 'import json,sys; r=json.load(sys.stdin)["data"]["result"]; print(r[0]["value"][1] if r else "no data")'
-   done
-   ```
+### 5.4 Power everything back on, in this order
 
-2. **Pull the UPS's own plug from the wall.** Not a host's plug, not the
-   PDU's — the UPS's. `UpsOnBattery` pages inside a minute; that is the
-   system working, and it is the first time in the life of this stack that
-   the alert has fired for a cut rather than a self-test.
-3. Re-run the loop every two minutes and write the rows down: minutes on
-   battery, charge, runtime-remaining, load. **Stop at 60 % charge or
-   twenty minutes, whichever comes first**, and plug it back in. `UpsChargeLow`
-   fires under 50 % for ten minutes; staying above it is deliberate, and
-   running the pack down to `LB` is not this test — §5 already proved what
-   happens there, and a pack drained to empty is a pack that needs hours to
-   be worth anything again.
-4. The number: charge fell from 100 to *C* in *M* minutes, so the full pack
-   at this load is about `M × 100 / (100 − C)` minutes. Write it beside the
-   card's claim, with the load it was measured at and the date, in three
-   places: the paragraph under the Rack table in
-   [`hardware.md`](../hardware.md#rack), the *Mains power loss* row in
-   [`security.md`](../security.md), and the status block at the top of this
-   file. If the card's runtime-remaining series tracked the measured slope,
-   say so, and `fit-the-ups-battery.md` §5's warning about that series can
-   be softened; if it did not, the warning stands and the measured number is
-   the only one to plan on.
-5. **Compare it to `battery.runtime.low` from §1.3.** The card raises `LB`
-   that many seconds before it thinks the pack is empty, and §5 measured how
-   long the sequence takes. If the sequence is longer than the threshold, the
-   threshold is raised on the card — a write to the NMC's web UI, the one
-   place in this estate that writes to it — and this step is repeated.
+1. `morpheus`, from the KVM in U6.
+2. `Saruman`, from the iLO at `10.0.30.10`.
+3. `smaug`, from the button on the front.
 
-## 7. What becomes true afterwards
+`Saruman`'s guests come back by themselves if *Start at boot* is set.
 
-| File | What changes |
+### 5.5 Check nothing leaked
+
+Once every target is up again, re-run the tripwire command from 4.1 and the
+rule-order command from 2.5.
+
+**The tripwire count must be unchanged.** If it moved, something on CasaBonita
+initiated across a segment boundary and that is a finding — stop and
+investigate before step 6.
+
+---
+
+## Step 6 — Measure the pack
+
+Everything running, step 5 passed, every host back up.
+
+### 6.1 Take a baseline
+
+```bash
+for m in upsEstimatedChargeRemaining upsEstimatedMinutesRemaining upsOutputPercentLoad upsBatteryVoltage upsSecondsOnBattery; do printf '%-32s ' "$m"; curl -sG http://localhost:9090/api/v1/query --data-urlencode "query=${m}{device=\"mjolnir\"}" | python3 -c 'import json,sys; r=json.load(sys.stdin)["data"]["result"]; print(r[0]["value"][1] if r else "no data")'; done
+```
+
+Write the five numbers down with the time.
+
+### 6.2 Pull the plug
+
+**Unplug the UPS itself from the wall.** Not a host, not the PDU — the UPS.
+
+`UpsOnBattery` should page within a minute. That is correct behaviour.
+
+### 6.3 Read it every two minutes
+
+Re-run the command from 6.1 every two minutes and write down each row.
+
+**Stop when charge reaches 60%, or at twenty minutes, whichever comes first.**
+Then plug the UPS back in.
+
+Do not run it down to empty. Step 5 already proved what happens at the bottom,
+and a flattened pack needs hours to recover.
+
+### 6.4 Do the arithmetic
+
+If charge fell from 100 to **C** over **M** minutes, the full pack at this
+load is about:
+
+```text
+M × 100 / (100 − C)  minutes
+```
+
+Worked example: 100 → 64 in 18 minutes gives 18 × 100 / 36 = **50 minutes**.
+
+### 6.5 Set the threshold to its final value
+
+You now know two things you did not in step 0: how long the whole shutdown
+takes (5.3) and what a minute of pack is worth (6.4).
+
+Set the card's low battery duration, the same field as 0.2, to **the step 5.3
+end-to-end time plus half again**, rounded up to the next whole minute.
+
+Worked example: if 5.3 measured 3 minutes 10 seconds, set 5 minutes.
+
+Confirm with the command from 0.3.
+
+---
+
+## Step 7 — Write down what is now true
+
+| File | What to change |
 | --- | --- |
-| This file | The status block: built on *date*, sequence proved in *N* seconds, pack measured at *M* minutes at *L* % |
-| [`hardware.md`](../hardware.md) | The Rack paragraph's "not measured" becomes the measured number |
-| [`security.md`](../security.md) | The *Mains power loss* row stops saying nothing shuts down on the signal |
-| [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) | Its "a configuration nobody has tested" line is amended with the dates, per ADR-0001 — a `> [!NOTE]` block, not an edit |
-| [`network.md`](../network.md) | The VLAN 30 and VLAN 40 notes gain the pass/block pair each, counted where their other exceptions are counted |
-| [`rotate-snmp-community.md`](rotate-snmp-community.md) | Gains the step: the NUT driver's copy of the card's credential moves with the card's |
-| [`fit-the-saruman-ssds.md`](fit-the-saruman-ssds.md) | Its reason for withholding the HDD write cache is now answered; whether to enable it is a separate re-reading, not a step here |
-| [`fit-the-ups-battery.md`](fit-the-ups-battery.md) | §5's runtime warning, softened or confirmed by step 6.4 |
+| This file's status block | Built on *date*; sequence takes *N*; pack measured at *M* minutes at *L* % load |
+| [`hardware.md`](../hardware.md) Rack paragraph | Replace "not measured" with the measured number |
+| [`hardware.md`](../hardware.md) Accessories, UPS entry | The low battery duration you set in 6.5, and the factory value it replaced |
+| [`security.md`](../security.md) mains-loss row | It no longer says nothing shuts down on the signal |
+| [`fit-the-ups-battery.md`](fit-the-ups-battery.md) §5 | Whether the card's runtime series tracked your measurement |
+| §1.4 of this file | `HOSTSYNC`, corrected down to the 5.3 measurement plus margin |
 
 Then close [#574](https://github.com/Gerrrt/HomeLab/issues/574).
 
+---
+
 ## If something goes wrong
 
-**`upsc` on a subscriber reads *Connection refused*.** The listener is not
-bound to that gateway address — check `sockstat` in §1 — or the pass in §2
-sits below the block. Both look identical from the client.
+**`upsc` says `Connection refused`.** Either `upsd` is not listening on that
+address (check 1.6) or the pass rule is below the block or the catch-all
+(check 2.5). Both look identical from the client.
 
-**`upsc` reads *Access denied* or the client logs a failed login.** The
-credential, or the `upsd.users` block is missing `upsmon secondary`. Not the
-firewall.
+**`upsc` says `Access denied`.** The credential in 1.4 and the one in 3.3 or
+4.2 do not match. Not a firewall problem.
 
-**The firewall halted before `Saruman` finished.** `HOSTSYNC` is too short
-for the guests' shutdown timeouts; raise it in §1 and re-run §5.
+**`morpheus` halted before `Saruman` finished.** `HOSTSYNC` is shorter than
+the guests take. Raise it in 1.4 and re-run step 5.
 
-**`smaug` did not halt.** TrueNAS's UPS service logs to the system log at
-*System → Advanced → System Log*; a slave that never saw `FSD` is a slave that
-was not connected, and the block counter on `igc0.40` says whether the
+**`smaug` did not halt.** Look at its system log under
+*System → Advanced → System Log*. A slave that never saw the shutdown flag was
+never connected; the block counter on CasaBonita from 2.5 says whether the
 firewall refused it.
 
-**`UpsOnBattery` did not fire in §6 inside a minute.** The scrape is 60 s and
-the rule's `for` is 30 s, so two minutes is the outside; past that, the card
-is not reporting the transfer, which is a finding about the card and the
-pull should be ended.
+**`UpsOnBattery` did not fire within a minute in 6.2.** The scrape is every 60
+seconds and the rule waits 30, so two minutes is the outside limit. Past that,
+the card is not reporting the transfer — plug back in and stop.
+
+**A real cut later ended with a host stopping uncleanly anyway.** The sequence
+outgrew the window. `SmartDriveUnsafeShutdownsGrowing` is what tells you,
+because a clean shutdown does not move that counter. Re-time with step 5 and
+raise the threshold in 6.5. Packs weaken with age, so a margin that fitted at
+install stops fitting eventually.
+
+---
+
+## Why it is built this way
+
+None of this is needed to follow the steps.
+
+### Why step 0 comes first
+
+The card raises its low-battery signal when it estimates a set number of
+minutes remain, and that signal is the starting gun: every subscriber begins
+halting there, and all of them have to finish before the pack is actually
+empty.
+
+Read on 2026-09-21, `upsAdvConfigLowBatteryRunTime` was **2 minutes**, APC's
+factory default, never changed on this card. The timings in 1.4 are 150
+seconds before `morpheus` even begins halting, against a 120-second window,
+before either guest is counted. Built against the factory value, the hosts
+would lose power part-way through the shutdown that exists to prevent exactly
+that.
+
+8 minutes in step 0 is chosen to be safely too large rather than right. At 21%
+load and about 47 claimed minutes it is roughly a sixth of the pack, spent
+buying margin on a sequence nobody has timed. Step 6.5 sets the real value
+once both unknowns are measured.
+
+### Why the firewall runs the server
+
+`morpheus` is the only host with an address on every segment, and it sits on
+Winterfell natively, so it reaches the card with no firewall rule at all. Its
+subscribers reach it without crossing a boundary either. The NUT package was
+already installed on it, unconfigured, since 2026-08-20. And a firewall that
+halts last is the right order anyway: a hypervisor shutting guests down still
+wants DNS and a route while it does it.
+
+### Why the rules narrow rather than open
+
+Read with `pfctl` on 2026-09-20, the *Allow internet* catch-all on both
+segments already passes traffic to the gateway's own address on every port
+except HTTP, HTTPS and SSH. So both subscribers could already reach 3493 — and
+so could every television on CasaBonita. The pass/block pairs in step 2 take
+that away from everything except the one host per segment that needs it.
+
+The tripwire checks in 4.1 and 5.5 exist because
+[ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+requires that nothing on CasaBonita initiates across a boundary. A host talking
+to its own gateway is not such a packet, and the unchanged counter is the
+proof.
+
+### Why the username and password fields are left empty in 1.3
+
+The pfSense package builds `ups.conf` differently per UPS type. For
+`Remote snmp` it writes only the driver name and the address; the *Remote
+username* and *Remote password* fields are read for other types and ignored
+for this one. Anything the driver needs beyond the address has to arrive
+through *Extra Arguments to driver*, which the package appends inside the
+`[mjolnir]` section. That is why the community goes there.
+
+### Why `smaug` is a subscriber at all
+
+It is in the media room, not the rack, and nothing recorded what powered it
+until 2026-09-20. It runs from the rack's PDU on a long cord, so it is on the
+UPS like everything else on that strip — which makes it the one host holding
+irreplaceable data on spinning disks that was going to stop uncleanly every
+time the pack ran out.
+
+### What this does not prove
+
+Whether each host powers itself back on when mains returns is a BIOS setting
+per host and the card's own behaviour. Step 5 never removes power and step 6
+never reaches the bottom of the pack, so neither tests it.
+
+Whether `morpheus` should command the UPS to switch its outlets off at the end
+is left open. It would make a real cut end with every host restarting when
+mains returns, but it needs a write credential on the card, which nothing in
+this estate holds. That is an amendment to ADR-0049, not a line here.

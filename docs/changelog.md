@@ -45,7 +45,80 @@ docstring gives: it is a record, not a claim about now.
   externally reachable host reports to the store no house alert reads.
   → [runbook](runbooks/open-the-remote-path.md)
 
+## 2026-09-22
+
+- **[#599](https://github.com/Gerrrt/HomeLab/issues/599) `smaug`'s memory is
+  bought, to 32 GB across all four slots rather than to 32 GB with two spare.**
+  Three Samsung `M391A1G43EB1-CPB` — the same 8 GB DDR4-2133 ECC UDIMM the
+  machine already carries — $44 each, $147.30 with FedEx 2Day, new from
+  Memory.NET with a lifetime warranty on the modules. The row entered the buy
+  table on 2026-09-21 and left it on 2026-09-22 by that section's own rule: a
+  part in transit is its issue's to track, and the money being spent is what
+  moves it to [`hardware.md`](hardware.md).
+  README's count goes back to two.
+
+  **The row said "two slots left free" and the purchase did not honour it**,
+  which is worth writing down as a decision rather than letting the record
+  quietly disagree with the machine. Two 16 GB ECC unbuffered modules were
+  $134 to $140 each new — more than three of these — and the 2133 module
+  already fitted clocks the set either way, so the matched-set answer was
+  cheaper and the speed argument was a wash. What it costs is the upgrade
+  path: with four slots occupied, the board's 64 GB ceiling is a replacement
+  of all four modules rather than an addition. That trade was named on the
+  issue before the money was spent and is named in `hardware.md` now, because
+  the second half of that ceiling was never costed and 32 GB is the number
+  ADR-0040's workload was sized against.
+
+  Bought the day after the installed module's label was photographed, which is
+  what fixed the part number: `PC4-2133P-EE1-11` read off the module, `EE` for
+  ECC unbuffered, against this listing's `PC4-17000P-E` for the same thing.
+  Nothing in the Compute table changes yet — it reads 8 GB until the modules
+  are in the slots, and the arrival checks the thing no listing can answer:
+  that three strangers and the incumbent train together at 2133, and that the
+  board posts with every slot filled.
+
 ## 2026-09-21
+
+- **[#599](https://github.com/Gerrrt/HomeLab/issues/599) Opened: memory for
+  `smaug` enters the buy table, and the entry that said nothing was
+  outstanding for that box is corrected.** The TS150 was bought on 2026-09-09
+  as a bare NAS and read off the board on 2026-09-15 as **8192 MB in one of
+  four slots** — one Samsung `M391A1G43EB1-CPBQ`, 8 GB 2Rx8 PC4-2133P, ECC
+  unbuffered. Since then it has taken the mirror `erebor` (2026-09-18) and
+  Jellyfin with Quick Sync (2026-09-19), and neither was weighed against that
+  DIMM when the box was specced. The board holds 64 GB across four DDR4
+  UDIMMs at 2133 or 2400 ([Lenovo Press LP0625](https://lenovopress.lenovo.com/lp0625-ts150-intel-xeon-e3-1200-v5-v6-core-i3-pentium-celeron-g-series)),
+  so this is an add and not a replace, and the part has to be ECC
+  **unbuffered** — `hardware.md` recorded that constraint on the day it read
+  the stick, which is the reason this purchase needed no research to specify.
+  What is decided is the type, 32 GB, and two slots left free; the vendor and
+  whether the 2133 stick stays fitted are chosen on cost and recorded in
+  [`hardware.md`](hardware.md) then. **It is an upgrade and says so** — not
+  the consumable exception, and not inside `roadmap.md`'s prohibition, which
+  names `prometheus`, `oracle` and Wazuh and does not name this machine.
+  README's count moves to three, which `check_buy_list` asserts against the
+  table rather than against this sentence.
+
+- **[#85](https://github.com/Gerrrt/HomeLab/issues/85) Closed: both devices
+  ADR-0036 names are on SNMPv3 authPriv, and neither answers a community.**
+  SNMPv1 went off on the UPS card the same day its poll moved, and
+  `snmp-verify.sh --old` reported its former community `rejected` — the
+  check that proves it, because that probe is v2c whatever the device speaks
+  now. The confirming verify afterwards is green, as is the whole fleet.
+  The estate is mixed on purpose and the documents say which is which: the
+  firewall stays on v2c because bsnmpd is the only daemon that serves the pf
+  MIB, the switch until [#444](https://github.com/Gerrrt/HomeLab/issues/444)
+  replaces it, and both of those polls ride on Winterfell.
+
+  **What v3 costs, measured on the card rather than assumed** — the walk is
+  58 varbinds, so one engine-discovery round trip is the whole difference:
+  0.038 s over the ten minutes after the switchover against 0.031 s over the
+  24 hours before it. Two transients, both explained rather than left in the
+  average: the first v3 scrape took 0.188 s, and one scrape took 10.0 s at
+  the moment SNMPv1 was switched off, which is the NMC restarting its network
+  interface on save exactly as the runbook warns. The next scrape was 0.041 s
+  and `up` never dropped. On the iLO the same measurement was 12.09 s against
+  12.05 s.
 
 - **[#85](https://github.com/Gerrrt/HomeLab/issues/85) `mjolnir` is polled
   over SNMPv3 too, and the UPS shutdown runbook was waiting on a key name

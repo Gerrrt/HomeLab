@@ -1,0 +1,44 @@
+# Alertmanager's silences as metrics (#575).
+#
+# WHY A JOB AND NOT A SCRAPE. Alertmanager publishes `alertmanager_silences`, a
+# count per state, and Prometheus already reads it. A count cannot say which
+# alert a silence covers, when it ends, or who owns it — and those three are
+# what a person reading the silence list during a triage pass has found by
+# hand three times (#76, #531, #572). GET /api/v2/silences has the answers and
+# nothing read it. This runs scripts/collect_silences.py, which writes one
+# series per live silence with the owning issue parsed from its comment, so
+# SilenceExpiresSoon and SilenceWithoutIssue in stack.rules.yaml can watch the
+# control instead.
+#
+# Runs as robo on loopback: Alertmanager binds to 127.0.0.1 (ADR-0012) and
+# this is the one host that can reach it. Nothing here needs root; the textfile
+# directory is robo's on this host (install-timers.sh --install).
+[Unit]
+Description=HomeLab: collect Alertmanager's silences as metrics
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job silence-state -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab silence-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-silence-state
