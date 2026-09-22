@@ -101,3 +101,9 @@ docs/hardware/*.pdf
 # validate.sh emits dashboard panel queries here for promtool; the trap removes
 # it, but an interrupted run should not leave a puzzling untracked file behind.
 .dashboard-exprs-*.yaml
+
+# check_compose_health.py --proof-cache writes here in CI, restored by
+# actions/cache between runs. A proof that binary B execs inside digest D, which
+# cannot change while D does not (#602). Never committed: it is an optimisation
+# of an immutable fact, and losing it costs a slow run, not a missed defect.
+.probe-proofs/

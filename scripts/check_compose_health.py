@@ -49,18 +49,20 @@ The completeness half is only claimed when this script discovered the stacks
 itself, which it does when given no paths. Explicit paths mean the caller chose
 the scope, and no claim about the whole repository can follow from a subset.
 
-Usage: scripts/check_compose_health.py [--probe] [compose.yaml]
+Usage: scripts/check_compose_health.py [--probe] [--proof-cache <path>] [compose.yaml]
        scripts/check_compose_health.py --self-test
        scripts/check_compose_health.py --cross-stack
 """
 from __future__ import annotations
 
+import hashlib
 import itertools
 import os
 import pathlib
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Callable
 
@@ -295,6 +297,93 @@ def docker_unavailable() -> str | None:
 # `toomanyrequests`. Three retries, 85 s in all, is bounded enough for CI and
 # long enough to outlast a per-minute throttle.
 PULL_RETRY_PAUSES = (5, 20, 60)
+
+# --- the proof cache -------------------------------------------------------
+#
+# What a probe establishes is "binary B can be exec'd inside image reference R".
+# When R is pinned by digest that claim is about an immutable artefact: the
+# bytes cannot change under the reference, so the answer cannot change either.
+# Re-establishing it on every pull request is what made this step pull ~8 GB
+# from ghcr.io for diffs that were Markdown only, and ghcr.io throttled those
+# pulls — anonymously on 2026-09-21, and again on 2026-09-22 with a working
+# `docker login`, where the retry spent its whole 5/20/60 budget and the fourth
+# attempt still failed (#602).
+#
+# So the proof is cached instead of the image. A few KB of digests rather than
+# gigabytes of layers, and nothing about the check weakens:
+#
+#   * --probe stays unconditional and still fails rather than skips with no
+#     daemon. This is not a path filter and not a skip — every target is still
+#     accounted for, and one whose proof is not held is pulled and exec'd.
+#   * ONLY digest-pinned references are cacheable. A tag can be moved under you;
+#     a digest cannot. is_digest_pinned() below is the whole safety argument,
+#     and check_image_pins.py already requires every image to carry one.
+#   * A proof is void when the prober changes. The cache carries a hash of this
+#     file, and a mismatch discards every entry rather than trusting proofs made
+#     by logic that no longer exists.
+#
+# The cache is an optimisation of an immutable fact, not a record of what was
+# checked: losing it costs a slow run, never a missed defect.
+PROOF_CACHE_HEADER = "# homelab probe proofs v1"
+PROOF_CACHE_LOGIC = "# prober-sha256: "
+
+
+def is_digest_pinned(image: str) -> bool:
+    """True if this reference names immutable bytes rather than a moving tag."""
+    return "@sha256:" in image
+
+
+def prober_sha256() -> str:
+    """A hash of this file, so a proof cannot outlive the logic that made it."""
+    return hashlib.sha256(
+        pathlib.Path(__file__).resolve().read_bytes()
+    ).hexdigest()
+
+
+def load_proofs(path: pathlib.Path | None) -> set[tuple[str, str, str]]:
+    """Proofs held for the CURRENT prober. Anything else is discarded.
+
+    Every failure to read is an empty set rather than an error: a cache that
+    cannot be read means the work is done again, which is the safe direction and
+    the state every run was in before this existed.
+    """
+    if path is None or not path.exists():
+        return set()
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return set()
+    if not lines or lines[0].strip() != PROOF_CACHE_HEADER:
+        return set()
+    logic = next((l for l in lines if l.startswith(PROOF_CACHE_LOGIC)), "")
+    if logic[len(PROOF_CACHE_LOGIC):].strip() != prober_sha256():
+        note("proof cache was written by a different prober — proving again")
+        return set()
+    proofs = set()
+    for line in lines:
+        if line.startswith("#") or not line.strip():
+            continue
+        parts = line.split("\t")
+        if len(parts) == 3 and is_digest_pinned(parts[0]):
+            proofs.add((parts[0], parts[1], parts[2]))
+    return proofs
+
+
+def save_proofs(path: pathlib.Path | None, proofs: set[tuple[str, str, str]]) -> None:
+    """Write the proofs held after this run. Never fatal — see load_proofs."""
+    if path is None:
+        return
+    body = "\n".join(
+        "\t".join(entry) for entry in sorted(proofs) if is_digest_pinned(entry[0])
+    )
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"{PROOF_CACHE_HEADER}\n{PROOF_CACHE_LOGIC}{prober_sha256()}\n{body}\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        note(f"could not write the proof cache ({exc}) — the next run reproves")
 
 
 def ensure_image(
@@ -654,6 +743,72 @@ def self_test() -> int:
     check("the retry budget is the 85 s the constant claims", 85,
           sum(PULL_RETRY_PAUSES))
 
+    # --- the proof cache ---------------------------------------------------
+    #
+    # Every one of these is a claim about when a proof may be REUSED. The
+    # failure mode they exist for is silent and one-directional: a cache that
+    # is trusted too readily makes this step print its green line having probed
+    # nothing, which is the state --probe exists to eliminate (#79). Prefer
+    # re-proving to trusting, everywhere below.
+    digest = "example.invalid/self-test@sha256:" + "1" * 64
+    tagged = "example.invalid/self-test:tag"
+
+    # 12. THE SAFETY ARGUMENT, in one line. A digest names bytes that cannot
+    #     change; a tag can be moved under you between two runs. Only the first
+    #     may ever be cached, and everything below rests on this.
+    check("a digest-pinned reference is cacheable", True, is_digest_pinned(digest))
+    check("a tagged reference is not", False, is_digest_pinned(tagged))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cache = pathlib.Path(tmp) / "proofs.txt"
+
+        # 13. No cache is not an error and not an empty proof — it is no proofs,
+        #     so everything is proved again.
+        check("a missing cache holds nothing", set(), load_proofs(cache))
+        check("no cache path at all holds nothing", set(), load_proofs(None))
+
+        # 14. The round trip. Written by one run, read by the next.
+        entries = {(digest, "wget", ""), (digest, "/bin/sh", "10001:10001")}
+        save_proofs(cache, entries)
+        check("proofs survive a save and load", entries, load_proofs(cache))
+
+        # 15. A tagged reference is refused on the way IN as well as on the way
+        #     out, so a cache file cannot carry one even if hand-edited.
+        save_proofs(cache, entries | {(tagged, "wget", "")})
+        check("a tagged reference is not written", entries, load_proofs(cache))
+
+        # 16. THE ONE THAT MATTERS MOST. A proof is a statement this file made;
+        #     change this file and the statement is void. Without this, editing
+        #     probe_binary would leave every stale verdict in place and the next
+        #     run would prove nothing while reporting success.
+        save_proofs(cache, entries)
+        poisoned = cache.read_text(encoding="utf-8").replace(
+            prober_sha256(), "0" * 64
+        )
+        cache.write_text(poisoned, encoding="utf-8")
+        check("a proof made by a different prober is discarded", set(),
+              load_proofs(cache))
+
+        # 17. Anything unreadable is no proofs rather than an exception. A cache
+        #     is an optimisation; a corrupt one must cost a slow run, never a
+        #     crash and never a skipped probe.
+        cache.write_text("not a proof cache at all\n", encoding="utf-8")
+        check("a file with the wrong header holds nothing", set(), load_proofs(cache))
+        cache.write_text(
+            f"{PROOF_CACHE_HEADER}\n{PROOF_CACHE_LOGIC}{prober_sha256()}\n"
+            "garbage\twith\ttoo\tmany\tfields\n\n",
+            encoding="utf-8",
+        )
+        check("a malformed row is dropped, not fatal", set(), load_proofs(cache))
+
+        # 18. A directory that does not exist yet is created rather than losing
+        #     the run's proofs — actions/cache restores into a path that may not
+        #     be there on the first run of a branch.
+        nested = pathlib.Path(tmp) / "a" / "b" / "proofs.txt"
+        save_proofs(nested, entries)
+        check("a cache in a missing directory is still written", entries,
+              load_proofs(nested))
+
     return failed
 
 
@@ -666,6 +821,21 @@ def main() -> int:
         return self_test()
     probe = "--probe" in argv
     argv = [arg for arg in argv if arg != "--probe"]
+
+    proof_cache: pathlib.Path | None = None
+    if "--proof-cache" in argv:
+        at = argv.index("--proof-cache")
+        if at + 1 >= len(argv):
+            print("--proof-cache needs a path", file=sys.stderr)
+            return 1
+        proof_cache = pathlib.Path(argv[at + 1])
+        del argv[at:at + 2]
+        if not probe:
+            # The cache records what --probe proved. Accepting it without
+            # --probe would write an empty file over a good one and look like a
+            # cache miss next run.
+            print("--proof-cache needs --probe", file=sys.stderr)
+            return 1
 
     if "--cross-stack" in argv:
         argv = [arg for arg in argv if arg != "--cross-stack"]
@@ -809,12 +979,42 @@ def main() -> int:
             return 1
 
         started = time.monotonic()
+
+        # A proof is (image, binary, user) — the exact question probe_binary
+        # answers. `held` is what a previous run established about references
+        # that cannot have changed since; see the proof cache notes above.
+        held = load_proofs(proof_cache)
+        proven = set(held)
+
+        def already_proved(image: str, binary: str, user: str | None) -> bool:
+            return (
+                proof_cache is not None
+                and is_digest_pinned(image)
+                and (image, binary, user or "") in held
+            )
+
+        # Only images with something still to prove are worth pulling. On a diff
+        # that moved no pin this is empty, and the step touches no registry at
+        # all — which is the whole point (#602).
         images = {image for _, image, _, _ in targets + claims}
+        needed = {
+            image
+            for name, image, binary, user in targets + claims
+            if not already_proved(image, binary, user)
+        }
+        carried = len(images) - len(needed)
+        if carried:
+            note(
+                f"{carried} of {len(images)} image(s) already proved at this "
+                f"digest — not pulled"
+            )
         pulled: dict[str, str | None] = {}
-        for image in sorted(images):
+        for image in sorted(needed):
             pulled[image] = ensure_image(image)
 
         for name, image, binary, user in targets:
+            if already_proved(image, binary, user):
+                continue
             failure = pulled[image]
             if failure:
                 problems.append(
@@ -825,6 +1025,7 @@ def main() -> int:
             verdict, detail = probe_binary(image, binary, user)
             probed += 1
             if verdict == "present":
+                proven.add((image, binary, user or ""))
                 note(f"{name}: {binary} present in {image}")
             elif verdict == "absent":
                 problems.append(
@@ -847,6 +1048,8 @@ def main() -> int:
                 )
 
         for name, image, binary, user in claims:
+            if already_proved(image, binary, user):
+                continue
             failure = pulled[image]
             if failure:
                 problems.append(
@@ -857,6 +1060,7 @@ def main() -> int:
             verdict, detail = probe_binary(image, binary, user)
             probed += 1
             if verdict == "absent":
+                proven.add((image, binary, user or ""))
                 note(f"{name}: {binary} absent from {image}, as compose.yaml says")
             elif verdict in ("present", "unusable"):
                 problems.append(
@@ -872,6 +1076,10 @@ def main() -> int:
                     f"{name} ({detail}) — unverified, which is the state this "
                     f"probe exists to eliminate"
                 )
+        # Written even when this run found problems: each entry is a proof that
+        # was established, and a defect elsewhere does not make it untrue. The
+        # image that failed simply has no proof, so the next run pulls it again.
+        save_proofs(proof_cache, proven)
         elapsed = time.monotonic() - started
 
     for problem in problems:
@@ -902,9 +1110,18 @@ def main() -> int:
         # anything would otherwise print this same green line having done
         # nothing at all.
         summary += (
-            f"; {probed} binary/binaries exec'd inside {len(images)} pinned "
+            f"; {probed} binary/binaries exec'd inside {len(needed)} pinned "
             f"image(s) in {elapsed:.0f}s"
         )
+        # Said separately and never folded into the count above, because the two
+        # are different claims: one is work this run did, the other is work an
+        # earlier run did against bytes that cannot have changed since. A single
+        # number covering both would be the "(24 fixtures)" problem (#614).
+        if carried:
+            summary += (
+                f"; {len(images) - len(needed)} image(s) carried a proof from an "
+                f"earlier run at the same digest and were not pulled"
+            )
     else:
         summary += (
             " (images NOT probed — pass --probe to exec each healthcheck binary "
