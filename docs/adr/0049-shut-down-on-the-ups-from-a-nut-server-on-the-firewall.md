@@ -16,6 +16,22 @@ power source [#413](https://github.com/Gerrrt/HomeLab/issues/413) owed
 > what caught it, and its rule — the one that landed second renumbers — is
 > what chose this file. The decision is untouched. Text that predates the
 > renumber, including #586's own commits and description, calls it 0048.
+>
+> **What watches the proof is corrected, 2026-09-22.** *The measure, and the
+> proof* below says test 1 is *"watched from `prometheus`, which stays up on
+> its cell and sees each host go"*. It sees `smaug` and `morpheus` go, and it
+> cannot see `Saruman`. Nothing on Winterfell may initiate into
+> ImaginationLAN — the one pass runs the other way, `10.0.30.110 →
+> 10.0.99.20` on 9090 and 3100
+> ([ADR-0033](0033-keep-the-ilo-on-the-lab-segment.md)) — and `Saruman`
+> remote-writes, so `InstanceDown` cannot see its agent stop either, which is
+> the gap `RemoteWriteJobStale` in `stack.rules.yaml` exists to close. Sample
+> freshness is the most that host can offer for `Saruman`, worth about the
+> agent's sixty-second scrape. So
+> [`shut-down-on-the-ups.md`](../runbooks/shut-down-on-the-ups.md) §5.1 times
+> `Saruman` from the Mac on ImaginationLAN that step 3 already needs, and
+> keeps the freshness query as a fallback with its resolution stated. The
+> decision, the shutdown order, and what the test proves are unchanged.
 
 ## Context
 
