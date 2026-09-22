@@ -713,6 +713,34 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   after the label was photographed, which is what settled the part number —
   `PC4-2133P-EE1-11` off the installed module, `EE` being ECC unbuffered, and
   this listing naming `PC4-17000P-E` for the same thing.
+- WD Elements Portable 5 TB, `WDBU6Y0050BBK-WESN`[^Elements] — 2.5" USB 3.2
+  Gen 1, bus-powered, no power brick — **bought 2026-09-22**, under
+  [#455](https://github.com/Gerrrt/HomeLab/issues/455). The drive
+  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
+  was waiting on: the off-estate copy of the household's photographs and
+  documents, kept at another address. **Not the estate's backup sets** —
+  those ride with the second age recipient
+  ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
+  [`copy-the-backups-offsite.md`](runbooks/copy-the-backups-offsite.md)) and
+  this drive is not that medium. 5 TB against a 2 TB source — Immich's
+  originals on `trinity`'s USB disk, plus Paperless's documents — so the
+  capacity question does not come back. **What it cost is not written down
+  here**, which is this entry's one gap and the thing to close when the
+  receipt is to hand; the roadmap's rule is that a purchase is recorded when
+  the money is spent, and the date and the part are what that rule is for.
+  **It has no vendor encryption and that is why it qualifies**: ADR-0023
+  requires a key that is not the one only the operator holds, and a drive
+  password is a single-holder secret behind a vendor utility, which is the
+  failure that ADR exists to prevent moved one shelf further away. The
+  encryption is the estate's own, over a filesystem the other person's machine
+  can read — the pairing, and whose key it is, are
+  [#455](https://github.com/Gerrrt/HomeLab/issues/455)'s two open conditions,
+  neither of which a drive satisfies. Three things the fit checks rather than
+  assumes: it ships formatted for Windows and wants reformatting for that
+  pairing; its cable is USB 3.0 Micro-B at the drive end, so **the cable
+  travels with the drive** or the drive is a brick at the other address; and a
+  5 TB 2.5" drive of this class is shingled, which is fine for an archive
+  written in one pass and not fine as a live target.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]
@@ -723,6 +751,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
 [^Exos]: [Seagate Exos X20 18TB SATA 6Gb/s 7200RPM Enterprise HDD ST18000NM003D 0HR Drives](https://www.ebay.com/itm/237056026029)
 [^SM863a]: [Samsung SM863a 960 GB, MZ-7KM960N](https://www.ebay.com/itm/800210578217)
+[^Elements]: [WD 5TB Elements Portable External Hard Drive, WDBU6Y0050BBK-WESN](https://www.amazon.com/dp/B07X41PWTY)
 [^Smaugmem]: [Samsung M391A1G43EB1-CPB, 8 GB DDR4-2133 ECC UDIMM PC4-17000P-E dual rank x8](https://memory.net/product/m391a1g43eb1-cpb-samsung-1x-8gb-ddr4-2133-udimm-pc4-17000p-e-dual-rank-x8-module/)
 [^Caddy]: [HP 2.5" SFF drive tray, 651687-001, for DL360/DL380/ML350 Gen8 and Gen9](https://www.ebay.com/itm/126297185368)
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)

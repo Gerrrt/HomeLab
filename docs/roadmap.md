@@ -136,13 +136,21 @@ has been rehearsed on it.
   and [#137](https://github.com/Gerrrt/HomeLab/issues/137) Homepage. The
   restore path is rehearsed already:
   → [runbook](runbooks/restore-the-sensitive-tier.md).
-- **[#455](https://github.com/Gerrrt/HomeLab/issues/455) Buy the off-estate
-  drive.** Before the tier holds real data, not after:
+- **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
+  **The drive is bought** — 2026-09-22, in
+  [`hardware.md`](hardware.md) — so what is left is not a purchase. Two
+  conditions
+  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
+  attaches are open and a drive satisfies neither: the copy is encrypted with
+  a key that is **not** the one only the operator holds, and the path is
+  opened once **from the other person's device, without the operator
+  present**. Whether that key is
+  [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
+  second recipient or a separate one is the decision this issue still owes.
+  Before the tier holds real data, not after:
   [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)'s
-  first trigger is the first real photo or document, and
-  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)'s
-  copy needs a destination before that day so the decision is not made under
-  pressure. So it precedes Immich and Paperless-ngx going live.
+  first trigger is the first real photo or document, so this precedes Immich
+  and Paperless-ngx going live.
 
 ## NAS
 
@@ -250,8 +258,10 @@ and runbooks until one box had been bought for two jobs
 **Nothing enters the table without a decision the operator made, and a PR that
 implies a purchase edits this section in the same commit.** Parts on hand are
 in [`hardware.md`](hardware.md); a part in transit is its issue's to track.
-`smaug`'s memory left this table on 2026-09-22 by that rule, bought rather
-than dropped ([#599](https://github.com/Gerrrt/HomeLab/issues/599)) — and it
+`smaug`'s memory and the off-estate drive both left this table on 2026-09-22
+by that rule, bought rather than dropped
+([#599](https://github.com/Gerrrt/HomeLab/issues/599),
+[#455](https://github.com/Gerrrt/HomeLab/issues/455)) — and it
 was bought to a different shape than the row described, which is in
 [`hardware.md`](hardware.md) and in
 [`changelog.md`](changelog.md) rather than here.
@@ -261,7 +271,6 @@ was bought to a different shape than the row described, which is in
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
-| An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on. Not the estate's own backup sets: those ride with the second age recipient, [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md) | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC

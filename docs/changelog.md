@@ -19,6 +19,37 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-22
 
+- **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate drive
+  is bought, and buying it settles less than the row implied.** A WD Elements
+  Portable 5 TB, `WDBU6Y0050BBK-WESN`, bus-powered USB 3.2 Gen 1. The second
+  row leaves the buy table the same day as the first; README's count goes to
+  one. 5 TB against a 2 TB source — Immich's originals plus Paperless's
+  documents — so capacity is answered outright rather than sized to today.
+
+  **It was chosen for what it does not have.** ADR-0023 requires the copy be
+  encrypted with a key that is *not* the one only the operator holds, and a
+  drive's own password is a single-holder secret behind a vendor utility —
+  the estate's failure mode moved one shelf away, which is the thing that ADR
+  was written about. So vendor encryption was a reason to reject a drive here,
+  not to pay for one, and this drive has none.
+
+  **What the purchase does not close.** Both of ADR-0023's conditions are
+  open and no drive satisfies either: whose key opens the copy — ADR-0024's
+  second recipient or a separate one — and the path being opened once from
+  the other person's device, signed into their own account, without the
+  operator present. The roadmap entry for #455 is rewritten to say so, because
+  "buy the off-estate drive" stopped being what that issue is about the moment
+  the drive was bought.
+
+  **Three things the fit checks rather than assumes**, all recorded in
+  [`hardware.md`](hardware.md): the drive ships formatted for Windows and the
+  filesystem has to suit whoever must read it without the operator; its cable
+  is USB 3.0 Micro-B at the drive end, so the cable travels with the drive or
+  the drive is a brick at the other address; and a 5 TB 2.5" drive of this
+  class is shingled, fine for an archive written in one pass and not fine as a
+  live target. **The price is not recorded**, which is the entry's one gap and
+  named there rather than left to be noticed.
+
 - **[#442](https://github.com/Gerrrt/HomeLab/issues/442) The estate has a
   remote path, and it reaches the lab and nothing else.** WireGuard terminating
   on `phoenix`, designed by
