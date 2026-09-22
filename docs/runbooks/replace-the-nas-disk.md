@@ -148,7 +148,13 @@ counter, so the lifetime hour of the fault is a number rather than an
 estimate.
 
 Then the exporter. Its container is `media-node-exporter`
-([`stacks/media/compose.yaml`](../../stacks/media/compose.yaml)):
+([`stacks/media/compose.yaml`](../../stacks/media/compose.yaml)). Restart it
+even if `docker ps` says `healthy`. The healthcheck probes `/`, which keeps
+answering while a collector is blocked on the device and `/metrics` never
+returns. That is how it read `healthy` for 2 h 40 min on 2026-09-19. Nothing
+restarts it on its own, and that was decided rather than overlooked
+([#570](https://github.com/Gerrrt/HomeLab/issues/570)): on `smaug`,
+`InstanceDown` is the page for a hung exporter, and this is the fix:
 
 ```bash
 docker restart media-node-exporter
