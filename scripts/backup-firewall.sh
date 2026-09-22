@@ -110,8 +110,18 @@ FW_USER="${FW_USER:-root}"
 FW_PATH="${FW_PATH:-/cf/conf/config.xml}"
 FW_OFFHOST="${FW_OFFHOST:-atropos@10.0.99.30:backups/firewall}"
 FW_KEEP="${FW_KEEP:-30}"
-OUT_DIR="backups/firewall"
-SOPS_POLICY=".sops.yaml"
+
+# Anchored to the repository, not to the working directory, and that is not
+# cosmetic (#611). These shipped relative, and agreed with where
+# backup-offsite.sh looks — ${REPO_ROOT}/backups — only because the systemd
+# unit sets WorkingDirectory=${DEPLOY_ROOT}. Run by hand from a worktree or
+# from ${HOME}, the export landed somewhere the offsite copy does not read,
+# and the ninety-day visit then carried two kinds while reporting three.
+# backup-volumes.sh:158 and backup-nas.sh:155 were already absolute; this is
+# the odd one out being brought into line.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT_DIR="${REPO_ROOT}/backups/firewall"
+SOPS_POLICY="${REPO_ROOT}/.sops.yaml"
 
 # Nightly, so 30 is a month of history — long enough to reach back past a bad
 # firewall change nobody noticed for a fortnight. backup-volumes.sh keeps 7 of

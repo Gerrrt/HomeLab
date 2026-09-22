@@ -153,7 +153,7 @@ if [[ "${1:-}" == "--self-test" ]]; then
   fail=0
   run() {  # <args...>  → OUT, RC
     set +e
-    OUT="$(OFFSITE_SOURCE="${SRC}" STACK=observability OFFSITE_KEEP="${KEEP_FOR_TEST:-1}" \
+    OUT="$(OFFSITE_SOURCE="${SRC_FOR_TEST:-${SRC}}" STACK=observability OFFSITE_KEEP="${KEEP_FOR_TEST:-1}" \
            OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS="${SKIP_MEDIUM-1}" "${BASH_SOURCE[0]}" "$@" 2>&1)"
     RC=$?
     set -e
@@ -237,6 +237,38 @@ if [[ "${1:-}" == "--self-test" ]]; then
   mkdir -p "${M}/backups/volumes/observability/not-a-stamp"
   run "${M}" --prune;             check "a stray directory on the medium is reported, not removed" 0 "not-a-stamp"
   assert "the stray is still there" '[[ -d "${M}/backups/volumes/observability/not-a-stamp" ]]'
+
+  # A kind with nothing complete under it (#611). The run must copy the kinds
+  # that DO exist — refusing the whole visit would strand two good sets — and
+  # must still not exit 0, because exit 0 is what run-scheduled.sh records as a
+  # proof and what buys ninety days of OffsiteCopyStale silence.
+  SRC2="${T}/backups-no-nas"; M2="${T}/medium-no-nas"
+  mkdir -p "${SRC2}/volumes" "${SRC2}/nas" "${SRC2}/firewall" "${M2}"
+  fake_set "${SRC2}/volumes" 20260921T000000Z backup-volumes.sh grafana-data
+  head -c 2048 /dev/urandom > "${SRC2}/firewall/config-20260921T000000Z.sops.yaml"
+
+  SRC_FOR_TEST="${SRC2}" run "${M2}"
+  check "a missing kind is named, not summarised as a proof" 1 "NOT held: nas"
+  assert "the kinds that do exist still travelled" \
+    '[[ "${OUT}" == *"copied 20260921T000000Z"* && "${OUT}" == *"copied config-20260921T000000Z"* ]]'
+  assert "the medium really did receive them" \
+    '[[ -f "${M2}/backups/volumes/observability/20260921T000000Z/MANIFEST" && -f "${M2}/backups/firewall/config-20260921T000000Z.sops.yaml.sha256" ]]'
+  assert "the green line names what is held rather than claiming each kind" \
+    '[[ "${OUT}" == *"the medium holds volumes, firewall"* && "${OUT}" != *"newest of each kind"* ]]'
+
+  # The second run reaches the OTHER terminal path — everything present is
+  # already on the medium, nothing to copy — which made the same false claim
+  # and is not the one #611 cites.
+  SRC_FOR_TEST="${SRC2}" run "${M2}"
+  check "nothing to copy is not a proof either while a kind is missing" 1 "NOT held: nas"
+  assert "and it does not buy silence" \
+    '[[ "${OUT}" == *"does not buy ninety days"* ]]'
+
+  # The same tree with the gap filled proves the refusal is the missing kind
+  # and not the fixture: one file appears, and the run goes green.
+  fake_set "${SRC2}/nas" 20260921T000000Z backup-nas.sh jellyfin-config
+  SRC_FOR_TEST="${SRC2}" run "${M2}"
+  check "filling the gap restores the proof" 0 "the medium holds the newest of each kind, proved"
 
   KEEP_FOR_TEST=0 run "${M}" --list; check "OFFSITE_KEEP=0 is rejected" 1 "OFFSITE_KEEP must be a positive integer"
   exit "${fail}"
@@ -667,10 +699,58 @@ else
   warn "no firewall export under ${FW_SRC}"
 fi
 
-if [[ -z ${todo_vol} && -z ${todo_nas} && -z ${todo_fw} ]]; then
+# WHICH KINDS ARE ABSENT, AND WHY THAT IS NOT A SUCCESS (#611)
+#
+# The three warns above used to be the only trace a missing kind left. The run
+# copied what it had, printed "the medium holds the newest of each kind" in
+# green and exited 0 — so run-scheduled.sh recorded
+# homelab_job_last_success_timestamp_seconds{homelab_job="offsite-copy"} and
+# OffsiteCopyStale went quiet for ninety days over a medium that is missing a
+# set. The sentence was false, and the silence was bought with it.
+#
+# The COPY is not refused. Someone who has never run `make backup-nas` should
+# still be able to carry the other two off the estate, and a visit that carried
+# two kinds is better than one that carried none. What is refused is the PROOF:
+# a run with a kind absent copies everything it has, names what is missing, and
+# exits non-zero, so the deadline keeps nagging until somebody fixes the gap
+# rather than a warn scrolling past nobody.
+#
+# The three kinds are named here rather than counted, because "2 of 3" does not
+# tell the reader which one a successor will not find.
+missing=()
+held=()
+if [[ -n ${newest_vol} ]]; then held+=("volumes")
+else missing+=("volumes — nothing complete under ${VOL_SRC}, run \`make backup\`"); fi
+if [[ -n ${newest_nas} ]]; then held+=("nas")
+else missing+=("nas — nothing complete under ${NAS_SRC}, run \`make backup-nas\`"); fi
+if [[ -n ${newest_fw} ]]; then held+=("firewall")
+else missing+=("firewall — no export under ${FW_SRC}, run \`make backup-firewall\`"); fi
+
+# Both terminal paths go through this. #611 cites only the one after the copy,
+# but the "nothing to copy" path below made the same claim about the same three
+# kinds and exited 0 just as readily — a medium already holding two of three
+# reported a clean proof on every subsequent run.
+finish() {  # <green sentence, used only when nothing is missing>
+  local m
   prune_medium
-  green "the medium already holds the newest of each kind, and it verifies — nothing to copy"
-  exit 0
+  if ((${#missing[@]} == 0)); then
+    green "$1"
+    exit 0
+  fi
+  # printf -v rather than a loop or `${held[*]}`: the format is applied once
+  # even with no arguments, so the obvious "%s and " join prints " and volumes"
+  # for a single kind. Trailing separator stripped instead.
+  local list
+  printf -v list '%s, ' "${held[@]}"
+  list="${list%, }"
+  green "the medium holds ${list:-nothing}, and that verifies."
+  for m in "${missing[@]}"; do red "NOT held: ${m}"; done
+  red "No proof is recorded while a kind is missing, so this run does not buy ninety days of OffsiteCopyStale silence."
+  exit 1
+}
+
+if [[ -z ${todo_vol} && -z ${todo_nas} && -z ${todo_fw} ]]; then
+  finish "the medium already holds the newest of each kind, and it verifies — nothing to copy"
 fi
 
 # Enough room, before the first byte. Refused rather than filled: a medium
@@ -692,5 +772,4 @@ if ((failed)); then
   exit 1
 fi
 
-prune_medium
-green "the medium holds the newest of each kind, proved — offsite, not just off-host. Keep it out of the house."
+finish "the medium holds the newest of each kind, proved — offsite, not just off-host. Keep it out of the house."
