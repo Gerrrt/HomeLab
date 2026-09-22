@@ -32,7 +32,13 @@
 #   verify-ca-key-backup.sh   the real run needs a private key on a mounted medium
 #                             and can never happen in CI (#496)
 #   backup-offsite.sh         the real run needs the second recipient's medium
-#                             mounted (ADR-0048); one fixture is the #596 regression
+#                             mounted (ADR-0048), so the refusals — a DEST inside
+#                             this repository, on the same filesystem as the sets,
+#                             on an in-memory filesystem, or under a tree this
+#                             host clears on boot — run against a fake backups/
+#                             tree. /dev/shm is a refusal FIXTURE here, not a
+#                             destination: a different filesystem that is still
+#                             this host's RAM, which is the #596 regression (#610)
 #   collect_silences.py       `issue` is read only from a comment that BEGINS with
 #                             #NNN, and the fixture that fails otherwise is the
 #                             point (#575)
