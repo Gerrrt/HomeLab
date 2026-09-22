@@ -19,6 +19,56 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-22
 
+- **[#442](https://github.com/Gerrrt/HomeLab/issues/442) The estate has a
+  remote path, and it reaches the lab and nothing else.** WireGuard terminating
+  on `phoenix`, designed by
+  [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md) and
+  given an endpoint by
+  [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md):
+  one UDP `rdr` on `morpheus`, the first inbound pass that WAN has ever
+  carried, answering at a dynamic DNS record created 2026-09-21. One peer,
+  `laptop-01`, pinned to `172.31.0.2/32`. Routed rather than masqueraded, so a
+  peer keeps its own address across the jumpbox and a `filterlog` line names
+  which device tried — measured, not asserted: 264 packets to Winterfell, 26 to
+  CasaBonita and 17 to Hicks were blocked and attributed to `172.31.0.2`, with
+  **zero** passed toward the house. `alexander` answered at `ttl=63`, the
+  decrement that proves the jumpbox forwarded rather than answered. Sequenced
+  behind [#566](https://github.com/Gerrrt/HomeLab/issues/566) deliberately,
+  because until `Saruman`'s own firewall was on a peer would have reached the
+  hypervisor's login page. ADR-0022's second trigger was spent recording this
+  in advance rather than discovering it afterwards, and ADR-0042's two
+  residuals still stand: a peer is a credential with no revocation mechanism,
+  and the one externally reachable host reports to the store no house alert
+  reads. → [runbook](runbooks/open-the-remote-path.md)
+- **ADR-0042's forwarding mechanism does not work on Ubuntu 26.04, and it fails
+  reporting success.** The ADR scopes forwarding to the tunnel's lifetime by
+  putting `sysctl` in wg-quick's `PostUp`/`PostDown`, deliberately rather than
+  in `/etc/sysctl.d`. The distribution ships an AppArmor profile whose
+  `wg-quick//sysctl` child denies writing `/proc/sys/net/ipv4/ip_forward`, and
+  which also denies executing `bash`, so a shell workaround fails too. `sysctl`
+  prints the value it did not set and `systemctl` reports the unit started
+  cleanly; only `dmesg` carries `apparmor="DENIED"`. **The resulting tunnel
+  looks entirely healthy**: the handshake succeeds and the jumpbox itself
+  answers, because packets addressed to it need no forwarding — while every
+  other lab host is unreachable and not one firewall rule can be exercised. The
+  toggle moved to a systemd drop-in, which runs outside that profile and keeps
+  the ADR's property intact; the decision is unamended and carries a note.
+  Found by the §8 verification failing in a way that looked like success.
+- **Four defects in `open-the-remote-path.md` §8, all found by building it.**
+  Its positive check pinged `10.0.30.1`, which a peer can never reach because no
+  rule passes a `172.31` source to the firewall's own lab address — and because
+  that check always failed, it masked the forwarding bug above for an
+  afternoon. Its negative checks and leak drill cannot fire at all while the
+  client is correctly scoped, since those destinations are not in `AllowedIPs`
+  and the packets never enter the tunnel; the drill needs the client
+  temporarily widened, which ADR-0042 anticipated when it said the firewall is
+  the lock this verification credits. Its `ping -W3` means milliseconds on
+  macOS, so every negative check passed instantly without testing anything.
+  And `-c1` cannot survive WireGuard re-handshaking after a server restart, so
+  a single packet lost inside the client reads as a firewall block. The section
+  now proves location from the route table rather than from intention, checks
+  counters rather than pings, and says which flags differ per platform.
+
 - **[#599](https://github.com/Gerrrt/HomeLab/issues/599) `smaug`'s memory is
   bought, to 32 GB across all four slots rather than to 32 GB with two spare.**
   Three Samsung `M391A1G43EB1-CPB` — the same 8 GB DDR4-2133 ECC UDIMM the

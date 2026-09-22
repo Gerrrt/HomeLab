@@ -81,10 +81,6 @@ Closes when it is empty.
   pulls the mains once to replace the card's 47-minute claim with a number.
   Shares a window with #531's fit and, if its parts have landed, #444.
   → [runbook](runbooks/shut-down-on-the-ups.md)
-- **[#442](https://github.com/Gerrrt/HomeLab/issues/442) WireGuard to the
-  lab jumpbox.** Was gated on `phoenix`, which is built; the record
-  [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
-  decided is §0 of the runbook. → [runbook](runbooks/open-the-remote-path.md)
 
 The rest of the milestone has no order between its issues.
 

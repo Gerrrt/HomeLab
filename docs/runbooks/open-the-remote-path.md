@@ -7,9 +7,37 @@ route, one port forward and five rules on `morpheus` (`10.0.99.1`)
 enrol, and a dynamic DNS account — §0 turns it into **the endpoint**, which
 used to be the step this runbook could not do for you
 **Before this:** the jumpbox exists
-([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and
+([#436](https://github.com/Gerrrt/HomeLab/issues/436)), `Saruman`'s own
+firewall is on ([#566](https://github.com/Gerrrt/HomeLab/issues/566)) so that
+a peer which reaches the lab does not reach `8006`, and
 [ADR-0042](../adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)
 is read rather than skimmed
+
+> **Status — 2026-09-22: the tunnel is up, and it reaches the lab and nothing
+> else.** §0's record was created 2026-09-21; the tunnel came up the next day.
+>
+> One peer, `laptop-01`, pinned to `172.31.0.2/32`. The endpoint is ADR-0044's
+> dynamic DNS record, verified by resolving it against a public resolver from
+> `morpheus` itself and comparing to the live WAN address, which is stronger
+> than the typed check §0 used to ask for. #566 was closed first, on
+> 2026-09-20, so the hypervisor's login surface was never reachable from a
+> peer.
+>
+> Measured, from a laptop on a phone hotspot: `alexander` answered at
+> `ttl=63`, one hop below its default, which is the proof that `phoenix`
+> forwarded rather than answered. Peer traffic toward the house was **blocked
+> and attributed** — 264 packets to Winterfell, 26 to CasaBonita, 17 to Hicks,
+> and `filterlog` carried 307 blocked lines with a `172.31.0.2` source and
+> **zero** passed. The tripwire stayed at 0, which is correct: the blocks catch
+> everything above it.
+>
+> **Four things in this runbook were wrong, and the build found them by
+> failing.** §3's `PostUp` cannot work on Ubuntu 26.04 at all; §8's positive
+> test named an address a peer can never reach; §8's negative tests and leak
+> drill cannot fire while the client is correctly scoped; and its commands are
+> Linux-flavoured in ways that silently no-op on a macOS client. All four are
+> fixed below. The forwarding one is the serious one, because it failed while
+> reporting success.
 
 This opens the estate's **first inbound path from the internet**. It terminates
 on the lab and reaches the lab, and the thing that keeps it there is the
@@ -162,8 +190,11 @@ PrivateKey = <contents of /etc/wireguard/server.key>
 # Forwarding is a capability scoped to the tunnel's lifetime, not a permanent
 # property of the host (ADR-0042). Nothing here is in /etc/sysctl.conf, and
 # nothing here translates an address.
-PostUp   = sysctl -w net.ipv4.ip_forward=1
-PostDown = sysctl -w net.ipv4.ip_forward=0
+#
+# BUT NOT HERE, on Ubuntu 26.04. See the CAUTION below: AppArmor denies
+# wg-quick both the sysctl write and exec of a shell, so these two lines fail
+# silently and the service still reports success. The toggle lives in a systemd
+# drop-in instead, and these lines are replaced by a comment pointing at it.
 
 [Peer]
 # laptop-01. One block per device, and the comment is how you will know which
@@ -179,6 +210,55 @@ AllowedIPs   = 172.31.0.2/32
 ```bash
 sudo chmod 0600 /etc/wireguard/wg0.conf
 sudo systemctl enable --now wg-quick@wg0
+```
+
+> [!CAUTION]
+> **`PostUp` cannot set a sysctl on Ubuntu 26.04, and it fails looking like it
+> worked.** Found 2026-09-22 building this
+> ([#442](https://github.com/Gerrrt/HomeLab/issues/442)). The distribution
+> ships an AppArmor profile for `wg-quick`; its `wg-quick//sysctl` child denies
+> writing `/proc/sys/net/ipv4/ip_forward`, and the profile denies executing
+> `bash`, so a shell workaround fails too. What you see is this:
+>
+> ```text
+> [#] sysctl -w net.ipv4.ip_forward=1
+> sysctl: permission denied on key "net.ipv4.ip_forward", ignoring
+> net.ipv4.ip_forward = 1
+> ```
+>
+> It prints the value it did not set, and `systemctl` reports the unit started
+> successfully. The kernel records the real reason in `dmesg` as
+> `apparmor="DENIED" ... profile="wg-quick//sysctl"`.
+>
+> **The symptom is a tunnel that looks entirely healthy.** The handshake
+> succeeds, and the jumpbox itself is reachable, because a packet addressed to
+> `phoenix` terminates there and needs no forwarding. Every *other* lab host is
+> unreachable, and so is every blocked destination — which means the §8
+> verification below cannot exercise a single firewall rule. That is how this
+> hid.
+
+Set the toggle in a systemd drop-in, where it runs outside that profile. This
+keeps ADR-0042's property exactly: the capability appears with the tunnel and
+disappears with it, and it is nowhere in `/etc/sysctl.d`.
+
+```bash
+SYSCTL="$(command -v sysctl)" && sudo install -d -m 0755 /etc/systemd/system/wg-quick@wg0.service.d && sudo tee /etc/systemd/system/wg-quick@wg0.service.d/ip-forward.conf >/dev/null <<EOF
+[Service]
+ExecStartPost=$SYSCTL -w net.ipv4.ip_forward=1
+ExecStopPost=$SYSCTL -w net.ipv4.ip_forward=0
+EOF
+sudo systemctl daemon-reload && sudo systemctl restart wg-quick@wg0
+```
+
+Prove it from zero, because setting the value by hand first would make the
+next check pass for the wrong reason:
+
+```bash
+sudo sysctl -w net.ipv4.ip_forward=0 \
+  && sudo systemctl restart wg-quick@wg0 && sysctl net.ipv4.ip_forward \
+  && sudo systemctl stop wg-quick@wg0 && sysctl net.ipv4.ip_forward \
+  && sudo systemctl start wg-quick@wg0 && sysctl net.ipv4.ip_forward
+# expect 1, then 0, then 1
 ```
 
 ## 4. The client configuration
@@ -279,7 +359,14 @@ this source, keeping the established order — blocks, then the tripwire, then
 the egress catch-all:
 
 1. **A block per house segment**, `Tunnel_Peers → <segment>`, logged, placed
-   immediately beside the existing `10.0.30.0/24` blocks.
+   immediately beside the existing `10.0.30.0/24` blocks. On 2026-09-22 there
+   were six: Winterfell, Hicks, CasaBonita, Skids, Degens and the switch LAN.
+   The quickest way is to copy each existing IPv4 block and change only the
+   source; the destinations are then right by construction. **Tick `Log` on
+   every one, even though five of the six originals are unlogged** — §8's leak
+   drill reads blocked `filterlog` lines, so a silent block makes the drill
+   return nothing, which is indistinguishable from the packet never being sent.
+   IPv6 counterparts are unnecessary: the tunnel carries IPv4 only.
 2. **One tripwire**, `pass` + `log`, `Tunnel_Peers → House_Segments`, directly
    below those blocks and above the `→ any` egress rule.
 
@@ -316,27 +403,95 @@ sudo wg show wg0 allowed-ips
 # Anything wider — a /24, or 0.0.0.0/0 — is the segmentation failure.
 ```
 
-From the **client**, with the tunnel up:
+### Before any client check: prove where you are, from the route table
+
+"Test from off-estate" is an intention. The route table is a fact, and on
+2026-09-22 a laptop silently rejoined the house Wi-Fi mid-test and produced a
+page of results that meant nothing. macOS prefers Wi-Fi over tethering, so
+**turn Wi-Fi off** rather than merely connecting to a hotspot, then:
 
 ```bash
-# Reaches the lab.
-ping -c1 10.0.30.1
-
-# Reaches NOTHING else. Each of these must fail, and must fail by timing out
-# rather than by "network unreachable" from your own machine — the latter means
-# the client route is right and you have not tested the firewall at all.
-ping -c1 -W3 10.0.99.20   # Winterfell — the observability host
-ping -c1 -W3 10.0.99.30   # Winterfell — oracle
-ping -c1 -W3 10.0.50.10   # Hicks
-ping -c1 -W3 10.0.40.30   # CasaBonita
+route -n get 10.0.30.70 | grep -E 'interface|gateway'
+# expect a utun interface. A gateway of 10.0.50.1 means you are on Hicks, and
+# every check below would pass whether or not the tunnel works (ADR-0031).
 ```
 
-Now bring it down, and check the capability went with it:
+```bash
+netstat -rn -f inet | grep utun<N>
+# THIS IS THE CLIENT-SIDE CONFINEMENT PROOF, and it is better than any ping:
+# it shows the whole set of what the tunnel carries, not one address. Expect
+# 10.0.30/24 and nothing else from 10.0.0.0/8.
+```
+
+> [!IMPORTANT]
+> **On macOS, `ping -W` is milliseconds, not seconds.** Every `-W3` below is
+> three thousandths of a second on a Mac, so the ping fails instantly whatever
+> the firewall does, and the negative checks appear to pass while testing
+> nothing. Use `-t 3` on macOS. This cost an hour on 2026-09-22.
+
+### The positive check: a lab host, not the gateway
+
+```bash
+# From the client. NOT 10.0.30.1 — a peer cannot reach the firewall's own lab
+# address, because no rule passes a 172.31 source to it and it falls to default
+# deny. The original version of this runbook told you to ping it, which always
+# failed, which is exactly what hid the forwarding bug in §3 for an afternoon.
+ping -c2 -t3 10.0.30.40        # alexander. macOS; use -W3 on Linux
+# expect a reply at ttl=63, one below its default. That decrement is the proof
+# that phoenix FORWARDED it rather than answering for itself, which is the only
+# thing that distinguishes a working jumpbox from one that only reaches itself.
+```
+
+### The negative check, and why it needs the client widened
+
+**A correctly scoped client cannot test the firewall.** With
+`AllowedIPs = 10.0.30.0/24`, a packet for `10.0.99.20` never enters the tunnel:
+it leaves by whatever default route the client has and dies in the carrier's
+network. The result is identical to a firewall block, and identical to the
+tunnel being switched off. ADR-0042 says the firewall is the lock this
+verification credits and the client config is only the second one, so the test
+has to bypass the second to measure the first.
+
+So **temporarily** widen the client, run the checks, and put it back:
+
+```ini
+AllowedIPs = 10.0.30.0/24, 10.0.99.0/24, 10.0.50.0/24, 10.0.40.0/24
+```
+
+Toggle the tunnel off and on, confirm the route landed
+(`route -n get 10.0.99.20` must name the utun interface), then:
+
+```bash
+# SUSTAINED, not -c1. WireGuard drops packets while re-establishing a
+# handshake, so a single packet after any server restart is lost inside the
+# client and reads as a firewall block. Ten seconds each, then control-C.
+ping -i 1 10.0.99.20   # Winterfell
+ping -i 1 10.0.50.10   # Hicks
+ping -i 1 10.0.40.30   # CasaBonita
+```
+
+All must fail. **Then read the firewall, because the client cannot tell you
+why they failed.** On `morpheus`, per-destination counters for the §7 rules:
+
+```bash
+pfctl -vsr | awk '/^block .* inet from <Tunnel_Peers> to </ {
+  match($0, /to <[A-Za-z0-9_]+>/); d=substr($0, RSTART+3, RLENGTH-3);
+  getline; match($0, /Packets: [0-9]+/); print d, substr($0, RSTART+9, RLENGTH-9) }'
+# expect non-zero on each destination you probed. A zero everywhere means the
+# packets never arrived, NOT that they were blocked — see the table below.
+```
+
+**Put `AllowedIPs` back to `10.0.30.0/24` afterwards** and re-check
+`netstat -rn` shows only the lab. The widening is a test instrument and must
+not outlive the test.
+
+### Down, and the capability with it
 
 ```bash
 sudo systemctl stop wg-quick@wg0
 
-# Forwarding is off, because PostDown turned it off.
+# Forwarding is off, because ExecStopPost turned it off (see §3's CAUTION —
+# PostDown cannot do this here).
 sysctl net.ipv4.ip_forward
 # expect: net.ipv4.ip_forward = 0
 
@@ -349,9 +504,9 @@ sudo nft list ruleset 2>/dev/null | grep -i masquerade
 And from the client, with the tunnel down, the lab is gone:
 
 ```bash
-ping -c1 -W3 10.0.30.1
-# expect: failure. If this succeeds, you are on the house network, not remote —
-# test from a device that is genuinely off-estate, on a phone hotspot.
+ping -c1 -t3 10.0.30.40
+# expect: failure. If this succeeds, check the route table above — you are on
+# the house network, and Hicks reaches the lab with no tunnel at all.
 ```
 
 ### The leak drill
@@ -409,11 +564,16 @@ and that the first lost device is when it stops being proportionate.
 | --- | --- | --- |
 | No handshake, ever | The port forward is not reaching the jumpbox, or the dynamic DNS record is stale | `sudo tcpdump -ni any udp port <LISTEN_PORT>` on the jumpbox while the client retries. No packets means §6 or the record — run §0 step 4, and *Force update* on the client if the name and the WAN address differ; packets but no handshake means the keys |
 | Handshake succeeds, nothing routes | The static route in §5 is missing — replies are going to the lab's default gateway, which has never heard of the tunnel subnet | Add it. **Do not add a NAT rule to make this work** |
-| Handshake succeeds, lab reachable, but only from the jumpbox itself | `PostUp` did not run or forwarding is off | `sysctl net.ipv4.ip_forward` — expect 1 with the tunnel up |
+| Handshake succeeds, the jumpbox is reachable, no other lab host is | Forwarding is off. On Ubuntu 26.04 `PostUp` **cannot** set it and says it did | `sysctl net.ipv4.ip_forward` — expect 1 with the tunnel up. Then §3's CAUTION and its drop-in; `journalctl -u wg-quick@wg0` shows `permission denied on key` |
+| Every §8 negative check "passes" and the firewall counters are all zero | The packets never reached the firewall. Either the client is correctly scoped (so they never entered the tunnel) or forwarding is off | Widen the client per §8, and check the counters rather than the ping. Zero everywhere is *not* a pass |
+| Negative checks fail from a Mac in milliseconds | `ping -W` is milliseconds on macOS | `-t 3` instead. See §8's note |
+| A single `-c1` ping fails right after a server restart | WireGuard drops packets while re-handshaking | Sustained `ping -i 1`, not `-c1`. §8 |
+| The client reaches the lab but the firewall logs nothing at all | The blocks in §7 were copied without ticking **Log**, so the leak drill and `LabSegmentReachedInternalNetwork` are both blind | Re-check the Log column on all six. §7 |
 | The client reaches the whole internet through the house | `AllowedIPs = 0.0.0.0/0` on the client | §4. This is the wide-`AllowedIPs` failure, and it is silent |
 | The client reaches Winterfell | A block in §7 is missing or ordered below the catch-all | Check rule order on the ImaginationLAN interface. Treat as a live segmentation failure and read the tripwire log |
 | `LabSegmentReachedInternalNetwork` fires | Either a real breach, or the rule was widened without the blocks | Both are urgent. Read the `filterlog` line: a `172.31.0.x` source is a peer, a `10.0.30.x` source is the lab |
 | Everything works from the sofa and nothing from a hotel | You tested from inside the house | See §8's note. Hicks reaches the lab without any tunnel |
+| Results that contradict each other across one test run | The client rejoined the house Wi-Fi partway through; macOS prefers Wi-Fi over tethering | Turn Wi-Fi **off**, and re-read the route table before each measurement rather than trusting where you think you are |
 
 ## What this does not do
 
