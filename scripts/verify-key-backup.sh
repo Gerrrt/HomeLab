@@ -228,6 +228,16 @@ fi
 # Same reasoning as bootstrap.sh: a zero exit and an empty or partial result are
 # indistinguishable from the caller's side, and this is the one check standing
 # between a lost key and a lost network.
+#
+# This mirrors the observability half of render-config.sh's REQUIRED array, and
+# it is the copy nothing asserts. snmp-targets.sh --check holds the device
+# inventory against render-config.sh by name (its note says so) and does not
+# know this array exists, so an SNMPv3 migration updated that one and left this
+# one naming keys that had been deliberately removed. A device polled over
+# SNMPv2c is one line, its community; a device moved to SNMPv3 (ADR-0036) is
+# two, SNMP_AUTHPASS_<X> and SNMP_PRIVPASS_<X>. Keep the one-name-per-line
+# shape and the same order as render-config.sh, so the two read as the diff
+# they are.
 REQUIRED=(
   GRAFANA_ADMIN_PASSWORD
   ALERTMANAGER_WEBHOOK_URL
@@ -235,9 +245,11 @@ REQUIRED=(
   ALERTMANAGER_SECURITY_WEBHOOK_URL
   ALERTMANAGER_HEARTBEAT_URL
   SNMP_COMMUNITY_PFSENSE
-  SNMP_COMMUNITY_APC
+  SNMP_AUTHPASS_APC
+  SNMP_PRIVPASS_APC
   SNMP_COMMUNITY_MOKERLINK
-  SNMP_COMMUNITY_ILO
+  SNMP_AUTHPASS_ILO
+  SNMP_PRIVPASS_ILO
 )
 found=0
 missing=()
