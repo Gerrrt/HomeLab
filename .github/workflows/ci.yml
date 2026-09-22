@@ -9,6 +9,9 @@ on:
 
 permissions:
   contents: read
+  # ghcr.io reads only, so the validate job's image pulls are authenticated
+  # rather than anonymous (#602). Nothing here writes a package.
+  packages: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -62,6 +65,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      # ghcr.io rate-limits by the identity asking, and an anonymous pull from
+      # a runner is identified by an egress IP shared with everything else on
+      # it. The probe step below pulls every pinned image in every stack on
+      # every pull request — six minutes of registry traffic — and twice that
+      # volume tripped the limit on diffs that were Markdown only (#602). The
+      # retry in check_compose_health.py fired all three times and the fourth
+      # attempt still failed, so more backoff is not the lever: fewer anonymous
+      # requests is.
+      #
+      # GITHUB_TOKEN is scoped to this run and to `packages: read` above, which
+      # is all a pull needs. A plain docker login rather than an action, so
+      # this adds no dependency to pin.
+      #
+      # It does not fail the job, by design. A login that cannot happen — a
+      # fork's restricted token, a registry outage — leaves the pulls anonymous,
+      # which is exactly where they were before this step existed, and every
+      # check below still fails loudly on an image it cannot fetch. Hard-failing
+      # here would add a second way for CI to go red for a reason no diff can
+      # cause, which is the thing #602 is about.
+      #
+      # Docker Hub is deliberately left alone: separate quota, separate
+      # decision, and nothing has failed there.
+      - name: Authenticate to ghcr.io so the pulls below are not anonymous
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          if printf '%s' "$GHCR_TOKEN" \
+            | docker login ghcr.io -u "$GHCR_USER" --password-stdin; then
+            echo "ghcr.io: authenticated as $GHCR_USER"
+          else
+            echo "::warning::ghcr.io login failed — the pulls below are anonymous"
+            echo "::warning::and exposed to the shared-IP rate limit of #602"
+          fi
 
       # The ${VAR:?} guards in compose.yaml exist so a missing secret fails
       # loudly at deploy time. CI supplies throwaway values so validation never
