@@ -177,8 +177,10 @@ workstation can mount the share.
   ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
   What is left is [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 on
   `smaug`, gated on the mirror being whole, which is #558.
-  [#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome has no gate
-  but the same one.
+  [#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome is authored
+  the same way — its archive `pending` beside Audiobookshelf's — and its
+  4533 pass already exists; what is left is the rest of §6.6, behind the
+  same gate.
 
 ## Saruman: the domain, then the SOC
 

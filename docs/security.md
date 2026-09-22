@@ -277,19 +277,26 @@ holding the estate's age identity, and reads a directory that includes
 Jellyfin's users' password hashes — and, once Audiobookshelf is deployed,
 its users' hashes too, in the same pull
 ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
-**A fifth is specified and not created:** `vlan50 net → 10.0.40.30:13378`
-for Audiobookshelf, whose clients are phones on Hicks. The issue that
-proposed it said no new rule would be needed; the Hicks passes are per
-port, so one is. It is created when the service is deployed
-([`build-the-nas.md`](runbooks/build-the-nas.md) §6.5), because a pass to a
-port nothing answers on cannot be proved.
+**Two more are for the phones on Hicks, and one of them exists.** The
+issues that proposed Audiobookshelf and Navidrome each said no new rule
+would be needed; the Hicks passes are per port, so each needs one.
+`Allow 4533 to smaug`, for Navidrome
+([#141](https://github.com/Gerrrt/HomeLab/issues/141)), was created on
+2026-09-22 ahead of the service, and what could be proved without a listener
+was: its position above the block, read from `morpheus`, and the monitoring
+host still refused on `4533`. That Hicks reaches it is proved at the deploy
+([`build-the-nas.md`](runbooks/build-the-nas.md) §6.6). `vlan50 net →
+10.0.40.30:13378`, for Audiobookshelf, is specified and not created — ADR-0050
+calls it the fifth; it will be the sixth. Neither adds a residual `8096` did
+not already have: each first admin is made before a phone is pointed at it,
+and the libraries behind both are mounted read-only.
 [`network.md`](network.md) holds the current list. **Skids' does not exist.**
 `10.0.99.40 → 10.0.20.104:80,443/tcp` — Home Assistant to the Hue bridge, the
 one device on that segment with a local API — still waits above the block that
 has stood between 99 and 20 since the segments existed, on the host that would
 use it ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
 
-One of CasaBonita's four is a monitoring pass, and it carries a residual worth
+One of CasaBonita's five is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`
 on the NAS ([#256](https://github.com/Gerrrt/HomeLab/issues/256)), and that
 endpoint is **unauthenticated**. The firewall rule is what stops other segments
@@ -447,8 +454,10 @@ assumption consistent with what they are.
   passes being the only way in, and
   [ADR-0008](adr/0008-place-services-by-data-trust.md)'s blast radius — a
   media server whose data is replaceable. Navidrome
-  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) creates its first
-  user the same way and joins this bullet when it lands. What would retire
+  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) is the same class:
+  its admin is made by `navidrome user create --admin` in the container,
+  prompted for on the TrueNAS shell, and kept as a hash in `navidrome.db` on
+  the bind mount `backup-nas.sh` pulls. What would retire
   it: a service on that tier taking a credential from outside. Then the tier
   gets `secrets/media.sops.yaml` and a rule of its own under
   [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md),

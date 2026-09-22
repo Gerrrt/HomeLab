@@ -1,5 +1,5 @@
-# Weekly pull of the media tier's state off smaug — Jellyfin's and
-# Audiobookshelf's (#484, ADR-0045, ADR-0050).
+# Weekly pull of the media tier's state off smaug — Jellyfin's,
+# Audiobookshelf's and Navidrome's (#484, #141, ADR-0045, ADR-0050).
 #
 # WHY IT IS ITS OWN UNIT AND NOT A ROW IN homelab-backup-volumes. That unit
 # stops the observability stack and archives volumes on this host's docker

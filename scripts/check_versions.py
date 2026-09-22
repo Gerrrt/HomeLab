@@ -144,7 +144,7 @@ PRODUCT_SOURCES = (
         "word": "truenas",
         "product": "TrueNAS",
         "metric": "truenas_version_info",
-        "remedy": "the root cron job in docs/runbooks/build-the-nas.md §6.6",
+        "remedy": "the root cron job in docs/runbooks/build-the-nas.md §6.7",
     },
 )
 
@@ -203,7 +203,7 @@ def running_versions(prom: str) -> dict[str, tuple[str, str]]:
     # running 25.10.7 — which release_line() reduces to on its own, so the
     # `release` label is read here for symmetry with the block above rather
     # than out of necessity. Written on the NAS by a root cron job into the
-    # directory node_exporter serves (build-the-nas.md §6.6), so `host` and
+    # directory node_exporter serves (build-the-nas.md §6.7), so `host` and
     # `instance` agree; `host` is still preferred, as above.
     for series in query(prom, "truenas_version_info"):
         metric = series["metric"]

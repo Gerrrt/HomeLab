@@ -31,10 +31,34 @@ docstring gives: it is a record, not a claim about now.
   `/etc/version` (`25.10.7`, read off the host) and writes
   `truenas_version_info` from a root cron job in TrueNAS's UI, the way
   ADR-0047 runs SMART there. It is not pulled over `frodo`'s SSH, which is
-  the backup's alone. `build-the-nas.md` §6.6 turns it on. Tested against
+  the backup's alone. `build-the-nas.md` §6.7 turns it on. Tested against
   the host as it is: a `--print` run on `smaug` read the real file, and a
   mocked series for 25.10 passed both documents while a mocked 26.04 failed
   both.
+
+- **[#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome is
+  authored into `stacks/media`, and the issue was wrong twice.** It said no
+  new firewall rule would be needed; the `50 → 40` it leaned on is two
+  port-scoped passes, `443` and `8096`, and the phones Navidrome serves are on
+  Hicks — so another pass, `50 → 10.0.40.30:4533`, is written into
+  `build-the-nas.md` §0.5. It said nothing about backup; playlists and play
+  counts are music's watch history, so `navidrome-data` joins the archive
+  table #140 gave `backup-nas.sh` below, `pending` beside Audiobookshelf's.
+  This was written in parallel with #140 and merged after it: both had
+  rewritten the pull for more than one archive, and #140's table — with its
+  `pending` state, which this one lacked — is the one kept.
+
+  **The pinned image decided three lines.** It has no `/cache`, and a named
+  volume mounted there as root kills the process a second after it reports
+  ready, so the cache is a `65534`-owned tmpfs. Plugins are off, which keeps
+  a `0700` directory out of what the backup user reads. And an admin made
+  with `navidrome user create --admin` from the TrueNAS shell closes the web
+  form that would otherwise hand the admin to the first visitor — so the
+  stack still has no secrets file (#528). Not deployed: the mirror is one
+  disk until [#558](https://github.com/Gerrrt/HomeLab/issues/558). The 4533
+  pass was created the same day, ahead of it and of Audiobookshelf's 13378,
+  so it is the fifth that exists and 13378 will be the sixth; it was read in
+  position from `morpheus` with the `igc0.40` tripwire still at zero.
 
 - **[#266](https://github.com/Gerrrt/HomeLab/issues/266) `odin` goes on
   `large_data`, before anyone runs its runbook.** `build-the-soc-guest.md`

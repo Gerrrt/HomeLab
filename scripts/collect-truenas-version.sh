@@ -25,7 +25,7 @@
 # the directory node_exporter already bind-mounts at /textfile. The job lives in
 # TrueNAS's config database and the script on `erebor`, so an upgrade touches
 # neither; the series rides the scrape that already exists; nothing on
-# CasaBonita initiates anything. build-the-nas.md §6.6 is the procedure.
+# CasaBonita initiates anything. build-the-nas.md §6.7 is the procedure.
 #
 # THE SOURCE. /etc/version carries the product version on TrueNAS SCALE and
 # nothing else — read off `smaug` on 2026-09-22 as `25.10.7`, seven bytes, no

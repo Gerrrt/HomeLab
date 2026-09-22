@@ -18,18 +18,19 @@
 #              scripts/collect-smart-state.sh, fetched the same way and run
 #              by TrueNAS's cron rather than by this file (§6.4); and a
 #              fourth since #616, scripts/collect-truenas-version.sh, the
-#              same way for the version check-versions compares (§6.6).
+#              same way for the version check-versions compares (§6.7).
 #
 # ---------------------------------------------------------------------------
-# Why this stack is two media services and not three
+# Why this stack is three media services
 # ---------------------------------------------------------------------------
 # ADR-0016 decided Jellyfin alone, and Plex only if a screen on 40 turns out to
 # have no working Jellyfin client — a deferral against a test nobody has run,
 # not a rejection. Audiobookshelf (#140, ADR-0050) joined it on the argument
 # that an audiobook library is the same kind of data in the same place, and
 # brought the one thing Jellyfin does not do: listening progress that follows
-# a person between a phone, a car and a speaker. Navidrome (#141) lands here
-# later, in the shape this file already has.
+# a person between a phone, a car and a speaker. Navidrome (#141) joined on
+# the same day for music, which is the weakest thing Jellyfin does, with the
+# Subsonic API's ecosystem of phone clients behind it.
 #
 # ---------------------------------------------------------------------------
 # Why there is no reverse proxy here, and why that is not an oversight
@@ -309,6 +310,113 @@ services:
       start_period: 60s
 
   # ---------------------------------------------------------------------------
+  # Navidrome — the music server the phones reach, over Subsonic (#141)
+  # ---------------------------------------------------------------------------
+  # Jellyfin can serve music and does it worst of everything it does. Navidrome
+  # speaks the Subsonic API, so the client problem is solved by a dozen mature
+  # apps this repository will never have to maintain. It reads the same pool
+  # Jellyfin does, from its own subdirectory, read-only.
+  #
+  # MEASURED 2026-09-22 on the pinned image — the lines below that differ from
+  # Jellyfin's differ because of these:
+  #
+  #   1. The image declares NO user, like Jellyfin, so it would run as root.
+  #      Its `/data` and `/music` are `0:0` mode **755**, unlike Jellyfin's
+  #      777 — which does not matter for /data, a bind mount created 65534-owned
+  #      before first start (build-the-nas.md §6), and does not matter for
+  #      /music, which is only read.
+  #
+  #   2. The image has NO /cache, and that is fatal as a named volume: Docker
+  #      creates the mount point root 0755, Navidrome as 65534 cannot create
+  #      `/cache/plugins`, and the process ABORTS a second after reporting
+  #      ready. Hence the uid-owned tmpfs below rather than a volume.
+  #
+  #   3. `curl`, `wget`, `busybox` and `nc` are all present — Alpine. The
+  #      healthcheck uses busybox-style wget, the repository's default shape.
+  #
+  #   4. `/ping` answers **200** from first boot, BEFORE any admin exists — so
+  #      there is no bootstrap deadlock of the kind Jellyfin's /health has.
+  #
+  #   5. It boots read-only as uid 65534 with /tmp and /cache as tmpfs,
+  #      scans a library and answers within about two seconds.
+  #
+  #   6. Idle RSS after a first scan: **49 MiB** of anon memory.
+  #
+  #   7. Until an admin exists, the first visitor to 4533 gets to CREATE it —
+  #      every console on this segment and every workstation on Hicks. §6
+  #      closes that window from the TrueNAS shell, immediately after `up`,
+  #      with `navidrome user create --admin`; after that the web route answers
+  #      403. Nothing is handed in from the environment, which is why this
+  #      stack still has no secrets file (#528).
+  navidrome:
+    <<: *service-defaults
+    image: deluan/navidrome:0.64.1@sha256:df22d661b8d0322c33754d999b567150df9e131a47ae53be71fed0154bf8cef5
+    container_name: media-navidrome
+    user: "${NAVIDROME_UID:?}:${NAVIDROME_GID:?}"
+    environment:
+      # The image sets ND_MUSICFOLDER=/music and ND_DATAFOLDER=/data itself;
+      # they are repeated so the mounts below and the paths the process uses
+      # are written in one place rather than one here and one in a Dockerfile.
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      # Off /data, so the backup pull does not carry a transcode cache — see
+      # MEASURED (2) for why it is a tmpfs.
+      ND_CACHEFOLDER: /cache
+      # Anonymous usage reporting to insights.navidrome.org. CasaBonita has
+      # internet, and a household music server has no reason to use it for
+      # this. The log reads `Insight Collector is DISABLED`.
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
+      # WASM plugins, which nothing here uses. Off, it stops Navidrome
+      # creating a 0700 /data/plugins — a directory the backup user would
+      # have to be proven able to read — and a wazero compile cache.
+      ND_PLUGINS_ENABLED: "false"
+    # A ceiling to catch a leak, not a measurement, on the same terms as
+    # Jellyfin's. Over 49 MiB idle, with room for a full scan of a real library
+    # and for the /cache tmpfs below, whose pages are charged to this limit.
+    mem_limit: 1g
+    memswap_limit: 1g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      # Transcodes, resized artwork and background images: Navidrome caps
+      # each at 100 MB by default, and all of it regenerates. A tmpfs rather
+      # than a volume because of MEASURED (2), and owned by the user: line
+      # because a tmpfs is root's otherwise.
+      - /cache:size=384m,uid=65534,gid=65534,mode=0700
+    volumes:
+      # Navidrome's own state: its SQLite database — users, playlists,
+      # favourites, play counts — and extracted artwork. Jellyfin's watch
+      # history for music, and backed up the same way: a bind mount on
+      # erebor/apps that scripts/backup-nas.sh reads out of the dataset's
+      # newest snapshot (ADR-0045). Created 0755 65534:65534 before first
+      # start (§6).
+      - ${NAVIDROME_DATA_PATH:?}:/data
+      # READ-ONLY, for Jellyfin's reason: a server on the segment with the game
+      # consoles should not be able to delete what it serves. Navidrome never
+      # writes to the library unless told to, and the watcher it starts on
+      # /music works through a read-only mount — measured.
+      - ${MUSIC_PATH:?}:/music:ro
+    # PUBLISHED, with a named off-host consumer as ADR-0012 asks: the Subsonic
+    # apps on the phones, which live on Hicks, through the 4533 pass in
+    # build-the-nas.md §0.5 (`50 → 10.0.40.30:4533`), created 2026-09-22. Everything on CasaBonita
+    # reaches it natively, as it reaches 8096.
+    ports:
+      - "${NAVIDROME_BIND_ADDR:?}:4533:4533"
+    healthcheck:
+      # `/ping` and the status code, which is 200 before and after the admin
+      # exists — see MEASURED (4).
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4533/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # About two seconds on a first boot. A start with a large library to
+      # scan still answers /ping first; the scan runs behind it.
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
   # node_exporter — how this host is monitored at all (#256, ADR-0016)
   # ---------------------------------------------------------------------------
   # THIS IS THE HALF OF THE ESTATE'S MONITORING THAT RUNS BACKWARDS. Every other
@@ -472,10 +580,11 @@ networks:
         - subnet: 172.28.40.0/24
 
 volumes:
-  # ONE volume, and it is the one that is not backed up. Jellyfin's state and
-  # Audiobookshelf's are the bind mounts above, on erebor/apps, so that they
-  # can be snapshotted and pulled — see the mount comments, ADR-0045 and
-  # ADR-0050. What is declared here is
+  # ONE volume, and it is the one that is not backed up. Jellyfin's,
+  # Audiobookshelf's and Navidrome's state are the bind mounts above, on
+  # erebor/apps, so that they can be snapshotted and pulled — see the mount
+  # comments, ADR-0045 and ADR-0050. Navidrome's cache is a tmpfs, not a
+  # volume, for the reason its MEASURED (2) gives. What is declared here is
   # transcode scratch and regenerable image caches, and scripts/backup-volumes.sh
   # lists it as DISPOSABLE by name, for the reason stacks/sensitive gives for
   # immich-model-cache; `STACK=media backup-volumes.sh --inventory` therefore
