@@ -5,8 +5,15 @@
 # stops the stack nor reads the private key.
 #
 # See homelab-backup-volumes.service for why each directive below is set.
-# WorkingDirectory= matters more here than anywhere else: backup-firewall.sh
-# resolves backups/firewall and .sops.yaml relative to the process's directory.
+# WorkingDirectory= used to matter more here than anywhere else, because
+# backup-firewall.sh resolved backups/firewall and .sops.yaml relative to the
+# process's directory. It no longer does (#611): both are anchored to the
+# script's own repository, so an export taken by hand from somewhere else lands
+# where backup-offsite.sh reads it rather than somewhere nothing looks — which
+# is how a ninety-day visit came to carry two kinds while reporting three.
+# The directive stays for the reason the siblings give, that the same value
+# everywhere keeps the units from disagreeing about where the repository is,
+# and not because this one breaks without it.
 [Unit]
 Description=HomeLab: export and encrypt the pfSense configuration
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
