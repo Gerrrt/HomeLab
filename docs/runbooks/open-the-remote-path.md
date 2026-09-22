@@ -1,7 +1,8 @@
 # Runbook: Open the remote path
 
 **Target:** WireGuard on the jumpbox, ImaginationLAN (VLAN 30); one static
-route, one port forward and five rules on `morpheus` (`10.0.99.1`)
+route, one port forward and seven rules on `morpheus` (`10.0.99.1`) — six
+blocks and a tripwire, which pf loads as twelve
 **Time:** ninety minutes, across the jumpbox, the firewall GUI and one client
 **You will need:** a shell on the jumpbox, the pfSense GUI, a client device to
 enrol, and a dynamic DNS account — §0 turns it into **the endpoint**, which
