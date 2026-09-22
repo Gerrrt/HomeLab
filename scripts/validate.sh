@@ -342,6 +342,22 @@ head_ "Compose health dependencies"
 # (#79). Without it the static half still runs — it just proves less, and the
 # SKIP below is what says so. CI always passes --probe and may not skip it.
 if have python3; then
+  # The retry the pull pass below depends on, as fixtures, because a registry
+  # cannot be asked to rate-limit on demand. ghcr.io throttled this job's
+  # anonymous pulls on Markdown-only diffs, and on 2026-09-21 all three pauses
+  # fired and the fourth attempt still failed (#602) — so the branch that
+  # matters most has been taken in anger and can be taken by nothing here. Two
+  # claims in opposite directions: toomanyrequests is retried on a bounded
+  # 5/20/60 budget, and anything else — a bad digest, a missing tag — is
+  # reported on the first attempt, because it does not get better by waiting.
+  # First, so a broken retry is reported before the pull pass rather than after.
+  if python3 scripts/check_compose_health.py --self-test >/dev/null 2>&1; then
+    pass "check_compose_health.py --self-test (11 fixtures)"
+  else
+    python3 scripts/check_compose_health.py --self-test || true
+    fail "check_compose_health.py --self-test"
+  fi
+
   HEALTH=(python3 scripts/check_compose_health.py)
   if have_docker; then
     HEALTH+=(--probe)

@@ -50,6 +50,7 @@ itself, which it does when given no paths. Explicit paths mean the caller chose
 the scope, and no claim about the whole repository can follow from a subset.
 
 Usage: scripts/check_compose_health.py [--probe] [compose.yaml]
+       scripts/check_compose_health.py --self-test
        scripts/check_compose_health.py --cross-stack
 """
 from __future__ import annotations
@@ -61,6 +62,7 @@ import re
 import subprocess
 import sys
 import time
+from typing import Callable
 
 # PyYAML is not guaranteed on a clean runner, and this script gates CI. Install
 # it rather than failing a green compose file on a missing library — the same
@@ -144,6 +146,13 @@ RELOAD_PROBE_PATH = "/-/healthy"
 def note(message: str) -> None:
     """Progress, to stderr. A probe pass is slow enough to look hung."""
     print(f"\033[0;34m--\033[0m {message}", file=sys.stderr)
+
+
+# For --self-test only, so a failing fixture is findable in a CI log. The same
+# three scripts/collect_silences.py uses.
+RED = "\033[0;31m"
+GREEN = "\033[0;32m"
+OFF = "\033[0m"
 
 
 def looks_distroless(image: str) -> bool:
@@ -288,7 +297,12 @@ def docker_unavailable() -> str | None:
 PULL_RETRY_PAUSES = (5, 20, 60)
 
 
-def ensure_image(image: str) -> str | None:
+def ensure_image(
+    image: str,
+    *,
+    run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    sleep: Callable[[float], None] = time.sleep,
+) -> str | None:
     """Pull the image if it is not local. An error line, or None on success.
 
     Pulled in its own pass so a registry failure is reported as a registry
@@ -303,14 +317,20 @@ def ensure_image(image: str) -> str | None:
     pull exists to probe. Anything else the registry says is reported on the
     first attempt: a bad digest or a missing tag does not get better by
     waiting.
+
+    `run` and `sleep` are injected so --self-test can drive this loop without a
+    daemon and without spending the pauses. A registry cannot be asked to
+    rate-limit on demand, so fixtures are the only way either branch above is
+    ever taken outside CI. They are keyword-only and default to the real
+    things, so the one production caller is unchanged.
     """
-    if not subprocess.run(
+    if not run(
         ["docker", "image", "inspect", image], capture_output=True, check=False
     ).returncode:
         return None
     note(f"pulling {image}")
     for pause in (*PULL_RETRY_PAUSES, None):
-        proc = subprocess.run(
+        proc = run(
             ["docker", "pull", "--quiet", image],
             capture_output=True, text=True, check=False,
         )
@@ -322,7 +342,7 @@ def ensure_image(image: str) -> str | None:
         if pause is None or "toomanyrequests" not in output.lower():
             return last
         note(f"{image}: registry said toomanyrequests, retrying in {pause}s")
-        time.sleep(pause)
+        sleep(pause)
     return last  # not reached: the final attempt returns above
 
 
@@ -484,8 +504,166 @@ def cross_stack_problems() -> list[str]:
     return problems
 
 
+# --- fixtures ---------------------------------------------------------------
+
+# A reference that resolves nowhere. probe_binary's docstring states the rule
+# this file lives under — nothing here may ever name an image itself, not even
+# a fallback — and the self-test does not get to be the exception. No version
+# tag either, and none in the fixture strings below: check_image_pins.py scans
+# every tracked file under scripts/, this one included, for a `name/name:N.N`
+# pin and would flag it.
+SELF_TEST_IMAGE = "example.invalid/self-test"
+
+# What ghcr.io said on 2026-09-21, shortened.
+THROTTLED = "toomanyrequests: retry-after: 694.632us, allowed: 44000/minute"
+
+
+def _completed(
+    returncode: int, stdout: str = "", stderr: str = ""
+) -> subprocess.CompletedProcess:
+    """What subprocess.run actually returns, not a look-alike.
+
+    The real class, so any attribute the loop grows is supplied by the stdlib
+    rather than by whoever wrote the fixture. One limit worth stating: the
+    production call passes text=True, so both streams are str and neither is
+    ever None. These fixtures only ever pass str, so they would NOT catch
+    text=True being dropped — that turns the streams to bytes and makes the
+    `toomanyrequests` test raise TypeError rather than miss.
+    """
+    return subprocess.CompletedProcess(
+        args=["docker"], returncode=returncode, stdout=stdout, stderr=stderr
+    )
+
+
+def _ensure(
+    local: bool = False, attempts: tuple[subprocess.CompletedProcess, ...] = ()
+) -> tuple[str | None, int, list[float]]:
+    """Drive ensure_image against a fake daemon. -> (result, pulls, pauses).
+
+    Every fixture goes through this one driver, so none can forget to inject
+    sleep and quietly spend 85 real seconds inside `make validate`.
+    """
+    pulls: list[list[str]] = []
+    remaining = list(attempts)
+    pauses: list[float] = []
+
+    def run(cmd, **kwargs):
+        if kwargs.get("check"):
+            # The real thing raises here. If ensure_image ever stops passing
+            # check=False, this fake stops lying about it.
+            raise subprocess.CalledProcessError(1, cmd)
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return _completed(0 if local else 1)
+        if cmd[:2] == ["docker", "pull"]:
+            pulls.append(cmd)
+            if not remaining:
+                # Said plainly, because the shape this catches is a retry that
+                # has started retrying things it must report at once — drop the
+                # `toomanyrequests` guard and fixture 5 lands here. An IndexError
+                # off the end of the list would be true but would not say so.
+                raise AssertionError(
+                    f"ensure_image pulled {len(pulls)} time(s) for "
+                    f"{len(attempts)} fixture attempt(s) — it retried something "
+                    f"it should have reported on the first attempt"
+                )
+            return remaining.pop(0)
+        raise AssertionError(f"ensure_image ran an unexpected command: {cmd}")
+
+    result = ensure_image(SELF_TEST_IMAGE, run=run, sleep=pauses.append)
+    return result, len(pulls), pauses
+
+
+def self_test() -> int:
+    failed = 0
+
+    def check(name: str, expected: object, got: object) -> None:
+        nonlocal failed
+        if got == expected:
+            print(f"{GREEN}  PASS{OFF} {name}")
+        else:
+            print(f"{RED}  FAIL{OFF} {name}\n       got      {got!r}\n       expected {expected!r}")
+            failed = 1
+
+    # 1. An image already on the host is not pulled at all. The registry is not
+    #    asked a question it has already answered, which is the only reason a
+    #    throttled run can ever recover on a warm runner.
+    check("a local image is never pulled", (None, 0, []), _ensure(local=True))
+
+    # 2. The ordinary case: one attempt, no pause. A loop that slept on success
+    #    would add 85 s to every image in every stack.
+    check("a clean pull neither retries nor sleeps", (None, 1, []),
+          _ensure(attempts=(_completed(0),)))
+
+    # 3. THE POINT. ghcr.io throttles a runner's shared egress by the minute, so
+    #    one refusal is not a verdict on the healthcheck the pull exists to
+    #    probe. A throttled first attempt followed by a clean second is a
+    #    success, and it costs exactly one pause.
+    check("one toomanyrequests then success is a success", (None, 2, [5]),
+          _ensure(attempts=(_completed(1, stderr=THROTTLED), _completed(0))))
+
+    # 4. 2026-09-21, the run #602 is about: every attempt throttled. Four
+    #    attempts, three pauses — nothing sleeps after the last — on the 5/20/60
+    #    the constant declares. Read this as the retry's cost and shape, NOT as
+    #    "85 s is enough": it was not, that day. What made the pulls stop being
+    #    throttled is the ghcr.io login in ci.yml. This pins that the retry
+    #    spends a bounded amount of CI time and then reports rather than hangs.
+    #
+    #    The literal 5/20/60, not list(PULL_RETRY_PAUSES) — asserting the
+    #    constant against itself would pass for any value. Shortening the budget
+    #    should mean changing this line and saying why in the diff.
+    exhausted = _ensure(
+        attempts=tuple(_completed(1, stderr=THROTTLED) for _ in range(4))
+    )
+    check("four throttled attempts pause 5, 20 and 60 and then stop",
+          (4, [5, 20, 60]), (exhausted[1], exhausted[2]))
+    check("an exhausted retry reports what the registry last said",
+          THROTTLED, exhausted[0])
+
+    # 5. THE OTHER HALF, and the one a naive retry gets wrong: a bad digest or a
+    #    missing tag is reported on the FIRST attempt with no pause at all.
+    #    Waiting 85 s to re-learn that a manifest does not exist is 85 s of CI
+    #    spent on an answer that cannot change.
+    unknown = "Error response from daemon: manifest unknown"
+    check("a non-throttle failure is reported without waiting",
+          (unknown, 1, []), _ensure(attempts=(_completed(1, stderr=unknown),)))
+
+    # 6. The registry's casing is the registry's business. The match is on the
+    #    lowered output, so a day when ghcr.io shouts is still a retry.
+    check("TOOMANYREQUESTS in any casing still retries", (None, 2, [5]),
+          _ensure(attempts=(_completed(1, stderr="TOOMANYREQUESTS: Too Many Requests"),
+                            _completed(0))))
+
+    # 7. The LAST line. docker pull leads with a summary and ends with the
+    #    diagnostic, so reporting the first line would report the summary.
+    check("a multi-line failure reports its last line", "denied: permission denied",
+          _ensure(attempts=(_completed(1, stderr="Error response from daemon:\n"
+                                                 "denied: permission denied"),))[0])
+
+    # 8. A failure that says nothing is not assumed to be a throttle, and the
+    #    caller never prints "could not pull X: " with nothing after the colon.
+    check("a silent failure falls back to the exit code",
+          ("docker pull exited 7", 1, []), _ensure(attempts=(_completed(7),)))
+
+    # 9. docker has put its diagnostic on stdout before, so the throttle is
+    #    looked for there too when stderr is empty.
+    check("the registry's wording is read from stdout as well", (None, 2, [5]),
+          _ensure(attempts=(_completed(1, stdout=THROTTLED), _completed(0))))
+
+    # 10. The constant's own comment claims 85 s in all. This is the only thing
+    #     holding that prose to the number.
+    check("the retry budget is the 85 s the constant claims", 85,
+          sum(PULL_RETRY_PAUSES))
+
+    return failed
+
+
 def main() -> int:
     argv = sys.argv[1:]
+    if "--self-test" in argv:
+        if argv != ["--self-test"]:
+            print("--self-test takes nothing else", file=sys.stderr)
+            return 1
+        return self_test()
     probe = "--probe" in argv
     argv = [arg for arg in argv if arg != "--probe"]
 
