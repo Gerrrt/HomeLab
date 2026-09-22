@@ -338,9 +338,14 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   either — `/sys/class/scsi_host/host0/fw_ver` does not exist, read
   2026-09-19, and `megaraid_sas` exposes crash-dump and queue attributes
   there and nothing about its firmware. TrueNAS ships no `storcli`. So the
-  version is read off the card's own POST banner, or from *Ctrl-R* →
-  controller properties during boot, and it is owed here from the next
-  time the machine is at POST — which the swap will be. The driver
+  version is read off the card's own boot-time utility. **Read 2026-09-22**
+  at the power-on after the faulted disk came out, in the UEFI setup's
+  *Advanced → AVAGO MegaRAID Configuration → Controller Management*: product
+  **AVAGO MegaRAID SAS 9340-8i**, PCI ID `1000:005F:1000:9340`, package
+  **24.16.0-0104**, firmware **4.660.01-8219**, NVDATA 3.1605.01-0008,
+  two connectors, status *Optimal*, no BBU, zero virtual drives, and the
+  one remaining Exos on drive port 0 as *JBOD*. That reading is what
+  [#571](https://github.com/Gerrrt/HomeLab/issues/571) was owed. The driver
   logged a disable/enable of its interrupts at 21:03:51 on 2026-09-19, the
   same second as the target reset in the fault's `dmesg` — the controller
   resetting itself around a disk that had stopped answering, which is the
@@ -419,14 +424,26 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   *defective*; the label is due by 2026-09-24, and the seller had not
   chosen refund or replacement when this was written — a replacement means
   no purchase, a refund means an 18 TB bought outright and a row in
-  [`roadmap.md`](roadmap.md)'s buy list. Seagate's own warranty is **not
-  yet checked**: the form asks for the BPID printed on the drive label
-  beside its QR code, which no SMART or FARM field carries, so it is read
-  with the tray out at step 4, and the answer belongs here whichever way
-  it goes. The disk ships before any replacement exists, so the wipe comes
-  first: `shred`, or `labelclear` and a `dd` over each end if the drive
-  refuses a full pass, or the refusal itself — which of the three, and the
-  date, is owed here from step 4 of the runbook. One correction from the
+  [`roadmap.md`](roadmap.md)'s buy list. **Seagate's warranty, read
+  2026-09-22 with the tray out: none.** The label's QR code verifies as a
+  genuine 18000 GB drive, so the "0HR" lot is not relabelled stock, and
+  Seagate's lookup for `ZVTBSDL3` says *"Your product is not under
+  warranty. Please contact the place of purchase."* The eBay return is the
+  only remedy. `ZVTBS4NL` came from the same lot and was not looked up,
+  because its tray stays in; assume it is the same until it is read.
+  **Wiped and pulled 2026-09-22, runbook step 4.** Offlined in the UI;
+  `shred -n 1` ran on `/dev/sdb`, confirmed `ZVTBSDL3` by `smartctl -i`, at
+  about 215 MB/s, which is a day or more for 18 TB. It was stopped at
+  **93 GiB** for time, so the fallback ran: `zpool labelclear -f` refused
+  (*failed to clear label*, because shred had already overwritten the
+  front), then a `dd` of zeros over the first and the last 1 GiB, both
+  complete. `wipefs` then listed no signature and `sdb1` no longer
+  existed. The labels and partition tables at both ends are gone; the data
+  blocks between 93 GiB and the last GiB were not overwritten. The drive
+  took every write it was given, so this was a choice made for time and
+  not a refusal. Tray pulled by its label, and shipped on eBay's label
+  on 2026-09-22. `erebor` reads `DEGRADED` on `ZVTBS4NL` alone,
+  `0 0 0`, *No known data errors*. One correction from the
   same day: TrueNAS's alert did not stop at the web UI. TrueNAS Connect
   emailed it to the operator's mailbox 37 s after it fired, which is a
   mailbox rather than a page, and a cloud service this host initiates a
