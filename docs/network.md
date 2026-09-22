@@ -91,7 +91,7 @@ truth for what a box actually does.
   address ([`security.md`](security.md#what-this-repository-deliberately-does-not-publish)).
   Before it, `morpheus` carried no `rdr` and no inbound WAN pass beyond DHCP
   client replies — the state ADR-0011 measured in 2026-08. **Built
-  2026-09-DD** ([#442](https://github.com/Gerrrt/HomeLab/issues/442)): the
+  2026-09-22** ([#442](https://github.com/Gerrrt/HomeLab/issues/442)): the
   `rdr` and its associated WAN pass exist, to `phoenix` at `10.0.30.70`, and
   the dynamic DNS client of
   [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
@@ -405,7 +405,7 @@ Where things get broken on purpose.
   and holds no key that signs anything — the estate's CA stays on
   `prometheus`, and that ADR says why. It is also where
   [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
-  WireGuard tunnel terminates, built 2026-09-DD
+  WireGuard tunnel terminates, built 2026-09-22
   ([#442](https://github.com/Gerrrt/HomeLab/issues/442)); the peers reach the
   lab through it and nothing else. Its Alloy pushes to
   `alexander` and
@@ -413,9 +413,9 @@ Where things get broken on purpose.
   into 99 would make it the bastion ADR-0002 and ADR-0012 declined. Everything
   it adds on `morpheus` belongs to the tunnel and nothing else: a gateway and a
   static route for `172.31.0.0/24` toward `10.0.30.70`, the one WAN `rdr`
-  above, and on this interface the `Tunnel_Peers` alias with *(pending the §7
-  report)* logged blocks and one tripwire — the peers' copy of the segment's
-  own rules. Nothing from it into another segment. What it adds on `Saruman` is
+  above, and on this interface the `Tunnel_Peers` alias with six logged IPv4
+  blocks, one per house segment, and one tripwire — the peers' copy of the
+  segment's own rules. Nothing from it into another segment. What it adds on `Saruman` is
   one line in the hypervisor's own firewall admitting `10.0.30.70` to `8006`,
   which
   `firewall-claims.yaml` cannot see because it lives in `/etc/pve` and not in
@@ -464,8 +464,8 @@ Where things get broken on purpose.
 - **The WireGuard peers live on `172.31.0.0/24`, and it is routed rather than
   translated**
   ([ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md);
-  built 2026-09-DD, [#442](https://github.com/Gerrrt/HomeLab/issues/442),
-  *(pending the §3 report)* peer(s), each a `/32`).
+  built 2026-09-22, [#442](https://github.com/Gerrrt/HomeLab/issues/442), one
+  peer, pinned to a `/32`).
   `morpheus` carries one static route for it toward the jumpbox, so a peer's
   own address is what arrives on this interface and what a firewall log
   carries — which is what lets a rule name a peer and an alert say which one.

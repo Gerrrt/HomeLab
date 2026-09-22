@@ -270,17 +270,18 @@ ssh root@10.0.99.1 'pfctl -sr \
 # latter names 10.0.30.0/24 itself, and against it every DNS query from the lab
 # to its own gateway logs as a crossing.
 ssh root@10.0.99.1 'pfctl -sr | grep -E "^pass in log quick on igc0\.30 " | grep -c "<House_Segments>"'
-# expect 2 since 2026-09-DD (#442): the lab's own tripwire and the WireGuard
+# expect 2 since 2026-09-22 (#442): the lab's own tripwire and the WireGuard
 # peers'. 1 means the tunnel's tripwire did not survive the restore.
 
-# 6. ADR-0042's rules, built 2026-09-DD (#442). The check above counts
+# 6. ADR-0042's rules, built 2026-09-22 (#442). The check above counts
 #    tripwires by their shape and the four in step 5 are sourced from an
 #    interface network macro, which the tunnel's is not — so the tunnel's
 #    tripwire and its blocks need asking after separately, or a restore drops
 #    them as silently as it drops the other four.
 ssh root@10.0.99.1 'pfctl -sr | grep -c "<Tunnel_Peers>"'
-# expect (pending the §7 report) — one tripwire plus one block per house
-# segment — and `pfctl -t Tunnel_Peers -T show` must print the peer
+# expect 12 as of 2026-09-22 — one tripwire plus eleven blocks (six inet, one
+# per house segment, and five inet6 that a v4-only tunnel never matches) — and
+# `pfctl -t Tunnel_Peers -T show` must print the peer
 # subnet rather than an empty table — an alias that survived with no contents
 # makes every rule using it match nothing, which reads as "no leaks".
 ```

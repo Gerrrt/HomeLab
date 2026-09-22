@@ -25,7 +25,7 @@
 >
 > ---
 >
-> **Built 2026-09-DD**, by
+> **Built 2026-09-22**, by
 > [`open-the-remote-path.md`](../runbooks/open-the-remote-path.md) under
 > [#442](https://github.com/Gerrrt/HomeLab/issues/442), after #566 put
 > `Saruman`'s own firewall in front of `8006` so that no peer ever reached the
@@ -34,6 +34,26 @@
 > credential with no revocation story, and the internet-facing host reports to
 > the store no house alert reads — stand as written. Nothing here is amended,
 > per ADR-0001.
+>
+> ---
+>
+> **Decision 3's mechanism is not implementable on the host, and the property
+> survives anyway, 2026-09-22.** This ADR puts forwarding in wg-quick's
+> `PostUp`/`PostDown` and argues against `/etc/sysctl.conf` because a capability
+> should live and die with the tunnel. Ubuntu 26.04 ships an AppArmor profile
+> for `wg-quick` whose `sysctl` child denies writing
+> `/proc/sys/net/ipv4/ip_forward`, and which denies executing a shell, so
+> neither the ADR's form nor an `echo` substitute runs. It fails while looking
+> like success: `sysctl` prints the value it did not set and the unit reports
+> started. The toggle now lives in a systemd drop-in
+> (`ExecStartPost`/`ExecStopPost`), which runs outside that profile and gives
+> exactly the property this ADR chose — forwarding appears with the interface
+> and goes with it, and nothing is in `/etc/sysctl.d`. **The reasoning is
+> unchanged and the letter of the mechanism is not**, which is the kind of thing
+> a note records rather than a supersession. The failure mode is the part worth
+> carrying forward: a tunnel with forwarding off still handshakes and still
+> answers on the jumpbox itself, so it reads as healthy while reaching nothing
+> else and exercising no firewall rule.
 
 ## Context
 

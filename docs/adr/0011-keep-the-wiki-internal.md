@@ -68,7 +68,7 @@ machinery for publishing a service exists and reusing it would be cheap.
 > it still means being inside the house — or, from ADR-0042 onward, on a tunnel
 > that terminates on VLAN 30 and cannot route to `oracle` at all. What expires
 > is the estate-wide claim that nothing is reachable from outside, not this
-> ADR's answer for this service. The `rdr` was written on 2026-09-DD
+> ADR's answer for this service. The `rdr` was written on 2026-09-22
 > ([#442](https://github.com/Gerrrt/HomeLab/issues/442)); the measurement is
 > dated from that day, and the decision is not.
 
