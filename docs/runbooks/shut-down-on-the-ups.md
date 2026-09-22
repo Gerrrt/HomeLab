@@ -28,7 +28,7 @@ follow the steps.**
 
 ## Before you start
 
-Tick all six. Steps 1 to 6 assume every one of these is done.
+Tick all seven. Steps 1 to 6 assume every one of these is done.
 
 - [ ] **A maintenance window outside anyone's working hours.** Step 5 halts
       `Saruman`, both its guests, `smaug` and `morpheus`. While `morpheus` is
@@ -52,6 +52,9 @@ Tick all six. Steps 1 to 6 assume every one of these is done.
       them in Apple Passwords before you start. `upsslave` is a fine username.
 - [ ] **The monitoring stack up on `prometheus`.** It stays up on its own cell
       throughout and is how you watch every step.
+- [ ] **Alertmanager reachable on `localhost:9093` from `prometheus`.** 5.0
+      creates the window's silence there and 6.6 deletes it. It binds to
+      loopback, so that host is the only one that can reach it.
 - [ ] **A browser that can reach three web interfaces**: the UPS card at
       `https://10.0.99.10`, the firewall at `https://10.0.99.1`, and TrueNAS
       at `https://10.0.40.30` (that one from a Hicks workstation).
@@ -500,6 +503,50 @@ from 1.4 and the pass rule from 2.3.
 This halts everything. Your window must be open and you must be able to power
 the three hosts back on by hand.
 
+### 5.0 Silence the estate for the window
+
+Step 5 halts four hosts on purpose. Left alone, `InstanceDown` pages `urgent`
+for each of them, the DNS and gateway rules cascade behind it once `morpheus`
+goes, and the estate spends its notification budget telling you about
+something you are doing deliberately.
+
+```bash
+START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+END=$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)
+```
+
+```bash
+curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' --data "$(printf '{"matchers":[{"name":"category","value":"power","isRegex":false,"isEqual":false},{"name":"alertname","value":"Watchdog","isRegex":false,"isEqual":false}],"startsAt":"%s","endsAt":"%s","createdBy":"#574 prove the UPS shutdown sequence","comment":"#574 Planned halt of Saruman, its guests, smaug and morpheus for steps 5 and 6. Everything except category=power is suppressed, so UpsOnBattery still pages in 6.2, and Watchdog is excluded so the heartbeat keeps arriving. Delete at 6.6, not on expiry."}' "$START" "$END")" | python3 -m json.tool
+```
+
+**Record the UUID it returns.** 6.6 deletes it.
+
+**Both exclusions are load-bearing.**
+
+- **`category != power` keeps every UPS rule live**, which is the point. 6.2
+  needs `UpsOnBattery` to page within a minute, and that page is the proof the
+  card reported the transfer. It is also why the standing rule from
+  [`fit-the-ups-battery.md`](fit-the-ups-battery.md) §3 — delete a silence
+  *before* the reading that proves the work — is satisfied here without
+  deleting anything: the proving reading was never inside the silence.
+- **`alertname != Watchdog` keeps the dead man's switch arriving.**
+  `Watchdog` carries `category: monitoring`, so the first matcher on its own
+  would suppress it, the heartbeat would stop, and the external check would
+  report the monitoring path dead in the middle of a window when it is fine.
+
+Confirm it is active and owned:
+
+```bash
+curl -sS http://localhost:9093/api/v2/silences | python3 -c 'import json,sys; [print(s["id"], s["status"]["state"], s["endsAt"], [(m["name"], m["value"], m["isEqual"]) for m in s["matchers"]]) for s in json.load(sys.stdin)]'
+```
+
+`SilenceWithoutIssue` fires within minutes on a silence whose comment does not
+begin with an issue number, which is why this one begins `#574`.
+
+**The alert terminal in 5.1 still works.** A silenced alert is suppressed, not
+hidden — it still appears in `/api/v2/alerts` — so 5.3's table reads the same
+either way. What the silence stops is the notification, not the observation.
+
 ### 5.1 Start the timing loops
 
 **The timings come from these loops and not from the alert list.** Every alert
@@ -605,8 +652,8 @@ time the sequence, which is the whole reason the loops exist:
 
 | Signal | Host | When it appears | Note |
 | --- | --- | --- | --- |
-| `InstanceDown` | `smaug` | about 5 minutes after it halts | `for: 5m`, and the only alert inside a short window |
-| `SnmpTargetUnreachable` | `morpheus` | about 10 minutes after | `for: 10m`. There is no `SnmpTargetDown` |
+| `InstanceDown` | `smaug`, then `morpheus`, `shiva`, `neo` | about 5 minutes after each stops answering | `for: 5m` on a bare `up == 0`, so it covers the `snmp` job too. `morpheus` arrives here as `10.0.99.1` rather than by name, and `shiva` and `neo` follow it because their scrapes route through the firewall — `neo` is still powered and still switching, only unreachable from the monitoring host |
+| `SnmpTargetUnreachable` | the same three | about 10 minutes after | `for: 10m`, so it trails `InstanceDown` on the same targets rather than arriving first. There is no `SnmpTargetDown` |
 | `RemoteWriteJobStale` | `Saruman` | about 20 minutes after | Five minutes of lookback plus `for: 15m`. `InstanceDown` cannot see an agent that pushes, so `Saruman` never appears under it |
 | `HypervisorGuestStopped` | `alexander`, `phoenix` | not during this test | `for: 1h`, and `homelab_guest_running` stops arriving the moment `Saruman` halts, so it never matures |
 | `UpsOnBattery` | — | must not fire at all | Nothing in step 5 writes to the card |
@@ -683,6 +730,26 @@ end-to-end time plus half again**, rounded up to the next whole minute.
 Worked example: if 5.3 measured 3 minutes 10 seconds, set 5 minutes.
 
 Confirm with the command from 0.3.
+
+### 6.6 Delete the silence
+
+Immediately, not on expiry. That is the standing rule from
+[`fit-the-ups-battery.md`](fit-the-ups-battery.md) §3, and both battery
+runbooks record deleting late as their one regret.
+
+```bash
+curl -sS -X DELETE http://localhost:9093/api/v2/silence/<UUID>
+```
+
+Confirm it is gone rather than merely expired:
+
+```bash
+curl -sS http://localhost:9093/api/v2/silences | python3 -c 'import json,sys; [print(s["id"], s["status"]["state"]) for s in json.load(sys.stdin)]'
+```
+
+Every host is back up and the sequence is proved, so there is nothing left for
+it to hide — and one left standing would suppress the first real mains cut
+this work exists to catch.
 
 ---
 
