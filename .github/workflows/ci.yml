@@ -375,6 +375,27 @@ jobs:
       - name: Verify the schedule and its staleness thresholds agree
         run: ./scripts/install-timers.sh --check --require-all
 
+      # Every embedded fixture suite in the repository — the collectors that
+      # parse output no host here can be asked to produce, the CA-key proof that
+      # needs a mounted medium, the offsite copy that needs the second
+      # recipient's. They are the only test those scripts have, and until now
+      # they ran in scripts/validate.sh and in no job here, so they guarded a
+      # `make validate` a contributor may not run and guarded a pull request not
+      # at all. That is the #68 asymmetry again (#614), and the script asserts
+      # this step exists, so deleting it fails rather than narrowing coverage.
+      #
+      # The suites are discovered, not listed: collect-gateway-state.sh had a
+      # documented --self-test that nothing had ever called, which is what a
+      # hand-kept list gets you. Discovery also means a suite added later is
+      # covered here without anyone remembering to add it.
+      #
+      # --require-all because a skip in CI is a check nobody runs. It is what
+      # makes backup-offsite.sh's two conditional fixtures — the same-filesystem
+      # and tmpfs refusals, the second of which IS the #596 regression — fail
+      # here rather than print SKIP and still exit 0.
+      - name: Run every embedded fixture suite
+        run: ./scripts/self-tests.sh --require-all
+
       - name: Validate Grafana dashboards
         run: |
           fail=0

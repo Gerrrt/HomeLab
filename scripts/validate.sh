@@ -92,6 +92,7 @@ stack_running() {
 # replaces the first rather than adding to it, so they are registered together
 # here instead of next to the code that creates them.
 TMP_ENV=""
+SELFTEST_SKIPS=""
 LINT_SKIPS=""
 LOKI_SKIPS=""
 TIMER_SKIPS=""
@@ -99,6 +100,7 @@ ROUNDTRIP_SKIPS=""
 DASH_EXPRS=""
 cleanup() {
   [[ -n "${TMP_ENV}" ]] && rm -f "${TMP_ENV}"
+  [[ -n "${SELFTEST_SKIPS}" ]] && rm -f "${SELFTEST_SKIPS}"
   [[ -n "${LINT_SKIPS}" ]] && rm -f "${LINT_SKIPS}"
   [[ -n "${LOKI_SKIPS}" ]] && rm -f "${LOKI_SKIPS}"
   [[ -n "${TIMER_SKIPS}" ]] && rm -f "${TIMER_SKIPS}"
@@ -489,119 +491,23 @@ ROUNDTRIP_SKIPS="$(mktemp)"
 SKIPPED=$((SKIPPED + $(wc -l < "${ROUNDTRIP_SKIPS}")))
 
 # ---------------------------------------------------------------------------
-head_ "Collector parsers"
-
-# Pure text, no apt and no host state, so CI can run it. collect-patch-state.sh
-# parses `apt-get -s upgrade` on hosts without apt-check — every modern Debian,
-# Saruman included — and there is no way to make a fully-patched host produce a
-# pending security update on demand. Fixtures are the only way this parser is
-# tested at all (#360).
-if "${REPO_ROOT}/scripts/collect-patch-state.sh" --self-test >/dev/null 2>&1; then
-  pass "collect-patch-state.sh --self-test (8 fixtures)"
-else
-  "${REPO_ROOT}/scripts/collect-patch-state.sh" --self-test || true
-  fail "collect-patch-state.sh --self-test"
-fi
-
-# Same reasoning, one OS along. morpheus cannot be made to have a pfSense system
-# upgrade pending on demand, so the branch that matters most — a system
-# meta-package behind the repository — has never been observed live and exists
-# only as a fixture. It also pins the false positive that would make the alert
-# untrustworthy: `pfSense-repoc` starts with "pfSense-" and is NOT the system.
-if "${REPO_ROOT}/scripts/collect-pkg-state.sh" --self-test >/dev/null 2>&1; then
-  pass "collect-pkg-state.sh --self-test (8 fixtures)"
-else
-  "${REPO_ROOT}/scripts/collect-pkg-state.sh" --self-test || true
-  fail "collect-pkg-state.sh --self-test"
-fi
-
-# And the one written for a host this repository cannot reach at all. VLAN 99
-# cannot open TCP/22 to VLAN 30, so `pveversion`'s output format could not be
-# confirmed before shipping the parse — the fixtures are the only thing standing
-# between a defensive parser and a guessed version number. One of them pins the
-# case that matters: a line carrying BOTH the product and the kernel, where
-# picking the first dotted number would report the kernel as the PVE version,
-# which is the exact confusion #311 exists to remove.
-if "${REPO_ROOT}/scripts/collect-pve-version.sh" --self-test >/dev/null 2>&1; then
-  pass "collect-pve-version.sh --self-test (6 fixtures)"
-else
-  "${REPO_ROOT}/scripts/collect-pve-version.sh" --self-test || true
-  fail "collect-pve-version.sh --self-test"
-fi
-
-# The hypervisor guest list, for a host this repository cannot reach: VLAN 99
-# cannot open TCP/22 to VLAN 30, so `qm list`'s output could not be run before
-# shipping the parse. Two fixtures pin what position-based parsing gets wrong —
-# a stopped guest has no PID column, and a guest name can contain a space.
-if "${REPO_ROOT}/scripts/collect-guest-state.sh" --self-test >/dev/null 2>&1; then
-  pass "collect-guest-state.sh --self-test (7 fixtures)"
-else
-  "${REPO_ROOT}/scripts/collect-guest-state.sh" --self-test || true
-  fail "collect-guest-state.sh --self-test"
-fi
-
-# The SMART renderer, which is the one collector here that shipped WITHOUT
-# fixtures and then produced a real defect (#483). A drive reports what it
-# reports: no host in this estate can be asked for a pending sector, a second
-# wear attribute or a duplicate on demand, so the branches that matter are
-# reachable only this way. Two fixtures pin what was actually read off smaug at
-# the console on 2026-09-21 — an Intel DC S3520 whose attributes 174 and 192
-# are BOTH named Unsafe_Shutdown_Count, which rendered one series twice, and a
-# faulted Exos with 850 pending sectors whose own assessment still says PASSED,
-# which is why SmartDriveBadSectors cannot be written against smart_healthy.
-if "${REPO_ROOT}/scripts/collect-smart-state.sh" --self-test >/dev/null 2>&1; then
-  pass "collect-smart-state.sh --self-test (14 fixtures)"
-else
-  "${REPO_ROOT}/scripts/collect-smart-state.sh" --self-test || true
-  fail "collect-smart-state.sh --self-test"
-fi
-
-# Not a parser, but the same reason: the real run needs a private key on a
-# mounted medium and can never happen in CI, so the refusals — a symlink or a
-# hard link back to the live key, an unrelated key, a file that is not a key —
-# and the proof itself are exercised against a throwaway CA in a temp
-# directory. One fixture pins the case the fingerprint label exists for: a
-# re-minted CA starts at 0 and the old key's proof is dropped, not inherited
-# (#496). Every case overrides CA_CERT, LIVE_KEY and TEXTFILE_DIR, so nothing
-# here reads certificates/ or writes the host's textfile directory.
-if "${REPO_ROOT}/scripts/verify-ca-key-backup.sh" --self-test >/dev/null 2>&1; then
-  pass "verify-ca-key-backup.sh --self-test (9 fixtures)"
-else
-  "${REPO_ROOT}/scripts/verify-ca-key-backup.sh" --self-test || true
-  fail "verify-ca-key-backup.sh --self-test"
-fi
-
-# The offsite copy (ADR-0048) is the same shape one artefact over: the real run
-# needs the second recipient's medium mounted and cannot happen in CI, so the
-# refusals — a destination inside this repository or on the same filesystem as
-# the sets — and the copy, the proof, the retention and the tamper detection
-# run against a fake backups/ tree in a temp directory and a destination on
-# /dev/shm. OFFSITE_SOURCE keeps it off the host's backups/, and the wrapper
-# is not involved, so nothing here touches the textfile directory.
-if "${REPO_ROOT}/scripts/backup-offsite.sh" --self-test >/dev/null 2>&1; then
-  pass "backup-offsite.sh --self-test (24 fixtures)"
-else
-  "${REPO_ROOT}/scripts/backup-offsite.sh" --self-test || true
-  fail "backup-offsite.sh --self-test"
-fi
-
-# The silence collector's parser, for the one rule that depends on it being
-# strict. Both live silences on 2026-09-20 cited an issue somewhere in their
-# comment, and it was a closed one that did not own the expiry — so `issue` is
-# read only from a comment that BEGINS with #NNN, and the fixture that fails
-# when it does not is the point (#575). The rest pin the exposition format:
-# a regex matcher's backslashes survive, an absent label is absent rather
-# than empty, and zero silences still write HELP and TYPE.
-if have python3; then
-  if python3 "${REPO_ROOT}/scripts/collect_silences.py" --self-test >/dev/null 2>&1; then
-    pass "collect_silences.py --self-test (13 fixtures)"
-  else
-    python3 "${REPO_ROOT}/scripts/collect_silences.py" --self-test || true
-    fail "collect_silences.py --self-test"
-  fi
-else
-  skip "collect_silences.py --self-test: python3 not installed"
-fi
+head_ "Fixture suites"
+# ---------------------------------------------------------------------------
+# The list of fixture suites lives in scripts/self-tests.sh and nowhere else —
+# in fact it lives nowhere at all, because that script discovers them. CI runs
+# the same script with --require-all, so a suite added here cannot be absent
+# there, and a fixture that skips here cannot pass silently there (#68, #614).
+# It prints its own PASS/FAIL/SKIP lines, the way lint.sh does.
+#
+# "Collector parsers" was the old name and had stopped being true: two of the
+# suites are not collectors and not parsers. The reason they are together is
+# that none of them can be tested any other way — see that script's header.
+#
+# --skips-file follows lint.sh's contract: this caller owns the path and its
+# lifetime, and folds the skips into SKIPPED so the summary below stays true.
+SELFTEST_SKIPS="$(mktemp)"
+./scripts/self-tests.sh --skips-file "${SELFTEST_SKIPS}" || FAILED=1
+SKIPPED=$((SKIPPED + $(wc -l < "${SELFTEST_SKIPS}")))
 
 head_ "Documentation"
 # ---------------------------------------------------------------------------
