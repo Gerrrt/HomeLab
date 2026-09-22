@@ -37,7 +37,9 @@ docstring gives: it is a record, not a claim about now.
   with `navidrome user create --admin` from the TrueNAS shell closes the web
   form that would otherwise hand the admin to the first visitor — so the
   stack still has no secrets file (#528). Not deployed: the mirror is one
-  disk until [#558](https://github.com/Gerrrt/HomeLab/issues/558).
+  disk until [#558](https://github.com/Gerrrt/HomeLab/issues/558). The
+  fifth pass was created the same day, ahead of it, and read in position
+  from `morpheus` with the `igc0.40` tripwire still at zero.
 
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate drive
   is bought, and buying it settles less than the row implied.** A WD Elements

@@ -174,8 +174,8 @@ workstation can mount the share.
 - **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf and
   [#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome** have no
   gate but the mirror being whole, which is #558. Navidrome is authored in
-  `stacks/media` and waits only on that; deploying it is
-  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5, fifth pass included.
+  `stacks/media`, its fifth pass exists, and it waits only on that; deploying
+  it is the rest of [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5.
 
 ## Saruman: the domain, then the SOC
 

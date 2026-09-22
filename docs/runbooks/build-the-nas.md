@@ -238,8 +238,8 @@ unambiguous about which rule answered. **Set these descriptions exactly**; they
 are load-bearing in the next section, not decoration.
 
 **The fifth came later, for Navidrome** ([#141](https://github.com/Gerrrt/HomeLab/issues/141)).
-The four above were created on 2026-09-16; `Allow 4533 to smaug` is added by
-§6.5, when Navidrome is. Its consumer is the Subsonic apps on the phones, and
+The four above were created on 2026-09-16; `Allow 4533 to smaug` on
+2026-09-22, by §6.5 step 1, ahead of the rest of that section. Its consumer is the Subsonic apps on the phones, and
 the phones are on Hicks, so it is the `8096` rule's shape on another port —
 [ADR-0012](../adr/0012-publish-only-ports-with-an-off-host-consumer.md)'s named
 off-host consumer, and nothing wider. The issue that proposed Navidrome said no
@@ -281,8 +281,7 @@ pfctl -sr -vv \
 
 Each pass must appear **above** the *Block access to CasaBonita* rule on its
 own interface: `Allow 9100`/`Allow SSH` before the block on `igc0.99`, and
-`Allow HTTPS`/`Allow 8096`/`Allow 4533` before it on `igc0.50` — the last
-once §6.5 has created it. **Read the order, not the numbers.** `-vv` numbers each ruleset from zero rather than counting output
+`Allow HTTPS`/`Allow 8096`/`Allow 4533` before it on `igc0.50`. **Read the order, not the numbers.** `-vv` numbers each ruleset from zero rather than counting output
 lines, so its `@` indices match neither `pfctl -sr | grep -n` nor anything
 written down here — they are a printing artefact, and only the sequence is a
 fact about the firewall.
@@ -563,7 +562,7 @@ ls -1 /mnt/erebor/apps/.zfs/snapshot/
 >
 > **No workstation can mount this share, and that was found by trying.** The
 > Hicks rules from §0.5 pass `443` and `8096` to `smaug` and nothing else
-> (and `4533` since §6.5, which changes nothing here); SMB is `445`, so a
+> (and `4533` since 2026-09-22, which changes nothing here); SMB is `445`, so a
 > Hicks machine that reaches the TrueNAS UI and Jellyfin gets nothing from `\\10.0.40.30\media`. Only devices already on
 > CasaBonita can mount it, and those are televisions. Getting a film onto the
 > library today means the console shell — `mkdir` and `curl` under
@@ -1186,7 +1185,13 @@ but it is still a missed week.
    make backup-nas && make backup-nas ARGS=--list && make verify-backups
    ```
 
-> **Not yet done.** Authored 2026-09-22. Waits on #558.
+> **Step 1 done 2026-09-22**, ahead of the gate — a pass to a port nothing
+> listens on opens nothing. Inserted directly beneath `Allow 8096 to smaug`
+> on Hicks from `morpheus`'s shell rather than the UI, as a copy of that rule
+> with the port changed, and saved as a config revision named for #141.
+> `pfctl -sr -vv` then read `https`, `8096`, `4533` and the block, in that
+> order, on `igc0.50`; the monitoring host was refused on `4533`; the
+> `igc0.40` tripwire read **0 packets**. Steps 2–7 wait on #558.
 
 ## §7 — Verify
 

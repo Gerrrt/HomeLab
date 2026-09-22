@@ -75,7 +75,7 @@ every television would have to trust, and a second thing to be down.
 | A Hicks workstation | Two of the rules in [`build-the-nas.md`] §0.5 — `50 → 10.0.40.30:443` and `50 → 10.0.40.30:8096`, one per port |
 | Prometheus, on `9100` | A third — `10.0.99.20 → 10.0.40.30:9100` |
 | Prometheus, on `22` | The fourth — `10.0.99.20 → 10.0.40.30:22`, inert until [`build-the-nas.md`] §6.2 switches SSH on for the backup pull, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
-| A phone on Hicks, on `4533` | The fifth — `50 → 10.0.40.30:4533`, authored for Navidrome and created by §6.5 with its deploy |
+| A phone on Hicks, on `4533` | The fifth — `50 → 10.0.40.30:4533`, for Navidrome, created 2026-09-22 (§6.5 step 1) |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and
