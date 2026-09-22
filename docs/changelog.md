@@ -101,6 +101,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-21
 
+- **[#575](https://github.com/Gerrrt/HomeLab/issues/575) Silences have hygiene:
+  both carry an owner, and an expiry now warns before it lapses.** Deployed and
+  verified via [#587](https://github.com/Gerrrt/HomeLab/pulls/587).
+  `SilenceExpiresSoon` and `SilenceWithoutIssue` are loaded and quiet, and
+  `make silence-state` renders the collector's series — the remaining silence
+  sits 16.96 days out, so the rule should go pending on 2026-10-01. The
+  unowned one was re-posted with `amtool silence update`, which keeps the UUID,
+  so the three mentions of that id in
+  [`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) stayed
+  true. The parser anchors the issue reference to the start of the comment, and
+  a mutation test proves why: both silences cited a closed issue mid-prose, and
+  a lenient parser would have called them owned. **An expired silence is
+  deliberately not emitted** — Alertmanager holds one for 120 hours and
+  Prometheus keeps the series for thirty days, so the history already answers
+  "did a page return to a silence that ended", and emitting them would make the
+  expiry rule count backwards from every lapsed one. **One step is outstanding
+  and was left knowingly:** `sudo make install-timers` needs a password and has
+  not run, so the collector has only ever run by hand and its staleness gauge is
+  absent rather than stale, which means no `ScheduledJob` rule can fire for it.
 - **[#599](https://github.com/Gerrrt/HomeLab/issues/599) Opened: memory for
   `smaug` enters the buy table, and the entry that said nothing was
   outstanding for that box is corrected.** The TS150 was bought on 2026-09-09
