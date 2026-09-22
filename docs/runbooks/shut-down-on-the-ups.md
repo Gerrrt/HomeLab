@@ -10,6 +10,11 @@ follow the steps.**
 > decides who shuts down on `mjolnir`'s signal and who does not. Nothing below
 > has been done. Steps 5 and 6 are what closes
 > [#574](https://github.com/Gerrrt/HomeLab/issues/574).
+>
+> **Corrected 2026-09-22, still not built.** Step 1 named a v2c community that
+> [#85](https://github.com/Gerrrt/HomeLab/issues/85) had already retired, and
+> step 5 watched for alerts that cannot arrive inside the window it measures.
+> Both are fixed below. Nothing here has been run.
 
 ## What this does
 
@@ -32,11 +37,16 @@ Tick all six. Steps 1 to 6 assume every one of these is done.
       leaves them all powered off: the KVM in U6 for `morpheus`, the iLO at
       `10.0.30.10` from a Mac on VLAN 30 for `Saruman`, and the power button
       on the front of `smaug` in the media room.
-- [ ] **The UPS card's SNMP community**, rendered on the **main checkout**
-      and never in a worktree (the command is below this list). It is
-      `SNMP_COMMUNITY_APC` in the rendered file. Below it is written
-      `<COMMUNITY>`. Do not paste it into a terminal — it goes into a browser
-      form only.
+- [ ] **The UPS card's SNMPv3 passphrases**, rendered on the **main checkout**
+      and never in a worktree (the command is below this list). They are
+      `SNMP_AUTHPASS_APC` and `SNMP_PRIVPASS_APC` in the rendered file, and
+      below they are written `<AUTHPASS>` and `<PRIVPASS>`. Do not paste them
+      into a terminal — they go into a browser form only. **There is no
+      community for this card:** it moved to SNMPv3 authPriv on 2026-09-21
+      ([#85](https://github.com/Gerrrt/HomeLab/issues/85)) and answers none.
+      Both keys are named for the auth label `auth_apc` in `generator.yaml`,
+      which is where every tool derives them from — not for the device, so
+      there is no `SNMP_AUTHPASS_MJOLNIR` to go looking for.
 - [ ] **A username and password you invent now** for the two subscribers to
       log in with. Below they are written `<NUTUSER>` and `<NUTPASS>`. Put
       them in Apple Passwords before you start. `upsslave` is a fine username.
@@ -77,7 +87,7 @@ cd /home/robo/code/Gerrrt/HomeLab && scripts/snmp-walk.sh --device mjolnir 1.3.6
 That is 2 minutes. **Write the value down** before you change it, so it can be
 put back.
 
-**If you see nothing:** the community is wrong or the card is not answering.
+**If you see nothing:** the credential is wrong or the card is not answering.
 Stop and fix that first — every later step depends on reaching this card.
 
 ### 0.2 Change it at the card
@@ -144,14 +154,28 @@ Driver Settings fields in 1.3 only appear once it reads `Remote snmp`.
 For the `Remote snmp` type the package ignores both. The credential goes in
 the next box instead, and putting it here means the driver never sees it.
 
-In **Extra Arguments to driver (optional)**, type exactly these three lines,
-with your community in place of `<COMMUNITY>`:
+If the form offers an **SNMP community** field for this UPS type, leave it
+blank. The card answers no community.
+
+In **Extra Arguments to driver (optional)**, type exactly these lines, with
+the two passphrases in place of `<AUTHPASS>` and `<PRIVPASS>`:
 
 ```text
-community=<COMMUNITY>
-snmp_version=v2c
+snmp_version=v3
+secLevel=authPriv
+secName=prometheus
+authProtocol=SHA
+privProtocol=AES
+authPassword=<AUTHPASS>
+privPassword=<PRIVPASS>
+mibs=apcc
 pollfreq=15
 ```
+
+`secName` is `prometheus` — the username in `generator.yaml`'s `auth_apc`
+block, which is the credential the exporter has already been using against
+this card since 2026-09-21. `mibs=apcc` names NUT's PowerNet MIB; `snmp-ups`
+autodetects it and the line only makes the choice visible.
 
 ### 1.4 Reveal and fill in Advanced settings
 
@@ -192,7 +216,7 @@ Click **Save**. The page restarts the service for you.
 On `prometheus`:
 
 ```bash
-ssh admin@10.0.99.1 'grep -vE "^\s*#|^\s*$" /usr/local/etc/nut/nut.conf; grep -vE "^\s*#|^\s*$|password|community" /usr/local/etc/nut/ups.conf /usr/local/etc/nut/upsd.conf /usr/local/etc/nut/upsmon.conf; sockstat -l4 | grep 3493'
+ssh admin@10.0.99.1 'grep -vE "^\s*#|^\s*$" /usr/local/etc/nut/nut.conf; grep -vE "^\s*#|^\s*$|[Pp]assword" /usr/local/etc/nut/ups.conf /usr/local/etc/nut/upsd.conf /usr/local/etc/nut/upsmon.conf; sockstat -l4 | grep 3493'
 ```
 
 **You should see**, among other lines:
@@ -202,7 +226,10 @@ MODE=netserver
 [mjolnir]
 driver=snmp-ups
 port=10.0.99.10
-snmp_version=v2c
+snmp_version=v3
+secLevel=authPriv
+secName=prometheus
+mibs=apcc
 pollfreq=15
 LISTEN 127.0.0.1
 LISTEN ::1
@@ -215,8 +242,9 @@ FINALDELAY 30
 and three `sockstat` lines showing `upsd` bound to `127.0.0.1:3493`,
 `10.0.30.1:3493` and `10.0.40.1:3493`.
 
-The command hides the community and password lines on purpose, so their
-absence here is correct and not a problem.
+The command hides every password line on purpose — `authPassword` and
+`privPassword` among them, which is why the pattern matches a capital `P` as
+well as a small one. Their absence here is correct and not a problem.
 
 **If `sockstat` shows `*:3493` or `0.0.0.0:3493`:** the `LISTEN` lines did not
 take. Go back to 1.4. Do not continue — the listener would be reachable from
@@ -241,14 +269,25 @@ battery.runtime.low: 480
 `battery.runtime.low: 480` is step 0 in seconds. Seeing it here proves both
 that step 0 worked and that this driver is reading the same card.
 
-**If you see `Driver not connected`:** the community in 1.3 is wrong, or the
-card refuses SNMPv2c. Try `snmp_version=v1` in the Extra Arguments box, save,
-and retry.
+**If you see `Driver not connected`:** one of the v3 values in 1.3 is wrong:
+a passphrase, `secName`, or `secLevel`. **There is no version to fall back
+to.** The card refuses v1 and v2c, so a lower `snmp_version` makes this worse
+rather than better. Check the credential itself from `prometheus`, where the
+same passphrases are already in daily use:
+
+```bash
+cd /home/robo/code/Gerrrt/HomeLab && scripts/snmp-walk.sh --device mjolnir 1.3.6.1.2.1.33.1.2.4
+```
+
+If that returns a value and the driver still will not connect, the fault is in
+what the form wrote rather than in the credential — go back to 1.6 and read
+the `[mjolnir]` block.
 
 **If you see `Unknown UPS`:** the name in 1.2 is not `mjolnir`.
 
-**If `ups.model` is blank or the driver logs a MIB error:** add a fourth line
-`mibs=apcc` to Extra Arguments, save, and retry.
+**If `ups.model` is blank or the driver logs a MIB error:** `mibs=apcc` is
+already in the list in 1.3 — check it survived the save, in the readback from
+1.6.
 
 ---
 
@@ -461,9 +500,69 @@ from 1.4 and the pass rule from 2.3.
 This halts everything. Your window must be open and you must be able to power
 the three hosts back on by hand.
 
-### 5.1 Start watching, on `prometheus`
+### 5.1 Start the timing loops
 
-In one terminal, leave this running:
+**The timings come from these loops and not from the alert list.** Every alert
+that covers these hosts carries a `for:` of five minutes or more and
+Prometheus scrapes every sixty seconds, so neither can time a shutdown that
+takes about three minutes. 5.3 says what the alerts are still good for.
+
+Both loops print UTC to the second and both use **addresses, never names** —
+DNS goes away with `morpheus`.
+
+On `prometheus`, which can reach `smaug` and `morpheus`:
+
+```bash
+while :; do
+  curl -s -m 2 -o /dev/null http://10.0.40.30:9100/metrics 2>/dev/null && s=up || s='---'
+  nc -z -w2 10.0.99.1 22 >/dev/null 2>&1 && m=up || m='---'
+  printf '%s smaug=%s morpheus=%s\n' "$(date -u +%H:%M:%S)" "$s" "$m"
+  sleep 2
+done | tee ~/ups-fsd-timing.log
+```
+
+`smaug` is checked with `curl -m` rather than with `nc`, because its exporter
+accepts the connection and then never answers when the NAS has a disk fault —
+a port check would read healthy while the host was not.
+
+On the Mac on VLAN 30, the one you used for step 3, because **nothing on
+VLAN 99 can reach `Saruman`**: the single pass between those segments runs the
+other way.
+
+```bash
+while :; do
+  nc -z -G 2 -w 2 10.0.30.110 22 >/dev/null 2>&1 && r=up || r='---'
+  printf '%s saruman=%s\n' "$(date -u +%H:%M:%S)" "$r"
+  sleep 2
+done | tee ~/ups-fsd-saruman.log
+```
+
+macOS `nc` takes the connect timeout as `-G`; its `-w` is the idle timeout and
+will not bound a connection to a host that has gone away.
+
+**If no Mac is available**, fall back to how fresh `Saruman`'s pushed metrics
+are, read from `prometheus`. Find its job label first:
+
+```bash
+curl -sG http://localhost:9090/api/v1/query --data-urlencode 'query=group by (job) (up{job=~".*(metrics|alloy).*"})' | python3 -m json.tool | grep '"job"'
+```
+
+On 2026-09-22 that returned `Saruman-metrics` and `Saruman-alloy`, capital
+`S` as in the hostname. Poll the age of the newest sample from the first:
+
+```bash
+while :; do printf '%s saruman_stale=' "$(date -u +%H:%M:%S)"; curl -sG http://localhost:9090/api/v1/query --data-urlencode 'query=time() - max(timestamp(up{job="Saruman-metrics"}))' | python3 -c 'import json,sys; r=json.load(sys.stdin)["data"]["result"]; print(r[0]["value"][1] if r else "no data")'; sleep 5; done
+```
+
+It reads a few tens of seconds while the host is up — 23 s when this was
+written — and climbs without bound once the agent stops.
+
+That is worth about sixty seconds of resolution, because the agent scrapes at
+sixty. Write down which method you used — §6.5 sets a real threshold off this
+number and must not be given a precision the method cannot support.
+
+In a third terminal, watch the alerts. **Not for timing** — for confirming
+that the estate noticed:
 
 ```bash
 watch -n 5 'curl -s http://localhost:9093/api/v2/alerts | python3 -c "import json,sys; [print(a[\"labels\"][\"alertname\"], a[\"labels\"].get(\"instance\",\"\")) for a in json.load(sys.stdin)]"'
@@ -477,21 +576,43 @@ Note the wall-clock time to the second, then in another terminal:
 ssh admin@10.0.99.1 'upsmon -c fsd'
 ```
 
-### 5.3 Watch the order and time it
+### 5.3 Read the order and the timings off the logs
 
-**You should see, in this order:**
+Each loop prints a line every two seconds. The moment a column flips to `---`
+and stays there is when that host stopped answering.
 
-1. `HypervisorGuestStopped` for `alexander` and `phoenix`, then `InstanceDown`
-   for `Saruman`.
-2. `InstanceDown` for `smaug`, at roughly the same time.
-3. `SnmpTargetDown` for `morpheus`, then a cascade of other alerts as DNS goes
-   away.
+**The order you should see:**
 
-**Write down two times:** how long from firing to `Saruman` being down, and
-how long from firing until `morpheus` goes down. You need both in step 6.
+1. `saruman=---` and `smaug=---`, within a few seconds of each other. Both are
+   secondaries and both start halting on the same flag.
+2. `morpheus=---` last, once every secondary has disconnected or `HOSTSYNC`
+   has elapsed, plus `FINALDELAY`.
 
-**The UPS itself stays on.** `UpsOnBattery` should never fire during this
-step. Nothing here writes to the card.
+**Write down two intervals**, both measured from the time you noted in 5.2:
+
+- **to `Saruman` down** — the number `HOSTSYNC` in 1.4 has to exceed.
+- **to `morpheus` down** — the end-to-end time. §6.5 sets the card's
+  low-battery threshold from it, and step 7 corrects `HOSTSYNC` to it.
+
+One trap in the `prometheus` log: once `morpheus` is down, that host cannot
+reach VLAN 40 at all. A `smaug=---` appearing in the same second as
+`morpheus=---` is the route going away, not the NAS halting. `smaug` should
+already have gone minutes earlier — if it did not, that is the finding, and
+the troubleshooting section says where to look.
+
+**What the alert terminal shows, and when.** None of it is quick enough to
+time the sequence, which is the whole reason the loops exist:
+
+| Signal | Host | When it appears | Note |
+| --- | --- | --- | --- |
+| `InstanceDown` | `smaug` | about 5 minutes after it halts | `for: 5m`, and the only alert inside a short window |
+| `SnmpTargetUnreachable` | `morpheus` | about 10 minutes after | `for: 10m`. There is no `SnmpTargetDown` |
+| `RemoteWriteJobStale` | `Saruman` | about 20 minutes after | Five minutes of lookback plus `for: 15m`. `InstanceDown` cannot see an agent that pushes, so `Saruman` never appears under it |
+| `HypervisorGuestStopped` | `alexander`, `phoenix` | not during this test | `for: 1h`, and `homelab_guest_running` stops arriving the moment `Saruman` halts, so it never matures |
+| `UpsOnBattery` | — | must not fire at all | Nothing in step 5 writes to the card |
+
+**The UPS itself stays on.** `UpsOnBattery` firing here would mean something
+took real power away, and that is not this test.
 
 ### 5.4 Power everything back on, in this order
 
@@ -590,7 +711,8 @@ address (check 1.6) or the pass rule is below the block or the catch-all
 4.2 do not match. Not a firewall problem.
 
 **`morpheus` halted before `Saruman` finished.** `HOSTSYNC` is shorter than
-the guests take. Raise it in 1.4 and re-run step 5.
+the guests take. The two logs from 5.1 are how you know: `morpheus=---`
+appears before `saruman=---`. Raise it in 1.4 and re-run step 5.
 
 **`smaug` did not halt.** Look at its system log under
 *System → Advanced → System Log*. A slave that never saw the shutdown flag was
@@ -662,7 +784,7 @@ The pfSense package builds `ups.conf` differently per UPS type. For
 username* and *Remote password* fields are read for other types and ignored
 for this one. Anything the driver needs beyond the address has to arrive
 through *Extra Arguments to driver*, which the package appends inside the
-`[mjolnir]` section. That is why the community goes there.
+`[mjolnir]` section. That is why the v3 credential goes there.
 
 ### Why `smaug` is a subscriber at all
 

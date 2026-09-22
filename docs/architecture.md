@@ -139,9 +139,9 @@ graph LR
     OUT([Webhook<br/>notification])
 
     PF -->|SNMP v2c| SNMP
-    UPSD -->|SNMP v2c| SNMP
+    UPSD -->|SNMP v3| SNMP
     SWD -->|SNMP v2c| SNMP
-    ILO -->|SNMP v2c| SNMP
+    ILO -->|SNMP v3| SNMP
     PF -->|syslog 1514/udp| ALLOY
     AGENTS -->|remote_write| PROM
     AGENTS -->|push| LOKI
