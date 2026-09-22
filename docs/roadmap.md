@@ -63,9 +63,6 @@ Closes when it is empty.
   cell.** The cell is bought. What closes it is the fit, the mains pull, and
   the silence deleted rather than left to expire on 2026-10-08.
   → [runbook](runbooks/replace-the-laptop-cell.md)
-- **[#575](https://github.com/Gerrrt/HomeLab/issues/575) Silence hygiene.**
-  Shares that date: the active silences expire 2026-10-08 and nothing warns
-  before an expiry. Settled before the day, not after it.
 - **[#573](https://github.com/Gerrrt/HomeLab/issues/573) Carry the backup sets
   off the shelf.** Decided by
   [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md):
@@ -81,6 +78,21 @@ Closes when it is empty.
   pulls the mains once to replace the card's 47-minute claim with a number.
   Shares a window with #531's fit and, if its parts have landed, #444.
   → [runbook](runbooks/shut-down-on-the-ups.md)
+- **[#294](https://github.com/Gerrrt/HomeLab/issues/294) Add a second age
+  recipient.** The implementation half of
+  [#106](https://github.com/Gerrrt/HomeLab/issues/106), which states the risk
+  and stops where the decision starts: `.sops.yaml` takes multiple recipients,
+  so the mechanism costs nothing and what it needs is somewhere to put the
+  second key. Decryption depends on one key held by one person until it lands,
+  and [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
+  already assumes that medium exists — #573's offsite copy rides on it.
+- **[#604](https://github.com/Gerrrt/HomeLab/issues/604) Watch the dynamic DNS
+  record.** [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
+  recorded the gap and left it to a follow-up. Since
+  [#442](https://github.com/Gerrrt/HomeLab/issues/442) closed on 2026-09-22 the
+  remote path depends on that record, and nothing asks whether it still
+  resolves to the WAN address. The address is sticky, so a broken updater stays
+  invisible for months and surfaces on the one day it matters.
 
 The rest of the milestone has no order between its issues.
 
