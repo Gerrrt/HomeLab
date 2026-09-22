@@ -284,6 +284,23 @@ jobs:
       # skips when there is no daemon, so this step cannot quietly degrade into
       # the static check. scripts/validate.sh may honestly skip it on a host
       # without docker; CI may not.
+      # The retry inside that step, as fixtures. ghcr.io cannot be asked to
+      # rate-limit on demand, so the branch that fired on 2026-09-21 — three
+      # pauses spent and the fourth attempt still refused — is reachable only
+      # this way. It pins both directions: toomanyrequests is retried on a
+      # bounded 5/20/60 budget, and a bad digest is reported on the first
+      # attempt rather than costing 85 s to re-learn (#602).
+      #
+      # Here as well as in scripts/validate.sh on purpose. A self-test that runs
+      # only under `make validate` guards a command a contributor may not run
+      # and guards a pull request not at all, which is #68 — and of everything
+      # in this repository with fixtures, this is the one path that runs nowhere
+      # BUT CI. It needs no daemon and takes well under a second, so it goes
+      # before the pull pass: a broken retry is reported in the step above the
+      # six minutes of registry traffic it governs, not after them.
+      - name: Exercise the registry-retry fixtures
+        run: python3 scripts/check_compose_health.py --self-test
+
       - name: Verify health dependencies are satisfiable and probe the images
         run: |
           fail=0
