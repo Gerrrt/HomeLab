@@ -1,4 +1,5 @@
-# Weekly pull of Jellyfin's state off smaug (#484, ADR-0045).
+# Weekly pull of Jellyfin's and Navidrome's state off smaug (#484, #141,
+# ADR-0045).
 #
 # WHY IT IS ITS OWN UNIT AND NOT A ROW IN homelab-backup-volumes. That unit
 # stops the observability stack and archives volumes on this host's docker
@@ -14,7 +15,7 @@
 #
 # See homelab-backup-volumes.service for why each directive below is set.
 [Unit]
-Description=HomeLab: pull Jellyfin's state off smaug from its newest snapshot
+Description=HomeLab: pull the media tier's state off smaug from its newest snapshot
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
 Wants=network-online.target
 After=network-online.target

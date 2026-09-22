@@ -178,7 +178,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 | Firewall / routing | [pfSense on FreeBSD 16](docs/network.md) | VLANs, DHCP, default-deny |
 | Virtualisation | Proxmox VE | Lab hypervisor |
 | Storage | [TrueNAS 25.10](docs/runbooks/build-the-nas.md) | `smaug`: 2× 18 TB ZFS mirror `erebor`, the SMB share, and the Docker the media stack runs under |
-| Media | [Jellyfin](stacks/media) | Quick Sync transcoding on the NAS; the one stack deployed from TrueNAS rather than by `make deploy` |
+| Media | [Jellyfin, Navidrome](stacks/media) | Quick Sync transcoding on the NAS; the one stack deployed from TrueNAS rather than by `make deploy` |
 | Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | On `alexander`, a guest on `Saruman`, with its own Prometheus; only liveness crosses to the estate's, never telemetry |
 | Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention capped at 12 GiB, remote-write receiver |
 | Logs | [Loki](stacks/observability/loki) | Single-binary, filesystem storage |
@@ -210,9 +210,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │                             #   Assistant, AdGuard Home, Immich, Paperless-ngx
 │                             #   and Vaultwarden so far; its own CA, leaves over
 │                             #   ACME (ADR-0037); for a host not yet built (ADR-0034, #404)
-├── stacks/media/             # Jellyfin on smaug, under TrueNAS's own Docker —
-│                             #   deployed by hand, no secrets file by decision
-│                             #   (ADR-0040, #528)
+├── stacks/media/             # Jellyfin and Navidrome on smaug, under TrueNAS's
+│                             #   own Docker — deployed by hand, no secrets file
+│                             #   by decision (ADR-0040, #528)
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
 ├── scripts/                  # bootstrap, render, validate, pin-digests, purge
 ├── SECURITY.md               # disclosure policy and known exposure
@@ -371,8 +371,8 @@ self-test, and the card is set to test itself every fortnight
 switch between the monitoring host and the network draws from it too, racked in
 U4 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the config export
 leaves the monitoring host nightly, the volume backup sets weekly
-([#535](https://github.com/Gerrrt/HomeLab/issues/535)) and Jellyfin's state
-weekly by way of it ([#484](https://github.com/Gerrrt/HomeLab/issues/484)),
+([#535](https://github.com/Gerrrt/HomeLab/issues/535)) and the media tier's
+state weekly by way of it ([#484](https://github.com/Gerrrt/HomeLab/issues/484)),
 so the rehearsal is what is left ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
 
 ## License

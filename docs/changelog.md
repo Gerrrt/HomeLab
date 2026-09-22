@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-22
 
+- **[#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome is
+  authored into `stacks/media`, and the issue was wrong twice.** It said no
+  new firewall rule would be needed; the `50 → 40` it leaned on is two
+  port-scoped passes, `443` and `8096`, and the phones Navidrome serves are on
+  Hicks — so a fifth, `50 → 10.0.40.30:4533`, is written into
+  `build-the-nas.md` §0.5 and made by the new §6.5. It said nothing about
+  backup; playlists and play counts are music's watch history, so
+  `backup-nas.sh` now pulls two archives, `jellyfin-config` and
+  `navidrome-data`, out of one snapshot, and verifies each set against its own
+  MANIFEST so the one-archive sets already on the shelf stay valid.
+
+  **The pinned image decided three lines.** It has no `/cache`, and a named
+  volume mounted there as root kills the process a second after it reports
+  ready, so the cache is a `65534`-owned tmpfs. Plugins are off, which keeps
+  a `0700` directory out of what the backup user reads. And an admin made
+  with `navidrome user create --admin` from the TrueNAS shell closes the web
+  form that would otherwise hand the admin to the first visitor — so the
+  stack still has no secrets file (#528). Not deployed: the mirror is one
+  disk until [#558](https://github.com/Gerrrt/HomeLab/issues/558).
+
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate drive
   is bought, and buying it settles less than the row implied.** A WD Elements
   Portable 5 TB, `WDBU6Y0050BBK-WESN`, bus-powered USB 3.2 Gen 1. The second

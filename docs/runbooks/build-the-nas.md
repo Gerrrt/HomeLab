@@ -216,16 +216,17 @@ the box and in the firewall, not here.
 The static is set on the host and the reservation is set on the server, and
 both are done because either alone is a single point of drift.
 
-### §0.5 — Create the four rules, in order and in position
+### §0.5 — Create the rules, in order and in position
 
-**Position is the whole difficulty.** All four sit above a deny that has been
-in place since 2025; appended where new rules naturally land they would match
+**Position is the whole difficulty.** Every one of them sits above a deny that
+has been in place since 2025; appended where new rules naturally land they would match
 nothing, and *"can I reach the NAS"* would still pass for the wrong reason.
 
 | On interface | Protocol / source → destination | Description | Position |
 | --- | --- | --- | --- |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `443` | `Allow HTTPS to smaug` | **above** *Block access to CasaBonita* |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `8096` | `Allow 8096 to smaug` | **above** *Block access to CasaBonita* |
+| Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `4533` | `Allow 4533 to smaug` | **above** *Block access to CasaBonita* |
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `9100` | `Allow 9100 to smaug` | **above** *Block access to CasaBonita* |
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `22` | `Allow SSH to smaug` | **above** *Block access to CasaBonita* |
 
@@ -235,6 +236,15 @@ carrying a port list — functionally identical, and worth the extra row because
 the description is what §0.6 matches on and a description naming one port is
 unambiguous about which rule answered. **Set these descriptions exactly**; they
 are load-bearing in the next section, not decoration.
+
+**The fifth came later, for Navidrome** ([#141](https://github.com/Gerrrt/HomeLab/issues/141)).
+The four above were created on 2026-09-16; `Allow 4533 to smaug` is added by
+§6.5, when Navidrome is. Its consumer is the Subsonic apps on the phones, and
+the phones are on Hicks, so it is the `8096` rule's shape on another port —
+[ADR-0012](../adr/0012-publish-only-ports-with-an-off-host-consumer.md)'s named
+off-host consumer, and nothing wider. The issue that proposed Navidrome said no
+rule would be needed; that was written against a `50 → 40` pass that turned out
+to be two port-scoped ones.
 
 **The Hicks rule's ports differ from ADR-0016's table, and deliberately.** That
 table says `22,8096`, which assumed a box administered over SSH — ADR-0016
@@ -271,8 +281,8 @@ pfctl -sr -vv \
 
 Each pass must appear **above** the *Block access to CasaBonita* rule on its
 own interface: `Allow 9100`/`Allow SSH` before the block on `igc0.99`, and
-`Allow HTTPS`/`Allow 8096` before it on `igc0.50`. **Read the order, not the
-numbers.** `-vv` numbers each ruleset from zero rather than counting output
+`Allow HTTPS`/`Allow 8096`/`Allow 4533` before it on `igc0.50` — the last
+once §6.5 has created it. **Read the order, not the numbers.** `-vv` numbers each ruleset from zero rather than counting output
 lines, so its `@` indices match neither `pfctl -sr | grep -n` nor anything
 written down here — they are a printing artefact, and only the sequence is a
 fact about the firewall.
@@ -290,6 +300,13 @@ reads:
 
 ```bash
 nc -z -w3 10.0.40.30 443 && echo "WRONG: 99 can reach 443" || echo "correct: blocked"
+```
+
+Once Navidrome is up (§6.5), `4533` is the same test on its own port —
+refused from here, answered from Hicks:
+
+```bash
+nc -z -w3 10.0.40.30 4533 && echo "WRONG: 99 can reach 4533" || echo "correct: blocked"
 ```
 
 Then read **the tripwire counter on `igc0.40`**
@@ -465,8 +482,8 @@ decision made deliberately rather than drifted into.
 
 | Dataset | Record size | atime | What it holds | Backed up |
 | --- | --- | --- | --- | --- |
-| `erebor/media` | `1M` | off | films, music, the library | **no** |
-| `erebor/apps` | default | off | the compose files, and Jellyfin's `/config` as a bind mount | **yes** — §4.1 and §6.2 |
+| `erebor/media` | `1M` | off | films, music (under `music/`, which Navidrome reads), the library | **no** |
+| `erebor/apps` | default | off | the compose files, Jellyfin's `/config` and Navidrome's `/data` as bind mounts | **yes** — §4.1 and §6.2 |
 
 **Why the split.** ADR-0008 already ruled the library replaceable — its loss is
 *"annoying rather than catastrophic"* — and backing up 18 TB of re-downloadable
@@ -545,13 +562,13 @@ ls -1 /mnt/erebor/apps/.zfs/snapshot/
 > four the preset wrote and that one.
 >
 > **No workstation can mount this share, and that was found by trying.** The
-> Hicks rules from §0.5 pass `443` and `8096` to `smaug` and nothing else;
-> SMB is `445`, so a Hicks machine that reaches the TrueNAS UI and Jellyfin
-> gets nothing from `\\10.0.40.30\media`. Only devices already on
+> Hicks rules from §0.5 pass `443` and `8096` to `smaug` and nothing else
+> (and `4533` since §6.5, which changes nothing here); SMB is `445`, so a
+> Hicks machine that reaches the TrueNAS UI and Jellyfin gets nothing from `\\10.0.40.30\media`. Only devices already on
 > CasaBonita can mount it, and those are televisions. Getting a film onto the
 > library today means the console shell — `mkdir` and `curl` under
 > `/mnt/erebor/media/` — which is how the test clip in §6.1 arrived. Whether
-> the answer is a fifth Hicks rule on `445` or something else is
+> the answer is another Hicks rule on `445` or something else is
 > [#523](https://github.com/Gerrrt/HomeLab/issues/523)'s; it is recorded
 > here because the share exists and looks usable and is not.
 
@@ -615,6 +632,17 @@ mkdir -p /mnt/erebor/apps/jellyfin/config \
   && chmod 755 /mnt/erebor/apps/jellyfin/config
 ```
 
+**Navidrome's the same way**, as `NAVIDROME_DATA_PATH` — and the music
+directory it reads, `MUSIC_PATH`, which is created rather than left for Docker
+to make as root on first `up`. The library's own ACL (§5's `everyone@` Basic
+Read, inherited) is what lets uid 65534 read what lands in it:
+
+```bash
+mkdir -p /mnt/erebor/apps/navidrome/data /mnt/erebor/media/music \
+  && chown 65534:65534 /mnt/erebor/apps/navidrome/data \
+  && chmod 755 /mnt/erebor/apps/navidrome/data
+```
+
 > **Migrating the state that already exists.** The stack ran from 2026-09-19
 > with `/config` as a named volume, so on this host the directory above is
 > not empty on first use — it is filled from the volume, with Jellyfin
@@ -650,11 +678,23 @@ stat -c '%g %G' /dev/dri/renderD128
 docker compose up -d && docker compose ps
 ```
 
-Jellyfin binds `8096` and reads `erebor/media`. `node-exporter` binds `9100`
-and is the whole of how this host is monitored — see §6.1. Jellyfin's state
-is the bind mount above, on `erebor/apps`, which is what §4.1 snapshots and
-§6.2 pulls; its cache is a named volume on `erebor/ix-apps`, and is not
-backed up by anything, by decision.
+Jellyfin binds `8096` and reads `erebor/media`. Navidrome binds `4533` and
+reads `erebor/media/music`. `node-exporter` binds `9100` and is the whole of
+how this host is monitored — see §6.1. Jellyfin's and Navidrome's state are
+the bind mounts above, on `erebor/apps`, which is what §4.1 snapshots and
+§6.2 pulls; Jellyfin's cache is a named volume on `erebor/ix-apps` and
+Navidrome's is a tmpfs, and neither is backed up by anything, by decision.
+
+**Create Navidrome's admin immediately after the first `up`, from this
+shell.** Until one exists, the first visitor to `:4533` is offered the form
+that creates it — every console on this segment and every workstation on
+Hicks. Doing it here closes that route (the web form answers `403` once an
+admin exists) and keeps the password out of every environment variable, which
+is why this stack still has no secrets file. `-it` because it prompts twice:
+
+```bash
+docker exec -it media-navidrome navidrome user create --admin -u <name> -n
+```
 
 **Updating the stack is the same two `curl` lines and `docker compose up -d`
 again.** Nothing on this host pulls from `main` on its own: there is no
@@ -769,7 +809,8 @@ is what makes step 7 safe.
 
 2. **Give the user read on the dataset, and nothing else.** From the console
    shell, read what the Apps preset set on the dataset root before changing
-   it, and record both lines here the way §5 recorded `bilbo`'s:
+   it, and record both lines here the way §5 recorded `bilbo`'s. Navidrome's
+   `navidrome/data` joined later and inherits the entry; §6.5 step 6 proves it:
 
    ```bash
    zfs get -H acltype,aclmode erebor/apps \
@@ -870,7 +911,7 @@ is what makes step 7 safe.
 > the `igc0.40` tripwire read **0 packets** on 2026-09-20 with the pull
 > done. Step 9 is the commit this block landed in.
 
-### §6.3 — Restore Jellyfin's state
+### §6.3 — Restore the media tier's state
 
 Two cases, in the order to try them.
 
@@ -914,6 +955,14 @@ docker compose stop jellyfin \
 The proof is the same as the migration's: the users and the watch history
 are back in the web UI. `--numeric-owner` on both ends is what keeps `65534`
 as `65534` across two hosts that spell it differently.
+
+**Navidrome is the same two cases with its own names.** A set from
+2026-09-22 on holds `navidrome-data.tar.gz.age` beside Jellyfin's, both read
+from the one snapshot, and the MANIFEST row says it goes to the `navidrome`
+service's `/data`. Swap `jellyfin`/`jellyfin/config`/`jellyfin-config` for
+`navidrome`/`navidrome/data`/`navidrome-data` in every line above, and prove
+it by logging in: the users, playlists and favourites are back. Sets older
+than that hold Jellyfin's archive only, and say so in their MANIFEST.
 
 ### §6.4 — Turn SMART collection on, and confirm the boot disk's row
 
@@ -1091,6 +1140,54 @@ reopens it.
 > The cron job is as the table says: daily 08:30, `root`, stdout hidden,
 > stderr not.
 
+### §6.5 — Add Navidrome to the running stack
+
+[#141](https://github.com/Gerrrt/HomeLab/issues/141). §6 now describes a stack
+with Navidrome in it; this is the order in which it joins the one that was
+deployed on 2026-09-19 without it. The order matters for one reason: the
+weekly pull in §6.2 expects `navidrome/data` in every snapshot once the
+monitoring host's checkout carries this change. So **the directory has to be
+in a snapshot before the next Saturday 03:30 UTC after that checkout moves**,
+or that run fails naming the directory. It fails loudly and writes nothing,
+but it is still a missed week.
+
+**Gate:** the mirror is whole ([#558](https://github.com/Gerrrt/HomeLab/issues/558)).
+[`roadmap.md`](../roadmap.md) puts no other gate on this.
+
+1. **The fifth pass.** Create `Allow 4533 to smaug` on Hicks exactly as the
+   §0.5 table gives it, and read its position from `morpheus` with the
+   §0.6 `pfctl` line: it sits above *Block access to CasaBonita* on `igc0.50`.
+2. **The directories**, as root on this host — the Navidrome block in §6.
+3. **Re-fetch the two files and bring it up** — the `curl` lines in §6,
+   then `docker compose up -d`. Jellyfin and `node-exporter` are unchanged
+   and compose leaves them running.
+4. **Create the admin, at once** — the `docker exec -it … user create`
+   line in §6. Then `docker compose ps` shows `media-navidrome` healthy.
+5. **Prove the reach.** From a Hicks workstation,
+   `curl -s http://10.0.40.30:4533/ping` prints `.`. From the monitoring
+   host, the §0.6 `nc` line for `4533` reads *correct: blocked*. From a
+   phone on Hicks, a Subsonic client logs in with the admin and plays a
+   track from `music/`.
+6. **Prove the backup user can read it**, the way §6.2 step 5 did for
+   Jellyfin, against the first snapshot taken **after** step 3. Run it from
+   the Data Protection page by hand, as §4.1 did, rather than waiting:
+
+   ```bash
+   ssh frodo@10.0.40.30 "tar -cf /dev/null --numeric-owner -C '/mnt/erebor/apps/.zfs/snapshot/<newest>/navidrome/data' . && echo readable"
+   ```
+
+   `ND_PLUGINS_ENABLED=false` is what keeps a `0700` directory out of it,
+   and this proves that it did.
+7. **Move the monitoring host's checkout, then run the pull by hand**, as
+   §6.2 step 6 did. The set it writes has two archives, and `--list` then
+   `make verify-backups` read both:
+
+   ```bash
+   make backup-nas && make backup-nas ARGS=--list && make verify-backups
+   ```
+
+> **Not yet done.** Authored 2026-09-22. Waits on #558.
+
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the
@@ -1128,9 +1225,12 @@ reopens it.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
-- A Hicks workstation reaches `https://10.0.40.30` and `http://10.0.40.30:8096`
+- A Hicks workstation reaches `https://10.0.40.30` and `http://10.0.40.30:8096`,
+  and — once §6.5 is done — a phone on Hicks plays a track through a Subsonic
+  app pointed at `http://10.0.40.30:4533`
 - The monitoring host reaches `9100` and **nothing else**. Both halves are
-  checkable now: `443` and `8096` must be refused from the monitoring host, and
+  checkable now: `443`, `8096` and `4533` must be refused from the monitoring
+  host, and
   `node_exporter` must be answering — §6.1 is what stands it up, and
   [#256](https://github.com/Gerrrt/HomeLab/issues/256) settled that it is
   `node_exporter` rather than TrueNAS's own endpoint. `up{job="node"}` should be

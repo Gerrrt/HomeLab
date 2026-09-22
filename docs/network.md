@@ -341,7 +341,11 @@ Televisions and consoles. Internet only.
   on `9100` and `22` — four host-scoped, port-scoped passes above *Block access
   to CasaBonita* on their interfaces. Everything else on every other segment is
   still refused, and the televisions need no rule at all because they share this
-  broadcast domain with the server.
+  broadcast domain with the server. **A fifth is authored and not created:**
+  Hicks → `10.0.40.30:4533`, for the Subsonic apps on the phones to reach
+  Navidrome ([#141](https://github.com/Gerrrt/HomeLab/issues/141)), in
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §0.5 and made by §6.5 on
+  the day Navidrome is deployed. Until then, four is the count.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),

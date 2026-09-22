@@ -722,12 +722,12 @@ backup: ## Quiesce the stack, archive its volumes to ./backups/, verify, copy to
 	STACK=$(STACK) ./scripts/backup-volumes.sh $(ARGS)
 
 .PHONY: backup-nas
-backup-nas: ## Pull Jellyfin's state off smaug from its newest ZFS snapshot, encrypt and verify
+backup-nas: ## Pull Jellyfin's and Navidrome's state off smaug from its newest ZFS snapshot, encrypt and verify
 	@# The one backup that leaves this host to FETCH rather than to deliver.
 	@# smaug cannot run backup-volumes.sh — no age, no checkout, no key, and
 	@# ADR-0016 forbids it initiating anything upward — so this host reads a
 	@# snapshot of erebor/apps over the 99 → 40:22 pass and encrypts what
-	@# arrives here (ADR-0045). Jellyfin is never stopped: the snapshot is the
+	@# arrives here (ADR-0045). Nothing is stopped: the snapshot is the
 	@# quiesce. NAS_KEEP and not KEEP, for the reason backup-firewall gives
 	@# for FW_KEEP. Sets land in backups/nas/, apart from the volume sets, and
 	@# `make verify-backups` reads both. The copy to oracle is a step of this

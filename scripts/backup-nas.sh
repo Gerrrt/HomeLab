@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 #
-# Pull Jellyfin's state off smaug, encrypt it here, and prove the archive is
-# readable before calling the run a success.
+# Pull the media tier's state off smaug, encrypt it here, and prove each
+# archive is readable before calling the run a success.
 #
 # WHAT THIS PROTECTS, AND WHAT IT DOES NOT
 #
 # erebor/apps on smaug — Jellyfin's database, users, watch history, resume
-# positions and metadata: the half of the media tier ADR-0008 ruled
-# irreplaceable, and the one build-the-nas.md §4 declared backed up for a week
-# before anything backed it up (#484). It does NOT protect erebor/media, the
+# positions and metadata, and Navidrome's database, playlists, favourites and
+# play counts (#141): the half of the media tier ADR-0008 ruled irreplaceable,
+# and the one build-the-nas.md §4 declared backed up for a week before
+# anything backed it up (#484). It does NOT protect erebor/media, the
 # library, which ADR-0008 ruled replaceable and 18 TB of which would not fit
 # anywhere in this estate; nor jellyfin-cache, transcode scratch that
-# backup-volumes.sh lists as DISPOSABLE by name; nor erebor/ix-apps, Docker's
-# images and that cache volume. Those omissions are decisions (ADR-0045), and
+# backup-volumes.sh lists as DISPOSABLE by name; nor Navidrome's cache, a
+# tmpfs; nor erebor/ix-apps, Docker's images and that cache volume. Those omissions are decisions (ADR-0045), and
 # stacks/media/README.md states them where the stack is.
 #
 # WHY IT PULLS, AND WHY THIS IS NOT backup-volumes.sh
@@ -35,16 +36,17 @@
 # tar's stdout on smaug becomes age's stdin here, and nothing unencrypted
 # touches this disk.
 #
-# WHY IT READS A SNAPSHOT AND NEVER STOPS JELLYFIN
+# WHY IT READS A SNAPSHOT AND NEVER STOPS JELLYFIN OR NAVIDROME
 #
 # backup-volumes.sh stops the stack because a copy of a live SQLite database
-# is a file that looks like a backup. Stopping Jellyfin over ssh would need the
+# is a file that looks like a backup. Stopping either server over ssh would need the
 # docker socket on smaug, which is root, for a user whose whole design is that
 # it can read one directory and do nothing else. A ZFS snapshot is the quiesce
 # instead: TrueNAS takes one of erebor/apps every night (the periodic task
 # build-the-nas.md §4 records), and this reads the newest one through
 # .zfs/snapshot/. A snapshot is atomic across the dataset, so jellyfin.db, its
-# -wal and its -shm are captured at one instant — the crash image SQLite's WAL
+# -wal and its -shm are captured at one instant — and so are navidrome.db and
+# its pair, since BOTH archives of a set are read out of the same snapshot — the crash image SQLite's WAL
 # mode is designed to recover from. That is a stronger claim than
 # backup-volumes.sh's --hot can make and a weaker one than its quiesce, and the
 # manifest says `snapshot` rather than `quiesced` for that reason. Two things
@@ -85,6 +87,10 @@
 #   du -sk '<root>/<snapshot>/<subpath>'   sizing, and the read preflight
 #   tar --numeric-owner -czf - -C '<root>/<snapshot>/<subpath>' .
 #
+# The last two once per archive in ARCHIVES, whose subpaths are fixed in this
+# file rather than taken from the environment — they are the stack's layout,
+# and .env.example is where that is written.
+#
 # Compression runs on smaug, so the wire carries gzip and age runs here.
 #
 # THE USER ON THE FAR SIDE
@@ -94,7 +100,7 @@
 # the read with the same tar, to /dev/null. The key is this host's operator
 # key, the one that already reaches morpheus and oracle. Known limit, stated
 # rather than engineered away: whoever holds that key can read Jellyfin's
-# configuration, which includes its users' password hashes; what lands here is
+# and Navidrome's databases, which include their users' password hashes; what lands here is
 # ciphertext to the same two recipients that can open grafana.db.
 #
 # WHY NAS_KEEP AND NOT KEEP
@@ -131,7 +137,6 @@
 #   NAS_SSH_TARGET        default frodo@10.0.40.30   the host the state is pulled FROM
 #   NAS_OFFHOST           default atropos@10.0.99.30:backups/nas   where the set is copied TO
 #   NAS_SNAPSHOT_ROOT     default /mnt/erebor/apps/.zfs/snapshot
-#   NAS_SUBPATH           default jellyfin/config      under each snapshot
 #   NAS_SNAPSHOT_TZ       default America/Los_Angeles  the zone the names are in
 #   NAS_SNAPSHOT_MAX_AGE  default 172800               seconds; older fails the run
 #   NAS_KEEP              default 7                    complete sets to retain
@@ -153,15 +158,32 @@ VOL_OFFHOST="${NAS_OFFHOST:-atropos@10.0.99.30:backups/nas}"
 source "${REPO_ROOT}/scripts/backup-volumes.sh"
 
 OUT_DIR="${REPO_ROOT}/backups/nas"
-VOL="jellyfin-config"
-VOLUMES=("${VOL}")
-# verify_remote_archives honours this when set; one archive per set here, so
-# it never is.
+# One archive per media service with state, each a directory under the
+# snapshot. The archive names are backup-volumes.sh's table keys — SENTINEL and
+# COMPANIONS carry them, and verify() refuses one that is not there — and the
+# service and mount are what the MANIFEST row records, so a restore knows where
+# each archive goes back. A set holds every archive listed here, all read from
+# ONE snapshot: a set is one instant of the tier, not two.
+ARCHIVES=(jellyfin-config navidrome-data)
+declare -A ARCHIVE_SUBPATH=(
+  [jellyfin-config]="jellyfin/config"
+  [navidrome-data]="navidrome/data"
+)
+declare -A ARCHIVE_SERVICE=(
+  [jellyfin-config]="jellyfin"
+  [navidrome-data]="navidrome"
+)
+declare -A ARCHIVE_MOUNT=(
+  [jellyfin-config]="/config"
+  [navidrome-data]="/data"
+)
+VOLUMES=("${ARCHIVES[@]}")
+# verify_remote_archives honours this when set; a set's archives are read
+# from its own MANIFEST here instead, so it never is.
 ONLY_VOLUMES=()
 
 NAS_SSH_TARGET="${NAS_SSH_TARGET:-frodo@10.0.40.30}"
 NAS_SNAPSHOT_ROOT="${NAS_SNAPSHOT_ROOT:-/mnt/erebor/apps/.zfs/snapshot}"
-NAS_SUBPATH="${NAS_SUBPATH:-jellyfin/config}"
 NAS_SNAPSHOT_TZ="${NAS_SNAPSHOT_TZ:-America/Los_Angeles}"
 NAS_SNAPSHOT_MAX_AGE="${NAS_SNAPSHOT_MAX_AGE:-172800}"
 NAS_KEEP="${NAS_KEEP:-7}"
@@ -186,15 +208,26 @@ fi
 [[ ${NAS_SNAPSHOT_ROOT} =~ ^/[A-Za-z0-9._/-]+$ && ${NAS_SNAPSHOT_ROOT} != *..* ]] \
   || die "NAS_SNAPSHOT_ROOT must be an absolute path of letters, digits, . _ - and /, got '${NAS_SNAPSHOT_ROOT}'"
 NAS_SNAPSHOT_ROOT="${NAS_SNAPSHOT_ROOT%/}"
-[[ ${NAS_SUBPATH} =~ ^[A-Za-z0-9._-][A-Za-z0-9._/-]*$ && ${NAS_SUBPATH} != *..* && ${NAS_SUBPATH} != */ ]] \
-  || die "NAS_SUBPATH must be a relative path of letters, digits, . _ - and /, got '${NAS_SUBPATH}'"
+# The subpaths are this file's own, but they are interpolated into the far
+# side's shell like the rest, so they are held to the same class.
+for a in "${ARCHIVES[@]}"; do
+  sp="${ARCHIVE_SUBPATH[$a]:-}"
+  [[ ${sp} =~ ^[A-Za-z0-9._-][A-Za-z0-9._/-]*$ && ${sp} != *..* && ${sp} != */ ]] \
+    || die "the subpath for ${a} must be a relative path of letters, digits, . _ - and /, got '${sp}'"
+  [[ -n ${ARCHIVE_SERVICE[$a]:-} && -n ${ARCHIVE_MOUNT[$a]:-} ]] \
+    || die "${a} has no service or mount in this file's tables"
+done
+unset a sp
 [[ ${NAS_SNAPSHOT_TZ} =~ ^[A-Za-z0-9/_+-]+$ && -f /usr/share/zoneinfo/${NAS_SNAPSHOT_TZ} ]] \
   || die "NAS_SNAPSHOT_TZ is not a zone this host knows: '${NAS_SNAPSHOT_TZ}'"
 NAS_USER="${NAS_SSH_TARGET%@*}"
 
 check_sentinel_table
-[[ -n ${SENTINEL[$VOL]:-} ]] \
-  || die "no sentinel for ${VOL} in backup-volumes.sh — this script will not write a backup it cannot verify"
+for a in "${ARCHIVES[@]}"; do
+  [[ -n ${SENTINEL[$a]:-} ]] \
+    || die "no sentinel for ${a} in backup-volumes.sh — this script will not write a backup it cannot verify"
+done
+unset a
 
 # The ssh to smaug. NOT remote(): that name is backup-volumes.sh's and points
 # at oracle, and the copy step below relies on it doing so. SSH is that
@@ -249,7 +282,8 @@ pick_snapshot() {
 # ---------------------------------------------------------------------------
 # Arguments — the shape backup-volumes.sh uses, minus the modes that only make
 # sense with a compose file: no --hot (a snapshot is the whole point), no
-# --inventory, no --project, no --only (one archive per set).
+# --inventory, no --project, no --only (a set is one instant of the tier, and
+# half of one is not a set).
 # ---------------------------------------------------------------------------
 usage() { sed -n 's|^# \{0,1\}||; /^Usage:/,/^$/p' "$0" | head -24; }
 
@@ -329,8 +363,19 @@ case "${MODE}" in
     if ((${#targets[@]} == 0)) || [[ -z ${targets[0]} ]]; then
       die "no complete sets in ${OUT_DIR}"
     fi
+    # Each set against its OWN MANIFEST, not against ARCHIVES: the sets
+    # written before Navidrome existed hold jellyfin-config alone, truthfully,
+    # and stay verifiable until retention retires them. The far-side check
+    # below reads the MANIFEST the same way. A set whose MANIFEST lists
+    # nothing is refused rather than passed.
     for t in "${targets[@]}"; do
-      verify_set "${t}" || failed=1
+      mapfile -t in_set < <(manifest_volumes "${t}")
+      if ((${#in_set[@]} == 0)); then
+        red "$(basename "${t}"): the MANIFEST lists no archives"
+        failed=1
+        continue
+      fi
+      verify_set "${t}" "${in_set[@]}" || failed=1
     done
     # The far side is checked even when a local set failed — different
     # findings, different repairs — unless --local-only says oracle may be
@@ -388,7 +433,8 @@ fi
 # has no secrets file — it needs no secrets, and #528 owns whether it ever
 # gets one — so the file is the observability stack's, whose recipients are
 # the estate's two keys (ADR-0024). Whoever can open grafana.db is exactly who
-# should be able to open Jellyfin's users table, and both are the same class
+# should be able to open Jellyfin's and Navidrome's users tables, and all
+# three are the same class
 # of thing. When #528 lands a media file under the same catch-all rule it
 # carries the same two keys, and NAS_RECIPIENT_STACK=media says so.
 mapfile -t AGE_RECIPIENTS < <("${REPO_ROOT}/scripts/key-recipients.sh" --list --stack "${NAS_RECIPIENT_STACK}")
@@ -402,19 +448,27 @@ nas_remote true \
   || die "cannot reach ${NAS_SSH_TARGET} non-interactively — SSH is off on smaug (build-the-nas.md §6.2 turns it on), the 99 → 40:22 pass is not in position, this host's key is not in ${NAS_USER}'s authorized keys, or smaug's host key is not in ~/.ssh/known_hosts"
 
 pick_snapshot
-SRC="${NAS_SNAPSHOT_ROOT}/${SNAPSHOT}/${NAS_SUBPATH}"
 
 # du is the sizing pass and the read preflight in one: it exits non-zero on
 # any directory it cannot enter, which is the permission fault §6.2 exists to
-# prevent, found before a set directory exists rather than after.
-kb="$(nas_remote "du -sk '${SRC}'" | awk '{print $1}')" \
-  || die "cannot read ${SRC} as ${NAS_USER} — the subpath is wrong, or ${NAS_USER} lacks read on something under it (build-the-nas.md §6.2)"
-[[ ${kb} =~ ^[0-9]+$ ]] || die "du on ${SRC} returned '${kb}', not a size"
+# prevent, found before a set directory exists rather than after. Every
+# archive is sized before any is pulled, so a missing directory for the
+# second one fails the run before the first has spent a transfer.
+declare -A SRC=()
+total_kb=0
+for a in "${ARCHIVES[@]}"; do
+  SRC[$a]="${NAS_SNAPSHOT_ROOT}/${SNAPSHOT}/${ARCHIVE_SUBPATH[$a]}"
+  kb="$(nas_remote "du -sk '${SRC[$a]}'" | awk '{print $1}')" \
+    || die "cannot read ${SRC[$a]} as ${NAS_USER} — the directory does not exist in ${SNAPSHOT} (is ${ARCHIVE_SERVICE[$a]} deployed, and was it before that snapshot?), or ${NAS_USER} lacks read on something under it (build-the-nas.md §6.2)"
+  [[ ${kb} =~ ^[0-9]+$ ]] || die "du on ${SRC[$a]} returned '${kb}', not a size"
+  info "${SRC[$a]} is $(human $((kb * 1024))) uncompressed"
+  total_kb=$((total_kb + kb))
+done
 avail_kb="$(df --output=avail -k "${OUT_DIR}" | tail -1 | tr -d ' ')"
-if ((avail_kb < kb * 11 / 10)); then
-  die "only $(human $((avail_kb * 1024))) free at ${OUT_DIR}, and ${SRC} holds $(human $((kb * 1024))) uncompressed — refusing to start"
+if ((avail_kb < total_kb * 11 / 10)); then
+  die "only $(human $((avail_kb * 1024))) free at ${OUT_DIR}, and the set holds $(human $((total_kb * 1024))) uncompressed — refusing to start"
 fi
-info "${SRC} is $(human $((kb * 1024))) uncompressed"
+unset a kb
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 SET_DIR="${OUT_DIR}/${STAMP}"
@@ -422,62 +476,76 @@ SET_DIR="${OUT_DIR}/${STAMP}"
 mkdir "${SET_DIR}" || die "set ${STAMP} already exists"
 
 started=${SECONDS}
-part="${SET_DIR}/${VOL}.tar.gz.age.part"
-info "archiving ${VOL} from ${NAS_SSH_TARGET}:${SRC}"
-
-# tar's stdout on smaug is age's stdin here; nothing plaintext touches this
-# disk. The pipeline's statuses are read one at a time because they mean
-# different things: 255 is ssh itself, and tar's 1 and 2 are the two faults
-# the header argues about.
-set +e
-nas_remote "tar --numeric-owner -czf - -C '${SRC}' ." | age "${AGE_ARGS[@]}" --output "${part}"
-rcs=("${PIPESTATUS[@]}")
-set -e
+declare -A ARCHIVE_BYTES=() ARCHIVE_SHA=()
+part=""
 
 fail_archive() {
   red "$*"
-  rm -f "${part}"
+  [[ -n ${part} ]] && rm -f "${part}"
   red "the incomplete set is at ${SET_DIR} — no manifest written, nothing pruned"
   exit 1
 }
-case "${rcs[0]}" in
-  0)   ;;
-  255) fail_archive "ssh to ${NAS_SSH_TARGET} failed mid-transfer" ;;
-  1)   fail_archive "tar reported a file changing while it read ${SRC} — that cannot happen on a snapshot, so this is not one: ${NAS_SNAPSHOT_ROOT} is not a .zfs/snapshot directory, or ${NAS_SUBPATH} is a live path" ;;
-  2)   fail_archive "tar could not read something under ${SRC} as ${NAS_USER} — a file Jellyfin wrote without world read; build-the-nas.md §6.2 names the fallback" ;;
-  *)   fail_archive "tar on ${NAS_SSH_TARGET} exited ${rcs[0]}" ;;
-esac
-((rcs[1] == 0)) || fail_archive "age failed to write ${part}"
 
-# Strict, never lenient: --hot's carve-out is for a copy of a live volume, and
-# this read a snapshot. A missing sentinel here means the archive is not of
-# Jellyfin's config directory, whatever the path was called.
-if ! verify "${part}" "${VOL}" 0; then
-  red "the archive did not verify — the incomplete set is at ${SET_DIR}, no manifest written, nothing pruned"
-  exit 1
-fi
-ARCHIVE_BYTES="$(stat -c %s "${part}")"
-ARCHIVE_SHA="$(sha256sum "${part}" | awk '{print $1}')"
-mv "${part}" "${SET_DIR}/${VOL}.tar.gz.age"
+for a in "${ARCHIVES[@]}"; do
+  part="${SET_DIR}/${a}.tar.gz.age.part"
+  info "archiving ${a} from ${NAS_SSH_TARGET}:${SRC[$a]}"
+
+  # tar's stdout on smaug is age's stdin here; nothing plaintext touches this
+  # disk. The pipeline's statuses are read one at a time because they mean
+  # different things: 255 is ssh itself, and tar's 1 and 2 are the two faults
+  # the header argues about.
+  set +e
+  nas_remote "tar --numeric-owner -czf - -C '${SRC[$a]}' ." | age "${AGE_ARGS[@]}" --output "${part}"
+  rcs=("${PIPESTATUS[@]}")
+  set -e
+
+  case "${rcs[0]}" in
+    0)   ;;
+    255) fail_archive "ssh to ${NAS_SSH_TARGET} failed mid-transfer" ;;
+    1)   fail_archive "tar reported a file changing while it read ${SRC[$a]} — that cannot happen on a snapshot, so this is not one: ${NAS_SNAPSHOT_ROOT} is not a .zfs/snapshot directory" ;;
+    2)   fail_archive "tar could not read something under ${SRC[$a]} as ${NAS_USER} — a file ${ARCHIVE_SERVICE[$a]} wrote without world read; build-the-nas.md §6.2 names the fallback" ;;
+    *)   fail_archive "tar on ${NAS_SSH_TARGET} exited ${rcs[0]}" ;;
+  esac
+  ((rcs[1] == 0)) || fail_archive "age failed to write ${part}"
+
+  # Strict, never lenient: --hot's carve-out is for a copy of a live volume,
+  # and this read a snapshot. A missing sentinel here means the archive is not
+  # of the directory its name says, whatever the path was called.
+  if ! verify "${part}" "${a}" 0; then
+    fail_archive "${a} did not verify"
+  fi
+  ARCHIVE_BYTES[$a]="$(stat -c %s "${part}")"
+  ARCHIVE_SHA[$a]="$(sha256sum "${part}" | awk '{print $1}')"
+  mv "${part}" "${SET_DIR}/${a}.tar.gz.age"
+  part=""
+done
+unset a
 
 # Written last: its presence is what marks the set complete. The same
 # tab-separated shape backup-volumes.sh writes, so list_sets, prune and a
 # reader who knows one knows the other; the three extra keys say what was
-# read and when the far side froze it.
+# read and when the far side froze it. `source` is the snapshot directory,
+# since the archives are its subdirectories and each row names its own mount.
 {
   printf '# %s set %s\n' "$(basename "$0")" "${STAMP}"
   printf 'stack\t%s\n' media
   printf 'project\t%s\n' media
   printf 'mode\t%s\n' snapshot
-  printf 'source\t%s:%s\n' "${NAS_SSH_TARGET}" "${SRC}"
+  printf 'source\t%s:%s\n' "${NAS_SSH_TARGET}" "${NAS_SNAPSHOT_ROOT}/${SNAPSHOT}"
   printf 'snapshot\t%s\n' "${SNAPSHOT}"
   printf 'snapshot_epoch\t%s\n' "${SNAPSHOT_EPOCH}"
   printf 'recipient\t%s\n' "${AGE_RECIPIENT}"
   printf 'archiver\t%s\n' "ssh-tar"
   printf 'downtime\t0\n'
   printf '#volume\tservice\tmount\tbytes\tsha256\n'
-  printf '%s\t%s\t%s\t%s\t%s\n' "${VOL}" jellyfin /config "${ARCHIVE_BYTES}" "${ARCHIVE_SHA}"
+  for a in "${ARCHIVES[@]}"; do
+    printf '%s\t%s\t%s\t%s\t%s\n' "${a}" "${ARCHIVE_SERVICE[$a]}" "${ARCHIVE_MOUNT[$a]}" "${ARCHIVE_BYTES[$a]}" "${ARCHIVE_SHA[$a]}"
+  done
 } > "${SET_DIR}/MANIFEST"
+
+set_bytes=0
+for a in "${ARCHIVES[@]}"; do set_bytes=$((set_bytes + ARCHIVE_BYTES[$a])); done
+unset a
 
 # Local retention before the copy, for backup-volumes.sh's reason: a set past
 # KEEP here is past it there, and copying it first moves what prune_offhost
@@ -485,7 +553,7 @@ mv "${part}" "${SET_DIR}/${VOL}.tar.gz.age"
 prune
 
 printf '\n'
-green "wrote ${SET_DIR#"${REPO_ROOT}"/} — ${VOL} from ${SNAPSHOT}, $(human "${ARCHIVE_BYTES}"), Jellyfin never stopped, $((SECONDS - started))s total"
+green "wrote ${SET_DIR#"${REPO_ROOT}"/} — ${ARCHIVES[*]} from ${SNAPSHOT}, $(human "${set_bytes}"), nothing stopped, $((SECONDS - started))s total"
 printf '\n'
 
 if ((LOCAL_ONLY)); then

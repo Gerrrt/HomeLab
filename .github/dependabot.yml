@@ -84,9 +84,9 @@ updates:
   # README repeat the claim. The pins and make validate did reach it. This is
   # the third.
   #
-  # Two images now, not one: #256 added a node_exporter beside Jellyfin, because
-  # this host is scraped rather than running an agent. They share nothing, so no
-  # groups — each bump is its own PR.
+  # Three images now: #256 added a node_exporter beside Jellyfin, because this
+  # host is scraped rather than running an agent, and #141 added Navidrome.
+  # They share nothing, so no groups — each bump is its own PR.
   - package-ecosystem: docker-compose
     directory: /stacks/media
     schedule:

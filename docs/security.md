@@ -275,6 +275,13 @@ existed. The residual it leaves, accepted, is one more service on the NAS
 with one more key that reads it — a key that lives on the host already
 holding the estate's age identity, and reads a directory that includes
 Jellyfin's users' password hashes.
+A fifth is written and not yet made: Hicks → `10.0.40.30:4533`, for
+Navidrome's phone clients ([#141](https://github.com/Gerrrt/HomeLab/issues/141)),
+the `8096` rule's shape on one more port, created by
+[`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 with the deploy. It
+adds no residual `8096` did not already have: Navidrome's first admin is made
+from the TrueNAS shell before the port is ever reachable from Hicks, and the
+library behind it is mounted read-only.
 [`network.md`](network.md) holds the current list. **Skids' does not exist.**
 `10.0.99.40 → 10.0.20.104:80,443/tcp` — Home Assistant to the Hue bridge, the
 one device on that segment with a local API — still waits above the block that
@@ -433,10 +440,13 @@ assumption consistent with what they are.
   protects it is a hash at rest, VLAN 40's terminal property, the `50 → 40`
   passes being the only way in, and
   [ADR-0008](adr/0008-place-services-by-data-trust.md)'s blast radius — a
-  media server whose data is replaceable. Audiobookshelf
-  ([#140](https://github.com/Gerrrt/HomeLab/issues/140)) and Navidrome
-  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) create their first
-  user the same way and join this bullet when they land. What would retire
+  media server whose data is replaceable. Navidrome
+  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) is the same class:
+  its admin is made by `navidrome user create --admin` in the container,
+  prompted for on the TrueNAS shell, and kept as a hash in `navidrome.db` on
+  the bind mount `backup-nas.sh` pulls. Audiobookshelf
+  ([#140](https://github.com/Gerrrt/HomeLab/issues/140)) creates its first
+  user the same way and joins this bullet when it lands. What would retire
   it: a service on that tier taking a credential from outside. Then the tier
   gets `secrets/media.sops.yaml` and a rule of its own under
   [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md),
