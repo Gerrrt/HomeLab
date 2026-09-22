@@ -112,6 +112,13 @@ section is the first step rather than a stop sign.
    Then the same query from a phone on mobile data. Both must print the WAN
    address. A stale answer within the record's TTL is normal for a few
    minutes after a forced update; a stale answer an hour later is the client.
+
+   After this, the comparison is not only done by hand. `make gateway-state`
+   makes it on `morpheus` every fifteen minutes, and `DdnsRecordStale` fires
+   when the two addresses have differed for an hour
+   ([#604](https://github.com/Gerrrt/HomeLab/issues/604)). The phone check is
+   still worth doing once, because it is the only one made from outside the
+   house.
 5. **Pick a listen port** that is not a well-known one. It goes on
    `security.md`'s withheld list beside the hostname and the WAN address, not
    into a commit message.
@@ -573,6 +580,8 @@ and that the first lost device is when it stops being proportionate.
 | The client reaches the whole internet through the house | `AllowedIPs = 0.0.0.0/0` on the client | §4. This is the wide-`AllowedIPs` failure, and it is silent |
 | The client reaches Winterfell | A block in §7 is missing or ordered below the catch-all | Check rule order on the ImaginationLAN interface. Treat as a live segmentation failure and read the tripwire log |
 | `LabSegmentReachedInternalNetwork` fires | Either a real breach, or the rule was widened without the blocks | Both are urgent. Read the `filterlog` line: a `172.31.0.x` source is a peer, a `10.0.30.x` source is the lab |
+| `DdnsRecordStale` fires | A public resolver answers the name with an address that is not the WAN's, or answers nothing. There are two causes. The **record is stale**: the updater failed, its token was rotated, or the provider dropped the entry. Or the **WAN address changed** — a new modem, or the spare firewall's different MAC — and the update has not landed | *Force update* on the row under *Services → Dynamic DNS* on `morpheus`. If the row's cached address is the WAN's and the record still differs, the problem is with the provider or the token, so read the row's status and the system log. Then §0 step 4. Until the record matches, the bare address on the withheld list is the way in |
+| `DdnsRecordUnchecked` fires | The comparison could not run: `1.1.1.1` did not answer from `morpheus`, ssh to it failed, or no enabled Dynamic DNS entry exists. This says nothing about whether the record is right | `make gateway-state` and read its last line (`ddns=unchecked`). Then check that the entry is still enabled |
 | Everything works from the sofa and nothing from a hotel | You tested from inside the house | See §8's note. Hicks reaches the lab without any tunnel |
 | Results that contradict each other across one test run | The client rejoined the house Wi-Fi partway through; macOS prefers Wi-Fi over tethering | Turn Wi-Fi **off**, and re-read the route table before each measurement rather than trusting where you think you are |
 

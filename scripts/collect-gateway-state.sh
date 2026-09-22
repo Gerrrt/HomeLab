@@ -34,6 +34,24 @@
 # The monitor and source columns carry the WAN address and the ISP's gateway,
 # and docs/security.md says the WAN address is not published.
 #
+# THE DYNAMIC DNS RECORD, AS A COMPARISON (#604). ADR-0044 put the remote
+# path's endpoint behind a record `morpheus` keeps current, and the WAN address
+# is sticky — so a broken updater changes nothing visible until the one day the
+# address moves, and on that day the operator is outside trying to get in. The
+# question asked here is whether the name, as a PUBLIC resolver answers it,
+# equals the address the WAN interface holds. The estate's own resolver would
+# prove nothing: Unbound answers from its cache.
+#
+# The comparison runs ON THE FIREWALL. The hostname is on the withheld list and
+# lives only in config.xml; the WAN address is withheld too. A script goes over
+# ssh on stdin, reads both there, asks the resolver there, and prints one word.
+# Neither value is in an argv, a variable or a log on this host, and the metric
+# is that word as a boolean.
+#
+# "Could not compare" is kept apart from "does not match". A resolver that did
+# not answer is a fact about the measurement, not about the record, and folding
+# it into 0 would page for a stale record every time 1.1.1.1 blinked.
+#
 # Usage: scripts/collect-gateway-state.sh --ssh USER@HOST --host NAME [--print]
 #        scripts/collect-gateway-state.sh --self-test
 set -uo pipefail
@@ -48,6 +66,9 @@ HOST_LABEL=""
 # measure its own egress policy and call it an uplink failure.
 PROBE4="${GATEWAY_PROBE4:-1.1.1.1}"
 PROBE6="${GATEWAY_PROBE6:-2606:4700:4700::1111}"
+# The public resolver the record is asked of. An address, never a name: it is
+# interpolated into the script the firewall runs, so it is checked for shape.
+DDNS_RESOLVER="${GATEWAY_DDNS_RESOLVER:-1.1.1.1}"
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
@@ -77,6 +98,79 @@ parse_gatewaystatus() {
       printf "%s %s %s %s %s\n", name, family, status, (loss == "" ? "NaN" : loss), (delay == "" ? "NaN" : delay)
     }
   '
+}
+
+# The verdict on one `drill NAME A` answer, given the WAN address as `wan`.
+# Prints exactly one of match, stale or unchecked. It runs on the firewall and
+# is kept here so --self-test exercises the same text. No single quotes in it:
+# it travels inside a single-quoted shell assignment.
+#
+#   NOERROR, every A equals wan (after any CNAME)  match
+#   NOERROR, any A differs, or no A at all         stale — deleted counts
+#   NXDOMAIN                                       stale
+#   SERVFAIL, REFUSED, no header (timeout)         unchecked
+#
+# An answer with one right A and one wrong one is stale: a peer picks either.
+# shellcheck disable=SC2016  # awk's fields, not the shell's
+DDNS_VERDICT_AWK='
+  /^;; ->>HEADER<<-/ {
+    for (i = 1; i <= NF; i++) if ($i == "rcode:") { rcode = $(i + 1); sub(/,$/, "", rcode) }
+  }
+  /^;; ANSWER SECTION:/ { inans = 1; next }
+  inans && /^[[:space:]]*$/ { inans = 0 }
+  inans && $4 == "A" { n++; if ($5 != wan) bad++ }
+  END {
+    if (rcode == "NXDOMAIN") print "stale"
+    else if (rcode != "NOERROR") print "unchecked"
+    else if (n == 0 || bad > 0) print "stale"
+    else print "match"
+  }
+'
+
+# The script the firewall runs for the comparison, on stdin to `sh -s`. It
+# prints one word and nothing else. The PHP reads config.xml with pfSense's own
+# config API and hands each enabled entry's name and interface address to the
+# shell below it; both stay in that process on the firewall.
+#
+# The name is `host`, or `host.domainname` for the providers pfSense splits
+# that way — the rule the Dynamic DNS status widget applies, reproduced because
+# it is not in a shared include. `-v6` client types update AAAA records, which
+# ADR-0044 decision 3 does not use, and are skipped.
+remote_ddns_script() {
+  printf "resolver='%s'\n" "$DDNS_RESOLVER"
+  printf "verdict_awk='%s'\n" "$DDNS_VERDICT_AWK"
+  cat <<'SH'
+entries="$(/usr/local/bin/php 2>/dev/null <<'PHP'
+<?php
+require_once("config.inc");
+require_once("interfaces.inc");
+foreach (config_get_path('dyndnses/dyndns', []) as $e) {
+  if (!isset($e['enable']) || empty($e['host']) || empty($e['interface'])) continue;
+  if (substr($e['type'] ?? '', -3) === '-v6') continue;
+  $name = empty($e['domainname']) ? $e['host'] : $e['host'] . '.' . $e['domainname'];
+  echo $name, ' ', get_interface_ip($e['interface']), "\n";
+}
+PHP
+)"
+[ -n "$entries" ] || { echo unchecked; exit 0; }
+result=match
+while read -r name wan; do
+  [ -n "$name" ] || continue
+  if [ -z "$wan" ]; then
+    v=unchecked
+  else
+    v="$(drill @"$resolver" "$name" A 2>/dev/null | awk -v wan="$wan" "$verdict_awk")"
+  fi
+  case "$v" in
+    stale) result=stale ;;
+    match) ;;
+    *) [ "$result" = stale ] || result=unchecked ;;
+  esac
+done <<EOF
+$entries
+EOF
+echo "$result"
+SH
 }
 
 if [[ "${1:-}" == "--self-test" ]]; then
@@ -110,6 +204,67 @@ LAN_DHCP   none                                                    online       
 "W6   2606:4700:4700::1111   2001:db8::1   9.0ms   1.0ms  0.0%  online  none"
   check "header alone yields nothing" "" \
 "Name       Monitor    Source    Delay   StdDev  Loss  Status  Substatus"
+
+  # The record verdict, fed drill's output as FreeBSD prints it. Addresses and
+  # names are documentation ones; the WAN address is 192.0.2.10 throughout.
+  verdict() {
+    local name="$1" expect="$2" got
+    got="$(printf '%s\n' "$3" | awk -v wan=192.0.2.10 "$DDNS_VERDICT_AWK")"
+    if [[ "$got" == "$expect" ]]; then
+      printf '\033[0;32m  PASS\033[0m %s\n' "$name"
+    else
+      printf '\033[0;31m  FAIL\033[0m %s\n       got      %s\n       expected %s\n' "$name" "$got" "$expect"
+      fail=1
+    fi
+  }
+  hdr() { printf ';; ->>HEADER<<- opcode: QUERY, rcode: %s, id: 4242\n;; flags: qr rd ra ; QUERY: 1, ANSWER: %s, AUTHORITY: 0, ADDITIONAL: 0\n;; QUESTION SECTION:\n;; home.example.net.\tIN\tA\n\n;; ANSWER SECTION:\n' "$1" "$2"; }
+  tail_=$'\n;; AUTHORITY SECTION:\n\n;; ADDITIONAL SECTION:\n\n;; Query time: 13 msec\n;; SERVER: 198.51.100.53'
+  verdict "record equals the WAN address" match \
+    "$(hdr NOERROR 1)
+home.example.net.	60	IN	A	192.0.2.10
+${tail_}"
+  verdict "record holds another address" stale \
+    "$(hdr NOERROR 1)
+home.example.net.	60	IN	A	198.51.100.7
+${tail_}"
+  verdict "a prefix of the WAN address is not a match" stale \
+    "$(hdr NOERROR 1)
+home.example.net.	60	IN	A	192.0.2.1
+${tail_}"
+  verdict "NXDOMAIN is a stale record, not a failed check" stale \
+    "$(hdr NXDOMAIN 0)
+${tail_}"
+  verdict "NOERROR with no answer is a deleted record" stale \
+    "$(hdr NOERROR 0)
+${tail_}"
+  verdict "SERVFAIL is a failed check" unchecked \
+    "$(hdr SERVFAIL 0)
+${tail_}"
+  verdict "no reply at all is a failed check" unchecked ""
+  verdict "a CNAME chain ending at the WAN address matches" match \
+    "$(hdr NOERROR 2)
+www.example.net.	300	IN	CNAME	home.example.net.
+home.example.net.	60	IN	A	192.0.2.10
+${tail_}"
+  verdict "one right A and one wrong is stale" stale \
+    "$(hdr NOERROR 2)
+home.example.net.	60	IN	A	192.0.2.10
+home.example.net.	60	IN	A	198.51.100.7
+${tail_}"
+  # An A record in the authority or additional section is not the answer.
+  verdict "an A outside the answer section is ignored" stale \
+    "$(hdr NOERROR 0)
+;; AUTHORITY SECTION:
+
+;; ADDITIONAL SECTION:
+ns.example.net.	60	IN	A	192.0.2.10"
+
+  # The firewall's script must at least parse as sh; it is never run here.
+  if remote_ddns_script | sh -n 2>/dev/null; then
+    printf '\033[0;32m  PASS\033[0m %s\n' "the firewall's script parses"
+  else
+    printf '\033[0;31m  FAIL\033[0m %s\n' "the firewall's script does not parse"; fail=1
+  fi
   exit $fail
 fi
 
@@ -123,6 +278,7 @@ while (($#)); do
 done
 [[ -n "$SSH_TARGET" ]] || die "--ssh USER@HOST is required"
 [[ -n "$HOST_LABEL" ]] || die "--host NAME is required"
+[[ "$DDNS_RESOLVER" =~ ^[0-9A-Fa-f:.]+$ ]] || die "GATEWAY_DDNS_RESOLVER must be an address"
 
 STDERR_FILE="$(mktemp)"; trap 'rm -f "${STDERR_FILE}"' EXIT
 
@@ -144,6 +300,16 @@ probe_family() {
   if [[ "$fam" == inet6 ]]; then cmd=ping6; target="$PROBE6"; else cmd=ping; target="$PROBE4"; fi
   if ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" \
        "$cmd -c 2 -t 5 $target >/dev/null 2>&1"; then echo 1; else echo 0; fi
+}
+
+# The record comparison, on the firewall. Anything but the two words that are a
+# verdict — ssh refused, a timeout, a script error — is `unchecked`, and none of
+# it fails the gateway metrics above.
+probe_ddns() {
+  local v
+  v="$(remote_ddns_script | timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=10 \
+    "$SSH_TARGET" 'sh -s' 2>/dev/null | tail -1)"
+  case "$v" in match|stale) echo "$v" ;; *) echo unchecked ;; esac
 }
 
 emit() {
@@ -177,6 +343,20 @@ emit() {
     printf 'homelab_gateway_forwarding{host="%s",family="%s"} %s\n' \
       "$HOST_LABEL" "$fam" "$(probe_family "$fam")"
   done
+
+  local ddns; ddns="$(probe_ddns)"
+  printf '# HELP homelab_ddns_record_checked 1 when the firewall could compare its dynamic DNS record with its WAN address. Carries no name and no address.\n'
+  printf '# TYPE homelab_ddns_record_checked gauge\n'
+  printf 'homelab_ddns_record_checked{host="%s"} %s\n' \
+    "$HOST_LABEL" "$([[ "$ddns" == unchecked ]] && echo 0 || echo 1)"
+  # Absent rather than 0 when the comparison did not run: a check that could
+  # not ask must not read as a record that answered wrong.
+  if [[ "$ddns" != unchecked ]]; then
+    printf '# HELP homelab_ddns_record_matches_wan 1 when a public resolver answers the dynamic DNS name with the WAN address. Carries no name and no address.\n'
+    printf '# TYPE homelab_ddns_record_matches_wan gauge\n'
+    printf 'homelab_ddns_record_matches_wan{host="%s"} %s\n' \
+      "$HOST_LABEL" "$([[ "$ddns" == match ]] && echo 1 || echo 0)"
+  fi
 }
 
 if ((PRINT_ONLY)); then emit; exit 0; fi
@@ -187,4 +367,6 @@ tmp="${PROM}.$$"
 emit > "${tmp}" || { rm -f "${tmp}"; die "could not write ${tmp}"; }
 [[ -s "${tmp}" ]] || { rm -f "${tmp}"; die "rendered no metrics"; }
 chmod 0644 "${tmp}"; mv -f "${tmp}" "${PROM}"
-printf 'gateway-state host=%s gateways=%s\n' "$HOST_LABEL" "$(printf '%s\n' "$rows" | wc -l | tr -d ' ')"
+printf 'gateway-state host=%s gateways=%s ddns=%s\n' "$HOST_LABEL" \
+  "$(printf '%s\n' "$rows" | wc -l | tr -d ' ')" \
+  "$(awk '/^homelab_ddns_record_matches_wan/ { print ($2 == 1 ? "match" : "stale"); f = 1 } END { if (!f) print "unchecked" }' "${PROM}")"
