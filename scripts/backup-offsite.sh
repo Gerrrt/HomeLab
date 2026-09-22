@@ -220,7 +220,23 @@ if [[ "${1:-}" == "--self-test" ]]; then
     '[[ ! -e "${M}/backups/volumes/observability/20260908T000000Z" && -f "${M}/backups/volumes/observability/20260920T000000Z/MANIFEST" ]]'
 
   # Tamper with one byte on the medium: the next verify must name it.
-  printf 'x' | dd of="${M}/backups/volumes/observability/20260920T000000Z/loki-data.tar.gz.age" bs=1 seek=10 conv=notrunc status=none
+  #
+  # The byte is FLIPPED, not set. This was `printf 'x' | dd ... seek=10`, and
+  # the files it writes into are /dev/urandom — so one run in 256 per site
+  # wrote the byte that was already there, the file did not change, the verify
+  # correctly found nothing, and the fixture failed. Harmless while this suite
+  # ran only under `make validate`; once #614 put it in front of every pull
+  # request it became CI going red about one run in 128 for a reason no diff
+  # could cause, which is the complaint #602 was filed over. Caught the first
+  # day it gated a pull request, on the export site below.
+  tamper() {  # <file> <offset> — change that byte to a different one, always
+    local byte
+    byte="$(dd if="$1" bs=1 skip="$2" count=1 status=none | od -An -tu1 | tr -d ' \n')"
+    # shellcheck disable=SC2059  # the computed \NNN escape is the point
+    printf "$(printf '\\%03o' "$(( (byte + 1) % 256 ))")" \
+      | dd of="$1" bs=1 seek="$2" conv=notrunc status=none
+  }
+  tamper "${M}/backups/volumes/observability/20260920T000000Z/loki-data.tar.gz.age" 10
   run "${M}" --verify-only;       check "a tampered archive on the medium fails the verify" 1 "differs from its MANIFEST"
   run "${M}";                     check "a run does not copy over a medium that fails to verify" 1 "differs from its MANIFEST"
   # Repair by removing the bad set and letting the run copy again.
@@ -228,7 +244,7 @@ if [[ "${1:-}" == "--self-test" ]]; then
   run "${M}";                     check "removing the bad set lets the run copy it again" 0 "copied 20260920T000000Z"
 
   # An export tampered with fails the same way.
-  printf 'x' | dd of="${M}/backups/firewall/config-20260911T000000Z.sops.yaml" bs=1 seek=10 conv=notrunc status=none
+  tamper "${M}/backups/firewall/config-20260911T000000Z.sops.yaml" 10
   run "${M}" --verify-only;       check "a tampered export on the medium fails the verify" 1 "differs from its recorded sha256"
   rm -f "${M}/backups/firewall/config-20260911T000000Z.sops.yaml" "${M}/backups/firewall/config-20260911T000000Z.sops.yaml.sha256"
   run "${M}";                     check "the export is copied again once removed" 0 "copied config-20260911T000000Z"
