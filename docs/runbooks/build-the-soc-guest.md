@@ -36,7 +36,7 @@ than carrying a second copy that drifts.
 | OS | **Ubuntu Server LTS** | Same reason as `alexander`, and check it the same way: `config.alloy` tails `/var/log/auth.log` and `/var/log/syslog`, and a journald-only install collects nothing from either while reporting healthy. §10 is the check |
 | vCPU | 4 | OpenSearch and fifteen Wazuh daemons are not single-threaded; the host has 48 threads and compute was never the constraint (ADR-0007) |
 | RAM | **8 GiB** | ADR-0030's heap arithmetic assumes it: "half of system RAM would be 4 GiB". The indexer gets 3.5 GiB, the manager 2, and the rest the other three services and the page cache |
-| Disk | 96 GB | ~7 GB of alerts at 30 days, the vulnerability feed, the inventory and states indices, Velociraptor's datastore and ~5 GB of images. Bounded, not measured; the same spindles as everything else, with `balloon 0` and `iothread=1` for the same reasons `alexander` has them |
+| Disk | 96 GB | ~7 GB of alerts at 30 days, the vulnerability feed, the inventory and states indices, Velociraptor's datastore and ~5 GB of images. Bounded, not measured. On **`large_data`**, the SSD mirror, not the spindles: the indexer is the heaviest writer in ADR-0007, and that pool measured 7,952 random write IOPS at queue depth 1 against the HDD mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)). `ssd=1`, `balloon 0` and `iothread=1` for the same reasons `alexander` has them |
 | First user | **uid 1000** | The indexer image runs as uid 1000 and mounts the 0600 user database `make render` writes; `render-config.sh` refuses any other uid. The first user the installer creates is 1000 — do not create a second one to deploy from |
 
 > [!IMPORTANT]
@@ -59,7 +59,7 @@ qm create 160 \
   --cpu host --cores 4 --sockets 1 \
   --memory 8192 --balloon 0 \
   --scsihw virtio-scsi-single \
-  --scsi0 local-lvm:96,discard=on,iothread=1 \
+  --scsi0 large_data:96,discard=on,iothread=1,ssd=1 \
   --net0 virtio,bridge=vmbr0 \
   --agent enabled=1 \
   --onboot 1 \
@@ -70,6 +70,26 @@ qm create 160 \
 `--onboot 1` matters more here than it did for `alexander`: nothing converges
 this stack, and a SIEM that stays down after a hypervisor reboot is a SIEM
 whose gap nobody sees until the next exercise.
+
+**`large_data`, not `local-lvm`.** The SSD pool exists since 2026-09-19 and
+`alexander` has lived on it since 2026-09-20; `odin` joins it rather than
+being the one guest left on the spindles. `ssd=1` makes the guest see a
+non-rotational disk. The pool is shared with `alexander`'s 100 GiB and, once
+[#414](https://github.com/Gerrrt/HomeLab/issues/414) builds, the domain's six
+— check `pvesm status` and `lvs large_data` for room before creating the disk.
+Leave the cache at the Proxmox default; `alexander`'s §1 explains why that is
+right on this array too (SSD Smart Path, no controller cache, capacitor-backed
+drives).
+
+**`--agent enabled=1` installs nothing.** As `alexander`'s §1 found on
+2026-09-20: once the guest has a network, install the agent inside it, or
+`qm shutdown`, `qm reboot` and a quiesced `vzdump` all fail:
+
+```bash
+sudo apt-get install -y qemu-guest-agent && sudo systemctl start qemu-guest-agent
+```
+
+`qm guest exec 160 -- uptime` from `Saruman` is the check.
 
 ## 2. Install Ubuntu Server
 
