@@ -313,12 +313,44 @@ jobs:
       # skips when there is no daemon, so this step cannot quietly degrade into
       # the static check. scripts/validate.sh may honestly skip it on a host
       # without docker; CI may not.
+      # What the step below proves is "binary B execs inside image reference R",
+      # and every R in this repository is digest-pinned — so the claim is about
+      # immutable bytes and cannot change while the digest does not. Re-proving
+      # it on every pull request is what made this job pull ~8 GB from ghcr.io
+      # for Markdown-only diffs, and ghcr.io throttled those pulls: anonymously
+      # on 2026-09-21, and again on 2026-09-22 WITH a working docker login, where
+      # the retry spent its whole 5/20/60 budget and the fourth attempt still
+      # failed (#602).
+      #
+      # So the proof is cached rather than the image. A few KB of digests, not
+      # gigabytes of layers — the six ghcr.io images alone are over 6 GB, which
+      # would take most of this repository's 10 GB cache budget and still have to
+      # be restored on every run.
+      #
+      # Nothing about the check weakens. --probe stays unconditional and still
+      # fails rather than skips without a daemon; this is not a path filter and
+      # not a skip. Every target is still accounted for, and any whose proof is
+      # not held is pulled and exec'd as before. Only digest-pinned references
+      # are cacheable, and the cache carries a hash of check_compose_health.py so
+      # editing the prober voids every proof it made.
+      #
+      # restore-keys is what makes a pin bump cheap rather than total: the exact
+      # key misses, the prefix key restores the previous proofs, and only the
+      # digest that actually moved is pulled.
+      - name: Restore the probe proofs
+        uses: actions/cache@v4
+        with:
+          path: .probe-proofs
+          key: probe-proofs-${{ hashFiles('stacks/*/compose.yaml', 'scripts/check_compose_health.py') }}
+          restore-keys: probe-proofs-
+
       - name: Verify health dependencies are satisfiable and probe the images
         run: |
           fail=0
           for f in $(./scripts/stacks.sh --paths | sed 's|$|/compose.yaml|'); do
             echo "== $f"
-            python3 scripts/check_compose_health.py --probe "$f" || fail=1
+            python3 scripts/check_compose_health.py \
+              --probe --proof-cache .probe-proofs/proofs.txt "$f" || fail=1
           done
           # The half no single file can answer: a reloaded or claimed service
           # that exists in no stack at all.
