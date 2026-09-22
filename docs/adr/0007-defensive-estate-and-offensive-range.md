@@ -41,6 +41,39 @@
 > spindles are now a choice of pool. One word is wrong rather than stale: the
 > pair is **SATA**, per `ssacli`'s `Interface Type`, not SAS. The text here is
 > left as written, per ADR-0001.
+>
+> "Wazuh, Velociraptor" (Decision, below) is settled by
+> [ADR-0030](0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md),
+> 2026-09: the two run together in `stacks/soc/` on **`odin`**, `10.0.30.60` —
+> a second guest on `Saruman` beside `alexander`, not a directory under
+> `stacks/lab/`, and not the hypervisor, which by ADR-0020 must not run Docker.
+> "Lab telemetry stays in the lab" is **not** amended by this, which is half of
+> why the note is worth writing: `stacks/soc`'s Alloy pushes to `alexander` at
+> `10.0.30.40` and never to `10.0.99.20` — `stacks/soc/compose.yaml` says so in
+> as many words — and the six Wazuh alert rules live in
+> `stacks/lab/prometheus/rules/soc.rules.yaml`, because that is where the
+> series arrive. As written here, `stacks/soc/` is authored and CI-validated
+> ([#434](https://github.com/Gerrrt/HomeLab/issues/434), 2026-09-10) and `odin`
+> is not built; [#266](https://github.com/Gerrrt/HomeLab/issues/266) and
+> [#267](https://github.com/Gerrrt/HomeLab/issues/267) carry it, behind
+> [#414](https://github.com/Gerrrt/HomeLab/issues/414). The text here is left
+> as written, per ADR-0001.
+>
+> "Proxmox Backup Server" (Decision, below) is deferred by
+> [ADR-0027](0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md),
+> 2026-09 — "a hypervisor backing up its own guests to itself is not a backup"
+> — which calls this ADR's component list "one item lighter for now" and leaves
+> the lab with **revert and not backup**. The trigger that deferral set itself
+> has since fired: `smaug` answers on `10.0.40.30` since 2026-09-16, and
+> `erebor` came ONLINE 2026-09-19. It did not become an install, for two
+> reasons better recorded than rediscovered — ADR-0027's sync job was designed
+> against a Linux host, and `smaug` runs TrueNAS, where that design is PBS in a
+> VM or a change to an NFS/SMB datastore and not the same answer; and `erebor`
+> has read `DEGRADED` on `ZVTBS4NL` alone since 2026-09-22, so there is no
+> whole mirror to send to.
+> [#485](https://github.com/Gerrrt/HomeLab/issues/485) carries the re-read and
+> [#558](https://github.com/Gerrrt/HomeLab/issues/558) the mirror. The text
+> here is left as written, per ADR-0001.
 
 ## Context
 

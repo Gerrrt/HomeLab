@@ -146,8 +146,8 @@ make validate
 
 `make validate` runs everything CI runs, plus one check that is about *this
 host*: whether the stack runs here while no `homelab-*` units are installed. The
-schedule covers convergence, the volume backups, the pull of Jellyfin's and
-Navidrome's state off `smaug`, the firewall export, the SNMP verification and the dashboard
+schedule covers convergence, the volume backups, the pull of the media tier's state
+off `smaug`, the firewall export, the SNMP verification and the dashboard
 drift check —
 [`schedule-maintenance.md`](schedule-maintenance.md) has the table and the
 staleness threshold on each.
@@ -246,8 +246,8 @@ outgoing operator directly:
   them are in this repository in any form.
 - Jellyfin's and Navidrome's admins on `smaug`, and TrueNAS's own web-UI
   admin. None is in this repository in any form — `stacks/media` has no
-  secrets file by decision, and [`security.md`](../security.md) § Secrets says why. You do not
-  need Jellyfin's: from a workstation on Hicks, *Forgot Password* on
+  secrets file by decision, and [`security.md`](../security.md) § Secrets
+  says why. You do not need Jellyfin's: from a workstation on Hicks, *Forgot Password* on
   `http://10.0.40.30:8096` writes a PIN file into the container's config
   volume, the login page then takes the PIN, and the file is read from a
   TrueNAS shell:
@@ -357,7 +357,7 @@ new keypair whose public half matches nothing.
 | --- | --- |
 | The whole observability stack (`make down`) | The record, and only the record. Nothing in the house depends on it, dashboards and alert rules are in git, and metrics and logs re-accumulate. `grafana-data` is the exception — users, annotations and any un-exported dashboard edit live only there |
 | `stacks/lab` | Nothing. It is committed and deployable and has never been deployed |
-| `stacks/media` | Film night and music, and the watch positions and playlists if `jellyfin-config` and `navidrome-data` go with it. Nothing else depends on it, and [ADR-0008](../adr/0008-place-services-by-data-trust.md) already ruled the library replaceable |
+| `stacks/media` | Film night, the audiobooks and the music, and the watch and listening positions and playlists if `/mnt/erebor/apps` goes with it. Nothing else depends on it, and [ADR-0008](../adr/0008-place-services-by-data-trust.md) already ruled the library replaceable |
 | `homelab-converge.timer` | Automatic deployment. The host stays on whatever revision it is on until someone runs `make up`, which is exactly how it worked before |
 | `dashboards-drift` | The daily proof that Grafana holds no uncommitted dashboard edit |
 | Suricata on the terminal segments | Detection, not connectivity. It is alert-only — `Block Offenders` is off on both interfaces and stays off. [`enable-suricata.md`](enable-suricata.md) |

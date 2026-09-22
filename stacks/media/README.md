@@ -18,37 +18,41 @@ fetched the same way and run by TrueNAS's cron — a change to it reaches
 cd /mnt/erebor/apps/stack && docker compose up -d
 ```
 
-`.env.example` names `JELLYFIN_CONFIG_PATH` and `NAVIDROME_DATA_PATH`,
-directories on `erebor/apps` that have to exist, owned by `65534:65534`,
-before the first `up` — §6 of the runbook creates them, and says why they are
-bind mounts and not volumes.
+`.env.example` names `JELLYFIN_CONFIG_PATH`, `AUDIOBOOKSHELF_STATE_PATH` and
+`NAVIDROME_DATA_PATH`, directories on `erebor/apps` that have to exist, owned
+by `65534:65534`, before the first `up` — §6 and §6.5 of the runbook create
+them, and say why they are bind mounts and not volumes.
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | jellyfin | `jellyfin/jellyfin` | 8096 (http), on the segment | The media server the televisions reach directly, with Quick Sync hardware transcoding on the E3-1225 v6's HD P630 ([#138], [ADR-0016]) |
-| navidrome | `deluan/navidrome` | 4533 (http), on the segment and to Hicks | The music server, over the Subsonic API, for the apps on the phones ([#141]) |
+| audiobookshelf | `ghcr.io/advplyr/audiobookshelf` | 13378 (http), to Hicks through the 13378 pass | Audiobooks, with listening progress that syncs between a person's devices ([#140], [ADR-0050]). **Authored, not yet deployed** — [`build-the-nas.md`] §6.5 |
+| navidrome | `deluan/navidrome` | 4533 (http), to Hicks through the 4533 pass | The music server, over the Subsonic API, for the apps on the phones ([#141]). **Authored, not yet deployed** — [`build-the-nas.md`] §6.6 |
 | node-exporter | `prom/node-exporter` | 9100 (http), to `10.0.99.20` only | How this host is monitored at all — Prometheus scrapes it, because nothing on this segment may push ([#256], [ADR-0016]); it also serves the SMART textfile a root cron job on the host writes ([#483], [ADR-0047]) |
 
-Three services, and two of them are the tier. `node-exporter` is here
-because of the section below; everything else in this file is about Jellyfin
-and Navidrome.
+Four services, and three of them are the tier. `node-exporter` is here
+because of the section below.
 
-Jellyfin is the one video server, and that is a decision rather than a
+Jellyfin is the one video service, and that is a decision rather than a
 starting point. [ADR-0016]
 builds **Jellyfin alone** and adds Plex only if a screen on 40 turns out to
 have no working Jellyfin client — the LG OLED, which is the primary screen,
 has one. Plex authenticates its clients through `plex.tv` even on a local
 network, which would make a household service that works today depend on a
 third party staying up and keeping its terms. That is a deferral against a
-test nobody has run, not a rejection.
+test nobody has run, not a rejection. Audiobookshelf ([#140]) joined it on
+[ADR-0008]'s test — an audiobook library is the same kind of data in the same
+place — for the one thing Jellyfin does not do: progress that follows a
+listener from a phone to a car to a speaker. **Audiobooks only**: the library
+is mounted read-only, so podcast auto-download, the one feature that would
+make it fetch on a schedule and write into `erebor/media`, is deferred by
+[ADR-0050] rather than left switched off by default.
 
 **Navidrome is here for music, which is the weakest thing Jellyfin does**
 ([#141]). It speaks the Subsonic API, so the clients are a dozen mature apps
 on every platform that this repository will never maintain, and it reads the
-same pool from `erebor/media/music`, read-only. Its clients are phones, and
-the phones are on Hicks, which is why it needs the fifth pass below where
-Jellyfin needed none. Audiobookshelf ([#140]) lands here later, in the same
-shape.
+same pool from `erebor/media/music`, read-only. Its clients are phones on
+Hicks, like Audiobookshelf's.
 
 ## Why there is no reverse proxy, and why that is not an omission
 
@@ -73,22 +77,27 @@ every television would have to trust, and a second thing to be down.
 | --- | --- |
 | Televisions on CasaBonita | Natively, same broadcast domain — the firewall never sees the packet |
 | A Hicks workstation | Two of the rules in [`build-the-nas.md`] §0.5 — `50 → 10.0.40.30:443` and `50 → 10.0.40.30:8096`, one per port |
+| A Hicks phone, on `13378` | `50 → 10.0.40.30:13378`, `Allow 13378 to smaug` — the fifth by [ADR-0050]'s count and the sixth to exist — **specified, and created only when [`build-the-nas.md`] §6.5 deploys Audiobookshelf** ([ADR-0050]) |
 | Prometheus, on `9100` | A third — `10.0.99.20 → 10.0.40.30:9100` |
-| Prometheus, on `22` | The fourth — `10.0.99.20 → 10.0.40.30:22`, inert until [`build-the-nas.md`] §6.2 switches SSH on for the backup pull, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
-| A phone on Hicks, on `4533` | The fifth — `50 → 10.0.40.30:4533`, for Navidrome, created 2026-09-22 (§6.5 step 1) |
+| Prometheus, on `22` | The fourth rule — `10.0.99.20 → 10.0.40.30:22`, inert until [`build-the-nas.md`] §6.2 switches SSH on for the backup pull, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
+| A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists and 13378 will be the sixth (§6.6) |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and
-here there are four: every screen in the house, one workstation, the phones
-and the monitoring host.
+here there are four: every screen in the house, one workstation, the phones,
+and the monitoring host. The phones are the first consumers of a service on
+this host that are across a segment boundary rather than on it — Jellyfin's
+case for publishing to the segment was that its clients live there, and
+Audiobookshelf's and Navidrome's do not.
 
 No published port is private to its consumer, and the reason is the same
 for all three: everything already on CasaBonita shares this broadcast domain
-and reaches them without the firewall seeing a packet. For 8096 and 4533 that
-is the whole point. For 9100 it is a residual — an unauthenticated read of
-this host's filesystems, uptime and load, by the televisions — and
-`docs/security.md` records it rather than the firewall rule being mistaken for
-a boundary it is not.
+and reaches them without the firewall seeing a packet. For 8096 that is the
+whole point. For 13378 and 4533 it costs nothing, because nothing there
+answers without a login. For 9100 it is a residual — an unauthenticated read
+of this host's filesystems, uptime and load, by the televisions — and
+`docs/security.md` records it rather than the firewall rule being mistaken
+for a boundary it is not.
 
 ## Why this host is scraped, and runs no agent
 
@@ -139,17 +148,18 @@ to be rediscovered.
 
 ## The backup split
 
-**Jellyfin's and Navidrome's state is backed up. The library is not.** That is deliberate, it
+**Jellyfin's, Audiobookshelf's and Navidrome's state is backed up. The library is not.** That is deliberate, it
 is what [#138] demanded a deliberate answer on, and it is carried in the
 volume layout rather than in a policy document:
 
 | Volume / mount | What it holds | Backed up |
 | --- | --- | --- |
 | `${JELLYFIN_CONFIG_PATH}` → `/config` | database, users, **watch history, resume positions**, metadata | **yes** — `scripts/backup-nas.sh`, weekly, from a ZFS snapshot of `erebor/apps` |
+| `${AUDIOBOOKSHELF_STATE_PATH}/config` → `/config`, `…/metadata` → `/metadata` | the database — users, libraries, **every listener's position in every book** — and covers, per-item metadata, logs | **yes** — the same pull, the same snapshot, archive `audiobookshelf-state` ([ADR-0050]); `pending` in the script until §6.5 runs, and skipped by name while its directory is absent |
 | `jellyfin-cache` | transcode scratch, image caches | no — regenerable |
-| `${NAVIDROME_DATA_PATH}` → `/data` | Navidrome's database — **users, playlists, favourites, play counts** — and extracted artwork | **yes** — the same pull, the same snapshot, a second archive in the set |
+| `${NAVIDROME_DATA_PATH}` → `/data` | Navidrome's database — **users, playlists, favourites, play counts** — and extracted artwork | **yes** — the same pull, the same snapshot, its own archive in the set, `pending` until deployed |
 | `/cache` (tmpfs) | Navidrome's transcodes and resized artwork | no — regenerable, and gone on restart |
-| `${MEDIA_PATH}` → `/media`, `${MUSIC_PATH}` → `/music` | the library itself | no — see below |
+| `${MEDIA_PATH}` → `/media`, `${AUDIOBOOKS_PATH}` → `/audiobooks`, `${MUSIC_PATH}` → `/music` | the library itself | no — see below |
 
 [ADR-0008] already ruled the library replaceable and its loss *"annoying rather
 than catastrophic"*, so backing up 18 TB of re-acquirable files would spend the
@@ -215,6 +225,23 @@ the segment the `50 → 40` passes were made for. Before the wizard has been run
 at all there is no admin to reset, and `/health` reads `Degraded`, which is
 why the healthcheck ignores the body.
 
+**Audiobookshelf's `root`** is the same shape: created on its first-run
+screen, kept as a bcrypt hash in `absdatabase.sqlite`, and in the password
+manager beside Jellyfin's. Its way back in was measured on 2026-09-22 rather
+than assumed. From the stack directory on `smaug`, with the service stopped,
+clear the hash with the image's own `node` and `sqlite3` module:
+
+```bash
+docker compose stop audiobookshelf \
+  && docker compose run --rm --no-deps -T --entrypoint node audiobookshelf -e \
+    'const s=require("/app/node_modules/sqlite3");const d=new s.Database("/config/absdatabase.sqlite");d.run("UPDATE users SET pash=NULL WHERE type=\"root\"",function(e){console.log(e||("cleared "+this.changes));d.close()})' \
+  && docker compose up -d
+```
+
+`root` then signs in with a **blank** password, and the old one is refused;
+set a new one under **Settings → Users** at once, because until then anyone
+on Hicks or CasaBonita who types `root` is the administrator.
+
 **Navidrome is the same class, and joined this section on 2026-09-22**
 ([#141]). Its admin is created from the TrueNAS shell, not the web form —
 `docker exec -it media-navidrome navidrome user create --admin -u <name> -n`,
@@ -228,11 +255,6 @@ the password is the same binary, from the same shell:
 ```bash
 docker exec -it media-navidrome navidrome user edit -u <name> --set-password -n
 ```
-
-Audiobookshelf ([#140]) is the same shape — a first user created through the
-UI, no admin password from the environment — and joins this section rather
-than `secrets/` when it lands; its root is reset by editing its user store
-under `/config`.
 
 ## What was measured rather than assumed
 
@@ -252,6 +274,24 @@ upstream's documentation. Jellyfin's on 2026-09-16:
   until somebody finished the setup wizard, which on `restart: unless-stopped`
   is a restart loop.
 - **65 MiB idle RSS**, which is what the 2 GiB ceiling is a ceiling over.
+
+Audiobookshelf's lines came off its pinned image on 2026-09-22, booted
+read-only as `65534` with a generated two-minute book, a root user, a scan, a
+progress write and a forced transcode. `compose.yaml` numbers all nine; the
+ones that decide a line:
+
+- **It binds `PORT=80` by default**, which a process with no capabilities
+  cannot — hence `PORT=13378` in the environment.
+- **`/config` and `/metadata` do not exist in the image.** The server creates
+  them, so the bind directories are created and chowned first; there is no
+  image mode to lean on.
+- **`wget` and `busybox` are present, `curl` is not** — Jellyfin's opposite.
+- **Its entrypoint is `tini`**, so the service sets `init: false`, as the two
+  Immich images do in `stacks/sensitive`.
+- **The database is in rollback-journal mode, not WAL**, and progress is its
+  `mediaProgresses` table. Its own auto-backups are off by default and stay
+  off.
+- **91 MiB idle, 119 MiB transcoding**, under a 1 GiB ceiling.
 
 Navidrome's on 2026-09-22, from a scratch boot as `65534`, read-only and
 cap-dropped, with a generated track in the library:
@@ -300,6 +340,7 @@ reopen condition is closed; the stack stays here.
 [ADR-0040]: ../../docs/adr/0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md
 [ADR-0045]: ../../docs/adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md
 [ADR-0047]: ../../docs/adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md
+[ADR-0050]: ../../docs/adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md
 [`build-the-nas.md`]: ../../docs/runbooks/build-the-nas.md
 [#138]: https://github.com/Gerrrt/HomeLab/issues/138
 [#140]: https://github.com/Gerrrt/HomeLab/issues/140

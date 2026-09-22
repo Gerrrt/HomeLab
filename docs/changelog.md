@@ -23,12 +23,13 @@ docstring gives: it is a record, not a claim about now.
   authored into `stacks/media`, and the issue was wrong twice.** It said no
   new firewall rule would be needed; the `50 → 40` it leaned on is two
   port-scoped passes, `443` and `8096`, and the phones Navidrome serves are on
-  Hicks — so a fifth, `50 → 10.0.40.30:4533`, is written into
-  `build-the-nas.md` §0.5 and made by the new §6.5. It said nothing about
-  backup; playlists and play counts are music's watch history, so
-  `backup-nas.sh` now pulls two archives, `jellyfin-config` and
-  `navidrome-data`, out of one snapshot, and verifies each set against its own
-  MANIFEST so the one-archive sets already on the shelf stay valid.
+  Hicks — so another pass, `50 → 10.0.40.30:4533`, is written into
+  `build-the-nas.md` §0.5. It said nothing about backup; playlists and play
+  counts are music's watch history, so `navidrome-data` joins the archive
+  table #140 gave `backup-nas.sh` below, `pending` beside Audiobookshelf's.
+  This was written in parallel with #140 and merged after it: both had
+  rewritten the pull for more than one archive, and #140's table — with its
+  `pending` state, which this one lacked — is the one kept.
 
   **The pinned image decided three lines.** It has no `/cache`, and a named
   volume mounted there as root kills the process a second after it reports
@@ -37,9 +38,42 @@ docstring gives: it is a record, not a claim about now.
   with `navidrome user create --admin` from the TrueNAS shell closes the web
   form that would otherwise hand the admin to the first visitor — so the
   stack still has no secrets file (#528). Not deployed: the mirror is one
-  disk until [#558](https://github.com/Gerrrt/HomeLab/issues/558). The
-  fifth pass was created the same day, ahead of it, and read in position
-  from `morpheus` with the `igc0.40` tripwire still at zero.
+  disk until [#558](https://github.com/Gerrrt/HomeLab/issues/558). The 4533
+  pass was created the same day, ahead of it and of Audiobookshelf's 13378,
+  so it is the fifth that exists and 13378 will be the sixth; it was read in
+  position from `morpheus` with the `igc0.40` tripwire still at zero.
+
+- **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf is
+  authored for `stacks/media`, and the issue's one-line firewall claim was
+  wrong.** It said no rule beyond #138's 50→40 would be needed; there is no
+  such rule, only `443` and `8096` passes, one per port, and the phones are on
+  Hicks. So the service brings a fifth pass, `Allow 13378 to smaug`, created
+  when it is deployed rather than now.
+  [ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)
+  records that, and records audiobooks only, with podcasts deferred behind a
+  read-only library mount. It also records that `scripts/backup-nas.sh`
+  pulls a table of archives, not one path, all from one snapshot. Without
+  that, the database holding every listener's position would have been
+  snapshotted nightly and never left the NAS.
+
+  **Measured on the pinned image before a line was written.** It binds port
+  80 by default, which a capability-less non-root process cannot. `/config`
+  and `/metadata` don't exist in the image. Its entrypoint is `tini`. The
+  database is in rollback-journal mode, not WAL. Idle RSS is 91 MiB. The
+  admin reset was proved on a scratch boot rather than described from
+  upstream: clear `root`'s hash, sign in blank, and the old password is
+  refused.
+
+  **The pull learned to wait for a deploy.** The mirror is degraded (#558),
+  and the deploy waits on it. A pull that demanded Audiobookshelf's directory
+  would therefore have failed every Saturday's Jellyfin set until then. The
+  row is `pending`: skipped by name while its directory is absent, pulled
+  strictly once it is present, and flipped to `required` by §6.5's Done
+  commit. Verification now reads each set against its own MANIFEST, so the
+  two retained Jellyfin-only sets still verify. Both were re-verified with
+  the new script, and a bench pull against a fake snapshot tree on `oracle`
+  covered all three branches: skipped, refused for a missing sentinel with no
+  MANIFEST, and two archives verified.
 
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate drive
   is bought, and buying it settles less than the row implied.** A WD Elements

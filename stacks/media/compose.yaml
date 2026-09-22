@@ -19,13 +19,16 @@
 #              by TrueNAS's cron rather than by this file (§6.4).
 #
 # ---------------------------------------------------------------------------
-# Why this stack is two media services
+# Why this stack is three media services
 # ---------------------------------------------------------------------------
 # ADR-0016 decided Jellyfin alone, and Plex only if a screen on 40 turns out to
 # have no working Jellyfin client — a deferral against a test nobody has run,
-# not a rejection. Navidrome (#141) joined it on 2026-09-22 for music, which
-# is the weakest thing Jellyfin does. Audiobookshelf (#140) lands here later,
-# in the same shape.
+# not a rejection. Audiobookshelf (#140, ADR-0050) joined it on the argument
+# that an audiobook library is the same kind of data in the same place, and
+# brought the one thing Jellyfin does not do: listening progress that follows
+# a person between a phone, a car and a speaker. Navidrome (#141) joined on
+# the same day for music, which is the weakest thing Jellyfin does, with the
+# Subsonic API's ecosystem of phone clients behind it.
 #
 # ---------------------------------------------------------------------------
 # Why there is no reverse proxy here, and why that is not an oversight
@@ -197,6 +200,114 @@ services:
       start_period: 60s
 
   # ---------------------------------------------------------------------------
+  # Audiobookshelf — audiobooks, with progress that syncs (#140, ADR-0050)
+  # ---------------------------------------------------------------------------
+  # Its clients are phones, not televisions, and the phones are on Hicks — so
+  # unlike Jellyfin this is a service whose consumers are across a segment
+  # boundary, and it is reached through the fifth pass in build-the-nas.md
+  # §0.5 (`50 → 10.0.40.30:13378`) rather than by sharing a broadcast domain.
+  #
+  # MEASURED 2026-09-22 on the pinned image, booted read-only as 65534 with a
+  # generated two-minute book, a root user, a scan, a progress write and a
+  # forced transcode:
+  #
+  #   1. The image declares NO user, like Jellyfin. And it sets `PORT=80`,
+  #      which a non-root process with every capability dropped cannot bind —
+  #      hence the environment line below, and 13378 because that is the port
+  #      upstream's documentation and the phone apps' setup screens assume.
+  #
+  #   2. `/config` and `/metadata` do NOT EXIST in the image; the server
+  #      creates them. So there is no image mode to lean on as Jellyfin does,
+  #      and both bind directories are created 0755 65534:65534 before the
+  #      first `up` (build-the-nas.md §6.5).
+  #
+  #   3. `wget`, `busybox` and `nc` are present; `curl` is NOT — Jellyfin's
+  #      opposite, and node_exporter's twin, which decides the healthcheck.
+  #
+  #   4. Its entrypoint is `tini`. Under the anchor's `init: true` tini starts
+  #      as PID 2 and warns on every boot that it will not reap — the finding
+  #      stacks/sensitive records for both Immich images, and the same answer:
+  #      the image's own init is the init.
+  #
+  #   5. It writes nothing outside /config and /metadata. Transcode segments
+  #      for a client that cannot play the file directly land in
+  #      /metadata/streams, not /tmp; the tmpfs below is for node itself.
+  #
+  #   6. The database is `absdatabase.sqlite` in ROLLBACK-JOURNAL mode, not
+  #      WAL: `PRAGMA journal_mode` reads `delete`, and a progress write left
+  #      no -wal beside it. A snapshot taken mid-transaction freezes a hot
+  #      journal with it, which SQLite rolls back on open — consistent, the
+  #      same property the snapshot gives Jellyfin's WAL. Progress is the
+  #      `mediaProgresses` table in that file.
+  #
+  #   7. Its own scheduled backups are OFF by default ("Auto Backups are
+  #      disabled" at boot). Leave them off: they would write zipped copies of
+  #      the database into /metadata/backups, which the snapshot pull already
+  #      covers, and grow every set with copies of itself.
+  #
+  #   8. Files are created 0644 and directories 0755, so `frodo`'s read on
+  #      erebor/apps (build-the-nas.md §6.2) needs nothing new.
+  #
+  #   9. It answered `/healthcheck` five seconds into a first boot. Idle RSS of
+  #      node after a scan: **91 MiB**; **119 MiB** with a transcode running.
+  audiobookshelf:
+    <<: *service-defaults
+    image: ghcr.io/advplyr/audiobookshelf:2.36.1@sha256:3528a93b6442ffe54bd46771bbbab7c97084e1101071586d9dc2254f30bb4358
+    container_name: media-audiobookshelf
+    # See MEASURED (4).
+    init: false
+    user: "${AUDIOBOOKSHELF_UID:?}:${AUDIOBOOKSHELF_GID:?}"
+    environment:
+      # See MEASURED (1). The in-container port equals the published one so a
+      # log line naming the port names the one a client uses.
+      PORT: "13378"
+    # A ceiling to catch a leak, not a measurement, as for Jellyfin. The
+    # numbers it is a ceiling over are 91 MiB idle and 119 MiB transcoding;
+    # the headroom is for scanning a real library, which is ffprobe over every
+    # file and the only work that will move it.
+    mem_limit: 1g
+    memswap_limit: 1g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    volumes:
+      # ALL of its state, in two directories under ONE parent on erebor/apps,
+      # which is what lets scripts/backup-nas.sh pull it as one archive from
+      # the same snapshot as Jellyfin's (ADR-0050, extending ADR-0045).
+      #
+      # /config is the database: users, libraries and — the reason this service
+      # exists — every listener's position in every book. /metadata is covers,
+      # per-item metadata, logs, and transient transcode segments; small, and
+      # pulled with the database rather than argued apart from it.
+      - ${AUDIOBOOKSHELF_STATE_PATH:?}/config:/config
+      - ${AUDIOBOOKSHELF_STATE_PATH:?}/metadata:/metadata
+      # READ-ONLY, for Jellyfin's reason: a server on the segment with the game
+      # consoles should not be able to delete the thing it serves. It is also
+      # the line that makes podcasts impossible rather than merely unused —
+      # auto-download needs a writable folder, and ADR-0050 deferred it.
+      - ${AUDIOBOOKS_PATH:?}:/audiobooks:ro
+    # PUBLISHED for the phones on Hicks, through the 13378 pass in
+    # build-the-nas.md §0.5 — ADR-0012's named off-host consumer. Everything
+    # on CasaBonita reaches it too, as it reaches 8096; unlike node_exporter's
+    # 9100 that is not a disclosure, because nothing here answers without a
+    # login.
+    ports:
+      - "${AUDIOBOOKSHELF_BIND_ADDR:?}:13378:13378"
+    healthcheck:
+      # busybox wget, because the image has it and has no curl — MEASURED (3).
+      # `/healthcheck` and not `/ping`: both answer 200 without a login, but
+      # `/ping` writes a log line per call, which at this interval is 2,880
+      # lines a day saying nothing.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13378/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
   # Navidrome — the music server the phones reach, over Subsonic (#141)
   # ---------------------------------------------------------------------------
   # Jellyfin can serve music and does it worst of everything it does. Navidrome
@@ -287,8 +398,8 @@ services:
       # /music works through a read-only mount — measured.
       - ${MUSIC_PATH:?}:/music:ro
     # PUBLISHED, with a named off-host consumer as ADR-0012 asks: the Subsonic
-    # apps on the phones, which live on Hicks, through the fifth pass in
-    # build-the-nas.md §0.5 (`50 → 10.0.40.30:4533`). Everything on CasaBonita
+    # apps on the phones, which live on Hicks, through the 4533 pass in
+    # build-the-nas.md §0.5 (`50 → 10.0.40.30:4533`), created 2026-09-22. Everything on CasaBonita
     # reaches it natively, as it reaches 8096.
     ports:
       - "${NAVIDROME_BIND_ADDR:?}:4533:4533"
@@ -467,10 +578,11 @@ networks:
         - subnet: 172.28.40.0/24
 
 volumes:
-  # ONE volume, and it is the one that is not backed up. Jellyfin's state and
-  # Navidrome's are bind mounts above, on erebor/apps, so that they can be
-  # snapshotted and pulled — see the mount comments and ADR-0045. Navidrome's
-  # cache is a tmpfs, not a volume, for the reason its MEASURED (2) gives. What is declared here is
+  # ONE volume, and it is the one that is not backed up. Jellyfin's,
+  # Audiobookshelf's and Navidrome's state are the bind mounts above, on
+  # erebor/apps, so that they can be snapshotted and pulled — see the mount
+  # comments, ADR-0045 and ADR-0050. Navidrome's cache is a tmpfs, not a
+  # volume, for the reason its MEASURED (2) gives. What is declared here is
   # transcode scratch and regenerable image caches, and scripts/backup-volumes.sh
   # lists it as DISPOSABLE by name, for the reason stacks/sensitive gives for
   # immich-model-cache; `STACK=media backup-volumes.sh --inventory` therefore

@@ -171,11 +171,16 @@ workstation can mount the share.
 - **[#523](https://github.com/Gerrrt/HomeLab/issues/523) A rule for the share**
   and **[#570](https://github.com/Gerrrt/HomeLab/issues/570) a healthcheck
   that can fail** have no gate and no order between them.
-- **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf and
-  [#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome** have no
-  gate but the mirror being whole, which is #558. Navidrome is authored in
-  `stacks/media`, its fifth pass exists, and it waits only on that; deploying
-  it is the rest of [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5.
+- **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf** is
+  authored — the service, a fifth Hicks pass it needs and the #140 text said
+  it did not, and its archive in the NAS pull, `pending` until deployed
+  ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
+  What is left is [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 on
+  `smaug`, gated on the mirror being whole, which is #558.
+  [#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome is authored
+  the same way — its archive `pending` beside Audiobookshelf's — and its
+  4533 pass already exists; what is left is the rest of §6.6, behind the
+  same gate.
 
 ## Saruman: the domain, then the SOC
 

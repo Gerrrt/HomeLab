@@ -310,12 +310,12 @@ curl -sG http://localhost:9090/api/v1/query \
 ## The media tier's state is a different set
 
 `make restore` and everything above it read `backups/volumes/`, the sets of
-the stack on this host. Jellyfin's and Navidrome's state on `smaug` is pulled
-into `backups/nas/` by `make backup-nas` — one archive per service in each
-set (sets before 2026-09-22 hold Jellyfin's alone), read out of a ZFS
-snapshot rather than a stopped container, and copied to `oracle` in the same
-run under `backups/nas` beside these sets
-([ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)) —
+the stack on this host. Jellyfin's, Audiobookshelf's and Navidrome's state on
+`smaug` is pulled into `backups/nas/` by `make backup-nas` — one archive per service, all
+from one ZFS snapshot rather than a stopped container, and copied to `oracle`
+in the same run under `backups/nas` beside these sets
+([ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md),
+[ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)) —
 and it is restored on `smaug`, by hand, per
 [`build-the-nas.md`](build-the-nas.md) §6.3. Nothing in this runbook touches
 it, and `make restore` cannot: the volumes it would write do not exist here.

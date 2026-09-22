@@ -341,12 +341,19 @@ Televisions and consoles. Internet only.
   on `9100` and `22` — four host-scoped, port-scoped passes above *Block access
   to CasaBonita* on their interfaces. Everything else on every other segment is
   still refused, and the televisions need no rule at all because they share this
-  broadcast domain with the server. **A fifth since 2026-09-22:** Hicks →
-  `10.0.40.30:4533`, for the Subsonic apps on the phones to reach Navidrome
-  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)), created ahead of
-  the service and verified in position from `morpheus`
-  ([`build-the-nas.md`](runbooks/build-the-nas.md) §0.5, §6.5). Until
-  Navidrome is deployed it matches nothing, because nothing listens there.
+  broadcast domain with the server. **Two more are written for the phones on
+  Hicks, and one of them exists.** `Allow 4533 to smaug`, Hicks →
+  `10.0.40.30:4533`, for Navidrome's Subsonic apps
+  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)), was created on
+  2026-09-22 ahead of the service and verified in position from `morpheus`;
+  until Navidrome is deployed it matches nothing, because nothing listens
+  there. `Allow 13378 to smaug`, Hicks → `10.0.40.30:13378`, for
+  Audiobookshelf
+  ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)),
+  is specified and not yet created. ADR-0050 calls it the fifth; 4533 was
+  made first, so it will be the sixth.
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 and §6.6 deploy the
+  two services. Five exist today.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
