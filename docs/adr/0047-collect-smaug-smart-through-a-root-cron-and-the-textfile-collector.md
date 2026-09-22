@@ -2,6 +2,16 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> **A second collector uses this mechanism, 2026-09-22.** The TrueNAS
+> product version, which `check-versions` compares against the documents and
+> which `node_os_info` cannot supply — it reports the Debian base
+> ([#616](https://github.com/Gerrrt/HomeLab/issues/616)). The same shape: a
+> root cron job in TrueNAS's UI, a script on the pool, a `.prom` in the
+> directory the exporter serves
+> ([`build-the-nas.md`](../runbooks/build-the-nas.md) §6.7). The decision
+> below is unchanged; it simply has two tenants.
+
 ## Context
 
 Every host-level fact this estate collects — SMART attributes, package patch

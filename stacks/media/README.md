@@ -12,7 +12,9 @@ and running `docker compose up -d` there. Nothing pulls from `main` on that
 host on its own: a Dependabot bump is merged here and deployed there by hand.
 A third file lives beside them since [ADR-0047]: `scripts/collect-smart-state.sh`,
 fetched the same way and run by TrueNAS's cron — a change to it reaches
-`smaug` only by the same re-fetch.
+`smaug` only by the same re-fetch. A fourth, `scripts/collect-truenas-version.sh`,
+is the same shape for the product version `check-versions` compares
+([#616], [`build-the-nas.md`] §6.7).
 
 ```bash
 cd /mnt/erebor/apps/stack && docker compose up -d
@@ -344,6 +346,7 @@ reopen condition is closed; the stack stays here.
 [`build-the-nas.md`]: ../../docs/runbooks/build-the-nas.md
 [#138]: https://github.com/Gerrrt/HomeLab/issues/138
 [#140]: https://github.com/Gerrrt/HomeLab/issues/140
+[#616]: https://github.com/Gerrrt/HomeLab/issues/616
 [#141]: https://github.com/Gerrrt/HomeLab/issues/141
 [#255]: https://github.com/Gerrrt/HomeLab/issues/255
 [#256]: https://github.com/Gerrrt/HomeLab/issues/256

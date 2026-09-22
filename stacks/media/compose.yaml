@@ -16,7 +16,9 @@
 #              from main on its own. README.md has the procedure. A third
 #              file sits beside those two since ADR-0047:
 #              scripts/collect-smart-state.sh, fetched the same way and run
-#              by TrueNAS's cron rather than by this file (§6.4).
+#              by TrueNAS's cron rather than by this file (§6.4); and a
+#              fourth since #616, scripts/collect-truenas-version.sh, the
+#              same way for the version check-versions compares (§6.7).
 #
 # ---------------------------------------------------------------------------
 # Why this stack is three media services

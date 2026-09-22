@@ -193,6 +193,17 @@ run rather than failing. The skip is self-clearing: the moment
 other host. Failing instead would leave a weekly job red for a known reason
 until somebody is at the Mac, which is how a check stops being read.
 
+**`smaug` has the same hole and a different collector.** TrueNAS's
+`node_os_info` is its Debian base, `Debian GNU/Linux 12`, against a documented
+`TrueNAS 25.10`, and for three days that failed `check-versions` every run
+([#616](https://github.com/Gerrrt/HomeLab/issues/616)).
+`scripts/collect-truenas-version.sh` reads `/etc/version` and writes
+`truenas_version_info` — not as an agent unit, since the host has no Alloy
+and an upgrade replaces its root, but as a root cron job in TrueNAS's UI
+writing into the directory its node_exporter serves, the way its SMART job
+does ([`build-the-nas.md`](build-the-nas.md) §6.7). The skip is the same
+self-clearing one, from the same table in `check_versions.py`.
+
 **`guest-state` is the collector that crosses a line on purpose.** ADR-0007
 keeps the lab's telemetry in the lab, so a guest that dies takes its own
 monitoring with it and the estate sees a healthy DL360 —
