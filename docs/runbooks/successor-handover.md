@@ -233,7 +233,7 @@ fitted and proven.
 | The public recipients | [`.sops.yaml`](../../.sops.yaml) | Yes. It can only encrypt |
 | **The private key** | `~/.config/sops/age/keys.txt` on `prometheus`, mode 600, plus one offline copy | **Never.** Nothing in this repository or any backup of it can recover the private half |
 | **The estate CA's private key** | `certificates/ca-key.pem` on `prometheus`, mode 600, plus one offline copy on the same medium, proved with `make certs-verify-backup` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)) | **Never.** It was, once, and was purged; `certificates/` is gitignored and CI asserts it |
-| **The backup sets** — the firewall export, the volume sets, the NAS set | `backups/` on `prometheus`; the same on `oracle`, hashed there every morning; and the newest of each kind on the medium that holds the second age recipient — so whoever holds that key holds the sets it opens ([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md), [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)) | **Never.** Ciphertext to the estate's age recipients everywhere it exists; `backups/` is gitignored and CI asserts it |
+| **The backup sets** — the firewall export, the volume sets, the NAS set | `backups/` on `prometheus`; the same on `oracle`, hashed there every morning; and the newest of each kind on the medium that holds the second age recipient, from that medium's first visit onward — so whoever holds that key holds the sets it opens ([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md), [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)) | **Never.** Ciphertext to the estate's age recipients everywhere it exists; `backups/` is gitignored and CI asserts it |
 
 The encrypted file holds the Grafana admin login and renderer token, one SNMP
 community per polled device, and the four Alertmanager URLs. Details in
@@ -431,6 +431,6 @@ The remaining runbooks are task-shaped and are best read when you have the task:
 It does not replace the outgoing operator. Three things have no representation
 in this repository at all — the device admin passwords, the account holding the
 alert destinations, and the offline media: the one holding the age key's copy
-and the CA key, and the one holding the second recipient and, with it, the
-newest of the backup sets — and a handover that does not transfer those has
-not happened, however carefully it is documented here.
+and the CA key, and the one holding the second recipient and, from its first
+visit onward, the newest of the backup sets — and a handover that does not
+transfer those has not happened, however carefully it is documented here.
