@@ -168,6 +168,7 @@ medium, and the cost of it.
 | `the destination is inside this repository` | `DEST` is under the working tree | This tree is published. Use the medium |
 | `not enough room on the medium` | A volume set is about 1.7 GB and the medium is small or full of something else | `ARGS=--prune` if an older set of the estate's is what fills it; otherwise a larger medium. Nothing was written |
 | `differs from its MANIFEST entry` or `differs from its recorded sha256` | A byte on the medium changed since it was written — media do fade | Remove *that one* set directory (or that export and its `.sha256`) from the medium, then run the copy again. The script names it and never deletes it for you |
+| `refusing to check a set with an unexpected name` | A directory holding a `MANIFEST` sits beside the sets under a name that is not a stamp — copied there by hand, or renamed | Move it off the medium or delete it, then run again. A `<stamp>.part` left by a copy that died is not this: the next run removes it on its own and says so (`removing … — a copy that did not finish`) |
 | `nothing to verify on the medium` from `--verify-only` | The medium holds no complete set | Not a proof of anything. Run the copy |
 | `OffsiteCopyStale` | Ninety days since the last proved copy | This runbook, on the next visit |
 | `ScheduledJobNeverRan` for `offsite-copy` | The deadline is declared and no copy has ever been made | Expected until the first visit. Make it |
