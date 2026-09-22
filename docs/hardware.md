@@ -259,9 +259,18 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   same label confirms every field this entry already carried, which is why it
   is recorded as a check rather than a correction. The board takes four DDR4 UDIMMs at 2133 or 2400 to a maximum of
   64 GB, so 8 GB is an eighth of what it holds and three slots are empty.
-  [#599](https://github.com/Gerrrt/HomeLab/issues/599) takes it to 32 GB —
-  half the ceiling, with two slots still free — and the kit lands in this
-  entry when it is bought. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
+  [#599](https://github.com/Gerrrt/HomeLab/issues/599) takes it to 32 GB, and
+  **it does so by filling the board rather than by halves**: three more of the
+  same 8 GB part, bought 2026-09-22, in the entry below. The roadmap row that
+  left the buy list that day had said 32 GB *with two slots still free*, which
+  would have meant two 16 GB modules; new ECC unbuffered 16 GB ran $134 to
+  $140 each against $44 for this part, and the 2133 stick already fitted sets
+  the clock for whatever joins it either way. **The cost of that choice is
+  named rather than discovered later**: at four slots occupied, 64 GB is a
+  replacement of all four modules and not an addition, so the board's ceiling
+  is reachable only by discarding what is in it. 32 GB is the number ADR-0040's
+  workload was sized against, and the second half of the ceiling was never
+  costed. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
   other address here. BIOS **`S06KT81L` dated 2024-02-05**, boot block `1.81`, flashed
   2026-09-16 while the box was still empty. It shipped on `S06KT03R` dated
   2017-05-22 with boot block `1.03` — a firmware predating the Spectre and
@@ -687,6 +696,23 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) has the
   procedure and a section on what differs on this host. Nothing in the
   Compute table changes; a cell is not a spec.
+- Three Samsung `M391A1G43EB1-CPB`[^Smaugmem] — 8 GB DDR4-2133 ECC UDIMM,
+  PC4-17000P-E, dual rank x8 — **bought 2026-09-22, in transit**, under
+  [#599](https://github.com/Gerrrt/HomeLab/issues/599). `smaug`'s memory, and
+  the same part as the module the machine already carries: this is the
+  matched-set answer to that issue rather than the two-16 GB one, for the
+  reason the Compute entry above now records. $44 each, $132 the three, $15.30
+  FedEx 2Day, **$147.30 all in**, from Memory.NET with a lifetime warranty on
+  the modules. New, not pulled — the used market for this part sat between $19
+  and $45 a stick with no warranty, so the premium here is small and buys the
+  replacement path. **It takes the board to 32 GB across all four slots**, and
+  what the arrival has to check is what no listing can answer: that three
+  strangers and the incumbent train together at 2133 and that the board posts
+  with every slot filled. Until then the Compute table reads 8 GB, because
+  memory in a box in transit is not memory in the machine. Ordered the day
+  after the label was photographed, which is what settled the part number —
+  `PC4-2133P-EE1-11` off the installed module, `EE` being ECC unbuffered, and
+  this listing naming `PC4-17000P-E` for the same thing.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]
@@ -697,6 +723,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
 [^Exos]: [Seagate Exos X20 18TB SATA 6Gb/s 7200RPM Enterprise HDD ST18000NM003D 0HR Drives](https://www.ebay.com/itm/237056026029)
 [^SM863a]: [Samsung SM863a 960 GB, MZ-7KM960N](https://www.ebay.com/itm/800210578217)
+[^Smaugmem]: [Samsung M391A1G43EB1-CPB, 8 GB DDR4-2133 ECC UDIMM PC4-17000P-E dual rank x8](https://memory.net/product/m391a1g43eb1-cpb-samsung-1x-8gb-ddr4-2133-udimm-pc4-17000p-e-dual-rank-x8-module/)
 [^Caddy]: [HP 2.5" SFF drive tray, 651687-001, for DL360/DL380/ML350 Gen8 and Gen9](https://www.ebay.com/itm/126297185368)
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)
 [^Panel]: [Jadol 24-port patch panel](https://a.co/d/izggRoK)

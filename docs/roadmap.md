@@ -242,6 +242,11 @@ and runbooks until one box had been bought for two jobs
 **Nothing enters the table without a decision the operator made, and a PR that
 implies a purchase edits this section in the same commit.** Parts on hand are
 in [`hardware.md`](hardware.md); a part in transit is its issue's to track.
+`smaug`'s memory left this table on 2026-09-22 by that rule, bought rather
+than dropped ([#599](https://github.com/Gerrrt/HomeLab/issues/599)) — and it
+was bought to a different shape than the row described, which is in
+[`hardware.md`](hardware.md) and in
+[`changelog.md`](changelog.md) rather than here.
 
 **Buy these, and the estate as decided is fully bought:**
 
@@ -249,7 +254,6 @@ in [`hardware.md`](hardware.md); a part in transit is its issue's to track.
 | --- | --- | --- | --- |
 | Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 | An external drive kept at another address | ADR-0023's off-estate copy of the household's photographs and documents. Buying it is the decision that ADR was waiting on. Not the estate's own backup sets: those ride with the second age recipient, [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md) | [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md), [#455](https://github.com/Gerrrt/HomeLab/issues/455) | Before ADR-0022's first trigger, so the decision is not made under pressure |
-| Memory for `smaug` | The TS150 took on an 18 TB mirror and Jellyfin after it was bought, and runs both on 8 GB in one of four slots. ECC **unbuffered** DDR4, to 32 GB, two slots left free; the kit is chosen on cost and recorded in [`hardware.md`](hardware.md) afterwards | [#599](https://github.com/Gerrrt/HomeLab/issues/599) | Nothing gates it. The machine works today — this is a box whose job grew after the money was spent, not a fault |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC

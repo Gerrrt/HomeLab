@@ -17,6 +17,38 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-22
+
+- **[#599](https://github.com/Gerrrt/HomeLab/issues/599) `smaug`'s memory is
+  bought, to 32 GB across all four slots rather than to 32 GB with two spare.**
+  Three Samsung `M391A1G43EB1-CPB` — the same 8 GB DDR4-2133 ECC UDIMM the
+  machine already carries — $44 each, $147.30 with FedEx 2Day, new from
+  Memory.NET with a lifetime warranty on the modules. The row entered the buy
+  table on 2026-09-21 and left it on 2026-09-22 by that section's own rule: a
+  part in transit is its issue's to track, and the money being spent is what
+  moves it to [`hardware.md`](hardware.md).
+  README's count goes back to two.
+
+  **The row said "two slots left free" and the purchase did not honour it**,
+  which is worth writing down as a decision rather than letting the record
+  quietly disagree with the machine. Two 16 GB ECC unbuffered modules were
+  $134 to $140 each new — more than three of these — and the 2133 module
+  already fitted clocks the set either way, so the matched-set answer was
+  cheaper and the speed argument was a wash. What it costs is the upgrade
+  path: with four slots occupied, the board's 64 GB ceiling is a replacement
+  of all four modules rather than an addition. That trade was named on the
+  issue before the money was spent and is named in `hardware.md` now, because
+  the second half of that ceiling was never costed and 32 GB is the number
+  ADR-0040's workload was sized against.
+
+  Bought the day after the installed module's label was photographed, which is
+  what fixed the part number: `PC4-2133P-EE1-11` read off the module, `EE` for
+  ECC unbuffered, against this listing's `PC4-17000P-E` for the same thing.
+  Nothing in the Compute table changes yet — it reads 8 GB until the modules
+  are in the slots, and the arrival checks the thing no listing can answer:
+  that three strangers and the incumbent train together at 2133, and that the
+  board posts with every slot filled.
+
 ## 2026-09-21
 
 - **[#599](https://github.com/Gerrrt/HomeLab/issues/599) Opened: memory for
