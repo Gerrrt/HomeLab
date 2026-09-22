@@ -582,7 +582,7 @@ fi
 # #596 fixed. OFFSITE_SOURCE keeps it off the host's backups/, and the wrapper
 # is not involved, so nothing here touches the textfile directory.
 if "${REPO_ROOT}/scripts/backup-offsite.sh" --self-test >/dev/null 2>&1; then
-  pass "backup-offsite.sh --self-test (24 fixtures)"
+  pass "backup-offsite.sh --self-test (31 fixtures)"
 else
   "${REPO_ROOT}/scripts/backup-offsite.sh" --self-test || true
   fail "backup-offsite.sh --self-test"
