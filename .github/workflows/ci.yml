@@ -101,6 +101,35 @@ jobs:
             echo "::warning::and exposed to the shared-IP rate limit of #602"
           fi
 
+      # Every embedded fixture suite in the repository — the collectors that
+      # parse output no host here can be asked to produce, the CA-key proof that
+      # needs a mounted medium, the offsite copy that needs the second
+      # recipient's. They are the only test those scripts have, and until now
+      # they ran in scripts/validate.sh and in no job here, so they guarded a
+      # `make validate` a contributor may not run and guarded a pull request not
+      # at all. That is the #68 asymmetry again (#614), and the script asserts
+      # this step exists, so deleting it fails rather than narrowing coverage.
+      #
+      # The suites are discovered, not listed: collect-gateway-state.sh had a
+      # documented --self-test that nothing had ever called, which is what a
+      # hand-kept list gets you. Discovery also means a suite added later is
+      # covered here without anyone remembering to add it.
+      #
+      # First among the real work, because none of it needs a daemon, a
+      # network or a secret and all of it finishes in seconds. A broken fixture
+      # is reported before the six minutes of registry traffic the probe step
+      # spends below, which is the ordering #602 asked for when
+      # check_compose_health.py's own suite had a dedicated step here. That
+      # suite is discovered with the rest now, so the step is gone and this one
+      # covers it.
+      #
+      # --require-all because a skip in CI is a check nobody runs. It is what
+      # makes backup-offsite.sh's two conditional fixtures — the same-filesystem
+      # and tmpfs refusals, the second of which IS the #596 regression — fail
+      # here rather than print SKIP and still exit 0.
+      - name: Run every embedded fixture suite
+        run: ./scripts/self-tests.sh --require-all
+
       # The ${VAR:?} guards in compose.yaml exist so a missing secret fails
       # loudly at deploy time. CI supplies throwaway values so validation never
       # needs a decryption key. The list of variables lives in the script, which
@@ -284,23 +313,6 @@ jobs:
       # skips when there is no daemon, so this step cannot quietly degrade into
       # the static check. scripts/validate.sh may honestly skip it on a host
       # without docker; CI may not.
-      # The retry inside that step, as fixtures. ghcr.io cannot be asked to
-      # rate-limit on demand, so the branch that fired on 2026-09-21 — three
-      # pauses spent and the fourth attempt still refused — is reachable only
-      # this way. It pins both directions: toomanyrequests is retried on a
-      # bounded 5/20/60 budget, and a bad digest is reported on the first
-      # attempt rather than costing 85 s to re-learn (#602).
-      #
-      # Here as well as in scripts/validate.sh on purpose. A self-test that runs
-      # only under `make validate` guards a command a contributor may not run
-      # and guards a pull request not at all, which is #68 — and of everything
-      # in this repository with fixtures, this is the one path that runs nowhere
-      # BUT CI. It needs no daemon and takes well under a second, so it goes
-      # before the pull pass: a broken retry is reported in the step above the
-      # six minutes of registry traffic it governs, not after them.
-      - name: Exercise the registry-retry fixtures
-        run: python3 scripts/check_compose_health.py --self-test
-
       - name: Verify health dependencies are satisfiable and probe the images
         run: |
           fail=0
