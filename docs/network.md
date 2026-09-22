@@ -249,10 +249,22 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   never by host.
 - **Corporate laptops are subject to exactly the same rules as everything else
   here.** They are intended to be treated as untrusted endpoints that happen to
-  sit on a trusted segment, and nothing on the firewall enforces that: no alias
-  holds `10.0.50.69` or `10.0.50.70`, and no rule names them. It is a policy
-  about how they are used, and it is written here as one rather than as a
-  control.
+  sit on a trusted segment, and nothing on the firewall enforces that. This note
+  used to say "no alias holds `10.0.50.69` or `10.0.50.70`, and no rule names
+  them," and the first half of that is false: a host alias `WORK_PC` holds
+  `10.0.50.69` and has for as long as anyone has looked. The claim survives on
+  the second half alone — **no rule references it**, and `pfctl -t WORK_PC -T
+  show` prints nothing at all, because pf never loads an alias no rule uses.
+  `10.0.50.70` is named nowhere. So it remains a policy about how these machines
+  are used, written here as one rather than as a control; `WORK_PC` is just the
+  shape such a control would take if someone reached for it.
+- **The two corporate machines' model strings are unverified, and they
+  disagree with the firewall.** The table above calls both a Surface Laptop 6
+  for Business, citing the product page rather than the hardware, while
+  `WORK_PC`'s description on `morpheus` calls `10.0.50.69` a Surface Pro 6 —
+  a different machine from a different generation. Both strings arrived in a
+  bulk restructure with no measurement behind either, and nothing here has read
+  a model off either device. Treat both rows as unconfirmed until someone does.
 - **Prometheus' and Loki's ingest ports are not on the list above.** `9090` and
   `3100` are published without authentication
   ([#182](https://github.com/Gerrrt/HomeLab/issues/182)) and were reachable from
