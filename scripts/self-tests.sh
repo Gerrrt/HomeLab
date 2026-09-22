@@ -42,6 +42,9 @@
 #   collect_silences.py       `issue` is read only from a comment that BEGINS with
 #                             #NNN, and the fixture that fails otherwise is the
 #                             point (#575)
+#   check_compose_health.py   ghcr.io cannot be asked to rate-limit on demand, and
+#                             the retry that spent all three of its pauses on
+#                             2026-09-21 runs nowhere but CI (#602)
 #
 # The list above is prose. What runs is DISCOVERED, because a hand-kept list is a
 # second copy of one fact and this repository has already paid for that: when

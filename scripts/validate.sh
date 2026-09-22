@@ -343,6 +343,12 @@ head_ "Compose health dependencies"
 # to know an image has not moved to a distroless base under a Dependabot bump
 # (#79). Without it the static half still runs — it just proves less, and the
 # SKIP below is what says so. CI always passes --probe and may not skip it.
+# The retry this pull pass depends on has fixtures of its own (#602). They ran
+# here, ahead of the pass, until scripts/self-tests.sh started discovering every
+# suite in the repository — check_compose_health.py's dispatch is one of the
+# shapes it matches, so it is run there with the other nine and the count comes
+# from the suite rather than from a number typed here. The "Fixture suites"
+# section below is where it reports now.
 if have python3; then
   HEALTH=(python3 scripts/check_compose_health.py)
   if have_docker; then
