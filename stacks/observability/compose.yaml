@@ -1138,7 +1138,7 @@ services:
   # ---------------------------------------------------------------------------
   archiver:
     profiles: ["backup"]
-    image: debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
+    image: debian:13-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
     command: ["true"]
 
   # ---------------------------------------------------------------------------
@@ -1192,7 +1192,7 @@ services:
 
   editorconfig-checker:
     profiles: ["lint"]
-    image: mstruebing/editorconfig-checker:4.0.1@sha256:c843ca21130986fb1c8c5e09bb38075bd51432ad40cc6db118a6f8cde897db0e
+    image: mstruebing/editorconfig-checker:4.0.2@sha256:2ba6232bfa0058f72f5f7d7816711590aa764afab1542af30b3ecb4553587918
     command: ["editorconfig-checker", "--version"]
 
 networks:
