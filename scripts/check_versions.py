@@ -116,7 +116,37 @@ def info(msg: str) -> None:
 # The dict stays, empty, because the NEXT host with this shape should be named
 # here rather than silently passing. An empty exceptions table is a statement
 # that there are currently none.
+#
+# `smaug` WAS the next host with this shape (#616), and it is not in the dict,
+# for the reason #311 gave: an entry here DESCRIBES a gap, and a product with a
+# collector can have the self-clearing skip in PRODUCT_SOURCES below, which says
+# what to run. TrueNAS SCALE's /etc/os-release is the Debian it is built on —
+# "Debian GNU/Linux 12 (bookworm)" against a documented "TrueNAS 25.10" — and
+# scripts/collect-truenas-version.sh reads /etc/version instead.
 NO_COMPARABLE_SOURCE: dict[str, str] = {}
+
+# Appliance products whose node_os_info is their Debian base, each with the
+# metric its own collector writes and what to do when only node_os_info
+# reports the host. Keyed on a word in the DOCUMENTED cell, because that is the
+# claim being checked: a host the documents call "TrueNAS" is not failed for
+# reporting Debian, it is skipped with the instruction until its collector
+# answers — and the moment it does, the source changes and it is compared like
+# any other host. A table rather than a second hand-written branch, because
+# Proxmox's was the first and this is the second.
+PRODUCT_SOURCES = (
+    {
+        "word": "proxmox",
+        "product": "Proxmox VE",
+        "metric": "pve_version_info",
+        "remedy": "make install-agent-collectors AGENT=root@<host> ARGS='--only pve-version'",
+    },
+    {
+        "word": "truenas",
+        "product": "TrueNAS",
+        "metric": "truenas_version_info",
+        "remedy": "the root cron job in docs/runbooks/build-the-nas.md §6.6",
+    },
+)
 
 
 def query(prom: str, expr: str) -> list[dict]:
@@ -148,10 +178,10 @@ def running_versions(prom: str) -> dict[str, tuple[str, str]]:
         if host and pretty:
             found[host.lower()] = (pretty, "node_os_info")
 
-    # Proxmox VE, which reports its product version through a textfile the agent
-    # writes rather than through node_os_info (#311). Taken AFTER node_os_info
-    # on purpose: both exist for this host, and the Debian underneath is not the
-    # answer the documents record.
+    # Proxmox VE and TrueNAS, which report their product versions through a
+    # textfile rather than through node_os_info (#311, #616). Taken AFTER
+    # node_os_info on purpose: both exist for these hosts, and the Debian
+    # underneath is not the answer the documents record.
     for series in query(prom, "pve_version_info"):
         metric = series["metric"]
         host = metric.get("host") or metric.get("instance", "")
@@ -168,6 +198,19 @@ def running_versions(prom: str) -> dict[str, tuple[str, str]]:
         release = metric.get("release", "")
         if host and release:
             found[host.lower()] = (f"Proxmox VE {release}", "pve_version_info")
+
+    # TrueNAS's release line is two components — "TrueNAS 25.10" against a
+    # running 25.10.7 — which release_line() reduces to on its own, so the
+    # `release` label is read here for symmetry with the block above rather
+    # than out of necessity. Written on the NAS by a root cron job into the
+    # directory node_exporter serves (build-the-nas.md §6.6), so `host` and
+    # `instance` agree; `host` is still preferred, as above.
+    for series in query(prom, "truenas_version_info"):
+        metric = series["metric"]
+        host = metric.get("host") or metric.get("instance", "")
+        release = metric.get("release", "")
+        if host and release:
+            found[host.lower()] = (f"TrueNAS {release}", "truenas_version_info")
 
     # sysDescr is one string holding two versions. The FreeBSD half is what the
     # OS columns record; the pfSense half is checked separately below, against
@@ -426,25 +469,32 @@ def main() -> int:
             skip(f"{host} — nothing reports an OS for it")
             continue
 
-        # A Proxmox host whose only source is node_os_info is not a
+        # An appliance host whose only source is node_os_info is not a
         # disagreement, it is a collector that has not been installed yet.
         # node_os_info reports the Debian underneath — "Debian GNU/Linux 13"
-        # against a documented "Proxmox VE 9" — and failing on that would make
-        # this check red for a known, listed reason until somebody drives to the
-        # Mac, which is how a check stops being read.
+        # against a documented "Proxmox VE 9", "Debian GNU/Linux 12" against
+        # "TrueNAS 25.10" — and failing on that would make this check red for a
+        # known, listed reason until somebody is at the right console, which is
+        # how a check stops being read. #616 was exactly that: two FAILs every
+        # week and ScheduledJobFailed firing for three days, over a NAS that
+        # runs precisely what the documents say.
         #
-        # SELF-CLEARING on purpose: the moment pve_version_info exists the source
-        # changes and the comparison happens like any other host. This says what
-        # to run rather than describing a gap (#311).
-        if (
-            any("proxmox" in cell.lower() for _, cell in documented[host])
-            and running[host][1] == "node_os_info"
-        ):
+        # SELF-CLEARING on purpose: the moment the product's metric exists the
+        # source changes and the comparison happens like any other host. This
+        # says what to run rather than describing a gap (#311).
+        product = next(
+            (
+                p for p in PRODUCT_SOURCES
+                if any(p["word"] in cell.lower() for _, cell in documented[host])
+            ),
+            None,
+        )
+        if product is not None and running[host][1] == "node_os_info":
             skip(
-                f"{host} — documented as Proxmox VE and only node_os_info "
-                f"reports it, which is the Debian underneath. Install the "
-                f"collector on it:\n       make install-agent-collectors "
-                f"AGENT=root@<host> ARGS='--only pve-version'"
+                f"{host} — documented as {product['product']} and only "
+                f"node_os_info reports it, which is the Debian underneath. "
+                f"{product['metric']} is what compares it; install the "
+                f"collector:\n       {product['remedy']}"
             )
             continue
 

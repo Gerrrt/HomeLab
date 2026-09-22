@@ -1224,6 +1224,80 @@ service that is not there yet. Step 8 is where that stops being allowed.
 > **Not yet done.** The date, the set stamp from step 7 and the two readings
 > from steps 6 and 9 go here, in the commit that flips step 8.
 
+### §6.6 — Turn version collection on
+
+[#616](https://github.com/Gerrrt/HomeLab/issues/616). `check-versions`
+compares what the documents say each host runs against what it reports, and
+this host reports the wrong thing honestly: `node_os_info` is TrueNAS SCALE's
+Debian base, `Debian GNU/Linux 12 (bookworm)`, against a documented
+`TrueNAS 25.10`. Until this section runs, `check_versions.py` **skips** this
+host with a line naming this section, and the moment the series below exists
+the skip clears itself and the host is compared like every other.
+
+The collector is `scripts/collect-truenas-version.sh`. It reads
+`/etc/version` — `25.10.7` on 2026-09-22, the product and nothing else — and
+writes `truenas_version_info` into the same directory §6.4's SMART job
+writes, which node_exporter already serves. It runs the way SMART does, and
+for the same reason
+([ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)):
+a cron job in TrueNAS's config database and a script on the pool, which an
+upgrade replacing the root touches neither of. It is **not** pulled over
+§6.2's SSH: that key and that pass are the backup's and nothing else's
+([ADR-0045](../adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)).
+
+**1. The script and a dry run**, from the console shell as root. The `curl`
+is idempotent; `--print` writes nothing:
+
+```bash
+cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-truenas-version.sh \
+  && chmod 0755 collect-truenas-version.sh
+/bin/bash /mnt/erebor/apps/stack/collect-truenas-version.sh --print --host smaug
+```
+
+It prints one `truenas_version_info` line with `version="25.10.7"` (or
+whatever the host is on now) and `release="25.10"`. That was read off this
+host from the monitoring host before this section was written; step 1
+confirms it as root, from the copy cron will run.
+
+**2. The first real write:**
+
+```bash
+TEXTFILE_DIR=/mnt/erebor/apps/textfile /bin/bash /mnt/erebor/apps/stack/collect-truenas-version.sh --host smaug
+ls -l /mnt/erebor/apps/textfile
+```
+
+A second file beside `smart-state-smaug.prom`: `truenas-version.prom`,
+`-rw-r--r--`, root.
+
+**3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
+
+| Field | Value | Why |
+| --- | --- | --- |
+| Description | `homelab truenas-version (#616)` | So the next person finds the issue from the job |
+| Command | the step-2 command line, exactly, without the `ls` | `--host smaug` pins the label to the scrape's `instance`, as §6.4's does; `/bin/bash` so the exec bit is not relied on |
+| Run As User | `root` | Only because `/mnt/erebor/apps/textfile` is root-owned `0755`; the read itself needs nothing |
+| Schedule | daily, `08:40` | Beside the SMART job and ten minutes after it. The version only changes on an upgrade, but daily means the file is at most a day behind one, well inside the weekly check |
+| Hide Standard Output | **on** | Success is one line and TrueNAS would mail it daily |
+| Hide Standard Error | **off** | A failure is the thing worth seeing |
+| Enabled | on | |
+
+**4. Prove it from the monitoring host**, the next time the scrape runs:
+
+```bash
+curl -s http://10.0.40.30:9100/metrics | grep -E '^truenas_version_info|^node_textfile_scrape_error'
+make check-versions
+```
+
+`node_textfile_scrape_error` is **0**, and `check-versions` prints two
+**PASS** lines for `smaug`, each ending `truenas_version_info agrees`, where
+it printed a SKIP naming this section. **After a TrueNAS upgrade** the next
+day's file carries the new version, and `check-versions` fails until
+`hardware.md` and `network.md` say it — which is the check doing its job.
+
+> **Not yet done.** The date and the two readings from step 4 go here, and
+> [#616](https://github.com/Gerrrt/HomeLab/issues/616) closes on them.
+
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the

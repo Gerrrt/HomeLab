@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-22
 
+- **[#616](https://github.com/Gerrrt/HomeLab/issues/616) `check-versions`
+  stops failing on a NAS that runs exactly what the documents say.** TrueNAS
+  SCALE's `node_os_info` is its Debian base, so `TrueNAS 25.10` was compared
+  against `Debian GNU/Linux 12` every week, and `ScheduledJobFailed` fired
+  for three days over it. The fix follows #311's pattern for `Saruman`, in
+  two halves. First, `check_versions.py` now has a table of appliance
+  products (Proxmox VE and TrueNAS) whose only source is `node_os_info`, and
+  skips such a host with the remedy named. The job goes green on merge, and
+  the skip clears itself. Second, `scripts/collect-truenas-version.sh` reads
+  `/etc/version` (`25.10.7`, read off the host) and writes
+  `truenas_version_info` from a root cron job in TrueNAS's UI, the way
+  ADR-0047 runs SMART there. It is not pulled over `frodo`'s SSH, which is
+  the backup's alone. `build-the-nas.md` §6.6 turns it on. Tested against
+  the host as it is: a `--print` run on `smaug` read the real file, and a
+  mocked series for 25.10 passed both documents while a mocked 26.04 failed
+  both.
+
 - **[#266](https://github.com/Gerrrt/HomeLab/issues/266) `odin` goes on
   `large_data`, before anyone runs its runbook.** `build-the-soc-guest.md`
   was written before [#527](https://github.com/Gerrrt/HomeLab/issues/527)
