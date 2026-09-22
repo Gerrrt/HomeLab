@@ -297,12 +297,16 @@ smart-state: ## Collect SMART health from THIS host's disks (needs root) and ren
 	fi
 
 .PHONY: gateway-state
-gateway-state: ## Collect the firewall's view of its uplinks (#353)
+gateway-state: ## Collect the firewall's view of its uplinks and DDNS record (#353, #604)
 	@# Two measurements per family: what pfSense reports, and whether traffic of
 	@# that family actually leaves the building. They disagreed on 2026-09-07 —
 	@# WAN_DHCP6 reported 100% loss while v6 reached the internet through it in
 	@# 11ms, because dpinger was pointed at a link-local address that does not
 	@# answer echo. One measurement alone cannot tell those apart.
+	@#
+	@# And whether the remote path's dynamic DNS name still resolves, at a
+	@# public resolver, to the WAN address (#604). Compared on the firewall:
+	@# the name and the address are both withheld, and only the verdict comes back.
 	./scripts/collect-gateway-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
 
 .PHONY: silence-state
@@ -718,13 +722,14 @@ backup: ## Quiesce the stack, archive its volumes to ./backups/, verify, copy to
 	STACK=$(STACK) ./scripts/backup-volumes.sh $(ARGS)
 
 .PHONY: backup-nas
-backup-nas: ## Pull Jellyfin's state off smaug from its newest ZFS snapshot, encrypt and verify
+backup-nas: ## Pull the media tier's state off smaug from its newest ZFS snapshot, encrypt and verify
 	@# The one backup that leaves this host to FETCH rather than to deliver.
 	@# smaug cannot run backup-volumes.sh — no age, no checkout, no key, and
 	@# ADR-0016 forbids it initiating anything upward — so this host reads a
 	@# snapshot of erebor/apps over the 99 → 40:22 pass and encrypts what
-	@# arrives here (ADR-0045). Jellyfin is never stopped: the snapshot is the
-	@# quiesce. NAS_KEEP and not KEEP, for the reason backup-firewall gives
+	@# arrives here (ADR-0045) — Jellyfin's and Audiobookshelf's state, one
+	@# archive each, from one snapshot (ADR-0050). Nothing on smaug is stopped:
+	@# the snapshot is the quiesce. NAS_KEEP and not KEEP, for the reason backup-firewall gives
 	@# for FW_KEEP. Sets land in backups/nas/, apart from the volume sets, and
 	@# `make verify-backups` reads both. The copy to oracle is a step of this
 	@# target too, by the helpers `backup` gained under #535 — same far-side
@@ -736,7 +741,7 @@ backup-nas: ## Pull Jellyfin's state off smaug from its newest ZFS snapshot, enc
 verify-backups: ## Re-verify every retained set of both kinds: the volume sets and the NAS set
 	@# What homelab-verify-backups.timer runs nightly. Two directories, one
 	@# job: backups/volumes/ is verified against the stack's derived volume
-	@# list and backups/nas/ against its own, and a media set in the volume
+	@# list and backups/nas/ each set against its own MANIFEST, and a media set in the volume
 	@# directory would fail the first — which is why they are apart, and why
 	@# one target walks both rather than a second unit doing the second half.
 	@# Both halves run even when the first fails, so one morning's journal

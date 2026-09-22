@@ -1,5 +1,5 @@
 [Unit]
-Description=HomeLab: weekly pull of Jellyfin's state off smaug
+Description=HomeLab: weekly pull of the media tier's state off smaug
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
 
 [Timer]

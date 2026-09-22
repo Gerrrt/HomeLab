@@ -35,6 +35,12 @@
 > TrueNAS has no `age`, a key on the NAS would buy nothing, and the property
 > this section wanted holds more strongly with no archive on the NAS at all.
 > The direction — pulled by `prometheus` over `99 → 40:22` — is as written.
+>
+> **A fifth rule, 2026-09-22.** Audiobookshelf joins the media tier and its
+> clients are phones on Hicks, so it gets `vlan50 net → 10.0.40.30:13378`, a
+> pass of the same kind as the table below, created when it is deployed
+> ([ADR-0050](0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)). The table is not edited; the
+> rule set the runbook keeps is the current one.
 
 ## Context
 

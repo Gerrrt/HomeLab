@@ -6,6 +6,16 @@ writes the first snapshot schedule decision 4 of
 [ADR-0040](0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)
 asked for
 
+> [!NOTE]
+> **The pull reads a list, since 2026-09-22.** Audiobookshelf's state joins
+> Jellyfin's as a second archive in the same set, read from the same
+> snapshot, and `backup-nas.sh` now reads a table of archive → subpath where
+> this ADR describes one path; a service authored before it is deployed is
+> `pending` in that table and skipped by name while its directory is absent
+> ([ADR-0050](0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)). Everything below — the
+> direction, the user, the snapshot as quiesce, encryption on arrival — is
+> unchanged.
+
 ## Context
 
 [`build-the-nas.md`](../runbooks/build-the-nas.md) §4 splits the pool into

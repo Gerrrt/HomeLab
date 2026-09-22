@@ -166,6 +166,17 @@ see *What would reopen this*.
   and it is not built here — this ADR records the decision, and a follow-up
   issue owns the probe. Until then the runbook's outside-the-house check is
   the only one, and it runs when a human runs it.
+
+  > **Update · 2026-09-22.** The check is built
+  > ([#604](https://github.com/Gerrrt/HomeLab/issues/604)), in a different
+  > shape from the one this bullet names. There is no `dns` probe from
+  > inside. `scripts/collect-gateway-state.sh` sends a script to `morpheus`
+  > that reads the name from `config.xml` and the WAN address from the
+  > interface, then asks a public resolver on the firewall itself. Neither
+  > value leaves the box; only the verdict does, as
+  > `homelab_ddns_record_matches_wan`, and `DdnsRecordStale` fires when it
+  > has read 0 for an hour. The decision above is unchanged. What expires is
+  > this consequence's "unmonitored".
 - **One more credential lives outside the repository.** The provider account
   and its token are on the withheld list beside the endpoint, and the token is
   in `config.xml`, which

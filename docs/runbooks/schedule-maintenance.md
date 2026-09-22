@@ -71,7 +71,8 @@ until that is done. One job's output
 *arrives* from another host before it leaves: `backup-nas` reaches into
 `smaug` over `99 → 40:22` — the direction
 [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
-requires of CasaBonita, which may initiate nothing — reads Jellyfin's state
+requires of CasaBonita, which may initiate nothing — reads Jellyfin's and
+Audiobookshelf's state
 out of the dataset's newest ZFS snapshot, encrypts it here, and then copies
 the set to `oracle` by the same helpers and under the same rules as the
 volume sets

@@ -41,11 +41,18 @@ than carrying a second copy that drifts.
 
 > [!IMPORTANT]
 > **`odin` holds the evidence, and has revert rather than backup.**
-> ADR-0027 defers PBS until `smaug` answers on `10.0.40.30`; until then a lost
-> mirrored pair loses the record of what the estate saw, which cannot be
-> rebuilt from a runbook the way a domain controller can. Snapshot the guest
-> in Proxmox before each exercise, and treat the store as practice rather than
-> evidence until the NAS is built.
+> [ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)
+> deferred PBS until `smaug` answered on `10.0.40.30`, and `smaug` has answered
+> since 2026-09-16 — so what stands between this guest and a backup is no
+> longer the NAS existing. It is that ADR-0027's sync job was designed against
+> a Linux host and `smaug` runs TrueNAS
+> ([#485](https://github.com/Gerrrt/HomeLab/issues/485) carries the re-read),
+> and that `erebor` is one disk until
+> [#558](https://github.com/Gerrrt/HomeLab/issues/558). Until both are
+> answered, a lost mirrored pair loses the record of what the estate saw, which
+> cannot be rebuilt from a runbook the way a domain controller can. Snapshot
+> the guest in Proxmox before each exercise, and treat the store as practice
+> rather than evidence.
 
 ## 1. Create the VM
 

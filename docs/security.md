@@ -18,7 +18,7 @@ What this network is actually built to survive:
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 112 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 114 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below. **What the UPS cannot answer is what happens when the cut outlasts the pack: as of 2026-09-20 nothing shuts down on its signal, and everything on the PDU — `morpheus`, `Saruman`, `neo` and `smaug`, which is in the media room on a long cord from that PDU — stops uncleanly when the pack empties, about 47 minutes in at 21 % load by the card's own unmeasured estimate.** [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides that the firewall's NUT server halts `Saruman` and `smaug` first and itself last, and [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) is the build, the forced-shutdown proof and the one mains pull that measures the pack; until those are done the decision is a configuration nobody has tested ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -274,7 +274,15 @@ read-only user, reachable from `10.0.99.20` alone by the rule that already
 existed. The residual it leaves, accepted, is one more service on the NAS
 with one more key that reads it — a key that lives on the host already
 holding the estate's age identity, and reads a directory that includes
-Jellyfin's users' password hashes.
+Jellyfin's users' password hashes — and, once Audiobookshelf is deployed,
+its users' hashes too, in the same pull
+([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
+**A fifth is specified and not created:** `vlan50 net → 10.0.40.30:13378`
+for Audiobookshelf, whose clients are phones on Hicks. The issue that
+proposed it said no new rule would be needed; the Hicks passes are per
+port, so one is. It is created when the service is deployed
+([`build-the-nas.md`](runbooks/build-the-nas.md) §6.5), because a pass to a
+port nothing answers on cannot be proved.
 [`network.md`](network.md) holds the current list. **Skids' does not exist.**
 `10.0.99.40 → 10.0.20.104:80,443/tcp` — Home Assistant to the Hue bridge, the
 one device on that segment with a local API — still waits above the block that
@@ -290,7 +298,9 @@ game consoles share that broadcast domain and the firewall never sees those
 packets — the same property that lets them reach Jellyfin, working the other
 way. node_exporter has no write API, so the exposure is disclosure of the
 host's shape: filesystems, uptime, load. Accepted, and the same class as the
-unauthenticated ports the observability stack publishes.
+unauthenticated ports the observability stack publishes. Audiobookshelf's
+`13378` is reachable the same way and is not the same residual: everything
+there but its health and status endpoints wants a login.
 
 The row ADR-0008wrote as `99 → 20` is narrower than it read: one host to one device on two
 ports, with the twenty other devices on Skids still unreachable from anywhere,
@@ -424,8 +434,11 @@ assumption consistent with what they are.
   the deviation and what would retire it.
 - **The media tier keeps its admin credential outside SOPS too, and has no
   secrets file at all.** Jellyfin's `admin` is created by its own setup wizard
-  and kept as a hash in `jellyfin.db` inside the `jellyfin-config` volume; no
-  environment variable or rendered file is a way to hand it in, so
+  and kept as a hash in `jellyfin.db` under its `/config` bind mount, and
+  Audiobookshelf's `root` is created on its first-run screen and kept as a
+  hash in `absdatabase.sqlite`
+  ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md));
+  no environment variable or rendered file is a way to hand either in, so
   `stacks/media` has no `secrets/media.*` and no `.sops.yaml` rule — on
   purpose, decided on [#528](https://github.com/Gerrrt/HomeLab/issues/528),
   and not because the stack was deployed by hand. The plaintext is in the
@@ -433,10 +446,9 @@ assumption consistent with what they are.
   protects it is a hash at rest, VLAN 40's terminal property, the `50 → 40`
   passes being the only way in, and
   [ADR-0008](adr/0008-place-services-by-data-trust.md)'s blast radius — a
-  media server whose data is replaceable. Audiobookshelf
-  ([#140](https://github.com/Gerrrt/HomeLab/issues/140)) and Navidrome
-  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) create their first
-  user the same way and join this bullet when they land. What would retire
+  media server whose data is replaceable. Navidrome
+  ([#141](https://github.com/Gerrrt/HomeLab/issues/141)) creates its first
+  user the same way and joins this bullet when it lands. What would retire
   it: a service on that tier taking a credential from outside. Then the tier
   gets `secrets/media.sops.yaml` and a rule of its own under
   [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md),
