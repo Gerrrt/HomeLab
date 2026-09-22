@@ -727,8 +727,8 @@ backup-nas: ## Pull the media tier's state off smaug from its newest ZFS snapsho
 	@# smaug cannot run backup-volumes.sh — no age, no checkout, no key, and
 	@# ADR-0016 forbids it initiating anything upward — so this host reads a
 	@# snapshot of erebor/apps over the 99 → 40:22 pass and encrypts what
-	@# arrives here (ADR-0045) — Jellyfin's and Audiobookshelf's state, one
-	@# archive each, from one snapshot (ADR-0050). Nothing on smaug is stopped:
+	@# arrives here (ADR-0045) — Jellyfin's, Audiobookshelf's and Navidrome's
+	@# state, one archive each, from one snapshot (ADR-0050). Nothing on smaug is stopped:
 	@# the snapshot is the quiesce. NAS_KEEP and not KEEP, for the reason backup-firewall gives
 	@# for FW_KEEP. Sets land in backups/nas/, apart from the volume sets, and
 	@# `make verify-backups` reads both. The copy to oracle is a step of this

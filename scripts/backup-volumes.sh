@@ -349,6 +349,13 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # rollback-journal mode, not WAL (`PRAGMA journal_mode` reads `delete`), so
 # there is no -wal to list: a hot -journal is only ever present mid-write, and
 # a snapshot that caught one carries it at the same instant as the database.
+#
+# Navidrome's (navidrome-data) is the third (#141). Read off a boot of the
+# pinned image on 2026-09-22 as uid 65534 with ND_PLUGINS_ENABLED=false:
+# ./navidrome.db exists within a second of start, before the first scan
+# finishes, with a 4 MB -wal and a -shm beside it, and ./artwork appears as
+# the scanner extracts covers. Nothing else is written there — the cache is a
+# tmpfs on ND_CACHEFOLDER.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -368,6 +375,7 @@ declare -A SENTINEL=(
   [paperless-broker-data]="./dump.rdb"
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
+  [navidrome-data]="./navidrome.db"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -400,6 +408,7 @@ declare -A COMPANIONS=(
   [paperless-broker-data]=""
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
+  [navidrome-data]="./navidrome.db-wal ./artwork"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and
@@ -416,8 +425,9 @@ declare -A COMPANIONS=(
 # `STACK=media backup-volumes.sh --inventory` say the true thing — nothing in
 # that file is this script's to archive — instead of dying over a sentinel.
 # What IS archived from that host is backup-nas.sh's, and it is bind mounts
-# on erebor/apps rather than volumes, which is why neither jellyfin-config nor
-# audiobookshelf-state is declared there at all (ADR-0045, ADR-0050).
+# on erebor/apps rather than volumes, which is why none of jellyfin-config,
+# audiobookshelf-state and navidrome-data is declared there at all (ADR-0045,
+# ADR-0050). Navidrome's cache is a tmpfs, so it needs no entry here.
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
   [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"

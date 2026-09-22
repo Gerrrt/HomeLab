@@ -6,8 +6,9 @@
 # WHAT THIS PROTECTS, AND WHAT IT DOES NOT
 #
 # erebor/apps on smaug — Jellyfin's database, users, watch history, resume
-# positions and metadata, and Audiobookshelf's database and metadata, which is
-# where every listener's place in every book lives (ADR-0050): the half of the
+# positions and metadata; Audiobookshelf's database and metadata, which is
+# where every listener's place in every book lives (ADR-0050); and Navidrome's
+# database — users, playlists, favourites, play counts (#141): the half of the
 # media tier ADR-0008 ruled irreplaceable, and the one build-the-nas.md §4
 # declared backed up for a week before anything backed it up (#484). One
 # archive per service, all read from the SAME snapshot, in one set — so a
@@ -15,7 +16,8 @@
 # does NOT protect erebor/media, the library, which ADR-0008 ruled replaceable
 # and 18 TB of which would not fit anywhere in this estate; nor jellyfin-cache,
 # transcode scratch that
-# backup-volumes.sh lists as DISPOSABLE by name; nor erebor/ix-apps, Docker's
+# backup-volumes.sh lists as DISPOSABLE by name; nor Navidrome's cache, a
+# tmpfs; nor erebor/ix-apps, Docker's
 # images and that cache volume. Those omissions are decisions (ADR-0045), and
 # stacks/media/README.md states them where the stack is.
 #
@@ -188,6 +190,7 @@ OUT_DIR="${REPO_ROOT}/backups/nas"
 NAS_ARCHIVES=(
   "jellyfin-config|jellyfin/config|jellyfin|/config|required"
   "audiobookshelf-state|audiobookshelf|audiobookshelf|/config,/metadata|pending"
+  "navidrome-data|navidrome/data|navidrome|/data|pending"
 )
 VOLUMES=()
 declare -A NAS_SUBPATH=() NAS_SERVICE=() NAS_MOUNT=() NAS_STATE=()
