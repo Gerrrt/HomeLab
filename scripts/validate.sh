@@ -573,10 +573,13 @@ fi
 
 # The offsite copy (ADR-0048) is the same shape one artefact over: the real run
 # needs the second recipient's medium mounted and cannot happen in CI, so the
-# refusals — a destination inside this repository or on the same filesystem as
-# the sets — and the copy, the proof, the retention and the tamper detection
-# run against a fake backups/ tree in a temp directory and a destination on
-# /dev/shm. OFFSITE_SOURCE keeps it off the host's backups/, and the wrapper
+# refusals — a destination inside this repository, on the same filesystem as
+# the sets, on an in-memory filesystem, or under a tree this host clears on
+# boot — and the copy, the proof, the retention and the tamper detection run
+# against a fake backups/ tree in a temp directory, the medium itself a
+# directory under it. /dev/shm is a refusal fixture here, not a destination: it
+# is a different filesystem and it is this host's RAM, which is the regression
+# #596 fixed. OFFSITE_SOURCE keeps it off the host's backups/, and the wrapper
 # is not involved, so nothing here touches the textfile directory.
 if "${REPO_ROOT}/scripts/backup-offsite.sh" --self-test >/dev/null 2>&1; then
   pass "backup-offsite.sh --self-test (24 fixtures)"

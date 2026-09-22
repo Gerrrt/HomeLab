@@ -219,7 +219,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
-│   ├── adr/                  # 48 architecture decision records
+│   ├── adr/                  # 49 architecture decision records
 │   └── runbooks/             # successor handover (start here), deploy, converge,
 │                             #   add device, rotate creds, certs, key backup,
 │                             #   copy the backups offsite,
