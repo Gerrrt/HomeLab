@@ -83,9 +83,13 @@ Closes when it is empty.
   [#106](https://github.com/Gerrrt/HomeLab/issues/106), which states the risk
   and stops where the decision starts: `.sops.yaml` takes multiple recipients,
   so the mechanism costs nothing and what it needs is somewhere to put the
-  second key. Decryption depends on one key held by one person until it lands,
-  and [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
-  already assumes that medium exists — #573's offsite copy rides on it.
+  second key. That part has landed: both recipients have been in `.sops.yaml`
+  and in the ciphertext since 2026-09-09
+  ([#412](https://github.com/Gerrrt/HomeLab/pull/412)). What is outstanding is
+  the proof — `SecretsKeyBackupUnproven` names the second recipient until its
+  medium is brought here, and that is the same visit
+  [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
+  carries #573's offsite copy on.
 - **[#604](https://github.com/Gerrrt/HomeLab/issues/604) Watch the dynamic DNS
   record.** [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
   recorded the gap and left it to a follow-up. Since
