@@ -31,6 +31,28 @@ docstring gives: it is a record, not a claim about now.
   list, so that file stayed forever. The sweep now removes a sidecar whose
   export is absent. Both have fixtures, and each fixture fails against the
   previous script.
+
+- **[#562](https://github.com/Gerrrt/HomeLab/issues/562): `alexander`'s
+  root filesystem now fills its disk, and nobody had grown the disk.** `/`
+  was 48 GB on a 100 GiB disk. The installer log from 2026-09-04
+  (`curtin-install.log`) shows the disk was already 100 GiB at install, so
+  the runbook's `local-lvm:64` was never what ran. Ubuntu's guided LVM layout
+  had given `ubuntu-lv` exactly half the volume group. `lvextend -r -l
+  +100%FREE` grew it online to 97G. `build-the-lab-guest.md` now records
+  100 GiB on `large_data`, gives the `--scsi0` line a rebuild should run, and
+  adds an installer step so the next build gets the whole disk.
+
+- **[#529](https://github.com/Gerrrt/HomeLab/issues/529) confirmed on the
+  host; this corrects the entry below, which called the attribute-177
+  mapping provisional.** With `smart-state` installed on `Saruman`, the
+  first `--print` read both SM863a through the P440ar as `/dev/sda:cciss,2`
+  and `cciss,3`, and left out the spindles. Both drives report healthy,
+  with 0 reallocated and 0 pending sectors, at 30 and 32 °C. Wear is **6 %
+  and 4 % used**, taken from `Wear_Leveling_Count`, so the mapping holds and
+  `SmartDriveWearHigh` reads these drives. The drives show 66,090 and
+  60,443 power-on hours from their previous life. The collector's comment
+  and its Smart Array fixture now carry these readings.
+
 - **[#529](https://github.com/Gerrrt/HomeLab/issues/529): `Saruman`'s SSDs
   get wear readings through `hpsa`.** The iLO and the P440ar report no wear
   for the two SM863a drives. `collect-smart-state.sh` now detects a SCSI host
