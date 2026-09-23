@@ -262,6 +262,29 @@ if [[ "${1:-}" == "--self-test" ]]; then
   rm -f "${M}/backups/firewall/config-20260911T000000Z.sops.yaml" "${M}/backups/firewall/config-20260911T000000Z.sops.yaml.sha256"
   run "${M}";                     check "the export is copied again once removed" 0 "copied config-20260911T000000Z"
 
+  # A copy that died between the MANIFEST and the rename leaves a .part WITH a
+  # MANIFEST, from a stamp no later run will write again (#613). It used to
+  # present as a set, fail verify_set_dir on its name, and refuse every visit
+  # after it; an export's .part of an older stamp was simply immortal.
+  P="${M}/backups/volumes/observability/20260801T000000Z.part"
+  mkdir -p "${P}"
+  cp "${SRC}/volumes/20260901T000000Z/"* "${P}/"
+  head -c 2048 /dev/urandom > "${M}/backups/firewall/config-20260801T000000Z.sops.yaml.part"
+  run "${M}" --verify-only;       check "a dead copy's .part with a MANIFEST is not a set to verify" 0 "every set on the medium verifies"
+  run "${M}";                     check "a dead copy's .part does not wedge the next visit" 0 "already holds"
+  assert "the run removed both leftovers and nothing else" \
+    '[[ ! -e "${P}" && ! -e "${M}/backups/firewall/config-20260801T000000Z.sops.yaml.part" && -f "${M}/backups/volumes/observability/20260920T000000Z/MANIFEST" && -f "${M}/backups/firewall/config-20260911T000000Z.sops.yaml.sha256" ]]'
+
+  # #612 is an ordering inside copy_export with no failure a fixture can
+  # provoke — the window is a medium pulled before the kernel flushes. So the
+  # order is read from the source: the sidecar is written before the sync, and
+  # the sync comes before the rename that makes the export visible.
+  # shellcheck disable=SC2034  # read inside assert's eval string
+  order="$(sed -n '/^copy_export()/,/^}/p' "${BASH_SOURCE[0]}" | sed -nE \
+    -e 's/.*> "\$\{FW_DST\}\/\$\{name\}\.sha256".*/sha256/p' \
+    -e 's/^ *sync -f .*/sync/p' -e 's/^ *mv -- .*/mv/p' | tr '\n' ' ')"
+  assert "copy_export writes the sha256, then syncs, then renames" '[[ ${order} == "sha256 sync mv " ]]'
+
   # A stray on the medium is counted and never touched.
   mkdir -p "${M}/backups/volumes/observability/not-a-stamp"
   run "${M}" --prune;             check "a stray directory on the medium is reported, not removed" 0 "not-a-stamp"
@@ -486,8 +509,12 @@ NAS_DST="${DEST_ABS}/backups/nas"
 FW_DST="${DEST_ABS}/backups/firewall"
 
 # Complete sets under a directory, newest first — complete_sets() from the
-# library reads OUT_DIR, and there are three directories here.
-sets_in()      { find "$1" -mindepth 2 -maxdepth 2 -name MANIFEST -printf '%h\n' 2>/dev/null | sort -r; }
+# library reads OUT_DIR, and there are three directories here. A `.part` is
+# not a set even with a MANIFEST in it: copy_set writes the MANIFEST before
+# the rename, so a copy that died between the two left exactly that, and
+# counting it here made verify_medium refuse its name and wedge every later
+# visit until someone deleted it by hand (#613).
+sets_in()      { find "$1" -mindepth 2 -maxdepth 2 -name MANIFEST -not -path '*.part/MANIFEST' -printf '%h\n' 2>/dev/null | sort -r; }
 all_dirs_in()  { find "$1" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -r; }
 exports_in()   { find "$1" -mindepth 1 -maxdepth 1 -type f -name 'config-*.sops.yaml' -printf '%f\n' 2>/dev/null | sort -r; }
 is_export()    { [[ $1 =~ ^config-[0-9]{8}T[0-9]{6}Z\.sops\.yaml$ ]]; }
@@ -592,8 +619,13 @@ copy_export() {  # <local export file>
   mkdir -p -- "${FW_DST}"
   sha="$(sha256sum -- "${src}" | cut -d' ' -f1)"
   cp -- "${src}" "${FW_DST}/${name}.part"
-  sync -f "${FW_DST}" 2>/dev/null || sync
+  # The sidecar before the flush, not after it: verify_export_file fails an
+  # export with no .sha256, and a failed verify stops the whole next visit. A
+  # medium pulled before a late sidecar reached it would take the volume and
+  # NAS sets down with the export, ninety days on (#612). copy_set has the same
+  # order — everything written, then sync, then the rename.
   printf '%s  %s\n' "${sha}" "${name}" > "${FW_DST}/${name}.sha256"
+  sync -f "${FW_DST}" 2>/dev/null || sync
   mv -- "${FW_DST}/${name}.part" "${FW_DST}/${name}"
   cmp -s -- "${src}" "${FW_DST}/${name}" || { red "${name}: the copy on the medium is not byte-identical"; return 1; }
   green "copied ${name} to ${FW_DST} — byte-identical, sha256 recorded beside it"
@@ -640,7 +672,36 @@ prune_exports() {
   fi
 }
 
-prune_medium() { prune_kind "${VOL_DST}"; prune_kind "${NAS_DST}"; prune_exports; }
+# Leftovers of copies that died, of any stamp. copy_set only ever cleared the
+# .part of the stamp it was about to write, so one from an older stamp was
+# immortal: prune_kind counted it as a stray and left it, and it held up to a
+# volume set's worth of a medium whose floor is a few gigabytes (#613). Only
+# the two names this script writes are matched — <stamp>.part directories and
+# <export>.part files — and the backups lock means no copy is mid-write while
+# this runs.
+sweep_parts() {
+  local dir x base
+  for dir in "${VOL_DST}" "${NAS_DST}"; do
+    [[ -d ${dir} ]] || continue
+    while read -r x; do
+      [[ -n ${x} ]] || continue
+      base="${x%.part}"
+      is_stamp "${base}" || continue
+      info "removing ${x} from ${dir} — a copy that did not finish"
+      rm -rf -- "${dir:?}/${x}"
+    done < <(find "${dir}" -mindepth 1 -maxdepth 1 -type d -name '*.part' -printf '%f\n' 2>/dev/null)
+  done
+  [[ -d ${FW_DST} ]] || return 0
+  while read -r x; do
+    [[ -n ${x} ]] || continue
+    base="${x%.part}"
+    is_export "${base}" || continue
+    info "removing ${x} from ${FW_DST} — a copy that did not finish"
+    rm -f -- "${FW_DST:?}/${x}"
+  done < <(find "${FW_DST}" -mindepth 1 -maxdepth 1 -type f -name '*.part' -printf '%f\n' 2>/dev/null)
+}
+
+prune_medium() { sweep_parts; prune_kind "${VOL_DST}"; prune_kind "${NAS_DST}"; prune_exports; }
 
 # ---------------------------------------------------------------------------
 # --list
@@ -690,6 +751,9 @@ case "${rc}" in
   2) info "first visit — nothing on the medium to re-verify" ;;
   *) die "the medium does not verify, so nothing is written to it. Remove the set (or export) named above from the medium and run again." ;;
 esac
+# Before the room check, which would otherwise count a dead copy's bytes
+# against the live one and refuse it.
+sweep_parts
 
 # What travels: the newest complete of each kind that the medium lacks.
 newest_vol="$(sets_in "${VOL_SRC}" | head -1)"
