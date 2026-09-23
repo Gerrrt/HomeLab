@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **Two gaps in #637's sweep of dead copies on the offsite medium.** The
+  sweep said it ran under the `backups` lock. The copy does, because the
+  Makefile wraps it, but `--prune` runs outside the wrapper and
+  `backup-offsite.sh` took no lock of its own. So a prune in a second terminal
+  during a copy would have deleted the copy's live `.part` as a leftover.
+  `--prune` now takes the same lock file itself.
+  The sweep also left one leftover behind: since #612 an export's `.sha256` is
+  written before its rename, so a copy that died between the two left a
+  sidecar with no export. Retention removes only the sidecars of exports it can
+  list, so that file stayed forever. The sweep now removes a sidecar whose
+  export is absent. Both have fixtures, and each fixture fails against the
+  previous script.
 - **[#529](https://github.com/Gerrrt/HomeLab/issues/529): `Saruman`'s SSDs
   get wear readings through `hpsa`.** The iLO and the P440ar report no wear
   for the two SM863a drives. `collect-smart-state.sh` now detects a SCSI host

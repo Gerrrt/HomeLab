@@ -59,7 +59,9 @@
 # install-timers.sh, beside the two key proofs, and nowhere else. --list,
 # --verify-only and --prune run unwrapped from the Makefile on purpose:
 # inspecting the medium is not the same as refreshing it, and must not reset
-# the clock.
+# the clock. --prune still takes the `backups` lock itself, the one the wrapper
+# holds for a copy: it deletes on the medium, and a prune run in a second
+# terminal during a copy would otherwise remove the copy's own .part mid-write.
 #
 # ONE COPY OF RECORD. ADR-0024's argument applies to sets as much as to keys:
 # nothing records a copy, so two media would share one timestamp and proving
@@ -167,7 +169,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
   run() {  # <args...>  → OUT, RC
     set +e
     OUT="$(OFFSITE_SOURCE="${SRC_FOR_TEST:-${SRC}}" STACK=observability OFFSITE_KEEP="${KEEP_FOR_TEST:-1}" \
-           OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS="${SKIP_MEDIUM-1}" "${BASH_SOURCE[0]}" "$@" 2>&1)"
+           OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS="${SKIP_MEDIUM-1}" HOMELAB_LOCK_DIR="${T}" \
+           OFFSITE_LOCK_WAIT="${LOCK_WAIT_FOR_TEST:-900}" "${BASH_SOURCE[0]}" "$@" 2>&1)"
     RC=$?
     set -e
   }
@@ -270,10 +273,15 @@ if [[ "${1:-}" == "--self-test" ]]; then
   mkdir -p "${P}"
   cp "${SRC}/volumes/20260901T000000Z/"* "${P}/"
   head -c 2048 /dev/urandom > "${M}/backups/firewall/config-20260801T000000Z.sops.yaml.part"
+  # copy_export writes the sidecar before the rename (#612), so a copy that
+  # died between the two leaves a .sha256 whose export never arrived. Swept
+  # with the .part, or it outlives it: retention only removes the sidecars of
+  # exports it can see.
+  printf '0  config-20260801T000000Z.sops.yaml\n' > "${M}/backups/firewall/config-20260801T000000Z.sops.yaml.sha256"
   run "${M}" --verify-only;       check "a dead copy's .part with a MANIFEST is not a set to verify" 0 "every set on the medium verifies"
   run "${M}";                     check "a dead copy's .part does not wedge the next visit" 0 "already holds"
   assert "the run removed both leftovers and nothing else" \
-    '[[ ! -e "${P}" && ! -e "${M}/backups/firewall/config-20260801T000000Z.sops.yaml.part" && -f "${M}/backups/volumes/observability/20260920T000000Z/MANIFEST" && -f "${M}/backups/firewall/config-20260911T000000Z.sops.yaml.sha256" ]]'
+    '[[ ! -e "${P}" && ! -e "${M}/backups/firewall/config-20260801T000000Z.sops.yaml.part" && ! -e "${M}/backups/firewall/config-20260801T000000Z.sops.yaml.sha256" && -f "${M}/backups/volumes/observability/20260920T000000Z/MANIFEST" && -f "${M}/backups/firewall/config-20260911T000000Z.sops.yaml.sha256" ]]'
 
   # #612 is an ordering inside copy_export with no failure a fixture can
   # provoke — the window is a medium pulled before the kernel flushes. So the
@@ -284,6 +292,18 @@ if [[ "${1:-}" == "--self-test" ]]; then
     -e 's/.*> "\$\{FW_DST\}\/\$\{name\}\.sha256".*/sha256/p' \
     -e 's/^ *sync -f .*/sync/p' -e 's/^ *mv -- .*/mv/p' | tr '\n' ' ')"
   assert "copy_export writes the sha256, then syncs, then renames" '[[ ${order} == "sha256 sync mv " ]]'
+
+  # --prune deletes on the medium, so it takes the lock a copy runs under. With
+  # the lock held elsewhere and no wait, it must refuse before touching
+  # anything — here, the .part a live copy would be writing into.
+  mkdir -p "${M}/backups/volumes/observability/20260925T000000Z.part"
+  exec 7>"${T}/homelab-backups.lock"
+  flock 7
+  LOCK_WAIT_FOR_TEST=0 run "${M}" --prune
+  check "--prune refuses while a copy holds the backups lock" 1 "backups lock"
+  assert "and the live copy's .part is untouched" '[[ -d "${M}/backups/volumes/observability/20260925T000000Z.part" ]]'
+  exec 7>&-
+  run "${M}" --prune;             check "--prune runs once the lock is free" 0 "removing 20260925T000000Z.part"
 
   # A stray on the medium is counted and never touched.
   mkdir -p "${M}/backups/volumes/observability/not-a-stamp"
@@ -676,9 +696,15 @@ prune_exports() {
 # .part of the stamp it was about to write, so one from an older stamp was
 # immortal: prune_kind counted it as a stray and left it, and it held up to a
 # volume set's worth of a medium whose floor is a few gigabytes (#613). Only
-# the two names this script writes are matched — <stamp>.part directories and
-# <export>.part files — and the backups lock means no copy is mid-write while
-# this runs.
+# the names this script writes are matched — <stamp>.part directories,
+# <export>.part files, and the <export>.sha256 of an export that is not there.
+# copy_export writes that sidecar before its rename (#612), so a copy that died
+# between the two leaves one, and prune_exports only ever removes the sidecars
+# of exports it can list.
+#
+# NOT SAFE ALONGSIDE A COPY: a live copy's .part matches too. Both callers run
+# under the `backups` lock — the copy path because the Makefile wraps it in
+# run-scheduled.sh --lock backups, --prune because it takes that lock itself.
 sweep_parts() {
   local dir x base
   for dir in "${VOL_DST}" "${NAS_DST}"; do
@@ -699,6 +725,14 @@ sweep_parts() {
     info "removing ${x} from ${FW_DST} — a copy that did not finish"
     rm -f -- "${FW_DST:?}/${x}"
   done < <(find "${FW_DST}" -mindepth 1 -maxdepth 1 -type f -name '*.part' -printf '%f\n' 2>/dev/null)
+  while read -r x; do
+    [[ -n ${x} ]] || continue
+    base="${x%.sha256}"
+    is_export "${base}" || continue
+    [[ -e ${FW_DST}/${base} ]] && continue
+    info "removing ${x} from ${FW_DST} — the sidecar of an export that never arrived"
+    rm -f -- "${FW_DST:?}/${x}"
+  done < <(find "${FW_DST}" -mindepth 1 -maxdepth 1 -type f -name '*.sha256' -printf '%f\n' 2>/dev/null)
 }
 
 prune_medium() { sweep_parts; prune_kind "${VOL_DST}"; prune_kind "${NAS_DST}"; prune_exports; }
@@ -737,6 +771,15 @@ if [[ ${MODE} == verify ]]; then
 fi
 
 if [[ ${MODE} == prune ]]; then
+  # The lock run-scheduled.sh --lock backups takes for a copy, by the same
+  # file, so a prune waits for a copy in progress instead of sweeping its
+  # .part (and a copy started during a prune waits for it). Only here: the
+  # copy path already runs inside that lock when made through the Makefile,
+  # and taking it again on a second descriptor would wait on itself.
+  lock_file="${HOMELAB_LOCK_DIR:-/run/lock}/homelab-backups.lock"
+  exec 8>"${lock_file}" || die "cannot open ${lock_file}"
+  flock -w "${OFFSITE_LOCK_WAIT:-900}" 8 \
+    || die "another job holds the backups lock (${lock_file}) — a copy or a backup is running; --prune waits for it rather than sweeping under it"
   prune_medium
   exit 0
 fi

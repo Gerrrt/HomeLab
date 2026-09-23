@@ -129,6 +129,11 @@ the whole visit.
 on purpose: looking at the medium, or tidying it, is not refreshing it and
 must not reset the clock. Only the full copy counts.
 
+`--prune` still takes the `backups` lock the wrapper holds for a copy. It
+deletes on the medium, including the `.part` a copy writes into, so a prune
+started in a second terminal while a copy is running waits for the copy
+rather than sweeping it away mid-write.
+
 Before the first visit the deadline is declared and nothing has succeeded, so
 `ScheduledJobNeverRan` names `offsite-copy` — the same state the key proofs
 start in, and the honest reading of a copy nobody has made.
