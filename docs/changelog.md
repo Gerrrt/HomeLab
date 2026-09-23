@@ -46,6 +46,21 @@ docstring gives: it is a record, not a claim about now.
   what `healthy` does and does not mean. `replace-the-nas-disk.md` §1 now
   says to restart the container whatever `docker ps` reports. Only comments
   and documents changed; no configuration did.
+- **[#612](https://github.com/Gerrrt/HomeLab/issues/612) and
+  [#613](https://github.com/Gerrrt/HomeLab/issues/613): a copy that dies
+  no longer poisons the medium for later visits.** `backup-offsite.sh`'s
+  `copy_export` now writes the `.sha256` sidecar before the `sync`, where it
+  used to write it after. This is the order `copy_set` already used, so a
+  medium pulled early can no longer hold an export with no proof beside it.
+  That export would have failed the next visit's verify and stopped all
+  three kinds. `sets_in` no longer counts a `<stamp>.part` holding a
+  `MANIFEST` as a set. Before, such a leftover made `verify_medium` refuse
+  its name, and every visit after it was refused until someone deleted it by
+  hand. Every copy run and `--prune` now removes `.part` leftovers of any
+  stamp, before the room check, so dead bytes stop counting against the next
+  copy. There are four new self-test fixtures, and all four fail against the
+  previous script. The runbook's error table gains a row for `refusing to
+  check a set with an unexpected name`.
 - **[#616](https://github.com/Gerrrt/HomeLab/issues/616) `check-versions`
   stops failing on a NAS that runs exactly what the documents say.** TrueNAS
   SCALE's `node_os_info` is its Debian base, so `TrueNAS 25.10` was compared
