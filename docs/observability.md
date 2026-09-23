@@ -511,6 +511,27 @@ currently reports, because no service sets a CPU quota. Its tests are what make
 the rule's correctness checkable anyway, which is the #63 lesson applied before
 rather than after the fact ([#185](https://github.com/Gerrrt/HomeLab/issues/185)).
 
+#### SMART on `Saruman` comes by two paths
+
+`Saruman`'s four drives sit behind a P440ar Smart Array, and no single reading
+covers all of them.
+
+- **The two SAS spindles come through the iLO.** SNMP walks
+  `cpqDaPhyDrvSmartStatus`, and `IloDrivePredictiveFailure` is armed on it
+  ([#151](https://github.com/Gerrrt/HomeLab/issues/151)).
+- **The two SM863a SSDs come through `hpsa`.** The iLO reports every wear
+  column blank for them, and the controller reports `SSD Smart Trip Wearout:
+  Not Supported`. `collect-smart-state.sh` therefore reads them directly.
+  When a disk's SCSI host is `hpsa`, it probes `smartctl -d cciss,N` through
+  the logical drive and keeps only the drives that report no rotation. Each
+  one gets a device label such as `/dev/sda:cciss,2`. Its
+  `Wear_Leveling_Count` becomes `homelab_smart_percentage_used`, so
+  `SmartDriveWearHigh` and the other `SmartDrive*` rules cover them
+  ([#529](https://github.com/Gerrrt/HomeLab/issues/529)).
+
+The spindles are left out of the second path on purpose. Reading them there
+too would page twice for one disk.
+
 #### What the dynamic DNS series disclose
 
 `homelab_ddns_record_checked` and `homelab_ddns_record_matches_wan` are a

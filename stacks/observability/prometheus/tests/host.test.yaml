@@ -786,10 +786,17 @@ tests:
         exp_alerts: []
 
   # --- SmartDriveWearHigh: fires at the ordering point, not the end of life --
+  # The series in the shape collect-smart-state.sh really writes them: the wear
+  # series is {host, device} and only the health series carries `model`. This
+  # fixture used to give the wear series a model label of its own, which is
+  # how the description rendered "estimate for ." in production and passed
+  # here. The model in the alert has to come through the join.
   - interval: 1m
     input_series:
-      - series: 'homelab_smart_percentage_used{host="prometheus",device="/dev/sda",model="APPLE SSD SM256E"}'
+      - series: 'homelab_smart_percentage_used{host="prometheus",device="/dev/sda"}'
         values: "82x200"
+      - series: 'homelab_smart_healthy{host="prometheus",device="/dev/sda",model="APPLE SSD SM256E"}'
+        values: "1x200"
     alert_rule_test:
       - eval_time: 130m
         alertname: SmartDriveWearHigh
@@ -804,9 +811,62 @@ tests:
             exp_annotations:
               summary: "prometheus: /dev/sda has used 82% of its rated life"
               description: >-
-                The vendor's endurance estimate for APPLE SSD SM256E. At 100 the
-                rated write life is used; the drive will usually keep going and
-                should stop being trusted with anything not backed up. Order a
+                The vendor's endurance estimate for /dev/sda (APPLE SSD
+                SM256E). At 100 the rated write life is used; the drive will
+                usually keep going and should stop being trusted with anything
+                not backed up. Order a replacement rather than reacting.
+
+  # --- SmartDriveWearHigh: the join does not change the value --------------
+  # A drive that has also failed its overall assessment. The join multiplies
+  # by (0 * healthy + 1), so healthy=0 must not turn 91 into 0 and silence it.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_percentage_used{host="oracle",device="/dev/sdb"}'
+        values: "91x200"
+      - series: 'homelab_smart_healthy{host="oracle",device="/dev/sdb",model="WORN SSD"}'
+        values: "0x200"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: SmartDriveWearHigh
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              device: /dev/sdb
+              model: WORN SSD
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "oracle: /dev/sdb has used 91% of its rated life"
+              description: >-
+                The vendor's endurance estimate for /dev/sdb (WORN SSD). At
+                100 the rated write life is used; the drive will usually keep
+                going and should stop being trusted with anything not backed
+                up. Order a replacement rather than reacting.
+
+  # --- SmartDriveWearHigh: still fires with no health series to join -------
+  # smartctl printed no overall assessment, so there is no model to join. The
+  # alert must fire anyway, and say the device rather than an empty model.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_percentage_used{host="prometheus",device="/dev/sdc"}'
+        values: "85x200"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: SmartDriveWearHigh
+        exp_alerts:
+          - exp_labels:
+              host: prometheus
+              device: /dev/sdc
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "prometheus: /dev/sdc has used 85% of its rated life"
+              description: >-
+                The vendor's endurance estimate for /dev/sdc. At 100 the rated
+                write life is used; the drive will usually keep going and should
+                stop being trusted with anything not backed up. Order a
                 replacement rather than reacting.
 
   # --- SmartDriveWearHigh: quiet below the threshold ------------------------
@@ -816,6 +876,8 @@ tests:
     input_series:
       - series: 'homelab_smart_percentage_used{host="morpheus",device="/dev/nvme0"}'
         values: "0x200"
+      - series: 'homelab_smart_healthy{host="morpheus",device="/dev/nvme0",model="NVME DRIVE"}'
+        values: "1x200"
     alert_rule_test:
       - eval_time: 130m
         alertname: SmartDriveWearHigh

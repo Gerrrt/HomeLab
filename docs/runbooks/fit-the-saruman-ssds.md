@@ -919,7 +919,7 @@ and it is what the roadmap entry should record.
 | `HypervisorGuestStopped` (warning, 1h) | Will not fire — the move is online and needs a full hour of `== 0` | **No** |
 | `GuestStateStopped` (warning, 30m) | Will not fire — nothing here touches `homelab-guest-state.timer` | **No** |
 | `SnmpScrapeSlow` | Will not fire. The walk gains two drives and one logical drive: expect roughly 13–17 s against a 30 s threshold | **No**, but put before and after in the table |
-| `SmartDrive*` (`host.rules.yaml`) | Will not fire — `collect-smart-state.sh` excludes `Saruman` by design, because the iLO already walks its array | **No** |
+| `SmartDrive*` (`host.rules.yaml`) | Will not fire during the fit. Since [#529](https://github.com/Gerrrt/HomeLab/issues/529), `collect-smart-state.sh` reads `Saruman`'s SSDs through `hpsa`, but only after they are in a logical drive, and it leaves the spindles to the iLO | **No** |
 | `HostDiskCritical` / `HostDiskWillFillIn24h` | Cannot fire for the new pool — see step 7's blind spot | **No** |
 | `ThinPoolNearlyFull` / `ThinPoolWillFillIn24h` | Will not fire — the pool is created empty, and the move lands `alexander`'s disk at a few percent of it. These are what step 7's blind spot is read by | **No** |
 
@@ -1181,4 +1181,6 @@ an issue, not a step here: [#529](https://github.com/Gerrrt/HomeLab/issues/529),
 filed against that condition before it was known to hold, and gated on nothing
 now. `ssacli` adds one line to it, read 2026-09-19: both SSDs report `SSD Smart
 Trip Wearout: Not Supported`, so the controller will not raise a wear-out
-either; direct SMART is the only reading there is.
+either; direct SMART is the only reading there is. That reading is now
+`collect-smart-state.sh`'s: it probes `-d cciss,N` through the logical drive
+and keeps the SSDs.

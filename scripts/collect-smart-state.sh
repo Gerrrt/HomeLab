@@ -9,6 +9,12 @@
 # are armed on it. That is the RAID 1 mirror #151 was most worried about, and it
 # is done. This is the rest: #351.
 #
+# AND ONE THING THE iLO TURNED OUT NOT TO COVER (#529). The two SM863a SSDs on
+# the same controller report every iLO wear column blank, and the controller
+# says `SSD Smart Trip Wearout: Not Supported`. So on a host with a Smart Array
+# this reads the drives through the logical drive with `-d cciss,N` — the SSDs
+# only, leaving the spindles to the iLO. See discover_local().
+#
 # THE THREE OPTIONS #351 WEIGHED, and why this is the third.
 #
 #   Scrutiny            a service with its own datastore and UI — exactly what
@@ -150,6 +156,54 @@ run_smartctl() {
   fi
 }
 
+# Local devices, one TYPE:/dev/NODE per line.
+#
+# Real block devices only: no loop, no ram, no device-mapper, no optical.
+# /sys rather than lsblk output parsing, because a model name with a space in
+# it turns a column split into a wrong answer.
+#
+# A DISK BEHIND AN HPE SMART ARRAY IS NOT A DISK (#529). On Saruman /dev/sda and
+# /dev/sdb are logical drives the P440ar builds out of the bays, and `-d auto`
+# on one reads "HP LOGICAL VOLUME" and no SMART at all. The drives are reached
+# through the logical drive instead, one `-d cciss,N` per controller index. The
+# indexes are PROBED rather than listed: which bay is which N is the
+# controller's answer, and #529 was explicit that it be found, not assumed.
+# Sixteen covers every bay the DL360 Gen9 can hold; an empty index answers with
+# no model and the renderer drops it.
+#
+# The driver, not the vendor string, is what marks a host as a Smart Array:
+# `hpsa` is the name the kernel gives the only driver that takes cciss
+# pass-through here. SYSFS is overridable for the self-test.
+SYSFS="${SYSFS:-/sys}"
+CCISS_INDEXES="${CCISS_INDEXES:-16}"
+discover_local() {
+  local dev name scsi host driver
+  local -A hpsa_done=()
+  for dev in "${SYSFS}"/block/*; do
+    name="$(basename "$dev")"
+    case "$name" in loop*|ram*|dm-*|sr*|fd*|zram*) continue ;; esac
+    [[ -e "${dev}/device" ]] || continue
+    # device -> .../0:1:0:0, whose first field is the SCSI host number.
+    scsi="$(basename "$(readlink "${dev}/device")")"
+    host="${scsi%%:*}"
+    driver=""
+    [[ "$host" =~ ^[0-9]+$ ]] \
+      && driver="$(cat "${SYSFS}/class/scsi_host/host${host}/proc_name" 2>/dev/null)"
+    if [[ "$driver" == "hpsa" ]]; then
+      # One logical drive is enough to reach every physical drive on that
+      # controller; probing through each would read every drive twice.
+      [[ -n "${hpsa_done[$host]:-}" ]] && continue
+      hpsa_done[$host]=1
+      local n
+      for ((n = 0; n < CCISS_INDEXES; n++)); do
+        printf 'cciss,%s:/dev/%s\n' "$n" "$name"
+      done
+      continue
+    fi
+    printf 'auto:/dev/%s\n' "$name"
+  done
+}
+
 emit() {
   # THE JSON GOES THROUGH A FILE AND NOT argv, and that is not a style
   # preference. Measured on smaug 2026-09-21 (#483): TrueNAS's console shell
@@ -214,6 +268,21 @@ for d in docs:
     node = (d.get("device") or {}).get("name")
     if not node:
         continue
+    # A drive read through a Smart Array (#529). Every `-d cciss,N` reading
+    # carries the SAME device name — the logical volume it was reached through
+    # — so the shell tags each with its own label, or the one-series guard in
+    # add() would keep the first drive and silently drop the rest.
+    #
+    # Two kinds of reading are dropped here rather than counted. An index with
+    # no drive behind it still answers in JSON, with no model. And a spinning
+    # disk is the iLO's: `cpqDaPhyDrvSmartStatus` already watches it and
+    # IloDrivePredictiveFailure is armed, so reading it here too would page
+    # twice for one disk. What is left is what the iLO cannot report — the
+    # SSDs' wear, blank in every cpqDaPhyDrv endurance column.
+    if "homelab_label" in d:
+        if not d.get("model_name") or d.get("rotation_rate") != 0:
+            continue
+        node = d["homelab_label"]
     seen += 1
     # model, not serial. See the header.
     base = {"host": host, "device": node, "model": (d.get("model_name") or "unknown").strip()}
@@ -293,6 +362,23 @@ for d in docs:
             # 100 and falls — and the raw column is not defined for it, unlike
             # the two spellings above. Same inversion, same metric, so
             # SmartDriveWearHigh reads this drive too (#483).
+            value = attr.get("value")
+            if value is not None:
+                add("homelab_smart_percentage_used",
+                    "Vendor estimate of endurance consumed, percent. 100 means the rated life is used.",
+                    plain, 100 - int(value))
+        elif name == "wear_leveling_count":
+            # Samsung's spelling (attribute 177, the SM863a pair in Saruman,
+            # #529). As with Intel's 233 the NORMALISED value is the life
+            # left, starting at 100; the raw column is an average erase count
+            # and would read as thousands of percent. Same inversion, same
+            # metric, so SmartDriveWearHigh covers these drives with no rule of
+            # their own.
+            #
+            # PROVISIONAL: which attribute the SM863a exposes through the P440ar
+            # was not read off the drive when this was written. `--print` on
+            # Saruman settles it — if 177 is absent, no wear series appears and
+            # this branch is the one to correct.
             value = attr.get("value")
             if value is not None:
                 add("homelab_smart_percentage_used",
@@ -420,6 +506,44 @@ if ((SELF_TEST)); then
   check "two drives: both reallocated series, distinct" \
     2 '^homelab_smart_reallocated_sectors\{host="fixture",device="/dev/sd(a|c)"\} [04]$'
 
+  # 6a. Saruman through its P440ar (#529). Four readings through one logical
+  #     drive: the two SM863a SSDs, a SAS spindle the iLO already watches, and
+  #     an empty index. The SSDs must come out as two series, not one, and
+  #     nothing else may be counted. The attribute values are illustrative —
+  #     the real ones are the first `--print` on Saruman.
+  payload='[{"homelab_label":"/dev/sda:cciss,2","device":{"name":"/dev/sda"},"model_name":"SAMSUNG MZ7KM960HMJP-00005","rotation_rate":0,"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":100,"raw":{"value":0}},{"id":177,"name":"Wear_Leveling_Count","value":97,"raw":{"value":112}}]}},{"homelab_label":"/dev/sda:cciss,3","device":{"name":"/dev/sda"},"model_name":"SAMSUNG MZ7KM960HMJP-00005","rotation_rate":0,"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":177,"name":"Wear_Leveling_Count","value":91,"raw":{"value":790}}]}},{"homelab_label":"/dev/sda:cciss,0","device":{"name":"/dev/sda"},"model_name":"EG0600FBVFP","rotation_rate":10000,"smart_status":{"passed":true}},{"homelab_label":"/dev/sda:cciss,7","device":{"name":"/dev/sda"},"smartctl":{"messages":[{"string":"No such device"}]}}]'
+  out="$(emit)"
+  check "Smart Array: each SSD is its own series" \
+    2 '^homelab_smart_healthy\{host="fixture",device="/dev/sda:cciss,[23]",'
+  check "Smart Array: Wear_Leveling_Count reads the normalised column" \
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,2"\} 3$'
+  check "Smart Array: the second SSD's wear is its own" \
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,3"\} 9$'
+  check "Smart Array: the spindle and the empty index are not counted" \
+    1 '^homelab_smart_devices\{host="fixture"\} 2$'
+  check "Smart Array: nothing for the spindle, which the iLO watches" \
+    0 'cciss,0'
+
+  # 6b. Discovery, against a made-up /sys. sda and sdb are logical drives on
+  #     an hpsa host, sdc is an ordinary disk on AHCI. The controller is probed
+  #     once, through its first logical drive, and sdc is read as itself.
+  fake_sys="$(mktemp -d)"
+  mkdir -p "${fake_sys}/devices/h0/0:1:0:0" "${fake_sys}/devices/h0/0:1:0:1" \
+    "${fake_sys}/devices/h1/1:0:0:0" "${fake_sys}/class/scsi_host/host0" \
+    "${fake_sys}/class/scsi_host/host1" "${fake_sys}/block/sda" \
+    "${fake_sys}/block/sdb" "${fake_sys}/block/sdc" "${fake_sys}/block/loop0"
+  ln -s "${fake_sys}/devices/h0/0:1:0:0" "${fake_sys}/block/sda/device"
+  ln -s "${fake_sys}/devices/h0/0:1:0:1" "${fake_sys}/block/sdb/device"
+  ln -s "${fake_sys}/devices/h1/1:0:0:0" "${fake_sys}/block/sdc/device"
+  echo hpsa > "${fake_sys}/class/scsi_host/host0/proc_name"
+  echo ahci > "${fake_sys}/class/scsi_host/host1/proc_name"
+  out="$(SYSFS="${fake_sys}" CCISS_INDEXES=2 discover_local)"
+  rm -rf "${fake_sys}"
+  check "discovery: the Smart Array is probed by index" 2 '^cciss,[01]:/dev/sda$'
+  check "discovery: its second logical drive is not probed again" 0 'sdb'
+  check "discovery: an ordinary disk is read as itself" 1 '^auto:/dev/sdc$'
+  check "discovery: a loop device is not a disk" 0 'loop0'
+
   # 6. smartctl answering with no device in the JSON. The exit has to carry
   #    smartctl's own reason, which is usually a permission problem rather than
   #    a disk problem — the run that made that necessary is in the header.
@@ -440,15 +564,7 @@ if [[ -z "$SSH_TARGET" ]]; then
   sudo apt install smartmontools
 This collector reads it; it does not bundle it (#351)."
 
-  # Real block devices only: no loop, no ram, no device-mapper, no optical.
-  # /sys rather than lsblk output parsing, because a model name with a space in
-  # it turns a column split into a wrong answer.
-  for dev in /sys/block/*; do
-    name="$(basename "$dev")"
-    case "$name" in loop*|ram*|dm-*|sr*|fd*|zram*) continue ;; esac
-    [[ -e "${dev}/device" ]] || continue
-    DEVICES+=("auto:/dev/${name}")
-  done
+  mapfile -t DEVICES < <(discover_local)
   ((${#DEVICES[@]})) || die "no physical block devices found under /sys/block"
 fi
 
@@ -474,6 +590,14 @@ for spec in "${DEVICES[@]}"; do
     printf 'warning: no output for %s%s\n' \
       "$node" "${detail:+ — ${detail}}" >&2
     continue
+  fi
+  # A drive behind a Smart Array is tagged with its own label, so the renderer
+  # can tell it apart from the other drives reached through the same logical
+  # drive, and knows to keep only the SSDs. smartctl's JSON always opens with
+  # `{`, so the tag goes straight after it.
+  if [[ "$devtype" == cciss,* ]]; then
+    [[ "$out" == \{* ]] || continue
+    out="{\"homelab_label\":\"${node}:${devtype}\",${out#\{}"
   fi
   ((first)) || payload+=","
   payload+="$out"
