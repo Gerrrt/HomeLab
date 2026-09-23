@@ -375,10 +375,10 @@ for d in docs:
             # metric, so SmartDriveWearHigh covers these drives with no rule of
             # their own.
             #
-            # PROVISIONAL: which attribute the SM863a exposes through the P440ar
-            # was not read off the drive when this was written. `--print` on
-            # Saruman settles it — if 177 is absent, no wear series appears and
-            # this branch is the one to correct.
+            # CONFIRMED on Saruman, 2026-09-23: the first `--print` through the
+            # P440ar gave both SM863a a wear series from 177 — 6 % used on
+            # cciss,2 and 4 % on cciss,3 — so the attribute does reach the
+            # host through the controller.
             value = attr.get("value")
             if value is not None:
                 add("homelab_smart_percentage_used",
@@ -509,16 +509,17 @@ if ((SELF_TEST)); then
   # 6a. Saruman through its P440ar (#529). Four readings through one logical
   #     drive: the two SM863a SSDs, a SAS spindle the iLO already watches, and
   #     an empty index. The SSDs must come out as two series, not one, and
-  #     nothing else may be counted. The attribute values are illustrative —
-  #     the real ones are the first `--print` on Saruman.
-  payload='[{"homelab_label":"/dev/sda:cciss,2","device":{"name":"/dev/sda"},"model_name":"SAMSUNG MZ7KM960HMJP-00005","rotation_rate":0,"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":100,"raw":{"value":0}},{"id":177,"name":"Wear_Leveling_Count","value":97,"raw":{"value":112}}]}},{"homelab_label":"/dev/sda:cciss,3","device":{"name":"/dev/sda"},"model_name":"SAMSUNG MZ7KM960HMJP-00005","rotation_rate":0,"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":177,"name":"Wear_Leveling_Count","value":91,"raw":{"value":790}}]}},{"homelab_label":"/dev/sda:cciss,0","device":{"name":"/dev/sda"},"model_name":"EG0600FBVFP","rotation_rate":10000,"smart_status":{"passed":true}},{"homelab_label":"/dev/sda:cciss,7","device":{"name":"/dev/sda"},"smartctl":{"messages":[{"string":"No such device"}]}}]'
+  #     nothing else may be counted. The wear figures are the first `--print`
+  #     on Saruman, 2026-09-23: 6 % and 4 % used, so normalised 94 and 96. The
+  #     raw erase counts were not read and are illustrative.
+  payload='[{"homelab_label":"/dev/sda:cciss,2","device":{"name":"/dev/sda"},"model_name":"SAMSUNG MZ7KM960HMJP-00005","rotation_rate":0,"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":100,"raw":{"value":0}},{"id":177,"name":"Wear_Leveling_Count","value":94,"raw":{"value":112}}]}},{"homelab_label":"/dev/sda:cciss,3","device":{"name":"/dev/sda"},"model_name":"SAMSUNG MZ7KM960HMJP-00005","rotation_rate":0,"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":177,"name":"Wear_Leveling_Count","value":96,"raw":{"value":790}}]}},{"homelab_label":"/dev/sda:cciss,0","device":{"name":"/dev/sda"},"model_name":"EG0600FBVFP","rotation_rate":10000,"smart_status":{"passed":true}},{"homelab_label":"/dev/sda:cciss,7","device":{"name":"/dev/sda"},"smartctl":{"messages":[{"string":"No such device"}]}}]'
   out="$(emit)"
   check "Smart Array: each SSD is its own series" \
     2 '^homelab_smart_healthy\{host="fixture",device="/dev/sda:cciss,[23]",'
   check "Smart Array: Wear_Leveling_Count reads the normalised column" \
-    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,2"\} 3$'
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,2"\} 6$'
   check "Smart Array: the second SSD's wear is its own" \
-    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,3"\} 9$'
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,3"\} 4$'
   check "Smart Array: the spindle and the empty index are not counted" \
     1 '^homelab_smart_devices\{host="fixture"\} 2$'
   check "Smart Array: nothing for the spindle, which the iLO watches" \
