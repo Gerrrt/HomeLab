@@ -362,7 +362,32 @@ groups:
         # because the useful action is ordering a disk, and 100 means the rated
         # write life is already gone. Not critical: a drive past its rated
         # endurance usually keeps working, it just stops being trustworthy.
-        expr: homelab_smart_percentage_used >= 80
+        #
+        # THE MODEL IS JOINED IN, because the wear series does not carry it.
+        # collect-smart-state.sh puts `model` on homelab_smart_healthy only;
+        # every other series is {host, device}. The description named
+        # {{ $labels.model }} anyway, so a real alert read "the vendor's
+        # endurance estimate for ." — and the unit test passed because its
+        # fixture gave the wear series a model label the collector never emits.
+        #
+        # Joined here rather than added to the collector's series: a new label
+        # changes the series' identity, which breaks its history, and any
+        # `offset` comparison across the change, for a label only this one
+        # annotation reads. Multiplying by (0 * healthy + 1) keeps the value
+        # exactly. The `unless` branch keeps the alert when there is no
+        # healthy series to join (smartctl printed no overall assessment), so
+        # the join cannot silence a worn drive.
+        expr: >-
+          (
+            homelab_smart_percentage_used
+            * on (host, device) group_left (model)
+            (0 * homelab_smart_healthy + 1)
+          ) >= 80
+          or
+          (
+            homelab_smart_percentage_used >= 80
+            unless on (host, device) homelab_smart_healthy
+          )
         for: 1h
         labels:
           component: host
@@ -371,10 +396,10 @@ groups:
         annotations:
           summary: "{{ $labels.host }}: {{ $labels.device }} has used {{ $value }}% of its rated life"
           description: >-
-            The vendor's endurance estimate for {{ $labels.model }}. At 100 the
-            rated write life is used; the drive will usually keep going and
-            should stop being trusted with anything not backed up. Order a
-            replacement rather than reacting.
+            The vendor's endurance estimate for {{ $labels.device }}{{ with $labels.model }} ({{ . }}){{ end }}.
+            At 100 the rated write life is used; the drive will usually keep
+            going and should stop being trusted with anything not backed up.
+            Order a replacement rather than reacting.
 
       - alert: SmartDriveBadSectors
         # Any non-zero value here is data the drive could not read back. Both
