@@ -1528,7 +1528,12 @@ day's file carries the new version, and `check-versions` fails until
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
   PBS**, whose sync job wants another PBS instance — on TrueNAS that is PBS in
   a VM or a change to an NFS/SMB datastore.
-  [#485](https://github.com/Gerrrt/HomeLab/issues/485) carries it.
+  [#485](https://github.com/Gerrrt/HomeLab/issues/485) carries it. **Decided
+  2026-09-23:** the NFS datastore, with PBS itself on `Saruman`
+  ([ADR-0053](../adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
+  On this host that means a dataset `erebor/pbs` with `atime` on, owned by
+  uid and gid 34, an NFSv4 share to `10.0.30.80` alone, and a daily
+  snapshot task keeping fourteen.
 - **Offsite** — owned, since 2026-09-20. §6.2 gets the media tier's state off
   `smaug`, onto the monitoring host and onto `oracle`, and every one of those
   copies is on the same shelf under the same roof — the position the volume
