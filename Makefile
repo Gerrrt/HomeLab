@@ -185,6 +185,21 @@ secrets-add-recipient: ## Add a second age recipient and re-key (PUBKEY=age1...)
 	}
 	./scripts/add-recipient.sh "$(PUBKEY)" $(STACK)
 
+.PHONY: secrets-remove-recipient
+secrets-remove-recipient: ## Remove an age recipient and re-key (PUBKEY=age1...)
+	@# The other half of secrets-add-recipient, and the same two committed files.
+	@# Refuses to remove this host's own key, to leave fewer than two
+	@# recipients (ADR-0024), or to leave only recipients never proved. Removal
+	@# does not reach git history: a key that may have been SEEN also means
+	@# rotating what it opens (back-up-the-age-key.md).
+	@[[ -n "$(PUBKEY)" ]] || { \
+		printf '\033[0;31merror:\033[0m PUBKEY is required\n' >&2; \
+		printf '  make secrets-remove-recipient PUBKEY=age1...\n' >&2; \
+		printf 'See docs/runbooks/back-up-the-age-key.md\n' >&2; \
+		exit 2; \
+	}
+	./scripts/remove-recipient.sh "$(PUBKEY)" $(STACK)
+
 .PHONY: secrets-show
 secrets-show: ## Print the decrypted secrets to stdout (careful)
 	sops --decrypt $(SECRETS)
