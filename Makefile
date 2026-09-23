@@ -229,6 +229,14 @@ check-compose-health: ## Verify health deps are satisfiable, probe the images (n
 	@# `make validate` is the graceful path — it skips the probe and says so.
 	python3 scripts/check_compose_health.py --probe
 
+.PHONY: check-hardened-boot
+check-hardened-boot: ## Boot Home Assistant under its hardening and throw it away (needs docker)
+	@# The application, not just its healthcheck binary: --probe above never
+	@# starts it. Pulls the pinned image (~1.5 GB) on a cold cache. CI runs the
+	@# same script with a proof cache, so a Dependabot bump cannot merge without
+	@# a hardened boot (#534).
+	./scripts/check_hardened_boot.sh --stack sensitive --service home-assistant
+
 .PHONY: check-container-health
 check-container-health: ## Ask the RUNNING stack whether its healthchecks pass (deploy-time)
 	@# The other half of check-compose-health above, and deliberately not part
