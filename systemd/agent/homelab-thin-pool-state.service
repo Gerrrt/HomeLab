@@ -1,0 +1,37 @@
+# How full this hypervisor's LVM-thin pools are (#538).
+#
+# WHAT IT IS FOR. A thin pool is not a filesystem, so node_exporter never sees
+# one and HostDiskCritical cannot fire for it. A pool that fills turns every
+# guest on it read-only at once. This reads `lvs` for each pool and writes data
+# and metadata use into the textfile directory.
+#
+# HARDENING MATCHES homelab-guest-state.service, and for its reason. No
+# directive here creates a mount namespace: `lvs` takes a read lock under
+# /run/lock/lvm and opens the device-mapper nodes under /dev, and a unit that
+# cannot see or write either would report no pools, which reads as a healthy
+# host. guest-state's first version shipped stricter directives nobody had run,
+# and reported zero guests on a hypervisor that had one. Tighten this one a
+# directive at a time, with a run on Saruman to prove each.
+#
+# Root for `lvs`, which opens block devices, and for the textfile directory.
+[Unit]
+Description=HomeLab: record LVM-thin pool usage on this hypervisor
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/lvs
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-thin-pool-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-thin-pool-state

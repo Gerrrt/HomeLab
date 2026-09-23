@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeLab: Proxmox firewall state
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-pve-firewall.service
+# Every 10 minutes. PveFirewallDisabled waits ten minutes and is critical, so a
+# daily sample would bound it by the collection interval rather than by the
+# condition, and a stopped firewall could go a day before anything said so.
+OnCalendar=*:0/10
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

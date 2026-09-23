@@ -17,6 +17,25 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-23
+
+- **[#538](https://github.com/Gerrrt/HomeLab/issues/538) and
+  [#576](https://github.com/Gerrrt/HomeLab/issues/576): two collectors for
+  `Saruman`, written and CI-tested but not yet installed.**
+  `collect-thin-pool-state.sh` reads `lvs` for each LVM-thin pool. A thin
+  pool is not a filesystem, so `HostDiskCritical` could never see `pve/data`
+  or `large_data` filling, and when one fills every guest on it goes
+  read-only. `collect-pve-firewall.sh` reads `pve-firewall status` and counts
+  the active rules in `cluster.fw` and `host.fw`. That is the control #566
+  found off on 2026-09-20, which nothing had noticed. Seven rules cover them:
+  data, metadata and a 24-hour fill prediction for the pools, the firewall
+  being off or on with an empty `host.fw`, and one staleness rule per
+  collector. Each rule has a firing test and a quiet one. Both collectors
+  are rows in `install-agent-collectors.sh` with ten-minute timers. **Neither
+  runs yet.** Both issues stay open until the install on `Saruman` and, for
+  #576, one deliberate `pve-firewall stop`/`start` that fires and clears
+  `PveFirewallDisabled`.
+
 ## 2026-09-22
 
 - **[#570](https://github.com/Gerrrt/HomeLab/issues/570): a hung exporter

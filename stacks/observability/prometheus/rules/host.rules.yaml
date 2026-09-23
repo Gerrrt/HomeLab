@@ -604,6 +604,173 @@ groups:
             /var/lib/node_exporter/textfile_collector/guest-state.prom is being
             written and is world-readable.
 
+      # --- Thin pools, which node_filesystem_* cannot see (#538) -------------
+      #
+      # A thin pool is not a filesystem, so HostDiskCritical and
+      # HostDiskWillFillIn24h are structurally blind to Saruman's `pve/data` and
+      # `large_data/large_data`, and a pool that fills turns every guest on it
+      # read-only at once. collect-thin-pool-state.sh reads `lvs` on the host.
+      # Disk alerts on a hypervisor therefore come in two kinds: filesystems from
+      # node_exporter, pools from the collector.
+
+      - alert: ThinPoolDataHigh
+        # 85 % and sustained. A thin pool is overprovisioned by design, so the
+        # sum of its guests' disks can exceed it, and the number that matters is
+        # what has been written. Thirty minutes keeps a snapshot-and-delete from
+        # paging.
+        expr: homelab_thin_pool_data_percent > 85
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: capacity
+        annotations:
+          summary: >-
+            {{ $labels.host }}: thin pool {{ $labels.vg }}/{{ $labels.pool }}
+            data is {{ $value | humanize }}% used
+          description: >-
+            When a thin pool's data space runs out, every guest on it goes
+            read-only at once, and nothing else in the estate can see it
+            coming. Free space inside the guests (fstrim, discard=on), delete
+            snapshots (`lvs` on the host lists them), or move a disk to the
+            other pool.
+
+      - alert: ThinPoolMetadataHigh
+        # Lower than the data threshold on purpose. Metadata that fills is the
+        # worse failure — the pool can need `thin_repair` rather than just
+        # space — and it grows with snapshots rather than with data, so a pool
+        # can reach it with the data half nearly empty.
+        expr: homelab_thin_pool_metadata_percent > 70
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: capacity
+        annotations:
+          summary: >-
+            {{ $labels.host }}: thin pool {{ $labels.vg }}/{{ $labels.pool }}
+            metadata is {{ $value | humanize }}% used
+          description: >-
+            Thin-pool metadata that fills can leave the pool needing
+            `thin_repair`, which is worse than a full data volume. Delete
+            snapshots first. If that is not enough, grow the metadata volume
+            with `lvextend --poolmetadatasize +<size> {{ $labels.vg }}/{{ $labels.pool }}`,
+            which needs free extents in the volume group.
+
+      - alert: ThinPoolWillFillIn24h
+        # CRITICAL, unlike HostDiskWillFillIn24h. A full filesystem breaks one
+        # host's writes; a full thin pool turns every guest on it read-only in
+        # the same instant. The 70 % floor is that rule's 30 %-free guard: a
+        # nearly empty pool can extrapolate to full from one large copy.
+        expr: |
+          predict_linear(homelab_thin_pool_data_percent[6h], 24 * 3600) >= 100
+          and
+          homelab_thin_pool_data_percent > 70
+        for: 1h
+        labels:
+          component: host
+          severity: critical
+          category: capacity
+        annotations:
+          summary: "{{ $labels.host }}: thin pool {{ $labels.vg }}/{{ $labels.pool }} fills within 24h"
+          description: >-
+            Data use is over 70 % and, extrapolating the last six hours,
+            reaches 100 % within a day. Every guest on this pool goes read-only
+            when it does. Find what is writing before it does.
+
+      - alert: ThinPoolStateStopped
+        # GuestStateStopped's shape, for its reason: a host that reports zero
+        # pools is a legitimate answer, so a collector that stopped must not be
+        # mistaken for one.
+        expr: >-
+          count by (host) (present_over_time(homelab_thin_pools_total[1d] offset 6h))
+          unless
+          count by (host) (present_over_time(homelab_thin_pools_total[6h]))
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting its thin pools"
+          description: >-
+            It reported within the last day and has not in six hours, so the
+            thin-pool rules are blind to this host until it comes back. Check
+            homelab-thin-pool-state.timer on the host and that
+            /var/lib/node_exporter/textfile_collector/thin-pool-state.prom is
+            being written and is world-readable.
+
+      # --- The hypervisor's own firewall (#576) -------------------------------
+      #
+      # #566 found Saruman's Proxmox firewall disabled while ADR-0014 and
+      # ADR-0043 described its rules as standing, and turned it on on
+      # 2026-09-20. These rules are what notices the next time it goes off.
+
+      - alert: PveFirewallDisabled
+        # Critical at ten minutes. A firewall that is off is ADR-0014's
+        # management-plane rule not existing, and the segment it guards is the
+        # one built to hold an attacker. Ten minutes still lets a deliberate
+        # `pve-firewall restart` pass without paging.
+        expr: homelab_pve_firewall_enabled == 0
+        for: 10m
+        labels:
+          component: host
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: the Proxmox firewall is {{ $labels.status }}"
+          description: >-
+            `pve-firewall status` does not read enabled/running, so the
+            hypervisor's management plane (8006, 8007, 22) is reachable from
+            the whole lab segment rather than from Hicks only. If it was stopped
+            to debug a guest, `pve-firewall start`. If an upgrade or a
+            reinstall caused it, build-the-playground.md §4 is the procedure,
+            including the local_network alias.
+
+      - alert: PveFirewallNoHostRules
+        # Enabled and empty. A host.fw with no active rules leaves the firewall
+        # applying only its policy: with DROP, the management plane is closed to
+        # Hicks too; with ACCEPT, it is open to everyone. Either way it is not
+        # the rule set #566 left, and PveFirewallDisabled cannot see it.
+        expr: |
+          homelab_pve_firewall_rules{file="host"} == 0
+          and on (host)
+          homelab_pve_firewall_enabled == 1
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: the Proxmox firewall is on with no host rules"
+          description: >-
+            host.fw has no active rules, so ADR-0014's three and ADR-0043's
+            fourth are gone or unticked in the GUI. The firewall is applying
+            its policy alone. Read /etc/pve/local/host.fw against
+            build-the-playground.md §4.
+
+      - alert: PveFirewallStateStopped
+        # The collector itself stopped. Without this, a hypervisor whose
+        # collector died would leave PveFirewallDisabled with nothing to read,
+        # and a firewall with nothing watching it is where #566 started.
+        expr: >-
+          count by (host) (present_over_time(homelab_pve_firewall_enabled[1d] offset 6h))
+          unless
+          count by (host) (present_over_time(homelab_pve_firewall_enabled[6h]))
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting its firewall state"
+          description: >-
+            It reported within the last day and has not in six hours, so
+            PveFirewallDisabled is blind to this hypervisor until it comes back.
+            Check homelab-pve-firewall.timer on the host and that
+            /var/lib/node_exporter/textfile_collector/pve-firewall.prom is
+            being written and is world-readable.
+
       - alert: SmartDriveBadSectorsGrowing
         # The signal SmartDriveBadSectors cannot give you, and the one worth
         # acting on.

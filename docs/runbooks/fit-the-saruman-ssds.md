@@ -682,6 +682,13 @@ what [`build-the-lab-guest.md`](build-the-lab-guest.md) already assumes.
 > issue, not a step here: [#538](https://github.com/Gerrrt/HomeLab/issues/538),
 > opened 2026-09-19 with `large_data` live and nothing on it yet, which is the
 > cheapest moment to close it.
+>
+> **Closed by a collector, 2026-09-23.** `scripts/collect-thin-pool-state.sh`
+> reads `lvs` on the host every ten minutes. `ThinPoolDataHigh`,
+> `ThinPoolMetadataHigh` and `ThinPoolWillFillIn24h` read what it writes, and
+> `ThinPoolStateStopped` fires if it goes quiet. It covers both pools once
+> `make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only
+> thin-pool-state'` has run.
 
 ## 8. Measure what the array actually does — both of them
 
@@ -921,6 +928,7 @@ and it is what the roadmap entry should record.
 | `SnmpScrapeSlow` | Will not fire. The walk gains two drives and one logical drive: expect roughly 13–17 s against a 30 s threshold | **No**, but put before and after in the table |
 | `SmartDrive*` (`host.rules.yaml`) | Will not fire — `collect-smart-state.sh` excludes `Saruman` by design, because the iLO already walks its array | **No** |
 | `HostDiskCritical` / `HostDiskWillFillIn24h` | Cannot fire for the new pool — see step 7's blind spot | **No** |
+| `ThinPool*` (added 2026-09-23, after this job) | The pool rules step 7's blind spot asked for. A fresh pool reads a few percent and fires none of them | **No** — they are the check that the pool is being watched at all |
 
 ## 11. Confirm the metrics actually moved — on `prometheus`
 

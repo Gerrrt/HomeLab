@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeLab: LVM-thin pool usage
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-thin-pool-state.service
+# Every 10 minutes, like guest-state and for a sharper reason.
+# ThinPoolWillFillIn24h is a predict_linear over six hours, and a daily sample
+# gives it one point to extrapolate from, which is no trend at all.
+OnCalendar=*:0/10
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

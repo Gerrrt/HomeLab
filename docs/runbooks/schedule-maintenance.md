@@ -154,7 +154,7 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
-`guest-state` and `drift-check` — and checks each host's requirements **per
+`guest-state`, `thin-pool-state`, `pve-firewall` and `drift-check` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
 it.
@@ -222,6 +222,21 @@ rediscovered.
 estate cannot tell a deliberate shutdown from a crash and should not pretend to.
 `GuestStateStopped` covers the collector itself going silent, since "no guests"
 is a legitimate answer and therefore a dangerous silence.
+
+**`thin-pool-state` and `pve-firewall` are two more hypervisor collectors,
+with the same install and the same ten-minute timer.** `thin-pool-state` reads
+`lvs` for each LVM-thin pool, because a pool is not a filesystem and
+`HostDiskCritical` cannot see one filling
+([#538](https://github.com/Gerrrt/HomeLab/issues/538)). `pve-firewall` reads
+`pve-firewall status` and counts the active rules in `cluster.fw` and
+`host.fw`, because the firewall ADR-0014 depends on was found off on
+2026-09-20 and nothing had noticed
+([#576](https://github.com/Gerrrt/HomeLab/issues/576)). Each has a
+`*StateStopped` rule for the collector going quiet, in the `GuestStateStopped`
+shape. Their units carry the same light hardening as `guest-state`'s, for the
+reason that unit's header gives: `lvs` and the firewall files are both things a
+private mount namespace can hide, and a collector that cannot see would report
+a healthy host.
 
 **It needs root on the target, which is not the same as needing `sudo`.** The
 estate has both shapes and the installer picks per host, from the login user's

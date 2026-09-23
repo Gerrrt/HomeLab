@@ -324,6 +324,25 @@ up{instance="Saruman"}
 reads as a failure when nothing is wrong. Both jobs, `Saruman-metrics` and
 `Saruman-alloy`, should be at `1`.
 
+**Last, make sure something notices if it goes off again.** Nothing noticed the
+first time. Install the firewall collector
+([#576](https://github.com/Gerrrt/HomeLab/issues/576)) and read it back:
+
+```bash
+make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only pve-firewall'
+```
+
+```promql
+homelab_pve_firewall_enabled{host="Saruman"}
+homelab_pve_firewall_rules{host="Saruman"}
+```
+
+Expect `1`, `file="host"` at `4` on `Saruman` (`3` on `ifrit`) and
+`file="cluster"` at `0`. `cluster.fw` holds the alias and options, not rules.
+To prove the alert end to end, run `pve-firewall stop`, wait for
+`PveFirewallDisabled` to fire (ten minutes, plus up to ten for the next
+collection), then `pve-firewall start` and watch it clear.
+
 ---
 
 ## 5. The attack VM

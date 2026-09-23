@@ -1,0 +1,36 @@
+# Whether this hypervisor's Proxmox firewall is on, and how many rules it holds
+# (#576).
+#
+# WHAT IT IS FOR. #566 found Saruman's firewall disabled while two ADRs said the
+# management-plane rule was standing, and nothing had noticed. This makes the
+# second time noticeable: `pve-firewall status` and a rule count of cluster.fw
+# and host.fw, into the textfile directory, read by PveFirewallDisabled.
+#
+# HARDENING MATCHES homelab-guest-state.service, for the same reason. The rule
+# files are under /etc/pve, which is pmxcfs, a FUSE mount, and a private mount
+# namespace can leave it invisible. A unit that cannot see host.fw reports zero
+# rules, which is exactly the finding this exists to raise, and would raise it
+# falsely. So no directive here creates a mount namespace.
+#
+# Root because /etc/pve/firewall is root-only, and for the textfile directory.
+[Unit]
+Description=HomeLab: record whether this hypervisor's firewall is on
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/pve-firewall
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-pve-firewall
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-pve-firewall
