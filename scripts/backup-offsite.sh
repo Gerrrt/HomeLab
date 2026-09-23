@@ -141,12 +141,20 @@ if [[ "${1:-}" == "--self-test" ]]; then
   # A set is a directory of *.tar.gz.age files and a MANIFEST whose five-field
   # rows are volume, service, mount, bytes, sha256 — the columns
   # backup-volumes.sh writes and manifest_*() below read.
+  #
+  # The `recipient` line is the comma-joined list backup-volumes.sh and
+  # backup-nas.sh record: the keys the archives were encrypted to. K1 and K2
+  # are the recipients now, the way age1yrdu996… and age19mkg76v0… are;
+  # SET_RECIPIENTS makes a set from before K2 was added.
+  K1=age1fixtureonefixtureonefixtureonefixtureonefixtureonefixtureo
+  K2=age1fixturetwofixturetwofixturetwofixturetwofixturetwofixturet
   fake_set() {  # <dir> <stamp> <kind> <vol>...
     local dir="$1" stamp="$2" kind="$3"; shift 3
     local d="${dir}/${stamp}" v bytes sha
     mkdir -p "${d}"
     {
       printf '# %s set %s\nstack\tobservability\nmode\tquiesced\n' "${kind}" "${stamp}"
+      printf 'recipient\t%s\n' "${SET_RECIPIENTS:-${K1},${K2}}"
       printf '#volume\tservice\tmount\tbytes\tsha256\n'
     } > "${d}/MANIFEST.tmp"
     for v in "$@"; do
@@ -157,20 +165,32 @@ if [[ "${1:-}" == "--self-test" ]]; then
     done
     mv "${d}/MANIFEST.tmp" "${d}/MANIFEST"
   }
+  # An export is sops YAML whose `sops:` block lists its recipients in
+  # plaintext — the lines unfit() reads. The body stands in for ciphertext.
+  fake_export() {  # <file>
+    local r
+    {
+      printf 'data: ENC[AES256_GCM,data:%s,type:str]\nsops:\n    age:\n' "$(head -c 1500 /dev/urandom | base64 -w0)"
+      tr ',' '\n' <<<"${SET_RECIPIENTS:-${K1},${K2}}" | while read -r r; do
+        printf '        - recipient: %s\n          enc: |\n            fixture\n' "${r}"
+      done
+    } > "$1"
+  }
   fake_set "${SRC}/volumes" 20260901T000000Z backup-volumes.sh grafana-data loki-data
   fake_set "${SRC}/volumes" 20260908T000000Z backup-volumes.sh grafana-data loki-data
   mkdir -p "${SRC}/volumes/20260915T000000Z"           # INCOMPLETE: no MANIFEST
   head -c 100 /dev/urandom > "${SRC}/volumes/20260915T000000Z/grafana-data.tar.gz.age"
   fake_set "${SRC}/nas" 20260907T000000Z backup-nas.sh jellyfin-config
-  head -c 2048 /dev/urandom > "${SRC}/firewall/config-20260910T000000Z.sops.yaml"
-  head -c 2048 /dev/urandom > "${SRC}/firewall/config-20260911T000000Z.sops.yaml"
+  fake_export "${SRC}/firewall/config-20260910T000000Z.sops.yaml"
+  fake_export "${SRC}/firewall/config-20260911T000000Z.sops.yaml"
 
   fail=0
   run() {  # <args...>  → OUT, RC
     set +e
     OUT="$(OFFSITE_SOURCE="${SRC_FOR_TEST:-${SRC}}" STACK=observability OFFSITE_KEEP="${KEEP_FOR_TEST:-1}" \
            OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS="${SKIP_MEDIUM-1}" HOMELAB_LOCK_DIR="${T}" \
-           OFFSITE_LOCK_WAIT="${LOCK_WAIT_FOR_TEST:-900}" "${BASH_SOURCE[0]}" "$@" 2>&1)"
+           OFFSITE_LOCK_WAIT="${LOCK_WAIT_FOR_TEST:-900}" OFFSITE_RECIPIENTS="${K1},${K2}" \
+           "${BASH_SOURCE[0]}" "$@" 2>&1)"
     RC=$?
     set -e
   }
@@ -317,7 +337,7 @@ if [[ "${1:-}" == "--self-test" ]]; then
   SRC2="${T}/backups-no-nas"; M2="${T}/medium-no-nas"
   mkdir -p "${SRC2}/volumes" "${SRC2}/nas" "${SRC2}/firewall" "${M2}"
   fake_set "${SRC2}/volumes" 20260921T000000Z backup-volumes.sh grafana-data
-  head -c 2048 /dev/urandom > "${SRC2}/firewall/config-20260921T000000Z.sops.yaml"
+  fake_export "${SRC2}/firewall/config-20260921T000000Z.sops.yaml"
 
   SRC_FOR_TEST="${SRC2}" run "${M2}"
   check "a missing kind is named, not summarised as a proof" 1 "NOT held: nas"
@@ -341,6 +361,47 @@ if [[ "${1:-}" == "--self-test" ]]; then
   fake_set "${SRC2}/nas" 20260921T000000Z backup-nas.sh jellyfin-config
   SRC_FOR_TEST="${SRC2}" run "${M2}"
   check "filling the gap restores the proof" 0 "the medium holds the newest of each kind, proved"
+
+  # WHO CAN OPEN WHAT TRAVELS — #573's first visit, as fixtures. The medium's
+  # key is K2. A volume set from before K2 was a recipient, and an export
+  # encrypted to K1 alone (backup-firewall.sh's first-key bug), both hash
+  # perfectly and neither opens with the key beside them.
+  SRC3="${T}/backups-stale"; M3="${T}/medium-stale"
+  mkdir -p "${SRC3}/volumes" "${SRC3}/nas" "${SRC3}/firewall" "${M3}"
+  SET_RECIPIENTS="${K1}" fake_set "${SRC3}/volumes" 20260920T033007Z backup-volumes.sh grafana-data
+  fake_set "${SRC3}/nas" 20260922T223845Z backup-nas.sh jellyfin-config
+  SET_RECIPIENTS="${K1}" fake_export "${SRC3}/firewall/config-20260923T043134Z.sops.yaml"
+  SRC_FOR_TEST="${SRC3}" run "${M3}"
+  check "a set made before a recipient was added is not a proof" 1 "NOT held: volumes — 20260920T033007Z is not encrypted to ${K2}"
+  assert "an export encrypted to one key of two is named the same way" \
+    '[[ "${OUT}" == *"NOT held: firewall — config-20260923T043134Z.sops.yaml is not encrypted to ${K2}"* ]]'
+  assert "neither was copied, and the fit NAS set was" \
+    '[[ ! -e "${M3}/backups/volumes/observability/20260920T033007Z" && ! -e "${M3}/backups/firewall/config-20260923T043134Z.sops.yaml" && -f "${M3}/backups/nas/20260922T223845Z/MANIFEST" ]]'
+
+  # A medium that already holds an unfit set, from a visit before this check
+  # existed: --verify-only fails on it, and a copy run with a fit set replaces
+  # it rather than being wedged by it.
+  mkdir -p "${M3}/backups/volumes/observability"
+  cp -r "${SRC3}/volumes/20260920T033007Z" "${M3}/backups/volumes/observability/"
+  SRC_FOR_TEST="${SRC3}" run "${M3}" --verify-only
+  check "--verify-only fails on an unfit newest set on the medium" 1 "on the medium, volumes: 20260920T033007Z is not encrypted to ${K2}"
+  fake_set "${SRC3}/volumes" 20260923T213613Z backup-volumes.sh grafana-data
+  fake_export "${SRC3}/firewall/config-20260923T220000Z.sops.yaml"
+  SRC_FOR_TEST="${SRC3}" run "${M3}"
+  check "fit sets replace the unfit one, and the proof is recorded" 0 "the medium holds the newest of each kind, proved"
+  assert "the unfit set was pruned, not left beside the key that cannot open it" \
+    '[[ ! -e "${M3}/backups/volumes/observability/20260920T033007Z" && -f "${M3}/backups/volumes/observability/20260923T213613Z/MANIFEST" ]]'
+
+  # A MANIFEST from before the recipient line existed says nothing about who
+  # opens it, and nothing is not a yes.
+  SRC4="${T}/backups-norecip"; M4="${T}/medium-norecip"
+  mkdir -p "${SRC4}/volumes" "${SRC4}/nas" "${SRC4}/firewall" "${M4}"
+  fake_set "${SRC4}/volumes" 20260923T000000Z backup-volumes.sh grafana-data
+  sed -i '/^recipient\t/d' "${SRC4}/volumes/20260923T000000Z/MANIFEST"
+  fake_set "${SRC4}/nas" 20260923T000000Z backup-nas.sh jellyfin-config
+  fake_export "${SRC4}/firewall/config-20260923T000000Z.sops.yaml"
+  SRC_FOR_TEST="${SRC4}" run "${M4}"
+  check "a set that records no recipients is not a proof" 1 "records no recipients"
 
   KEEP_FOR_TEST=0 run "${M}" --list; check "OFFSITE_KEEP=0 is rejected" 1 "OFFSITE_KEEP must be a positive integer"
   exit "${fail}"
@@ -540,6 +601,68 @@ exports_in()   { find "$1" -mindepth 1 -maxdepth 1 -type f -name 'config-*.sops.
 is_export()    { [[ $1 =~ ^config-[0-9]{8}T[0-9]{6}Z\.sops\.yaml$ ]]; }
 
 # ---------------------------------------------------------------------------
+# Who can open what travels
+# ---------------------------------------------------------------------------
+# A hash proves the bytes on the medium are the bytes that were written. It
+# does not prove the key beside them opens them, and ADR-0048 put the sets on
+# this medium because of that key. Each archive is encrypted to the recipients
+# its stack's secrets file listed WHEN THE BACKUP RAN. So a set made before a
+# recipient was added cannot be opened by that recipient, however well it
+# hashes.
+#
+# Measured, not supposed: the first visit, 2026-09-23 (#573), carried volume
+# set 20260920T033007Z. The medium's key, age19mkg76v0…, had been added on
+# 2026-09-22. Every hash matched, the run printed its green line, and the key
+# on the medium could not open the set beside it. The firewall export was worse:
+# backup-firewall.sh encrypted to the FIRST key of its rule only, so no export
+# ever opened with the second recipient.
+#
+# Both halves are read without decrypting anything. A set's MANIFEST carries a
+# `recipient` line, the comma-joined keys backup-volumes.sh and backup-nas.sh
+# encrypted to. An export's own `sops:` block lists its recipients in
+# plaintext, the same metadata key-recipients.sh reads. Against them: who can
+# open the stack's secrets now. A set is fit to travel when every one of those
+# opens it. A key it names that has since been removed does no harm, so the
+# test is "none missing", not "equal".
+#
+# OFFSITE_RECIPIENTS overrides the "now" list, comma-joined. Only the
+# self-test sets it, because its fake sets have no secrets file behind them.
+current_recipients() {  # <stack>
+  if [[ -n ${OFFSITE_RECIPIENTS:-} ]]; then
+    tr ',' '\n' <<<"${OFFSITE_RECIPIENTS}"
+  else
+    "${REPO_ROOT}/scripts/key-recipients.sh" --list --stack "$1" 2>/dev/null || true
+  fi
+}
+set_recipients()    { manifest_field "$1" recipient | tr ',' '\n'; }
+export_recipients() { grep -oE 'recipient: age1[a-z0-9]+' "$1" 2>/dev/null | cut -d' ' -f2 || true; }
+
+# The keys in <want> that <have> does not include, one per line. Empty means
+# every key that must open the thing can.
+cannot_open() {  # <have, newline-separated> <want, newline-separated>
+  comm -13 <(grep -v '^$' <<<"$1" | sort -u) <(grep -v '^$' <<<"$2" | sort -u)
+}
+
+# One sentence naming why a set or export is unfit to travel, or nothing when
+# every current recipient opens it. WANT_VOL and WANT_EST are read once, below,
+# before either path that calls this.
+unfit() {  # <volumes|nas|firewall> <set dir or export file>
+  local kind="$1" p="$2" have want missing
+  case "${kind}" in
+    volumes)  have="$(set_recipients "${p}")";    want="${WANT_VOL}" ;;
+    nas)      have="$(set_recipients "${p}")";    want="${WANT_EST}" ;;
+    firewall) have="$(export_recipients "${p}")"; want="${WANT_EST}" ;;
+  esac
+  if [[ -z ${have//[[:space:]]/} ]]; then
+    printf '%s records no recipients, so which keys open it is unknown\n' "$(basename "${p}")"
+    return
+  fi
+  missing="$(cannot_open "${have}" "${want}")"
+  [[ -z ${missing} ]] || printf '%s is not encrypted to %s, so that key cannot open it\n' \
+    "$(basename "${p}")" "$(paste -sd, <<<"${missing}")"
+}
+
+# ---------------------------------------------------------------------------
 # Proof: every archive of a set hashes to its MANIFEST; an export to its sidecar
 # ---------------------------------------------------------------------------
 # The MANIFEST column was computed on bytes verify() had just decrypted, and
@@ -597,6 +720,29 @@ verify_medium() {
     n=$((n + 1))
   done < <(exports_in "${FW_DST}")
   ((n)) || return 2
+
+  # The newest of each kind is what a successor would reach for, so that is
+  # what has to open with the key on the medium. Under --verify-only an unfit
+  # one fails the proof. On a copy run it is only noted here: the copy below
+  # replaces it if a fit set exists, and names it NOT held if not. Failing it
+  # here would wedge the very visit that repairs it.
+  local kind newest why
+  for kind in volumes nas firewall; do
+    case "${kind}" in
+      volumes)  newest="$(sets_in "${VOL_DST}" | head -1)" ;;
+      nas)      newest="$(sets_in "${NAS_DST}" | head -1)" ;;
+      firewall) newest="$(exports_in "${FW_DST}" | head -1)"; newest="${newest:+${FW_DST}/${newest}}" ;;
+    esac
+    [[ -n ${newest} ]] || continue
+    why="$(unfit "${kind}" "${newest}")"
+    [[ -n ${why} ]] || continue
+    if [[ ${MODE} == verify ]]; then
+      red "on the medium, ${kind}: ${why}. Run the copy with a set made since the key was added."
+      failed=1
+    else
+      warn "on the medium, ${kind}: ${why} — replaced below if a newer set opens with every key"
+    fi
+  done
   ((failed)) && return 1
   green "every set on the medium verifies — ${n} item(s): each archive hashes to its MANIFEST entry, each export to its sha256"
   return 0
@@ -760,6 +906,17 @@ if [[ ${MODE} == list ]]; then
   exit 0
 fi
 
+# Who must be able to open what travels, read once for both paths below.
+# Volumes are the stack's; the NAS sets and the firewall export are encrypted to
+# the estate's catch-all rule, which observability's file carries
+# (backup-nas.sh's NAS_RECIPIENT_STACK, honoured here too).
+if [[ ${MODE} == verify || ${MODE} == copy ]]; then
+  WANT_VOL="$(current_recipients "${STACK}")"
+  WANT_EST="$(current_recipients "${NAS_RECIPIENT_STACK:-observability}")"
+  [[ -n ${WANT_VOL} && -n ${WANT_EST} ]] \
+    || die "could not read who can open the secrets now (scripts/key-recipients.sh --list), so whether the sets open with the key on the medium cannot be checked"
+fi
+
 if [[ ${MODE} == verify ]]; then
   rc=0
   verify_medium || rc=$?
@@ -805,9 +962,19 @@ newest_fw="$(exports_in "${FW_SRC}" | head -1)"
 [[ -n ${newest_vol} || -n ${newest_nas} || -n ${newest_fw} ]] \
   || die "nothing complete under ${SOURCE_ROOT} — run the backups first (make backup, make backup-nas, make backup-firewall)"
 
+# A kind whose newest set would not open with every current key is not
+# copied: on this medium it would sit beside a key that cannot read it. It is
+# named NOT held below, so the run records no proof.
+unfit_vol=""; unfit_nas=""; unfit_fw=""
+[[ -n ${newest_vol} ]] && unfit_vol="$(unfit volumes "${newest_vol}")"
+[[ -n ${newest_nas} ]] && unfit_nas="$(unfit nas "${newest_nas}")"
+[[ -n ${newest_fw} ]]  && unfit_fw="$(unfit firewall "${FW_SRC}/${newest_fw}")"
+
 todo_vol=""; todo_nas=""; todo_fw=""
 need_bytes=0
-if [[ -n ${newest_vol} ]]; then
+if [[ -n ${unfit_vol} ]]; then
+  red "not copying ${unfit_vol}"
+elif [[ -n ${newest_vol} ]]; then
   if [[ -f ${VOL_DST}/$(basename "${newest_vol}")/MANIFEST ]]; then
     info "the medium already holds $(basename "${newest_vol}") (volumes/${STACK})"
   else
@@ -816,7 +983,9 @@ if [[ -n ${newest_vol} ]]; then
 else
   warn "no complete volume set under ${VOL_SRC}"
 fi
-if [[ -n ${newest_nas} ]]; then
+if [[ -n ${unfit_nas} ]]; then
+  red "not copying ${unfit_nas}"
+elif [[ -n ${newest_nas} ]]; then
   if [[ -f ${NAS_DST}/$(basename "${newest_nas}")/MANIFEST ]]; then
     info "the medium already holds $(basename "${newest_nas}") (nas)"
   else
@@ -825,7 +994,9 @@ if [[ -n ${newest_nas} ]]; then
 else
   warn "no complete NAS set under ${NAS_SRC}"
 fi
-if [[ -n ${newest_fw} ]]; then
+if [[ -n ${unfit_fw} ]]; then
+  red "not copying ${unfit_fw}"
+elif [[ -n ${newest_fw} ]]; then
   if [[ -f ${FW_DST}/${newest_fw} && -f ${FW_DST}/${newest_fw}.sha256 ]]; then
     info "the medium already holds ${newest_fw} (firewall)"
   else
@@ -855,11 +1026,14 @@ fi
 # tell the reader which one a successor will not find.
 missing=()
 held=()
-if [[ -n ${newest_vol} ]]; then held+=("volumes")
+if [[ -n ${unfit_vol} ]]; then missing+=("volumes — ${unfit_vol}; run \`make backup\` for a set every current key opens")
+elif [[ -n ${newest_vol} ]]; then held+=("volumes")
 else missing+=("volumes — nothing complete under ${VOL_SRC}, run \`make backup\`"); fi
-if [[ -n ${newest_nas} ]]; then held+=("nas")
+if [[ -n ${unfit_nas} ]]; then missing+=("nas — ${unfit_nas}; run \`make backup-nas\` for a set every current key opens")
+elif [[ -n ${newest_nas} ]]; then held+=("nas")
 else missing+=("nas — nothing complete under ${NAS_SRC}, run \`make backup-nas\`"); fi
-if [[ -n ${newest_fw} ]]; then held+=("firewall")
+if [[ -n ${unfit_fw} ]]; then missing+=("firewall — ${unfit_fw}; run \`make backup-firewall\` for an export every current key opens")
+elif [[ -n ${newest_fw} ]]; then held+=("firewall")
 else missing+=("firewall — no export under ${FW_SRC}, run \`make backup-firewall\`"); fi
 
 # Both terminal paths go through this. #611 cites only the one after the copy,
