@@ -561,6 +561,18 @@ services:
       # `/metrics` either: that path runs every enabled collector, so polling it
       # every 30 seconds would spend real work proving a listener is up. `/` is
       # the landing page and answers 200 without collecting anything.
+      #
+      # WHAT THAT COSTS, MEASURED AND ACCEPTED (#570). On 2026-09-19 a collector
+      # blocked on the faulting Exos (#558) and held /metrics for 2 h 40 min.
+      # TCP 9100 still accepted, `/` still answered, and this container read
+      # `healthy` the whole time. Probing /metrics would not have fixed that.
+      # Docker only marks a container unhealthy; `restart: unless-stopped` acts
+      # on exit, not on health. A restart needs a sidecar or a root cron, which
+      # is a second moving part on a host ADR-0040 keeps thin, to do what one
+      # command does. So the decision is: InstanceDown is the page for a hung
+      # exporter on this host, `docker restart media-node-exporter` is the
+      # first step (docs/runbooks/replace-the-nas-disk.md §1), and `healthy`
+      # here means the listener is up, not that a scrape will return.
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9100/"]
       interval: 30s
       timeout: 5s
