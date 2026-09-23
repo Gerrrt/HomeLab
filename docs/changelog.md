@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **[#571](https://github.com/Gerrrt/HomeLab/issues/571): `smaug`'s pool
+  moves to the chipset and the MegaRAID comes out, at the swap.** The Exos
+  pair has sat behind a 9340-8i in JBOD since the build, and its firmware's
+  error path is what `ZVTBSDL3`'s fault ran through. Five of the chipset's
+  six SATA ports are free.
+  [ADR-0051](adr/0051-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)
+  decides against IT-mode firmware, which would be a crossflash on the
+  pool's only controller with no spare card. The move needs two plain SATA
+  cables, since the only tray cable is the card's own mini-SAS breakout.
+  `replace-the-nas-disk.md` §5 now moves the surviving drive first, alone,
+  with the card and breakout going back in if the pool does not import on
+  `ahci`. §6 adds the SMART baseline re-check the new enumeration needs.
+  Nothing has moved yet; the pool is still one disk, waiting for a
+  replacement.
+
 - **[#534](https://github.com/Gerrrt/HomeLab/issues/534): Home Assistant's
   hardened boot is re-proved on every change to it.** It had been proved once,
   on 2026-09-09, against a digest Dependabot has since moved twice. A new CI
