@@ -39,6 +39,20 @@ docstring gives: it is a record, not a claim about now.
   the export opened with the medium's key. It did not, and that is corrected
   on the issue.
 
+- **[#485](https://github.com/Gerrrt/HomeLab/issues/485): PBS runs on
+  `Saruman`, with its datastore on `smaug` over NFS.** ADR-0027's trigger
+  had fired, but its sync job needed a second PBS instance, and on TrueNAS
+  that means a VM on `smaug`'s 8 GB (#599).
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)
+  runs one PBS guest, `golem` at `10.0.30.80`. Its only datastore is
+  `erebor/pbs` over NFSv4, with `atime` on for garbage collection, and daily
+  TrueNAS snapshots kept for fourteen days replace the second instance as
+  the copy PBS cannot prune. Backups are encrypted on `Saruman`, and the
+  key is kept in `secrets/lab.sops.yaml`. It takes one more CasaBonita
+  pass, `10.0.30.80 → 10.0.40.30:2049`. What gets backed up is ADR-0027's
+  table, unchanged. ADR-0027 carries a note; the roadmap, `build-the-nas.md`
+  and `build-the-soc-guest.md` point at the decision. Nothing is built yet.
+
 - **[#439](https://github.com/Gerrrt/HomeLab/issues/439): Velociraptor gets
   a removal procedure and `odin` gets a data disk, both before `odin`
   exists.** `build-the-soc-guest.md` §13 takes Velociraptor out in the order

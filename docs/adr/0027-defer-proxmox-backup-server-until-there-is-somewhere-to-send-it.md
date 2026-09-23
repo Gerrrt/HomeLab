@@ -8,6 +8,14 @@
 > The address, the rules and the decision are unchanged — only the label. The
 > text here is left as written, per ADR-0001. `zion` is now reserved for the
 > dedicated firewall cold spare ADR-0034 defers, which does not exist.
+>
+> **The deferral ended on 2026-09-23, in a different shape.** The trigger
+> fired, but `smaug` runs TrueNAS and cannot host the second PBS instance
+> the sync job below assumes without memory it does not have.
+> [ADR-0053](0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)
+> puts PBS on `Saruman` with its only datastore on `erebor` over NFS, and
+> uses TrueNAS snapshots as the copy PBS cannot prune. The table of what is backed up stands. The text here is left as
+> written, per ADR-0001.
 
 ## Context
 

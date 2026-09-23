@@ -207,8 +207,12 @@ Closes when Wazuh and Velociraptor report the six agents in.
 - **[#485](https://github.com/Gerrrt/HomeLab/issues/485) PBS.**
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
   trigger has fired — `smaug` answers, `erebor` is online — and its sync job
-  was designed for a host TrueNAS is not. Waits on the re-read, and on a
-  whole mirror to send to (#558).
+  was designed for a host TrueNAS is not. **Re-read and decided 2026-09-23:**
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md) runs PBS on `Saruman` as `golem`
+  (`10.0.30.80`) with its datastore on `erebor/pbs` over NFSv4, and TrueNAS
+  snapshots as the copy it cannot prune. What is left is the build: the
+  guest, the dataset and share, the `2049` pass on `morpheus`, and a verify
+  job the lab can see. A whole mirror to send to still waits on #558.
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
   [#562](https://github.com/Gerrrt/HomeLab/issues/562) and
