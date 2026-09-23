@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-22
 
+- **[#570](https://github.com/Gerrrt/HomeLab/issues/570): a hung exporter
+  on `smaug` is left to `InstanceDown` and a manual restart, and this is now
+  written down.** On 2026-09-19, `media-node-exporter` read `healthy` for
+  2 h 40 min while `/metrics` never answered. Docker marks health but never
+  restarts on it, so a fix that actually recovers the exporter needs a
+  sidecar or a root cron on a host ADR-0040 keeps thin. This was accepted
+  instead. The healthcheck comment in `stacks/media/compose.yaml` states
+  what `healthy` does and does not mean. `replace-the-nas-disk.md` §1 now
+  says to restart the container whatever `docker ps` reports. Only comments
+  and documents changed; no configuration did.
 - **[#612](https://github.com/Gerrrt/HomeLab/issues/612) and
   [#613](https://github.com/Gerrrt/HomeLab/issues/613): a copy that dies
   no longer poisons the medium for later visits.** `backup-offsite.sh`'s
