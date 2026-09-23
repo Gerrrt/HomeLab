@@ -32,6 +32,21 @@ power source [#413](https://github.com/Gerrrt/HomeLab/issues/413) owed
 > `Saruman` from the Mac on ImaginationLAN that step 3 already needs, and
 > keeps the freshness query as a fallback with its resolution stated. The
 > decision, the shutdown order, and what the test proves are unchanged.
+>
+> **Two things running steps 0 to 4 found, 2026-09-23.** First, *the Mac on
+> ImaginationLAN* above is now a Mac on Hicks. Since
+> [#566](https://github.com/Gerrrt/HomeLab/issues/566) enabled `Saruman`'s
+> firewall, it admits SSH from Hicks only, and the runbook says so
+> ([#651](https://github.com/Gerrrt/HomeLab/pull/651)). Second, *the credential,
+> and where it goes* below was incomplete. Reusing the card's SNMPv3 user
+> needs more than the passphrases: the card also admits that user only from
+> the addresses in its access list, and that list held `10.0.99.20` alone. The
+> driver on `10.0.99.1` was ignored until the card got a second entry,
+> `10.0.99.1` read-only. So the one credential now has two readers, the
+> exporter and the firewall, both on Winterfell and both read-only. That was
+> the intent of reusing it, and it is now true on the card as well as here.
+> A user of NUT's own remains the way to separate them. The decision is
+> unchanged.
 
 ## Context
 
