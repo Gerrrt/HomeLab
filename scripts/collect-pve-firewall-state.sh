@@ -18,6 +18,14 @@
 # which is a firewall that is on and admits everything. Counts per file make
 # that visible without publishing the rules themselves.
 #
+# AND THE POLICY ITSELF, because a count cannot see that ACCEPT. With
+# `policy_in: ACCEPT` in cluster.fw the status line reads enabled/running and
+# host.fw can still hold its four rules, and every address on the segment
+# reaches 8006, because nothing refuses what the rules do not name. It is
+# also the intermediate step §4 tells you to take before the flip, which makes
+# it the easy state to be left in. homelab_pve_firewall_policy_drop reads it,
+# and PveFirewallPolicyAccept fires on it.
+#
 # WHAT IT DOES NOT PROVE. The `local_network` alias from §4 is what stops
 # Proxmox's `management` IP set from admitting the whole segment, and a count
 # cannot see it. The off-segment `nc` probe in §4 is still the proof of what the
@@ -76,6 +84,19 @@ count_rules() {
   '
 }
 
+# 1 when cluster.fw's inbound policy refuses what no rule admits. Only the
+# [OPTIONS] section is read, and Proxmox's default for an unset policy_in is
+# DROP, so an absent key, or an absent file, is 1.
+parse_policy_drop() {
+  awk '
+    /^[[:space:]]*\[/ { in_opts = (toupper($0) ~ /^[[:space:]]*\[OPTIONS\]/); next }
+    in_opts && /^[[:space:]]*policy_in[[:space:]]*:/ {
+      v = $0; sub(/^[^:]*:[[:space:]]*/, "", v); sub(/[[:space:]]+$/, "", v); policy = toupper(v)
+    }
+    END { print (policy == "" || policy == "DROP" || policy == "REJECT") ? 1 : 0 }
+  '
+}
+
 if [[ "${1:-}" == "--self-test" ]]; then
   fail=0
   check() {
@@ -125,6 +146,31 @@ IN ACCEPT -p tcp -dport 22
 [RULES]
 GROUP mgmt"
   check "an absent file counts zero" count_rules 0 ""
+
+  check "policy_in DROP drops" parse_policy_drop 1 \
+"[OPTIONS]
+enable: 1
+policy_in: DROP"
+  # §4's cluster.fw between enabling and the flip. The status line reads on.
+  check "policy_in ACCEPT is no wall" parse_policy_drop 0 \
+"[OPTIONS]
+enable: 1
+policy_in: ACCEPT
+
+[ALIASES]
+local_network 10.0.30.110"
+  check "REJECT refuses too" parse_policy_drop 1 \
+"[OPTIONS]
+policy_in: REJECT"
+  check "an unset policy_in is Proxmox's default, DROP" parse_policy_drop 1 \
+"[OPTIONS]
+enable: 1"
+  check "policy_in outside [OPTIONS] is not the policy" parse_policy_drop 1 \
+"[OPTIONS]
+enable: 1
+[ALIASES]
+policy_in: ACCEPT"
+  check "an absent cluster.fw is the default" parse_policy_drop 1 ""
   exit $fail
 fi
 
@@ -151,11 +197,19 @@ fi
 rules_in() { if [[ -r "$1" ]]; then count_rules < "$1"; else echo 0; fi; }
 cluster_rules="$(rules_in "${CLUSTER_FW}")"
 host_rules="$(rules_in "${HOST_FW}")"
+if [[ -r "${CLUSTER_FW}" ]]; then
+  policy_drop="$(parse_policy_drop < "${CLUSTER_FW}")"
+else
+  policy_drop="$(parse_policy_drop < /dev/null)"
+fi
 
 emit() {
   printf '# HELP homelab_pve_firewall_enabled 1 when pve-firewall status reads enabled/running.\n'
   printf '# TYPE homelab_pve_firewall_enabled gauge\n'
   printf 'homelab_pve_firewall_enabled{host="%s"} %s\n' "$HOSTNAME_LABEL" "$enabled"
+  printf '# HELP homelab_pve_firewall_policy_drop 1 when cluster.fw policy_in refuses unmatched inbound traffic.\n'
+  printf '# TYPE homelab_pve_firewall_policy_drop gauge\n'
+  printf 'homelab_pve_firewall_policy_drop{host="%s"} %s\n' "$HOSTNAME_LABEL" "$policy_drop"
   printf '# HELP homelab_pve_firewall_rules Active rules in a Proxmox firewall file'"'"'s [RULES] section.\n'
   printf '# TYPE homelab_pve_firewall_rules gauge\n'
   printf 'homelab_pve_firewall_rules{host="%s",file="cluster"} %s\n' "$HOSTNAME_LABEL" "$cluster_rules"
@@ -169,5 +223,5 @@ tmp="${PROM}.$$"
 emit > "${tmp}" || { rm -f "${tmp}"; die "could not write ${tmp}"; }
 chmod 0644 "${tmp}"
 mv -f "${tmp}" "${PROM}"
-printf 'pve-firewall-state host=%s enabled=%s cluster_rules=%s host_rules=%s\n' \
-  "$HOSTNAME_LABEL" "$enabled" "$cluster_rules" "$host_rules"
+printf 'pve-firewall-state host=%s enabled=%s policy_drop=%s cluster_rules=%s host_rules=%s\n' \
+  "$HOSTNAME_LABEL" "$enabled" "$policy_drop" "$cluster_rules" "$host_rules"

@@ -734,6 +734,35 @@ groups:
             still carries `enable: 1`. homelab_pve_firewall_rules says whether
             the rule files survived.
 
+      - alert: PveFirewallPolicyAccept
+        # Enabled, and still no wall. cluster.fw's `policy_in: ACCEPT` admits
+        # everything no rule refuses, and the host rules only ACCEPT, so the
+        # whole segment reaches 8006 while `pve-firewall status` reads
+        # enabled/running and PveFirewallDisabled stays quiet. It is §4's
+        # intermediate step, before the flip to DROP, and the state someone
+        # locked out by an empty host.fw sets in a hurry.
+        #
+        # Only while the firewall is on: off, PveFirewallDisabled is already
+        # the page, and one cause should not page twice. Same severity,
+        # category and window as that rule, because the exposure is the same.
+        expr: >-
+          homelab_pve_firewall_policy_drop == 0
+          and on (host) homelab_pve_firewall_enabled == 1
+        for: 10m
+        labels:
+          component: host
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}'s Proxmox firewall is on and admits everything"
+          description: >-
+            `policy_in` in /etc/pve/firewall/cluster.fw is not DROP, so the
+            firewall reads enabled/running while the management plane ADR-0014
+            closes to Hicks is open to the segment. Set `policy_in: DROP` and
+            read the chain back as build-the-playground.md §4 does, with the
+            console to hand in case host.fw is empty
+            (homelab_pve_firewall_rules{file="host"}).
+
       - alert: PveFirewallStateStale
         # The collector stopped, which is not the firewall being fine.
         # Twenty-five minutes of mtime past a five-minute timer is five missed
