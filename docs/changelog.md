@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **The offsite medium's key could not open two of the three things it
+  carried, and the copy proved it green.** Found on the first visit (#573).
+  Archives are encrypted to the recipients the secrets file listed when each
+  backup ran, and the volume set `20260920T033007Z` predated the medium's
+  key, `age19mkg76v0…`. That one was caught and replaced in the sitting. The
+  firewall export was worse and was missed: `backup-firewall.sh` passed
+  `sops --age` the **first** key of its rule only, and an explicit `--age`
+  replaces the rule's list. So every export since the second recipient was
+  added on 2026-09-09 opened with `age1yrdu996…` alone. `recipients()` now
+  returns every key in the rule, and the script has its first `--self-test`,
+  which also asserts the live `.sops.yaml` gives exports more than one key.
+  `backup-offsite.sh` now reads who each set and export is encrypted to, from
+  the MANIFEST's `recipient` line and the export's own `sops:` block, without
+  decrypting anything. It refuses to copy one that any current recipient
+  cannot open, names it `NOT held`, and records no proof. `--verify-only`
+  fails on such a set on the medium, and a copy run replaces it rather than
+  being blocked by it. Seven fixtures cover it. #573's closing comment said
+  the export opened with the medium's key. It did not, and that is corrected
+  on the issue.
+
 - **[#485](https://github.com/Gerrrt/HomeLab/issues/485): PBS runs on
   `Saruman`, with its datastore on `smaug` over NFS.** ADR-0027's trigger
   had fired, but its sync job needed a second PBS instance, and on TrueNAS
