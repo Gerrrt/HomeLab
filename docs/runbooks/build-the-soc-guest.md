@@ -52,7 +52,10 @@ than carrying a second copy that drifts.
 > answered, a lost mirrored pair loses the record of what the estate saw, which
 > cannot be rebuilt from a runbook the way a domain controller can. Snapshot
 > the guest in Proxmox before each exercise, and treat the store as practice
-> rather than evidence.
+> rather than evidence. **Decided 2026-09-23, not yet built:**
+> [ADR-0053](../adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)
+> backs `odin` up, every disk, to PBS with its datastore on `erebor`. Until
+> that is built, this note stands.
 
 ## 1. Create the VM
 
