@@ -1960,3 +1960,149 @@ tests:
       - eval_time: 10m
         alertname: ZpoolNotOnline
         exp_alerts: []
+
+  # --- ThinPoolFilling: data on one pool, metadata on the other (#538) -----
+  # Saruman's two pools, each past a different threshold. Metadata at 75 fires
+  # although the same pool's data is at 22, which is the point of holding
+  # metadata to its own, lower number.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "90x20"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "1x20"
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "22x20"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "75x20"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: ThinPoolFilling
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              vg: large_data
+              pool: large_data
+              usage: data
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: thin pool large_data/large_data data is 90.0% used"
+              description: >-
+                A guest on this pool goes read-only when the pool fills, with no
+                further warning from node_exporter, which cannot see pools. `lvs
+                large_data` on the host shows the numbers. Free space inside
+                the guests (and run fstrim so discard returns it), delete unused
+                snapshots, or extend the pool with `lvextend`, using --poolmetadatasize
+                if it is metadata.
+          - exp_labels:
+              host: Saruman
+              vg: pve
+              pool: data
+              usage: metadata
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: thin pool pve/data metadata is 75.0% used"
+              description: >-
+                A guest on this pool goes read-only when the pool fills, with no
+                further warning from node_exporter, which cannot see pools. `lvs
+                pve` on the host shows the numbers. Free space inside
+                the guests (and run fstrim so discard returns it), delete unused
+                snapshots, or extend the pool with `lvextend`, using --poolmetadatasize
+                if it is metadata.
+
+  # --- ThinPoolFilling: quiet for the pools as they were on 2026-09-20 -----
+  # pve/data at 22.76 % before alexander moved off it, large_data nearly empty.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "22.76x20"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "1.2x20"
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "11.4x20"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "0.98x20"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: ThinPoolFilling
+        exp_alerts: []
+
+  # --- ThinPoolWillFillIn24h: fires on a pool climbing past 70 % ----------
+  # 60 % rising 0.3 points every five minutes: 81.6 % at six hours and a day
+  # from full at that rate.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "60+0.3x72"
+    alert_rule_test:
+      - eval_time: 6h
+        alertname: ThinPoolWillFillIn24h
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              vg: large_data
+              pool: large_data
+              component: host
+              severity: critical
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: thin pool large_data/large_data will fill within 24 hours"
+              description: >-
+                Data use is 81.6% and has been rising fast
+                enough over six hours to reach 100% within a day. When it does, every
+                guest on this pool goes read-only at once. Find what is writing
+                (a guest filling its disk, a snapshot being kept) before extending
+                the pool; extending only buys time if the writer is not stopped.
+
+  # --- ThinPoolWillFillIn24h: quiet for a pool that is full-ish and flat ----
+  # 80 % and not moving is ThinPoolFilling's business, not a prediction.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "80x72"
+    alert_rule_test:
+      - eval_time: 6h
+        alertname: ThinPoolWillFillIn24h
+        exp_alerts: []
+
+  # --- ThinPoolStateStale: fires when the file stops being rewritten -------
+  # The mtime tracks the clock for an hour, then freezes at 3600: the shape of
+  # a collector that died, or an lvs that failed and wrote nothing.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="node",file="/var/lib/node_exporter/textfile_collector/thin-pool-state.prom"}'
+        values: "0+300x12 3600x24"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: ThinPoolStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: node
+              file: /var/lib/node_exporter/textfile_collector/thin-pool-state.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman has not rewritten its thin-pool state in an hour"
+              description: >-
+                /var/lib/node_exporter/textfile_collector/thin-pool-state.prom is
+                2h 0m 0s old, so ThinPoolFilling and ThinPoolWillFillIn24h are
+                reading stale numbers for this host. Check
+                homelab-thin-pool-state.timer and `journalctl -u
+                homelab-thin-pool-state` on the host: a failed lvs says so there
+                and writes nothing.
+
+  # --- ThinPoolStateStale: quiet while the timer keeps rewriting it --------
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="node",file="/var/lib/node_exporter/textfile_collector/thin-pool-state.prom"}'
+        values: "0+300x36"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: ThinPoolStateStale
+        exp_alerts: []

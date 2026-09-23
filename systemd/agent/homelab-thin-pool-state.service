@@ -1,0 +1,35 @@
+# How full this hypervisor's LVM-thin pools are (#538).
+#
+# WHAT IT IS FOR. A thin pool is not a filesystem, so node_filesystem_* never
+# sees one, and HostDiskCritical and HostDiskWillFillIn24h cannot fire for a
+# pool. On Saruman a full pool makes every guest on it read-only at once. This
+# writes each pool's data and metadata use to a textfile the agent already reads.
+#
+# ROOT BECAUSE lvs NEEDS IT. It reads the device mapper, and the textfile
+# directory on an agent host is root-owned too.
+#
+# HARDENING: guest-state's set, and for a different reason. lvs needs /dev and
+# the LVM lock and run directories as the host sees them, and PrivateDevices or
+# ProtectSystem=strict can hide or refuse exactly those. Nothing here creates a
+# mount namespace; what is left stops privilege gain and setuid binaries.
+[Unit]
+Description=HomeLab: record how full this hypervisor's thin pools are
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/lvs
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-thin-pool-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-thin-pool-state

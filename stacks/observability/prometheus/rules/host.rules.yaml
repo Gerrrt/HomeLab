@@ -604,6 +604,94 @@ groups:
             /var/lib/node_exporter/textfile_collector/guest-state.prom is being
             written and is world-readable.
 
+      # --- Hypervisor thin pools, the disks node_filesystem cannot see (#538)
+      #
+      # A thin pool is not a filesystem, so HostDiskCritical and
+      # HostDiskWillFillIn24h are structurally blind to it, and a full pool
+      # makes every guest on it read-only at once. scripts/collect-thin-pool-state.sh
+      # reads `lvs` on the hypervisor. So disk alerts on Saruman come in two
+      # kinds: filesystems from node_exporter, pools from that collector.
+
+      - alert: ThinPoolFilling
+        # Data or metadata above its threshold, whichever it is. One alert with
+        # a `usage` label rather than two: the fix is the same shape (free or
+        # extend the pool), and what differs is which number, so the label says
+        # which.
+        #
+        # METADATA IS HELD LOWER, 70 against 85. Data full stops writes into
+        # unallocated space; metadata full can leave the pool needing
+        # `lvconvert --repair` before any guest on it starts again, and it is
+        # the half nobody watches because the PVE GUI shows only data.
+        expr: >-
+          label_replace(homelab_thin_pool_data_percent > 85, "usage", "data", "", "")
+          or
+          label_replace(homelab_thin_pool_metadata_percent > 70, "usage", "metadata", "", "")
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: capacity
+        annotations:
+          summary: >-
+            {{ $labels.host }}: thin pool {{ $labels.vg }}/{{ $labels.pool }}
+            {{ $labels.usage }} is {{ $value | printf "%.1f" }}% used
+          description: >-
+            A guest on this pool goes read-only when the pool fills, with no
+            further warning from node_exporter, which cannot see pools. `lvs
+            {{ $labels.vg }}` on the host shows the numbers. Free space inside
+            the guests (and run fstrim so discard returns it), delete unused
+            snapshots, or extend the pool with `lvextend`, using --poolmetadatasize
+            if it is metadata.
+
+      - alert: ThinPoolWillFillIn24h
+        # HostDiskWillFillIn24h's shape for a pool: a 6 h trend projected a
+        # day ahead, only once the pool is past 70 %, so a fresh restore into
+        # an empty pool does not page. The current use is on the left of the
+        # `and` so that it, not the projection, is the alert's value.
+        #
+        # CRITICAL, unlike its filesystem sibling, because the consequence is
+        # not one full disk but every guest on the pool read-only together.
+        expr: >-
+          homelab_thin_pool_data_percent > 70
+          and
+          predict_linear(homelab_thin_pool_data_percent[6h], 24 * 3600) >= 100
+        for: 30m
+        labels:
+          component: host
+          severity: critical
+          category: capacity
+        annotations:
+          summary: "{{ $labels.host }}: thin pool {{ $labels.vg }}/{{ $labels.pool }} will fill within 24 hours"
+          description: >-
+            Data use is {{ $value | printf "%.1f" }}% and has been rising fast
+            enough over six hours to reach 100% within a day. When it does, every
+            guest on this pool goes read-only at once. Find what is writing
+            (a guest filling its disk, a snapshot being kept) before extending
+            the pool; extending only buys time if the writer is not stopped.
+
+      - alert: ThinPoolStateStale
+        # The collector stopped rewriting its file. SmartStateStale's shape and
+        # reason: node_exporter re-serves the last .prom on every scrape, so a
+        # dead collector leaves every homelab_thin_pool_* series present and
+        # plausible, and ThinPoolFilling watching numbers from the day it
+        # died. A failed `lvs` writes nothing on purpose, so this covers that
+        # too. Six times the ten-minute timer.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*thin-pool-state\\.prom"} > 3600
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its thin-pool state in an hour"
+          description: >-
+            {{ $labels.file }} is {{ $value | humanizeDuration }} old, so
+            ThinPoolFilling and ThinPoolWillFillIn24h are reading stale numbers
+            for this host. Check homelab-thin-pool-state.timer and
+            `journalctl -u homelab-thin-pool-state` on the host: a failed lvs
+            says so there and writes nothing.
+
       - alert: SmartDriveBadSectorsGrowing
         # The signal SmartDriveBadSectors cannot give you, and the one worth
         # acting on.

@@ -218,7 +218,9 @@ Closes when Wazuh and Velociraptor report the six agents in.
   [#576](https://github.com/Gerrrt/HomeLab/issues/576)** are the host's own
   blind spots, with no order between them. #576 watches the Proxmox firewall
   that #566 turned on, so it is the one of the four that has already lost its
-  excuse for waiting.
+  excuse for waiting. #538's collector and rules are in the repository; what
+  is left is installing it on `Saruman` from the Mac and seeing both pools'
+  series arrive.
 
 ## automation
 

@@ -17,6 +17,23 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-23
+
+- **[#538](https://github.com/Gerrrt/HomeLab/issues/538): `Saruman`'s thin
+  pools get a collector and three rules, written but not yet installed.**
+  A thin pool is not a filesystem, so `HostDiskCritical` and
+  `HostDiskWillFillIn24h` could never fire for `pve/data` or
+  `large_data/large_data`. When a pool fills, every guest on it goes
+  read-only. `scripts/collect-thin-pool-state.sh` reads `lvs` every ten
+  minutes into a textfile. The installer's `COLLECTORS` table ships it, as
+  `thin-pool-state`. `ThinPoolFilling` warns at 85 % data or 70 % metadata;
+  metadata is held lower because a full one can need a repair before guests
+  start. `ThinPoolWillFillIn24h` is critical on a 6 h trend past 70 %.
+  `ThinPoolStateStale` watches the file's mtime, because a dead collector
+  leaves its last numbers being served. Every rule has a firing and a quiet
+  unit test. The issue stays open until the collector runs on `Saruman`,
+  which needs the Mac.
+
 ## 2026-09-22
 
 - **[#570](https://github.com/Gerrrt/HomeLab/issues/570): a hung exporter

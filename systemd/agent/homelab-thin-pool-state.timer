@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeLab: hypervisor thin-pool usage
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-thin-pool-state.service
+# Every 10 minutes, like guest-state and for a similar reason. ThinPoolWillFillIn24h
+# reads a 6 h predict_linear, which needs samples through the window, and a
+# pool that fills does so in hours, not days.
+OnCalendar=*:0/10
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
