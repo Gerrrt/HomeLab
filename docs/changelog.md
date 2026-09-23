@@ -33,6 +33,21 @@ docstring gives: it is a record, not a claim about now.
   table, unchanged. ADR-0027 carries a note; the roadmap, `build-the-nas.md`
   and `build-the-soc-guest.md` point at the decision. Nothing is built yet.
 
+- **[#571](https://github.com/Gerrrt/HomeLab/issues/571): `smaug`'s pool
+  moves to the chipset and the MegaRAID comes out, at the swap.** The Exos
+  pair has sat behind a 9340-8i in JBOD since the build, and its firmware's
+  error path is what `ZVTBSDL3`'s fault ran through. Five of the chipset's
+  six SATA ports are free.
+  [ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)
+  decides against IT-mode firmware, which would be a crossflash on the
+  pool's only controller with no spare card. The move needs two plain SATA
+  cables, since the only tray cable is the card's own mini-SAS breakout.
+  `replace-the-nas-disk.md` §5 now moves the surviving drive first, alone,
+  with the card and breakout going back in if the pool does not import on
+  `ahci`. §6 adds the SMART baseline re-check the new enumeration needs.
+  Nothing has moved yet; the pool is still one disk, waiting for a
+  replacement.
+
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574): steps 0 to 4 of
   `shut-down-on-the-ups.md` are built. The shutdown sequence is armed and
   not yet proved.** `morpheus` serves NUT from `mjolnir` over SNMPv3 (`apcc`

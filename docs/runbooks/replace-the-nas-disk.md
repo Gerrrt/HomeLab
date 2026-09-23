@@ -344,23 +344,44 @@ label, and the date it shipped goes in the status block.
 ## 5. Fit the replacement, resilver, scrub
 
 When a drive arrives — the seller's replacement or a purchase, whichever
-step 3 ends in. Power down as above. Fit it in the tray `ZVTBSDL3` left, on
-the same data and power leads, so a cable that was the fault is found by the
-next reading rather than hidden by a fresh one. **While the machine is at
-POST, read the card's firmware version off its banner, or from *Ctrl-R* →
-controller properties** — it is the one reading
-[#571](https://github.com/Gerrrt/HomeLab/issues/571) is still owed, and
-there is no other way to get it.
+step 3 ends in — **and the two SATA data cables have too.**
+[ADR-0052](../adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)
+moves the pool off the MegaRAID and onto the chipset's free ports during
+this step, and the only cable the trays have is the card's own mini-SAS
+breakout, which does not fit the board. Two plain SATA III cables (7-pin,
+female both ends, latching, about 50 cm) are what this step waits on besides
+the drive. The card's firmware, which this step used to read at POST, was
+read on 2026-09-22 and is in [`hardware.md`](../hardware.md).
 
-Power on, and **check that the new drive is there at all**: `lsblk` must
-show a second 18 TB device. The bays are behind a MegaRAID SAS3008, not the
-chipset (see *What is still open*), and a RAID card that is not in JBOD
-mode holds a fresh disk as *Unconfigured Good* and shows the operating
-system nothing. If `lsblk` has no new device, the card's own boot-time
-utility (`Ctrl-R` during POST on a MegaRAID) is where the disk is made a
-JBOD, and that reading — the card's firmware, its mode — goes in
-[`hardware.md`](../hardware.md) the same evening. Then **read the new drive
-before trusting it**, §2-style:
+**First, the surviving drive alone.** Power down as above. Unplug the
+breakout from `ZVTBS4NL`, connect it to a free chipset SATA port with one of
+the new cables, and take the card out with the breakout still attached.
+Power on with the pool still one-legged and check three things:
+
+```bash
+lsblk -o NAME,SIZE,SERIAL
+dmesg | grep -E 'ahci|ata[0-9]+: SATA link up'
+zpool status erebor
+```
+
+`ZVTBS4NL` is in `lsblk`, `dmesg` puts it on `ahci` with `SATA link up
+6.0 Gbps`, `lspci -nn` no longer lists `1000:005f`, and `erebor` has
+imported with that member `ONLINE` and the missing one `OFFLINE` — the same
+`DEGRADED` it was in before. ZFS finds its members by label, not by path or
+controller, so nothing else should have changed. **If the pool did not
+import, or the drive is not on `ahci`:** power down, put the card and the
+breakout back exactly as they were, and carry on with the card. Moving a
+cable writes nothing. That is ADR-0052's fallback, and `hardware.md` then
+records the card as the arrangement by decision.
+
+**Then the replacement.** Power down. Fit it in the tray `ZVTBSDL3` left,
+on the same power lead and the second new data cable, to a second chipset
+port. Power on, and **check that the new drive is there at all**: `lsblk`
+must show a second 18 TB device. On the chipset a new disk appears as
+soon as it is powered, with no RAID utility in the way. (On the card, had
+the fallback applied, a disk not yet in JBOD shows as *Unconfigured Good*
+and the operating system sees nothing; `Ctrl-R` at POST is where it is made
+a JBOD.) Then **read the new drive before trusting it**, §2-style:
 
 ```bash
 smartctl -a /dev/sdX
@@ -401,7 +422,17 @@ line.
   readings, the outcome of the return and which wipe path step 4 took;
   [`build-the-nas.md`](build-the-nas.md) §7's `zpool status` line is true
   again
-- [#558](https://github.com/Gerrrt/HomeLab/issues/558) closes on this list
+- The SMART baseline row still names the boot SSD. All three disks are on
+  the chipset now, so the letters may have moved: re-run
+  `collect-smart-state.sh --print --host smaug` as
+  [`build-the-nas.md`](build-the-nas.md) §6.7 says, check which
+  `/dev/sdX` carries `model="INTEL SSDSC2BB240G7"`, and correct the row if
+  it is no longer `sdc` (ADR-0047's consequences say why it matters)
+- `lspci -nn` has no `1000:005f`, and [`hardware.md`](../hardware.md)
+  describes the path from bay to ZFS as the chipset AHCI, or as the card
+  if ADR-0052's fallback applied
+- [#558](https://github.com/Gerrrt/HomeLab/issues/558) and
+  [#571](https://github.com/Gerrrt/HomeLab/issues/571) close on this list
 
 ## What is still open
 
@@ -454,11 +485,12 @@ line.
   path, and ZFS waited on them. The firmware version is not in sysfs and
   TrueNAS ships no `storcli`, so it was **read at step 4 on 2026-09-22** in
   the UEFI setup's *Controller Management* page: a **9340-8i**, package
-  24.16.0-0104, firmware 4.660.01-8219. Whether to leave the
-  card as it is, flash the 3008 to IT firmware (`1000:0097`), or cable the
-  bays to the chipset's free `SATA0`–`SATA3` and take the card out is a
-  decision for [#558](https://github.com/Gerrrt/HomeLab/issues/558) after
-  the swap, not before it.
+  24.16.0-0104, firmware 4.660.01-8219. **Decided 2026-09-23:** the
+  bays go to the chipset's free ports and the card comes out, at step 5,
+  with the fallback to the card if the pool does not import there
+  ([ADR-0052](../adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md),
+  [#571](https://github.com/Gerrrt/HomeLab/issues/571)). Not IT firmware:
+  a crossflash on the pool's only controller, with no spare card.
 - **The replacement decision is the seller's first.** The return is open
   since 2026-09-20; refund or replacement is chosen after the faulted disk
   lands with them. A replacement means no purchase; a refund means an 18 TB
