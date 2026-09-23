@@ -1148,6 +1148,321 @@ tests:
         alertname: GuestStateStopped
         exp_alerts: []
 
+  # --- ThinPoolNearlyFull: data, on the pool that carries alexander ---------
+  # Both of Saruman's pools are in every thin-pool fixture, so a rule that
+  # fired for the wrong pool, or for both, would fail rather than pass.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "90x60"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "5x60"
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "22x60"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "2x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: ThinPoolNearlyFull
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              vg: large_data
+              pool: large_data
+              part: data
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: thin pool large_data/large_data data is 90% allocated"
+              description: >-
+                When a thin pool fills, every guest on it goes read-only. `lvs
+                large_data` on the host shows the pool and the volumes in it.
+                Discard inside the guests (`fstrim -av`) returns freed blocks if
+                the disks have discard=on; otherwise remove a snapshot or a
+                volume, or extend the pool. For metadata, `lvextend
+                --poolmetadatasize`.
+
+  # --- ThinPoolNearlyFull: metadata alone, at a lower threshold -------------
+  # 75 % metadata with the data half nearly empty. Metadata is held to 70 %,
+  # so this is the case that keeps the lower threshold honest.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "20x60"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "75x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: ThinPoolNearlyFull
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              vg: pve
+              pool: data
+              part: metadata
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: thin pool pve/data metadata is 75% allocated"
+              description: >-
+                When a thin pool fills, every guest on it goes read-only. `lvs
+                pve` on the host shows the pool and the volumes in it. Discard
+                inside the guests (`fstrim -av`) returns freed blocks if the
+                disks have discard=on; otherwise remove a snapshot or a volume,
+                or extend the pool. For metadata, `lvextend --poolmetadatasize`.
+
+  # --- ThinPoolNearlyFull: quiet just under both thresholds -----------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "84x60"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "69x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: ThinPoolNearlyFull
+        exp_alerts: []
+
+  # --- ThinPoolWillFillIn24h: fires on a pool climbing past half ------------
+  # 60 % and gaining 0.2 points every five minutes — 57.6 a day. At 7h it
+  # reads 76.8 and extrapolates past 100, and has done for over an hour.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "60+0.2x100"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "3x100"
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "22x100"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "2x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: ThinPoolWillFillIn24h
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              vg: large_data
+              pool: large_data
+              part: data
+              component: host
+              severity: critical
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: thin pool large_data/large_data data fills within 24h"
+              description: >-
+                Extrapolating the last six hours, this pool's data reaches
+                100 % within a day, and at 100 % every guest on it goes
+                read-only. Find what is writing before freeing space: `lvs
+                large_data` on the host, sorted by Data%.
+
+  # --- ThinPoolWillFillIn24h: quiet for a full pool that is not moving ------
+  # 86 % and flat is ThinPoolNearlyFull's business, not a page.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "86x100"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: ThinPoolWillFillIn24h
+        exp_alerts: []
+
+  # --- ThinPoolWillFillIn24h: quiet for a step on a nearly empty pool -------
+  # A new 100 GiB guest disk written out on an empty pool is a step, and
+  # predict_linear reads a step as a steep slope. The 50 % guard is what keeps
+  # this quiet; delete it and this case fails.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "10x60 45x40"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: ThinPoolWillFillIn24h
+        exp_alerts: []
+
+  # --- ThinPoolStateStopped: fires when the reading freezes -----------------
+  # The timestamp follows the clock for two hours, then stops at 7200 — the
+  # shape of a stopped timer, whose .prom is still served. The series stays
+  # PRESENT; only the value stops moving, which is why presence cannot be the
+  # test.
+  # interval 5m, not the timer's 10m: Prometheus's lookback is 5m, and a
+  # coarser fixture leaves evaluations with no sample for `for` to count.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pools_last_run_timestamp_seconds{host="Saruman"}'
+        values: "0+300x24 7200x40"
+    alert_rule_test:
+      - eval_time: 200m
+        alertname: ThinPoolStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman has stopped reporting its thin pools"
+              description: >-
+                The last reading of the pools is over an hour old, so
+                ThinPoolNearlyFull and ThinPoolWillFillIn24h are reading stale
+                numbers. `systemctl status homelab-thin-pools.service` on the
+                host says whether the timer stopped or `lvs` is failing; the
+                collector writes nothing rather than a wrong answer when it
+                cannot read.
+
+  # --- ThinPoolStateStopped: quiet while the timestamp keeps moving ---------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pools_last_run_timestamp_seconds{host="Saruman"}'
+        values: "0+300x80"
+    alert_rule_test:
+      - eval_time: 200m
+        alertname: ThinPoolStateStopped
+        exp_alerts: []
+
+  # --- PveFirewallDisabled: fires on a `pve-firewall stop` left behind ------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "1x10 0x30"
+      - series: 'homelab_pve_firewall_policy_drop{host="Saruman"}'
+        values: "1x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PveFirewallDisabled
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              reason: disabled
+              component: host
+              severity: critical
+              category: security
+            exp_annotations:
+              summary: "Saruman: the Proxmox firewall is down (disabled)"
+              description: >-
+                The hypervisor's management plane is open to everything on its
+                segment, which is the segment built to hold an attacker
+                (ADR-0014). `pve-firewall status` and `grep policy_in
+                /etc/pve/firewall/cluster.fw` on the host say which; §4 of
+                docs/runbooks/build-the-playground.md is the order to restore
+                it, with the console to hand.
+
+  # --- PveFirewallDisabled: fires on enabled with policy_in ACCEPT ----------
+  # The status line reads on. This is the case a status-only rule would miss.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "1x40"
+      - series: 'homelab_pve_firewall_policy_drop{host="Saruman"}'
+        values: "1x10 0x30"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PveFirewallDisabled
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              reason: policy_accept
+              component: host
+              severity: critical
+              category: security
+            exp_annotations:
+              summary: "Saruman: the Proxmox firewall is down (policy_accept)"
+              description: >-
+                The hypervisor's management plane is open to everything on its
+                segment, which is the segment built to hold an attacker
+                (ADR-0014). `pve-firewall status` and `grep policy_in
+                /etc/pve/firewall/cluster.fw` on the host say which; §4 of
+                docs/runbooks/build-the-playground.md is the order to restore
+                it, with the console to hand.
+
+  # --- PveFirewallDisabled: off AND permissive fires once, not twice --------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "0x40"
+      - series: 'homelab_pve_firewall_policy_drop{host="Saruman"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PveFirewallDisabled
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              reason: disabled
+              component: host
+              severity: critical
+              category: security
+            exp_annotations:
+              summary: "Saruman: the Proxmox firewall is down (disabled)"
+              description: >-
+                The hypervisor's management plane is open to everything on its
+                segment, which is the segment built to hold an attacker
+                (ADR-0014). `pve-firewall status` and `grep policy_in
+                /etc/pve/firewall/cluster.fw` on the host say which; §4 of
+                docs/runbooks/build-the-playground.md is the order to restore
+                it, with the console to hand.
+
+  # --- PveFirewallDisabled: quiet for a stop and start inside ten minutes ---
+  # The deliberate proof in the runbook is a stop, a wait and a start. A
+  # restart for a config reload must not page; this keeps `for: 10m` honest.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "1x10 0x5 1x30"
+      - series: 'homelab_pve_firewall_policy_drop{host="Saruman"}'
+        values: "1x45"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PveFirewallDisabled
+        exp_alerts: []
+
+  # --- PveFirewallDisabled: quiet with the wall up --------------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "1x40"
+      - series: 'homelab_pve_firewall_policy_drop{host="Saruman"}'
+        values: "1x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PveFirewallDisabled
+        exp_alerts: []
+
+  # --- PveFirewallStateStopped: fires when the reading freezes --------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_pve_firewall_last_run_timestamp_seconds{host="Saruman"}'
+        values: "0+300x6 1800x20"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: PveFirewallStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman has stopped reporting its firewall state"
+              description: >-
+                The last reading is over thirty minutes old, so
+                PveFirewallDisabled cannot see this host. `systemctl status
+                homelab-pve-firewall.service` on the host says whether the timer
+                stopped or the collector is refusing an answer it does not
+                recognise.
+
+  # --- PveFirewallStateStopped: quiet while the timestamp keeps moving ------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_pve_firewall_last_run_timestamp_seconds{host="Saruman"}'
+        values: "0+300x30"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: PveFirewallStateStopped
+        exp_alerts: []
+
   # --- SmartDriveBadSectorsGrowing: fires when the count rises --------------
   # interval 5m because Prometheus's lookback is 5m; a coarser fixture leaves
   # evaluations with no sample in range and `for` never completes.

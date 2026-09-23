@@ -1,0 +1,38 @@
+# How full this hypervisor's LVM-thin pools are (#538).
+#
+# WHAT IT IS FOR. A thin pool is not a filesystem, so node_exporter never sees
+# one and HostDiskCritical cannot fire for it. A pool that fills makes every
+# guest on it read-only at once; on `Saruman` that is `alexander`, on
+# `large_data`. The collector reads `lvs` and writes the pools' data and
+# metadata use into the textfile directory the Alloy agent already reads.
+#
+# ROOT FOR THE READING THIS TIME, not only for the directory: `lvs` opens the
+# block devices.
+#
+# HARDENING AS LIGHT AS homelab-guest-state.service, for a reason of the same
+# kind. `lvs` needs /dev and /run/lvm as the host sees them, and the directives
+# that create a mount namespace — ProtectSystem, PrivateTmp, PrivateDevices and
+# the ProtectKernel* family — are the ones that can hide either. The guest-state
+# unit reported zero guests on its first run for that class of reason; this one
+# starts without them rather than repeating the measurement.
+[Unit]
+Description=HomeLab: record how full this host's LVM-thin pools are
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/lvs
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-thin-pools
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-thin-pools

@@ -39,9 +39,10 @@
 # instead, alerting when a host that WAS reporting stops.
 #
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
-# (#360), smart-state (#351), pve-version (#311), guest-state (#257) and
-# drift-check (#470). Adding one is a row plus a unit under systemd/agent/, not
-# a new script: the first version of this was install-agent-collectors.sh and
+# (#360), smart-state (#351), pve-version (#311), guest-state (#257),
+# thin-pools (#538), pve-firewall (#576) and drift-check (#470). Adding one
+# is a row plus a unit under systemd/agent/, not a new script: the first
+# version of this was install-agent-collectors.sh and
 # hardcoded one job, which lasted exactly as long as it took for the second
 # collector to need shipping.
 #
@@ -82,6 +83,8 @@ COLLECTORS=(
   "smart-state scripts/collect-smart-state.sh   smart-state-HOST.prom  /usr/sbin/smartctl"
   "pve-version scripts/collect-pve-version.sh   pve-version.prom       /usr/bin/pveversion"
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
+  "thin-pools  scripts/collect-thin-pools.sh    thin-pools.prom        /usr/sbin/lvs"
+  "pve-firewall scripts/collect-pve-firewall.sh pve-firewall.prom      /usr/sbin/pve-firewall"
   "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
 )
 

@@ -671,17 +671,27 @@ and adds write amplification on flash for a capability this host does not use.
 LVM-thin gives snapshots, thin provisioning and discard pass-through, and is
 what [`build-the-lab-guest.md`](build-the-lab-guest.md) already assumes.
 
-> **One new blind spot, recorded rather than fixed.** A thin pool is not a
+> **A blind spot, and the collector that covers it.** A thin pool is not a
 > filesystem, so `node_filesystem_*` never sees it — `Saruman` reports only
 > `/`, `/boot/efi` and `/etc/pve`. `HostDiskCritical` and
-> `HostDiskWillFillIn24h` are therefore **structurally blind** to the new pool,
-> and a thin pool that fills makes every guest on it read-only. Either do not
-> overprovision, or give the pool a textfile collector beside the existing
-> `collect-guest-state.sh`. This is the same shape of gap as
-> [#351](https://github.com/Gerrrt/HomeLab/issues/351) and deserves its own
-> issue, not a step here: [#538](https://github.com/Gerrrt/HomeLab/issues/538),
-> opened 2026-09-19 with `large_data` live and nothing on it yet, which is the
-> cheapest moment to close it.
+> `HostDiskWillFillIn24h` are therefore **structurally blind** to both pools,
+> and a thin pool that fills makes every guest on it read-only. This was
+> recorded on the day as the same shape of gap as
+> [#351](https://github.com/Gerrrt/HomeLab/issues/351), and it is covered by
+> `scripts/collect-thin-pools.sh`
+> ([#538](https://github.com/Gerrrt/HomeLab/issues/538)). The collector sits
+> beside `collect-guest-state.sh` and writes each pool's data and metadata use
+> from `lvs`. `ThinPoolNearlyFull` (warning) and `ThinPoolWillFillIn24h`
+> (critical) read that output, and `ThinPoolStateStopped` fires if the reading
+> stops. If you rebuild the pools, check that both appear:
+>
+> ```promql
+> homelab_thin_pool_data_percent{host="Saruman"}
+> ```
+>
+> This should return two series, `vg="pve"` and `vg="large_data"`. If it
+> returns none, the collector has not been installed. Install it from the Mac:
+> `make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only thin-pools'`.
 
 ## 8. Measure what the array actually does — both of them
 
@@ -921,6 +931,7 @@ and it is what the roadmap entry should record.
 | `SnmpScrapeSlow` | Will not fire. The walk gains two drives and one logical drive: expect roughly 13–17 s against a 30 s threshold | **No**, but put before and after in the table |
 | `SmartDrive*` (`host.rules.yaml`) | Will not fire — `collect-smart-state.sh` excludes `Saruman` by design, because the iLO already walks its array | **No** |
 | `HostDiskCritical` / `HostDiskWillFillIn24h` | Cannot fire for the new pool — see step 7's blind spot | **No** |
+| `ThinPoolNearlyFull` / `ThinPoolWillFillIn24h` (#538, added after this job) | These are the rules that can see the pool. A fresh pool reads a few percent and will not fire. Creating or moving a large guest disk is a step, which the 24h rule's 50 % guard keeps from paging | **No** |
 
 ## 11. Confirm the metrics actually moved — on `prometheus`
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeLab: Proxmox firewall state
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-pve-firewall.service
+# Every 5 minutes, the tightest of the agent collectors, because this one is a
+# security control rather than a capacity trend. PveFirewallDisabled waits ten
+# minutes, so a firewall stopped and forgotten pages within about fifteen.
+OnCalendar=*:0/5
+RandomizedDelaySec=30
+Persistent=true
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

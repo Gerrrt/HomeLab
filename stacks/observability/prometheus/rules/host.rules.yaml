@@ -604,6 +604,167 @@ groups:
             /var/lib/node_exporter/textfile_collector/guest-state.prom is being
             written and is world-readable.
 
+      # --- LVM-thin pools, which no filesystem rule can see (#538) ----------
+      #
+      # A thin pool is not a filesystem, so node_filesystem_* never reports
+      # one and HostDiskCritical / HostDiskWillFillIn24h are structurally
+      # blind to it. On Saruman that is `pve/data` and `large_data/large_data`,
+      # and a pool that fills makes every guest on it read-only at once. So
+      # disk alerts on a hypervisor come in two kinds: filesystems from
+      # node_exporter, pools from scripts/collect-thin-pools.sh.
+      #
+      # DATA AND METADATA, WITH METADATA HELD LOWER. Data full stops writes.
+      # Metadata full can leave the pool needing `lvconvert --repair`, and it
+      # is the half neither `pvesm status` nor the Proxmox UI shows. Each rule
+      # carries a `part` label saying which of the two it is about, so one
+      # alertname covers both without the annotation guessing.
+
+      - alert: ThinPoolNearlyFull
+        # 85 % data, 70 % metadata, for half an hour. Thin provisioning makes
+        # a high number more dangerous than it looks on a filesystem: the
+        # guests have been promised more than the pool holds, and none of them
+        # knows it is sharing.
+        expr: >-
+          label_replace(homelab_thin_pool_data_percent > 85, "part", "data", "", "")
+          or
+          label_replace(homelab_thin_pool_metadata_percent > 70, "part", "metadata", "", "")
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: capacity
+        annotations:
+          summary: >-
+            {{ $labels.host }}: thin pool {{ $labels.vg }}/{{ $labels.pool }}
+            {{ $labels.part }} is {{ $value | printf "%.0f" }}% allocated
+          description: >-
+            When a thin pool fills, every guest on it goes read-only. `lvs
+            {{ $labels.vg }}` on the host shows the pool and the volumes in it.
+            Discard inside the guests (`fstrim -av`) returns freed blocks if
+            the disks have discard=on; otherwise remove a snapshot or a volume,
+            or extend the pool. For metadata, `lvextend --poolmetadatasize`.
+
+      - alert: ThinPoolWillFillIn24h
+        # Predictive, in the shape of HostDiskWillFillIn24h: a pool at 60 %
+        # and climbing fast is the emergency, one at 86 % and stable is not.
+        # CRITICAL rather than warning, because the consequence is every guest
+        # on the pool going read-only together. The guard (data above half,
+        # metadata above 40 %) keeps a large volume created on an empty pool —
+        # a step, which predict_linear reads as a slope — from paging.
+        expr: >-
+          label_replace(
+            predict_linear(homelab_thin_pool_data_percent[6h], 24 * 3600) >= 100
+            and on (host, vg, pool) homelab_thin_pool_data_percent > 50,
+            "part", "data", "", "")
+          or
+          label_replace(
+            predict_linear(homelab_thin_pool_metadata_percent[6h], 24 * 3600) >= 100
+            and on (host, vg, pool) homelab_thin_pool_metadata_percent > 40,
+            "part", "metadata", "", "")
+        for: 1h
+        labels:
+          component: host
+          severity: critical
+          category: capacity
+        annotations:
+          summary: >-
+            {{ $labels.host }}: thin pool {{ $labels.vg }}/{{ $labels.pool }}
+            {{ $labels.part }} fills within 24h
+          description: >-
+            Extrapolating the last six hours, this pool's {{ $labels.part }}
+            reaches 100 % within a day, and at 100 % every guest on it goes
+            read-only. Find what is writing before freeing space: `lvs
+            {{ $labels.vg }}` on the host, sorted by Data%.
+
+      - alert: ThinPoolStateStopped
+        # The collector stopped. A TIMESTAMP, not presence, for the reason
+        # DriftCheckStopped gives: the .prom file persists and node_exporter
+        # re-serves it, so a stopped timer leaves the pool percentages present
+        # and frozen at their last value — a pool that is filling would read
+        # as one that is fine. An hour against a ten-minute timer is six
+        # missed runs. A host that never had the collector has no timestamp
+        # and stays quiet.
+        expr: time() - homelab_thin_pools_last_run_timestamp_seconds > 3600
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting its thin pools"
+          description: >-
+            The last reading of the pools is over an hour old, so
+            ThinPoolNearlyFull and ThinPoolWillFillIn24h are reading stale
+            numbers. `systemctl status homelab-thin-pools.service` on the host
+            says whether the timer stopped or `lvs` is failing; the collector
+            writes nothing rather than a wrong answer when it cannot read.
+
+      # --- The Proxmox firewall, on and holding a wall (#576) ----------------
+      #
+      # #566 found Saruman's firewall disabled while ADR-0014 and ADR-0043
+      # described its rule as standing, and turned it on. Applying a control
+      # and proving it stays applied are different work, and the second is
+      # the one this repository keeps finding missing.
+
+      - alert: PveFirewallDisabled
+        # Two ways the wall is down, told apart by `reason`:
+        #
+        #   disabled       `pve-firewall status` is not enabled/running —
+        #                  a `pve-firewall stop` left behind, an upgrade that
+        #                  rewrote the config, the #566 state.
+        #   policy_accept  enabled, but cluster.fw's policy_in is ACCEPT. The
+        #                  status line reads on and the whole lab segment
+        #                  reaches 8006. It is the intermediate step of
+        #                  build-the-playground.md §4 and the easy one to be
+        #                  left in.
+        #
+        # The second is only evaluated while the first is false, so a firewall
+        # that is both off and permissive fires once.
+        #
+        # CRITICAL AND SECURITY, so it reaches the security receiver on an
+        # hourly repeat. Ten minutes rides out a deliberate stop and start,
+        # which is how the rule is proved.
+        expr: >-
+          label_replace(homelab_pve_firewall_enabled == 0, "reason", "disabled", "", "")
+          or
+          label_replace(
+            homelab_pve_firewall_policy_drop == 0
+            and on (host) homelab_pve_firewall_enabled == 1,
+            "reason", "policy_accept", "", "")
+        for: 10m
+        labels:
+          component: host
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: the Proxmox firewall is down ({{ $labels.reason }})"
+          description: >-
+            The hypervisor's management plane is open to everything on its
+            segment, which is the segment built to hold an attacker (ADR-0014).
+            `pve-firewall status` and `grep policy_in
+            /etc/pve/firewall/cluster.fw` on the host say which; §4 of
+            docs/runbooks/build-the-playground.md is the order to restore it,
+            with the console to hand.
+
+      - alert: PveFirewallStateStopped
+        # The collector stopped. A timestamp, for ThinPoolStateStopped's
+        # reason: a frozen `enabled 1` is exactly what a firewall turned off
+        # after the timer died would look like. Thirty minutes against a
+        # five-minute timer is six missed runs.
+        expr: time() - homelab_pve_firewall_last_run_timestamp_seconds > 1800
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting its firewall state"
+          description: >-
+            The last reading is over thirty minutes old, so PveFirewallDisabled
+            cannot see this host. `systemctl status homelab-pve-firewall.service`
+            on the host says whether the timer stopped or the collector is
+            refusing an answer it does not recognise.
+
       - alert: SmartDriveBadSectorsGrowing
         # The signal SmartDriveBadSectors cannot give you, and the one worth
         # acting on.

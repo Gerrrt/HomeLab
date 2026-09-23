@@ -216,9 +216,11 @@ Closes when Wazuh and Velociraptor report the six agents in.
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
   [#562](https://github.com/Gerrrt/HomeLab/issues/562) and
   [#576](https://github.com/Gerrrt/HomeLab/issues/576)** are the host's own
-  blind spots, with no order between them. #576 watches the Proxmox firewall
-  that #566 turned on, so it is the one of the four that has already lost its
-  excuse for waiting.
+  blind spots, with no order between them. #538 and #576 have their
+  collectors, rules and tests in the repository (`collect-thin-pools.sh`,
+  `collect-pve-firewall.sh`). What each still needs is at the Mac: the install
+  on `Saruman`, then for #576 one deliberate `pve-firewall stop` to see the
+  page arrive.
 
 ## automation
 

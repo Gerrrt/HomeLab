@@ -25,6 +25,11 @@
 #                             the PVE version (#311)
 #   collect-guest-state.sh    qm list, same unreachable host; a stopped guest has
 #                             no PID column and a guest name can contain a space
+#   collect-thin-pools.sh     lvs, same host; a guest's thin volume carries a
+#                             Data% of its own and must not be read as a pool (#538)
+#   collect-pve-firewall.sh   pve-firewall status and the .fw files, same host;
+#                             policy_in ACCEPT reads enabled and admits the whole
+#                             segment, the state a status line cannot show (#576)
 #   collect-gateway-state.sh  the gateway parse, for morpheus
 #   collect-smart-state.sh    the collector that shipped WITHOUT fixtures and then
 #                             produced a real defect (#483); two fixtures are what

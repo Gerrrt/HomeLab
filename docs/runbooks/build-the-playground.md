@@ -324,6 +324,25 @@ up{instance="Saruman"}
 reads as a failure when nothing is wrong. Both jobs, `Saruman-metrics` and
 `Saruman-alloy`, should be at `1`.
 
+**Then make sure something will notice if it goes off again.** A probe with
+`nc` proves the firewall is up once. What keeps checking is the `pve-firewall`
+collector ([#576](https://github.com/Gerrrt/HomeLab/issues/576)), put on the
+host from the Mac, which is the one machine that reaches VLAN 30, with
+`make install-agent-collectors AGENT=root@<host> ARGS='--only pve-firewall'`.
+It records three readings, and each one should look like this:
+
+| Series | Expect | If not |
+| --- | --- | --- |
+| `homelab_pve_firewall_enabled{host="Saruman"}` | `1` | The firewall is not `enabled/running`. `PveFirewallDisabled` fires after ten minutes, critical, `reason="disabled"` |
+| `homelab_pve_firewall_policy_drop{host="Saruman"}` | `1` | `policy_in` is still `ACCEPT` from the step above. Same alert, `reason="policy_accept"` |
+| `homelab_pve_firewall_rules{host="Saruman",file="host"}` | `4` (`3` on `ifrit`) | `host.fw` is missing, mis-cased, or its lines are disabled with `\|`. Nothing alerts on this count; it is here so you can read it |
+
+Prove the alert fires once, on purpose, before trusting it:
+`pve-firewall stop`, wait fifteen minutes (the timer runs every five and the
+rule waits ten), see `PveFirewallDisabled` arrive, then `pve-firewall start`
+and watch it resolve. A rebuild from this runbook that skips this check is
+how #566 happened.
+
 ---
 
 ## 5. The attack VM
@@ -486,7 +505,7 @@ Addresses are parsed at query time rather than indexed, per
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Locked out of the Proxmox UI after §4 | `policy_in: DROP` with the rules unrendered, or reaching it from somewhere other than Hicks | Console via the KVM; `pve-firewall stop` |
+| Locked out of the Proxmox UI after §4 | `policy_in: DROP` with the rules unrendered, or reaching it from somewhere other than Hicks | Console via the KVM; `pve-firewall stop`. `PveFirewallDisabled` pages ten minutes later, and it should: that page is what stops the stop from being forgotten |
 | §4 done, and the whole segment still reaches `8006` | The `local_network` alias was not narrowed, so the auto-detected `/24` is in the `management` IP set | `pve-firewall localnet`; §4's alias block |
 | `pve-firewall compile` prints nothing but `firewall disabled` | It renders only while enabled, so this is the off state rather than a broken file | Enable with `policy_in: ACCEPT` first, per §4's CAUTION |
 | `up{instance="saruman"}` returns no data after §4 | The label is capitalised; the series is `Saruman` | Not a firewall problem. Outbound is unaffected by `policy_in` |

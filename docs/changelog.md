@@ -17,6 +17,26 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-23
+
+- **[#538](https://github.com/Gerrrt/HomeLab/issues/538) and
+  [#576](https://github.com/Gerrrt/HomeLab/issues/576): two new collectors
+  for `Saruman`, written and tested here, not yet installed.**
+  `scripts/collect-thin-pools.sh` reads `lvs` and writes each LVM-thin pool's
+  data and metadata use. `ThinPoolNearlyFull` (85 % data or 70 % metadata)
+  and `ThinPoolWillFillIn24h` (critical) read that output, and no filesystem
+  rule can see a pool. `scripts/collect-pve-firewall.sh` reads whether the
+  Proxmox firewall is `enabled/running`, whether `policy_in` drops, and how
+  many rules each file holds. `PveFirewallDisabled` fires, critical and
+  routed to security, on the #566 state and on a firewall left at
+  `policy_in: ACCEPT`, which reads as on. Each collector writes a last-run
+  timestamp, and its `*StateStopped` rule reads that timestamp rather than
+  whether the series is present. The reason is the one `DriftCheckStopped`
+  already gave: the `.prom` file persists, so a stopped timer leaves its old
+  reading in place. The five rules bring Prometheus to 101 and are all
+  unit-tested. Both issues stay open until the install from the Mac, and
+  #576 also waits on one deliberate stop and start.
+
 ## 2026-09-22
 
 - **[#570](https://github.com/Gerrrt/HomeLab/issues/570): a hung exporter

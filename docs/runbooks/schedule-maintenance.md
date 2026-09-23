@@ -154,7 +154,7 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
-`guest-state` and `drift-check` — and checks each host's requirements **per
+`guest-state`, `thin-pools`, `pve-firewall` and `drift-check` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
 it.
@@ -222,6 +222,21 @@ rediscovered.
 estate cannot tell a deliberate shutdown from a crash and should not pretend to.
 `GuestStateStopped` covers the collector itself going silent, since "no guests"
 is a legitimate answer and therefore a dangerous silence.
+
+**`thin-pools` and `pve-firewall` are the hypervisor's own blind spots,** and
+both run on `Saruman` beside `guest-state`. `thin-pools` reads `lvs` for each
+LVM-thin pool's data and metadata use, because a pool is not a filesystem and
+no `node_filesystem_*` rule can see one filling
+([#538](https://github.com/Gerrrt/HomeLab/issues/538)). `pve-firewall` records
+whether `pve-firewall status` reads `enabled/running`, whether `cluster.fw`'s
+`policy_in` drops, and how many rules each file holds, so the firewall #566
+turned on is watched rather than checked once
+([#576](https://github.com/Gerrrt/HomeLab/issues/576)). They run every ten and
+every five minutes. Each one writes a last-run timestamp, and
+`ThinPoolStateStopped` and `PveFirewallStateStopped` read that timestamp, not
+whether the series is present. That is `DriftCheckStopped`'s lesson: the
+`.prom` file persists, so a stopped timer leaves a frozen reading in place, and
+a frozen reading looks like a healthy one.
 
 **It needs root on the target, which is not the same as needing `sudo`.** The
 estate has both shapes and the installer picks per host, from the login user's
