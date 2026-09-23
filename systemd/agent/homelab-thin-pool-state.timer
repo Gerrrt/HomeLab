@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: hypervisor thin-pool usage
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-thin-pool-state.service
+# Every 10 minutes, guest-state's cadence and for a similar reason: this feeds
+# a predict_linear over six hours, which wants many points, and a pool that
+# fills fast is the case that matters. ThinPoolStateStale waits an hour, six
+# missed runs, so a reboot does not page.
+OnCalendar=*:0/10
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

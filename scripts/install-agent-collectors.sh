@@ -39,11 +39,12 @@
 # instead, alerting when a host that WAS reporting stops.
 #
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
-# (#360), smart-state (#351), pve-version (#311), guest-state (#257) and
-# drift-check (#470). Adding one is a row plus a unit under systemd/agent/, not
-# a new script: the first version of this was install-agent-collectors.sh and
-# hardcoded one job, which lasted exactly as long as it took for the second
-# collector to need shipping.
+# (#360), smart-state (#351), pve-version (#311), guest-state (#257),
+# thin-pool-state (#538), pve-firewall-state (#576) and drift-check (#470).
+# Adding one is a row plus a unit under systemd/agent/, not a new script: the
+# first version of this was install-agent-collectors.sh and hardcoded one job,
+# which lasted exactly as long as it took for the second collector to need
+# shipping.
 #
 # drift-check's requirement is not a binary but the wiki checkout's own guard
 # script, which exists on exactly the host that holds the wiki — oracle — and
@@ -82,6 +83,8 @@ COLLECTORS=(
   "smart-state scripts/collect-smart-state.sh   smart-state-HOST.prom  /usr/sbin/smartctl"
   "pve-version scripts/collect-pve-version.sh   pve-version.prom       /usr/bin/pveversion"
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
+  "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/sbin/lvs"
+  "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
   "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
 )
 

@@ -1148,6 +1148,227 @@ tests:
         alertname: GuestStateStopped
         exp_alerts: []
 
+  # --- ThinPoolNearlyFull: data and metadata, both at once ------------------
+  # The case label_replace exists for. Both spaces of one pool over their lines
+  # at the same time must be TWO alerts told apart by `space`; without it the
+  # `or` hands the rule two samples with one label set and the evaluation fails.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "85x20"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "65x20"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: ThinPoolNearlyFull
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              vg: large_data
+              pool: large_data
+              space: data
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: thin pool large_data/large_data data is 85% used"
+              description: >-
+                node_filesystem_* cannot see a thin pool, so this is the only
+                warning before it fills, and a full pool makes every guest on it
+                read-only at once. `lvs large_data/large_data` on the host
+                confirms it. Delete snapshots the lab no longer needs, or extend
+                the pool; for metadata, `lvextend --poolmetadatasize`.
+          - exp_labels:
+              host: Saruman
+              vg: large_data
+              pool: large_data
+              space: metadata
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: thin pool large_data/large_data metadata is 65% used"
+              description: >-
+                node_filesystem_* cannot see a thin pool, so this is the only
+                warning before it fills, and a full pool makes every guest on it
+                read-only at once. `lvs large_data/large_data` on the host
+                confirms it. Delete snapshots the lab no longer needs, or extend
+                the pool; for metadata, `lvextend --poolmetadatasize`.
+
+  # --- ThinPoolNearlyFull: quiet under both lines ---------------------------
+  # Each just under its own line: data 75 against 80, metadata 55 against 60.
+  # Saruman's real reading on 2026-09-22 was 7.87 / 0.42.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "75x20"
+      - series: 'homelab_thin_pool_metadata_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "55x20"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: ThinPoolNearlyFull
+        exp_alerts: []
+
+  # --- ThinPoolWillFillIn24h: fires on a half-used pool climbing fast -------
+  # 55 % rising 0.2 every five minutes, 2.4 %/h. At 6h it reads 69.4 and the
+  # six-hour line puts it at 127 in a day.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "55+0.2x80"
+    alert_rule_test:
+      - eval_time: 6h
+        alertname: ThinPoolWillFillIn24h
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              vg: large_data
+              pool: large_data
+              space: data
+              component: host
+              severity: critical
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: thin pool large_data/large_data data fills within 24h"
+              description: >-
+                Over half used and, extrapolating the last six hours, full
+                within a day — at which point every guest on it goes read-only.
+                Find what is writing (`lvs -o+data_percent` per volume on the
+                host) before deciding between deleting snapshots and extending
+                the pool.
+
+  # --- ThinPoolWillFillIn24h: quiet for a steep climb from a low base ------
+  # 5 % rising 0.5 every five minutes predicts well past 100 within a day, and
+  # is a clone landing on an empty pool rather than a pool running out. The
+  # half-used guard is what keeps this from paging; and a pool that is full
+  # and stable is ThinPoolNearlyFull's case, not this one's.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="large_data",pool="large_data"}'
+        values: "5+0.5x40"
+      - series: 'homelab_thin_pool_data_percent{host="Saruman",vg="pve",pool="data"}'
+        values: "90x40"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: ThinPoolWillFillIn24h
+        exp_alerts: []
+
+  # --- ThinPoolStateStale: fires when the file stops being rewritten --------
+  # Saruman's labels as its agent pushes them. The mtime never moves, so the
+  # file is an hour old at 1h and the alert has held fifteen minutes by 1h20m.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="thin-pool-state.prom"}'
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: ThinPoolStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              file: thin-pool-state.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman has not rewritten its thin-pool state in an hour"
+              description: >-
+                The file is 1h 20m 0s old, so ThinPoolNearlyFull and
+                ThinPoolWillFillIn24h are reading old numbers. Check
+                homelab-thin-pool-state.timer on the host and its last run in
+                the journal (`journalctl -u homelab-thin-pool-state`); a failed
+                `lvs` writes nothing on purpose, so the journal says why.
+
+  # --- ThinPoolStateStale: quiet while the timer keeps rewriting it --------
+  # Rewritten every ten minutes. guest-state.prom beside it is old and must not
+  # match — the regex is the whole scope of the rule.
+  - interval: 10m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="thin-pool-state.prom"}'
+        values: "0+600x20"
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-state.prom"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: ThinPoolStateStale
+        exp_alerts: []
+
+  # --- PveFirewallDisabled: fires when a stop is left in place --------------
+  # On for ten minutes, off from 10m, and still off at 25m: fifteen minutes,
+  # past the ten `for` allows.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "1x10 0x30"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: PveFirewallDisabled
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: critical
+              category: security
+            exp_annotations:
+              summary: "Saruman's Proxmox firewall is off"
+              description: >-
+                `pve-firewall status` has not read enabled/running for ten
+                minutes, so the management plane ADR-0014 closes to Hicks is
+                open to the segment. If this is not a session in progress,
+                `pve-firewall start` and read the chain back as
+                build-the-playground.md §4 does; if it was disabled in the
+                config, check /etc/pve/firewall/cluster.fw still carries
+                `enable: 1`. homelab_pve_firewall_rules says whether the rule
+                files survived.
+
+  # --- PveFirewallDisabled: quiet for a restart inside the window -----------
+  # Off for five minutes and back — a `pve-firewall restart`, or a stop that
+  # the person doing it remembered. This is what keeps `for: 10m` honest.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "1x10 0x5 1x30"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PveFirewallDisabled
+        exp_alerts: []
+
+  # --- PveFirewallStateStale: fires when the file stops being rewritten -----
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="pve-firewall-state.prom"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: PveFirewallStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              file: pve-firewall-state.prom
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Saruman has not rewritten its firewall state recently"
+              description: >-
+                The file is 45m 0s old, so PveFirewallDisabled is reading an old
+                answer and cannot fire. Check homelab-pve-firewall-state.timer
+                on the host and `journalctl -u homelab-pve-firewall-state`; an
+                unreadable status writes nothing on purpose, so the journal
+                says why.
+
+  # --- PveFirewallStateStale: quiet while the timer keeps rewriting it ------
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="pve-firewall-state.prom"}'
+        values: "0+300x20"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: PveFirewallStateStale
+        exp_alerts: []
+
   # --- SmartDriveBadSectorsGrowing: fires when the count rises --------------
   # interval 5m because Prometheus's lookback is 5m; a coarser fixture leaves
   # evaluations with no sample in range and `for` never completes.
