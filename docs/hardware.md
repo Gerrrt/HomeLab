@@ -347,7 +347,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   one remaining Exos on drive port 0 as *JBOD*. That reading is what
   [#571](https://github.com/Gerrrt/HomeLab/issues/571) was owed. **The card
   is coming out, by decision, 2026-09-23**
-  ([ADR-0051](adr/0051-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)):
+  ([ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)):
   at the swap, the Exos pair moves to the chipset's free ports on two plain
   SATA cables, bought for it because the only tray cable is the card's own
   mini-SAS breakout. The card and the breakout go on the shelf as the

@@ -168,9 +168,12 @@ workstation can mount the share.
 - **[#571](https://github.com/Gerrrt/HomeLab/issues/571) Decide what stands
   between ZFS and the pair.** After the swap, with the replacement in hand —
   the controller nobody recorded is read then, not guessed at now.
-- **[#523](https://github.com/Gerrrt/HomeLab/issues/523) A rule for the share**
-  and **[#570](https://github.com/Gerrrt/HomeLab/issues/570) a healthcheck
-  that can fail** have no gate and no order between them.
+- **[#523](https://github.com/Gerrrt/HomeLab/issues/523) A rule for the
+  share** is decided
+  ([ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)): a Hicks
+  pass on `445`, and a second SMB user for workstations. What is left is
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §5's *Workstations* steps,
+  at `smaug` and `morpheus`, with no gate.
 - **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf** is
   authored — the service, a fifth Hicks pass it needs and the #140 text said
   it did not, and its archive in the NAS pull, `pending` until deployed

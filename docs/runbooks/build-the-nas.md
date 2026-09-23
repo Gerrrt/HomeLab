@@ -226,7 +226,9 @@ The first four were created on 2026-09-16. Navidrome's `4533` was created on
 without a listener, and its reach is §6.6 step 5. Audiobookshelf's `13378`
 ([ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md),
 which calls it the fifth; it will be the sixth to exist) is created as step 1
-of §6.5.
+of §6.5. `Allow SMB to smaug` on `445`, for workstations mounting the share
+([ADR-0051](../adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)),
+is created in §5, after the user it serves.
 
 | On interface | Protocol / source → destination | Description | Position |
 | --- | --- | --- | --- |
@@ -236,6 +238,7 @@ of §6.5.
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `9100` | `Allow 9100 to smaug` | **above** *Block access to CasaBonita* |
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `22` | `Allow SSH to smaug` | **above** *Block access to CasaBonita* |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `13378` | `Allow 13378 to smaug` | **above** *Block access to CasaBonita* — §6.5 |
+| Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `445` | `Allow SMB to smaug` | **above** *Block access to CasaBonita* — §5 |
 
 **Four, where [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 wrote three.** The Hicks pass is one rule per port rather than one rule
@@ -290,8 +293,8 @@ pfctl -sr -vv \
 
 Each pass must appear **above** the *Block access to CasaBonita* rule on its
 own interface: `Allow 9100`/`Allow SSH` before the block on `igc0.99`, and
-`Allow HTTPS`/`Allow 8096`/`Allow 4533` — and, once §6.5 has created it,
-`Allow 13378` — before it on `igc0.50`. **Read the order, not the
+`Allow HTTPS`/`Allow 8096`/`Allow 4533` — and, once §6.5 and §5 have
+created them, `Allow 13378` and `Allow SMB` — before it on `igc0.50`. **Read the order, not the
 numbers.** `-vv` numbers each ruleset from zero rather than counting output
 lines, so its `@` indices match neither `pfctl -sr | grep -n` nor anything
 written down here — they are a printing artefact, and only the sequence is a
@@ -317,6 +320,14 @@ refused from here, answered from Hicks:
 
 ```bash
 nc -z -w3 10.0.40.30 4533 && echo "WRONG: 99 can reach 4533" || echo "correct: blocked"
+```
+
+And `445`, once §5 has created its pass. The SMB service answers on every
+interface, so unlike `4533` a refusal here is the firewall's doing whether or
+not anything is mounted:
+
+```bash
+nc -z -w3 10.0.40.30 445 && echo "WRONG: 99 can reach 445" || echo "correct: blocked"
 ```
 
 Then read **the tripwire counter on `igc0.40`**
@@ -571,22 +582,57 @@ ls -1 /mnt/erebor/apps/.zfs/snapshot/
 > `everyone@`, Allow, Basic Read, Inherit. The list now has five entries, the
 > four the preset wrote and that one.
 >
-> **No workstation can mount this share, and that was found by trying.** The
-> Hicks rules from §0.5 pass `443` and `8096` to `smaug` and nothing else
-> (and `4533` since 2026-09-22, which changes nothing here); SMB is `445`, so a
-> Hicks machine that reaches the TrueNAS UI and Jellyfin gets nothing from `\\10.0.40.30\media`. Only devices already on
-> CasaBonita can mount it, and those are televisions. Getting a film onto the
-> library today means the console shell — `mkdir` and `curl` under
-> `/mnt/erebor/media/` — which is how the test clip in §6.1 arrived. Whether
-> the answer is another Hicks rule on `445` or something else is
-> [#523](https://github.com/Gerrrt/HomeLab/issues/523)'s; it is recorded
-> here because the share exists and looks usable and is not.
+> **No workstation could mount this share, and that was found by trying**
+> on 2026-09-19. The Hicks rules from §0.5 passed `443` and `8096` to
+> `smaug`, and later `4533`, but not SMB's `445`. Getting a film onto the
+> library meant the console shell, `mkdir` and `curl` under
+> `/mnt/erebor/media/`, which is how the test clip in §6.1 arrived.
+> [ADR-0051](../adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)
+> decides the answer ([#523](https://github.com/Gerrrt/HomeLab/issues/523)):
+> a Hicks pass on `445`, and a second SMB user so the workstations' password
+> is not the televisions'. The steps are below, under *Workstations*.
+> **Not yet done.**
 
 **Shares → Windows (SMB) → Add**, pointed at `erebor/media`.
 
 Create a dedicated TrueNAS user for it rather than sharing the admin account.
 The admin credential is the one that guards everything on this box, and an SMB
 share is mounted by televisions.
+
+### Workstations: a second user, then the `445` pass
+
+[ADR-0051](../adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md).
+Do the user first, so the rule never opens onto a share nobody can log into.
+Have a Hicks workstation and a shell on `morpheus` ready.
+
+1. **The user.** **Credentials → Users → Add**: `samwise`, with SMB on and
+   TrueNAS access, shell, SSH and sudo all off, the same shape as `bilbo`. It
+   joins `builtin_users` on creation, and the share's ACL already grants that
+   group Modify, so no ACL edit is needed. Its password is typed on
+   workstations only; it never goes into a television. Do not reuse `bilbo`'s.
+
+2. **SMB1 is off.** **System → Services → SMB → Edit**: *Enable SMB1 support*
+   must be clear. Every client here speaks SMB 2 or 3, and `445` is the only
+   port the rule opens.
+
+3. **The rule**, in the pfSense UI on **Hicks (50)**: pass, `tcp`, source
+   `vlan50 net`, destination `10.0.40.30` port `445`, description exactly
+   `Allow SMB to smaug`, placed **above** *Block access to CasaBonita*. Then
+   read its position from `morpheus` with §0.6's `pfctl` command, not from
+   the UI. `Allow SMB` must print before the block on `igc0.50`.
+
+4. **Mount it from a Hicks workstation**, by address. Discovery does not
+   cross segments. On macOS, **Finder → Go → Connect to Server** with
+   `smb://10.0.40.30/media`; on Windows, `\\10.0.40.30\media`. Log in as
+   `samwise`, copy a small file in, then delete it. Both must succeed.
+
+5. **The monitoring host is still refused**, with §0.6's `nc` check on `445`,
+   and the `igc0.40` tripwire's packet count is still zero.
+
+6. **Record it here**, in the note at the top of this section: the date, the
+   rule's position as `pfctl` printed it, and the mount. Then update the pass
+   counts in `network.md`, `security.md` and `stacks/media/README.md` from
+   *specified* to *created*, in one commit, the way `4533` was.
 
 ## §6 — The stack, and the scrape
 

@@ -1,4 +1,4 @@
-# ADR-0051: Cable `smaug`'s pool to the chipset and take the MegaRAID out
+# ADR-0052: Cable `smaug`'s pool to the chipset and take the MegaRAID out
 
 **Status:** Accepted · 2026-09 · decides the layer beneath the pool layout
 [ADR-0040](0040-run-truenas-on-smaug-and-keep-the-media-stack-in-this-repository.md)

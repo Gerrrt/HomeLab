@@ -345,7 +345,7 @@ label, and the date it shipped goes in the status block.
 
 When a drive arrives — the seller's replacement or a purchase, whichever
 step 3 ends in — **and the two SATA data cables have too.**
-[ADR-0051](../adr/0051-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)
+[ADR-0052](../adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)
 moves the pool off the MegaRAID and onto the chipset's free ports during
 this step, and the only cable the trays have is the card's own mini-SAS
 breakout, which does not fit the board. Two plain SATA III cables (7-pin,
@@ -371,7 +371,7 @@ imported with that member `ONLINE` and the missing one `OFFLINE` — the same
 controller, so nothing else should have changed. **If the pool did not
 import, or the drive is not on `ahci`:** power down, put the card and the
 breakout back exactly as they were, and carry on with the card. Moving a
-cable writes nothing. That is ADR-0051's fallback, and `hardware.md` then
+cable writes nothing. That is ADR-0052's fallback, and `hardware.md` then
 records the card as the arrangement by decision.
 
 **Then the replacement.** Power down. Fit it in the tray `ZVTBSDL3` left,
@@ -430,7 +430,7 @@ line.
   it is no longer `sdc` (ADR-0047's consequences say why it matters)
 - `lspci -nn` has no `1000:005f`, and [`hardware.md`](../hardware.md)
   describes the path from bay to ZFS as the chipset AHCI, or as the card
-  if ADR-0051's fallback applied
+  if ADR-0052's fallback applied
 - [#558](https://github.com/Gerrrt/HomeLab/issues/558) and
   [#571](https://github.com/Gerrrt/HomeLab/issues/571) close on this list
 
@@ -488,7 +488,7 @@ line.
   24.16.0-0104, firmware 4.660.01-8219. **Decided 2026-09-23:** the
   bays go to the chipset's free ports and the card comes out, at step 5,
   with the fallback to the card if the pool does not import there
-  ([ADR-0051](../adr/0051-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md),
+  ([ADR-0052](../adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md),
   [#571](https://github.com/Gerrrt/HomeLab/issues/571)). Not IT firmware:
   a crossflash on the pool's only controller, with no spare card.
 - **The replacement decision is the seller's first.** The return is open

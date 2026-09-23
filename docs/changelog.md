@@ -24,7 +24,7 @@ docstring gives: it is a record, not a claim about now.
   pair has sat behind a 9340-8i in JBOD since the build, and its firmware's
   error path is what `ZVTBSDL3`'s fault ran through. Five of the chipset's
   six SATA ports are free.
-  [ADR-0051](adr/0051-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)
+  [ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)
   decides against IT-mode firmware, which would be a crossflash on the
   pool's only controller with no spare card. The move needs two plain SATA
   cables, since the only tray cable is the card's own mini-SAS breakout.
@@ -33,6 +33,20 @@ docstring gives: it is a record, not a claim about now.
   `ahci`. §6 adds the SMART baseline re-check the new enumeration needs.
   Nothing has moved yet; the pool is still one disk, waiting for a
   replacement.
+
+- **[#523](https://github.com/Gerrrt/HomeLab/issues/523): workstations
+  get the media share, by
+  [ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md).**
+  Since 2026-09-18 nothing a person sits at could mount `\\10.0.40.30\media`,
+  because none of the Hicks passes is `445`. The decision is a Hicks pass,
+  `vlan50 net → 10.0.40.30:445`, described `Allow SMB to smaug`, and a second
+  SMB user, `samwise`, for workstations. `bilbo` stays the televisions'
+  credential, so the two can be revoked separately. A pull from the NAS side
+  was rejected, because it would make CasaBonita initiate. Loading over the
+  console was rejected because it does not scale. Making `bilbo` read-only
+  was deferred as its own ACL change. Only documents changed. The rule and
+  the user are `build-the-nas.md` §5's *Workstations* steps, and until those
+  are done every document calls the pass specified, not created.
 
 - **[#534](https://github.com/Gerrrt/HomeLab/issues/534): Home Assistant's
   hardened boot is re-proved on every change to it.** It had been proved once,
