@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **[#529](https://github.com/Gerrrt/HomeLab/issues/529) confirmed on the
+  host; this corrects the entry below, which called the attribute-177
+  mapping provisional.** With `smart-state` installed on `Saruman`, the
+  first `--print` read both SM863a through the P440ar as `/dev/sda:cciss,2`
+  and `cciss,3`, and left out the spindles. Both drives report healthy,
+  with 0 reallocated and 0 pending sectors, at 30 and 32 °C. Wear is **6 %
+  and 4 % used**, taken from `Wear_Leveling_Count`, so the mapping holds and
+  `SmartDriveWearHigh` reads these drives. The drives show 66,090 and
+  60,443 power-on hours from their previous life. The collector's comment
+  and its Smart Array fixture now carry these readings.
+
 - **[#529](https://github.com/Gerrrt/HomeLab/issues/529): `Saruman`'s SSDs
   get wear readings through `hpsa`.** The iLO and the P440ar report no wear
   for the two SM863a drives. `collect-smart-state.sh` now detects a SCSI host
