@@ -34,6 +34,25 @@ docstring gives: it is a record, not a claim about now.
   Nothing has moved yet; the pool is still one disk, waiting for a
   replacement.
 
+- **[#574](https://github.com/Gerrrt/HomeLab/issues/574): steps 0 to 4 of
+  `shut-down-on-the-ups.md` are built. The shutdown sequence is armed and
+  not yet proved.** `morpheus` serves NUT from `mjolnir` over SNMPv3 (`apcc`
+  MIB, `OL`, `battery.runtime.low` 480). Four rules narrow the listener to
+  `Saruman` and `smaug`, confirmed blocked from `phoenix`. Both subscribers
+  are logged in. The tripwires read 0 on every interface. Steps 5 to 7, the
+  halt, the pull and the write-up, wait for a window. Running it found six
+  errors in the runbook, all corrected there:
+  - The card's access list admitted the SNMPv3 user from `10.0.99.20` only,
+    so the driver on `10.0.99.1` was ignored until the card got a
+    read-only entry for it. That is the new step 1.0, and ADR-0049 has a note.
+  - 1.6's readback printed the package's `local-monitor` password: the
+    `MONITOR` line carries it without the word "password". Saving the page
+    rotated it the same evening, and the command now drops that line.
+  - The runbook expected `MODE=netserver`, but pfSense leaves `MODE=none`.
+  - `pfctl` prints port 3493 as `nut`, so 2.5 now greps for that.
+  - The card already held an 8-minute low-battery duration before step 0.
+  - `Saruman` has no `sudo`.
+
 - **[#523](https://github.com/Gerrrt/HomeLab/issues/523): a Hicks
   workstation mounts the media share.** `samwise` exists on `smaug`, and
   `Allow SMB to smaug` (Hicks → `10.0.40.30:445`) was created on `morpheus`.

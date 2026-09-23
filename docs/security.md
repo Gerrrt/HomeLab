@@ -309,7 +309,7 @@ one device on that segment with a local API — still waits above the block that
 has stood between 99 and 20 since the segments existed, on the host that would
 use it ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
 
-One of CasaBonita's five is a monitoring pass, and it carries a residual worth
+One of CasaBonita's six is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`
 on the NAS ([#256](https://github.com/Gerrrt/HomeLab/issues/256)), and that
 endpoint is **unauthenticated**. The firewall rule is what stops other segments
