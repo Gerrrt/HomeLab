@@ -338,12 +338,14 @@ and read it back on `prometheus`:
 
 ```promql
 homelab_pve_firewall_enabled{host="Saruman"}
+homelab_pve_firewall_policy_drop{host="Saruman"}
 homelab_pve_firewall_rules{host="Saruman"}
 ```
 
 | Series | Expect | If not |
 | --- | --- | --- |
 | `homelab_pve_firewall_enabled` | `1` — `pve-firewall status` reads `enabled/running` | `PveFirewallDisabled` pages after ten minutes; this section is the way back |
+| `homelab_pve_firewall_policy_drop` | `1` — `cluster.fw`'s `policy_in` is `DROP` after the flip above | `0` is the firewall on with no wall behind the rules. `PveFirewallPolicyAccept` pages after ten minutes, so do the flip inside that window |
 | `homelab_pve_firewall_rules{file="host"}` | `4` on `Saruman` (ADR-0014's three and ADR-0043's one), `3` on `ifrit` | Fewer is a rule file that did not survive; `0` with the firewall on means the `policy_in` decides everything |
 | `homelab_pve_firewall_rules{file="cluster"}` | `0` — `cluster.fw` carries the enable and the alias, not rules | Not a fault on its own; say why in the build notes if it changes |
 

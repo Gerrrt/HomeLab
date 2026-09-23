@@ -17,6 +17,21 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-23
+
+- **[#576](https://github.com/Gerrrt/HomeLab/issues/576): the firewall
+  collector now reads `policy_in`, and `PveFirewallPolicyAccept` fires on
+  it.** #639's collector header named the gap: with `policy_in: ACCEPT` in
+  `cluster.fw`, `pve-firewall status` reads `enabled/running`, `host.fw` can
+  keep all four rules, and the whole segment still reaches 8006. Nothing
+  read that setting. `collect-pve-firewall-state.sh` now writes
+  `homelab_pve_firewall_policy_drop` from the `[OPTIONS]` section, treating
+  an unset key as Proxmox's default of DROP. The new rule is critical and
+  routed to security like `PveFirewallDisabled`. It fires only while the
+  firewall is on, so a firewall that is both off and permissive pages once.
+  Its ten minutes cover §4's enable-then-flip, so following the runbook does
+  not page.
+
 ## 2026-09-22
 
 - **[#570](https://github.com/Gerrrt/HomeLab/issues/570): a hung exporter

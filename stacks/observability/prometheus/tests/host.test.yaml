@@ -1334,6 +1334,62 @@ tests:
         alertname: PveFirewallDisabled
         exp_alerts: []
 
+  # --- PveFirewallPolicyAccept: fires on enabled with policy_in ACCEPT ------
+  # The status line reads on the whole time. This is the case
+  # PveFirewallDisabled cannot see.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "1x40"
+      - series: 'homelab_pve_firewall_policy_drop{host="Saruman"}'
+        values: "1x10 0x30"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: PveFirewallPolicyAccept
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: critical
+              category: security
+            exp_annotations:
+              summary: "Saruman's Proxmox firewall is on and admits everything"
+              description: >-
+                `policy_in` in /etc/pve/firewall/cluster.fw is not DROP, so the
+                firewall reads enabled/running while the management plane
+                ADR-0014 closes to Hicks is open to the segment. Set
+                `policy_in: DROP` and read the chain back as
+                build-the-playground.md §4 does, with the console to hand in
+                case host.fw is empty
+                (homelab_pve_firewall_rules{file="host"}).
+
+  # --- PveFirewallPolicyAccept: quiet when the firewall is off --------------
+  # Off and permissive is one cause, and PveFirewallDisabled pages for it.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "0x40"
+      - series: 'homelab_pve_firewall_policy_drop{host="Saruman"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: PveFirewallPolicyAccept
+        exp_alerts: []
+
+  # --- PveFirewallPolicyAccept: quiet for the flip inside the window --------
+  # §4 as written: enable with ACCEPT, read the rules back, flip to DROP
+  # within ten minutes. Following the runbook must not page.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_enabled{host="Saruman"}'
+        values: "1x40"
+      - series: 'homelab_pve_firewall_policy_drop{host="Saruman"}'
+        values: "0x8 1x32"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: PveFirewallPolicyAccept
+        exp_alerts: []
+
   # --- PveFirewallStateStale: fires when the file stops being rewritten -----
   - interval: 5m
     input_series:
