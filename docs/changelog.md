@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **[#523](https://github.com/Gerrrt/HomeLab/issues/523): workstations
+  get the media share, by
+  [ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md).**
+  Since 2026-09-18 nothing a person sits at could mount `\\10.0.40.30\media`,
+  because none of the Hicks passes is `445`. The decision is a Hicks pass,
+  `vlan50 net → 10.0.40.30:445`, described `Allow SMB to smaug`, and a second
+  SMB user, `samwise`, for workstations. `bilbo` stays the televisions'
+  credential, so the two can be revoked separately. A pull from the NAS side
+  was rejected, because it would make CasaBonita initiate. Loading over the
+  console was rejected because it does not scale. Making `bilbo` read-only
+  was deferred as its own ACL change. Only documents changed. The rule and
+  the user are `build-the-nas.md` §5's *Workstations* steps, and until those
+  are done every document calls the pass specified, not created.
+
 - **[#534](https://github.com/Gerrrt/HomeLab/issues/534): Home Assistant's
   hardened boot is re-proved on every change to it.** It had been proved once,
   on 2026-09-09, against a digest Dependabot has since moved twice. A new CI

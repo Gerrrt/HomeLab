@@ -353,7 +353,12 @@ Televisions and consoles. Internet only.
   is specified and not yet created. ADR-0050 calls it the fifth; 4533 was
   made first, so it will be the sixth.
   [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 and §6.6 deploy the
-  two services. Five exist today.
+  two services. **One more is written for workstations.** `Allow SMB to
+  smaug`, Hicks → `10.0.40.30:445`, lets a Hicks workstation mount the `media`
+  share as `samwise`, a second SMB user kept apart from the televisions'
+  `bilbo` ([ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md),
+  [#523](https://github.com/Gerrrt/HomeLab/issues/523)). It is specified and
+  not yet created; `build-the-nas.md` §5 creates it. Five exist today.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
