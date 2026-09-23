@@ -34,6 +34,18 @@ docstring gives: it is a record, not a claim about now.
   Nothing has moved yet; the pool is still one disk, waiting for a
   replacement.
 
+- **[#523](https://github.com/Gerrrt/HomeLab/issues/523): a Hicks
+  workstation mounts the media share.** `samwise` exists on `smaug`, and
+  `Allow SMB to smaug` (Hicks → `10.0.40.30:445`) was created on `morpheus`.
+  A Windows PC on Hicks mounted `\\10.0.40.30\media` as `samwise`. Read
+  from `morpheus` afterwards, the pass sits above *Block access to
+  CasaBonita* on `igc0.50` and has matched 463 packets. The monitoring host
+  is still refused on `445`, and the #223 tripwire on `igc0.40` still reads
+  0 packets. Six Hicks and Winterfell passes to `smaug` now exist, so
+  Audiobookshelf's `13378` will be the seventh. `network.md`, `security.md`,
+  `architecture.md`, `stacks/media/README.md` and `build-the-nas.md` §5 move
+  from *specified* to *created*.
+
 - **[#523](https://github.com/Gerrrt/HomeLab/issues/523): workstations
   get the media share, by
   [ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md).**

@@ -225,10 +225,10 @@ The first four were created on 2026-09-16. Navidrome's `4533` was created on
 2026-09-22 as step 1 of §6.6, ahead of the service — its position is provable
 without a listener, and its reach is §6.6 step 5. Audiobookshelf's `13378`
 ([ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md),
-which calls it the fifth; it will be the sixth to exist) is created as step 1
+which calls it the fifth; it will be the seventh to exist) is created as step 1
 of §6.5. `Allow SMB to smaug` on `445`, for workstations mounting the share
 ([ADR-0051](../adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)),
-is created in §5, after the user it serves.
+was created on 2026-09-23 in §5, after the user it serves.
 
 | On interface | Protocol / source → destination | Description | Position |
 | --- | --- | --- | --- |
@@ -591,7 +591,14 @@ ls -1 /mnt/erebor/apps/.zfs/snapshot/
 > decides the answer ([#523](https://github.com/Gerrrt/HomeLab/issues/523)):
 > a Hicks pass on `445`, and a second SMB user so the workstations' password
 > is not the televisions'. The steps are below, under *Workstations*.
-> **Not yet done.**
+> **Done 2026-09-23.** `samwise` exists, and a Windows PC on Hicks mounted
+> `\\10.0.40.30\media` as `samwise`. `Allow SMB to smaug` was read from
+> `morpheus` with `pfctl -sr -vv`, which printed `https`, `8096`, `4533`,
+> `microsoft-ds` and then *Block access to CasaBonita*, in that order, on
+> `igc0.50`. The rule had matched 463 packets from the mount. The monitoring
+> host is still refused on `445`, and the #223 tripwire on `igc0.40` still
+> reads 0 packets. It is the sixth pass that exists, so Audiobookshelf's
+> `13378` will be the seventh.
 
 **Shares → Windows (SMB) → Add**, pointed at `erebor/media`.
 

@@ -79,11 +79,11 @@ every television would have to trust, and a second thing to be down.
 | --- | --- |
 | Televisions on CasaBonita | Natively, same broadcast domain — the firewall never sees the packet |
 | A Hicks workstation | Two of the rules in [`build-the-nas.md`] §0.5 — `50 → 10.0.40.30:443` and `50 → 10.0.40.30:8096`, one per port |
-| A Hicks phone, on `13378` | `50 → 10.0.40.30:13378`, `Allow 13378 to smaug` — the fifth by [ADR-0050]'s count and the sixth to exist — **specified, and created only when [`build-the-nas.md`] §6.5 deploys Audiobookshelf** ([ADR-0050]) |
+| A Hicks phone, on `13378` | `50 → 10.0.40.30:13378`, `Allow 13378 to smaug` — the fifth by [ADR-0050]'s count and the seventh to exist — **specified, and created only when [`build-the-nas.md`] §6.5 deploys Audiobookshelf** ([ADR-0050]) |
 | Prometheus, on `9100` | A third — `10.0.99.20 → 10.0.40.30:9100` |
 | Prometheus, on `22` | The fourth rule — `10.0.99.20 → 10.0.40.30:22`, inert until [`build-the-nas.md`] §6.2 switches SSH on for the backup pull, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
-| A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists and 13378 will be the sixth (§6.6) |
-| A Hicks workstation, on `445` | `50 → 10.0.40.30:445`, `Allow SMB to smaug`, to mount the `media` share as `samwise` — **specified, and created only when [`build-the-nas.md`] §5's *Workstations* steps are done** ([ADR-0051]) |
+| A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists; 445 is the sixth, and 13378 will be the seventh (§6.6) |
+| A Hicks workstation, on `445` | `50 → 10.0.40.30:445`, `Allow SMB to smaug`, to mount the `media` share as `samwise` — **created 2026-09-23** by [`build-the-nas.md`] §5's *Workstations* steps, and mounted from a Hicks workstation ([ADR-0051]) |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and

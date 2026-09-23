@@ -15,6 +15,14 @@ follow the steps.**
 > [#85](https://github.com/Gerrrt/HomeLab/issues/85) had already retired, and
 > step 5 watched for alerts that cannot arrive inside the window it measures.
 > Both are fixed below. Nothing here has been run.
+>
+> **Corrected 2026-09-23, still not built.** Steps 3 and 5.1 said to work on
+> `Saruman` from a Mac on VLAN 30. Since
+> [#566](https://github.com/Gerrrt/HomeLab/issues/566) enabled its firewall,
+> `Saruman` admits SSH from Hicks only. Confirmed from `phoenix` (`10.0.30.70`)
+> on 2026-09-23: 22 and 3128 filtered, 8006 open. Both steps now say a Mac on
+> Hicks, which reaches the whole lab segment
+> ([ADR-0031](../adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)).
 
 ## What this does
 
@@ -35,7 +43,7 @@ Tick all seven. Steps 1 to 6 assume every one of these is done.
       down the house has no DNS and no DHCP.
 - [ ] **Physical or out-of-band access to all three hosts**, because step 5
       leaves them all powered off: the KVM in U6 for `morpheus`, the iLO at
-      `10.0.30.10` from a Mac on VLAN 30 for `Saruman`, and the power button
+      `10.0.30.10` from a Mac on Hicks for `Saruman`, and the power button
       on the front of `smaug` in the media room.
 - [ ] **The UPS card's SNMPv3 passphrases**, rendered on the **main checkout**
       and never in a worktree (the command is below this list). They are
@@ -368,7 +376,12 @@ the catch-all and will never match. Go back to 2.4.
 
 ## Step 3 — Subscribe `Saruman`
 
-Do this from a Mac on VLAN 30. `prometheus` cannot reach `Saruman`.
+Do this from a Mac on Hicks (`10.0.50.0/24`). `prometheus` cannot reach
+`Saruman`, and since
+[#566](https://github.com/Gerrrt/HomeLab/issues/566) turned its Proxmox
+firewall on, neither can anything on VLAN 30 except on 8006: `Saruman` admits
+SSH from Hicks only (ADR-0014). A Mac *on* the lab segment sees port 22 as
+filtered, and this step would fail at the first `ssh`.
 
 ### 3.1 Install the client
 
@@ -572,9 +585,11 @@ done | tee ~/ups-fsd-timing.log
 accepts the connection and then never answers when the NAS has a disk fault —
 a port check would read healthy while the host was not.
 
-On the Mac on VLAN 30, the one you used for step 3, because **nothing on
+On the Mac on Hicks, the one you used for step 3, because **nothing on
 VLAN 99 can reach `Saruman`**: the single pass between those segments runs the
-other way.
+other way. It has to be Hicks and not a Mac on VLAN 30 for the reason step 3
+gives: `Saruman`'s firewall filters port 22 from the lab segment, so from
+there this loop would read `---` before anything halted.
 
 ```bash
 while :; do
