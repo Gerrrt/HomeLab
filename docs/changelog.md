@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **[#529](https://github.com/Gerrrt/HomeLab/issues/529): `Saruman`'s SSDs
+  get wear readings through `hpsa`.** The iLO and the P440ar report no wear
+  for the two SM863a drives. `collect-smart-state.sh` now detects a SCSI host
+  whose driver is `hpsa`. It probes `smartctl -d cciss,0..15` through the
+  first logical drive and keeps only drives reporting no rotation, labelling
+  each `/dev/sda:cciss,N`. The spindles stay with the iLO. Samsung's
+  `Wear_Leveling_Count` (177) maps to `homelab_smart_percentage_used` from its
+  normalised column, so the existing `SmartDriveWearHigh` reads these drives.
+  That mapping is provisional until `--print` on `Saruman` shows the
+  attribute. Nine new fixtures cover the Smart Array renderer and discovery
+  against a fake `/sys`. `schedule-maintenance.md` no longer says `Saruman`
+  takes `patch-state` only. Nothing is on the host yet.
+
 - **[#576](https://github.com/Gerrrt/HomeLab/issues/576): the firewall
   collector now reads `policy_in`, and `PveFirewallPolicyAccept` fires on
   it.** #639's collector header named the gap: with `policy_in: ACCEPT` in
