@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **[#562](https://github.com/Gerrrt/HomeLab/issues/562): `alexander`'s
+  root filesystem now fills its disk, and nobody had grown the disk.** `/`
+  was 48 GB on a 100 GiB disk. The installer log from 2026-09-04
+  (`curtin-install.log`) shows the disk was already 100 GiB at install, so
+  the runbook's `local-lvm:64` was never what ran. Ubuntu's guided LVM layout
+  had given `ubuntu-lv` exactly half the volume group. `lvextend -r -l
+  +100%FREE` grew it online to 97G. `build-the-lab-guest.md` now records
+  100 GiB on `large_data`, gives the `--scsi0` line a rebuild should run, and
+  adds an installer step so the next build gets the whole disk.
+
 - **[#529](https://github.com/Gerrrt/HomeLab/issues/529): `Saruman`'s SSDs
   get wear readings through `hpsa`.** The iLO and the P440ar report no wear
   for the two SM863a drives. `collect-smart-state.sh` now detects a SCSI host
