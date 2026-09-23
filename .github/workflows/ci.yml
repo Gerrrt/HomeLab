@@ -481,6 +481,52 @@ jobs:
         run: ./scripts/check_dashboard_roundtrip.sh
 
   # ---------------------------------------------------------------------------
+  # Home Assistant's hardening — read-only root, every capability dropped,
+  # no-new-privileges — was proved by booting it once, against one digest, and
+  # Dependabot moves the digest monthly (#534). --probe above execs the
+  # healthcheck's binary; it never starts the application. This does: the one
+  # service from the real compose.yaml, on a network with no route out, until
+  # its own healthcheck passes, and then asks the running container whether the
+  # hardening was actually applied.
+  #
+  # Its own job so it runs beside validate rather than after six minutes of it.
+  # The proof is cached on the service's inputs in validate's manner (#602), so
+  # a diff that does not touch the service, its config or the check pulls
+  # nothing. A bump misses, and boots. Not a path filter, and not a skip.
+  hardened-boot:
+    name: Boot hardened services
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # validate's login, for validate's reason: the image is on ghcr.io.
+      - name: Authenticate to ghcr.io so the pull below is not anonymous
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          if printf '%s' "$GHCR_TOKEN" \
+            | docker login ghcr.io -u "$GHCR_USER" --password-stdin; then
+            echo "ghcr.io: authenticated as $GHCR_USER"
+          else
+            echo "::warning::ghcr.io login failed — the pull below is anonymous"
+          fi
+
+      - name: Restore the boot proofs
+        uses: actions/cache@v6
+        with:
+          path: .boot-proofs
+          key: >-
+            boot-proofs-${{ hashFiles('stacks/sensitive/compose.yaml',
+            'stacks/sensitive/home-assistant/**', 'scripts/check_hardened_boot.sh') }}
+          restore-keys: boot-proofs-
+
+      - name: Boot Home Assistant under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service home-assistant --proof-cache .boot-proofs/proofs.txt
+
+  # ---------------------------------------------------------------------------
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest

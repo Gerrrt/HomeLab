@@ -478,7 +478,14 @@ it matters:
   discovery integration wants `CAP_NET_RAW` to sniff for devices, which on a
   bridge network a VLAN away from every device would sniff nothing, so the
   capability stays dropped and the line is expected. That was one boot of one
-  digest. Dependabot moves the digest monthly; nothing here re-runs the boot.
+  digest, and Dependabot moves the digest monthly, so since 2026-09-23 CI
+  re-runs it: `scripts/check_hardened_boot.sh` boots the service from this
+  `compose.yaml` on an internal network, waits for its healthcheck, and reads
+  read-only root, `CapDrop=ALL` and no-new-privileges back from the running
+  container ([#534](https://github.com/Gerrrt/HomeLab/issues/534)). A bump
+  that does not boot hardened cannot merge. What it still cannot tell you is
+  whether the integrations you add later load under the same hardening;
+  `make check-hardened-boot` is the same boot, run by hand.
 - **That AdGuard filters.** Its blocklists are downloaded on first start and
   live in the `adguard-work` volume from then on, so the first `make up` needs
   the internet and every later one does not. `make validate` checks the file

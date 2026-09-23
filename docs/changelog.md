@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **[#534](https://github.com/Gerrrt/HomeLab/issues/534): Home Assistant's
+  hardened boot is re-proved on every change to it.** It had been proved once,
+  on 2026-09-09, against a digest Dependabot has since moved twice. A new CI
+  job, `Boot hardened services`, runs `scripts/check_hardened_boot.sh`. The
+  script boots the one service from the real `compose.yaml` on a network with
+  no route out, waits for its own healthcheck, and reads the hardening back
+  from the running container. Removing `read_only` makes it fail, which was
+  tried locally on the pinned 2026.9.3 digest; with the hardening in place it
+  was healthy in 12 s on a warm image. The proof is cached on the service's
+  inputs, as #602 did for `--probe`, so only a change to the service, its
+  config or the check pulls the image.
+
 - **Two gaps in #637's sweep of dead copies on the offsite medium.** The
   sweep said it ran under the `backups` lock. The copy does, because the
   Makefile wraps it, but `--prune` runs outside the wrapper and
