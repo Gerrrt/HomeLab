@@ -213,6 +213,7 @@ Closes when Wazuh and Velociraptor report the six agents in.
   snapshots as the copy it cannot prune. What is left is the build: the
   guest, the dataset and share, the `2049` pass on `morpheus`, and a verify
   job the lab can see. A whole mirror to send to still waits on #558.
+  → [runbook](runbooks/build-the-backup-guest.md)
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
   [#562](https://github.com/Gerrrt/HomeLab/issues/562) and
