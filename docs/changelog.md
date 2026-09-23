@@ -31,6 +31,16 @@ docstring gives: it is a record, not a claim about now.
   inputs, as #602 did for `--probe`, so only a change to the service, its
   config or the check pulls the image.
 
+- **[#562](https://github.com/Gerrrt/HomeLab/issues/562): `alexander`'s
+  root filesystem now fills its disk, and nobody had grown the disk.** `/`
+  was 48 GB on a 100 GiB disk. The installer log from 2026-09-04
+  (`curtin-install.log`) shows the disk was already 100 GiB at install, so
+  the runbook's `local-lvm:64` was never what ran. Ubuntu's guided LVM layout
+  had given `ubuntu-lv` exactly half the volume group. `lvextend -r -l
+  +100%FREE` grew it online to 97G. `build-the-lab-guest.md` now records
+  100 GiB on `large_data`, gives the `--scsi0` line a rebuild should run, and
+  adds an installer step so the next build gets the whole disk.
+
 - **[#529](https://github.com/Gerrrt/HomeLab/issues/529) confirmed on the
   host; this corrects the entry below, which called the attribute-177
   mapping provisional.** With `smart-state` installed on `Saruman`, the

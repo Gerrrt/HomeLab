@@ -40,7 +40,7 @@ is already built and validated; what is missing is somewhere to run it.
 | Address | `10.0.30.40/24` | Statics on this segment live **below `.100`**; the pool is `.100–.200`. Continues the decade spacing — `shiva` .10, `Saruman` .20 (after #421), `ifrit` .30 |
 | Kind | **VM, not LXC** | `stacks/lab` uses `cgroup: host`, `cap_drop: [ALL]` and a Docker socket mount. Docker in an LXC needs nesting and keyctl workarounds, and those settings behave differently under one. A VM has no such asterisks |
 | OS | **Ubuntu Server LTS** — `alexander` runs 26.04 | See below. This is the one that would have bitten quietly |
-| Disk | 64 GB | Prometheus is capped at 4 GB and Loki keeps 15 days of a small estate. 64 GB leaves room without pretending the spindles are free |
+| Disk | 100 GiB, on `large_data` | Prometheus is capped at 4 GB and Loki keeps 15 days of a small estate, so this is room rather than need. It is the size the guest has actually had since it was built on 2026-09-04, now recorded rather than inherited ([#562](https://github.com/Gerrrt/HomeLab/issues/562)). The thin pool is 876 GiB, and a thin disk costs only what is written |
 | RAM | 8 GB | The estate's whole stack runs on a 2012 MacBook with 8 GB. This one is smaller and has headroom for the domain arriving |
 
 > [!IMPORTANT]
@@ -69,12 +69,19 @@ VMID `140`, so the last octet is legible from `qm list`. Storage is `local-lvm`
 on a stock Proxmox install — check `pvesm status` if yours differs, and the ISO
 name will be whatever you uploaded.
 
-> **Since 2026-09-20 the built guest lives on `large_data`, not `local-lvm`,
-> and its disk is 100 GiB, not 64.** The SSD pool exists since 2026-09-19
+> **Since 2026-09-20 the built guest lives on `large_data`, not `local-lvm`.**
+> The SSD pool exists since 2026-09-19
 > ([`fit-the-saruman-ssds.md`](fit-the-saruman-ssds.md)); the disk was moved
-> across online and the guest rebooted with `ssd=1`. A rebuild from this page
-> should write `large_data:64` below and add `ssd=1` to the `--scsi0` line.
-> The commands are left as run.
+> across online and the guest rebooted with `ssd=1`. The `--scsi0` line below
+> is what a rebuild runs, not what the first build ran.
+>
+> **The disk was 100 GiB from the first build, not 64.** This page said
+> `local-lvm:64` and #562 assumed someone had grown the disk by hand
+> afterwards. The installer's own log says otherwise:
+> `/var/log/installer/curtin-install.log` on `alexander`, from
+> 2026-09-04, creates partition 3 at 105,223,553,024 bytes, which only fits a
+> 100 GiB disk. So the VM was created at 100 and this line was never what
+> ran. Nobody grew the disk; the page was wrong.
 
 ```bash
 qm create 140 \
@@ -83,7 +90,7 @@ qm create 140 \
   --cpu host --cores 4 --sockets 1 \
   --memory 8192 --balloon 0 \
   --scsihw virtio-scsi-single \
-  --scsi0 local-lvm:64,discard=on,iothread=1 \
+  --scsi0 large_data:100,discard=on,iothread=1,ssd=1 \
   --net0 virtio,bridge=vmbr0 \
   --agent enabled=1 \
   --onboot 1 \
@@ -155,6 +162,20 @@ Nothing unusual. During the installer:
 
 - **Install OpenSSH.** Skip the snap Docker the installer offers; §3 uses the
   official repository so the version is one apt manages.
+- **Give `ubuntu-lv` the whole volume group.** The guided *LVM* layout
+  sizes the root volume at half the space and leaves the rest of
+  `ubuntu-vg` unallocated. On this guest that meant a 48 GB `/` on a 100 GiB
+  disk for sixteen days, while Loki's retention was sized against the disk
+  ([#562](https://github.com/Gerrrt/HomeLab/issues/562)). On the storage
+  summary screen, edit `ubuntu-lv` and set its size to the maximum shown.
+  If the install is already done, it can be fixed online, with no reboot:
+
+  ```bash
+  sudo lvextend -r -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+  ```
+
+  `-r` grows the ext4 filesystem in the same step. `df -h /` should then
+  read about 97G. Done on `alexander` on 2026-09-23.
 
 ## 3. Docker, the agent, and the repository
 
