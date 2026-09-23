@@ -17,6 +17,28 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## TODO(window)
+
+- **[#444](https://github.com/Gerrrt/HomeLab/issues/444) and
+  [#84](https://github.com/Gerrrt/HomeLab/issues/84): `neo` is a MikroTik
+  CRS326, and the MokerLink is out of the rack.** Done by
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) as
+  [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  decided. It runs RouterOS, keeps the name `neo` and the address `10.7.7.2`,
+  and keeps the switch LAN. The LAN's reason is new: it is the way back in
+  after a bad VLAN-filtering commit, no longer a UI that would not bind to a
+  tag. The UI is `www-ssl` only, from a leaf off the estate's CA, and the
+  Hicks pass names `443`. SNMP is v3 authPriv with no v2c community, so
+  `SNMP_COMMUNITY_MOKERLINK` became `SNMP_AUTHPASS_NEO` and
+  `SNMP_PRIVPASS_NEO`, and `auth_mokerlink` became `auth_neo`. The
+  MokerLink's GETBULK residual and its plain-HTTP UI both close in
+  `SECURITY.md` and `security.md`, with the date and the `snmp-verify.sh`
+  proof rather than by deletion. `snmp-verify.sh` fails again on a GETBULK
+  or stock-community answer. Those were warnings only while the MokerLink
+  needed them. No `switch-ui` probe was added, so the leaf's 825-day expiry
+  is a row in `successor-handover.md`, not an alert. The swap found:
+  TODO(window).
+
 ## 2026-09-23
 
 - **[#534](https://github.com/Gerrrt/HomeLab/issues/534): Home Assistant's

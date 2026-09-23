@@ -18,12 +18,13 @@ repository, can recover the private half.
 
 What is lost with that disk is not really the secrets — a password can be reset
 and a community string can be changed. What is lost is every device visit needed
-to do it: the Grafana admin password, the Alertmanager webhook, and four SNMP
-communities re-entered by hand on pfSense, the APC NMC, HPE iLO and the
-MokerLink switch. The switch is the one that hurts. Its firmware will not
-persist a deletion from the community table and drops its SNMP agent on each
-attempt, which is why [`SECURITY.md`](../../SECURITY.md) still records an
-accepted residual there from the last rotation. Doing that a second time,
+to do it: the Grafana admin password, the Alertmanager webhook, and the SNMP
+credentials re-entered by hand on pfSense, the APC NMC, HPE iLO and the
+switch. Until the swap
+([#444](https://github.com/Gerrrt/HomeLab/issues/444)) the switch was the one
+that hurt. The MokerLink's firmware would not persist a deletion from the
+community table and dropped its SNMP agent on each attempt. The CRS326 has no
+such limit, but every device is still a visit. Doing all of them again,
 unplanned, because a 2012 MacBook Pro's disk failed, is the scenario this
 avoids.
 

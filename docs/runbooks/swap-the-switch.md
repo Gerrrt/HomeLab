@@ -231,12 +231,16 @@ all of it is the point.
   `network.rules.yaml`. **Do not carry the port references across unchecked**:
   this is a 24 + 2 device replacing a 26-port one, so `ifIndex` and `ifName`
   change, and any rule or dashboard panel naming a port needs re-deriving.
-- The `switch-ui` blackbox target and its `via: dns` twin, `http` → `https`,
-  with a `ca_file` rather than `insecure_skip_verify` — the estate CA is already
-  how blackbox verifies Grafana.
-  [`blackbox.test.yaml`](../../stacks/observability/prometheus/tests/blackbox.test.yaml)
-  uses `switch-ui` as its worked example of an endpoint with no dns twin; that
-  needs a different subject.
+- **No `switch-ui` probe, and none is added.** An earlier draft of this list
+  said to move it from `http` to `https`. There was nothing to move: both
+  probes were removed on 2026-09-06, when the switch LAN was closed to VLAN 99
+  apart from SNMP. `prometheus/targets/blackbox.yaml` records why, and bringing
+  one back would need a new `10.0.99.20 → 10.7.7.2:443` pass, which is a
+  segmentation decision. Decided 2026-09-23 to leave it out: the SNMP scrape
+  already watches the switch. The cost is that the leaf's expiry pages nobody,
+  so it is a dated row in
+  [`successor-handover.md`](successor-handover.md#what-fails-soonest-if-nobody-touches-anything)
+  instead.
 - `SNMP_COMMUNITY_MOKERLINK` in `secrets/observability.sops.yaml` has no
   consumer once v2c is off, and its name is a misnomer the moment `neo` is a
   MikroTik. Retiring it touches `observability.example.yaml`,

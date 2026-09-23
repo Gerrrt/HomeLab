@@ -442,7 +442,7 @@ services:
   # paragraph above is out of date and loki can have a healthcheck (#79).
 
   # ---------------------------------------------------------------------------
-  # SNMP polling proxy for pfSense, the MokerLink switch, the APC UPS and iLO.
+  # SNMP polling proxy for pfSense, the switch, the APC UPS and iLO.
   # snmp.yaml is rendered from the committed template by scripts/render-config.sh
   # so the community string is never written to disk in the repo.
   # ---------------------------------------------------------------------------

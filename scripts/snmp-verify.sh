@@ -33,9 +33,7 @@
 #                                           answers, a junk one and the stock
 #                                           ones are refused
 #   scripts/snmp-verify.sh --device neo     one device (name or IP)
-#   scripts/snmp-verify.sh --old            also check the old ones are refused;
-#                                           a stock community answering is FAIL
-#                                           here, WARN in plain mode
+#   scripts/snmp-verify.sh --old            also check the old ones are refused
 #   scripts/snmp-verify.sh --dry-run        show the mapping; no decrypt, no packets
 
 set -euo pipefail
@@ -52,7 +50,6 @@ die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 pass() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
 fail() { printf '\033[0;31m  FAIL\033[0m %s\n' "$*"; FAILED=1; }
 skip() { printf '\033[0;33m  SKIP\033[0m %s\n' "$*"; }
-warn() { printf '\033[0;33m  WARN\033[0m %s\n' "$*"; WARNED=$((WARNED + 1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 # sysDescr, as the instance GET asks for and as the node GETBULK walks to it.
@@ -60,7 +57,6 @@ SYSDESCR_NODE='1.3.6.1.2.1.1.1'
 SYSDESCR_OID='.1.3.6.1.2.1.1.1.0'
 
 FAILED=0
-WARNED=0
 CHECK_OLD=0
 DRY_RUN=0
 ONLY_DEVICE=""
@@ -286,14 +282,12 @@ done <<< "${INVENTORY}"
 # defect. An answer to GET would mean the device checks nothing at all, and
 # every other verdict for it is void.
 #
-# GETBULK answering is WARN in both modes. It is a firmware limit that no row
-# in the community table changes — the overwrite in rotate-snmp-community.md
-# §2.5 cannot touch it — so a FAIL under --old would block proving a
-# retirement that did happen, and a FAIL in plain mode would keep the weekly
-# job's alert lit for as long as the switch is this switch. It is recorded in
-# SECURITY.md instead, and the line here is what keeps that record honest.
-# GET answering is FAIL in both modes: nothing else in this run can be
-# believed for that device.
+# GETBULK answering is FAIL in both modes, and GET answering is FAIL with every
+# other verdict for that device withdrawn. GETBULK was a WARN while `neo` was
+# the MokerLink: a firmware limit no row in its community table could change,
+# which a FAIL would have kept lit on the weekly job for as long as the switch
+# was that switch. It left with the hardware (#444), so a device answering a
+# junk string over any PDU is a defect again, not a residual.
 #
 # The devices that answer GETBULK to a junk string are also the devices the
 # exporter's scrape proves nothing about, because the exporter walks with
@@ -340,7 +334,7 @@ while IFS=$'\t' read -r ip auth device version keys; do
     fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "ANY COMMUNITY ACCEPTED over GET (${get_answered% }) — the device is not checking communities; nothing else in this run proves anything about it")"
     UNAUTHENTICATED_DEVICES+="${device}"$'\n'
   elif [[ -n "${bulk_answered}" ]]; then
-    warn "$(printf '%-10s %-12s %s' "${device}" "${ip}" "GETBULK UNAUTHENTICATED (${bulk_answered% } junk answered) — refused over GET; a firmware limit recorded in SECURITY.md (#84)")"
+    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "GETBULK UNAUTHENTICATED (${bulk_answered% } junk answered) — refused over GET, but the agent is not checking communities on GETBULK")"
   else
     pass "$(printf '%-10s %-12s %s' "${device}" "${ip}" "refuses a junk community over GET and GETBULK, short and long")"
   fi
@@ -359,12 +353,11 @@ done <<< "${INVENTORY}"
 # string is a secret, so unlike --old this needs no terminal and the weekly
 # timer covers it.
 #
-# WARN in plain mode, FAIL under --old. The weekly run exits non-zero into
-# ScheduledJobFailed, which stays firing until the job next succeeds — and
-# retiring a row on `neo` needs a reboot window (#84), so a fatal result would
-# keep that alert lit for weeks and hide any other verification failure behind
-# it. --old is the operator proving a retirement, and there a stock row that
-# still answers is exactly the thing being proved gone.
+# FAIL in both modes. It was WARN in plain mode while retiring a row on the
+# MokerLink needed a reboot window (#84), because a fatal weekly result would
+# have kept ScheduledJobFailed lit for weeks. No device left in the inventory
+# has that limit — the CRS326 carries no v2c community at all (ADR-0041) — so
+# a stock string that answers is a finding to act on, not to wait out.
 #
 # Same precondition as --old: only devices that just answered their current
 # community are checked. A device that never answered turns a refusal into a
@@ -404,10 +397,8 @@ while IFS=$'\t' read -r ip auth device version keys; do
 
   if [[ -z "${accepted}" ]]; then
     pass "$(printf '%-10s %-12s %s' "${device}" "${ip}" "refuses ${STOCK_COMMUNITIES[*]}")"
-  elif ((CHECK_OLD)); then
-    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "STOCK COMMUNITY ACCEPTED: ${accepted% } — overwrite the row (rotate-snmp-community.md §2.5)")"
   else
-    warn "$(printf '%-10s %-12s %s' "${device}" "${ip}" "STOCK COMMUNITY ACCEPTED: ${accepted% } — not fatal in plain mode, see the comment above this check")"
+    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "STOCK COMMUNITY ACCEPTED: ${accepted% } — remove the row on the device")"
   fi
 done <<< "${INVENTORY}"
 
@@ -489,11 +480,5 @@ printf '\n'
 if ((FAILED)); then
   printf '\033[0;31msnmp verification failed\033[0m\n'
   exit 1
-fi
-if ((WARNED)); then
-  # Not a clean pass and not reported as one: the exit code is 0 for the reason
-  # the stock-community comment gives, but the last line says what was found.
-  printf '\033[0;33mall SNMP targets answer their community; %d warning(s) above\033[0m\n' "${WARNED}"
-  exit 0
 fi
 printf '\033[0;32mall SNMP targets verified\033[0m\n'

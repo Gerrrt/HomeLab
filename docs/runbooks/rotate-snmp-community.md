@@ -1,11 +1,21 @@
 # Runbook: Rotate the SNMP communities
 
-**Target:** four SNMP devices — pfSense, the APC NMC, the MokerLink switch, HPE iLO
+**Target:** four SNMP devices — pfSense, the APC NMC, the switch (`neo`), HPE iLO
 **Time:** ~45 minutes, one device at a time; §4, the move of one device to
 SNMPv3, is a separate pass of about 20 minutes
 **You will need:** the age key, physical access to the ProLiant for the iLO step,
 and a way onto `10.7.7.0/24` that does not depend on the switch you are about to
 reconfigure
+
+> [!NOTE]
+> **The MokerLink steps below are the record, not the procedure.** `neo` has
+> been the CRS326 since TODO(window)
+> ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). It carries no v2c
+> community to rotate: it was polled over SNMPv3 authPriv from its first
+> scrape, set up by §4's shape at the bench
+> ([`swap-the-switch.md`](swap-the-switch.md) §1.5). Its passphrases rotate as
+> §4 describes for a device already on v3. The MokerLink passages stay because
+> [`SECURITY.md`](../../SECURITY.md) links them as the record of #84.
 
 **Why this is not optional.** A single SNMP community string was committed to
 this public repository in plaintext and shared across pfSense, the MokerLink
@@ -414,9 +424,11 @@ half early.
 Which devices this applies to is decided, not chosen here
 ([ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)):
 **`shiva` first, then `mjolnir`.** Not `morpheus` — bsnmpd is the only daemon
-that serves the pf MIB and pfSense writes no v3 user for it. Not `neo` unless
-its UI turns out to have a user page; check that once, at the next login, and
-record the answer in `hardware.md` either way.
+that serves the pf MIB and pfSense writes no v3 user for it. `neo` went
+further than this list: the CRS326 that replaced the MokerLink was set up with
+a v3 user and **no** v2c community before it was ever racked
+([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)),
+so there was no community to leave in place or to switch off afterwards.
 
 What the two devices offer, from their vendors' guides for the firmware each
 one reported over SNMP on 2026-09-09 — the pages themselves are behind logins

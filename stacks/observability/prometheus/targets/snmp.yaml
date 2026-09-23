@@ -27,7 +27,7 @@
 - targets: ["10.7.7.2"]
   labels:
     module: mokerlink
-    auth: auth_mokerlink
+    auth: auth_neo
     device: neo
     role: switch
     vlan: lan
