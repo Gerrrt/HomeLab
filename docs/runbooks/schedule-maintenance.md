@@ -267,13 +267,16 @@ package or two. `make validate` runs the parser against eight fixtures, which is
 the only way it gets tested — a fully-patched host cannot be made to produce a
 pending security update on demand.
 
-**`Saruman` takes `--only patch-state`.** Its two drives sit behind an HPE Smart
-Array and are already watched through the iLO by `cpqDaPhyDrvSmartStatus`
-([#151](https://github.com/Gerrrt/HomeLab/issues/151)), reporting `ok` with
-`IloDrivePredictiveFailure` armed. `smartctl -d auto` cannot read a Smart Array
-logical device anyway, so installing `smart-state` there would leave a
-permanently failing timer duplicating coverage that already works. It also has to
-be installed from the Mac: VLAN 99 cannot reach VLAN 30, which is the
+**`Saruman` takes `smart-state` for its SSDs only.** Its drives sit behind an
+HPE Smart Array. The SAS spindles are watched through the iLO by
+`cpqDaPhyDrvSmartStatus` ([#151](https://github.com/Gerrrt/HomeLab/issues/151)),
+with `IloDrivePredictiveFailure` armed. The iLO reports no wear for the two
+SM863a SSDs, so `collect-smart-state.sh` reads those itself. It detects the
+`hpsa` driver and reads through the logical drive with `smartctl -d cciss,N`,
+since `-d auto` sees only a logical volume. It keeps the SSDs and leaves the
+spindles to the iLO ([#529](https://github.com/Gerrrt/HomeLab/issues/529)).
+Before this, the instruction here was `--only patch-state`. Collectors for
+`Saruman` also have to be installed from the Mac: VLAN 99 cannot reach VLAN 30, which is the
 segmentation working as intended. That step needs `sudo` **on the target** and is deliberately
 not part of `scripts/deploy-agent.sh`, which goes out of its way to need no
 privilege there. It is run once per host; `ARGS=--check` re-verifies an existing
