@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **[#439](https://github.com/Gerrrt/HomeLab/issues/439): Velociraptor gets
+  a removal procedure and `odin` gets a data disk, both before `odin`
+  exists.** `build-the-soc-guest.md` §13 takes Velociraptor out in the order
+  that leaves nothing behind: the clients first, while the server can still
+  confirm they stopped checking in, then the server, then the CA's private
+  key shredded, so a missed client can never be taken over by a server built
+  later. `odin` is now built with a 32 GB OS disk and a 96 GB data disk at
+  `/srv/soc-data`, mounted by UUID. The indexer's data and Velociraptor's
+  datastore move onto it through bind-backed named volumes in
+  `stacks/soc/compose.yaml`. The empty mountpoint is `chattr +i`, so with
+  the disk unmounted `make up` fails instead of filling `/`. That failure was
+  tried on Docker locally: a bind-backed volume whose directory is missing
+  is refused with *no such file or directory*, and nothing is created.
+
 - **[#571](https://github.com/Gerrrt/HomeLab/issues/571): `smaug`'s pool
   moves to the chipset and the MegaRAID comes out, at the swap.** The Exos
   pair has sat behind a 9340-8i in JBOD since the build, and its firmware's

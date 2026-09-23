@@ -95,6 +95,18 @@ the lab CA are a named follow-up rather than a prerequisite.
 
 ## Things worth knowing before editing
 
+- **`indexer-data` and `velociraptor-datastore` are on `odin`'s second disk,
+  not in Docker's volume directory** ([#439]). Both are named volumes bound to
+  `${SOC_DATA_DIR}/indexer` and `${SOC_DATA_DIR}/velociraptor`
+  (`/srv/soc-data` by default). With that disk unmounted, `make up` fails on
+  *no such file or directory* instead of filling the OS disk; the runbook's §2
+  sets that up and says why.
+- **Velociraptor has a removal procedure, and it destroys the CA.** An
+  abandoned server is a command channel into every host that enrolled, so
+  [`build-the-soc-guest.md`](../../docs/runbooks/build-the-soc-guest.md) §13
+  uninstalls the clients first, then removes the server, then shreds
+  `velociraptor/etc/server.config.yaml`, so no later server can take over a
+  client that was missed.
 - **Four of the settings are not defaults, and each is a trade.** One primary
   shard per index, no replicas, a 30-second refresh interval and a 30-day
   delete policy on `wazuh-alerts-*`. [ADR-0030] argues each; the two JSON files
@@ -187,3 +199,4 @@ it matters:
 [ADR-0030]: ../../docs/adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md
 [#414]: https://github.com/Gerrrt/HomeLab/issues/414
 [`build-the-soc-guest.md`]: ../../docs/runbooks/build-the-soc-guest.md
+[#439]: https://github.com/Gerrrt/HomeLab/issues/439

@@ -479,7 +479,23 @@ networks:
     driver: bridge
 
 volumes:
+  # The two stores that grow live on odin's second disk, not the OS volume
+  # (#439). Velociraptor's collections get large fast, and ADR-0030 sized the
+  # indexer by heap on the assumption that disk was not the constraint; a
+  # separate filesystem makes that assumption checkable and gives the
+  # retention arithmetic somewhere to be wrong safely. Named volumes backed by
+  # a bind, so every service definition above stays as it was.
+  #
+  # The directories must exist on the MOUNTED disk: build-the-soc-guest.md §3
+  # makes the empty mountpoint immutable, so with the disk unmounted neither
+  # path can exist and `make up` fails on "no such file or directory" rather
+  # than quietly filling the OS disk with evidence.
   indexer-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SOC_DATA_DIR:-/srv/soc-data}/indexer
   manager-api-configuration:
   manager-etc:
   manager-logs:
@@ -494,4 +510,9 @@ volumes:
   dashboard-config:
   dashboard-custom:
   velociraptor-datastore:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SOC_DATA_DIR:-/srv/soc-data}/velociraptor
   alloy-data:

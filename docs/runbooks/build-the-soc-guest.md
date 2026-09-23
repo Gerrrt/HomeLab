@@ -36,7 +36,7 @@ than carrying a second copy that drifts.
 | OS | **Ubuntu Server LTS** | Same reason as `alexander`, and check it the same way: `config.alloy` tails `/var/log/auth.log` and `/var/log/syslog`, and a journald-only install collects nothing from either while reporting healthy. §10 is the check |
 | vCPU | 4 | OpenSearch and fifteen Wazuh daemons are not single-threaded; the host has 48 threads and compute was never the constraint (ADR-0007) |
 | RAM | **8 GiB** | ADR-0030's heap arithmetic assumes it: "half of system RAM would be 4 GiB". The indexer gets 3.5 GiB, the manager 2, and the rest the other three services and the page cache |
-| Disk | 96 GB | ~7 GB of alerts at 30 days, the vulnerability feed, the inventory and states indices, Velociraptor's datastore and ~5 GB of images. Bounded, not measured. On **`large_data`**, the SSD mirror, not the spindles: the indexer is the heaviest writer in ADR-0007, and that pool measured 7,952 random write IOPS at queue depth 1 against the HDD mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)). `ssd=1`, `balloon 0` and `iothread=1` for the same reasons `alexander` has them |
+| Disk | **Two: 32 GB for the OS, 96 GB for data** | The OS disk holds Ubuntu, Docker and ~5 GB of images. The data disk, mounted at `/srv/soc-data`, holds the two stores that grow: the indexer's ~7 GB of alerts at 30 days plus the vulnerability feed and the inventory and states indices, and Velociraptor's datastore, whose collections get large fast. They are separate so a hunt that collects too much fills the data disk and not `/` ([#439](https://github.com/Gerrrt/HomeLab/issues/439)), and so ADR-0030's heap-not-disk sizing has a filesystem that can prove it wrong. Bounded, not measured. Both on **`large_data`**, the SSD mirror, not the spindles: the indexer is the heaviest writer in ADR-0007, and that pool measured 7,952 random write IOPS at queue depth 1 against the HDD mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)). `ssd=1`, `balloon 0` and `iothread=1` for the same reasons `alexander` has them |
 | First user | **uid 1000** | The indexer image runs as uid 1000 and mounts the 0600 user database `make render` writes; `render-config.sh` refuses any other uid. The first user the installer creates is 1000 — do not create a second one to deploy from |
 
 > [!IMPORTANT]
@@ -66,7 +66,8 @@ qm create 160 \
   --cpu host --cores 4 --sockets 1 \
   --memory 8192 --balloon 0 \
   --scsihw virtio-scsi-single \
-  --scsi0 large_data:96,discard=on,iothread=1,ssd=1 \
+  --scsi0 large_data:32,discard=on,iothread=1,ssd=1 \
+  --scsi1 large_data:96,discard=on,iothread=1,ssd=1 \
   --net0 virtio,bridge=vmbr0 \
   --agent enabled=1 \
   --onboot 1 \
@@ -110,7 +111,56 @@ alert in `soc.rules.yaml`.
 | Gateway | `10.0.30.1` |
 | DNS | `10.0.30.1` — Unbound on the gateway ([ADR-0010](../adr/0010-keep-the-resolver-on-the-gateway.md)) |
 
-Install OpenSSH. Skip the snap Docker.
+Install OpenSSH. Skip the snap Docker. **Install onto the 32 GB disk only**,
+and give `ubuntu-lv` the whole volume group as `alexander`'s §2 says. Leave
+the 96 GB disk untouched in the installer. It becomes the data disk next,
+outside LVM, so it can be read on any machine without reassembling a volume
+group.
+
+### The data disk
+
+The indexer's data and Velociraptor's datastore live here
+([#439](https://github.com/Gerrrt/HomeLab/issues/439)), and `compose.yaml`
+reaches them through `SOC_DATA_DIR`, `/srv/soc-data` by default. Find the
+disk by size rather than by letter, since letters are assigned at boot:
+
+```bash
+lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+```
+
+The 96G disk with no partitions and no mountpoint is the one, normally
+`sdb`. Partition it, make the filesystem, and mount it by UUID:
+
+```bash
+sudo parted -s /dev/sdb mklabel gpt mkpart soc-data ext4 0% 100%
+sudo mkfs.ext4 -L soc-data /dev/sdb1
+sudo mkdir -p /srv/soc-data
+sudo chattr +i /srv/soc-data
+echo "UUID=$(sudo blkid -s UUID -o value /dev/sdb1) /srv/soc-data ext4 defaults,nofail,x-systemd.device-timeout=30s 0 2" | sudo tee -a /etc/fstab
+sudo systemctl daemon-reload && sudo mount /srv/soc-data
+```
+
+**`chattr +i` on the empty mountpoint is the guard.** With the disk mounted,
+the attribute belongs to the directory underneath and changes nothing.
+Unmounted, nothing can create anything inside `/srv/soc-data`, so the two
+directories the stack needs cannot exist there. Docker then refuses to start
+the indexer and Velociraptor with *no such file or directory*, where it would
+otherwise write the evidence store onto the OS disk and fill `/`.
+`nofail` lets the guest boot, and be reached over SSH, when the disk is
+missing. The stack still stays down.
+
+Then the two directories, owned by the users that write them:
+
+```bash
+sudo install -d -m 0750 -o 1000 -g 1000 /srv/soc-data/indexer
+sudo install -d -m 0700 -o root -g root /srv/soc-data/velociraptor
+df -h /srv/soc-data
+```
+
+The indexer runs as uid 1000; Velociraptor runs as root with every capability
+dropped (`compose.yaml`, DIFFERENCE 4). `df` must show about 94G on
+`/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
+`fstab` line before any data depends on it.
 
 ## 3. Docker, sops, age, and the repository
 
@@ -264,6 +314,12 @@ then **downloads the client release from GitHub to build the MSI, deb and
 rpm** — that is the outbound connection you will see, and it is why
 `start_period` on that service is two minutes. Three to five minutes to all
 healthy is normal.
+
+If the indexer or Velociraptor fails at once with *failed to mount local
+volume … no such file or directory*, the data disk is not mounted, or its two
+directories were never made. That is §2's guard working. `findmnt
+/srv/soc-data` says which; do not create the directories anywhere else to
+get past it.
 
 If the indexer stays unhealthy past that, the first thing to check is §4:
 
@@ -460,3 +516,107 @@ you through the first three:
 Then, a fortnight later, the re-derivations this stack was built to want:
 `container_memory_rss` per service for the `mem_limit` bounds, and the four
 indexer queries in ADR-0030 for the retention bound.
+
+## 13. Take Velociraptor out — written with the install, not after it
+
+Velociraptor is a blue-team C2: one binary that is client and server, and
+a client config built to be handed to endpoints. **An abandoned server is a
+ready-made command channel into every host that ever enrolled**, and this
+segment is the one ADR-0014 fills with attackers on purpose
+([#439](https://github.com/Gerrrt/HomeLab/issues/439)). So removal is part
+of the build. Use it when the tool is retired, when `odin` is rebuilt from
+scratch, or when the server is believed compromised.
+
+What the install left, and where. Everything is in three places, and each
+has a step below:
+
+| What | Where | Why it matters |
+| --- | --- | --- |
+| The client, as a service | The six domain machines, from the GPO in §11 | An enrolled client keeps dialling `10.0.30.60:8000` and obeys whichever server answers with the right CA |
+| The server config, **including the CA's private key** | `stacks/soc/velociraptor/etc/` in the checkout on `odin` (gitignored) | Whoever holds it can stand up a server every orphaned client trusts |
+| The datastore | `/srv/soc-data/velociraptor` on the data disk | Every collection: the evidence, and a map of every host |
+
+The server runs in its container, so its runtime files never leave it. The
+image is Alpine, and `docker compose rm` takes its `/tmp` with it; nothing
+is installed on `odin` outside those three places.
+
+### 1. The clients, first, while the server can still see them
+
+Remove the MSI assignment from the GPO §11 created: *Computer
+Configuration → Policies → Software Settings → Software installation →*
+the Velociraptor package → *All Tasks → Remove → Immediately uninstall*.
+Each machine uninstalls at its next boot. Then check on each of the six:
+
+```powershell
+Get-Service Velociraptor -ErrorAction SilentlyContinue
+Test-Path 'C:\Program Files\Velociraptor'
+```
+
+No service, and `False`. If the folder survived the uninstall, delete it:
+it holds the client config and its writeback file, and a copy of the
+client config is half of what a rogue server needs.
+
+**The GUI is the cross-check.** A client that uninstalled stops checking
+in. Any still showing a recent *Last seen* has not, and the server must stay
+up until it has. Removing the server first is exactly the orphaned state
+this section exists to prevent.
+
+A machine that will never come back, such as a workstation reverted past
+the enrolment or a guest destroyed, needs nothing: a client that no longer
+exists dials nothing.
+
+### 2. The server, on `odin`
+
+```bash
+cd ~/HomeLab
+docker compose -f stacks/soc/compose.yaml --env-file stacks/soc/.env rm -sf velociraptor
+docker volume rm soc_velociraptor-datastore
+```
+
+The volume is only the name that pointed at the data disk. Removing it
+does not touch the files.
+
+### 3. Destroy the CA, then the datastore
+
+This is the step that makes the removal final. The clients pin the CA in
+`server.config.yaml`, so once the private key is gone, no server anyone
+builds later can speak to a client that was missed in step 1:
+
+```bash
+sudo shred -u stacks/soc/velociraptor/etc/server.config.yaml
+sudo rm -rf stacks/soc/velociraptor/etc/*
+```
+
+`shred` on an SSD-backed thin volume is best effort, since the flash may
+keep the old blocks. The CA's private key is small enough that what really
+guards it is the guest's disk never leaving `Saruman`. When the disk is
+destroyed, destroy the volume with it (`qm destroy`, not detach).
+
+Then the evidence, only once it is no longer wanted, and after exporting
+anything an exercise write-up still needs:
+
+```bash
+sudo rm -rf /srv/soc-data/velociraptor
+```
+
+### 4. Close what it opened, and check
+
+- The lab's Prometheus scrapes `10.0.30.60:8003` once §9 has uncommented
+  that job in `stacks/lab/prometheus/prometheus.yaml`. Comment it back out
+  in the same change, or it becomes a target that is down forever.
+- From `alexander`, prove the three ports are closed:
+
+  ```bash
+  for p in 8000 8889 8003; do nc -z -w 3 10.0.30.60 $p && echo "$p OPEN" || echo "$p closed"; done
+  ```
+
+  All three `closed`.
+- The MSI on SYSVOL: delete it. It carries the client config inside it.
+- `docs/network.md`, `stacks/soc/README.md` and ADR-0030's port table stop
+  listing 8000, 8889 and 8003 on `odin`. If the service leaves the
+  repository rather than just this guest, that is a change to
+  `compose.yaml` and to ADR-0030, made as its own PR.
+
+Reinstalling after this is a fresh first start: a new CA, a new MSI, and the
+§11 rollout again. That is the point. Nothing from the removed install can
+be reused, including by someone who kept a copy of it.
