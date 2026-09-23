@@ -671,17 +671,17 @@ and adds write amplification on flash for a capability this host does not use.
 LVM-thin gives snapshots, thin provisioning and discard pass-through, and is
 what [`build-the-lab-guest.md`](build-the-lab-guest.md) already assumes.
 
-> **One new blind spot, recorded rather than fixed.** A thin pool is not a
-> filesystem, so `node_filesystem_*` never sees it — `Saruman` reports only
+> **One new blind spot, recorded here and since closed.** A thin pool is not
+> a filesystem, so `node_filesystem_*` never sees it — `Saruman` reports only
 > `/`, `/boot/efi` and `/etc/pve`. `HostDiskCritical` and
 > `HostDiskWillFillIn24h` are therefore **structurally blind** to the new pool,
-> and a thin pool that fills makes every guest on it read-only. Either do not
-> overprovision, or give the pool a textfile collector beside the existing
-> `collect-guest-state.sh`. This is the same shape of gap as
-> [#351](https://github.com/Gerrrt/HomeLab/issues/351) and deserves its own
-> issue, not a step here: [#538](https://github.com/Gerrrt/HomeLab/issues/538),
-> opened 2026-09-19 with `large_data` live and nothing on it yet, which is the
-> cheapest moment to close it.
+> and a thin pool that fills makes every guest on it read-only. The pools are
+> read instead by `scripts/collect-thin-pool-state.sh`, from `lvs` every ten
+> minutes on the host, into `ThinPoolNearlyFull` and `ThinPoolWillFillIn24h`
+> ([#538](https://github.com/Gerrrt/HomeLab/issues/538)). Installing it is
+> `make install-agent-collectors AGENT=root@10.0.30.110
+> ARGS='--only thin-pool-state'`, and the check is
+> `homelab_thin_pool_data_percent{host="Saruman"}` — one series per pool.
 
 ## 8. Measure what the array actually does — both of them
 
@@ -921,6 +921,7 @@ and it is what the roadmap entry should record.
 | `SnmpScrapeSlow` | Will not fire. The walk gains two drives and one logical drive: expect roughly 13–17 s against a 30 s threshold | **No**, but put before and after in the table |
 | `SmartDrive*` (`host.rules.yaml`) | Will not fire — `collect-smart-state.sh` excludes `Saruman` by design, because the iLO already walks its array | **No** |
 | `HostDiskCritical` / `HostDiskWillFillIn24h` | Cannot fire for the new pool — see step 7's blind spot | **No** |
+| `ThinPoolNearlyFull` / `ThinPoolWillFillIn24h` | Will not fire — the pool is created empty, and the move lands `alexander`'s disk at a few percent of it. These are what step 7's blind spot is read by | **No** |
 
 ## 11. Confirm the metrics actually moved — on `prometheus`
 

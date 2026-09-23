@@ -324,6 +324,34 @@ up{instance="Saruman"}
 reads as a failure when nothing is wrong. Both jobs, `Saruman-metrics` and
 `Saruman-alloy`, should be at `1`.
 
+**Then that it stays on.** The probe above is a thing a person does once, and
+the ordinary ways the firewall goes off again — a `pve-firewall stop` while
+debugging a guest, an upgrade rewriting `/etc/pve/firewall`, a rebuild that
+skips this section — page nothing on their own. Install the collector that
+reads it ([#576](https://github.com/Gerrrt/HomeLab/issues/576)):
+
+```bash
+make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only pve-firewall-state'
+```
+
+and read it back on `prometheus`:
+
+```promql
+homelab_pve_firewall_enabled{host="Saruman"}
+homelab_pve_firewall_rules{host="Saruman"}
+```
+
+| Series | Expect | If not |
+| --- | --- | --- |
+| `homelab_pve_firewall_enabled` | `1` — `pve-firewall status` reads `enabled/running` | `PveFirewallDisabled` pages after ten minutes; this section is the way back |
+| `homelab_pve_firewall_rules{file="host"}` | `4` on `Saruman` (ADR-0014's three and ADR-0043's one), `3` on `ifrit` | Fewer is a rule file that did not survive; `0` with the firewall on means the `policy_in` decides everything |
+| `homelab_pve_firewall_rules{file="cluster"}` | `0` — `cluster.fw` carries the enable and the alias, not rules | Not a fault on its own; say why in the build notes if it changes |
+
+Prove the alert once, on purpose, with the console to hand: `pve-firewall
+stop`, wait for `PveFirewallDisabled` to fire (about fifteen minutes, with the
+five-minute timer), then `pve-firewall start` and watch it resolve. A rule that
+has never fired is a rule nobody knows can.
+
 ---
 
 ## 5. The attack VM

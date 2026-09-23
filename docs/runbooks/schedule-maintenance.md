@@ -154,7 +154,7 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
-`guest-state` and `drift-check` — and checks each host's requirements **per
+`guest-state`, `thin-pool-state`, `pve-firewall-state` and `drift-check` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
 it.
@@ -222,6 +222,18 @@ rediscovered.
 estate cannot tell a deliberate shutdown from a crash and should not pretend to.
 `GuestStateStopped` covers the collector itself going silent, since "no guests"
 is a legitimate answer and therefore a dangerous silence.
+
+**`thin-pool-state` and `pve-firewall-state` are two more readings of the
+hypervisor itself**, not of any guest. The first reads `lvs` for the thin pools
+the guests live on, which `node_filesystem_*` cannot see
+([#538](https://github.com/Gerrrt/HomeLab/issues/538)); the second reads
+`pve-firewall status` and counts the active rules in `cluster.fw` and
+`host.fw`, so that a firewall switched off after a debugging session pages
+rather than waiting to be found
+([#576](https://github.com/Gerrrt/HomeLab/issues/576)). Each writes nothing
+when its command fails, and each has a `…StateStale` rule on the file's mtime
+rather than on presence, for `SmartStateStale`'s reason: the `.prom` is
+re-served on every scrape, so only its age says the timer stopped.
 
 **It needs root on the target, which is not the same as needing `sudo`.** The
 estate has both shapes and the installer picks per host, from the login user's
