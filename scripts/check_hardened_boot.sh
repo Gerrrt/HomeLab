@@ -125,7 +125,7 @@ if [[ -n "${PROOF_CACHE}" && -f "${PROOF_CACHE}" ]] && grep -qxF "${proof}" "${P
   exit 0
 fi
 
-# shellcheck disable=SC2317  # reached through the EXIT trap
+# shellcheck disable=SC2317,SC2329  # reached through the EXIT trap; 0.11 moved this from SC2317 to SC2329
 cleanup() {
   local rc=$?
   if ((rc != 0)); then
