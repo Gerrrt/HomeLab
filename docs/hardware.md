@@ -615,8 +615,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   American cord) was ordered 2026-09-23 and is in transit, and the bench
   steps wait for it
   ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). **Not 48POW:** it
-  is MikroTik's too, has the same plug, and puts 48 V into a jack labelled 10–28 V. The
-  replacement for
+  is MikroTik's too, has the same plug, and puts 48 V into a jack labelled
+  10–28 V. The replacement for
   `neo` that
   [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
   asked for in its last consequence and
