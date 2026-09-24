@@ -606,9 +606,17 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   finding purchases that can be relied on. `651687-001` is the listing's part
   number, not read off the tray.
 - MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
-  RouterOS / SwOS — bought used 2026-09-13; in transit, delivery estimated
-  2026-09-23, moved out from the 09-16 to 09-21 window quoted at purchase. The
-  replacement for
+  RouterOS / SwOS — bought used 2026-09-13, **in hand since 2026-09-23**.
+  The box held the switch and its rack ears and **no power adapter**. The rear
+  panel has no AC inlet: the only power input is a barrel jack marked
+  `DC 10–28V`, beside a ground screw, with a blank plate where other units
+  carry an inlet. PoE-in on port 1 is the other input. MikroTik rates the
+  unit at 24 W maximum. A MikroTik 24HPOW[^24HPOW] (24 V, 2.5 A, North
+  American cord) was ordered 2026-09-23 and is in transit, and the bench
+  steps wait for it
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). **Not 48POW:** it
+  is MikroTik's too, has the same plug, and puts 48 V into a jack labelled
+  10–28 V. The replacement for
   `neo` that
   [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
   asked for in its last consequence and
@@ -784,6 +792,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446)
+[^24HPOW]: [MikroTik 24HPOW, 24 V 2.5 A](https://mikrotik.com/product/24HPOW)
 [^A1437]: [A1437 battery for the MacBook Pro 13" A1425 Retina](https://www.ebay.com/itm/356174101017)
 [^M5Y1K]: [Dell M5Y1K 40 Wh 4-cell battery for the Inspiron 15 3000 series](https://www.ebay.com/itm/357495025211)
 [^ProDeskRackmount]: [1U rackmount for ProDesk Mini](https://a.co/d/4d7klOL)
