@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **[#485](https://github.com/Gerrrt/HomeLab/issues/485): the build runbook
+  for `golem`.** `build-the-backup-guest.md` turns ADR-0053 into steps. It
+  covers the VM from the PBS ISO; `erebor/pbs` with `atime` on, owned by uid
+  34, and an NFSv4 share mapping root to `backup`; the daily snapshot task;
+  and the `2049` pass, placed above a VLAN 30 block the repository has never
+  named, so §4 reads it off `morpheus` first. Then the mount, guarded by
+  `chattr +i` as `odin`'s data disk is; the prune, garbage-collection and
+  verify schedules; a token-only PVE user; and encrypted storage on
+  `Saruman`, with the key copied into `secrets/lab.sops.yaml` and onto
+  paper. The first proof is a one-off backup and restore of `phoenix`,
+  because neither guest ADR-0053 protects exists yet. The one missing
+  piece, the collector that puts verify results in front of the lab's
+  Prometheus, is written as its own change once a real PBS exists, and
+  #485 stays open until then.
+
 - **The offsite medium's key could not open two of the three things it
   carried, and the copy proved it green.** Found on the first visit (#573).
   Archives are encrypted to the recipients the secrets file listed when each
