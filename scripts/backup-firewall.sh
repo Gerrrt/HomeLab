@@ -94,6 +94,7 @@
 #   scripts/backup-firewall.sh --verify-only      re-verify the newest backup, here and on the far side
 #   scripts/backup-firewall.sh --list             show what exists, here and on the far side
 #   scripts/backup-firewall.sh --prune            apply retention only, both sides
+#   scripts/backup-firewall.sh --self-test        which keys an export is encrypted to, against fixtures
 #
 # Environment:
 #   FW_HOST      default morpheus.matrix.elysium (falls back to 10.0.99.1)
@@ -159,15 +160,33 @@ need() { command -v "$1" >/dev/null 2>&1 || { red "missing dependency: $1"; exit
 # the second rule was created to prevent, arriving through the back door.
 #
 # Anchored on the path_regex naming backups/firewall, so it follows the rule
-# rather than the ordering. Exits at the first key after that line: `age:` uses
-# a folded scalar, so the key is on the line following the one that matches.
-recipient() {
+# rather than the ordering.
+#
+# EVERY KEY OF THAT RULE, NOT THE FIRST. This stopped at the first key after
+# the path_regex, and `sops --age` then encrypted to that one key alone: an
+# explicit --age replaces the rule's recipient list rather than adding to it.
+# Harmless while the rule held one key. From 2026-09-09 it held two (ADR-0024),
+# and every export after that opened with age1yrdu996… only, never with the
+# second recipient's key. The export is the one artefact with a real rebuild
+# cost, and it is what ADR-0048 carries on that recipient's medium. Found on
+# 2026-09-23, when the first offsite visit put one there (#573).
+#
+# Comma-joined, which is the list form `sops --age` takes. The rule ends at the
+# next path_regex; comment lines inside it are skipped, so a key quoted in a
+# comment is never encrypted to.
+recipients() {  # [policy file, default .sops.yaml]
   awk '
-    /path_regex:.*backups\/firewall/ { inrule = 1 }
-    inrule && match($0, /age1[0-9a-z]{50,}/) {
-      print substr($0, RSTART, RLENGTH); exit
+    /^[[:space:]]*#/ { next }
+    /path_regex:/ { if (inrule) exit; if ($0 ~ /backups\/firewall/) inrule = 1; next }
+    inrule {
+      line = $0
+      while (match(line, /age1[0-9a-z]{50,}/)) {
+        keys = keys (keys == "" ? "" : ",") substr(line, RSTART, RLENGTH)
+        line = substr(line, RSTART + RLENGTH)
+      }
     }
-  ' "$SOPS_POLICY"
+    END { print keys }
+  ' "${1:-$SOPS_POLICY}"
 }
 
 # Newest first, sorted by NAME and not by mtime. The stamp is UTC ISO-8601
@@ -474,6 +493,61 @@ prune_offhost() {
 
 LOCAL_ONLY=0
 case "${1:-}" in
+  --self-test)
+    # recipients() against fixture policies. The first-key bug above passed
+    # every other check this script has, because an export encrypted to one
+    # key of two still decrypts with the live key, and verify() uses that.
+    t="$(mktemp -d)"; trap 'rm -rf "$t"' EXIT
+    fail=0
+    A=age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x
+    B=age19mkg76v0x70wkqwuykxxqpdwrq8mhgklpjw44j6xw73psnhwyvcqa9995j
+    L=age1lablablablablablablablablablablablablablablablablablablabl
+    expect() {  # <name> <want> <policy text>
+      printf '%s\n' "$3" > "$t/sops.yaml"
+      local got; got="$(recipients "$t/sops.yaml")"
+      if [[ $got == "$2" ]]; then printf '\033[0;32m  PASS\033[0m %s\n' "$1"
+      else printf '\033[0;31m  FAIL\033[0m %s\n       got      %s\n       expected %s\n' "$1" "$got" "$2"; fail=1; fi
+    }
+    expect "both keys of the rule, not the first" "$A,$B" \
+"creation_rules:
+  - path_regex: (secrets/.*|backups/firewall/.*)\\.sops\\.ya?ml\$
+    age: >-
+      $A,
+      $B"
+    expect "a rule above for the lab is not read (ADR-0020)" "$A,$B" \
+"creation_rules:
+  - path_regex: secrets/lab(\\..+)?\\.sops\\.ya?ml\$
+    age: >-
+      $L
+  - path_regex: (secrets/.*|backups/firewall/.*)\\.sops\\.ya?ml\$
+    age: >-
+      $A,
+      $B"
+    expect "the rule ends at the next path_regex" "$A" \
+"creation_rules:
+  - path_regex: (secrets/.*|backups/firewall/.*)\\.sops\\.ya?ml\$
+    age: >-
+      $A
+  - path_regex: secrets/later.*
+    age: >-
+      $L"
+    expect "a key quoted in a comment inside the rule is not a recipient" "$A,$B" \
+"creation_rules:
+  - path_regex: (secrets/.*|backups/firewall/.*)\\.sops\\.ya?ml\$
+    # $L was removed on some date
+    age: >-
+      $A,
+      $B"
+    expect "one key on one line" "$A" \
+"creation_rules:
+  - path_regex: backups/firewall/.*
+    age: $A"
+    # And the file this script reads, so a .sops.yaml that stops naming both of
+    # the estate's keys for exports is caught before the next export.
+    live="$(recipients)"
+    if [[ $live == *,* ]]; then printf '\033[0;32m  PASS\033[0m %s\n' ".sops.yaml gives exports more than one recipient"
+    else printf '\033[0;31m  FAIL\033[0m %s (%s)\n' ".sops.yaml gives exports more than one recipient" "$live"; fail=1; fi
+    exit "$fail" ;;
   --list)
     # The dry run for retention, which is what makes it defensible as a default.
     # It must agree with prune: same newest-first order, same FW_KEEP, and the
@@ -530,7 +604,7 @@ need ssh
 need sops
 need cmp
 
-AGE_RECIPIENT="$(recipient)"
+AGE_RECIPIENT="$(recipients)"
 [[ -n $AGE_RECIPIENT ]] || { red "no age recipient found in $SOPS_POLICY"; exit 1; }
 
 mkdir -p "$OUT_DIR"

@@ -41,6 +41,129 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-23
 
+- **[#485](https://github.com/Gerrrt/HomeLab/issues/485): the build runbook
+  for `golem`.** `build-the-backup-guest.md` turns ADR-0053 into steps. It
+  covers the VM from the PBS ISO; `erebor/pbs` with `atime` on, owned by uid
+  34, and an NFSv4 share mapping root to `backup`; the daily snapshot task;
+  and the `2049` pass, placed above a VLAN 30 block the repository has never
+  named, so §4 reads it off `morpheus` first. Then the mount, guarded by
+  `chattr +i` as `odin`'s data disk is; the prune, garbage-collection and
+  verify schedules; a token-only PVE user; and encrypted storage on
+  `Saruman`, with the key copied into `secrets/lab.sops.yaml` and onto
+  paper. The first proof is a one-off backup and restore of `phoenix`,
+  because neither guest ADR-0053 protects exists yet. The one missing
+  piece, the collector that puts verify results in front of the lab's
+  Prometheus, is written as its own change once a real PBS exists, and
+  #485 stays open until then.
+
+- **The offsite medium's key could not open two of the three things it
+  carried, and the copy proved it green.** Found on the first visit (#573).
+  Archives are encrypted to the recipients the secrets file listed when each
+  backup ran, and the volume set `20260920T033007Z` predated the medium's
+  key, `age19mkg76v0…`. That one was caught and replaced in the sitting. The
+  firewall export was worse and was missed: `backup-firewall.sh` passed
+  `sops --age` the **first** key of its rule only, and an explicit `--age`
+  replaces the rule's list. So every export since the second recipient was
+  added on 2026-09-09 opened with `age1yrdu996…` alone. `recipients()` now
+  returns every key in the rule, and the script has its first `--self-test`,
+  which also asserts the live `.sops.yaml` gives exports more than one key.
+  `backup-offsite.sh` now reads who each set and export is encrypted to, from
+  the MANIFEST's `recipient` line and the export's own `sops:` block, without
+  decrypting anything. It refuses to copy one that any current recipient
+  cannot open, names it `NOT held`, and records no proof. `--verify-only`
+  fails on such a set on the medium, and a copy run replaces it rather than
+  being blocked by it. Seven fixtures cover it. #573's closing comment said
+  the export opened with the medium's key. It did not, and that is corrected
+  on the issue.
+
+- **[#485](https://github.com/Gerrrt/HomeLab/issues/485): PBS runs on
+  `Saruman`, with its datastore on `smaug` over NFS.** ADR-0027's trigger
+  had fired, but its sync job needed a second PBS instance, and on TrueNAS
+  that means a VM on `smaug`'s 8 GB (#599).
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)
+  runs one PBS guest, `golem` at `10.0.30.80`. Its only datastore is
+  `erebor/pbs` over NFSv4, with `atime` on for garbage collection, and daily
+  TrueNAS snapshots kept for fourteen days replace the second instance as
+  the copy PBS cannot prune. Backups are encrypted on `Saruman`, and the
+  key is kept in `secrets/lab.sops.yaml`. It takes one more CasaBonita
+  pass, `10.0.30.80 → 10.0.40.30:2049`. What gets backed up is ADR-0027's
+  table, unchanged. ADR-0027 carries a note; the roadmap, `build-the-nas.md`
+  and `build-the-soc-guest.md` point at the decision. Nothing is built yet.
+
+- **[#439](https://github.com/Gerrrt/HomeLab/issues/439): Velociraptor gets
+  a removal procedure and `odin` gets a data disk, both before `odin`
+  exists.** `build-the-soc-guest.md` §13 takes Velociraptor out in the order
+  that leaves nothing behind: the clients first, while the server can still
+  confirm they stopped checking in, then the server, then the CA's private
+  key shredded, so a missed client can never be taken over by a server built
+  later. `odin` is now built with a 32 GB OS disk and a 96 GB data disk at
+  `/srv/soc-data`, mounted by UUID. The indexer's data and Velociraptor's
+  datastore move onto it through bind-backed named volumes in
+  `stacks/soc/compose.yaml`. The empty mountpoint is `chattr +i`, so with
+  the disk unmounted `make up` fails instead of filling `/`. That failure was
+  tried on Docker locally: a bind-backed volume whose directory is missing
+  is refused with *no such file or directory*, and nothing is created.
+
+- **[#571](https://github.com/Gerrrt/HomeLab/issues/571): `smaug`'s pool
+  moves to the chipset and the MegaRAID comes out, at the swap.** The Exos
+  pair has sat behind a 9340-8i in JBOD since the build, and its firmware's
+  error path is what `ZVTBSDL3`'s fault ran through. Five of the chipset's
+  six SATA ports are free.
+  [ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)
+  decides against IT-mode firmware, which would be a crossflash on the
+  pool's only controller with no spare card. The move needs two plain SATA
+  cables, since the only tray cable is the card's own mini-SAS breakout.
+  `replace-the-nas-disk.md` §5 now moves the surviving drive first, alone,
+  with the card and breakout going back in if the pool does not import on
+  `ahci`. §6 adds the SMART baseline re-check the new enumeration needs.
+  Nothing has moved yet; the pool is still one disk, waiting for a
+  replacement.
+
+- **[#574](https://github.com/Gerrrt/HomeLab/issues/574): steps 0 to 4 of
+  `shut-down-on-the-ups.md` are built. The shutdown sequence is armed and
+  not yet proved.** `morpheus` serves NUT from `mjolnir` over SNMPv3 (`apcc`
+  MIB, `OL`, `battery.runtime.low` 480). Four rules narrow the listener to
+  `Saruman` and `smaug`, confirmed blocked from `phoenix`. Both subscribers
+  are logged in. The tripwires read 0 on every interface. Steps 5 to 7, the
+  halt, the pull and the write-up, wait for a window. Running it found six
+  errors in the runbook, all corrected there:
+  - The card's access list admitted the SNMPv3 user from `10.0.99.20` only,
+    so the driver on `10.0.99.1` was ignored until the card got a
+    read-only entry for it. That is the new step 1.0, and ADR-0049 has a note.
+  - 1.6's readback printed the package's `local-monitor` password: the
+    `MONITOR` line carries it without the word "password". Saving the page
+    rotated it the same evening, and the command now drops that line.
+  - The runbook expected `MODE=netserver`, but pfSense leaves `MODE=none`.
+  - `pfctl` prints port 3493 as `nut`, so 2.5 now greps for that.
+  - The card already held an 8-minute low-battery duration before step 0.
+  - `Saruman` has no `sudo`.
+
+- **[#523](https://github.com/Gerrrt/HomeLab/issues/523): a Hicks
+  workstation mounts the media share.** `samwise` exists on `smaug`, and
+  `Allow SMB to smaug` (Hicks → `10.0.40.30:445`) was created on `morpheus`.
+  A Windows PC on Hicks mounted `\\10.0.40.30\media` as `samwise`. Read
+  from `morpheus` afterwards, the pass sits above *Block access to
+  CasaBonita* on `igc0.50` and has matched 463 packets. The monitoring host
+  is still refused on `445`, and the #223 tripwire on `igc0.40` still reads
+  0 packets. Six Hicks and Winterfell passes to `smaug` now exist, so
+  Audiobookshelf's `13378` will be the seventh. `network.md`, `security.md`,
+  `architecture.md`, `stacks/media/README.md` and `build-the-nas.md` §5 move
+  from *specified* to *created*.
+
+- **[#523](https://github.com/Gerrrt/HomeLab/issues/523): workstations
+  get the media share, by
+  [ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md).**
+  Since 2026-09-18 nothing a person sits at could mount `\\10.0.40.30\media`,
+  because none of the Hicks passes is `445`. The decision is a Hicks pass,
+  `vlan50 net → 10.0.40.30:445`, described `Allow SMB to smaug`, and a second
+  SMB user, `samwise`, for workstations. `bilbo` stays the televisions'
+  credential, so the two can be revoked separately. A pull from the NAS side
+  was rejected, because it would make CasaBonita initiate. Loading over the
+  console was rejected because it does not scale. Making `bilbo` read-only
+  was deferred as its own ACL change. Only documents changed. The rule and
+  the user are `build-the-nas.md` §5's *Workstations* steps, and until those
+  are done every document calls the pass specified, not created.
+
 - **[#534](https://github.com/Gerrrt/HomeLab/issues/534): Home Assistant's
   hardened boot is re-proved on every change to it.** It had been proved once,
   on 2026-09-09, against a digest Dependabot has since moved twice. A new CI

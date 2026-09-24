@@ -321,6 +321,20 @@ copy cannot be proved from here on their behalf. `SecretsKeyBackupUnproven`
 names the recipient that is overdue, and clearing it for theirs is a visit with
 the removable medium, not a timer.
 
+**Replacing a recipient is add, then remove, then prove.** A key that was
+never kept, or a holder who changes, is handled in that order so the secrets
+are never short of two keys. `make secrets-add-recipient PUBKEY=<new>` with the
+new public half, generated where it will live. Then
+`make secrets-remove-recipient PUBKEY=<old>`. Then prove the new one with
+`make secrets-verify-backup` on the next visit. Both targets rewrite
+`.sops.yaml` and the secrets file, and each pair is committed together. The
+remove refuses to take out this host's key, to leave fewer than two recipients,
+or to leave only recipients that have never been proved. The last matters
+because a replacement added and not yet proved is, as far as the record goes, a
+key that may open nothing. First run for
+[#294](https://github.com/Gerrrt/HomeLab/issues/294): `age1cutv5…` was never
+kept, and `age19mkg76v0…` replaced it.
+
 **Revocation is still rotation.** Removing a recipient and re-keying protects
 values encrypted from then on. Every historical ciphertext in git stays readable
 by the removed key, because the commits are still there. A second recipient that

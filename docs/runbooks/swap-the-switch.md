@@ -98,7 +98,11 @@ Confirm the OS and version it booted, the serial and the management MAC:
 /interface/print
 ```
 
-Check the box for rack ears and a power supply — it is a used listing. **These
+Check the box for rack ears and a power supply — it is a used listing. **This
+model is DC-only**: a `DC 10–28V` barrel jack and no AC inlet, so "a power
+supply" means MikroTik's 24 V adapter, and the unit bought for this swap
+arrived without one (2026-09-23). A 48 V MikroTik adapter has the same plug
+and is outside the jack's range. **These
 facts go into [`hardware.md`](../hardware.md)**, replacing the "in transit"
 line, and that edit can land on its own before the window.
 

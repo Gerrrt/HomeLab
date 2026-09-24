@@ -41,6 +41,13 @@
 > pass of the same kind as the table below, created when it is deployed
 > ([ADR-0050](0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)). The table is not edited; the
 > rule set the runbook keeps is the current one.
+>
+> **A rule for the share, 2026-09-23.** Workstations on Hicks mount the
+> `media` share over `vlan50 net → 10.0.40.30:445`, as an SMB user of their
+> own, `samwise`, so the televisions' `bilbo` is not also the password typed
+> on laptops
+> ([ADR-0051](0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)).
+> Same kind of pass as the table below, and the table is not edited.
 
 ## Context
 

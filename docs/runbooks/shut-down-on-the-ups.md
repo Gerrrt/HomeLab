@@ -15,6 +15,31 @@ follow the steps.**
 > [#85](https://github.com/Gerrrt/HomeLab/issues/85) had already retired, and
 > step 5 watched for alerts that cannot arrive inside the window it measures.
 > Both are fixed below. Nothing here has been run.
+>
+> **Corrected 2026-09-23, still not built.** Steps 3 and 5.1 said to work on
+> `Saruman` from a Mac on VLAN 30. Since
+> [#566](https://github.com/Gerrrt/HomeLab/issues/566) enabled its firewall,
+> `Saruman` admits SSH from Hicks only. Confirmed from `phoenix` (`10.0.30.70`)
+> on 2026-09-23: 22 and 3128 filtered, 8006 open. Both steps now say a Mac on
+> Hicks, which reaches the whole lab segment
+> ([ADR-0031](../adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)).
+>
+> **Steps 0 to 4 built, 2026-09-23; steps 5 to 7 not yet run.** The firewall
+> serves NUT from the card, both subscribers are logged in, and the four
+> rules are in. The shutdown sequence is therefore **armed and unproved**: a
+> real mains cut would now try to run it. Running steps 0 to 4 found six
+> things this file had wrong. Each is corrected in its step:
+>
+> - The card's SNMPv3 access list admitted `prometheus` from `10.0.99.20`
+>   only, so the driver on `10.0.99.1` was ignored. That is the new step 1.0.
+> - 1.6's readback leaked a password: the `MONITOR` line in `upsmon.conf`
+>   carries one without the word "password". The command now drops that line.
+> - 1.6 expected `MODE=netserver`. The pfSense package leaves `MODE=none`
+>   and starts its daemons itself.
+> - 2.5 grepped for `3493`, which `pfctl` prints as `nut`.
+> - Step 0 expected a factory 2 minutes. The card already read 8, and the
+>   factory value was never observed.
+> - Step 3 used `sudo`. `Saruman` logs in as root and has none.
 
 ## What this does
 
@@ -35,7 +60,7 @@ Tick all seven. Steps 1 to 6 assume every one of these is done.
       down the house has no DNS and no DHCP.
 - [ ] **Physical or out-of-band access to all three hosts**, because step 5
       leaves them all powered off: the KVM in U6 for `morpheus`, the iLO at
-      `10.0.30.10` from a Mac on VLAN 30 for `Saruman`, and the power button
+      `10.0.30.10` from a Mac on Hicks for `Saruman`, and the power button
       on the front of `smaug` in the media room.
 - [ ] **The UPS card's SNMPv3 passphrases**, rendered on the **main checkout**
       and never in a worktree (the command is below this list). They are
@@ -50,6 +75,11 @@ Tick all seven. Steps 1 to 6 assume every one of these is done.
 - [ ] **A username and password you invent now** for the two subscribers to
       log in with. Below they are written `<NUTUSER>` and `<NUTPASS>`. Put
       them in Apple Passwords before you start. `upsslave` is a fine username.
+      For the password, on the Mac, generate one straight to the clipboard
+      without showing it: `openssl rand -hex 16 | tr -d '\n' | pbcopy`. Paste
+      it into a new Passwords entry before copying anything else, then clear
+      the clipboard with `pbcopy </dev/null`. Hex, because NUT's files parse
+      spaces, quotes, `#` and `=`.
 - [ ] **The monitoring stack up on `prometheus`.** It stays up on its own cell
       throughout and is how you watch every step.
 - [ ] **Alertmanager reachable on `localhost:9093` from `prometheus`.** 5.0
@@ -90,6 +120,11 @@ cd /home/robo/code/Gerrrt/HomeLab && scripts/snmp-walk.sh --device mjolnir 1.3.6
 That is 2 minutes. **Write the value down** before you change it, so it can be
 put back.
 
+**Read 2026-09-23: it was already `0:0:08:00.00`.** 2 minutes is APC's usual
+factory default, written here from the documentation and not read off this
+card, and nothing in this repository records who raised it or when. If 0.1
+already reads 8 minutes, 0.2 and 0.3 are done — go to step 1.
+
 **If you see nothing:** the credential is wrong or the card is not answering.
 Stop and fix that first — every later step depends on reaching this card.
 
@@ -124,6 +159,28 @@ to 0.2.
 ---
 
 ## Step 1 — Configure the NUT server on `morpheus`
+
+### 1.0 Let the firewall read the card
+
+The card answers the `prometheus` SNMPv3 user **only from the addresses in
+its access list**, and
+[`rotate-snmp-community.md`](rotate-snmp-community.md) §4 gave it one entry:
+`10.0.99.20`. The NUT driver runs on the firewall, `10.0.99.1`, and the card
+ignores it — no error, only timeouts. On 2026-09-23 that surfaced first as
+`Requested 'mibs' value 'apcc' did not match this device` and then, with
+autodetection, as `No supported device detected`. Neither message names the
+cause.
+
+At `https://10.0.99.10`, **Configuration → Network → SNMPv3 → Access
+Control**, add a second entry for the `prometheus` user profile: NMS IP
+`10.0.99.1`, access **Read**, enabled. Read is all NUT needs — it reads the
+card and never commands it. Saving restarts the card's network interface;
+the UPS keeps supplying power.
+
+This is the same credential on a second reader, which is what
+[ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
+chose. A separate user for NUT would keep the two apart, at the cost of a
+second pair of passphrases in SOPS.
 
 ### 1.1 Open the settings page
 
@@ -219,13 +276,13 @@ Click **Save**. The page restarts the service for you.
 On `prometheus`:
 
 ```bash
-ssh admin@10.0.99.1 'grep -vE "^\s*#|^\s*$" /usr/local/etc/nut/nut.conf; grep -vE "^\s*#|^\s*$|[Pp]assword" /usr/local/etc/nut/ups.conf /usr/local/etc/nut/upsd.conf /usr/local/etc/nut/upsmon.conf; sockstat -l4 | grep 3493'
+ssh admin@10.0.99.1 'grep -vE "^\s*#|^\s*$" /usr/local/etc/nut/nut.conf; grep -vE "^\s*#|^\s*$|[Pp]assword|^MONITOR" /usr/local/etc/nut/ups.conf /usr/local/etc/nut/upsd.conf /usr/local/etc/nut/upsmon.conf; sockstat -l4 | grep 3493'
 ```
 
 **You should see**, among other lines:
 
 ```text
-MODE=netserver
+MODE=none
 [mjolnir]
 driver=snmp-ups
 port=10.0.99.10
@@ -248,6 +305,26 @@ and three `sockstat` lines showing `upsd` bound to `127.0.0.1:3493`,
 The command hides every password line on purpose — `authPassword` and
 `privPassword` among them, which is why the pattern matches a capital `P` as
 well as a small one. Their absence here is correct and not a problem.
+
+**It also hides the `MONITOR` line, and that one was learned the hard way.**
+The package writes `MONITOR mjolnir 1 local-monitor <password> master` into
+`upsmon.conf` for its own monitor, and the word "password" is nowhere on the
+line. The first version of this command printed it, on 2026-09-23. That is a
+primary login: anything that holds it and reaches the listener can force a
+shutdown of every subscriber. **Saving the UPS page regenerates it**, so if it
+is ever shown, save once and it is dead.
+
+**`MODE=none` is correct here, not a fault.** The pfSense package starts
+`upsd`, `upsmon` and the driver itself and does not read `nut.conf`'s mode.
+The processes are the proof, not this file:
+
+```bash
+ssh admin@10.0.99.1 'ps -axo pid,user,command | grep -E "snmp-ups|upsd|upsmon" | grep -v grep'
+```
+
+That shows one `snmp-ups -a mjolnir`, one `upsd` and two `upsmon`: a root
+parent and a `nut` child. **No `snmp-ups` line means the driver is not
+running** — see 1.7.
 
 **If `sockstat` shows `*:3493` or `0.0.0.0:3493`:** the `LISTEN` lines did not
 take. Go back to 1.4. Do not continue — the listener would be reachable from
@@ -285,6 +362,25 @@ cd /home/robo/code/Gerrrt/HomeLab && scripts/snmp-walk.sh --device mjolnir 1.3.6
 If that returns a value and the driver still will not connect, the fault is in
 what the form wrote rather than in the credential — go back to 1.6 and read
 the `[mjolnir]` block.
+
+**If that command returns values but the driver still fails, and its start
+reports `did not match this device`, `No supported device detected` or takes
+more than a minute:** the card is ignoring the firewall's address. That is
+1.0, not the MIB and not the credential. This command shows the driver's own
+error at normal verbosity. Never start `snmp-ups` with `-D` to find out,
+because debug output can print the passphrases:
+
+```bash
+ssh admin@10.0.99.1 'upsdrvctl start mjolnir 2>&1 | grep -viE "pass|secret"'
+```
+
+Once it connects, expect a screen of `type error exception` warnings and
+`No matching MIB found for sysOID '.1.3.6.1.4.1.318.1.3.27'`, then
+`Detected Smart-UPS X 1500 … (mib: apcc 1.61)`. The warnings are optional
+readings this card does not provide, and the sysOID line is NUT not knowing
+this model by number before it finds `apcc` by trying. Neither is a fault.
+After a start by hand, save the UPS page once so the package's own service
+runs the driver, and confirm with the `ps` check in 1.6.
 
 **If you see `Unknown UPS`:** the name in 1.2 is not `mjolnir`.
 
@@ -355,11 +451,24 @@ bottom. Then click **Apply Changes**.
 ### 2.5 Verify the order from the firewall itself
 
 ```bash
-ssh admin@10.0.99.1 'pfctl -sr | grep -E "igc0\.(30|40)" | grep -nE "3493|Allow internet"'
+ssh admin@10.0.99.1 'pfctl -sr | grep -E "igc0\.(30|40)" | grep -nE "port = nut|3493|Allow internet"'
 ```
 
 **You should see**, for each of the two interfaces, three numbered lines in
-this order: the `pass` on 3493, the `block` on 3493, then `Allow internet`.
+this order: the `pass` on 3493, the `block` on 3493, then `Allow internet`
+(twice, once for IPv4 and once for IPv6).
+
+`pfctl` prints the port by its service name, so 3493 appears as
+`port = nut`. The pattern used to match only `3493` and printed nothing
+for rules that were in place.
+
+**Then prove the block from a machine on ImaginationLAN that is not
+`Saruman`**, such as `phoenix`. On 2026-09-23 this read blocked, with 53
+open as the control:
+
+```bash
+timeout 5 bash -c '</dev/tcp/10.0.30.1/3493' && echo OPEN || echo blocked
+```
 
 **If a `pass` line prints after its `Allow internet` line:** the rule is below
 the catch-all and will never match. Go back to 2.4.
@@ -368,13 +477,21 @@ the catch-all and will never match. Go back to 2.4.
 
 ## Step 3 — Subscribe `Saruman`
 
-Do this from a Mac on VLAN 30. `prometheus` cannot reach `Saruman`.
+Do this from a Mac on Hicks (`10.0.50.0/24`). `prometheus` cannot reach
+`Saruman`, and since
+[#566](https://github.com/Gerrrt/HomeLab/issues/566) turned its Proxmox
+firewall on, neither can anything on VLAN 30 except on 8006: `Saruman` admits
+SSH from Hicks only (ADR-0014). A Mac *on* the lab segment sees port 22 as
+filtered, and this step would fail at the first `ssh`.
 
 ### 3.1 Install the client
 
 ```bash
-sudo apt install nut-client
+apt install nut-client
 ```
+
+`Saruman` logs in as root and has no `sudo`, so the commands in this step
+carry none.
 
 ### 3.2 Set the mode
 
@@ -404,7 +521,7 @@ Type the password into the editor. Do not echo it from a shell.
 ### 3.4 Fix the permissions and start it
 
 ```bash
-sudo chown root:nut /etc/nut/upsmon.conf && sudo chmod 640 /etc/nut/upsmon.conf && sudo systemctl enable --now nut-monitor
+chown root:nut /etc/nut/upsmon.conf && chmod 640 /etc/nut/upsmon.conf && systemctl enable --now nut-monitor
 ```
 
 ### 3.5 Verify
@@ -426,6 +543,19 @@ is missing, or the pass rule from 2.1 is in the wrong place.
 you put in 1.4. Check `journalctl -u nut-monitor` — a wrong credential logs
 *Login on UPS [mjolnir@10.0.30.1] failed*.
 
+`Init SSL without certificate database` and three `upsnotify` lines about
+systemd in that journal are expected and harmless.
+
+**Then confirm the login from the firewall's side**, because the firewall
+waits on its logged-in monitors in step 5:
+
+```bash
+ssh admin@10.0.99.1 'upsc -c mjolnir@localhost'
+```
+
+It should list `10.0.30.110` and `::1`. The firewall's own monitor connects
+over IPv6 loopback.
+
 ### 3.6 Read the guest shutdown policy
 
 In the Proxmox web interface, **Datacenter → Options → HA Settings** and each
@@ -435,6 +565,18 @@ guest's **Options → Start/Shutdown order**. Note the shutdown timeout.
 `shutdown -h` stops both before the host goes down. You need to know the
 timeout because step 5 measures how long that actually takes, and
 `HOSTSYNC 120` from 1.4 has to be larger than the answer.
+
+**Read 2026-09-23: both guests are `order=any`**, so neither has a shutdown
+timeout of its own. Proxmox then allows 180 s per guest and stops guests of
+the same order in parallel, so the worst case is about three minutes plus the
+host's own shutdown. That fits inside the card's 8-minute low-battery window,
+which is the bound that matters. `HOSTSYNC` only bounds how long the firewall
+waits for its monitors to log out, and `Saruman`'s monitor logs out as soon
+as shutdown stops it. Step 5 measures what actually happens.
+
+**`phoenix` is a guest here, and it is where a Claude Code session runs.**
+Anything working from `phoenix` goes away when step 5 halts `Saruman`, and
+comes back only after 5.4.
 
 ---
 
@@ -495,6 +637,12 @@ OL
 
 **If you see `Connection refused`:** check the `LISTEN 10.0.40.1 3493` line
 from 1.4 and the pass rule from 2.3.
+
+**The same proof without a trip to the NAS console:** from `prometheus`,
+`ssh admin@10.0.99.1 'upsc -c mjolnir@localhost'` lists `10.0.40.30` once
+the NAS is logged in. On 2026-09-23 it listed `10.0.40.30`, `10.0.30.110`
+and `::1`. Record the tripwire count from 4.1 either way: it read 0 on every
+interface that day.
 
 ---
 
@@ -572,9 +720,11 @@ done | tee ~/ups-fsd-timing.log
 accepts the connection and then never answers when the NAS has a disk fault —
 a port check would read healthy while the host was not.
 
-On the Mac on VLAN 30, the one you used for step 3, because **nothing on
+On the Mac on Hicks, the one you used for step 3, because **nothing on
 VLAN 99 can reach `Saruman`**: the single pass between those segments runs the
-other way.
+other way. It has to be Hicks and not a Mac on VLAN 30 for the reason step 3
+gives: `Saruman`'s firewall filters port 22 from the lab segment, so from
+there this loop would read `---` before anything halted.
 
 ```bash
 while :; do
@@ -759,7 +909,7 @@ this work exists to catch.
 | --- | --- |
 | This file's status block | Built on *date*; sequence takes *N*; pack measured at *M* minutes at *L* % load |
 | [`hardware.md`](../hardware.md) Rack paragraph | Replace "not measured" with the measured number |
-| [`hardware.md`](../hardware.md) Accessories, UPS entry | The low battery duration you set in 6.5, and the factory value it replaced |
+| [`hardware.md`](../hardware.md) Accessories, UPS entry | The low battery duration you set in 6.5, and that 0.1 read 8 minutes before any change here (factory value not observed). Also the card's second SNMPv3 access-control entry, `10.0.99.1` read-only, from 1.0 |
 | [`security.md`](../security.md) mains-loss row | It no longer says nothing shuts down on the signal |
 | [`fit-the-ups-battery.md`](fit-the-ups-battery.md) §5 | Whether the card's runtime series tracked your measurement |
 | §1.4 of this file | `HOSTSYNC`, corrected down to the 5.3 measurement plus margin |

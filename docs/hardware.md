@@ -345,7 +345,14 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   **24.16.0-0104**, firmware **4.660.01-8219**, NVDATA 3.1605.01-0008,
   two connectors, status *Optimal*, no BBU, zero virtual drives, and the
   one remaining Exos on drive port 0 as *JBOD*. That reading is what
-  [#571](https://github.com/Gerrrt/HomeLab/issues/571) was owed. The driver
+  [#571](https://github.com/Gerrrt/HomeLab/issues/571) was owed. **The card
+  is coming out, by decision, 2026-09-23**
+  ([ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)):
+  at the swap, the Exos pair moves to the chipset's free ports on two plain
+  SATA cables, bought for it because the only tray cable is the card's own
+  mini-SAS breakout. The card and the breakout go on the shelf as the
+  fallback. Until the swap, everything in this paragraph describes the path
+  as it still is. The driver
   logged a disable/enable of its interrupts at 21:03:51 on 2026-09-19, the
   same second as the target reset in the fault's `dmesg` — the controller
   resetting itself around a disk that had stopped answering, which is the
@@ -600,7 +607,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   number, not read off the tray.
 - MikroTik CRS326-24G-2S+RM[^CRS326], in the Rack table at U9 as `neo` since
   TODO(window) ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). 24 × 1
-  GbE, 2 × SFP+, 1U, bought used 2026-09-13. Read at the bench on arrival:
+  GbE, 2 × SFP+, 1U, bought used 2026-09-13 and in hand since 2026-09-23,
+  with its rack ears and **without a power adapter**. It is DC-only: a barrel
+  jack labelled `DC 10–28V` beside a ground screw, no AC inlet, and PoE-in on
+  port 1 as the only other input, 24 W at most. It runs from a MikroTik
+  24HPOW[^24HPOW] (24 V, 2.5 A), ordered the day it arrived. **Not 48POW:**
+  that one is MikroTik's too, has the same plug, and puts 48 V into a jack
+  labelled 10–28 V. Read at the bench on arrival:
   RouterOS TODO(bench) (`/system/resource/print`), serial TODO(bench), and
   management MAC TODO(bench) (`/system/routerboard/print`,
   `/interface/print`). It was reset with `no-defaults=yes` before it touched
@@ -770,6 +783,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446)
+[^24HPOW]: [MikroTik 24HPOW, 24 V 2.5 A](https://mikrotik.com/product/24HPOW)
 [^A1437]: [A1437 battery for the MacBook Pro 13" A1425 Retina](https://www.ebay.com/itm/356174101017)
 [^M5Y1K]: [Dell M5Y1K 40 Wh 4-cell battery for the Inspiron 15 3000 series](https://www.ebay.com/itm/357495025211)
 [^ProDeskRackmount]: [1U rackmount for ProDesk Mini](https://a.co/d/4d7klOL)

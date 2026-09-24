@@ -288,16 +288,28 @@ was: its position above the block, read from `morpheus`, and the monitoring
 host still refused on `4533`. That Hicks reaches it is proved at the deploy
 ([`build-the-nas.md`](runbooks/build-the-nas.md) §6.6). `vlan50 net →
 10.0.40.30:13378`, for Audiobookshelf, is specified and not created — ADR-0050
-calls it the fifth; it will be the sixth. Neither adds a residual `8096` did
+calls it the fifth; it will be the seventh. Neither adds a residual `8096` did
 not already have: each first admin is made before a phone is pointed at it,
 and the libraries behind both are mounted read-only.
+**One more is for workstations, and it writes.** `vlan50 net →
+10.0.40.30:445`, `Allow SMB to smaug`, lets a Hicks workstation mount the
+`media` share ([ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)).
+It was created on 2026-09-23, and a Hicks workstation has mounted the share
+through it. Its residual is the one write access always
+carries: a workstation holding the password can delete or encrypt the library,
+and `erebor/media` is not snapshotted. The library is replaceable (ADR-0008),
+so this is accepted. What limits it is the user: `samwise` is a second SMB
+user, typed on workstations and never stored on a television, so the
+televisions' `bilbo` and the workstations' credential are revoked apart. The
+same pass puts an SMB login prompt in front of everything on Hicks, the
+corporate laptop included, as `443` already puts the TrueNAS one.
 [`network.md`](network.md) holds the current list. **Skids' does not exist.**
 `10.0.99.40 → 10.0.20.104:80,443/tcp` — Home Assistant to the Hue bridge, the
 one device on that segment with a local API — still waits above the block that
 has stood between 99 and 20 since the segments existed, on the host that would
 use it ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
 
-One of CasaBonita's five is a monitoring pass, and it carries a residual worth
+One of CasaBonita's six is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`
 on the NAS ([#256](https://github.com/Gerrrt/HomeLab/issues/256)), and that
 endpoint is **unauthenticated**. The firewall rule is what stops other segments
