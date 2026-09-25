@@ -146,13 +146,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it. It ships with the onboard NIC
   only; the I226 card the restore depends on was a separate purchase, made
-  2026-09-11 and the entry below — which has **not** landed. So what the
-  rehearsal waits on is no longer this box: it is that card and the installer
-  stick. **The 512 GB SSD is M.2, and the second M.2 slot is free** — read off
-  the machine on 2026-09-15, and the answer the entry below was waiting for.
-  There is no drive carrier and nothing contends: the I226 card has a slot to
-  land in when it arrives, and the contingency the documents carried since
-  2026-09-11 does not fire.
+  2026-09-11 and the entry below — **in hand and fitted since 2026-09-25**.
+  So what the rehearsal waits on is no longer this box or the card: it is the
+  installer stick alone. **The 512 GB SSD is M.2, and the second M.2 slot is
+  free** — read off the machine on 2026-09-15, and the answer the entry below
+  was waiting for. There is no drive carrier and nothing contended: the I226
+  card went into that slot on 2026-09-25, and the contingency the documents
+  carried since 2026-09-11 did not fire.
   **It arrived carrying Windows 11 Pro**, sold refurbished with a licence. The
   rehearsal's first act is to wipe it, so that licence is spent rather than
   banked: it is OEM, it dies with the install it shipped on, and **it does not
@@ -176,9 +176,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   **read them before that date**. Installing pfSense over the Windows partition
   is what ends the return and is the one step of the rehearsal that cannot be
   taken back, so the machine has to be proved while sending it back is still an
-  option. That is sooner than the card arrives, and it does not wait on it.
+  option. It waits on nothing.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
-  in transit. The second port on the ProDesk Micro above, matching the card
+  **in hand since 2026-09-25 and fitted in `trinity` the same day**. The
+  second port on the ProDesk Micro above, matching the card
   in `morpheus` so a pfSense restore onto the spare brings the LAN up as
   `igc0` and asks nothing
   ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md),
@@ -193,10 +194,12 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   want the same space, and that one of them would have to go. It was a real
   risk and it did not happen; recorded as answered rather than deleted,
   because the reason the card was bought before the box was opened is the
-  part worth remembering. Part number and the port's MAC go here when it
-  lands, as does confirmation that the free slot takes a B+M-key 2280 card —
+  part worth remembering. **The free slot took it**, fitted on 2026-09-25 —
   `morpheus` is the same model and does exactly this, which is why the same
-  model was bought.
+  model was bought. Still to read: the part number off the card, and the
+  port's MAC. The Windows the box shipped with shows the MAC before the
+  rehearsal wipes it; after the install, FreeBSD shows it on `igc0`, which is
+  also the proof that the driver claimed the card.
 - 2 TB USB portable hard drive — on hand, previously a games console's
   storage. Becomes the photo library's disk on `trinity`
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404)): Immich's originals
@@ -729,8 +732,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   procedure and a section on what differs on this host. Nothing in the
   Compute table changes; a cell is not a spec.
 - Three Samsung `M391A1G43EB1-CPB`[^Smaugmem] — 8 GB DDR4-2133 ECC UDIMM,
-  PC4-17000P-E, dual rank x8 — **bought 2026-09-22, in transit**, under
-  [#599](https://github.com/Gerrrt/HomeLab/issues/599). `smaug`'s memory, and
+  PC4-17000P-E, dual rank x8 — **bought 2026-09-22** under
+  [#599](https://github.com/Gerrrt/HomeLab/issues/599), **not yet shipped**:
+  the seller held the order for an identity check, answered 2026-09-25.
+  `smaug`'s memory, and
   the same part as the module the machine already carries: this is the
   matched-set answer to that issue rather than the two-16 GB one, for the
   reason the Compute entry above now records. $44 each, $132 the three, $15.30

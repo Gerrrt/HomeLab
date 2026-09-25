@@ -357,8 +357,8 @@ what gates it, and why it is in that order. What happened, and what it found,
 is [`docs/changelog.md`](docs/changelog.md), dated and never rewritten.
 
 The current top items: rehearse the firewall restore on the ProDesk bought on
-2026-09-08 — on hand since 2026-09-14, so what the rehearsal waits on is the
-I226 card and the installer stick and no longer the box — and then build the
+2026-09-08 — on hand since 2026-09-14, with its I226 card fitted since
+2026-09-25, so what the rehearsal waits on is the installer stick alone — and then build the
 sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
 roadmap's [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
 one item now, one later, and a rule that nothing joins them without a

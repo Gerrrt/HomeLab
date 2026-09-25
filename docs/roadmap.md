@@ -110,7 +110,8 @@ has been rehearsed on it.
   restore.** First, because the box was sold with a thirty-day return that
   closes **2026-10-08**, and installing pfSense over the Windows it arrived
   with is both the step that proves the machine and the step that ends the
-  return. Gate: the I226 card and the installer stick. The rehearsal is what
+  return. Gate: the installer stick; the I226 card was fitted on 2026-09-25.
+  The rehearsal is what
   turns the runbook from a hypothesis into a procedure.
   → [runbook](runbooks/restore-the-firewall.md)
 - **[#404](https://github.com/Gerrrt/HomeLab/issues/404) Build the tier's
