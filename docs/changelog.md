@@ -39,6 +39,19 @@ docstring gives: it is a record, not a claim about now.
   is a row in `successor-handover.md`, not an alert. The swap found:
   TODO(window).
 
+## 2026-09-25
+
+- **The I226 card arrived and is fitted in `trinity`.** It went into the
+  second M.2 slot, which was found free on 2026-09-15, so the fit question
+  in `hardware.md` is answered. That leaves the installer stick as the only
+  thing [#92](https://github.com/Gerrrt/HomeLab/issues/92)'s rehearsal
+  waits on. The card's part number and MAC are still unread. Whether the
+  card comes up as `igc0` is for the rehearsal to show.
+- **`smaug`'s memory has not shipped.** Memory.NET held the 2026-09-22
+  order for an identity check. It was answered today, so `hardware.md` no
+  longer says the modules are in transit
+  ([#599](https://github.com/Gerrrt/HomeLab/issues/599)).
+
 ## 2026-09-23
 
 - **[#485](https://github.com/Gerrrt/HomeLab/issues/485): the build runbook

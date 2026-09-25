@@ -364,10 +364,11 @@ becomes a list of what is blocking:
   back. So prove the machine — spec, serial, NIC count, disk health — before
   that date. This is the only entry on this list with a deadline, and it is
   not waiting on the two entries below that are.
-- **The I226 card** — bought 2026-09-11, **still in transit**
-  ([`hardware.md`](../hardware.md)). One of the two things the rehearsal now
-  waits on.
-- **An installer for 2.9.0 or newer** — §3 step 1, and the other. The stick
+- **The I226 card** — bought 2026-09-11, **in hand and fitted in the spare
+  since 2026-09-25** ([`hardware.md`](../hardware.md)). Whether it comes up as
+  `igc0` is a question for the rehearsal, below.
+- **An installer for 2.9.0 or newer** — §3 step 1, and now the one thing the
+  rehearsal waits on. The stick
   in transit is whatever version it is; read it before the day.
 - **The newest export on `oracle`**, and the age key's offline copy.
 - **The numbers to check against**: `make backup-firewall ARGS=--verify-only`
