@@ -44,8 +44,8 @@ laptop reports no cell at all
 ([#532](https://github.com/Gerrrt/HomeLab/issues/532)). `prometheus`'s cell was
 replaced on 2026-09-18 and reads 101 % of its design capacity at one cycle;
 `oracle`'s is the original, reads 72 %, and its replacement — a Dell M5Y1K —
-was bought on 2026-09-19 and is in transit
-([#531](https://github.com/Gerrrt/HomeLab/issues/531)). `prometheus`'s runtime
+was bought on 2026-09-19 and is in transit, with eBay's estimate moved to
+2026-09-28 ([#531](https://github.com/Gerrrt/HomeLab/issues/531)). `prometheus`'s runtime
 was measured on 2026-09-19: 2.72 Ah/h at the stack's load, about 2.5 hours
 from a full pack, one measurement on one day. `oracle`'s has never been
 measured. Neither pack reports a moving cell temperature — the Dell exports
@@ -155,9 +155,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   carried since 2026-09-11 did not fire.
   **It arrived carrying Windows 11 Pro**, sold refurbished with a licence. The
   rehearsal's first act is to wipe it, so that licence is spent rather than
-  banked: it is OEM, it dies with the install it shipped on, and **it does not
-  move the buy table's two Windows 11 Pro keys**
-  ([`roadmap.md`](roadmap.md#everything-still-to-buy)). Those are for the lab
+  banked: it is OEM, it dies with the install it shipped on, and **it did not
+  stand in for the two Windows 11 Pro keys** in the buy table
+  ([`roadmap.md`](roadmap.md#everything-still-to-buy)). Those were bought
+  separately on 2026-09-25 and are activated on `carbuncle` and `siren`, the lab
   domain's two endpoints ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md),
   [#414](https://github.com/Gerrrt/HomeLab/issues/414)) — a different machine
   and a different decision.
@@ -459,6 +460,31 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   mailbox rather than a page, and a cloud service this host initiates a
   connection to — [#483](https://github.com/Gerrrt/HomeLab/issues/483)'s
   subject.
+  **The return came back as a refund, not a replacement.** The drive reached
+  the carrier on 2026-09-23, and eBay issues the refund within three days of
+  the seller receiving it. So the replacement is a purchase, and it is the
+  entry below. `ZVTBSDL3` stays in this entry as the drive that faulted.
+- Seagate Exos X20 18 TB, `ST18000NM003D`[^Exos2] — 3.5" SATA 6 Gb/s,
+  7200 rpm, **eBay Refurbished**, from goharddrive. **Bought 2026-09-24, in
+  transit**, with an estimated delivery of 2026-09-26 to 2026-09-29, under
+  [#558](https://github.com/Gerrrt/HomeLab/issues/558). $499.99 and $51.50
+  tax, **$551.49 all in**. It replaces `ZVTBSDL3` in `erebor`'s mirror,
+  alongside `ZVTBS4NL`. It is the same part number as the pair above but
+  **not the same lot or seller**. That pair was sold as new "0HR" drives,
+  and Seagate's lookup found no warranty on them. This one is sold
+  refurbished, with eBay's refurbished-programme warranty serviced by
+  Allstate rather than Seagate's own. It was bought the day the refund
+  answer came in, because `erebor` is one disk until it is fitted and the
+  roadmap's NAS milestone waits on that. It went straight to a purchase
+  rather than through the buy table
+  ([`roadmap.md`](roadmap.md#everything-still-to-buy)). **Checked on
+  arrival, not assumed:** the serial and its warranty status by Seagate's
+  lookup, SMART's power-on hours, reallocated and pending counts before it
+  goes in a tray, and a long self-test. Then
+  [`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md)'s fit,
+  resilver and scrub. A refurbished drive's hours are the listing's claim
+  until SMART reads them. The Compute table still reads a two-disk mirror,
+  and the pool is whole again only when the resilver completes.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches
@@ -700,7 +726,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   Dell, which — as with the A1437 above — is the listing's claim until the
   pack is looked at; a Dell label and a `serial_number` that is not `1650`
   are what would settle it, and the fit records which it turned out to be.
-  The listing quoted delivery in two to four days. The number comes off the
+  The listing quoted delivery in two to four days. It had not arrived by
+  2026-09-26, and eBay's estimate had moved to 2026-09-28. The number comes off the
   machine rather than off the listing: `/sys/class/power_supply/BAT0` reports `model_name`
   `DELL VN3N047`, and `VN3N0` is one of the interchangeable Dell part numbers
   for this pack — `M5Y1K` is the primary, and `WKRJ2`, `HD4J0`, `991XP` and
@@ -733,8 +760,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   Compute table changes; a cell is not a spec.
 - Three Samsung `M391A1G43EB1-CPB`[^Smaugmem] — 8 GB DDR4-2133 ECC UDIMM,
   PC4-17000P-E, dual rank x8 — **bought 2026-09-22** under
-  [#599](https://github.com/Gerrrt/HomeLab/issues/599), **not yet shipped**:
-  the seller held the order for an identity check, answered 2026-09-25.
+  [#599](https://github.com/Gerrrt/HomeLab/issues/599), **shipped FedEx
+  2026-09-25 and in transit**. The seller held the order for an identity
+  check. The check was answered and the order released the same day.
   `smaug`'s memory, and
   the same part as the module the machine already carries: this is the
   matched-set answer to that issue rather than the two-16 GB one, for the
@@ -765,6 +793,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   here**, which is this entry's one gap and the thing to close when the
   receipt is to hand; the roadmap's rule is that a purchase is recorded when
   the money is spent, and the date and the part are what that rule is for.
+  **Delayed in transit.** Amazon moved the delivery estimate on 2026-09-22 and
+  refunded the delivery fee. It had still not arrived on 2026-09-26, and that
+  day the delay went to Amazon customer service. What they answer, and the
+  day it lands, go here.
   **It has no vendor encryption and that is why it qualifies**: ADR-0023
   requires a key that is not the one only the operator holds, and a drive
   password is a single-holder secret behind a vendor utility, which is the
@@ -787,6 +819,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
 [^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
 [^Exos]: [Seagate Exos X20 18TB SATA 6Gb/s 7200RPM Enterprise HDD ST18000NM003D 0HR Drives](https://www.ebay.com/itm/237056026029)
+[^Exos2]: [Seagate Exos X20 18TB 7200 SATA 6Gb/s 3.5" Enterprise Hard Drive - ST18000NM003D, eBay Refurbished](https://www.ebay.com/itm/155636746868)
 [^SM863a]: [Samsung SM863a 960 GB, MZ-7KM960N](https://www.ebay.com/itm/800210578217)
 [^Elements]: [WD 5TB Elements Portable External Hard Drive, WDBU6Y0050BBK-WESN](https://www.amazon.com/dp/B07X41PWTY)
 [^Smaugmem]: [Samsung M391A1G43EB1-CPB, 8 GB DDR4-2133 ECC UDIMM PC4-17000P-E dual rank x8](https://memory.net/product/m391a1g43eb1-cpb-samsung-1x-8gb-ddr4-2133-udimm-pc4-17000p-e-dual-rank-x8-module/)

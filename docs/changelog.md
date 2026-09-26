@@ -17,6 +17,29 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-26
+
+- **Both Windows 11 Pro keys are bought and in use.** They were bought on
+  2026-09-25 and activated on `carbuncle` and `siren`. That was the last
+  row in the roadmap's buy table, so the table is empty. The one purchase
+  left is `ifrit`, later.
+  [`architecture.md`](architecture.md) now lists the two endpoints as built
+  but not joined. The domain they join is not built yet
+  ([#414](https://github.com/Gerrrt/HomeLab/issues/414)).
+- **The faulted Exos was refunded, not replaced, so `smaug`'s new drive is a
+  purchase.** Return 5329627831 reached the carrier on 2026-09-23. A
+  refurbished `ST18000NM003D` from a different seller was bought on
+  2026-09-24 for $551.49 all in, and it is in transit
+  ([#558](https://github.com/Gerrrt/HomeLab/issues/558)). `erebor` stays one
+  disk until it is fitted and resilvered.
+- **`smaug`'s memory shipped on 2026-09-25** by FedEx, the same day the
+  identity check cleared ([#599](https://github.com/Gerrrt/HomeLab/issues/599)).
+- **The off-estate drive is late.** Amazon moved its estimate on 2026-09-22
+  and refunded the delivery fee. The delay went to Amazon customer service
+  today ([#455](https://github.com/Gerrrt/HomeLab/issues/455)).
+- **Unchanged:** `oracle`'s Dell pack (eBay's estimate now reads 2026-09-28)
+  and the CRS326's 24HPOW are still in transit.
+
 ## 2026-09-25
 
 - **The I226 card arrived and is fitted in `trinity`.** It went into the
