@@ -672,8 +672,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   a netinstall or factory reset before it touches the network — a used
   RouterOS device arrives with whatever its last owner left on it, users
   included. Those go here when it lands.
-- USB stick holding the pfSense installer — **in transit; it belongs in the rack
-  beside the KVM once it arrives**, and is not there yet.
+- USB stick holding the pfSense installer — **in hand since 2026-09-26; it
+  belongs in the rack beside the KVM** once #92's rehearsal has used it.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
   something you will need, so a restore attempted before it lands is a restore
   that stops to go looking for one

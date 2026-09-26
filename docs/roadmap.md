@@ -52,7 +52,8 @@ Closes when it is empty.
 - **[#444](https://github.com/Gerrrt/HomeLab/issues/444) Swap the MokerLink
   for the CRS326.** Decided by
   [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md).
-  Gate: the switch landing, and a rack window outside working hours — `neo`
+  The switch has been in hand since 2026-09-23, without a power adapter.
+  Gate: the 24HPOW landing, and a rack window outside working hours — `neo`
   carries every VLAN, so the swap cannot share the day with anyone working
   on them. → [runbook](runbooks/swap-the-switch.md)
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink's
@@ -63,41 +64,22 @@ Closes when it is empty.
   cell.** The cell is bought. What closes it is the fit, the mains pull, and
   the silence deleted rather than left to expire on 2026-10-08.
   → [runbook](runbooks/replace-the-laptop-cell.md)
-- **[#573](https://github.com/Gerrrt/HomeLab/issues/573) Carry the backup sets
-  off the shelf.** Decided by
-  [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md):
-  the newest set of each kind rides on the medium that holds the second age
-  recipient, on the ninety-day visit that medium already owes. The mechanism
-  is built; the gate is the visit, and the issue closes on the first one.
-  → [runbook](runbooks/copy-the-backups-offsite.md)
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
   UPS's signal.** Decided by
-  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md);
-  nothing is built. No purchase and no new path between segments — the gate is
-  a rack visit, which builds it, proves the order with `upsmon -c fsd`, and
-  pulls the mains once to replace the card's 47-minute claim with a number.
+  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).
+  Steps 0–4 were built on 2026-09-23: NUT on `morpheus`, its rules, and
+  `Saruman` and `smaug` subscribed. The sequence is armed and not proved. The
+  gate is a rack visit, which proves the order with `upsmon -c fsd` and pulls
+  the mains once to replace the card's 47-minute claim with a number.
   Shares a window with #531's fit and, if its parts have landed, #444.
   → [runbook](runbooks/shut-down-on-the-ups.md)
-- **[#294](https://github.com/Gerrrt/HomeLab/issues/294) Add a second age
-  recipient.** The implementation half of
-  [#106](https://github.com/Gerrrt/HomeLab/issues/106), decided by
-  [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
-  and held by the technical second named on the break-glass card. The
-  recipient is added and the file re-keyed: `.sops.yaml` and the ciphertext
-  carry two, and either opens the secrets. The gate is the first proof of the
-  new copy, which is the visit #573 also rides — the check refuses the live
-  key by device and inode, so no timer can clear it and the medium has to be
-  brought to this host. `SecretsKeyBackupUnproven` names that recipient until
-  then, which the runbook calls the honest reading of a backup nobody has
-  tested rather than a fault.
-  → [runbook](runbooks/back-up-the-age-key.md)
-- **[#604](https://github.com/Gerrrt/HomeLab/issues/604) Watch the dynamic DNS
-  record.** [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
-  recorded the gap and left it to a follow-up. Since
-  [#442](https://github.com/Gerrrt/HomeLab/issues/442) closed on 2026-09-22 the
-  remote path depends on that record, and nothing asks whether it still
-  resolves to the WAN address. The address is sticky, so a broken updater stays
-  invisible for months and surfaces on the one day it matters.
+- **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
+  Prometheus and Loki ingest ports.** Reopened 2026-09-26: #319 closed it by
+  accident. Nothing authenticates `9090` or `3100`, and `SECURITY.md` names
+  this issue as the work that closes the residual.
+- **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put `oracle`'s wiki
+  into the repository and back up its database.** Reopened 2026-09-26: #252
+  closed it by accident. ADR-0015 names it as the tracker for that gap.
 
 The rest of the milestone has no order between its issues.
 
@@ -110,15 +92,16 @@ has been rehearsed on it.
   restore.** First, because the box was sold with a thirty-day return that
   closes **2026-10-08**, and installing pfSense over the Windows it arrived
   with is both the step that proves the machine and the step that ends the
-  return. Gate: the installer stick; the I226 card was fitted on 2026-09-25.
-  The rehearsal is what
+  return. Nothing gates it: the I226 card was fitted on 2026-09-25 and the
+  installer stick is in hand since 2026-09-26. The rehearsal is what
   turns the runbook from a hypothesis into a procedure.
   → [runbook](runbooks/restore-the-firewall.md)
 - **[#404](https://github.com/Gerrrt/HomeLab/issues/404) Build the tier's
   host.** After #92: the same box, wiped and built once the rehearsal is done
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
-  [#533](https://github.com/Gerrrt/HomeLab/issues/533) and
-  [#534](https://github.com/Gerrrt/HomeLab/issues/534) follow the build.
+  [#533](https://github.com/Gerrrt/HomeLab/issues/533) follows the build;
+  [#534](https://github.com/Gerrrt/HomeLab/issues/534)'s CI re-check is
+  already done (#646).
 - **The nine services**, each authored ahead of the hardware and each open
   until it serves from the host:
   [#129](https://github.com/Gerrrt/HomeLab/issues/129) Caddy and
@@ -167,8 +150,10 @@ workstation can mount the share.
   Exos.** First: `erebor` is one disk until the swap and the resilver.
   → [runbook](runbooks/replace-the-nas-disk.md)
 - **[#571](https://github.com/Gerrrt/HomeLab/issues/571) Decide what stands
-  between ZFS and the pair.** After the swap, with the replacement in hand —
-  the controller nobody recorded is read then, not guessed at now.
+  between ZFS and the pair.** Decided by
+  [ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md): the chipset's
+  AHCI ports, and the MegaRAID comes out at the swap. Closes with #558, once
+  `hardware.md` describes the path as it is.
 - **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf** is
   authored — the service, a fifth Hicks pass it needs and the #140 text said
   it did not, and its archive in the NAS pull, `pending` until deployed
@@ -188,8 +173,9 @@ Closes when Wazuh and Velociraptor report the six agents in.
   domain.** First: it is what the SOC, the range and the automation all point
   at. Sized by
   [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md),
-  six guests on `large_data`; nothing to buy until the endpoints, which are
-  the two keys on the buy table below.
+  six guests on `large_data`. **Built by hand 2026-09-24 to 2026-09-25**: all
+  six joined and scraped. Open for §6 (the authentication generator), §10 and
+  §11.
   → [runbook](runbooks/build-the-lab-domain.md)
 - **[#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh and
   [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor.** After
@@ -198,13 +184,14 @@ Closes when Wazuh and Velociraptor report the six agents in.
   `stacks/soc/` authored ahead of the guest, and an agentless Wazuh has
   nothing to report.
   [#439](https://github.com/Gerrrt/HomeLab/issues/439)'s removal procedure
-  lands with Velociraptor, not after it;
+  landed ahead of Velociraptor, as the runbook's §13 (#657);
   [#438](https://github.com/Gerrrt/HomeLab/issues/438)'s disposable stack
   follows `odin`. → [runbook](runbooks/build-the-soc-guest.md)
 - **[#437](https://github.com/Gerrrt/HomeLab/issues/437) Zeek on a mirror
-  port.** Gated on the switch, not the domain: the CRS326 arrives with
-  mirroring disabled per ADR-0006, so this is a decision and #444 before it
-  is a build.
+  port.** Not gated on the switch: the mirror is an Open vSwitch mirror on
+  `Saruman`'s own bridge, and ADR-0006 keeps the switch's mirroring disabled
+  (ADR-0039). The domain it watches exists as of 2026-09-25, so what is left
+  is the bridge decision and then the build.
 - **[#485](https://github.com/Gerrrt/HomeLab/issues/485) PBS.**
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
   trigger has fired — `smaug` answers, `erebor` is online — and its sync job
@@ -300,8 +287,9 @@ to go:
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
 ([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
-[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain
-being built; it is the last purchase on this list, not the next. 32 GB is a
+[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain,
+which is built, and on the SOC, which is not; it is the last purchase on this
+list, not the next. 32 GB is a
 spec the candidate machines do not meet as shipped — the SFF boxes in that
 class ship with 16 GB in two slots — so a SO-DIMM kit is part of that purchase
 and not a later contingency. The model, the CPU and the disk are chosen at the
