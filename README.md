@@ -361,7 +361,7 @@ The current top items: rehearse the firewall restore on the ProDesk bought on
 2026-09-25, so what the rehearsal waits on is the installer stick alone — and then build the
 sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
 roadmap's [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-one item now, one later, and a rule that nothing joins them without a
+0 items now, one later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs.

@@ -270,12 +270,22 @@ by that rule, bought rather than dropped
 was bought to a different shape than the row described, which is in
 [`hardware.md`](hardware.md) and in
 [`changelog.md`](changelog.md) rather than here.
+The two Windows 11 Pro keys left it on 2026-09-25 by the same rule. They were
+bought and activated on the lab domain's two endpoints, `carbuncle` and
+`siren` ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md),
+[#414](https://github.com/Gerrrt/HomeLab/issues/414)). The replacement for
+`smaug`'s faulted Exos never entered it. The eBay return came back as a
+refund rather than a new drive, and the drive was bought outright on
+2026-09-24, the day the choice was known
+([#558](https://github.com/Gerrrt/HomeLab/issues/558)). It is in
+[`hardware.md`](hardware.md).
 
-**Buy these, and the estate as decided is fully bought:**
+**Buy these, and the estate as decided is fully bought.** The table is empty
+as of 2026-09-25. It is kept so that the next decided purchase has somewhere
+to go:
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
-| Two Windows 11 Pro keys | The lab domain's two endpoints; the four servers are free evaluations | [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md), [#414](https://github.com/Gerrrt/HomeLab/issues/414) | When the domain build reaches the endpoints, not before |
 
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
