@@ -393,6 +393,8 @@ Where things get broken on purpose.
 | Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
+| carbuncle | `10.0.30.54` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
+| siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 
 ### Notes
 
@@ -416,6 +418,13 @@ Where things get broken on purpose.
   stack remote-writes off the segment, so nothing outside the lab sees it — and
   nothing outside the lab can tell it apart from a lab nobody is using
   ([#257](https://github.com/Gerrrt/HomeLab/issues/257)).
+- `carbuncle` and `siren` are [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)'s
+  two endpoints. They are built and activated, reported 2026-09-26, and not yet
+  joined, because the domain they join is not built
+  ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md)). Their
+  addresses are DHCP reservations, read from `morpheus`'s `config.xml` on
+  2026-09-26, and not statics. They run per session, so an absence from the
+  segment is normal.
 - A second guest, `odin`, is planned at `10.0.30.60` — a static below `.100`,
   continuing the decade spacing — for [`stacks/soc`](../stacks/soc): Wazuh and
   Velociraptor, the security half of ADR-0007, placed there by
