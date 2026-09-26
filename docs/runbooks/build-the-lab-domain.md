@@ -79,20 +79,25 @@ the reason the time estimate at the top of this page says "a day".
 ## 1. Create the six VMs
 
 VMIDs `150`–`155`, so the last octet is legible from `qm list` — the same
-reasoning that gave `alexander` VMID `140`. Storage is `local-lvm` on a stock
-Proxmox install; check `pvesm status` if yours differs.
+reasoning that gave `alexander` VMID `140`.
 
-> **`large_data` exists since 2026-09-19 and is where these six belong.** The
-> SSD pool measured 7,952 random write IOPS at queue depth 1 against the
-> mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)), and
-> `alexander` already lives on it. The storage id in the commands below is
-> [#414](https://github.com/Gerrrt/HomeLab/issues/414)'s to change when it
-> builds — `large_data:` for `local-lvm:` on every disk line, and `ssd=1` on
-> every `--scsi0` — along with the boot-order argument the IMPORTANT block
-> above makes, which was priced on ninety IOPS. Not rewritten here: this page
-> has not been run, and the fit is not the build.
+> **Built by hand 2026-09-24 to 2026-09-25 for
+> [#414](https://github.com/Gerrrt/HomeLab/issues/414); the commands below are
+> as-run.** They put the six on `large_data`, the SSD pool measured at 7,952
+> random write IOPS at queue depth 1 against the HDD mirror's 741
+> ([#527](https://github.com/Gerrrt/HomeLab/issues/527)) — `large_data:` on
+> every disk line and `ssd=1` on every `--scsi0`, where the first draft had
+> `local-lvm:` and no `ssd=`. Check `pvesm status` if your pool is named
+> differently. The boot-order stagger below was priced on the HDD mirror's
+> ninety IOPS; it is kept because it costs nothing on flash and still spares a
+> thundering herd on a `Saruman` reboot.
 
 ```bash
+# Run under bash: `set -- $spec` below relies on word-splitting an unquoted
+# variable, which zsh (a common login shell here) does not do — every field
+# would land in $1 and qm would reject it. The heredoc runs bash whatever your
+# shell is.
+bash <<'PROXMOX'
 # The two domain controllers and the two member servers.
 for spec in "150 bahamut 4096 60 1" \
             "151 leviathan 4096 60 2" \
@@ -103,43 +108,47 @@ for spec in "150 bahamut 4096 60 1" \
     --name "$2" \
     --ostype win11 \
     --machine q35 --bios ovmf \
-    --efidisk0 local-lvm:1,efitype=4m,pre-enrolled-keys=1 \
-    --tpmstate0 local-lvm:1,version=v2 \
+    --efidisk0 large_data:1,efitype=4m,pre-enrolled-keys=1 \
+    --tpmstate0 large_data:1,version=v2.0 \
     --cpu host --cores 2 --sockets 1 \
     --memory "$3" --balloon 0 \
     --scsihw virtio-scsi-single \
-    --scsi0 "local-lvm:$4,discard=on,iothread=1" \
-    --net0 virtio,bridge=vmbr0 \
+    --scsi0 "large_data:$4,discard=on,iothread=1,ssd=1" \
+    --net0 virtio,bridge=vmbr0,firewall=0 \
     --agent enabled=1 \
     --onboot 1 --startup "order=$5,up=120" \
     --ide2 local:iso/windows-server-2025-eval.iso,media=cdrom \
     --ide0 local:iso/virtio-win.iso,media=cdrom \
     --boot order='scsi0;ide2'
 done
+PROXMOX
 ```
 
 ```bash
 # The two endpoints. Same shape, Windows 11 media, and no --onboot: ADR-0029
 # runs these per session, so they should not come back after a host reboot.
+# Endpoints wait on the two Windows 11 Pro keys; the four servers above do not.
+bash <<'PROXMOX'
 for spec in "154 carbuncle" "155 siren"; do
   set -- $spec
   qm create "$1" \
     --name "$2" \
     --ostype win11 \
     --machine q35 --bios ovmf \
-    --efidisk0 local-lvm:1,efitype=4m,pre-enrolled-keys=1 \
-    --tpmstate0 local-lvm:1,version=v2 \
+    --efidisk0 large_data:1,efitype=4m,pre-enrolled-keys=1 \
+    --tpmstate0 large_data:1,version=v2.0 \
     --cpu host --cores 2 --sockets 1 \
     --memory 4096 --balloon 0 \
     --scsihw virtio-scsi-single \
-    --scsi0 local-lvm:64,discard=on,iothread=1 \
-    --net0 virtio,bridge=vmbr0 \
+    --scsi0 large_data:64,discard=on,iothread=1,ssd=1 \
+    --net0 virtio,bridge=vmbr0,firewall=0 \
     --agent enabled=1 \
     --onboot 0 \
     --ide2 local:iso/windows-11.iso,media=cdrom \
     --ide0 local:iso/virtio-win.iso,media=cdrom \
     --boot order='scsi0;ide2'
 done
+PROXMOX
 ```
 
 Six of those flags are worth knowing rather than copying.
@@ -148,6 +157,14 @@ Six of those flags are worth knowing rather than copying.
   11 refuses to install without TPM 2.0 and Secure Boot, and **the installer's
   error does not tell you which of the three is missing.** The servers get the
   same treatment for consistency and because 2025 wants Secure Boot anyway.
+  `version=v2.0` on `--tpmstate0`, not `v2`: Proxmox 9 rejects the bare `v2`.
+- **`firewall=0` on `--net0`.** `Saruman`'s Proxmox firewall is on since
+  [#566](https://github.com/Gerrrt/HomeLab/issues/566), and its datacenter
+  enable brings the per-NIC flag to life set-by-default on any NIC. A range
+  whose hypervisor quietly filters its own guests lies to you about what your
+  tooling did; the isolation here is the bridge, not the guest firewall. Set it
+  explicitly so a later GUI edit cannot flip it on unseen — the same care
+  `build-the-playground.md` §4 takes.
 - **`--ide0` carrying the virtio-win ISO, and `ide0` specifically.** See the
   callout below for why the disc is there at all. The slot is not a free choice:
   **`q35` exposes only `ide0` and `ide2`**, because its emulated controller
@@ -218,6 +235,10 @@ Nothing unusual once the driver is loaded. During each installer:
   else.** Not the gateway, and not a public resolver. This is the one documented
   exception to [ADR-0010](../adr/0010-keep-the-resolver-on-the-gateway.md) in
   the estate.
+- **Set IPv4 only. Do not untick IPv6 in the same dialog.** The adapter's
+  Properties list puts IPv4 and IPv6 side by side, and unticking IPv6 while
+  setting the address is the exact reflex §0 forbids — it is the one thing that
+  disables mitm6. Leave the IPv6 box checked; you are only editing IPv4.
 
 Then four reservations on `morpheus`, under *Services → DHCP Server →
 ImaginationLAN*, mapping each guest's MAC to its address.
@@ -251,7 +272,7 @@ Then the forwarder and the root hints, on `bahamut`:
 
 ```powershell
 Set-DnsServerForwarder -IPAddress 10.0.30.1 -UseRootHint $false
-Set-DnsServerRootHint -InputObject @()   # or clear them in the DNS console
+Get-DnsServerRootHint | Remove-DnsServerRootHint -Force   # -InputObject @() does not clear them
 ```
 
 > [!CAUTION]
@@ -316,6 +337,23 @@ Set-DnsServerForwarder -IPAddress 10.0.30.1 -UseRootHint $false
 Leave its time configuration alone. `NT5DS` — the domain hierarchy — is the
 default the moment it joins, and a second manual peer list is a second thing
 that can disagree with the first.
+
+Then fix each DC's own resolver to point at its **partner first, then
+loopback** — promotion leaves a DC pointing at itself only, so a DC whose own
+DNS service is down can no longer resolve the domain:
+
+```powershell
+# On bahamut:
+Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 10.0.30.51,127.0.0.1
+# On leviathan:
+Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 10.0.30.50,127.0.0.1
+```
+
+This is the one place the §2 rule ("every guest points at .50 and .51") does
+not apply: a DC uses its partner then loopback, which is Microsoft's own
+guidance and what keeps either DC resolving with the other down. Also remove
+the root hints on `leviathan`, exactly as on `bahamut` above — the promotion
+command here only sets the forwarder.
 
 Confirm replication before moving on, because a second DC that is not
 replicating is worse than no second DC:
@@ -382,26 +420,34 @@ tracked file would be one that drifts from the machines with nothing to notice.
 Install `windows_exporter` on all six. The collector list matters:
 
 ```text
---collectors.enabled="cpu,cs,logical_disk,memory,net,os,service,system,time,textfile"
---collectors.time.enabled="ntp,system_time"
+--collectors.enabled="cpu,logical_disk,memory,net,os,service,system,time,textfile"
 --collectors.textfile.directories="C:\ProgramData\windows_exporter\textfile"
 ```
 
 > [!IMPORTANT]
-> **The `time` collector is off by default, and `--collectors.time.enabled` is
-> not a toggle — it takes a comma-separated list of sub-collectors, and matching
-> is case-sensitive.** So there are two ways to end up with a collector that
-> reports healthy and emits neither metric §9 checks: leaving `time` out of
-> `--collectors.enabled`, or naming the sub-collectors wrong. A rule written
-> against a collector nobody enabled is a rule that can never fire, which is
-> [#62](https://github.com/Gerrrt/HomeLab/issues/62) and
-> [#63](https://github.com/Gerrrt/HomeLab/issues/63) arriving for the third time
-> in this repository.
+> **A stale collector name in the list is not a warning — the service refuses
+> to start.** The build ran windows_exporter **v0.31.8**, where `cs` (the old
+> computer-system collector) no longer exists: with it in the list the service
+> installs, then exits with `unknown collector cs` and never binds `9182`, so
+> the scrape is a permanent `up == 0` and the failure looks like a firewall
+> problem. It was dropped above. Pin the version you install and re-check the
+> collector names against its docs when you bump it; a rule written against a
+> collector nobody enabled is one that can never fire
+> ([#62](https://github.com/Gerrrt/HomeLab/issues/62),
+> [#63](https://github.com/Gerrrt/HomeLab/issues/63)).
 >
-> Both sub-collectors are named above because **upstream does not document which
-> of them emits which metric**, and guessing would leave the wrong half working.
-> §9 is the check, and it is the reason §9 queries the metrics rather than the
-> service state.
+> **There is no `--collectors.time.enabled` line, and adding one breaks
+> startup.** An earlier draft carried `--collectors.time.enabled="ntp,system_time"`
+> from an older release. In 0.31.8 the `time` collector emits
+> `windows_time_clock_sync_source` — the metric §9 reads — with only `time` in
+> the enabled list, and `--collectors.time.enabled` is not a valid flag, so
+> passing it is the very "refuses to start" failure above. §9 queries the
+> metric rather than the service state precisely so a wrong collector config is
+> caught as an absent series, not a green service.
+>
+> The MSI installs it (`ENABLED_COLLECTORS`, `LISTEN_PORT=9182`, `TEXTFILE_DIRS`
+> map to the flags above); the guests reach `github.com` over the segment's
+> egress to pull it.
 
 Then the host firewall rule — inbound `9182/tcp`, **scoped to `10.0.30.40`**:
 
@@ -417,7 +463,11 @@ have to go looking for. It is not a control against someone who already owns
 mitigation.
 
 Finally the licence clock — a weekly scheduled task writing one gauge into the
-textfile directory:
+textfile directory. **On the four servers only:** the endpoints run activated
+Windows 11 Pro, where `GracePeriodRemaining` is `0`, so the gauge there would
+read a misleading `0` days rather than "not an evaluation". Install
+windows_exporter on all six; register this task on `bahamut`, `leviathan`,
+`titan` and `ramuh`.
 
 ```powershell
 $d = (Get-CimInstance SoftwareLicensingProduct |
@@ -475,14 +525,19 @@ make validate     # on alexander; checks both stacks and names which is which
 w32tm /query /status
 ```
 
-`Source` must read `10.0.30.1`. Then the same fact from the lab's Grafana,
-against the Prometheus datasource:
+On `bahamut` — the PDC emulator — `Source` must read `10.0.30.1`. On
+`leviathan`, `Source` reads `bahamut.ad.matrix.elysium`: a second DC takes its
+time from the domain hierarchy, not from the gateway, and that is correct.
+Then the same fact from the lab's Grafana, against the Prometheus datasource:
 
 ```promql
-windows_time_clock_sync_source{instance=~"bahamut|leviathan"}
+windows_time_clock_sync_source == 1
 ```
 
-The series must carry `type="NTP"`. **Read the source, not the offset.**
+The PDC (`bahamut`) carries `type="NTP"`; the other DC (`leviathan`) carries
+`type="NT5DS"`, the domain hierarchy. **What must be true of both is that
+neither carries `type="Local CMOS Clock"`** — a check keyed on "both NTP" would
+false-alarm on a healthy second DC. **Read the source, not the offset.**
 `windows_time_computed_time_offset_seconds` is measured against whatever source
 w32time has chosen — so when the peer becomes unreachable and it falls back to
 the local CMOS clock, the offset reads approximately zero and the DC looks
