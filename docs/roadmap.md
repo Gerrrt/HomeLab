@@ -80,6 +80,10 @@ Closes when it is empty.
 - **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put `oracle`'s wiki
   into the repository and back up its database.** Reopened 2026-09-26: #252
   closed it by accident. ADR-0015 names it as the tracker for that gap.
+- **[#672](https://github.com/Gerrrt/HomeLab/issues/672) Fail a PR whose
+  close keywords sit in prose.** Eight issues have been closed by a keyword
+  inside a sentence saying the issue stays open; three of them sat closed with
+  the work undone until the 2026-09-26 pass found them.
 
 The rest of the milestone has no order between its issues.
 
@@ -187,6 +191,10 @@ Closes when Wazuh and Velociraptor report the six agents in.
   landed ahead of Velociraptor, as the runbook's §13 (#657);
   [#438](https://github.com/Gerrrt/HomeLab/issues/438)'s disposable stack
   follows `odin`. → [runbook](runbooks/build-the-soc-guest.md)
+- **[#671](https://github.com/Gerrrt/HomeLab/issues/671) A second way into
+  the lab's secrets.** `secrets/lab.sops.yaml` is in git since #667, and
+  encrypted to one key that lives only on `alexander`; a second recipient or
+  a proved off-box copy, run on that guest.
 - **[#437](https://github.com/Gerrrt/HomeLab/issues/437) Zeek on a mirror
   port.** Not gated on the switch: the mirror is an Open vSwitch mirror on
   `Saruman`'s own bridge, and ADR-0006 keeps the switch's mirroring disabled
