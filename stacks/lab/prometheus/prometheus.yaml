@@ -81,20 +81,20 @@ scrape_configs:
 # rules/lab.rules.yaml land live while this does not: promtool proves a rule can
 # fire against synthetic series without needing a machine to exist.
 #
-#   - job_name: windows
-#     static_configs:
-#       - targets: ["10.0.30.50:9182"]
-#         labels: {instance: bahamut, role: dc}
-#       - targets: ["10.0.30.51:9182"]
-#         labels: {instance: leviathan, role: dc}
-#       - targets: ["10.0.30.52:9182"]
-#         labels: {instance: titan, role: member}
-#       - targets: ["10.0.30.53:9182"]
-#         labels: {instance: ramuh, role: member}
-#       - targets: ["10.0.30.54:9182"]
-#         labels: {instance: carbuncle, role: endpoint}
-#       - targets: ["10.0.30.55:9182"]
-#         labels: {instance: siren, role: endpoint}
+  - job_name: windows
+    static_configs:
+      - targets: ["10.0.30.50:9182"]
+        labels: {instance: bahamut, role: dc}
+      - targets: ["10.0.30.51:9182"]
+        labels: {instance: leviathan, role: dc}
+      - targets: ["10.0.30.52:9182"]
+        labels: {instance: titan, role: member}
+      - targets: ["10.0.30.53:9182"]
+        labels: {instance: ramuh, role: member}
+      - targets: ["10.0.30.54:9182"]
+        labels: {instance: carbuncle, role: endpoint}
+      - targets: ["10.0.30.55:9182"]
+        labels: {instance: siren, role: endpoint}
 #
 # `instance` is set explicitly because the default is the address, and an alert
 # reading "10.0.30.53:9182 has fallen back to its own CMOS clock" is one more
