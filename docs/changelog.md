@@ -39,6 +39,20 @@ docstring gives: it is a record, not a claim about now.
   today ([#455](https://github.com/Gerrrt/HomeLab/issues/455)).
 - **Unchanged:** `oracle`'s Dell pack (eBay's estimate now reads 2026-09-28)
   and the CRS326's 24HPOW are still in transit.
+- **The pfSense installer stick is in hand**, so nothing gates
+  [#92](https://github.com/Gerrrt/HomeLab/issues/92)'s rehearsal now.
+- **A pass over every issue, open and closed, found three that were closed by
+  accident.** Each was closed by a close keyword GitHub matched inside prose
+  that said the issue should stay open, and each is reopened:
+  [#182](https://github.com/Gerrrt/HomeLab/issues/182) (by #319, "would close
+  #182 by accident"), [#251](https://github.com/Gerrrt/HomeLab/issues/251) (by
+  #252, "filed rather than fixed: #251") and
+  [#571](https://github.com/Gerrrt/HomeLab/issues/571) (by #652, "Closes nothing
+  yet… closes #571 with #558"). The ingest ports are still unauthenticated,
+  the wiki is still outside the repository, and #571 closes with #558's swap.
+  The roadmap had kept #294, #573 and #604 under *Nothing blocks these*
+  after they closed on 2026-09-22 and 2026-09-23, and they have been taken
+  out. #604 was delivered by #627.
 
 ## 2026-09-25
 
