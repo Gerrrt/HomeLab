@@ -170,14 +170,21 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   dead `trinity` has a claim behind it, and after it the ADR's cost is the
   whole cost.
   **The seller-return window closes 2026-10-08**, thirty days from purchase.
-  That is a deadline on the list below rather than a fact about the machine.
-  Still the listing's claims rather than the machine's, and still to be read:
-  the i5-8500T, the 32 GB and the 512 GB above, the serial and the product
-  number off the case, and that it really does have the onboard NIC alone —
-  **read them before that date**. Installing pfSense over the Windows partition
-  is what ends the return and is the one step of the rehearsal that cannot be
-  taken back, so the machine has to be proved while sending it back is still an
-  option. It waits on nothing.
+  **The machine was proved against it on 2026-09-26**, read from the Windows
+  setup screen's shell (Shift+F10) before anything was installed, while
+  sending it back was still an option:
+  - Serial **`MXL9243TVV`**, matching the case label; SKU **`4FZ41UT#ABA`**;
+    model *HP ProDesk 600 G4 DM (TAA)*.
+  - i5-8500T, 32 GB (`34122940416` bytes), 512 GB SSD — all as listed. The
+    SSD is **not HP's original**: a Timetec `35TT2280GEN3-512GB`, fitted by
+    the refurbisher, `Healthy`, 0 % wear, 43 °C.
+  - HP PC Hardware Diagnostics (F2): storage and memory quick tests passed.
+  - NICs: the onboard **I219-LM**, and the I226 card enumerating as
+    `PCI\VEN_8086&DEV_125C` (I226-V, rev 04) — present, with no driver in
+    Windows setup, which is expected and irrelevant to pfSense's `igc`. The
+    listing's "onboard NIC only" was otherwise right about Ethernet but
+    **left out an Intel Wireless-AC 9560** in the WLAN slot, which is not the
+    second M.2 slot the card uses.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
   **in hand since 2026-09-25 and fitted in `trinity` the same day**. The
   second port on the ProDesk Micro above, matching the card
