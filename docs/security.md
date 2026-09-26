@@ -638,23 +638,39 @@ rather than for the fleet:
   Winterfell. The firewall **cannot** move without losing what it is polled
   for: bsnmpd is the only daemon that
   serves the pf MIB, and pfSense writes no v3 user for it — checked on the box
-  on 2026-09-09. The switch stays on v2c; its agent answers v3 on the wire,
-  and whether its UI can create a user is the unchecked half. Which devices
+  on 2026-09-09. **The switch moved with its hardware**: the CRS326 that
+  replaced the MokerLink on TODO(window) is polled over authPriv from its first
+  scrape and carries no v2c community at all
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444),
+  [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
+  So three of the four polls are encrypted, and the firewall's is the one
+  left on v2c. Which devices
   have actually moved is recorded on
   [#85](https://github.com/Gerrrt/HomeLab/issues/85) and in the
   [runbook](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 
 These communities are read-only, but "read-only" on a firewall means the
-complete state table and interface topology. They are credentials — except on
-the switch, where the agent does not check a short one on GETBULK at all
-(`SECURITY.md` has the measurement). The two
-that stay on v2c ride on Winterfell only, where anything that can sniff is
+complete state table and interface topology. They are credentials. Until the
+swap, the switch was the exception: the MokerLink's agent did not check a short
+community on GETBULK at all (`SECURITY.md` has the measurement and its
+closure). The one
+that stays on v2c rides on Winterfell only, where anything that can sniff is
 already on the segment that holds the firewall's admin UI and the monitoring
 host.
 
-### The switch's management UI is HTTP, and stays that way
+### The switch's management UI was HTTP until the swap
 
-`neo` serves its management UI on port 80 and nothing on 443 — no TLS listener,
+**Closed TODO(window) ([#444](https://github.com/Gerrrt/HomeLab/issues/444)).**
+The CRS326 serves its UI over `www-ssl` only, with a leaf from the estate's CA
+carrying `neo.matrix.elysium` and `10.7.7.2`. Plain `www` is disabled, and the
+Hicks pass to the switch LAN names `443`, not `80`
+([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
+The switch admin password no longer crosses the wire in clear. The leaf is good
+for 825 days, and the switch cannot renew it, so its expiry is in
+[`successor-handover.md`](runbooks/successor-handover.md#what-fails-soonest-if-nobody-touches-anything). The rest of this
+section is the record as it stood before the swap.
+
+`neo` served its management UI on port 80 and nothing on 443 — no TLS listener,
 and no way to import a certificate. Checked against the device on 2026-09-04 and
 decided in
 [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), which

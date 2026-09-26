@@ -111,23 +111,34 @@ truth for what a box actually does.
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.7.7.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| neo | `10.7.7.2` | `1c:2a:a3:xx:xx:xx` | MokerLink 26-port managed | — | Rack U9 | Switch |
+| neo | `10.7.7.2` | TODO(bench) | MikroTik CRS326-24G-2S+RM[^CRS326] | RouterOS TODO(bench) | Rack U9 | Switch |
 
 ### Notes
 
 - Cat6 from the ProDesk's add-on NIC[^adapter] to port 1 of the switch (trunk).
-- This interface exists solely to reach the switch's[^MokerLink] management UI,
-  which will not bind to a tagged interface.
+- **This interface is the way back in, and that is why it exists.** An untagged
+  cable from `igc0` to port 1 reaches the switch's management UI without
+  depending on the switch's own VLAN configuration. On RouterOS, the bridge
+  VLAN-filtering config that decides which ports carry which tags is also the
+  config a tagged management path would ride on, so one bad commit would cut
+  off the only way to fix it. **Do not move management onto a tagged VLAN and
+  retire this LAN.** The MokerLink this replaced needed the LAN for a different
+  reason, a UI that would not bind to a tagged interface. That reason went
+  with it, and this one replaced it
+  ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
 - **`neo.matrix.elysium` resolves to `10.7.7.2`**, so the switch is reached by
   name like everything else — [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md).
   The address stays written down beside it on purpose: the name depends on
   Unbound on `morpheus`, and this is the device you open when `morpheus` is the
   suspect.
-- **The UI is plain HTTP and cannot be anything else.** No TLS listener, no
-  certificate import — checked against the live switch on 2026-09-04, and the
-  third firmware limit on this device after #84 and #85. Admin credentials cross
-  the wire in clear, over a path that runs through `neo` itself. ADR-0018 has the
-  reasoning and the rejected alternatives.
+- **The UI is HTTPS only.** RouterOS serves it over `www-ssl` with a leaf
+  from the estate's CA, carrying both `neo.matrix.elysium` and `10.7.7.2`, and
+  plain `www` is disabled, not merely unused (ADR-0041). The switch cannot
+  renew the leaf itself, so its 825-day expiry is a dated obligation in
+  [`successor-handover.md`](runbooks/successor-handover.md#what-fails-soonest-if-nobody-touches-anything). Until the swap
+  (#444), admin credentials crossed the wire in clear, over a path that ran
+  through `neo` itself; ADR-0018 records why that was accepted for the
+  MokerLink.
 - DHCP disabled.
 
 > [!CAUTION]
@@ -135,7 +146,7 @@ truth for what a box actually does.
 > tagged interface and takes the whole house offline.
 
 [^adapter]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N) — in the G4's second M.2 slot, `igc0` to FreeBSD. It was labelled "USB NIC adapter" here until 2026-09-09, and the restore runbook and the shopping list had inherited the label.
-[^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
+[^CRS326]: MikroTik CRS326-24G-2S+RM, bought used 2026-09-13 (#463) and in service since the swap (#444). It replaced a [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV). [`hardware.md`](hardware.md) has the serial and the purchase record.
 
 ---
 
@@ -280,8 +291,9 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   can never match traffic that enters on Hicks — and is TCP-only, so the
   catch-all below still carries UDP and ICMP to the lab. Widen it before any
   block for private ranges lands above the catch-all.
-- The switch LAN is blocked apart from `10.7.7.2:80`, the switch's own web UI;
-  the block below that pass is logged.
+- The switch LAN is blocked apart from `10.7.7.2:443`, the switch's own web
+  UI, HTTPS since the swap (#444). The pass named `:80` until then. The block
+  below that pass is logged.
 
 [^Desktop1]: [Build 1](https://pcpartpicker.com/b/KXv323)
 [^Desktop2]: [Build 2](https://pcpartpicker.com/list/XgZpfd)

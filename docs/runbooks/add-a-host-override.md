@@ -173,7 +173,7 @@ to *no route*, and a name on the break-glass card is the one thing
 [ADR-0023](../adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
 says these must never be. Add `trinity` first, for the reverse entry.
 
-Reaching the MokerLink management interface by name
+Reaching the switch's management interface by name
 ([#97](https://github.com/Gerrrt/HomeLab/issues/97)) is this procedure and
 nothing more — `neo` is in the table above. This paragraph used to say the
 override was "not solved by an override alone" because `10.7.7.2` "sits outside
@@ -182,9 +182,11 @@ every documented subnet". Both halves were wrong.
 The address is documented — [`network.md`](../network.md) has a LAN section for
 it — it is only outside the `10.0.x` convention, which is a memory problem and
 not a routing one. And the certificate that was supposed to be the harder half
-is not hard, it is unavailable: the switch has no TLS listener to point one at.
-[ADR-0018](../adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
-records the check and closes that half. The UI stays at
-`http://neo.matrix.elysium/`, and `10.7.7.2` stays written down beside it,
+was unavailable on the MokerLink, which had no TLS listener to point one at
+([ADR-0018](../adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)).
+The CRS326 that replaced it serves `https://neo.matrix.elysium/` with a leaf
+from the estate's CA that carries the name and the address
+([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
+`10.7.7.2` stays written down beside the name,
 because the name needs `morpheus` and the switch is what you reach for when
 `morpheus` is the suspect.

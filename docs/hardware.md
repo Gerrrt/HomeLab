@@ -15,7 +15,7 @@ landfill.
 | U6 | MT-VIKI 8-port KVM[^KVM] | Console access | The PDU |
 | U7 | 10-outlet PDU[^PDU] | Power distribution | The UPS |
 | U8 | Jadol 24-port patch panel[^Panel] | Cabling | — |
-| U9 | MokerLink 26-port managed switch[^MokerLink] | Core switching (`neo`) | The PDU |
+| U9 | MikroTik CRS326-24G-2S+RM[^CRS326] | Core switching (`neo`) | The PDU |
 
 The *Powered by* column was added on 2026-09-20 and read at the rack that day
 ([#574](https://github.com/Gerrrt/HomeLab/issues/574)): everything on the PDU
@@ -634,44 +634,35 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#92](https://github.com/Gerrrt/HomeLab/issues/92), which is not a way of
   finding purchases that can be relied on. `651687-001` is the listing's part
   number, not read off the tray.
-- MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
-  RouterOS / SwOS — bought used 2026-09-13, **in hand since 2026-09-23**.
-  The box held the switch and its rack ears and **no power adapter**. The rear
-  panel has no AC inlet: the only power input is a barrel jack marked
-  `DC 10–28V`, beside a ground screw, with a blank plate where other units
-  carry an inlet. PoE-in on port 1 is the other input. MikroTik rates the
-  unit at 24 W maximum. A MikroTik 24HPOW[^24HPOW] (24 V, 2.5 A, North
-  American cord) was ordered 2026-09-23 and is in transit, and the bench
-  steps wait for it
-  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). **Not 48POW:** it
-  is MikroTik's too, has the same plug, and puts 48 V into a jack labelled
-  10–28 V. The replacement for
-  `neo` that
-  [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
-  asked for in its last consequence and
-  [#444](https://github.com/Gerrrt/HomeLab/issues/444) decided. It is bought
-  for **one property, a TLS management interface**: RouterOS serves its UI
-  over `www-ssl` and imports a certificate, so the switch admin credential
-  stops crossing the wire in clear through the device it protects.
-  [#84](https://github.com/Gerrrt/HomeLab/issues/84)'s GETBULK residual rides
-  along; SNMPv3 is not the argument, because
-  [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
-  found the switch in the rack already answers v3 on the wire. **How it is
-  configured was decided before the window rather than during it** —
+- MikroTik CRS326-24G-2S+RM[^CRS326], in the Rack table at U9 as `neo` since
+  TODO(window) ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). 24 × 1
+  GbE, 2 × SFP+, 1U, bought used 2026-09-13 and in hand since 2026-09-23,
+  with its rack ears and **without a power adapter**. It is DC-only: a barrel
+  jack labelled `DC 10–28V` beside a ground screw, no AC inlet, and PoE-in on
+  port 1 as the only other input, 24 W at most. It runs from a MikroTik
+  24HPOW[^24HPOW] (24 V, 2.5 A), ordered the day it arrived. **Not 48POW:**
+  that one is MikroTik's too, has the same plug, and puts 48 V into a jack
+  labelled 10–28 V. Read at the bench on arrival:
+  RouterOS TODO(bench) (`/system/resource/print`), serial TODO(bench), and
+  management MAC TODO(bench) (`/system/routerboard/print`,
+  `/interface/print`). It was reset with `no-defaults=yes` before it touched
+  the network, because a used RouterOS device arrives with its last owner's
+  users. Configured as
   [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
-  runs it on RouterOS, keeps the name `neo` and the address `10.7.7.2`, serves
-  `www-ssl` from a leaf off the estate's CA with plain `www` off, and gives it
-  an SNMPv3 authPriv user; the procedure is
-  [`swap-the-switch.md`](runbooks/swap-the-switch.md). It enters the
-  Rack table at U9 and [`network.md`](network.md) when it is racked — `neo`
-  carries every VLAN, so the swap is a house-wide outage and shares a rack
-  visit rather than getting its own — and until then `neo` is the switch in
-  every document and every target. **Checked on arrival, not assumed:** which
-  OS it boots and the version on it (`/system resource`), the serial and the
-  management MAC, that the rack ears and the power supply are in the box, and
-  a netinstall or factory reset before it touches the network — a used
-  RouterOS device arrives with whatever its last owner left on it, users
-  included. Those go here when it lands.
+  decided: RouterOS rather than SwOS, the name `neo` and the address
+  `10.7.7.2`, `www-ssl` from a leaf off the estate's CA with plain `www` off,
+  an SNMPv3 authPriv user (SHA, AES, user `prometheus`) restricted to
+  `10.0.99.20` with no v2c community, and port mirroring off per ADR-0006. It
+  was bought for **one property, a TLS management interface**, so the switch
+  admin credential stops crossing the wire in clear through the device it
+  protects. Copper ports in use at the swap: TODO(bench), of 24.
+- The MokerLink 26-port managed switch[^MokerLink] it replaced, **out of the
+  rack since TODO(window)**, wiped and not re-homed onto anything that
+  matters. It leaves carrying an SNMP community its firmware would not delete
+  ([#84](https://github.com/Gerrrt/HomeLab/issues/84)), a community that
+  leaked on 2026-08-20, and an admin password that crossed the wire in clear
+  for its whole service life
+  ([ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)).
 - USB stick holding the pfSense installer — **in transit; it belongs in the rack
   beside the KVM once it arrives**, and is not there yet.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
