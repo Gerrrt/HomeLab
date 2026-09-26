@@ -79,6 +79,16 @@ thing entirely on this segment.
   stack is deployed by hand, on this guest, and a commit that changes it
   reaches the lab when someone goes and applies it. Worth knowing before
   assuming a merged change is running.
+- **`prometheus.yaml` is a single-file bind mount, so an editor that writes a
+  new inode is a silent no-op.** `compose.yaml` mounts
+  `./prometheus/prometheus.yaml` as a file, not a directory, so the container
+  pins the inode it started with. Editing with `sed -i`, or any editor that
+  replaces the file, leaves the container reading the *old* inode — and a
+  `make reload` (SIGHUP) re-reads that stale inode too, so the change looks
+  applied on the host and never reaches Prometheus. Edit in place (preserving
+  the inode) or, after any inode-replacing edit, `docker restart lab-prometheus`
+  so it re-opens the path. This cost real confusion turning on the `windows`
+  job (#414 §8).
 - **The retention figures are a bound, not a measurement.** 15 days and 4 GiB,
   against ADR-0007's "sized against spindles, not RAM". `compose.yaml` carries
   the queries to re-derive them once this has run for a fortnight, and

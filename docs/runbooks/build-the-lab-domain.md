@@ -447,6 +447,16 @@ On `alexander`, uncomment the `windows` job in
 make reload STACK=lab
 ```
 
+> [!IMPORTANT]
+> **If the new job does not appear, it is the bind mount, not your edit.**
+> `compose.yaml` mounts `prometheus.yaml` as a single file, so the container
+> pins the inode it started with. An editor that writes a new inode (`sed -i`,
+> most editors) leaves the container — and `make reload`'s SIGHUP — reading the
+> old inode, so the uncomment looks applied on the host and Prometheus never
+> sees it. `docker restart lab-prometheus` re-opens the path and picks it up;
+> confirm with `up{job="windows"}` on the lab Prometheus. This is in
+> `stacks/lab/README.md` too.
+
 Nothing is published to do this. `alexander` dials out to `9182` on six
 addresses on its own segment; no `ports:` block opens, no firewall rule is
 added, and the lab's Prometheus remains something that cannot be pushed to from
