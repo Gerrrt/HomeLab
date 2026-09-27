@@ -92,7 +92,7 @@ creation_rules:
   # secrets-init STACK=soc`, run ON odin, fills the placeholder in.
   - path_regex: secrets/soc(\..+)?\.sops\.ya?ml$
     age: >-
-      REPLACE_WITH_SOC_AGE_PUBLIC_KEY
+      age1yvxe2z99jadajjqp049e6dqeya9hp55uhv890s84exvtthvqy5pq9q2hum
 
   # There is NO media rule, and that is a decision rather than a gap (#528).
   # stacks/media renders no secrets: Jellyfin's admin is made by its own setup
