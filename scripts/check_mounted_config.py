@@ -177,13 +177,27 @@ def main() -> int:
                 f"gitignored, or missing from this checkout"
             )
             continue
+        try:
+            host_bytes = host.read_bytes()
+        except PermissionError:
+            # The Wazuh cert generator chowns each leaf to the uid of the
+            # container that reads it (999 for the manager's, 1000 for the
+            # others) at mode 0400, so the deploy user cannot read some of
+            # them from the host. They are generated once and never edited,
+            # so the edit-then-reload drift this guard catches cannot reach
+            # them; skip rather than crash.
+            print(
+                f"{YELLOW}  SKIP{RESET} {service}: {host.name} is not readable here "
+                f"(generated cert, owned by the container's uid)"
+            )
+            continue
         inside = container_copy(container, target)
         if inside is None:
             print(f"{RED}  FAIL{RESET} {service}: cannot read {target} from the container")
             stale.append(service)
             continue
         checked += 1
-        if inside == host.read_bytes():
+        if inside == host_bytes:
             print(f"{GREEN}  PASS{RESET} {service}: {host.name} matches what is mounted")
         else:
             print(
