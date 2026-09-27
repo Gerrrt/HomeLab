@@ -92,7 +92,7 @@ services:
   # would have been reachable by every other container on this network.
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.4@sha256:14a9c00d4e833ebc2b65d36515b37bde3b73f0b323a2663aaafc88953d8c4e3f
+    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
     container_name: sensitive-caddy
     # A fixed address, for one reader: Home Assistant's `trusted_proxies`
     # names the proxy it will believe X-Forwarded-For from, and "whatever
@@ -819,7 +819,7 @@ services:
     # the database on restart, which is why upstream gives it no volume and
     # why /data here is a tmpfs. A full semver tag where upstream pins the
     # major alone, so that Dependabot has something to move.
-    image: valkey/valkey:9.1.2@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
+    image: valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
     container_name: sensitive-immich-valkey
     mem_limit: 256m
     memswap_limit: 256m
@@ -1047,7 +1047,7 @@ services:
   # regardless, so `user:` only makes the drop unnecessary.
   paperless-broker:
     <<: *service-defaults
-    image: valkey/valkey:9.1.2-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b
+    image: valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
     container_name: sensitive-paperless-broker
     # DIFFERENCE 5 and 8 again: the image's entrypoint is `tini --
     # docker-entrypoint.sh`, an init of its own, and under docker-init it runs

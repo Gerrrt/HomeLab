@@ -70,7 +70,7 @@ quietly swapped.
 | `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
-SNMP devices at a 60-second interval, five Alloy agents, and 30 days of metric
+SNMP devices at a 60-second interval, six Alloy agents, and 30 days of metric
 retention without complaint — which is a useful thing to know before spending
 money on a monitoring host. Its RAM is soldered at 8 GB and it has no built-in
 Ethernet, so it reaches the network over a USB NIC.
@@ -146,9 +146,12 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it. It ships with the onboard NIC
   only; the I226 card the restore depends on was a separate purchase, made
-  2026-09-11 and the entry below — **in hand and fitted since 2026-09-25**.
-  So what the rehearsal waits on is no longer this box or the card: it is the
-  installer stick alone. **The 512 GB SSD is M.2, and the second M.2 slot is
+  2026-09-11 and the entry below — fitted 2026-09-25 for the rehearsal and
+  **taken out again afterwards; it is in the drawer, not in this box**.
+  **The firewall restore was rehearsed on it on 2026-09-27** and restored
+  with no interface-assignment prompt
+  ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md#rehearse-the-restore-on-the-spare)).
+  **The 512 GB SSD is M.2, and the second M.2 slot is
   free** — read off the machine on 2026-09-15, and the answer the entry below
   was waiting for. There is no drive carrier and nothing contended: the I226
   card went into that slot on 2026-09-25, and the contingency the documents
@@ -170,16 +173,34 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   dead `trinity` has a claim behind it, and after it the ADR's cost is the
   whole cost.
   **The seller-return window closes 2026-10-08**, thirty days from purchase.
-  That is a deadline on the list below rather than a fact about the machine.
-  Still the listing's claims rather than the machine's, and still to be read:
-  the i5-8500T, the 32 GB and the 512 GB above, the serial and the product
-  number off the case, and that it really does have the onboard NIC alone —
-  **read them before that date**. Installing pfSense over the Windows partition
-  is what ends the return and is the one step of the rehearsal that cannot be
-  taken back, so the machine has to be proved while sending it back is still an
-  option. It waits on nothing.
+  **The machine was proved against it on 2026-09-26**, read from the Windows
+  setup screen's shell (Shift+F10) before anything was installed, while
+  sending it back was still an option:
+  - Serial **`MXL9243TVV`**, matching the case label; SKU **`4FZ41UT#ABA`**;
+    model *HP ProDesk 600 G4 DM (TAA)*.
+  - i5-8500T, 32 GB (`34122940416` bytes), 512 GB SSD — all as listed. The
+    SSD is **not HP's original**: a Timetec `35TT2280GEN3-512GB`, fitted by
+    the refurbisher, `Healthy`, 0 % wear, 43 °C.
+  - HP PC Hardware Diagnostics (F2): storage and memory quick tests passed.
+  - NICs: the onboard **I219-LM**, and the I226 card enumerating as
+    `PCI\VEN_8086&DEV_125C` (I226-V, rev 04) — present, with no driver in
+    Windows setup, which is expected and irrelevant to pfSense's `igc`. The
+    listing's "onboard NIC only" was otherwise right about Ethernet but
+    **left out an Intel Wireless-AC 9560** in the WLAN slot, which is not the
+    second M.2 slot the card uses. It is CNVi — the radio is the card, the
+    controller is the chipset, at PCI `20.3` — so the BIOS Wireless LAN
+    switch does not hide it from FreeBSD, whose `iwm` fails on its firmware
+    and panics the kernel. pfSense on this box needs
+    `hint.iwm.0.disabled="1"` in `/boot/loader.conf.local`.
+  - **Firmware as left by the rehearsal:** Secure Boot and legacy boot both
+    off (confirmed with HP's four-digit code), Windows gone — the return
+    ended with the install. #404 builds on that, not on the state it
+    arrived in.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
-  **in hand since 2026-09-25 and fitted in `trinity` the same day**. The
+  **in hand since 2026-09-25**, fitted in `trinity` for #92's rehearsal, where
+  it came up as `igc0`, and **taken out afterwards: it is in the drawer**,
+  and goes back into `trinity`'s second M.2 slot on the day `trinity`
+  becomes the firewall. The
   second port on the ProDesk Micro above, matching the card
   in `morpheus` so a pfSense restore onto the spare brings the LAN up as
   `igc0` and asks nothing
@@ -663,8 +684,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   leaked on 2026-08-20, and an admin password that crossed the wire in clear
   for its whole service life
   ([ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)).
-- USB stick holding the pfSense installer — **in hand since 2026-09-26; it
-  belongs in the rack beside the KVM** once #92's rehearsal has used it.
+- USB stick holding the pfSense installer — **written 2026-09-27 and used
+  for #92's rehearsal; it belongs in the rack beside the KVM.** It holds the
+  **Netgate Installer**, which downloads the release during the install:
+  there is no offline CE image after 2.7.2, so the stick is useless without
+  internet on the box's onboard port.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
   something you will need, so a restore attempted before it lands is a restore
   that stops to go looking for one

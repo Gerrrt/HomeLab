@@ -77,7 +77,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.indexer:
     <<: *service-defaults
-    image: wazuh/wazuh-indexer:4.14.7@sha256:1b85f946cc7c6530ffc34b5a2f4471ef533a17e6262f97b75dc794c3f2b8c0a0
+    image: wazuh/wazuh-indexer:4.14.8@sha256:929179d223dc44e40c2e5c8bdbd1df19c6f68ab8f4ac255dfce98d92ee831a17
     container_name: soc-wazuh-indexer
     hostname: wazuh.indexer
     # DIFFERENCE 2: OpenSearch's bootstrap checks want the process able to
@@ -155,7 +155,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.manager:
     <<: *service-defaults
-    image: wazuh/wazuh-manager:4.14.7@sha256:e32fe983f83b9ee1f14d8e4f061848244a21c4f678d278d13f91ff6079961d6f
+    image: wazuh/wazuh-manager:4.14.8@sha256:6b53d4cc5c013b08157471d11f7a7c2c45f9e8238f3958e3b2f04ec1773ecbd4
     container_name: soc-wazuh-manager
     hostname: wazuh.manager
     # DIFFERENCE 3: no docker-init in front of this one. The image's entrypoint
@@ -202,6 +202,13 @@ services:
       - manager-active-response:/var/ossec/active-response/bin
       - manager-agentless:/var/ossec/agentless
       - manager-wodles:/var/ossec/wodles
+      # Vulnerability detection stages its feed here: it downloads the ~400 MB
+      # compressed content and unpacks it to an ~8.5 GB tar in /var/ossec/tmp
+      # before importing it. On the container's writable layer that fills the
+      # 30 GB OS disk on first start; §0's hardware note puts "the vulnerability
+      # feed" on the data disk, so the staging directory is a bind-backed
+      # volume there, beside the indexer's data and Velociraptor's datastore.
+      - manager-tmp:/var/ossec/tmp
       - filebeat-etc:/etc/filebeat
       - filebeat-var:/var/lib/filebeat
       - ./wazuh/certs/root-ca-manager.pem:/etc/ssl/root-ca.pem:ro
@@ -252,7 +259,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.dashboard:
     <<: *service-defaults
-    image: wazuh/wazuh-dashboard:4.14.7@sha256:860f45d7878fcf34e42616bbceb91e8aa726b6108d0c7469e554e47648d28d43
+    image: wazuh/wazuh-dashboard:4.14.8@sha256:b8e3d43711f29596dad12051a548abd0ed84692544f451d14ac2fc0c0b6a85c8
     container_name: soc-wazuh-dashboard
     hostname: wazuh.dashboard
     mem_limit: 1024m
@@ -479,7 +486,7 @@ networks:
     driver: bridge
 
 volumes:
-  # The two stores that grow live on odin's second disk, not the OS volume
+  # The things that grow live on odin's second disk, not the OS volume
   # (#439). Velociraptor's collections get large fast, and ADR-0030 sized the
   # indexer by heap on the assumption that disk was not the constraint; a
   # separate filesystem makes that assumption checkable and gives the
@@ -499,7 +506,18 @@ volumes:
   manager-api-configuration:
   manager-etc:
   manager-logs:
+  # /var/ossec/queue holds vulnerability detection's content database
+  # (queue/vd), which after the first feed import is ~8.5 GB and grows with the
+  # feed — the persistent half of what §0 means by "the vulnerability feed", as
+  # manager-tmp below is the staging half. On the OS volume it fills the 30 GB
+  # disk, so it too is bind-backed to the data disk. The agent event queue
+  # lives here as well, which wants the data disk anyway.
   manager-queue:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SOC_DATA_DIR:-/srv/soc-data}/manager-queue
   manager-var-multigroups:
   manager-integrations:
   manager-active-response:
@@ -515,4 +533,13 @@ volumes:
       type: none
       o: bind
       device: ${SOC_DATA_DIR:-/srv/soc-data}/velociraptor
+  # The manager's vulnerability-feed staging (see the service above): the third
+  # thing that grows, and the one §0 means by "the vulnerability feed". Bound to
+  # the data disk so the ~8.5 GB unpack cannot fill the OS disk.
+  manager-tmp:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SOC_DATA_DIR:-/srv/soc-data}/manager-tmp
   alloy-data:

@@ -174,14 +174,18 @@ need() { command -v "$1" >/dev/null 2>&1 || { red "missing dependency: $1"; exit
 # Comma-joined, which is the list form `sops --age` takes. The rule ends at the
 # next path_regex; comment lines inside it are skipped, so a key quoted in a
 # comment is never encrypted to.
+#
+# The length floor is RLENGTH, not an interval expression: mawk 1.3.4-20240123
+# (Debian and Ubuntu's default awk) reads /x{50,}/ as exactly 50 and cut every
+# key to its first 54 characters (found 2026-09-26, #92).
 recipients() {  # [policy file, default .sops.yaml]
   awk '
     /^[[:space:]]*#/ { next }
     /path_regex:/ { if (inrule) exit; if ($0 ~ /backups\/firewall/) inrule = 1; next }
     inrule {
       line = $0
-      while (match(line, /age1[0-9a-z]{50,}/)) {
-        keys = keys (keys == "" ? "" : ",") substr(line, RSTART, RLENGTH)
+      while (match(line, /age1[0-9a-z]+/)) {
+        if (RLENGTH >= 54) keys = keys (keys == "" ? "" : ",") substr(line, RSTART, RLENGTH)
         line = substr(line, RSTART + RLENGTH)
       }
     }

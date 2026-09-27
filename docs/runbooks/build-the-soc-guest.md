@@ -35,7 +35,7 @@ than carrying a second copy that drifts.
 | Kind | **VM, not LXC** | Same reason as `alexander`: `cgroup: host`, `cap_drop`, a Docker socket mount, and now `vm.max_map_count`, which an LXC cannot set for itself at all |
 | OS | **Ubuntu Server LTS** | Same reason as `alexander`, and check it the same way: `config.alloy` tails `/var/log/auth.log` and `/var/log/syslog`, and a journald-only install collects nothing from either while reporting healthy. §10 is the check |
 | vCPU | 4 | OpenSearch and fifteen Wazuh daemons are not single-threaded; the host has 48 threads and compute was never the constraint (ADR-0007) |
-| RAM | **8 GiB** | ADR-0030's heap arithmetic assumes it: "half of system RAM would be 4 GiB". The indexer gets 3.5 GiB, the manager 2, and the rest the other three services and the page cache |
+| RAM | **16 GiB** | The services at rest fit in 8 GiB, and ADR-0030's heap arithmetic was written for it — the indexer's heap stays 2 GiB, its `mem_limit` 3.5, the manager's 2. But **vulnerability detection breaks that budget on a burst**: it downloads a ~400 MB CVE feed, unpacks it to an ~8.5 GB tar and bulk-indexes it into the indexer, and that import — repeated on the content manager's schedule, not just once — drove an 8 GiB guest into memory+IO thrash that wedged it for minutes at a time on the 2026-09-27 build. 16 GiB is the headroom that import needs; the host has it to give (48 threads, ~70 GiB free), and the extra 8 GiB is burst room and page cache, not heap. Revisit if vulnerability detection is ever turned off |
 | Disk | **Two: 32 GB for the OS, 96 GB for data** | The OS disk holds Ubuntu, Docker and ~5 GB of images. The data disk, mounted at `/srv/soc-data`, holds the two stores that grow: the indexer's ~7 GB of alerts at 30 days plus the vulnerability feed and the inventory and states indices, and Velociraptor's datastore, whose collections get large fast. They are separate so a hunt that collects too much fills the data disk and not `/` ([#439](https://github.com/Gerrrt/HomeLab/issues/439)), and so ADR-0030's heap-not-disk sizing has a filesystem that can prove it wrong. Bounded, not measured. Both on **`large_data`**, the SSD mirror, not the spindles: the indexer is the heaviest writer in ADR-0007, and that pool measured 7,952 random write IOPS at queue depth 1 against the HDD mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)). `ssd=1`, `balloon 0` and `iothread=1` for the same reasons `alexander` has them |
 | First user | **uid 1000** | The indexer image runs as uid 1000 and mounts the 0600 user database `make render` writes; `render-config.sh` refuses any other uid. The first user the installer creates is 1000 — do not create a second one to deploy from |
 
@@ -67,7 +67,7 @@ qm create 160 \
   --name odin \
   --ostype l26 \
   --cpu host --cores 4 --sockets 1 \
-  --memory 8192 --balloon 0 \
+  --memory 16384 --balloon 0 \
   --scsihw virtio-scsi-single \
   --scsi0 large_data:32,discard=on,iothread=1,ssd=1 \
   --scsi1 large_data:96,discard=on,iothread=1,ssd=1 \
@@ -152,17 +152,23 @@ otherwise write the evidence store onto the OS disk and fill `/`.
 `nofail` lets the guest boot, and be reached over SSH, when the disk is
 missing. The stack still stays down.
 
-Then the two directories, owned by the users that write them:
+Then the three directories, owned by the users that write them:
 
 ```bash
 sudo install -d -m 0750 -o 1000 -g 1000 /srv/soc-data/indexer
 sudo install -d -m 0700 -o root -g root /srv/soc-data/velociraptor
+sudo install -d -m 0750 -o 999  -g 999  /srv/soc-data/manager-tmp
+sudo install -d -m 0750 -o 999  -g 999  /srv/soc-data/manager-queue
 df -h /srv/soc-data
 ```
 
 The indexer runs as uid 1000; Velociraptor runs as root with every capability
-dropped (`compose.yaml`, DIFFERENCE 4). `df` must show about 94G on
-`/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
+dropped (`compose.yaml`, DIFFERENCE 4); the manager's `wazuh` user is uid 999.
+The last two are vulnerability detection's two halves, both on the data disk
+(§0) rather than the OS disk they would otherwise fill on the first start:
+`manager-tmp` is where the ~8.5 GB feed is unpacked, and `manager-queue`
+(`/var/ossec/queue`) is where its content database and the agent event queue
+persist. `df` must show about 94G on `/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
 `fstab` line before any data depends on it.
 
 ## 3. Docker, sops, age, and the repository
@@ -181,6 +187,23 @@ id -u
 Must print `1000`. If it does not, the indexer will not be able to read the
 user database §5 renders, and the failure surfaces as a healthcheck that never
 passes rather than as a permissions error anywhere you are looking.
+
+And the one directory this stack cannot leave to the clone's ownership:
+Velociraptor's config directory. Velociraptor runs as root with every
+capability dropped (`compose.yaml`, DIFFERENCE 4), so — with no
+`CAP_DAC_OVERRIDE` — it can only write `server.config.yaml` on its first start
+into a directory it owns, and the clone leaves this one owned by you:
+
+```bash
+sudo chown root:root ~/HomeLab/stacks/soc/velociraptor/etc
+```
+
+The datastore (§2, `/srv/soc-data/velociraptor`) is already root's; this is the
+config dir in the checkout, which §12 backs up with the guest because the
+internal CA's private key lands inside it. Skip this and the container
+crash-loops with `open /etc/velociraptor/server.config.yaml: no such file` —
+the generate step silently failing to write, not a permissions error where you
+are looking.
 
 ## 4. The kernel prerequisite
 
@@ -248,10 +271,13 @@ The indexer, manager and dashboard authenticate to each other with mTLS from
 a CA of their own — **not** the lab CA, for the reasons ADR-0030 gives: this CA
 issues the identities three containers use to trust each other, the lab CA
 issues server leaves that browsers verify, and neither tool wants the other's.
-The generator is a service behind the `certs` profile, so `make up` never runs
-it:
+The generator is a service in the same `compose.yaml` as the rest, behind the
+`certs` profile so `make up` never runs it. Compose resolves every `${VAR:?…}`
+in the file before it runs any one service, so `.env` has to exist first —
+render writes it, and does no harm run again later by `make up`:
 
 ```bash
+make render STACK=soc
 docker compose -f stacks/soc/compose.yaml --profile certs run --rm wazuh.certs-generator
 ls -ln stacks/soc/wazuh/certs/
 ```
@@ -260,6 +286,19 @@ Twelve files, mode `0400`, and the generator has already set their owners to
 the uid each container runs as — `1000` for the indexer's and dashboard's,
 `999` for the manager's. No chown. `root-ca.key` is the CA's private key; it
 stays in that gitignored directory and nowhere else.
+
+One of the twelve then opens by a notch. `root-ca.pem` is the CA's *public*
+certificate, and `alloy` — root with every capability dropped, like
+Velociraptor — reads it to verify `wazuh.indexer` rather than skip
+verification. Without `CAP_DAC_OVERRIDE` even root cannot read a `0400` file it
+does not own, so the public cert (never a key) is made world-readable:
+
+```bash
+chmod 0444 stacks/soc/wazuh/certs/root-ca.pem
+```
+
+Skip this and `alloy` restarts on `Couldn't load root certificate … permission
+denied` while every other service is healthy.
 
 > [!NOTE]
 > The generator downloads its tool for the version in `CERT_TOOL_VERSION`
@@ -354,7 +393,24 @@ docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
 ```
 
 Both answer with `"acknowledged":true` (the policy call also echoes the policy
-back). The settings template is a legacy template at `order: 1` so that it
+back). Creating the first ISM policy also creates `.opendistro-ism-config`, and
+the plugin gives it one replica — which a single node cannot place, so the
+cluster goes **yellow** and `WazuhIndexerClusterYellow` fires the moment agents
+give it something to watch. Set that system index to zero replicas, as this
+node has no second to hold them:
+
+```bash
+docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
+  curl -sk $AUTH -H 'Content-Type: application/json' \
+  -XPUT 'https://localhost:9200/.opendistro-ism-config/_settings' \
+  --data-binary '{"index":{"number_of_replicas":0}}'
+```
+
+`_cluster/health` returns to `green` with no unassigned shards. (The
+`wazuh-alerts-*` template already sets `rep 0`; this is the one index the
+plugin makes for itself, behind the pattern that template matches.)
+
+The settings template is a legacy template at `order: 1` so that it
 merges **over** Wazuh's own `wazuh` template, which is at order 0 and carries
 the field mappings — a composable template would replace those mappings
 entirely, which is why it is not one. Confirm the mappings survived and the
