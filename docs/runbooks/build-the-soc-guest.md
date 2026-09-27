@@ -152,17 +152,23 @@ otherwise write the evidence store onto the OS disk and fill `/`.
 `nofail` lets the guest boot, and be reached over SSH, when the disk is
 missing. The stack still stays down.
 
-Then the two directories, owned by the users that write them:
+Then the three directories, owned by the users that write them:
 
 ```bash
 sudo install -d -m 0750 -o 1000 -g 1000 /srv/soc-data/indexer
 sudo install -d -m 0700 -o root -g root /srv/soc-data/velociraptor
+sudo install -d -m 0750 -o 999  -g 999  /srv/soc-data/manager-tmp
+sudo install -d -m 0750 -o 999  -g 999  /srv/soc-data/manager-queue
 df -h /srv/soc-data
 ```
 
 The indexer runs as uid 1000; Velociraptor runs as root with every capability
-dropped (`compose.yaml`, DIFFERENCE 4). `df` must show about 94G on
-`/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
+dropped (`compose.yaml`, DIFFERENCE 4); the manager's `wazuh` user is uid 999.
+The last two are vulnerability detection's two halves, both on the data disk
+(§0) rather than the OS disk they would otherwise fill on the first start:
+`manager-tmp` is where the ~8.5 GB feed is unpacked, and `manager-queue`
+(`/var/ossec/queue`) is where its content database and the agent event queue
+persist. `df` must show about 94G on `/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
 `fstab` line before any data depends on it.
 
 ## 3. Docker, sops, age, and the repository
@@ -181,6 +187,23 @@ id -u
 Must print `1000`. If it does not, the indexer will not be able to read the
 user database §5 renders, and the failure surfaces as a healthcheck that never
 passes rather than as a permissions error anywhere you are looking.
+
+And the one directory this stack cannot leave to the clone's ownership:
+Velociraptor's config directory. Velociraptor runs as root with every
+capability dropped (`compose.yaml`, DIFFERENCE 4), so — with no
+`CAP_DAC_OVERRIDE` — it can only write `server.config.yaml` on its first start
+into a directory it owns, and the clone leaves this one owned by you:
+
+```bash
+sudo chown root:root ~/HomeLab/stacks/soc/velociraptor/etc
+```
+
+The datastore (§2, `/srv/soc-data/velociraptor`) is already root's; this is the
+config dir in the checkout, which §12 backs up with the guest because the
+internal CA's private key lands inside it. Skip this and the container
+crash-loops with `open /etc/velociraptor/server.config.yaml: no such file` —
+the generate step silently failing to write, not a permissions error where you
+are looking.
 
 ## 4. The kernel prerequisite
 
@@ -248,10 +271,13 @@ The indexer, manager and dashboard authenticate to each other with mTLS from
 a CA of their own — **not** the lab CA, for the reasons ADR-0030 gives: this CA
 issues the identities three containers use to trust each other, the lab CA
 issues server leaves that browsers verify, and neither tool wants the other's.
-The generator is a service behind the `certs` profile, so `make up` never runs
-it:
+The generator is a service in the same `compose.yaml` as the rest, behind the
+`certs` profile so `make up` never runs it. Compose resolves every `${VAR:?…}`
+in the file before it runs any one service, so `.env` has to exist first —
+render writes it, and does no harm run again later by `make up`:
 
 ```bash
+make render STACK=soc
 docker compose -f stacks/soc/compose.yaml --profile certs run --rm wazuh.certs-generator
 ls -ln stacks/soc/wazuh/certs/
 ```
@@ -260,6 +286,19 @@ Twelve files, mode `0400`, and the generator has already set their owners to
 the uid each container runs as — `1000` for the indexer's and dashboard's,
 `999` for the manager's. No chown. `root-ca.key` is the CA's private key; it
 stays in that gitignored directory and nowhere else.
+
+One of the twelve then opens by a notch. `root-ca.pem` is the CA's *public*
+certificate, and `alloy` — root with every capability dropped, like
+Velociraptor — reads it to verify `wazuh.indexer` rather than skip
+verification. Without `CAP_DAC_OVERRIDE` even root cannot read a `0400` file it
+does not own, so the public cert (never a key) is made world-readable:
+
+```bash
+chmod 0444 stacks/soc/wazuh/certs/root-ca.pem
+```
+
+Skip this and `alloy` restarts on `Couldn't load root certificate … permission
+denied` while every other service is healthy.
 
 > [!NOTE]
 > The generator downloads its tool for the version in `CERT_TOOL_VERSION`
