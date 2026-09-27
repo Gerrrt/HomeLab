@@ -21,9 +21,9 @@ it too reaches nothing here.
 There is a third, and it reports to the second. [`stacks/soc`](../stacks/soc)
 is Wazuh and Velociraptor on `odin`, another guest on `Saruman`
 ([ADR-0030](adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md)),
-authored ahead of the guest and not yet built. Its Alloy pushes that guest's
-telemetry and the Wazuh indexer's health to the lab's stores on `alexander`;
-nothing of it reaches here either.
+built 2026-09-27. Its Alloy pushes that guest's telemetry and the Wazuh
+indexer's health to the lab's stores on `alexander`; nothing of it reaches
+here either.
 
 The one path that does cross belongs to the hypervisor and not to any guest:
 `Saruman`'s own agent remote-writes here over a single unlogged pass

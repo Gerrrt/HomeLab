@@ -204,8 +204,8 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── stacks/lab/               # the lab's own stack — four services on alexander,
 │                             #   a guest on Saruman; never remote-writes to
 │                             #   VLAN 99. See its README and ADR-0020
-├── stacks/soc/               # Wazuh and Velociraptor for a second guest, odin —
-│                             #   authored ahead of it (ADR-0030, #266, #267)
+├── stacks/soc/               # Wazuh and Velociraptor on odin, a second guest —
+│                             #   built 2026-09-27 (ADR-0030, #266, #267)
 ├── stacks/sensitive/         # the household's tier — Caddy, step-ca, Home
 │                             #   Assistant, AdGuard Home, Immich, Paperless-ngx
 │                             #   and Vaultwarden so far; its own CA, leaves over

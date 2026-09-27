@@ -393,6 +393,7 @@ Where things get broken on purpose.
 | Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
+| odin | `10.0.30.60` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Security tooling (SOC) |
 | carbuncle | `10.0.30.54` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 
@@ -403,10 +404,10 @@ Where things get broken on purpose.
   dedicated port, `Saruman` is the Proxmox install. They are separate addresses
   and separate names, and conflating them is a mistake this document previously
   made.
-- `Saruman` runs two guests: `alexander`, built 2026-09-05
-  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), and `phoenix`, built
-  2026-09-20 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), described
-  below. `alexander` runs
+- `Saruman` runs three guests: `alexander`, built 2026-09-05
+  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), `phoenix`, built
+  2026-09-20 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and `odin`,
+  built 2026-09-27, described below. `alexander` runs
   [`stacks/lab`](../stacks/lab) — the lab's own Prometheus, Loki, Grafana and
   Alloy. **It is a guest and not the hypervisor for a reason**: a compose stack
   is Docker, and Docker would rewrite the iptables of the box whose own
@@ -425,15 +426,17 @@ Where things get broken on purpose.
   addresses are DHCP reservations, read from `morpheus`'s `config.xml` on
   2026-09-26, and not statics. They run per session, so an absence from the
   segment is normal.
-- A second guest, `odin`, is planned at `10.0.30.60` — a static below `.100`,
-  continuing the decade spacing — for [`stacks/soc`](../stacks/soc): Wazuh and
-  Velociraptor, the security half of ADR-0007, placed there by
+- `odin` is at `10.0.30.60` — a static below `.100`, continuing the decade
+  spacing — for [`stacks/soc`](../stacks/soc): Wazuh and Velociraptor, the
+  security half of ADR-0007, placed there by
   [ADR-0030](adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md).
-  **Not built**; it enters the table above when it is
-  ([`build-the-soc-guest.md`](runbooks/build-the-soc-guest.md)). Its Alloy
-  pushes to `alexander` and not to Winterfell — "guests get no such rule"
-  covers it — and ADR-0029's six machines report to it as agents. Every path
-  it needs is intra-segment, so it adds no firewall rule.
+  Built 2026-09-27 ([`build-the-soc-guest.md`](runbooks/build-the-soc-guest.md));
+  its stack runs and its Velociraptor metrics are scraped by `alexander`. Its
+  Alloy pushes to `alexander` and not to Winterfell — "guests get no such rule"
+  covers it — and ADR-0029's six machines enrol to it as agents by GPO, the
+  step that closes [#266](https://github.com/Gerrrt/HomeLab/issues/266) and
+  [#267](https://github.com/Gerrrt/HomeLab/issues/267). Every path it needs is
+  intra-segment, so it adds no firewall rule.
 - A third guest, `phoenix`, is at `10.0.30.70` — the next decade — as
   the deployment host: the Proxmox API token, the SSH key and the checkout
   that the Packer, OpenTofu and Ansible work after
