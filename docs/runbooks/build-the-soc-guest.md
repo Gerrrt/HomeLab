@@ -35,7 +35,7 @@ than carrying a second copy that drifts.
 | Kind | **VM, not LXC** | Same reason as `alexander`: `cgroup: host`, `cap_drop`, a Docker socket mount, and now `vm.max_map_count`, which an LXC cannot set for itself at all |
 | OS | **Ubuntu Server LTS** | Same reason as `alexander`, and check it the same way: `config.alloy` tails `/var/log/auth.log` and `/var/log/syslog`, and a journald-only install collects nothing from either while reporting healthy. §10 is the check |
 | vCPU | 4 | OpenSearch and fifteen Wazuh daemons are not single-threaded; the host has 48 threads and compute was never the constraint (ADR-0007) |
-| RAM | **8 GiB** | ADR-0030's heap arithmetic assumes it: "half of system RAM would be 4 GiB". The indexer gets 3.5 GiB, the manager 2, and the rest the other three services and the page cache |
+| RAM | **16 GiB** | The services at rest fit in 8 GiB, and ADR-0030's heap arithmetic was written for it — the indexer's heap stays 2 GiB, its `mem_limit` 3.5, the manager's 2. But **vulnerability detection breaks that budget on a burst**: it downloads a ~400 MB CVE feed, unpacks it to an ~8.5 GB tar and bulk-indexes it into the indexer, and that import — repeated on the content manager's schedule, not just once — drove an 8 GiB guest into memory+IO thrash that wedged it for minutes at a time on the 2026-09-27 build. 16 GiB is the headroom that import needs; the host has it to give (48 threads, ~70 GiB free), and the extra 8 GiB is burst room and page cache, not heap. Revisit if vulnerability detection is ever turned off |
 | Disk | **Two: 32 GB for the OS, 96 GB for data** | The OS disk holds Ubuntu, Docker and ~5 GB of images. The data disk, mounted at `/srv/soc-data`, holds the two stores that grow: the indexer's ~7 GB of alerts at 30 days plus the vulnerability feed and the inventory and states indices, and Velociraptor's datastore, whose collections get large fast. They are separate so a hunt that collects too much fills the data disk and not `/` ([#439](https://github.com/Gerrrt/HomeLab/issues/439)), and so ADR-0030's heap-not-disk sizing has a filesystem that can prove it wrong. Bounded, not measured. Both on **`large_data`**, the SSD mirror, not the spindles: the indexer is the heaviest writer in ADR-0007, and that pool measured 7,952 random write IOPS at queue depth 1 against the HDD mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)). `ssd=1`, `balloon 0` and `iothread=1` for the same reasons `alexander` has them |
 | First user | **uid 1000** | The indexer image runs as uid 1000 and mounts the 0600 user database `make render` writes; `render-config.sh` refuses any other uid. The first user the installer creates is 1000 — do not create a second one to deploy from |
 
@@ -67,7 +67,7 @@ qm create 160 \
   --name odin \
   --ostype l26 \
   --cpu host --cores 4 --sockets 1 \
-  --memory 8192 --balloon 0 \
+  --memory 16384 --balloon 0 \
   --scsihw virtio-scsi-single \
   --scsi0 large_data:32,discard=on,iothread=1,ssd=1 \
   --scsi1 large_data:96,discard=on,iothread=1,ssd=1 \
