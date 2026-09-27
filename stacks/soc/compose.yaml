@@ -506,7 +506,18 @@ volumes:
   manager-api-configuration:
   manager-etc:
   manager-logs:
+  # /var/ossec/queue holds vulnerability detection's content database
+  # (queue/vd), which after the first feed import is ~8.5 GB and grows with the
+  # feed — the persistent half of what §0 means by "the vulnerability feed", as
+  # manager-tmp below is the staging half. On the OS volume it fills the 30 GB
+  # disk, so it too is bind-backed to the data disk. The agent event queue
+  # lives here as well, which wants the data disk anyway.
   manager-queue:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SOC_DATA_DIR:-/srv/soc-data}/manager-queue
   manager-var-multigroups:
   manager-integrations:
   manager-active-response:

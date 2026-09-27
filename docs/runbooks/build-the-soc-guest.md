@@ -158,14 +158,17 @@ Then the three directories, owned by the users that write them:
 sudo install -d -m 0750 -o 1000 -g 1000 /srv/soc-data/indexer
 sudo install -d -m 0700 -o root -g root /srv/soc-data/velociraptor
 sudo install -d -m 0750 -o 999  -g 999  /srv/soc-data/manager-tmp
+sudo install -d -m 0750 -o 999  -g 999  /srv/soc-data/manager-queue
 df -h /srv/soc-data
 ```
 
 The indexer runs as uid 1000; Velociraptor runs as root with every capability
-dropped (`compose.yaml`, DIFFERENCE 4); the manager's `wazuh` user is uid 999,
-and `manager-tmp` is where vulnerability detection unpacks its ~8.5 GB feed —
-on the data disk (§0) rather than the OS disk it would otherwise fill on the
-first start. `df` must show about 94G on `/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
+dropped (`compose.yaml`, DIFFERENCE 4); the manager's `wazuh` user is uid 999.
+The last two are vulnerability detection's two halves, both on the data disk
+(§0) rather than the OS disk they would otherwise fill on the first start:
+`manager-tmp` is where the ~8.5 GB feed is unpacked, and `manager-queue`
+(`/var/ossec/queue`) is where its content database and the agent event queue
+persist. `df` must show about 94G on `/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
 `fstab` line before any data depends on it.
 
 ## 3. Docker, sops, age, and the repository
