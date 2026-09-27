@@ -104,7 +104,8 @@ has been rehearsed on it.
   four-digit confirmation code), a kernel panic from the undisclosed
   Wireless-AC 9560 under `iwm` (fixed with `hint.iwm.0.disabled`), and an
   installer that needs the internet — and all three are now in §3. The box
-  goes to #404.
+  goes to #404 without the I226 card, which is in the drawer until the day
+  `trinity` has to be the firewall.
   → [runbook](runbooks/restore-the-firewall.md#rehearse-the-restore-on-the-spare)
 - **[#404](https://github.com/Gerrrt/HomeLab/issues/404) Build the tier's
   host.** After #92: the same box, wiped and built once the rehearsal is done

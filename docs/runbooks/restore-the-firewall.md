@@ -206,7 +206,10 @@ the same day (§5). **This section was rehearsed on that box on 2026-09-27**
 [below](#rehearse-the-restore-on-the-spare)), and the steps are the ones that
 worked, not the ones that were expected to.
 
-0. **Firmware, before the stick will boot.** Two things on the G4 stop the
+0. **Fit the I226 card.** Since the rehearsal it is kept in the drawer, not
+   in `trinity` ([`hardware.md`](../hardware.md)); it goes in the G4's second
+   M.2 slot. Without it there is no `igc0`, and the restore stops to ask.
+   **Then the firmware, before the stick will boot.** Two things on the G4 stop the
    installer, and both were found the hard way:
    - **Secure Boot.** The stick is refused with *"Selected boot image did not
      authenticate"*. F10 → Advanced → Secure Boot Configuration → *Legacy

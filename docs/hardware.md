@@ -146,7 +146,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it. It ships with the onboard NIC
   only; the I226 card the restore depends on was a separate purchase, made
-  2026-09-11 and the entry below — **in hand and fitted since 2026-09-25**.
+  2026-09-11 and the entry below — fitted 2026-09-25 for the rehearsal and
+  **taken out again afterwards; it is in the drawer, not in this box**.
   **The firewall restore was rehearsed on it on 2026-09-27** and restored
   with no interface-assignment prompt
   ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md#rehearse-the-restore-on-the-spare)).
@@ -196,7 +197,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
     ended with the install. #404 builds on that, not on the state it
     arrived in.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
-  **in hand since 2026-09-25 and fitted in `trinity` the same day**. The
+  **in hand since 2026-09-25**, fitted in `trinity` for #92's rehearsal, where
+  it came up as `igc0`, and **taken out afterwards: it is in the drawer**,
+  and goes back into `trinity`'s second M.2 slot on the day `trinity`
+  becomes the firewall. The
   second port on the ProDesk Micro above, matching the card
   in `morpheus` so a pfSense restore onto the spare brings the LAN up as
   `igc0` and asks nothing
