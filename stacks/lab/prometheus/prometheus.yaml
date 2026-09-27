@@ -140,7 +140,7 @@ scrape_configs:
 # exist yet is InstanceDown firing from the moment this deploys.
 # build-the-soc-guest.md §9 uncomments it.
 #
-#   - job_name: velociraptor
-#     static_configs:
-#       - targets: ["10.0.30.60:8003"]
-#         labels: {instance: odin, role: soc}
+  - job_name: velociraptor
+    static_configs:
+      - targets: ["10.0.30.60:8003"]
+        labels: {instance: odin, role: soc}
