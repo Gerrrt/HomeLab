@@ -156,6 +156,18 @@ while read -r src; do
   [[ -n "${src}" ]] || continue
   [[ -e "${STACK_DIR}/${src}" ]] && continue
   if git -C "${REPO_ROOT}" check-ignore -q "stacks/${STACK}/${src}/"; then
+    # A gitignored source with a filename extension is a runtime FILE — written
+    # by this script (the .rendered/* files) or by a compose profile (the certs
+    # *.pem) before `make up` — not a directory to pre-create. Making it a
+    # directory here is what broke the soc stack, the first with file bind
+    # mounts: render then could not write internal_users.yml over the directory
+    # it had just made. `?*.*` is "a dot that is not the first character", so a
+    # dotdir like `.rendered` is still created, while `authd.pass`, `admin.pem`
+    # and `internal_users.yml` are left to their producers.
+    base="${src##*/}"
+    if [[ "${base}" == ?*.* ]]; then
+      continue
+    fi
     info "creating stacks/${STACK}/${src}/ (runtime directory, gitignored)"
     mkdir -p "${STACK_DIR}/${src}"
   else
