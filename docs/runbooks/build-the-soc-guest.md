@@ -393,7 +393,24 @@ docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
 ```
 
 Both answer with `"acknowledged":true` (the policy call also echoes the policy
-back). The settings template is a legacy template at `order: 1` so that it
+back). Creating the first ISM policy also creates `.opendistro-ism-config`, and
+the plugin gives it one replica — which a single node cannot place, so the
+cluster goes **yellow** and `WazuhIndexerClusterYellow` fires the moment agents
+give it something to watch. Set that system index to zero replicas, as this
+node has no second to hold them:
+
+```bash
+docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
+  curl -sk $AUTH -H 'Content-Type: application/json' \
+  -XPUT 'https://localhost:9200/.opendistro-ism-config/_settings' \
+  --data-binary '{"index":{"number_of_replicas":0}}'
+```
+
+`_cluster/health` returns to `green` with no unassigned shards. (The
+`wazuh-alerts-*` template already sets `rep 0`; this is the one index the
+plugin makes for itself, behind the pattern that template matches.)
+
+The settings template is a legacy template at `order: 1` so that it
 merges **over** Wazuh's own `wazuh` template, which is at order 0 and carries
 the field mappings — a composable template would replace those mappings
 entirely, which is why it is not one. Confirm the mappings survived and the
