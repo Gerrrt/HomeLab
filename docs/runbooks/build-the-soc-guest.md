@@ -152,17 +152,20 @@ otherwise write the evidence store onto the OS disk and fill `/`.
 `nofail` lets the guest boot, and be reached over SSH, when the disk is
 missing. The stack still stays down.
 
-Then the two directories, owned by the users that write them:
+Then the three directories, owned by the users that write them:
 
 ```bash
 sudo install -d -m 0750 -o 1000 -g 1000 /srv/soc-data/indexer
 sudo install -d -m 0700 -o root -g root /srv/soc-data/velociraptor
+sudo install -d -m 0750 -o 999  -g 999  /srv/soc-data/manager-tmp
 df -h /srv/soc-data
 ```
 
 The indexer runs as uid 1000; Velociraptor runs as root with every capability
-dropped (`compose.yaml`, DIFFERENCE 4). `df` must show about 94G on
-`/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
+dropped (`compose.yaml`, DIFFERENCE 4); the manager's `wazuh` user is uid 999,
+and `manager-tmp` is where vulnerability detection unpacks its ~8.5 GB feed —
+on the data disk (§0) rather than the OS disk it would otherwise fill on the
+first start. `df` must show about 94G on `/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
 `fstab` line before any data depends on it.
 
 ## 3. Docker, sops, age, and the repository

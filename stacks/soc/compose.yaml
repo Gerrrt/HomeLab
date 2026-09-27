@@ -202,6 +202,13 @@ services:
       - manager-active-response:/var/ossec/active-response/bin
       - manager-agentless:/var/ossec/agentless
       - manager-wodles:/var/ossec/wodles
+      # Vulnerability detection stages its feed here: it downloads the ~400 MB
+      # compressed content and unpacks it to an ~8.5 GB tar in /var/ossec/tmp
+      # before importing it. On the container's writable layer that fills the
+      # 30 GB OS disk on first start; §0's hardware note puts "the vulnerability
+      # feed" on the data disk, so the staging directory is a bind-backed
+      # volume there, beside the indexer's data and Velociraptor's datastore.
+      - manager-tmp:/var/ossec/tmp
       - filebeat-etc:/etc/filebeat
       - filebeat-var:/var/lib/filebeat
       - ./wazuh/certs/root-ca-manager.pem:/etc/ssl/root-ca.pem:ro
@@ -479,7 +486,7 @@ networks:
     driver: bridge
 
 volumes:
-  # The two stores that grow live on odin's second disk, not the OS volume
+  # The things that grow live on odin's second disk, not the OS volume
   # (#439). Velociraptor's collections get large fast, and ADR-0030 sized the
   # indexer by heap on the assumption that disk was not the constraint; a
   # separate filesystem makes that assumption checkable and gives the
@@ -515,4 +522,13 @@ volumes:
       type: none
       o: bind
       device: ${SOC_DATA_DIR:-/srv/soc-data}/velociraptor
+  # The manager's vulnerability-feed staging (see the service above): the third
+  # thing that grows, and the one §0 means by "the vulnerability feed". Bound to
+  # the data disk so the ~8.5 GB unpack cannot fill the OS disk.
+  manager-tmp:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SOC_DATA_DIR:-/srv/soc-data}/manager-tmp
   alloy-data:
