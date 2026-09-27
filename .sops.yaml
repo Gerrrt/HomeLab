@@ -70,7 +70,7 @@ creation_rules:
   # matches no file, which is what makes a dead rule loud instead of harmless.
   - path_regex: secrets/lab(\..+)?\.sops\.ya?ml$
     age: >-
-      REPLACE_WITH_LAB_AGE_PUBLIC_KEY
+      age1fwtswt22kljrgmnzah8twwnkzha07l3vlg30n30pahczh0dfvq8s22jdge
 
   # The sensitive tier, for the opposite reason to the lab's: not because the
   # host is less trusted than the estate, but because it has no use for the

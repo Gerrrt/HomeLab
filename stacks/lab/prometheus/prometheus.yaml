@@ -62,39 +62,34 @@ scrape_configs:
     static_configs:
       - targets: ["alloy:12345"]
 
-# No `snmp` or `blackbox` jobs: this stack runs neither exporter. The devices
-# on this segment that answer SNMP — `shiva`, the iLO of this guest's own host
-# — are polled by the estate's stack over the exception ADR-0013 records, and
-# polling them from here as well would be two stacks scraping one device and
-# two answers to "when did it last respond".
-#
-# ---------------------------------------------------------------------------
-# ADR-0029's domain. Uncomment the block below once the six guests exist and
-# windows_exporter is installed on them — build-the-lab-domain.md §8 is the
-# step, and §9 is the check that it is collecting rather than merely running.
-#
-# It lands commented rather than live because a scrape job pointed at six
-# machines that do not exist yields `up == 0` on every one of them, and
-# InstanceDown would fire permanently from the moment this file deployed. That
-# is the shape ADR-0017 refuses by name — "every rule watching it would be
-# permanently firing or permanently silenced" — and it is why the RULES in
-# rules/lab.rules.yaml land live while this does not: promtool proves a rule can
-# fire against synthetic series without needing a machine to exist.
-#
-#   - job_name: windows
-#     static_configs:
-#       - targets: ["10.0.30.50:9182"]
-#         labels: {instance: bahamut, role: dc}
-#       - targets: ["10.0.30.51:9182"]
-#         labels: {instance: leviathan, role: dc}
-#       - targets: ["10.0.30.52:9182"]
-#         labels: {instance: titan, role: member}
-#       - targets: ["10.0.30.53:9182"]
-#         labels: {instance: ramuh, role: member}
-#       - targets: ["10.0.30.54:9182"]
-#         labels: {instance: carbuncle, role: endpoint}
-#       - targets: ["10.0.30.55:9182"]
-#         labels: {instance: siren, role: endpoint}
+  # No `snmp` or `blackbox` jobs: this stack runs neither exporter. The devices
+  # on this segment that answer SNMP — `shiva`, the iLO of this guest's own host
+  # — are polled by the estate's stack over the exception ADR-0013 records, and
+  # polling them from here as well would be two stacks scraping one device and
+  # two answers to "when did it last respond".
+  #
+  # ADR-0029's domain, live since build-the-lab-domain.md §8 turned it on for
+  # [#414](https://github.com/Gerrrt/HomeLab/issues/414): the six guests exist
+  # and run windows_exporter, and §9 is the check that it collects rather than
+  # merely runs. It deployed commented until then because a scrape pointed at
+  # machines that did not yet exist would fire InstanceDown permanently — the
+  # shape ADR-0017 refuses by name. The RULES in rules/lab.rules.yaml landed
+  # live regardless, because promtool proves a rule can fire against synthetic
+  # series without a machine existing.
+  - job_name: windows
+    static_configs:
+      - targets: ["10.0.30.50:9182"]
+        labels: {instance: bahamut, role: dc}
+      - targets: ["10.0.30.51:9182"]
+        labels: {instance: leviathan, role: dc}
+      - targets: ["10.0.30.52:9182"]
+        labels: {instance: titan, role: member}
+      - targets: ["10.0.30.53:9182"]
+        labels: {instance: ramuh, role: member}
+      - targets: ["10.0.30.54:9182"]
+        labels: {instance: carbuncle, role: endpoint}
+      - targets: ["10.0.30.55:9182"]
+        labels: {instance: siren, role: endpoint}
 #
 # `instance` is set explicitly because the default is the address, and an alert
 # reading "10.0.30.53:9182 has fallen back to its own CMOS clock" is one more

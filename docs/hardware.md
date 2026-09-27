@@ -663,8 +663,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   leaked on 2026-08-20, and an admin password that crossed the wire in clear
   for its whole service life
   ([ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)).
-- USB stick holding the pfSense installer — **in transit; it belongs in the rack
-  beside the KVM once it arrives**, and is not there yet.
+- USB stick holding the pfSense installer — **in hand since 2026-09-26; it
+  belongs in the rack beside the KVM** once #92's rehearsal has used it.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
   something you will need, so a restore attempted before it lands is a restore
   that stops to go looking for one
