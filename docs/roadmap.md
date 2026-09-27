@@ -93,13 +93,19 @@ Closes when the nine services serve from `trinity` and the firewall restore
 has been rehearsed on it.
 
 - **[#92](https://github.com/Gerrrt/HomeLab/issues/92) Rehearse the firewall
-  restore.** First, because the box was sold with a thirty-day return that
-  closes **2026-10-08**, and installing pfSense over the Windows it arrived
-  with is both the step that proves the machine and the step that ends the
-  return. Nothing gates it: the I226 card was fitted on 2026-09-25 and the
-  installer stick is in hand since 2026-09-26. The rehearsal is what
-  turns the runbook from a hypothesis into a procedure.
-  → [runbook](runbooks/restore-the-firewall.md)
+  restore — done 2026-09-27.** The machine was proved on 2026-09-26, inside
+  the return window that closed 2026-10-08 (#674). The rehearsal restored
+  `config-20260926T043704Z` — taken from `oracle`, schema `24.6`, 112 rules —
+  onto pfSense CE 2.9.0 on `trinity` in 42 minutes, and it booted with **no
+  interface-assignment prompt**: WAN on `em0`, LAN on `igc0`, all six VLANs,
+  112 rules, the four tripwires, the twelve `Tunnel_Peers` rules and six Kea
+  scopes, and a laptop tagged into VLAN 99 leased `10.0.99.100`. Three things
+  asked questions the runbook had not answered — Secure Boot (and HP's
+  four-digit confirmation code), a kernel panic from the undisclosed
+  Wireless-AC 9560 under `iwm` (fixed with `hint.iwm.0.disabled`), and an
+  installer that needs the internet — and all three are now in §3. The box
+  goes to #404.
+  → [runbook](runbooks/restore-the-firewall.md#rehearse-the-restore-on-the-spare)
 - **[#404](https://github.com/Gerrrt/HomeLab/issues/404) Build the tier's
   host.** After #92: the same box, wiped and built once the rehearsal is done
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).

@@ -1,16 +1,18 @@
 # Runbook: Restore the firewall
 
 **Target:** `morpheus` — the pfSense box every VLAN terminates on
-**Time:** 20 minutes with a prepared spare; considerably longer without one
+**Time:** about 40 minutes onto the spare — 42 on the 2026-09-27 rehearsal,
+firmware surprises included; considerably longer without a spare
 **You will need:** a recent backup (on `prometheus`, or its copy on `oracle`),
 the age key (on `prometheus`, or its offline copy), the pfSense installer on
 bootable media, and physical access to the rack
 
 > [!NOTE]
-> A USB stick holding the installer is on its way and belongs in the rack beside
-> the KVM. **It is not there yet** — until it is, this runbook's first step is
-> finding a machine that can write one, which is not a thing you want to
-> discover during an outage.
+> The USB stick holding the installer lives in the rack beside the KVM. It is
+> the **Netgate Installer**, not a pfSense image: CE has had no offline
+> installer since 2.7.2, so the stick downloads the release during the install
+> and **needs the internet on the onboard port while it runs** — on the day,
+> that is the ISP gateway, cabled straight in (§3).
 > See [`hardware.md`](../hardware.md#accessories).
 
 `morpheus` is the single point of failure in this lab. It routes six VLANs and
@@ -199,10 +201,29 @@ and expect a different public address.
 [ADR-0034](../adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md):
 the same model, running Immich and the rest. Step 0 is therefore wiping it,
 and everything on it is gone until a replacement ProDesk arrives — order one
-the same day (§5). The rehearsal below is done on this box before it holds
-anything ([#404](https://github.com/Gerrrt/HomeLab/issues/404), step 1); until
-it has been, this section is still a hypothesis.
+the same day (§5). **This section was rehearsed on that box on 2026-09-27**
+([#92](https://github.com/Gerrrt/HomeLab/issues/92); the record is
+[below](#rehearse-the-restore-on-the-spare)), and the steps are the ones that
+worked, not the ones that were expected to.
 
+0. **Firmware, before the stick will boot.** Two things on the G4 stop the
+   installer, and both were found the hard way:
+   - **Secure Boot.** The stick is refused with *"Selected boot image did not
+     authenticate"*. F10 → Advanced → Secure Boot Configuration → *Legacy
+     Support Disable and Secure Boot Disable*, F10 to save — and **type the
+     four-digit code HP shows on the next boot**. Without the code the change
+     is silently discarded and the same error comes back.
+   - **The Wi-Fi.** `trinity` carries an Intel Wireless-AC 9560 the listing
+     did not mention. FreeBSD's `iwm` claims it, fails to load its firmware
+     (`iwm9000fw: could not load firmware image, error 6`), and the kernel
+     panics in `firmware taskq` — on the installer and on the installed
+     system alike. Switching Wireless LAN off in the BIOS does **not** stop
+     it: the 9560 is CNVi, part of the chipset at PCI `20.3`. What does: at
+     the loader menu press **3**, then `set hint.iwm.0.disabled=1` and
+     `boot`. After the install, make it permanent from the console shell
+     (option 8) before anything else —
+     `echo 'hint.iwm.0.disabled="1"' >> /boot/loader.conf.local` —
+     because pfSense rewrites `loader.conf` but not `.local`.
 1. Install a pfSense release at least as new as the one the backup came from.
    **Restoring a config onto an older build can fail silently.** The
    `<version>` that `make backup-firewall` prints on every verify is the
@@ -211,10 +232,25 @@ it has been, this section is still a hypothesis.
    **pfSense CE 2.9.0-RELEASE**, build `20260817-1836`, on the same day, and
    recorded in [`hardware.md`](../hardware.md#compute) for the day `morpheus`
    cannot be asked. 2.9.0's own schema is `24.6`, so 2.9.0 is the floor for
-   that export; check what is on the stick before booting from it.
-2. Complete the installer with defaults. Do not configure interfaces or VLANs —
-   the restore supplies all of it.
-3. Restore per §2.
+   that export. The stick carries no release to check: the Netgate Installer
+   lists what it can download, and on 2026-09-27 that was **2.9.0** — build
+   `20260925-1514`, newer than `morpheus`'s build of the same release.
+2. Cable the onboard port (`em0`) to something with DHCP and the internet —
+   the ISP gateway on the day, any house port on a bench — and leave the card
+   empty. The installer asks for WAN and then LAN, listing `igc0 (no carrier)`
+   and `em0 (active)`: choose **WAN = `em0`, LAN = `igc0`**, keep DHCP on
+   WAN and `192.168.1.1/24` on LAN, choose **Install CE**, the release, and
+   ZFS on GPT across the one disk (`nda0`). Do not configure VLANs — the
+   restore supplies all of it.
+3. Restore per §2. The UI path works: a laptop on the card's port gets a
+   `192.168.1.x` lease from the fresh install, and
+   `https://192.168.1.1/diag_backup.php` takes the file (area *All*, not
+   encrypted). On the rehearsal the box rebooted **straight to the console
+   menu with every interface assigned — no assignment prompt** — WAN on `em0`,
+   LAN on `igc0` at `10.7.7.1`, and all six VLANs on `igc0.10` … `igc0.99`.
+   It then tries to reinstall the config's packages in the background, which
+   needs the WAN; on a bench with the WAN unplugged it cannot, and a package
+   the rules depend on is worth checking once the WAN is back.
 4. Move the cables — there are two: ISP gateway to the onboard port (`em0`,
    WAN), and the trunk from switch port 1 to the I226 card's port (`igc0`).
 
@@ -337,74 +373,76 @@ make backup-firewall ARGS=--verify-only
 
 That proves the newest export decrypts and parses here, and that `oracle` holds
 the same bytes. It does **not** prove it restores. For that, restore it onto
-the spare — and until that has been done once, this runbook is a hypothesis.
+the spare, as below — done once, on 2026-09-27, and worth doing again whenever
+the spare's hardware or the pfSense release changes.
 
 ## Rehearse the restore on the spare
 
-Nobody has done this yet. Its purpose is to find the questions §3 does not
-answer — which of the two ports a fresh install makes WAN and which LAN,
-whether the I226 card comes back as `igc0` on the spare, how long the whole
-thing takes — and to write the answers back into §3.
+**Done on 2026-09-27 ([#92](https://github.com/Gerrrt/HomeLab/issues/92)), and
+it restored.** Its purpose was to find the questions §3 did not answer; the
+answers are written back into §3, and this is the record.
 
-**What the rehearsal is still missing.** This list was written on 2026-09-09
-to be lined up before the box arrived. The box arrived on 2026-09-14 and the
-card and the installer stick did not, so it stops being a countdown and
-becomes a list of what is blocking:
+| | |
+| --- | --- |
+| Box | `trinity`, the ProDesk 600 G4 DM (serial `MXL9243TVV`), I226-V card in the second M.2 slot, proved before the wipe ([`hardware.md`](../hardware.md)) |
+| Export | `config-20260926T043704Z.sops.yaml`, **taken from `oracle`**, byte-identical to `prometheus`'s; schema `24.6`, 112 rules |
+| Release | pfSense CE **2.9.0-RELEASE**, build `20260925-1514`, from the Netgate Installer |
+| Time | **42 minutes** from power-on to verified, including finding the two firmware problems below |
+| Result | Booted straight to the console menu — **no interface-assignment prompt** — with every interface where `morpheus` has it |
 
-- **The spare itself** — **here since 2026-09-14, opened, and not a blocker**
-  ([`hardware.md`](../hardware.md)). Its 512 GB SSD is **M.2 and the second
-  M.2 slot is free**, so the card below has somewhere to go and the
-  drive-carrier contention this list warned about does not happen. It is a
-  stock refurbished G4 that the listing says has the onboard NIC only, which
-  is still the listing talking; the spec, the serial and the NIC count have
-  not been read off the machine — and that reading now has a date on it.
-  **The seller-return window closes 2026-10-08.** It arrived carrying Windows
-  11 Pro, and step 2 below installs pfSense over it; that is the act that ends
-  the return, and it is the one step of this rehearsal that cannot be taken
-  back. So prove the machine — spec, serial, NIC count, disk health — before
-  that date. This is the only entry on this list with a deadline, and it is
-  not waiting on the two entries below that are.
-- **The I226 card** — bought 2026-09-11, **in hand and fitted in the spare
-  since 2026-09-25** ([`hardware.md`](../hardware.md)). Whether it comes up as
-  `igc0` is a question for the rehearsal, below.
-- **An installer for 2.9.0 or newer** — §3 step 1. The stick is in hand since
-  2026-09-26, so nothing on this list blocks the rehearsal now. Read its
-  version before booting from it.
-- **The newest export on `oracle`**, and the age key's offline copy.
-- **The numbers to check against**: `make backup-firewall ARGS=--verify-only`
-  prints the schema and the rule count — `24.6` and 92 rules on 2026-09-09.
+What it asked, in order, that §3 had not said:
+
+1. *"Selected boot image did not authenticate"* — Secure Boot. Turning it off
+   takes effect only after typing the four-digit code HP shows on the next
+   boot; the first attempt skipped that and the error came back unchanged.
+2. A kernel panic in `firmware taskq` — the Wireless-AC 9560 and `iwm`. The
+   BIOS Wireless LAN switch did not stop it; `hint.iwm.0.disabled=1` did.
+3. The installer needs the internet (there is no offline CE installer). It
+   listed `igc0 (no carrier)` and `em0 (active)`, and was told WAN = `em0`,
+   LAN = `igc0`.
+
+What it showed, checked on the bench from the console shell and a laptop
+(a MacBook on a USB adapter) on the card's port:
+
+| Check | Expected | Got |
+| --- | --- | --- |
+| Interfaces | WAN `em0`, LAN `igc0`, six VLANs | WAN `em0`, LAN `igc0` `10.7.7.1/24`, `igc0.99` `.50` `.40` `.30` `.20` `.10` each on its `.1/24` |
+| `grep -c '<rule>' /cf/conf/config.xml` | 112 | 112 |
+| Tripwires (§4 step 5) | 4 | 4 |
+| `pfctl -sr \| grep -c '<Tunnel_Peers>'` | 12 | 12, and the table holds `172.31.0.0/24` |
+| Kea DHCP scopes | 6 | 6 — DHCP is **Kea**, not ISC `dhcpd`, on 2.9.0 |
+| A client on a VLAN | a lease from that scope | the laptop, tagged into VLAN 99, leased `10.0.99.100` and pinged `10.0.99.1` |
+
+Not covered on the bench, and left for the day: §4's segmentation checks and
+the SNMP targets, which need the rack; and the package reinstall the restore
+starts in the background, which needs a WAN the bench did not have.
 
 > [!CAUTION]
 > Bench, not rack. The spare must never be on the production switch or on the
 > WAN while it carries `morpheus`'s config. Two boxes serving DHCP on one
 > segment, or two boxes claiming the WAN address, is a worse outage than the
-> one being rehearsed.
+> one being rehearsed. The onboard port is on a house network **only during
+> the install**, before the restore, and is unplugged before the restore.
 
-1. Take the copy from `oracle`, not from `prometheus`: the rehearsal should
-   exercise the copy that will matter on the day. Decrypt it per §2.
-2. Spare on the bench with the I226 card fitted, a laptop cabled to the
-   card's port, nothing on the onboard port. After the restore the onboard
-   port is WAN, which blocks everything inbound, and the card's port is LAN,
-   which carries the anti-lockout rule — so the card's port is the only one
-   the UI can be reached on. The fresh install may have chosen them the other
-   way round; that is one of the questions. Install pfSense from the USB
-   stick, a release no older than §3 step 1's floor, defaults throughout.
-3. Restore per §2 — through the UI if the fresh install put a reachable LAN on
-   that NIC, otherwise by writing `/cf/conf/config.xml` from the console
-   shell. Record which one worked and what it asked.
-4. After the reboot, at the console and then in the UI: every interface
-   assigned with no assignment prompt, the rule count matching what
-   `make backup-firewall` printed for that export, the four tripwire rules
-   from §4 step 5, and every DHCP scope present. The segmentation checks in §4
-   need the rack and stay for the day.
-5. Write down the date, the pfSense version, the backup stamp, the time from
-   power-on to verified, and everything that asked a question. Put it in
-   [`roadmap.md`](../roadmap.md) under #92, fix §3, and delete the hypothesis
-   sentence above.
-6. Shred the plaintext and hand the box to
+To run it again:
+
+1. Prove the machine first if it could still go back to a seller — spec,
+   serial, NICs, disk health — because the install is the step that cannot
+   be undone. Windows setup's own shell (Shift+F10) answers all of it without
+   finishing setup or touching a network.
+2. Take the newest export from `oracle`, not from `prometheus`, check
+   `make backup-firewall ARGS=--verify-only` for its rule count, and decrypt
+   it per §2 only once the bench is ready.
+3. §3 steps 0–3 on the bench: firmware, install with the onboard port on a
+   house network, **unplug it**, then restore from a laptop on the card's port.
+4. The checks in the table above, then shred every plaintext copy
+   (`shred -u`, or `rm -P` on macOS) and halt the box.
+5. Write the date, the release, the stamp, the time and whatever asked a
+   question into [`roadmap.md`](../roadmap.md) and into this section.
+6. Hand the box back to what it is for. On 2026-09-27 that was
    [#404](https://github.com/Gerrrt/HomeLab/issues/404): it is wiped and built
-   as the sensitive tier's host (ADR-0034). Nothing on it survives the
-   rehearsal, which is why the rehearsal comes first. The powered-off shelf
-   spare that used to be this step is deferred by that ADR; if it is ever
-   bought, it racks on the U4 shelf beside the switch, **off**, and on the day
-   the newest export from `oracle` is still restored over whatever it carries.
+   as the sensitive tier's host (ADR-0034), and nothing from the rehearsal
+   survives on it. The powered-off shelf spare that used to be this step is
+   deferred by that ADR; if it is ever bought, it racks on the U4 shelf beside
+   the switch, **off**, and on the day the newest export from `oracle` is
+   still restored over whatever it carries.

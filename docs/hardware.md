@@ -147,8 +147,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   firewall restore has been rehearsed on it. It ships with the onboard NIC
   only; the I226 card the restore depends on was a separate purchase, made
   2026-09-11 and the entry below — **in hand and fitted since 2026-09-25**.
-  So what the rehearsal waits on is no longer this box or the card: it is the
-  installer stick alone. **The 512 GB SSD is M.2, and the second M.2 slot is
+  **The firewall restore was rehearsed on it on 2026-09-27** and restored
+  with no interface-assignment prompt
+  ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md#rehearse-the-restore-on-the-spare)).
+  **The 512 GB SSD is M.2, and the second M.2 slot is
   free** — read off the machine on 2026-09-15, and the answer the entry below
   was waiting for. There is no drive carrier and nothing contended: the I226
   card went into that slot on 2026-09-25, and the contingency the documents
@@ -184,7 +186,15 @@ revisions of this repository treated `shiva` as the hypervisor itself.
     Windows setup, which is expected and irrelevant to pfSense's `igc`. The
     listing's "onboard NIC only" was otherwise right about Ethernet but
     **left out an Intel Wireless-AC 9560** in the WLAN slot, which is not the
-    second M.2 slot the card uses.
+    second M.2 slot the card uses. It is CNVi — the radio is the card, the
+    controller is the chipset, at PCI `20.3` — so the BIOS Wireless LAN
+    switch does not hide it from FreeBSD, whose `iwm` fails on its firmware
+    and panics the kernel. pfSense on this box needs
+    `hint.iwm.0.disabled="1"` in `/boot/loader.conf.local`.
+  - **Firmware as left by the rehearsal:** Secure Boot and legacy boot both
+    off (confirmed with HP's four-digit code), Windows gone — the return
+    ended with the install. #404 builds on that, not on the state it
+    arrived in.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
   **in hand since 2026-09-25 and fitted in `trinity` the same day**. The
   second port on the ProDesk Micro above, matching the card
@@ -679,8 +689,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   a netinstall or factory reset before it touches the network — a used
   RouterOS device arrives with whatever its last owner left on it, users
   included. Those go here when it lands.
-- USB stick holding the pfSense installer — **in hand since 2026-09-26; it
-  belongs in the rack beside the KVM** once #92's rehearsal has used it.
+- USB stick holding the pfSense installer — **written 2026-09-27 and used
+  for #92's rehearsal; it belongs in the rack beside the KVM.** It holds the
+  **Netgate Installer**, which downloads the release during the install:
+  there is no offline CE image after 2.7.2, so the stick is useless without
+  internet on the box's onboard port.
   [`restore-the-firewall.md`](runbooks/restore-the-firewall.md) lists it as
   something you will need, so a restore attempted before it lands is a restore
   that stops to go looking for one
