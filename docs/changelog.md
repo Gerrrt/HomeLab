@@ -71,6 +71,19 @@ docstring gives: it is a record, not a claim about now.
   `10.0.99.40:53` are published. The host's other listeners are `sshd` on 22
   and loopback-only services: systemd-resolved, chrony, and the Alloy agent's
   `127.0.0.1:12345`.
+- **step-ca passed its acceptance on `trinity`**
+  ([#130](https://github.com/Gerrrt/HomeLab/issues/130)). Caddy logged
+  `certificate obtained successfully` six times, once per name, between
+  04:32:18 and 04:32:20 UTC, from `step-ca:9000-acme-acme-directory`. The
+  lines came from Loki, because the container log did not survive Caddy's
+  16:25 restart. Each leaf runs seven days, 2026-09-28 to 2026-10-05, and
+  verifies against `certificates/tier-ca.pem`. The provisioner in `ca.json`
+  carries ADR-0037's claims: `tls-alpn-01` only, 168 hours default and
+  maximum. The `step-ca-data` volume holds both certificates and the
+  intermediate's key, and `root_ca_key` is nowhere on the host. The bundle
+  was shredded after `--install`. The tier's root is
+  `SHA256 4C:C3:06:81:…:56:5E`. The expiry rule for seven-day leaves is still
+  [#426](https://github.com/Gerrrt/HomeLab/issues/426).
 
 ## 2026-09-26
 
