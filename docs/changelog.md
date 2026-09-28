@@ -145,6 +145,15 @@ docstring gives: it is a record, not a claim about now.
     removed the rows but not the files, so the 18 files under `media/` went
     by hand. The index was rebuilt, and `document_sanity_checker` reports no
     issues.
+- **Backup set `20260928T203415Z` was deleted**, correcting the Paperless-ngx
+  bullet above that says it holds the five test documents. It is gone from
+  `trinity` and from `oracle`. Rewriting its archives would have meant editing
+  `paperless-db-data` as well as `paperless-media`, and a backup edited after
+  the fact is no longer what was captured. Nothing real went with it:
+  `20260928T204939Z` was taken fifteen minutes later, after the cleanup, with
+  an empty Paperless library. Before the deletion, its eleven files were
+  checked byte-identical on both sides. The three sets left are the same on
+  both hosts.
 
 ## 2026-09-26
 
