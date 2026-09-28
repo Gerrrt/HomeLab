@@ -93,8 +93,8 @@ groups:
           description: >-
             The timer has stopped running this, or every run since has failed.
             Check `systemctl list-timers 'homelab-*'` and
-            `journalctl -u homelab-{{ $labels.homelab_job }}.service` on the
-            monitoring host — docs/runbooks/schedule-maintenance.md.
+            `journalctl -u homelab-{{ $labels.homelab_job }}.service` on
+            {{ $labels.instance }} — docs/runbooks/schedule-maintenance.md.
 
       - alert: ScheduledJobFailed
         # Separate from staleness so a failure is visible within the hour rather

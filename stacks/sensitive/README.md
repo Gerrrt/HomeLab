@@ -249,21 +249,27 @@ time and lives in Caddy's `/data` volume, never on disk here.
   bind fails on it. The forwarder edit on `morpheus` that makes any of this
   matter is [`forward-dns-to-adguard.md`](../../docs/runbooks/forward-dns-to-adguard.md),
   and it is the whole client-side change.
-- **Nothing converges this stack.** The `homelab-*` timers are the estate's;
-  `make validate` notes their absence here as a skip, not a failure. This stack
-  is deployed by hand, from a checkout on `trinity`.
+- **Nothing converges this stack.** It is deployed by hand, from a checkout
+  on `trinity` ([#533] is the change that would converge it). The one timer
+  here is the nightly backup, `homelab-backup-sensitive`, which
+  `make install-timers PROFILE=sensitive` installs. `make validate` on
+  `trinity` fails until it is installed.
 - **Memory limits are set from day one, and now a CPU ceiling too.** [#129]'s
   ask, and the one place this file departs from the lab's reasoning — a proxy
   and a CA have working sets a limit can be stated for without a machine to
   measure. Immich's four are ceilings rather than derivations, and
   `compose.yaml` says what was measured underneath them and when to
-  re-derive. Paperless-ngx's numbers are stated as *unmeasured on the hardware
-  they are for*: `cpus: 4` of the ProDesk's six because OCR takes every core
-  it is given for minutes, and `3072m` because upstream's floor is 2 GB for
-  the whole install. What was measured, on the monitoring host on 2026-09-09
-  from the pinned images: 747 MiB working set idle, 825 MiB consuming a
-  one-page 200 dpi scan, 22 processes. Re-derive from `container_memory_rss`
-  once `trinity` has run a month.
+  re-derive. Paperless-ngx's were set before the box existed — `cpus: 4` of
+  the ProDesk's six because OCR takes every core it is given for minutes, and
+  `3072m` because upstream's floor is 2 GB for the whole install — and were
+  first measured on the monitoring host on 2026-09-09 from the pinned images:
+  747 MiB working set idle, 825 MiB consuming a one-page 200 dpi scan, 22
+  processes. **On `trinity` on 2026-09-28** they held under a synthetic
+  backlog — five one-page scans and one of 50 pages, all 300 dpi and
+  image-only: a peak of 1716 MiB, no OOM kill, 3.0 cores at the busiest
+  minute and 0.2 s throttled in total, 3 min 54 s for the 50 pages, and
+  Vaultwarden through Caddy never slower than 19 ms meanwhile. Both limits
+  stand. Re-derive from `container_memory_rss` once `trinity` has run a month.
 - **Caddy joins the operator's group.** `gen-certs.sh` writes the leaf's key
   `0640`, owned by whoever ran it, and root inside a container that has dropped
   `CAP_DAC_OVERRIDE` is bound by that mode like any other uid — measured: the
@@ -342,10 +348,9 @@ a `manifest.json` that a fresh install of the *same* version re-imports.
 Upstream is explicit that an export does not cross versions, so it is the
 form to send off-estate rather than the form to rely on across an upgrade.
 
-Two things this does **not** do, stated rather than implied. **Nothing
-schedules it**: the `homelab-backup-volumes` unit carries
-`STACK=observability` and the timers are the estate's; a timer for this stack
-arrives with the host under [#404]. And **nothing here is the off-estate copy**
+One thing this does **not** do, stated rather than implied. It is
+scheduled: `homelab-backup-sensitive` runs it nightly on `trinity` and copies
+each set to `oracle` ([#404] step 9). But **nothing here is the off-estate copy**
 [ADR-0023] requires before the first real document — encrypted, keyed to a
 second holder, with visible freshness. That is the precondition on the data
 arriving, not on the container starting, and it is still open.
@@ -433,16 +438,17 @@ first key in `.sops.yaml` whichever rule it belonged to, which would have
 encrypted the estate's weekly backup to `trinity`'s key the day the placeholder
 was filled — the two defects [#428] describes.
 
-Every run copies the set to `atropos@10.0.99.30` and checks each archive
-against its `MANIFEST` there — the estate's off-host copy, which this stack
-inherits from `backup-volumes.sh` ([#535]); `trinity`'s run on 2026-09-28 at
-20:34 did so. That is off the host and not off the estate: a fire takes both.
-What this does **not** do, and [#404] step 9 still owes: nothing schedules
-`make backup STACK=sensitive` on `trinity` — the `homelab-*` timers are the
-estate's — and nothing carries a set off the estate, which is the copy
-[ADR-0023] requires before Immich or Paperless-ngx hold a real file. And the
-volumes are not the photographs: the library is a bind mount, and no set
-contains it.
+**When it runs, and where the sets go.** `homelab-backup-sensitive` runs it
+every night at 04:30 ([#404] step 9). Each set is copied to `oracle` and
+checked there by sha256 ([#535]). The run's outcome is the `backup-sensitive`
+job in the estate's `ScheduledJob*` alerts, with a two-day threshold. The
+unit and its installer are in
+[`schedule-maintenance.md`](../../docs/runbooks/schedule-maintenance.md#on-trinity-the-sensitive-profile).
+What this does **not** give is a copy off the estate. `oracle` is in the same
+room and on the same power, and [ADR-0023] requires that copy before Immich or
+Paperless-ngx hold a real file. It is step 10's.
+And the volumes are not the photographs: the library is a bind mount, and
+no set contains it.
 
 ## What backs Immich up, and what does not yet
 
@@ -465,7 +471,7 @@ three different mechanisms — two of which do not exist yet.
 | --- | --- | --- |
 | The originals, thumbnails and transcodes | `IMMICH_UPLOAD_LOCATION` — the USB disk | The off-estate copy [ADR-0023] requires. **Not built**: its destination, a WD Elements 5 TB, was bought on 2026-09-22 under [#455] and has not been delivered. It is the precondition on the first real photo, not on the container starting |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | The same copy — it is on the same disk, on purpose, so one copy of the disk is a copy of the metadata beside the originals |
-| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `atropos` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
+| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `oracle` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
 
 The restore that [#132] asks to see proven once is Immich's own: a fresh
 install, the library tree back on its disk, and a dump fed to `psql` inside
@@ -565,4 +571,5 @@ it matters:
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
 [#428]: https://github.com/Gerrrt/HomeLab/issues/428
 [#455]: https://github.com/Gerrrt/HomeLab/issues/455
+[#533]: https://github.com/Gerrrt/HomeLab/issues/533
 [#535]: https://github.com/Gerrrt/HomeLab/issues/535

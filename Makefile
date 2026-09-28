@@ -828,7 +828,10 @@ install-timers: ## Install and enable the systemd timers on this host (needs sud
 	@# point every timer at a directory that gets deleted, and the symptom would
 	@# be jobs that silently never run — the exact condition this exists to make
 	@# visible.
-	sudo ./scripts/install-timers.sh --install
+	@#
+	@# PROFILE=sensitive installs trinity's schedule instead (#404 step 9). sudo
+	@# keeps SUDO_USER, which is who those units are rendered to run as.
+	sudo ./scripts/install-timers.sh --install $(if $(PROFILE),--profile $(PROFILE))
 
 .PHONY: deploy-agent
 deploy-agent: ## Deploy or redeploy the Alloy agent on a host (ARGS="[--runtime native] user@host")

@@ -30,13 +30,45 @@ docstring gives: it is a record, not a claim about now.
   - **Immich's `pg_dump`** went into a fresh `immich-db`, restored before the
     server first started.
   - **The `immich-db` volume** came out of the new set `20260928T203415Z`,
-    which the same run copied to `atropos`.
+    which the same run copied to `oracle`.
   - **Result:** on both routes the server came up with no drift and no
     onboarding, and all 615 originals hashed to their database checksum.
   - **Upstream's hard rule is soft on v3.2.2:** a same-version dump restored
     cleanly over a database the server had already initialised. The order is
     kept anyway, because the gap serves *create the first admin* on VLAN 99.
     → [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)
+- **Plex declined** ([#139](https://github.com/Gerrrt/HomeLab/issues/139)).
+  ADR-0016's test was run: the LG OLED, a console, and the household's phones
+  and tablets all play from Jellyfin, and the Xumo box is not used for the
+  library. No screen used for media lacks a Jellyfin client, so the deferral
+  becomes a decline,
+  [ADR-0056](adr/0056-decline-plex-because-every-screen-on-casabonita-plays-jellyfin.md), and
+  ADR-0008's list loses Plex. The media tier stays without secrets, and Plex
+  Pass leaves the purchase list.
+- **The sensitive tier's backup is on a nightly timer**
+  ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9, the
+  acceptance item on [#131](https://github.com/Gerrrt/HomeLab/issues/131)).
+  - **What runs.** `homelab-backup-sensitive` runs `make backup STACK=sensitive`
+    on `trinity` at 04:30 every night. Each run already copies the set to
+    `oracle` ([#535](https://github.com/Gerrrt/HomeLab/issues/535)), so the
+    copy off the host was done. What was missing was anything that took a set
+    unless someone typed the command.
+  - **Why daily.** The estate's backup is weekly. This one is daily because it
+    holds the password vault, and a week of lost vault edits is the wrong
+    default.
+  - **How it is installed.** It is a second profile of `install-timers.sh`,
+    with its own table and its own `systemd/sensitive/` directory.
+    - The units carry `@DEPLOY_ROOT@` and `@RUN_USER@`, because the build
+      runbook writes `trinity`'s operator as `<you>`.
+    - `--check` verifies the rendered units everywhere, CI included.
+    - `--check` fails if a job name appears in both tables. The alert rules
+      join on the name alone, so a name on two hosts would make every join
+      many-to-many.
+  - **Alerts.** `ScheduledJobStale` now names `{{ $labels.instance }}` rather
+    than "the monitoring host". A promtool case pins the two-host join.
+  - **What it does not do.** `oracle` is in the same room, so this is still
+    not ADR-0023's copy off the estate. That copy is step 10.
+
 - **`trinity` is built, and the sensitive tier runs on it**
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404)). Ubuntu 26.04.1,
   not the planned 24.04, because the installer stick carried it; it was kept
@@ -89,6 +121,57 @@ docstring gives: it is a record, not a claim about now.
   `10.0.99.40:53` are published. The host's other listeners are `sshd` on 22
   and loopback-only services: systemd-resolved, chrony, and the Alloy agent's
   `127.0.0.1:12345`.
+- **step-ca passed its acceptance on `trinity`**
+  ([#130](https://github.com/Gerrrt/HomeLab/issues/130)). Caddy logged
+  `certificate obtained successfully` six times, once per name, between
+  04:32:18 and 04:32:20 UTC, from `step-ca:9000-acme-acme-directory`. The
+  lines came from Loki, because the container log did not survive Caddy's
+  16:25 restart. Each leaf runs seven days, 2026-09-28 to 2026-10-05, and
+  verifies against `certificates/tier-ca.pem`. The provisioner in `ca.json`
+  carries ADR-0037's claims: `tls-alpn-01` only, 168 hours default and
+  maximum. The `step-ca-data` volume holds both certificates and the
+  intermediate's key, and `root_ca_key` is nowhere on the host. The bundle
+  was shredded after `--install`. The tier's root is
+  `SHA256 4C:C3:06:81:…:56:5E`. The expiry rule for seven-day leaves is still
+  [#426](https://github.com/Gerrrt/HomeLab/issues/426).
+- **Home Assistant passed its acceptance on `trinity`**
+  ([#134](https://github.com/Gerrrt/HomeLab/issues/134)). Container flavour,
+  with no USB radio, as ADR-0035 decided. `bifrost`'s reservation, the pass
+  and the tripwire read are the `bifrost` bullet above. The leaf and the
+  `morpheus` override are the Caddy bullet's: `homeassistant.matrix.elysium`
+  is one of its six names. TOTP is enrolled on the one owner account, the only
+  account that is not system-generated. No long-lived access token exists, so
+  nothing is owed to SOPS. The hardening boot re-runs in CI on every change,
+  under #646.
+- **Paperless-ngx passed its acceptance on `trinity`**
+  ([#133](https://github.com/Gerrrt/HomeLab/issues/133)). The load was
+  synthetic, on purpose: five one-page scans and one of 50 pages, all 300 dpi,
+  image-only and noised so Tesseract did real work. Each single page took
+  about 16 s; the 50 pages took 3 min 54 s. The container's `memory.peak` was
+  1716 MiB of its 3072m, with no OOM kill. It used 3.0 cores at the busiest
+  minute and was throttled for 0.2 s in all, so `THREADS_PER_WORKER=3` does the
+  limiting and `cpus: 4` is only the backstop. Nothing else went unhealthy,
+  and Vaultwarden through Caddy never took longer than 19 ms. Both limits
+  stand; the one-month `container_memory_rss` re-derivation still applies.
+  - **A backup interrupted the first run.** Another session's
+    `STACK=sensitive make backup` stopped the tier 90 seconds into the 50
+    pages. The file stayed in `consume/` and was consumed from scratch after
+    the restart, so the numbers above come from fresh cgroup counters. That
+    backup, `20260928T203415Z`, holds the five one-page test documents in its
+    `paperless-media` archive.
+  - **The test documents were deleted afterwards.** The shell's hard delete
+    removed the rows but not the files, so the 18 files under `media/` went
+    by hand. The index was rebuilt, and `document_sanity_checker` reports no
+    issues.
+- **Backup set `20260928T203415Z` was deleted**, correcting the Paperless-ngx
+  bullet above that says it holds the five test documents. It is gone from
+  `trinity` and from `oracle`. Rewriting its archives would have meant editing
+  `paperless-db-data` as well as `paperless-media`, and a backup edited after
+  the fact is no longer what was captured. Nothing real went with it:
+  `20260928T204939Z` was taken fifteen minutes later, after the cleanup, with
+  an empty Paperless library. Before the deletion, its eleven files were
+  checked byte-identical on both sides. The three sets left are the same on
+  both hosts.
 
 ## 2026-09-26
 
