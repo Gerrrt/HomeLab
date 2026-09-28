@@ -433,12 +433,16 @@ first key in `.sops.yaml` whichever rule it belonged to, which would have
 encrypted the estate's weekly backup to `trinity`'s key the day the placeholder
 was filled — the two defects [#428] describes.
 
+Every run copies the set to `atropos@10.0.99.30` and checks each archive
+against its `MANIFEST` there — the estate's off-host copy, which this stack
+inherits from `backup-volumes.sh` ([#535]); `trinity`'s run on 2026-09-28 at
+20:34 did so. That is off the host and not off the estate: a fire takes both.
 What this does **not** do, and [#404] step 9 still owes: nothing schedules
 `make backup STACK=sensitive` on `trinity` — the `homelab-*` timers are the
-estate's — and nothing copies a set off the host, let alone off the estate,
-which is the copy [ADR-0023] requires before Immich or Paperless-ngx hold a
-real file. A set in `backups/volumes/` on `trinity` protects against a bad
-upgrade and a mistyped command, and against nothing that happens to `trinity`.
+estate's — and nothing carries a set off the estate, which is the copy
+[ADR-0023] requires before Immich or Paperless-ngx hold a real file. And the
+volumes are not the photographs: the library is a bind mount, and no set
+contains it.
 
 ## What backs Immich up, and what does not yet
 
@@ -448,19 +452,31 @@ and before the first real photo arrives an off-estate copy has to exist whose
 staleness is visible. Three things hold the data, and they are protected by
 three different mechanisms — two of which do not exist yet.
 
+> [!WARNING]
+> **The first real photographs arrived before that copy did.** Two accounts
+> uploaded 615 assets between 16:59 and 17:01 UTC on 2026-09-28 — the day the
+> host was built, with [#455] undelivered and [ADR-0022]'s record and
+> [ADR-0023]'s *Independent* test still open. Until [#455] exists, the USB disk
+> is the only copy of the originals anywhere. The restore below proves the
+> metadata comes back; it cannot bring back a photograph that is on no other
+> disk.
+
 | What | Where | Protected by |
 | --- | --- | --- |
 | The originals, thumbnails and transcodes | `IMMICH_UPLOAD_LOCATION` — the USB disk | The off-estate copy [ADR-0023] requires. **Not built**: its destination, a WD Elements 5 TB, was bought on 2026-09-22 under [#455] and has not been delivered. It is the precondition on the first real photo, not on the container starting |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | The same copy — it is on the same disk, on purpose, so one copy of the disk is a copy of the metadata beside the originals |
-| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients. Immich's dump on the USB disk is the second route to the same metadata |
+| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `atropos` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
 
 The restore that [#132] asks to see proven once is Immich's own: a fresh
-install, the library tree back on its disk, and the newest dump fed to
-`psql` inside `immich-db` — the procedure is upstream's *Backup and Restore*
-page, and its one hard rule is that the database is restored **before** the
-server first starts against the empty volume. It has not been rehearsed
-yet. The host exists since 2026-09-28, and the rehearsal is part of [#404]
-step 10, before the first real photo; this section is what that step reads.
+install, the library tree back on its disk, and a dump fed to `psql` inside
+`immich-db` before the server first starts. **Rehearsed on `trinity` on
+2026-09-28** against copies of the real library, by both routes in the table —
+Immich's dump, and the `immich-db` volume out of a `make backup` set — with
+every one of the 615 originals hashed against the checksum the restored
+database holds for it. The procedure, what it proved and what it did not are
+[`restore-the-sensitive-tier.md` § Restore Immich](../../docs/runbooks/restore-the-sensitive-tier.md#restore-immich).
+Upstream calls the database-first order a hard rule; on v3.2.2 the rehearsal
+found it is a safety rule instead, and the runbook says why it is kept anyway.
 
 ## Validate before deploying
 
@@ -549,3 +565,4 @@ it matters:
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
 [#428]: https://github.com/Gerrrt/HomeLab/issues/428
 [#455]: https://github.com/Gerrrt/HomeLab/issues/455
+[#535]: https://github.com/Gerrrt/HomeLab/issues/535

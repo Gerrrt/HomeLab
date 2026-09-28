@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-28
 
+- **Immich's restore is rehearsed on `trinity`, and the first real photos
+  came before the gate that was meant to precede them**
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132)). Two accounts
+  uploaded 615 assets at 16:59–17:01 UTC. At that point the off-estate copy
+  ([#455](https://github.com/Gerrrt/HomeLab/issues/455)), ADR-0022's record
+  and ADR-0023's *Independent* test were all still open, so the USB disk is
+  the only copy of the originals. That evening the restore was rehearsed
+  against copies of that library, by both routes:
+  - **Immich's `pg_dump`** went into a fresh `immich-db`, restored before the
+    server first started.
+  - **The `immich-db` volume** came out of the new set `20260928T203415Z`,
+    which the same run copied to `atropos`.
+  - **Result:** on both routes the server came up with no drift and no
+    onboarding, and all 615 originals hashed to their database checksum.
+  - **Upstream's hard rule is soft on v3.2.2:** a same-version dump restored
+    cleanly over a database the server had already initialised. The order is
+    kept anyway, because the gap serves *create the first admin* on VLAN 99.
+    → [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)
 - **`trinity` is built, and the sensitive tier runs on it**
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404)). Ubuntu 26.04.1,
   not the planned 24.04, because the installer stick carried it; it was kept
