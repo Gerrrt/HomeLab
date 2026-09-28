@@ -877,7 +877,11 @@ services:
   # THREADS_PER_WORKER in .env.example are what Paperless is asked to use, and
   # their product (3) sits under the ceiling so the webserver, the scheduler
   # and Postgres are not throttled by a consumer that is. Throttling is not
-  # silent: ContainerCpuThrottled reads the same cgroup counters.
+  # silent: ContainerCpuThrottled reads the same cgroup counters. Measured on
+  # trinity on 2026-09-28 under a synthetic 50-page 300 dpi backlog: 3.0
+  # cores at the busiest minute, 9 throttled periods in 4 minutes (0.2 s),
+  # and Vaultwarden through Caddy never slower than 19 ms. The product of 3
+  # is doing the limiting, and the ceiling is the backstop it was meant to be.
   #
   # DIFFERENCE 11: NOT read_only, where every other long-running container in
   # the estate is. OCR is scratch-heavy — ocrmypdf renders every page to an
@@ -889,11 +893,14 @@ services:
   # the pinned image as ${RENDER_UID} with cap_drop before this was written;
   # the README carries what that run showed.
   #
-  # Memory: 3072m, unmeasured on the hardware and stated as such. The estate
-  # sizes from fourteen days of RSS; this box does not exist. Upstream's floor
-  # is 2 GB for the whole install; this is that plus room for one document's
-  # OCR, on a box with 32 GB. Re-derive from container_memory_rss once trinity
-  # has run a month, the way stacks/observability did for its seven.
+  # Memory: 3072m, set before the box existed from upstream's 2 GB floor for
+  # the whole install plus room for one document's OCR. Measured on trinity on
+  # 2026-09-28: memory.peak 1716 MiB across five one-page scans and a 50-page
+  # 300 dpi backlog, no oom_kill — 56 % of the limit, kept rather than cut on
+  # one sample, since a longer or denser scan grows the working set. The
+  # estate sizes from fourteen days of RSS; re-derive from
+  # container_memory_rss once trinity has run a month, the way
+  # stacks/observability did for its seven.
   #
   # The healthcheck is the image's own (curl against 8000, which ALLOWED_HOSTS
   # always admits for localhost), written out so check_compose_health.py

@@ -117,6 +117,26 @@ docstring gives: it is a record, not a claim about now.
   account that is not system-generated. No long-lived access token exists, so
   nothing is owed to SOPS. The hardening boot re-runs in CI on every change,
   under #646.
+- **Paperless-ngx passed its acceptance on `trinity`**
+  ([#133](https://github.com/Gerrrt/HomeLab/issues/133)). The load was
+  synthetic, on purpose: five one-page scans and one of 50 pages, all 300 dpi,
+  image-only and noised so Tesseract did real work. Each single page took
+  about 16 s; the 50 pages took 3 min 54 s. The container's `memory.peak` was
+  1716 MiB of its 3072m, with no OOM kill. It used 3.0 cores at the busiest
+  minute and was throttled for 0.2 s in all, so `THREADS_PER_WORKER=3` does the
+  limiting and `cpus: 4` is only the backstop. Nothing else went unhealthy,
+  and Vaultwarden through Caddy never took longer than 19 ms. Both limits
+  stand; the one-month `container_memory_rss` re-derivation still applies.
+  - **A backup interrupted the first run.** Another session's
+    `STACK=sensitive make backup` stopped the tier 90 seconds into the 50
+    pages. The file stayed in `consume/` and was consumed from scratch after
+    the restart, so the numbers above come from fresh cgroup counters. That
+    backup, `20260928T203415Z`, holds the five one-page test documents in its
+    `paperless-media` archive.
+  - **The test documents were deleted afterwards.** The shell's hard delete
+    removed the rows but not the files, so the 18 files under `media/` went
+    by hand. The index was rebuilt, and `document_sanity_checker` reports no
+    issues.
 
 ## 2026-09-26
 
