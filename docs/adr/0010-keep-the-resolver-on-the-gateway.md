@@ -8,6 +8,14 @@
 > [Verified against the running config](#verified-against-the-running-config--2026-09-04)
 > at the foot of this ADR. The decision is unaffected; what it costs to
 > implement is not.
+>
+> **The public upstreams no longer sit beside AdGuard, since 2026-09-28.**
+> Measured once AdGuard existed: Unbound spread lookups across all three
+> forwarders, and 38 of 60 blocked names leaked. AdGuard is now the only
+> forwarder, which is the option-1 dependency this ADR declined, taken
+> knowingly and made loud:
+> [ADR-0055](0055-forward-to-adguard-alone.md). The resolver-on-the-gateway
+> half of this decision stands.
 
 ## Context
 

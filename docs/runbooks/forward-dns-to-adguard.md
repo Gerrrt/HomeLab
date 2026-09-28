@@ -1,12 +1,20 @@
 # Runbook: Forward DNS to AdGuard Home
 
 Put the filter one hop behind the resolver the house talks to, the way
-[ADR-0010](../adr/0010-keep-the-resolver-on-the-gateway.md) decided — and
-prove the fallback it rests on, which has never run here.
+[ADR-0010](../adr/0010-keep-the-resolver-on-the-gateway.md) decided, with
+AdGuard as the **only** forwarder, the way
+[ADR-0055](../adr/0055-forward-to-adguard-alone.md) corrected it. Then prove
+the alert that makes that dependency safe.
+
+> [!NOTE]
+> **Run on 2026-09-28**, and the first run changed the design. With the public
+> resolvers beside AdGuard, as this runbook first said, Unbound spread lookups
+> across all three and 38 of 60 blocked names leaked. Steps 2 and 3 below are
+> the corrected procedure. ADR-0055 has the measurements.
 
 **Target:** `morpheus` (10.0.99.1), the pfSense web UI; `trinity` (10.0.99.40)
 for the failure test
-**Time:** ~30 minutes, including the wait the failure test needs
+**Time:** ~30 minutes, and the failure test is ten more, taken when nobody needs the internet
 **Reversible:** one checkbox, no DHCP change, no lease to wait out
 
 ---
@@ -15,21 +23,21 @@ for the failure test
 
 Every client in the estate has exactly one resolver, pfSense, and that does not
 change. What changes is what Unbound on `morpheus` does with a name it cannot
-answer itself: today it walks the root servers, and after this it forwards to
-AdGuard Home on `trinity` with Cloudflare and Google listed beside it. Filtering
-happens behind the resolver instead of in front of it, no client VLAN ever holds
-a DNS path into Winterfell, and a dead AdGuard drops out of Unbound's forwarder
-selection so the house keeps resolving — unfiltered, silently, which is why the
-probes in step 1 exist.
+answer itself: before this it walks the root servers, and after it forwards
+to AdGuard Home on `trinity` and nothing else. Filtering happens behind the
+resolver instead of in front of it, and no client VLAN ever holds a DNS path
+into Winterfell. **A dead AdGuard now costs the house every outside name**
+(internal ones keep resolving from the host overrides). That is why
+`AdGuardNotAnswering` is critical at five minutes, and why step 4 exists.
 
 ADR-0010's own verification found the decision costs more than it reads:
-**Unbound forwards to nothing today**, so *Enable Forwarding Mode* is a
-resolution-mode change, not an edit to a list. It hands a query stream that
-currently reaches no third party to AdGuard and, whenever AdGuard is slow or
-down, to Cloudflare and Google. That price was accepted in the ADR; this runbook
-is where it is paid, on purpose, and where the two things the ADR could not
-measure — that DNSSEC survives the forwarder, and that the fallback actually
-works — are measured.
+before this, **Unbound forwarded to nothing**, so *Enable Forwarding Mode* is
+a resolution-mode change, not an edit to a list. It hands a query stream that
+reached no third party to AdGuard, and through AdGuard's encrypted upstreams to
+Cloudflare and Google. That price was accepted in the ADR. This runbook is
+where it is paid, and where what the ADR could not measure is measured: that
+DNSSEC survives the forwarder, how much leaks, and how long a dead AdGuard
+goes unnoticed.
 
 The stack half is [`stacks/sensitive`](../../stacks/sensitive): AdGuard runs
 there, publishes 53 on `trinity`'s address and answers `10.0.99.1` and
@@ -105,12 +113,11 @@ Two pages, in this order.
 | Order | DNS Server | Gateway | Hostname |
 | --- | --- | --- | --- |
 | 1 | `10.0.99.40` | *none* | *blank* |
-| 2 | `1.1.1.1` | *none* | *blank* |
-| 3 | `8.8.8.8` | *none* | *blank* |
 
-The second and third are already there; they are the firewall's own fallback
-and, after the next page, Unbound's. Leave *DNS Resolution Behavior* as it is —
-that field governs what the firewall itself uses, not what it serves. Save.
+**Only that row.** Delete any public resolvers already listed (`1.1.1.1` and
+`8.8.8.8` were there). Every server in this list becomes an Unbound forwarder,
+and Unbound picks among them at random within about 400 ms of the fastest, not
+in order. Leave *DNS Resolution Behavior* as it is. Save.
 
 **Services → DNS Resolver → General Settings:**
 
@@ -122,7 +129,8 @@ that field governs what the firewall itself uses, not what it serves. Save.
   listens on plain 53. The hop to `trinity` is on VLAN 99; the hop that leaves
   the house is encrypted by AdGuard's own upstreams.
 
-Save, then **Apply Changes**. Unbound reloads on apply.
+Save, then **Apply Changes**. Then **restart `unbound`** under *Status →
+Services*, which empties its cache of anything answered before the change.
 
 > [!IMPORTANT]
 > **Host Overrides are untouched.** `matrix.elysium` names keep being answered
@@ -141,9 +149,10 @@ Save, then **Apply Changes**. Unbound reloads on apply.
 grep -A6 '^forward-zone:' /var/unbound/unbound.conf
 ```
 
-One `forward-zone:` block, `name: "."`, and three `forward-addr:` lines with
-`10.0.99.40` among them. Zero blocks means the checkbox did not take; a block
-without `10.0.99.40` means the General Setup save did not.
+One `forward-zone:` block, `name: "."`, and **one** `forward-addr:` line,
+`10.0.99.40`. Zero blocks means the checkbox did not take. More than one line
+means a public resolver is still in General Setup, and it will leak (step 3's
+last check measures by how much).
 
 **Then from a client** that uses pfSense — a laptop on Hicks — asking
 `@10.0.99.1` explicitly so a local cache cannot answer instead:
@@ -157,7 +166,7 @@ dig +short @10.0.99.1 lemmiwinks.matrix.elysium
 
 | Query | Expect | It proves |
 | --- | --- | --- |
-| `doubleclick.net` | `0.0.0.0` | the filter is in the path — through Unbound, a blocked name now blocks |
+| `doubleclick.net` | no address: `SERVFAIL` | the filter is in the path. Not `0.0.0.0`: Unbound's DNSSEC validation rejects AdGuard's block answer for lack of a proof that the zone is unsigned ([ADR-0055](../adr/0055-forward-to-adguard-alone.md)). A **real** address here is a leak |
 | `example.com` flags | `ad` among them | Unbound still validates DNSSEC, and the forwarder passed the records it needs |
 | `dnssec-failed.org` | `SERVFAIL` | validation is on, not merely flagged |
 | `lemmiwinks.matrix.elysium` | `10.0.99.30` | host overrides survived the mode change |
@@ -168,25 +177,29 @@ as signed zones start to SERVFAIL. Untick *Enable Forwarding Mode* and apply,
 then find out why, from the stack side: `enable_dnssec: true` in
 `AdGuardHome.yaml` is the setting that was measured to pass RRSIGs through.
 
-**Which forwarder is winning** is worth reading once, because the whole leak
-argument in the ADR rests on it. On `morpheus`:
+**The leak test.** One cached answer proves little, so ask for names nothing
+can have cached: random subdomains of a blocked domain. On `morpheus` (its
+shell is FreeBSD `sh`, so no `\s` in patterns and no `$RANDOM`):
 
-```bash
-unbound-control -c /var/unbound/unbound.conf lookup example.com
+```sh
+b=0; l=0; for i in $(jot 60); do
+  a=$(drill "p$(jot -r 1 100000 999999)q$i.doubleclick.net" @127.0.0.1)
+  case "$a" in *"rcode: SERVFAIL"*|*0.0.0.0*) b=$((b+1));; *) l=$((l+1));; esac
+done; echo "blocked=$b leaked=$l"
 ```
 
-Three forwarders with an RTT each. `10.0.99.40` should be an order of magnitude
-under the other two; while it is, Unbound sends nearly everything there.
+`blocked=60 leaked=0`. On 2026-09-28, with three forwarders, it read
+`blocked=22 leaked=38`; with AdGuard alone, `60` and `0`.
 
 ---
 
-## 4. The test the ADR asked for: stop AdGuard on purpose
+## 4. Stop AdGuard on purpose, and time the page
 
-> "Unbound marks an unresponsive forwarder down and carries on" is documented
-> behaviour, not measured behaviour on this box. It is worth stopping AdGuard on
-> purpose once #102 is built and watching resolution continue, rather than
-> finding out during the first real outage.
-> — ADR-0010, *Verified against the running config*
+Since [ADR-0055](../adr/0055-forward-to-adguard-alone.md) there is no fallback
+to prove. What this proves is that the page reaches you, and about how long
+the house is without outside names before it does. **Do not silence
+`AdGuardNotAnswering` for this**: the page is the result. Pick a moment
+nobody in the house needs the internet for about ten minutes.
 
 On `trinity`:
 
@@ -194,65 +207,56 @@ On `trinity`:
 docker compose -f stacks/sensitive/compose.yaml stop adguard
 ```
 
-Then from the Hicks laptop, immediately and again a minute later:
+Then from a Hicks machine:
 
 ```bash
-time dig +short @10.0.99.1 example.org A
-dig +short @10.0.99.1 doubleclick.net A
+dig @10.0.99.1 example.org A | grep status
+dig +short @10.0.99.1 lemmiwinks.matrix.elysium
 ```
 
-What to expect, and what to write down:
-
-- **`example.org` answers both times.** The first may be slow — Unbound has to
-  time the dead forwarder out before it tries the next, and the number the
-  `time` prints is the one to record here. The second is fast: the forwarder is
-  marked down and skipped.
-- **`doubleclick.net` now returns real addresses.** This is the house resolving
-  unfiltered, which is the designed failure. Nothing else changed.
-- **Within fifteen minutes, `AdGuardNotAnswering` fires** — `warning`, to the
-  default receiver. Let it, if you can spare the quarter hour: it is the only
-  proof the alert path for this failure works end to end, and the reason the
-  probe was aimed at `10.0.99.40` rather than at pfSense is exactly what this
-  test shows — a probe through the normal path would be passing right now.
-
-Then bring it back:
+`SERVFAIL` for the outside name, and `10.0.99.30` for the internal one: the
+host overrides do not need AdGuard. Note the time, and wait for the page.
+`AdGuardNotAnswering` is critical with `for: 5m`, so with the one-minute
+probe and Alertmanager's grouping it arrives about six to seven minutes after
+the stop. **If nothing has arrived by ten minutes, start AdGuard anyway**,
+then find out why the alert did not.
 
 ```bash
 docker compose -f stacks/sensitive/compose.yaml start adguard
 ```
 
-Unbound keeps a forwarder marked down for up to fifteen minutes after it stops
-answering, so `doubleclick.net` may keep resolving for that long after the
-container is healthy. That is not a fault, and it is the one delay in this
-design worth knowing about. To skip the wait, on `morpheus`:
+Unbound may keep the forwarder marked down for a short while after AdGuard
+is healthy. To skip the wait, on `morpheus`:
 
 ```bash
 unbound-control -c /var/unbound/unbound.conf flush_infra all
 ```
 
-then `dig +short @10.0.99.1 doubleclick.net A` → `0.0.0.0` again.
+Then step 3's leak test once more, and wait for the *resolved* notification.
 
-Record the date and the measured timeout in the table below.
+| Date | Stopped | Page arrived | DNS back | Resolved notice |
+| --- | --- | --- | --- | --- |
+| *not yet run* | — | — | — | — |
 
-| Date | First unfiltered answer took | Filtering resumed after restart in | Alert fired |
-| --- | --- | --- | --- |
-| *not yet run* | — | — | — |
+**If AdGuard cannot be brought back** and the house needs DNS now: add
+`1.1.1.1` under *System → General Setup → DNS Servers* on `morpheus` and
+apply. Outside names resolve again, unfiltered. Take it back out once AdGuard
+answers, or the leak ADR-0055 measured comes back with it.
 
 ---
 
 ## Reversing it
 
-*Services → DNS Resolver → General Settings*, untick **Enable Forwarding Mode**,
-Save, Apply. Unbound is recursive again within the reload. `10.0.99.40` in
-General Setup is then inert and can stay or go. No client notices, no lease
-renews, and the AdGuard probes keep reporting on a service nobody is using —
-disable the two targets in `blackbox-dns.yaml` in the same sitting, or accept
-that they are measuring something true and irrelevant.
+*Services → DNS Resolver → General Settings*, untick **Enable Forwarding
+Mode**, Save, Apply, and put the public resolvers back in *System → General
+Setup* for the firewall's own lookups. Unbound is recursive again within the
+reload. Disable the two targets in `blackbox-dns.yaml` in the same sitting, or
+`AdGuardNotAnswering` will page about a service nobody uses.
 
-That the reversal is one checkbox is the property ADR-0010 chose this design
-for, and it is worth not eroding: the day something is added that makes AdGuard
-harder to remove than this — a client pointed at it directly, a rewrite that
-only it answers — is the day to reopen the ADR rather than to add it.
+That the reversal is still two pages and no client change is the property
+ADR-0010 chose this design for. The day something makes AdGuard harder to
+remove than that (a client pointed at it directly, a rewrite that only it
+answers) is the day to reopen the ADR rather than to add it.
 
 ---
 
@@ -263,15 +267,17 @@ only it answers — is the day to reopen the ADR rather than to add it.
   Unbound and is never filtered. ADR-0010 records it as deliberate — a work
   machine kept off the household's split-horizon DNS — and nothing here changes
   it. It is the one exception to *clients cannot select around the filter*.
-- **It does not make DNS blocking a control.** ADR-0010 is explicit: the design
-  fails open on purpose, so nothing may be documented as relying on it for
-  security. A name being blocked here is a convenience, and the day it is
-  load-bearing for something the design has to change.
+- **It does not make DNS blocking a control.** ADR-0010 is explicit, and
+  ADR-0055 does not change it: a name being blocked here is a convenience,
+  and nothing may be documented as relying on it for security. What changed
+  is availability. The design now **fails closed** for outside names when
+  AdGuard is down, and `AdGuardNotAnswering` paging is what makes that
+  acceptable.
 - **It does not give AdGuard per-client visibility.** Every query arrives from
   `10.0.99.1`, so the dashboard is one aggregate and per-device rules are not
   possible. If that is ever wanted, reopen the ADR; every workaround leads back
   to the options it rejected.
 - **It does not give the name a certificate.** `adguard.matrix.elysium` is a
-  host override on `morpheus` ([`add-a-host-override.md`](add-a-host-override.md))
-  and, until step-ca issues per-name leaves, a `--dns` SAN on `trinity`'s
-  certificate. Neither is DNS forwarding, and both are in the stack README.
+  host override on `morpheus` ([`add-a-host-override.md`](add-a-host-override.md)),
+  and its certificate comes from step-ca over ACME like every name on the tier.
+  Neither is DNS forwarding, and both are in the stack README.

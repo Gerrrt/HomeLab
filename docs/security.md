@@ -303,11 +303,14 @@ user, typed on workstations and never stored on a television, so the
 televisions' `bilbo` and the workstations' credential are revoked apart. The
 same pass puts an SMB login prompt in front of everything on Hicks, the
 corporate laptop included, as `443` already puts the TrueNAS one.
-[`network.md`](network.md) holds the current list. **Skids' does not exist.**
-`10.0.99.40 → 10.0.20.104:80,443/tcp` — Home Assistant to the Hue bridge, the
-one device on that segment with a local API — still waits above the block that
-has stood between 99 and 20 since the segments existed, on the host that would
-use it ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
+[`network.md`](network.md) holds the current list. **Skids has one, since
+2026-09-28:** `10.0.99.40 → 10.0.20.20:80,443/tcp` — Home Assistant to the Hue
+bridge, the one device on that segment with a local API — above the block that
+has stood between 99 and 20 since the segments existed
+([#134](https://github.com/Gerrrt/HomeLab/issues/134),
+[ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md)). Nothing on
+Skids can start a connection through it; the #223 tripwire read 0 after
+pairing.
 
 One of CasaBonita's six is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`

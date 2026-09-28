@@ -3,9 +3,12 @@
 ADR-0008's sensitive tier — the household's password manager, photos, documents
 and home automation — on `trinity` (`10.0.99.40`, Winterfell / VLAN 99), the
 ProDesk 600 G4 that [ADR-0034] made the tier's host after the firewall restore
-has been rehearsed on it. **The host is not built yet**; [#404] is the build,
-and this directory is the stack it deploys, authored ahead of the hardware the
-way `stacks/lab` was.
+was rehearsed on it. **Deployed there since 2026-09-28**, built by
+[`build-the-sensitive-tier-host.md`](../../docs/runbooks/build-the-sensitive-tier-host.md)
+under [#404]. It was authored ahead of the hardware, the way `stacks/lab` was, and
+the first start found five things that the file could not show; the sections
+below carry each of them. **It holds no real data yet**: #404 step 10 is the
+gate.
 
 ```bash
 make up STACK=sensitive
@@ -16,7 +19,7 @@ make up STACK=sensitive
 | caddy | `caddy` | 443 (https) | The tier's published HTTPS port. Terminates TLS, routes by name to every service behind it ([#129]) |
 | step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — a root of its own with an intermediate beneath it, issuing to Caddy over ACME ([#130], [ADR-0037]) |
 | home-assistant | `ghcr.io/home-assistant/home-assistant` | *internal* (8123) | Home automation, and what the `99 → 20` rule exists for — one pass, to the Hue bridge, scoped by [ADR-0035] ([#134]) |
-| adguard | `adguard/adguardhome` | 53 (dns), on `10.0.99.40` only | The DNS filter Unbound on `morpheus` forwards to under [ADR-0010] — never a client-facing resolver. The one port besides Caddy's, published to the firewall's forwarder and the blackbox prober and answered for nothing else; the UI is behind Caddy at `adguard.matrix.elysium` ([#135]) |
+| adguard | `adguard/adguardhome` | 53 (dns), on `10.0.99.40` only | The house's DNS filter, and since 2026-09-28 the **only** forwarder behind Unbound on `morpheus` ([ADR-0055], which replaces the fallback half of [ADR-0010]). It is never a client-facing resolver, and if it stops, outside names stop for the whole house. The one port besides Caddy's, published to the firewall's forwarder and the blackbox prober and answered for nothing else; the UI is behind Caddy at `adguard.matrix.elysium` ([#135]) |
 | immich-server | `ghcr.io/immich-app/immich-server` | *internal* (2283) | The photo library — API and job workers in one container, reached as `https://immich.matrix.elysium` through Caddy ([#132]) |
 | immich-machine-learning | `ghcr.io/immich-app/immich-machine-learning` | *internal* (3003) | Smart search, face detection and OCR for the server above. Behind the `ml` profile, on by default ([#132]) |
 | immich-db | `ghcr.io/immich-app/postgres` | *internal* (5432) | Immich's Postgres, with VectorChord preloaded, on the internal SSD ([#132]) |
@@ -430,7 +433,7 @@ first key in `.sops.yaml` whichever rule it belonged to, which would have
 encrypted the estate's weekly backup to `trinity`'s key the day the placeholder
 was filled — the two defects [#428] describes.
 
-What this does **not** do, and [#404] step 5 still owes: nothing schedules
+What this does **not** do, and [#404] step 9 still owes: nothing schedules
 `make backup STACK=sensitive` on `trinity` — the `homelab-*` timers are the
 estate's — and nothing copies a set off the host, let alone off the estate,
 which is the copy [ADR-0023] requires before Immich or Paperless-ngx hold a
@@ -455,9 +458,9 @@ The restore that [#132] asks to see proven once is Immich's own: a fresh
 install, the library tree back on its disk, and the newest dump fed to
 `psql` inside `immich-db` — the procedure is upstream's *Backup and Restore*
 page, and its one hard rule is that the database is restored **before** the
-server first starts against the empty volume. It has not been rehearsed,
-because there is no host; it is [#404] step 5, and this section is what that
-step reads.
+server first starts against the empty volume. It has not been rehearsed
+yet. The host exists since 2026-09-28, and the rehearsal is part of [#404]
+step 10, before the first real photo; this section is what that step reads.
 
 ## Validate before deploying
 
@@ -532,6 +535,7 @@ it matters:
 [ADR-0023]: ../../docs/adr/0023-keep-the-household-recovery-path-outside-the-estate.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
+[ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
