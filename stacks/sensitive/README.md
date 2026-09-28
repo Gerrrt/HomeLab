@@ -259,13 +259,17 @@ time and lives in Caddy's `/data` volume, never on disk here.
   and a CA have working sets a limit can be stated for without a machine to
   measure. Immich's four are ceilings rather than derivations, and
   `compose.yaml` says what was measured underneath them and when to
-  re-derive. Paperless-ngx's numbers are stated as *unmeasured on the hardware
-  they are for*: `cpus: 4` of the ProDesk's six because OCR takes every core
-  it is given for minutes, and `3072m` because upstream's floor is 2 GB for
-  the whole install. What was measured, on the monitoring host on 2026-09-09
-  from the pinned images: 747 MiB working set idle, 825 MiB consuming a
-  one-page 200 dpi scan, 22 processes. Re-derive from `container_memory_rss`
-  once `trinity` has run a month.
+  re-derive. Paperless-ngx's were set before the box existed — `cpus: 4` of
+  the ProDesk's six because OCR takes every core it is given for minutes, and
+  `3072m` because upstream's floor is 2 GB for the whole install — and were
+  first measured on the monitoring host on 2026-09-09 from the pinned images:
+  747 MiB working set idle, 825 MiB consuming a one-page 200 dpi scan, 22
+  processes. **On `trinity` on 2026-09-28** they held under a synthetic
+  backlog — five one-page scans and one of 50 pages, all 300 dpi and
+  image-only: a peak of 1716 MiB, no OOM kill, 3.0 cores at the busiest
+  minute and 0.2 s throttled in total, 3 min 54 s for the 50 pages, and
+  Vaultwarden through Caddy never slower than 19 ms meanwhile. Both limits
+  stand. Re-derive from `container_memory_rss` once `trinity` has run a month.
 - **Caddy joins the operator's group.** `gen-certs.sh` writes the leaf's key
   `0640`, owned by whoever ran it, and root inside a container that has dropped
   `CAP_DAC_OVERRIDE` is bound by that mode like any other uid — measured: the
