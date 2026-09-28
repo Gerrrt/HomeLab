@@ -113,7 +113,8 @@ has been rehearsed on it.
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
   → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
   - the weekly backup timer (step 9);
-  - the DNS failure test, which proves `AdGuardNotAnswering` pages;
+  - the DNS failure test, which proves `AdGuardNotAnswering` pages (and
+    closes [#135](https://github.com/Gerrrt/HomeLab/issues/135));
   - the step 10 gate before the first real item: the Immich restore
     rehearsal, the second age recipient, the off-estate copy, ADR-0022's
     identity-provider record and ADR-0023's *Independent* test.
@@ -129,10 +130,11 @@ has been rehearsed on it.
   ([ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md);
   [#426](https://github.com/Gerrrt/HomeLab/issues/426)'s expiry rule lands with
   it — → [runbook](runbooks/build-the-tier-ca.md)); then
-  [#135](https://github.com/Gerrrt/HomeLab/issues/135) AdGuard Home, whose
-  `morpheus` half is a resolution-mode change
-  ([ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md), →
-  [runbook](runbooks/forward-dns-to-adguard.md));
+  [#135](https://github.com/Gerrrt/HomeLab/issues/135) AdGuard Home, serving
+  since 2026-09-28 with `morpheus` forwarding to it alone
+  ([ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md),
+  [ADR-0055](adr/0055-forward-to-adguard-alone.md)) and both probes live, open
+  only for the failure test (→ [runbook](runbooks/forward-dns-to-adguard.md#4-stop-adguard-on-purpose-and-time-the-page));
   [#131](https://github.com/Gerrrt/HomeLab/issues/131) Vaultwarden;
   [#132](https://github.com/Gerrrt/HomeLab/issues/132) Immich;
   [#133](https://github.com/Gerrrt/HomeLab/issues/133) Paperless-ngx;
