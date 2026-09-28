@@ -602,6 +602,20 @@ stops matching, and `amtool check-config` still reports SUCCESS — that mutatio
 was tried. `scripts/validate.sh` and CI therefore assert the table itself with
 `amtool config routes test --verify.receivers`, one assertion per row.
 
+**Where the three real channels deliver** changed on
+[#136](https://github.com/Gerrrt/HomeLab/issues/136). They now go to the
+sensitive tier's own ntfy on `trinity`, deny-all, with Alertmanager publishing
+by bearer token and verifying the leaf against the tier's root. `urgent` and
+`security` also keep a second webhook to their ntfy.sh topic, because a phone
+off the home network cannot reach the tier. Alertmanager counts each delivery
+separately, so either half can fail without taking the other with it. If the
+in-house ntfy is the thing that has failed, the page still goes out:
+`EndpointUnreachable` (from the `http_2xx_tier_ca` probe of
+`ntfy.matrix.elysium`) and `AlertmanagerNotificationsFailing` are both
+critical, so both reach `urgent` and its ntfy.sh copy. The runbook has the
+table and the cutover:
+[`verify-the-alert-path.md`](runbooks/verify-the-alert-path.md#where-the-real-alerts-go).
+
 Inhibit rules stop cascades: a down host suppresses its own disk warnings, a
 dead `snmp-exporter` suppresses the "every device is unreachable" storm that
 would otherwise follow, and a certificate inside seven days of expiry suppresses
@@ -716,7 +730,8 @@ spending almost all of ntfy.sh's free daily budget, so real alerts were refused
 at the end of every day ([#407](https://github.com/Gerrrt/HomeLab/issues/407)).
 The heartbeat now pings a healthchecks.io check, period 5m and grace 15m, which
 emails when a ping does not arrive; the three real channels stay on ntfy and
-have the budget to themselves.
+have the budget to themselves. (Since #136 only two of them use ntfy.sh at all,
+as the off-network copy of what the in-house ntfy receives; see *Routing*.)
 
 So now, if Prometheus stops evaluating, Alertmanager dies, or this host loses
 outbound network, something external notices — in principle. That is the

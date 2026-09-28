@@ -31,6 +31,105 @@ route proves delivery to a *different* URL than real alerts use, so it cannot
 see a deleted ntfy topic. The daily route travels the identical URL your warnings
 travel, but nothing machine-checks its absence — you do.
 
+## Where the real alerts go
+
+Since [#136](https://github.com/Gerrrt/HomeLab/issues/136) the three real
+channels are delivered to the sensitive tier's own ntfy, at
+`https://ntfy.matrix.elysium` on `trinity`. They are no longer delivered to
+ntfy.sh, with one deliberate exception:
+
+| Receiver | In-house ntfy | ntfy.sh | Why |
+| --- | --- | --- | --- |
+| `default` | yes | no | A slow scrape can wait until the phone is home |
+| `urgent` | yes | **yes** | A page has to reach a phone that is not on the home network |
+| `security` | yes | **yes** | Likewise |
+| `heartbeat` | **never** | no | healthchecks.io. A watcher inside the house fails with the house |
+
+The ntfy.sh copies exist because nothing about the tier is exposed. A phone
+off the home network cannot reach `trinity`, since the WireGuard path
+([ADR-0042](../adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md))
+goes to the lab and not here. So an in-house-only page would wait in the cache
+until the phone came home. With the heartbeat gone from ntfy.sh (#407), two
+channels that fire on real faults sit far inside its free budget.
+
+Two consequences are worth holding in mind:
+
+- **The daily Watchdog proves the in-house path, not the ntfy.sh copies.** The
+  24h route goes to `default`, which has no external twin. The copies are
+  proved by the cutover drill below and by every real page after it. The
+  comment on that route in `alertmanager.yaml` says why a daily Watchdog on the
+  loud channels would be worse than the gap.
+- **A dead in-house ntfy still reaches you.** It surfaces as
+  `EndpointUnreachable` for `ntfy` (the blackbox probe) and as
+  `AlertmanagerNotificationsFailing`, once anything tries to page. Both are
+  critical, so both route to `urgent`, whose ntfy.sh copy does not depend on
+  the thing that failed. `scripts/validate.sh` pins those two routes.
+
+## Cutting over to the in-house ntfy
+
+Run this once, when #136 is deployed. Do it in order: each step's check is
+what makes the next one mean anything.
+
+1. **Secrets on `trinity`.** Run `make secrets-edit STACK=sensitive` and set
+   the six `NTFY_*` keys, as `secrets/sensitive.example.yaml` describes them.
+   Keep the `phone` password in the password manager.
+2. **Serve it.** On `trinity`, run `make up STACK=sensitive`, then look for
+   `certificate obtained` for `ntfy.matrix.elysium` in Caddy's log.
+3. **The name.** Add `ntfy` under *Additional Names for this Host* on
+   `trinity`'s host override
+   ([`add-a-host-override.md`](add-a-host-override.md)). From `prometheus`,
+   this must print `{"healthy":true}`:
+
+   ```bash
+   curl --cacert certificates/tier-ca.pem https://ntfy.matrix.elysium/v1/health
+   ```
+
+4. **Deny-all, from outside.** An anonymous publish must answer `403`:
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' --cacert certificates/tier-ca.pem \
+     -d test https://ntfy.matrix.elysium/anything
+   ```
+
+5. **The phones**, on Wi-Fi. The stack README's ntfy section has the setup.
+   Both phones must be subscribed to all three in-house topics and keep their
+   two ntfy.sh subscriptions.
+6. **Secrets on `prometheus`.** Run `make secrets-edit`:
+   - Move the current `urgent` and `security` ntfy.sh URLs into
+     `ALERTMANAGER_URGENT_EXTERNAL_URL` and `ALERTMANAGER_SECURITY_EXTERNAL_URL`.
+   - Point the three `ALERTMANAGER_*_WEBHOOK_URL` keys at the in-house topics.
+   - Set `ALERTMANAGER_NTFY_TOKEN` to the token from step 1.
+
+   Then run `make up`. Rendering refuses to start without
+   `certificates/tier-ca.pem`, which `make tier-ca ARGS=--mint` left on this host.
+7. **The probe.** Verify from the running exporter, then uncomment the ntfy
+   target in `prometheus/targets/blackbox.yaml`. The command is in the comment
+   above it.
+8. **Observe delivery, on both paths.** Fire a synthetic page and resolve it:
+
+   ```bash
+   amtool alert add --alertmanager.url=http://localhost:9093 \
+     alertname=AlertPathCutover severity=critical category=availability \
+     --annotation=summary='#136 cutover: in-house and ntfy.sh'
+   # on Wi-Fi: it arrives on the in-house urgent topic, on both phones,
+   #   readable rather than JSON
+   # on mobile data, Wi-Fi off: it arrives on the ntfy.sh urgent topic
+   amtool alert add --alertmanager.url=http://localhost:9093 \
+     alertname=AlertPathCutover severity=critical category=availability \
+     --end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   ```
+
+   Then lower the second Watchdog route as in *Confirming it actually works*,
+   below. It must arrive on the in-house alerts topic, and nowhere else. The
+   same check with `category=security` proves the security pair.
+9. **Kill it, and be paged anyway.** Run `docker stop sensitive-ntfy` on
+   `trinity`. Within about ten minutes `EndpointUnreachable` for `ntfy` must
+   arrive on the ntfy.sh urgent topic. Then run `docker start sensitive-ntfy`.
+
+A 200 is not evidence. Only a notification seen on a phone is, and step 8 is
+seen twice, on two networks. Write the times down here, the way the table
+below was written, before the issue is closed.
+
 ## Setting up the external watcher
 
 > **Done 2026-09-09.** One check on healthchecks.io, period 5m, grace 15m,
@@ -164,7 +263,8 @@ Put it back to `24h` afterwards.
 | What you see | What it means |
 | --- | --- |
 | External check DOWN, daily heartbeat still arriving | The heartbeat URL is wrong or that specific destination is unreachable. The alert path itself is fine. |
-| External check UP, daily heartbeat stopped | The **real alert channel** is broken — a deleted topic, a rotated URL. This is #67's original failure, and every real alert is being lost right now. |
+| External check UP, daily heartbeat stopped | The **real alert channel** is broken — since #136 the in-house ntfy: a token that no longer matches, a topic renamed on one host and not the other, the phone's subscription or password. This is #67's original failure. Pages still reach you over the ntfy.sh copies; nothing else does. |
+| `EndpointUnreachable` for `ntfy` on the ntfy.sh topic | The in-house ntfy, Caddy, or `trinity` itself. Warnings sent meanwhile reached no one — `default` has no second route — so read what fired in Alertmanager, through Grafana, once it is back. |
 | Both stopped | Prometheus, Alertmanager, or this host. Start with `docker compose ps` and `curl -s localhost:9093/-/healthy`. |
 | Both fine, but you expected an alert about something else | Not this runbook. The path works; check the rule, then the routing tree with `amtool config routes test`. |
 

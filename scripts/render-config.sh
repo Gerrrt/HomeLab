@@ -115,7 +115,12 @@ the stack cannot start without them. Generate them with:
   make certs ARGS=--ca
   make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\"
 
-Full procedure in docs/runbooks/generate-certificates.md." ;;
+Full procedure in docs/runbooks/generate-certificates.md.
+
+tier-ca.pem is different: it is the sensitive tier's root, which Alertmanager
+and the blackbox exporter verify ntfy.matrix.elysium against (#136). It is
+written on this host by \`make tier-ca ARGS=--mint\`, the step that minted it —
+never by \`make certs\` (docs/runbooks/build-the-tier-ca.md)." ;;
     *)
       die "compose.yaml mounts these certificates, which are missing or empty:
 $(printf '  %s\n' "${absent[@]}")
@@ -279,6 +284,9 @@ if [[ -f "${AM_CONFIG}" ]]; then
     ALERTMANAGER_URGENT_WEBHOOK_URL
     ALERTMANAGER_SECURITY_WEBHOOK_URL
     ALERTMANAGER_HEARTBEAT_URL
+    ALERTMANAGER_URGENT_EXTERNAL_URL
+    ALERTMANAGER_SECURITY_EXTERNAL_URL
+    ALERTMANAGER_NTFY_TOKEN
   )
 fi
 
@@ -364,12 +372,22 @@ fi
 # default channel's variable predates the other two and is not
 # ALERTMANAGER_DEFAULT_WEBHOOK_URL, and renaming a key in an encrypted file to
 # suit a loop is a worse trade than writing the pair out.
+#
+# Since #136 the list carries two more URLs and one thing that is not a URL.
+# The *_external_url pair is the ntfy.sh copy of the urgent and security
+# channels, for a phone off the home network; ntfy_token is the bearer token
+# the in-house receivers present, read through `credentials_file` rather than
+# `url_file`. It is rendered by the same loop because it has the same needs —
+# a 0600 file, no trailing newline — and the cross-check below reads both keys.
 # ---------------------------------------------------------------------------
 AM_CHANNELS=(
   "ALERTMANAGER_WEBHOOK_URL:webhook_url"
   "ALERTMANAGER_URGENT_WEBHOOK_URL:urgent_url"
   "ALERTMANAGER_SECURITY_WEBHOOK_URL:security_url"
   "ALERTMANAGER_HEARTBEAT_URL:heartbeat_url"
+  "ALERTMANAGER_URGENT_EXTERNAL_URL:urgent_external_url"
+  "ALERTMANAGER_SECURITY_EXTERNAL_URL:security_external_url"
+  "ALERTMANAGER_NTFY_TOKEN:ntfy_token"
 )
 AM_OUT_DIR="${STACK_DIR}/alertmanager/.rendered"
 if [[ -f "${AM_CONFIG}" ]]; then
@@ -386,7 +404,8 @@ if [[ -f "${AM_CONFIG}" ]]; then
   done
   unset channel var file
 
-  # Every url_file alertmanager.yaml names must be one this loop just wrote. A
+  # Every url_file (and credentials_file) alertmanager.yaml names must be one
+  # this loop just wrote. A
   # url_file that does not exist is not a config error — Alertmanager reads it
   # at notify time, so the stack starts, amtool check-config passes, and the
   # first real alert is the thing that discovers the missing file. Adding a
@@ -398,7 +417,7 @@ if [[ -f "${AM_CONFIG}" ]]; then
   # Anchored on `url_file:` rather than on the path fragment. A bare
   # `secrets/[a-z_]+` also matched `secrets/observability.sops.yaml` in this
   # file's own header comment, and reported the header as a missing channel.
-  done < <(grep -oE 'url_file:[[:space:]]*/etc/alertmanager/secrets/[a-z_]+' \
+  done < <(grep -oE '(url|credentials)_file:[[:space:]]*/etc/alertmanager/secrets/[a-z_]+' \
              "${AM_CONFIG}" \
            | sed 's|.*/||' | sort -u)
 fi
@@ -472,6 +491,12 @@ COMPOSE_VARS=(
   VAULTWARDEN_ADMIN_TOKEN
   HOMEPAGE_IMMICH_API_KEY
   HOMEPAGE_PAPERLESS_TOKEN
+  NTFY_ALERTMANAGER_PASSWORD_HASH
+  NTFY_PHONE_PASSWORD_HASH
+  NTFY_ALERTMANAGER_TOKEN
+  NTFY_TOPIC_ALERTS
+  NTFY_TOPIC_URGENT
+  NTFY_TOPIC_SECURITY
   INDEXER_PASSWORD
   DASHBOARD_PASSWORD
   API_PASSWORD

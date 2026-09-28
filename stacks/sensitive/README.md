@@ -29,13 +29,15 @@ make up STACK=sensitive
 | paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
 | homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on this tier and where it lives. A directory, not a status page — three tiles read live numbers with read-only tokens, the rest are links ([#137]) |
+| ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 
-Thirteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Fourteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
-names as the price of putting the tier on Winterfell at all; and three are
-Paperless-ngx, the archive of what the household cannot get back; and Homepage
-is the page that tells the household the rest exist. What is
+names as the price of putting the tier on Winterfell at all; three are
+Paperless-ngx, the archive of what the household cannot get back; Homepage
+is the page that tells the household the rest exist; and ntfy is the one the
+estate uses, to tell the operator what is wrong with the rest. What is
 absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -44,8 +46,9 @@ absent is as deliberate as what is here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No other services yet.** ntfy ([#136]) arrives as Home Assistant, Immich,
-  Paperless-ngx, Vaultwarden and Homepage did: a service with
+- **No other services planned.** The next one, whenever it comes, arrives as
+  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage and ntfy did: a
+  service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -67,7 +70,7 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               thirteen services, one network, health-gated ordering
+compose.yaml               fourteen services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -76,6 +79,7 @@ home-assistant/            configuration.yaml and packages/, mounted read-only
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
 homepage/                  settings, services and widgets YAML — Homepage's whole
                            configuration, mounted read-only
+ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
 consume/                   untracked: drop a scan here and Paperless-ngx imports
                            and deletes it. Created by render-config.sh
 export/                    untracked: where document_exporter writes. Likewise
@@ -83,7 +87,7 @@ export/                    untracked: where document_exporter writes. Likewise
 
 Secrets are `secrets/sensitive.sops.yaml`, encrypted to this stack's own rule
 in `.sops.yaml` — `trinity`'s key opens this file and nothing else of the
-estate's (`secrets/sensitive.example.yaml` says why, and lists the nine keys). The one file under
+estate's (`secrets/sensitive.example.yaml` says why, and lists every key). The one file under
 `certificates/` this stack reads is `tier-ca.pem`, the tier's root
 certificate, written by `make tier-ca ARGS="--install …"` from the bundle
 minted on the monitoring host; every leaf is obtained from step-ca at run
@@ -452,6 +456,63 @@ that is kept:
   Paperless widgets got a 401 from the real services through Caddy and the tier
   CA, which is the whole path short of a valid token.
 
+## ntfy
+
+Where the estate's alerts are delivered since [#136], replacing ntfy.sh for
+every channel but two. `compose.yaml` has the service, its measurements, and
+DIFFERENCE 12. [`verify-the-alert-path.md`](../../docs/runbooks/verify-the-alert-path.md)
+has the routing it serves and the cutover. What has to be true around it is
+here.
+
+- **Deny-all, and two users who can each do one thing.** `alertmanager`
+  publishes to the three topics by bearer token and cannot read them. `phone`
+  reads them by password and cannot publish. Nobody else can do either,
+  anonymous or not, and nobody can sign up. The list lives in SOPS and is
+  applied on every start, so a rotation is `make secrets-edit STACK=sensitive`
+  and `make up`. Rotating the token means the monitoring host's copy too,
+  `ALERTMANAGER_NTFY_TOKEN`.
+- **Urgent and security go to ntfy.sh as well.** A phone off the home network
+  cannot reach this service: nothing on the tier is exposed, and the WireGuard
+  path goes to the lab. So the two channels that page carry a second webhook to
+  their old ntfy.sh topics. `default` does not, and a warning raised while you
+  are out waits in the twelve-hour cache until the phone is back on Wi-Fi.
+- **The iPhone is woken through ntfy.sh, and learns nothing else from it.**
+  iOS delivers only through APNs, which only ntfy.sh can reach. So
+  `upstream-base-url` makes this server post a content-free poll request there:
+  the SHA-256 of the topic's URL, and nothing else, as the pinned image's own log
+  showed. The phone then fetches the message from here. ntfy.sh therefore
+  learns that a message exists, and when. It never learns what the message
+  says, and without this the iPhone sees an alert only when the app is opened.
+- **The phones need the tier's root, the same as for Immich.** Each phone
+  needs the root installed and, on iOS, enabled
+  ([`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md) §6).
+  Then, in the ntfy app on each phone:
+  1. Add the three in-house topics, with server
+     `https://ntfy.matrix.elysium` and user `phone`. The password is in the
+     password manager; the topic names are in `secrets/sensitive.sops.yaml`.
+  2. Keep the two ntfy.sh subscriptions. They are the off-network pager.
+  3. On iOS, leave the app's *default server* at `ntfy.sh`. The upstream
+     wake-ups arrive through it.
+  4. Give `urgent` a sound that wakes you and `default` none. That per-topic
+     difference is why [#66] split the channels.
+
+  Android's app has to honour a user-installed root for the first step to
+  work. Record here whether the Pixel's did.
+- **A dead ntfy is reported through ntfy.sh.** A blackbox probe of
+  `/v1/health`, verified against the tier's root, raises `EndpointUnreachable`,
+  and the failed deliveries raise `AlertmanagerNotificationsFailing`. Both are
+  critical, so both route to `urgent` and its ntfy.sh copy. The probe is the
+  only HTTPS check any of this tier's sites has from outside.
+- **Nothing to back up.** `ntfy-data` holds `user.db`, rebuilt from SOPS on
+  every start, and `cache.db`, at most twelve hours of notifications that were
+  already delivered. [ADR-0023] classes ntfy as unclassed for the same reason.
+  `backup-volumes.sh` skips the volume by name, which also keeps ntfy up
+  through a backup, the moment a failed backup would want to page.
+- **No second factor.** ntfy has passwords and tokens. The only human account
+  is `phone`, which can read three topics of alert text and nothing else.
+  [ADR-0022] leaves ntfy out of its table for that reason: it authenticates no
+  household identity.
+
 ## Backup and restore
 
 ```bash
@@ -464,7 +525,9 @@ volume it cannot verify, so each of the ten volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
 pinned image, beside the entries [#133] read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
-uid is a constant. Two are skipped by name. `adguard-work` is skipped because
+uid is a constant. Three are skipped by name. `ntfy-data` is skipped because
+ntfy rebuilds its users from SOPS on every start and its cache is notifications
+already delivered. `adguard-work` is skipped because
 archiving it would stop the house's only DNS forwarder, and nothing in it is
 worth restoring. `immich-model-cache` is skipped because a
 downloadable cache is not data, and a fresh host whose models have not been
@@ -606,6 +669,7 @@ it matters:
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
 [#182]: https://github.com/Gerrrt/HomeLab/issues/182
+[#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
 [#428]: https://github.com/Gerrrt/HomeLab/issues/428

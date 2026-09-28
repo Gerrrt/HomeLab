@@ -443,6 +443,22 @@ assumption consistent with what they are.
 - CI runs `gitleaks` with rules specifically for SNMP communities, inline
   Grafana passwords, PEM private keys and age secret keys, and separately
   asserts that every `secrets/*.sops.yaml` is genuinely encrypted.
+- **The alert path's credentials are in SOPS on two hosts, and one of them
+  crosses the CA boundary on purpose.** Since
+  [#136](https://github.com/Gerrrt/HomeLab/issues/136) Alertmanager delivers to
+  the tier's own ntfy. ntfy is deny-all, and the users, access list, token and
+  topic names are all `NTFY_*` keys in `secrets/sensitive.sops.yaml`.
+  Alertmanager's copy of the token is `ALERTMANAGER_NTFY_TOKEN` in the
+  observability file. It is sent as a header and never as ntfy's `?auth=`
+  parameter, because Caddy's access log records the URL and Alloy ships that
+  log to Loki. To verify the leaf, the estate's Alertmanager trusts the
+  **tier's** root, which
+  [ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
+  otherwise keeps apart from the estate's. The trust is scoped: a `ca_file`
+  on those three webhook configs and on one blackbox module, not the
+  container's trust store. Nothing else on `prometheus` is asked to believe
+  that root. The `urgent` and `security` channels also keep their ntfy.sh
+  topics, where the name alone is the credential, as before.
 - **One service on the sensitive tier keeps its credentials outside SOPS, by
   necessity and on the record.** Home Assistant obtains device credentials
   through its own pairing flows — the Hue application key, the Ring token —

@@ -449,9 +449,17 @@ declare -A COMPANIONS=(
 # Its settings are adguard/AdGuardHome.yaml, in git. Not archiving it is
 # what takes AdGuard off the stop list: SERVICES is derived from the volumes
 # that ARE archived.
+# ntfy-data (#136) holds two SQLite files and neither is a record. user.db is
+# re-provisioned from NTFY_AUTH_* on every start — measured on the pinned
+# image: a rotated token and a changed hash each replaced the stored one after
+# a restart — and cache.db is at most twelve hours of notifications already
+# delivered. ADR-0023 classes ntfy as Unclassed for the same reason. Skipping
+# it also keeps ntfy running through a backup, which is when a failed backup
+# would want to page.
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
   [adguard-work]="blocklists, stats and a query log AdGuard rebuilds; archiving it would stop the house's only DNS forwarder"
+  [ntfy-data]="users re-provisioned from SOPS on every start, and twelve hours of notifications already delivered"
   [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"
 )
 

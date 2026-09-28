@@ -257,6 +257,11 @@ elif ((${#AMTOOL[@]})); then
   # `continue: true` — the one place in the tree that does. That row is also
   # what catches a `severity` slip on the watchdog rule: with `info` it would
   # resolve to "null" and the dead man's switch would be silently disarmed.
+  #
+  # The `correctness` row is AlertmanagerNotificationsFailing, and the
+  # `availability` row is EndpointUnreachable — which covers the probe of the
+  # in-house ntfy. Since #136 both must reach `urgent`, the one receiver with
+  # an ntfy.sh copy, or a dead in-house ntfy is reported only to itself.
   routes_ok=1
   while read -r expected labels; do
     [[ -n "${expected}" ]] || continue
@@ -275,6 +280,7 @@ urgent    severity=critical category=power
 security  severity=critical category=security
 security  severity=warning category=security
 urgent    severity=critical category=availability
+urgent    severity=critical category=correctness
 default   severity=warning category=capacity
 default   severity=warning category=hardware
 default   severity=warning category=monitoring
@@ -282,7 +288,7 @@ null      severity=info category=correctness
 ROUTES
 
   if ((routes_ok)); then
-    pass "${stack}: amtool config routes test (9 assertions)"
+    pass "${stack}: amtool config routes test (10 assertions)"
   else
     fail "${stack}: amtool config routes test"
   fi

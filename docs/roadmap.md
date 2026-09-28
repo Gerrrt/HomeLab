@@ -144,8 +144,12 @@ has been rehearsed on it.
   [#133](https://github.com/Gerrrt/HomeLab/issues/133) Paperless-ngx;
   [#134](https://github.com/Gerrrt/HomeLab/issues/134) Home Assistant
   ([ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md));
-  [#136](https://github.com/Gerrrt/HomeLab/issues/136) ntfy, which decides
-  whether the in-house topic replaces the external ones or sits beside them;
+  [#136](https://github.com/Gerrrt/HomeLab/issues/136) ntfy — authored, with
+  the decision taken both ways at once: the in-house topics replace ntfy.sh for
+  all three real channels, and `urgent` and `security` page ntfy.sh as well,
+  because a phone away from home cannot reach the tier. The deploy and the
+  observed end-to-end check remain
+  (→ [runbook](runbooks/verify-the-alert-path.md#cutting-over-to-the-in-house-ntfy));
   and [#137](https://github.com/Gerrrt/HomeLab/issues/137) Homepage, authored
   on 2026-09-28 against the running tier: `home.matrix.elysium`, a directory
   and not a status page, with live numbers only where a read-only token can

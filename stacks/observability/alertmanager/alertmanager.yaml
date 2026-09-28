@@ -11,6 +11,9 @@
 # at /etc/alertmanager/secrets/. Both the rendered directory and its contents
 # are gitignored.
 #
+# Since #136 the three real channels go to the sensitive tier's own ntfy, and
+# urgent and security go to ntfy.sh as well; the receivers section says why.
+#
 # There are four channels and four destinations. They used to be three names
 # for one URL, which meant `urgent` and `default` differed only in how often
 # they repeated — a UPS on battery and a slow scrape landed in the same place
@@ -72,6 +75,13 @@ route:
     # a deleted topic shows up as a missing daily heartbeat instead of as
     # nothing at all. The heartbeat route above cannot see that, because it
     # proves delivery to a different URL.
+    #
+    # Since #136 that URL is the in-house ntfy, so this proves the in-house
+    # path daily and says nothing about the two ntfy.sh copies urgent and
+    # security also send. Those are proved by the cutover drill in
+    # docs/runbooks/verify-the-alert-path.md and by every real page after it;
+    # a daily Watchdog on the loud channels would teach the phone to ignore
+    # them, which is worse than the gap.
     - receiver: default
       matchers:
         - alertname = "Watchdog"
@@ -154,19 +164,51 @@ inhibit_rules:
 receivers:
   - name: "null"
 
+  # Since #136 the three real channels land on the sensitive tier's own ntfy,
+  # https://ntfy.matrix.elysium, over Caddy's 443 on this VLAN. Three settings
+  # come with that, identical in each in-house entry below, and the anchor
+  # keeps them identical:
+  #
+  #   - The token rides in an Authorization header from a rendered file. Not
+  #     ntfy's `?auth=` parameter, which would put it in the URL and Caddy's
+  #     access log records the URL.
+  #   - The certificate is verified against the TIER'S root, mounted from
+  #     certificates/tier-ca.pem. Per receiver, not process-wide: nothing else
+  #     Alertmanager talks to is asked to trust it (ADR-0037, docs/security.md).
+  #   - Each URL ends `?template=alertmanager`, ntfy's built-in rendering of
+  #     this payload, so a phone shows a title and a summary instead of JSON.
+  #
+  # urgent and security carry a SECOND webhook each, to their ntfy.sh topic,
+  # for the phone that is not on the home network and so cannot reach the
+  # first. Two entries in one receiver are independent deliveries: either can
+  # fail without stopping the other, and each is counted separately in
+  # alertmanager_notifications_failed_total. `default` has no external twin
+  # on purpose — a slow scrape can wait until the phone is home.
   - name: default
     webhook_configs:
       - url_file: /etc/alertmanager/secrets/webhook_url
         send_resolved: true
+        http_config: &in-house-ntfy
+          authorization:
+            type: Bearer
+            credentials_file: /etc/alertmanager/secrets/ntfy_token
+          tls_config:
+            ca_file: /etc/alertmanager/tls/tier-ca.pem
 
   - name: urgent
     webhook_configs:
       - url_file: /etc/alertmanager/secrets/urgent_url
         send_resolved: true
+        http_config: *in-house-ntfy
+      - url_file: /etc/alertmanager/secrets/urgent_external_url
+        send_resolved: true
 
   - name: security
     webhook_configs:
       - url_file: /etc/alertmanager/secrets/security_url
+        send_resolved: true
+        http_config: *in-house-ntfy
+      - url_file: /etc/alertmanager/secrets/security_external_url
         send_resolved: true
 
   # send_resolved: false, deliberately. If Prometheus stops sending Watchdog,

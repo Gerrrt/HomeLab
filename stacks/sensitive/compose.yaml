@@ -25,7 +25,7 @@
 # as three, and Vaultwarden (#131) the fifth — the one whose volume is the
 # vault, and the reason scripts/backup-volumes.sh learned this stack.
 # Homepage (#137) is the sixth, and the household's page of links to the other
-# five. ntfy (#136) lands the way Home Assistant did.
+# five. ntfy (#136) is the seventh, and where the estate's alerts now arrive.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -36,7 +36,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are eleven such places, each marked DIFFERENCE.
+# the sibling file. There are twelve such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -118,6 +118,7 @@ services:
           - paperless.matrix.elysium
           - vaultwarden.matrix.elysium
           - home.matrix.elysium
+          - ntfy.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -578,6 +579,101 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # ntfy — where the estate's alerts are delivered (#136)
+  # ---------------------------------------------------------------------------
+  # Alertmanager on prometheus posts here, over Caddy's 443 on the same VLAN,
+  # and the phones subscribe here. The urgent and security channels ALSO keep
+  # their ntfy.sh topic, as a second webhook in alertmanager.yaml, because a
+  # phone off the home network cannot reach this service: nothing is exposed,
+  # and the WireGuard path (ADR-0042) goes to the lab, not here. The heartbeat
+  # is not here and never may be (#408): a watcher inside the house fails with
+  # the house. docs/runbooks/verify-the-alert-path.md has the whole picture.
+  #
+  # DIFFERENCE 12: auth is declared in the environment, and the environment is
+  # authoritative. `auth-default-access: deny-all` in ntfy/server.yml means an
+  # open relay is not one setting away, and the users, their ACLs and
+  # Alertmanager's token arrive as NTFY_AUTH_USERS / _ACCESS / _TOKENS, built
+  # below from SOPS. ntfy re-provisions its user.db from these on every start
+  # — measured on the pinned image: a changed hash and a rotated token each
+  # made the old credential answer 401 after a restart, and an ACL entry
+  # removed from the list answered 403. So rotation is `make secrets-edit` and
+  # `make up`, and the volume holds nothing that is not re-derived from here,
+  # which is why scripts/backup-volumes.sh skips it by name.
+  #
+  # Two users, each able to do one thing. `alertmanager` may WRITE the three
+  # topics and nothing else, by token; `phone` may READ them and nothing else,
+  # by password — its bcrypt hash is what SOPS holds (`make hash-password`).
+  # Measured with this exact list: anonymous publish and read 403, the token
+  # publishing 200 and reading 403, `phone` reading 200 and publishing 403,
+  # either against a topic outside the list 403, sign-up refused.
+  #
+  # The topic names come from SOPS too. With auth on, a name is not a
+  # credential the way it is on ntfy.sh (docs/security.md, the rotation of
+  # 2026-08-20), but #136 asked that they be treated as one, and a name
+  # guessable from this file is one less thing an attacker has to learn.
+  #
+  # upstream-base-url is ntfy.sh, for the iPhone. iOS delivers only through
+  # APNs, which only ntfy.sh can reach, so this server posts a content-free
+  # poll request there — the SHA-256 of the topic's URL and nothing else,
+  # read off the pinned image's own log — and the phone then fetches the
+  # message from here. The alert text never leaves the house; the fact and
+  # time of a message does. The Pixel keeps its own connection and needs none
+  # of it.
+  #
+  # Root with every capability dropped, as Vaultwarden (DIFFERENCE 2's
+  # argument): the pinned image has no /var/lib/ntfy at all, so the named
+  # volume is created root-owned and a non-root ntfy cannot open its own
+  # database. `docker diff` on the boot above showed nothing written outside
+  # it. Re-check when the image moves:
+  #
+  #   docker run --rm --entrypoint ls <ntfy image> -ld /var/lib/ntfy
+  #
+  # 128m: 14 MiB and ten tasks on that boot. Ten times, to bound a leak.
+  ntfy:
+    <<: *service-defaults
+    image: binwiederhier/ntfy:v2.28.0@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
+    container_name: sensitive-ntfy
+    command: ["serve"]
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    # Folded scalars, one entry per line: YAML joins them with ", " and ntfy
+    # trims the space after each comma (checked on the pinned image). The
+    # `alertmanager` user's hash is of a password nobody keeps — ntfy requires
+    # one per user, and that user authenticates by token alone.
+    environment:
+      NTFY_AUTH_USERS: >-
+        alertmanager:${NTFY_ALERTMANAGER_PASSWORD_HASH:?set in secrets/sensitive.sops.yaml}:user,
+        phone:${NTFY_PHONE_PASSWORD_HASH:?set in secrets/sensitive.sops.yaml}:user
+      NTFY_AUTH_ACCESS: >-
+        alertmanager:${NTFY_TOPIC_ALERTS:?set in secrets/sensitive.sops.yaml}:wo,
+        alertmanager:${NTFY_TOPIC_URGENT:?set in secrets/sensitive.sops.yaml}:wo,
+        alertmanager:${NTFY_TOPIC_SECURITY:?set in secrets/sensitive.sops.yaml}:wo,
+        phone:${NTFY_TOPIC_ALERTS}:ro,
+        phone:${NTFY_TOPIC_URGENT}:ro,
+        phone:${NTFY_TOPIC_SECURITY}:ro
+      NTFY_AUTH_TOKENS: >-
+        alertmanager:${NTFY_ALERTMANAGER_TOKEN:?set in secrets/sensitive.sops.yaml}:alertmanager
+    volumes:
+      - ./ntfy/server.yml:/etc/ntfy/server.yml:ro
+      - ntfy-data:/var/lib/ntfy
+    expose:
+      - "8080"
+    healthcheck:
+      # Answers {"healthy":true} with no credential, deny-all notwithstanding.
+      # busybox wget; --probe proves it is in the image.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Immich — the service ADR-0008 named as the cost of the decision (#132)
@@ -1223,3 +1319,7 @@ volumes:
   # paperless-media, one of the volumes here whose loss is a loss of function
   # rather than of a record — docs/runbooks/restore-the-sensitive-tier.md.
   vaultwarden-data:
+  # ntfy's user.db and twelve hours of message cache. The first is rebuilt from
+  # the environment on every start (DIFFERENCE 12) and the second has already
+  # been delivered, so scripts/backup-volumes.sh skips it by name.
+  ntfy-data:
