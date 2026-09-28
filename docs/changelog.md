@@ -62,6 +62,15 @@ docstring gives: it is a record, not a claim about now.
   one was deleted. The new one expires 2027-04-16; the same command renews it.
 - **Hicks reaches `trinity` on 443**, the eleventh named pass above *Block
   access to Winterfell*.
+- **Caddy passed its acceptance on `trinity`**
+  ([#129](https://github.com/Gerrrt/HomeLab/issues/129)). All six names
+  returned `Verify return code: 0` from Hicks against
+  `certificates/tier-ca.pem`, each with a seven-day leaf from the tier
+  intermediate that Caddy holds under step-ca's ACME directory. Nothing is
+  mounted from `gen-certs.sh`. Only Caddy's `443/tcp` and AdGuard's
+  `10.0.99.40:53` are published. The host's other listeners are `sshd` on 22
+  and loopback-only services: systemd-resolved, chrony, and the Alloy agent's
+  `127.0.0.1:12345`.
 
 ## 2026-09-26
 
