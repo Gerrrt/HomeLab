@@ -23,9 +23,9 @@
 # ---------------------------------------------------------------------------
 # Why this stack is three media services
 # ---------------------------------------------------------------------------
-# ADR-0016 decided Jellyfin alone, and Plex only if a screen on 40 turns out to
-# have no working Jellyfin client — a deferral against a test nobody has run,
-# not a rejection. Audiobookshelf (#140, ADR-0050) joined it on the argument
+# ADR-0016 decided Jellyfin alone, and deferred Plex until a screen on 40
+# turned out to have no working Jellyfin client. None did, so ADR-0056
+# declines Plex. Audiobookshelf (#140, ADR-0050) joined Jellyfin on the argument
 # that an audiobook library is the same kind of data in the same place, and
 # brought the one thing Jellyfin does not do: listening progress that follows
 # a person between a phone, a car and a speaker. Navidrome (#141) joined on

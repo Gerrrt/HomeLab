@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-28
 
+- **Plex declined** ([#139](https://github.com/Gerrrt/HomeLab/issues/139)).
+  ADR-0016's test was run: the LG OLED, a console, and the household's phones
+  and tablets all play from Jellyfin, and the Xumo box is not used for the
+  library. No screen used for media lacks a Jellyfin client, so the deferral
+  becomes a decline,
+  [ADR-0056](adr/0056-decline-plex-because-every-screen-on-casabonita-plays-jellyfin.md), and
+  ADR-0008's list loses Plex. The media tier stays without secrets, and Plex
+  Pass leaves the purchase list.
 - **The sensitive tier's backup is on a nightly timer**
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9, the
   acceptance item on [#131](https://github.com/Gerrrt/HomeLab/issues/131)).
