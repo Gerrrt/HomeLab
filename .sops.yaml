@@ -81,7 +81,7 @@ creation_rules:
   # (ADR-0024, #294) joins this rule the day the tier holds real data.
   - path_regex: secrets/sensitive(\..+)?\.sops\.ya?ml$
     age: >-
-      REPLACE_WITH_SENSITIVE_AGE_PUBLIC_KEY
+      age1cpdxl6p4synccrwaaeh308n4g8rww9tv9znv32laprnk3kdpm95satjtsw
 
   # The SOC guest, for the lab's reason with more force behind it: odin sits
   # on the segment that exists to hold attackers and runs the SIEM those
