@@ -90,6 +90,11 @@ groups:
         # was reachable and answering, and ntfy.sh was refusing with 429
         # because the day's free message budget was spent (#407). "The
         # webhook is unreachable" is what a reader assumes, and it was wrong.
+        #
+        # CRITICAL IS LOAD-BEARING since #136. Three receivers now deliver to
+        # the in-house ntfy on trinity; if that is what fails, this alert is
+        # the one that says so, and only `urgent` carries an ntfy.sh copy that
+        # does not depend on it. validate.sh pins the route.
         expr: increase(alertmanager_notifications_failed_total[15m]) > 0
         for: 5m
         labels:
@@ -105,7 +110,9 @@ groups:
             (ntfy.sh's daily quota, #407), clientError or serverError means it
             answered with an error, and contextDeadlineExceeded means it did
             not answer at all. This alert travels the same path it reports on,
-            so if it reached you, at least one receiver still works.
+            so if it reached you, at least one receiver still works — and being
+            critical it goes to `urgent`, whose ntfy.sh copy reaches a phone
+            even when the in-house ntfy is the thing failing (#136).
 
       - alert: LokiIngestionStalled
         expr: |

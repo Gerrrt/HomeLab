@@ -360,6 +360,11 @@ services:
       # Alertmanager does not expand environment variables, so each receiver
       # URL is read from a file via `url_file`.
       - ./alertmanager/.rendered:/etc/alertmanager/secrets:ro
+      # The SENSITIVE TIER'S root, not the estate's ca.pem (ADR-0037): the
+      # in-house ntfy's leaf is issued beneath it, and alertmanager.yaml names
+      # it as the ca_file of those receivers alone (#136). Public, like
+      # ca.pem; written on this host by `make tier-ca ARGS=--mint`.
+      - ../../certificates/tier-ca.pem:/etc/alertmanager/tls/tier-ca.pem:ro
       - alertmanager-data:/alertmanager
     ports:
       # Loopback only, and the only one of the four that can be (#70). Anyone
@@ -539,7 +544,7 @@ services:
     # formality.
     #
     # Nothing in blackbox.yaml needs a capability. There is no `icmp` prober
-    # defined — the six modules are three http, one tcp_connect and two dns —
+    # defined — the seven modules are four http, one tcp_connect and two dns —
     # so CAP_NET_RAW is not wanted, and the exporter binds only 9115, above
     # 1024. Verified rather than assumed: this pinned digest was run with
     # --cap-drop ALL --security-opt no-new-privileges:true against the real
@@ -566,6 +571,9 @@ services:
       # chain against it (#91). Changing this recreates the container, which
       # `make up` does; a config-only edit is a `make reload`.
       - ../../certificates/ca.pem:/etc/blackbox_exporter/tls/ca.pem:ro
+      # And the sensitive tier's root, for http_2xx_tier_ca: the probe of the
+      # in-house ntfy that Alertmanager now delivers to (#136).
+      - ../../certificates/tier-ca.pem:/etc/blackbox_exporter/tls/tier-ca.pem:ro
     # Never published to a host interface. Nothing outside the compose network
     # has any reason to ask this container to make a request on its behalf —
     # an open blackbox exporter is a server-side request forgery primitive.

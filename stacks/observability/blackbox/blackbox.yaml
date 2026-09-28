@@ -12,13 +12,14 @@
 # serves, not by what would be nice:
 #
 #   http_2xx_lab_ca       https, certificate issued by certificates/ca.pem
+#   http_2xx_tier_ca      https, certificate issued by the sensitive tier's step-ca
 #   http_2xx_self_signed  https, certificate the device made for itself
 #   http_2xx_plain        http, no TLS on offer
 #   tcp_connect           anything at all holding the port open
 #   dns_answers           a resolver, asked whether it still answers at all
 #   dns_filters           a resolver, asked whether it is still filtering
 #
-# The two `dns` modules are a different shape from the four above them and the
+# The two `dns` modules are a different shape from the five above them and the
 # block at the foot of this file says why: an http module is picked by what the
 # endpoint serves, a dns module carries its own question.
 #
@@ -26,7 +27,7 @@
 # verifies the chain — blackbox reads it off the handshake, before deciding
 # whether to trust it — and blackbox.rules.yaml turns that into the 30-day and
 # 7-day expiry alerts. Verification is a separate question from expiry, and the
-# two https modules answer it differently on purpose.
+# three https modules answer it differently on purpose.
 
 modules:
   # An HTTPS endpoint whose certificate the lab's own CA issued — Grafana, and
@@ -53,6 +54,27 @@ modules:
       ip_protocol_fallback: false
       tls_config:
         ca_file: /etc/blackbox_exporter/tls/ca.pem
+
+  # An HTTPS endpoint on trinity, behind Caddy, whose certificate the sensitive
+  # tier's own step-ca issued (ADR-0037) — a different root from ca.pem, so a
+  # module of its own rather than a second ca_file on the one above, which
+  # would let either root vouch for either tier. The in-house ntfy is the
+  # target, and the reason: it is where Alertmanager delivers since #136, so
+  # its absence has to page through something other than itself — see the
+  # target's comment. Seven-day leaves renewed by Caddy mean the 30-day expiry
+  # warning should never fire here; if it does, renewal has stopped.
+  http_2xx_tier_ca:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: []  # any 2xx
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      method: GET
+      follow_redirects: true
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      tls_config:
+        ca_file: /etc/blackbox_exporter/tls/tier-ca.pem
 
   # An HTTPS endpoint whose certificate nothing issued — the management
   # interfaces on the APC card, the iLO and pfSense each present a certificate
@@ -110,7 +132,7 @@ modules:
 
   # --- Asking a resolver what it answered ------------------------------------
   #
-  # The four modules above ask whether an endpoint can be reached. These two ask
+  # The five modules above ask whether an endpoint can be reached. These two ask
   # the question only a DNS server can be asked — *what did you say?* — and they
   # exist because ADR-0010 deliberately made one failure silent.
   #

@@ -71,7 +71,9 @@ RESET = "\033[0m"
 # Anchored on `url_file:` rather than on the path fragment, for the reason
 # render-config.sh records: a bare `secrets/[a-z_]+` also matches
 # `secrets/observability.sops.yaml` in a comment, and reports prose as a channel.
-URL_FILE = re.compile(r"url_file:\s*(/etc/alertmanager/secrets/([a-z_]+))")
+# `credentials_file` too since #136: the in-house ntfy's bearer token is read
+# from the same directory and missing it fails the same way — at notify time.
+URL_FILE = re.compile(r"(?:url|credentials)_file:\s*(/etc/alertmanager/secrets/([a-z_]+))")
 
 # The pairs render-config.sh writes, read out of that script rather than
 # duplicated here. Two copies of this list is exactly the drift the check is for.
@@ -124,6 +126,12 @@ PUSH_ONLY = {
     "api.telegram.org",
 }
 UPTIME_KUMA_PATH = "/api/push/"
+# Anything in the house's own domain — since #136 that includes the ntfy the
+# real alerts go to. Worse than a push service, not the same: a watcher inside
+# the house fails with the house, so the heartbeat would stop being delivered
+# at the moment it had something to say. That one IS fixable from here, so it
+# is a failure rather than a warning.
+IN_HOUSE_SUFFIX = ".matrix.elysium"
 
 
 def warn(msg: str) -> None:
@@ -180,6 +188,15 @@ def check_heartbeat_destination(container: str, name: str) -> None:
     host = (parsed.hostname or "").lower()
     if not host:
         bad(f"{name} is not a URL this can parse — the heartbeat may not deliver at all")
+        return
+
+    if host == IN_HOUSE_SUFFIX[1:] or host.endswith(IN_HOUSE_SUFFIX):
+        bad(
+            f"{name} points at {host}, which is INSIDE the house. The dead man's "
+            f"switch has to live off this estate or it dies with it — point it "
+            f"back at the external watcher (docs/runbooks/verify-the-alert-path.md, "
+            f"#408)"
+        )
         return
 
     if host in WATCHERS or UPTIME_KUMA_PATH in parsed.path:
@@ -252,7 +269,7 @@ def main() -> int:
     for name in sorted(rendered - wanted):
         bad(f"AM_CHANNELS renders {name}, which no receiver reads")
     if wanted == rendered:
-        ok(f"{len(wanted)} url_file(s) declared and rendered: {', '.join(sorted(wanted))}")
+        ok(f"{len(wanted)} secret file(s) declared and rendered: {', '.join(sorted(wanted))}")
 
     out_dir = REPO / "stacks" / args.stack / "alertmanager" / ".rendered"
 
@@ -327,7 +344,7 @@ def main() -> int:
     # thing this repository keeps writing checks to avoid.
     checked = ["config"] + (["files"] if checked_files else []) + (["container"] if checked_live else [])
     print(
-        f"\nalert channels OK — {len(wanted)} receiver URL(s), "
+        f"\nalert channels OK — {len(wanted)} secret file(s), "
         f"checked against: {', '.join(checked)}"
     )
     # A warning that only appeared in scrollback would be the same silence this

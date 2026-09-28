@@ -52,6 +52,19 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "VAULTWARDEN_ADMIN_TOKEN=validation-only"
   echo "HOMEPAGE_IMMICH_API_KEY=validation-only"
   echo "HOMEPAGE_PAPERLESS_TOKEN=validation-only"
+  # ntfy validates these at start and exits on a malformed one, so a boot of
+  # it (check_hardened_boot.sh) needs them well-formed: a real bcrypt hash —
+  # of the string "validation-only", from the pinned image's `ntfy user
+  # hash` — with every `$` doubled for compose, as render-config.sh writes
+  # them, a token of the `tk_` + 29 shape, and three distinct topics.
+  # shellcheck disable=SC2016  # the $$ are for compose, not the shell
+  echo 'NTFY_ALERTMANAGER_PASSWORD_HASH=$$2a$$10$$3egG3fvpHgBzCUcV7m7xE.1aiIfVdTQxRjW0kYzefkJ8YPnyiaYWq'
+  # shellcheck disable=SC2016
+  echo 'NTFY_PHONE_PASSWORD_HASH=$$2a$$10$$3egG3fvpHgBzCUcV7m7xE.1aiIfVdTQxRjW0kYzefkJ8YPnyiaYWq'
+  echo "NTFY_ALERTMANAGER_TOKEN=tk_validationonlyvalidationonly0"
+  echo "NTFY_TOPIC_ALERTS=validation-alerts"
+  echo "NTFY_TOPIC_URGENT=validation-urgent"
+  echo "NTFY_TOPIC_SECURITY=validation-security"
   echo "INDEXER_PASSWORD=validation-only"
   echo "DASHBOARD_PASSWORD=validation-only"
   echo "API_PASSWORD=validation-only"

@@ -19,6 +19,44 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-28
 
+- **ntfy is authored for the sensitive tier, and Alertmanager is repointed
+  at it** ([#136](https://github.com/Gerrrt/HomeLab/issues/136)). It is not
+  deployed, and the issue stays open until the cutover in
+  [`verify-the-alert-path.md`](runbooks/verify-the-alert-path.md) has been seen
+  working on both phones.
+  - **The decision #136 asked for.** The in-house topics replace ntfy.sh for
+    all three real channels, and `urgent` and `security` send to their ntfy.sh
+    topics as well. A phone away from home cannot reach `trinity`: nothing on
+    the tier is exposed, and the WireGuard path goes to the lab. So an
+    in-house-only page would wait for Wi-Fi. The heartbeat stays on
+    healthchecks.io (#408), and `check_alert_channels.py` now fails a heartbeat
+    pointed at any `.matrix.elysium` host.
+  - **The auth.** ntfy is deny-all, with two users. `alertmanager` may only
+    write the three topics, by token; `phone` may only read them. Users, ACLs
+    and the token come from `NTFY_AUTH_*` in the environment, built from SOPS.
+    Measured on the pinned image (v2.28.0) under the compose file's hardening:
+    - Anonymous requests got 403 either way.
+    - The token could publish and got 403 on read.
+    - `phone` could read and got 403 on publish.
+    - A rotated token and a changed hash each turned the old credential into
+      a 401 after a restart.
+
+    That last result is why `ntfy-data` is skipped by the backup rather than
+    archived.
+  - **Only the iPhone's wake-up leaves the house.** `upstream-base-url` sends
+    ntfy.sh the SHA-256 of the topic's URL, read off the image's own log, and
+    not the alert.
+  - **A dead ntfy still pages.** A blackbox probe verifies the tier's root with
+    the new `http_2xx_tier_ca` module. It is written out and enabled at
+    cutover. `AlertmanagerNotificationsFailing` and `EndpointUnreachable` are
+    critical, so they reach `urgent` and its ntfy.sh copy. `validate.sh` now
+    pins the `correctness` route alongside `availability`.
+  - **One thing the first boot taught.** ntfy exits at start on a malformed
+    bcrypt hash or token. `seed-validation-env.sh`'s `validation-only` would
+    have failed the new CI boot, so the ntfy seeds are well formed.
+    `check_hardened_boot.sh` could not run on `trinity` itself, because the
+    live stack owns the subnet. The same boot was run there under a throwaway
+    project with the subnet moved, and it came up healthy.
 - **Immich's restore is rehearsed on `trinity`, and the first real photos
   came before the gate that was meant to precede them**
   ([#132](https://github.com/Gerrrt/HomeLab/issues/132)). Two accounts

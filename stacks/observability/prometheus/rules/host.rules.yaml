@@ -1013,7 +1013,8 @@ groups:
       # HostBatteryTempNotMeasured says, per host, that today is not that day.
       # It is `info` on purpose — true on both hosts for as long as these packs
       # are in, and a warning would be two twelve-hour nags forever on the
-      # channel whose ntfy budget the heartbeat already spends (#407). Until
+      # default channel. (It used to add "whose ntfy budget the heartbeat
+      # already spends (#407)"; the heartbeat left ntfy.sh on 2026-09-09.) Until
       # it resolves, the trackpad inspection in replace-the-laptop-cell.md §3
       # is the only hot-cell detection there is.
       #
