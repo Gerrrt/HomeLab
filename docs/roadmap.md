@@ -136,8 +136,7 @@ has been rehearsed on it.
   [#131](https://github.com/Gerrrt/HomeLab/issues/131) Vaultwarden;
   [#132](https://github.com/Gerrrt/HomeLab/issues/132) Immich;
   [#133](https://github.com/Gerrrt/HomeLab/issues/133) Paperless-ngx;
-  [#134](https://github.com/Gerrrt/HomeLab/issues/134) Home Assistant, whose
-  `99 → 20` rule also waits on a Kea reservation for the Hue bridge
+  [#134](https://github.com/Gerrrt/HomeLab/issues/134) Home Assistant
   ([ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md));
   [#136](https://github.com/Gerrrt/HomeLab/issues/136) ntfy, which decides
   whether the in-house topic replaces the external ones or sits beside them;
