@@ -1,0 +1,54 @@
+---
+# The home lab rack's power draw, for the Energy dashboard's "Individual
+# devices".
+#
+# The UPS (`mjolnir`) already measures the rack, and Prometheus on
+# `prometheus` already scrapes it over SNMP. So this reads Prometheus rather
+# than the UPS, and needs no SNMP credential, no firewall rule (both hosts
+# are on Winterfell) and no second poller hammering the card.
+#
+# Why load x rating, not a watts reading: the card's `upsOutputPower`
+# answers 0. `upsOutputPercentLoad` (23% on 2026-09-28) times
+# `upsConfigOutputPower` (1200 W) is the figure the card itself would use,
+# about 250-275 W for the rack. `Saruman`'s iLO reports its own share
+# separately (cpqHePowerMeterCurrReading, 117 W that day). It is a subset of
+# this, so adding both would double-count.
+#
+# Prometheus is plain HTTP on 9090 inside Winterfell, which is what the
+# estate's own scrapes use. The query carries no credential and returns one
+# number.
+
+rest:
+  - resource: http://10.0.99.20:9090/api/v1/query
+    params:
+      query: >-
+        max(upsOutputPercentLoad{device="mjolnir"}) / 100
+        * max(upsConfigOutputPower{device="mjolnir"})
+    scan_interval: 60
+    timeout: 10
+    sensor:
+      - name: Home lab rack power
+        unique_id: homelab_rack_power
+        # Unavailable, not zero, when Prometheus has no answer. A zero would
+        # be integrated into the energy total as a real reading.
+        availability: >-
+          {{ value_json is defined and value_json.status == 'success'
+             and value_json.data.result | length > 0 }}
+        value_template: "{{ value_json.data.result[0].value[1] | float | round(0) }}"
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        icon: mdi:server
+
+sensor:
+  # Watts over time, into kWh: the unit the Energy dashboard accepts. `left`
+  # holds each reading until the next one, which is what a once-a-minute
+  # poll of a slowly changing load means.
+  - platform: integration
+    source: sensor.home_lab_rack_power
+    name: Home lab rack energy
+    unique_id: homelab_rack_energy
+    unit_prefix: k
+    unit_time: h
+    method: left
+    round: 3
