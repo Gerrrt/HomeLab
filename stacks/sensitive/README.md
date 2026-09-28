@@ -249,9 +249,11 @@ time and lives in Caddy's `/data` volume, never on disk here.
   bind fails on it. The forwarder edit on `morpheus` that makes any of this
   matter is [`forward-dns-to-adguard.md`](../../docs/runbooks/forward-dns-to-adguard.md),
   and it is the whole client-side change.
-- **Nothing converges this stack.** The `homelab-*` timers are the estate's;
-  `make validate` notes their absence here as a skip, not a failure. This stack
-  is deployed by hand, from a checkout on `trinity`.
+- **Nothing converges this stack.** It is deployed by hand, from a checkout
+  on `trinity` ([#533] is the change that would converge it). The one timer
+  here is the nightly backup, `homelab-backup-sensitive`, which
+  `make install-timers PROFILE=sensitive` installs. `make validate` on
+  `trinity` fails until it is installed.
 - **Memory limits are set from day one, and now a CPU ceiling too.** [#129]'s
   ask, and the one place this file departs from the lab's reasoning — a proxy
   and a CA have working sets a limit can be stated for without a machine to
@@ -342,10 +344,9 @@ a `manifest.json` that a fresh install of the *same* version re-imports.
 Upstream is explicit that an export does not cross versions, so it is the
 form to send off-estate rather than the form to rely on across an upgrade.
 
-Two things this does **not** do, stated rather than implied. **Nothing
-schedules it**: the `homelab-backup-volumes` unit carries
-`STACK=observability` and the timers are the estate's; a timer for this stack
-arrives with the host under [#404]. And **nothing here is the off-estate copy**
+One thing this does **not** do, stated rather than implied. It is
+scheduled: `homelab-backup-sensitive` runs it nightly on `trinity` and copies
+each set to `oracle` ([#404] step 9). But **nothing here is the off-estate copy**
 [ADR-0023] requires before the first real document — encrypted, keyed to a
 second holder, with visible freshness. That is the precondition on the data
 arriving, not on the container starting, and it is still open.
@@ -433,12 +434,15 @@ first key in `.sops.yaml` whichever rule it belonged to, which would have
 encrypted the estate's weekly backup to `trinity`'s key the day the placeholder
 was filled — the two defects [#428] describes.
 
-What this does **not** do, and [#404] step 9 still owes: nothing schedules
-`make backup STACK=sensitive` on `trinity` — the `homelab-*` timers are the
-estate's — and nothing copies a set off the host, let alone off the estate,
-which is the copy [ADR-0023] requires before Immich or Paperless-ngx hold a
-real file. A set in `backups/volumes/` on `trinity` protects against a bad
-upgrade and a mistyped command, and against nothing that happens to `trinity`.
+**When it runs, and where the sets go.** `homelab-backup-sensitive` runs it
+every night at 04:30 ([#404] step 9). Each set is copied to `oracle` and
+checked there by sha256 ([#535]). The run's outcome is the `backup-sensitive`
+job in the estate's `ScheduledJob*` alerts, with a two-day threshold. The
+unit and its installer are in
+[`schedule-maintenance.md`](../../docs/runbooks/schedule-maintenance.md#on-trinity-the-sensitive-profile).
+What this does **not** give is a copy off the estate. `oracle` is in the same
+room and on the same power, and [ADR-0023] requires that copy before Immich or
+Paperless-ngx hold a real file. It is step 10's.
 
 ## What backs Immich up, and what does not yet
 
@@ -549,3 +553,5 @@ it matters:
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
 [#428]: https://github.com/Gerrrt/HomeLab/issues/428
 [#455]: https://github.com/Gerrrt/HomeLab/issues/455
+[#533]: https://github.com/Gerrrt/HomeLab/issues/533
+[#535]: https://github.com/Gerrrt/HomeLab/issues/535

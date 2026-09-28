@@ -112,7 +112,6 @@ has been rehearsed on it.
   host.** **Built and deployed 2026-09-28**
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
   → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
-  - the weekly backup timer (step 9);
   - the DNS failure test, which proves `AdGuardNotAnswering` pages (and
     closes [#135](https://github.com/Gerrrt/HomeLab/issues/135));
   - the step 10 gate before the first real item: the Immich restore

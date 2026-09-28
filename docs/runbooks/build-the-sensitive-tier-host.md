@@ -558,11 +558,27 @@ keeps answering the house's DNS while the rest of the stack is stopped. On
 [`restore-the-sensitive-tier.md`](restore-the-sensitive-tier.md) §0 is the
 rest of what must be true.
 
-**A weekly timer for it is its own change under #404**, because its outcome
-has to reach the estate's staleness alerts under a job name of its own. The
-estate's `homelab-backup-volumes` unit is the monitoring host's, and its paths
-are `robo`'s. Until the timer is installed, a set exists only when someone
-runs the line above. Converging the host is
+Then put it on its timer. This is the sensitive profile of `install-timers.sh`,
+a nightly run at 04:30 whose outcome reaches the estate's staleness alerts as
+`backup-sensitive`
+([`schedule-maintenance.md`](schedule-maintenance.md#on-trinity-the-sensitive-profile)).
+From this checkout:
+
+```bash
+make install-timers PROFILE=sensitive
+systemctl list-timers 'homelab-*'
+```
+
+The installer does not run it, because a run stops the tier. Run it once while
+you watch, then read the outcome:
+
+```bash
+sudo systemctl start homelab-backup-sensitive.service
+cat /var/lib/node_exporter/textfile_collector/backup-sensitive.prom
+```
+
+`homelab_job_last_exit_code` must be `0`, and `ARGS=--list` must show the new
+set on both sides. Converging the host is
 [#533](https://github.com/Gerrrt/HomeLab/issues/533), after this.
 
 ## 13. Before the first real photo, document or vault item

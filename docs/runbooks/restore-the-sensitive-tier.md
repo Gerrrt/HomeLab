@@ -71,12 +71,17 @@ and the technical second's once it joins that rule — and the manifest records
 which. The stack is stopped for the length of the copy, which is seconds here:
 a copy of an open SQLite database is a file that looks like a backup.
 
-**Nothing schedules this, and nothing copies it anywhere.** The `homelab-*`
-timers belong to the monitoring host. Until [#404](https://github.com/Gerrrt/HomeLab/issues/404)
-step 5 lands, a set exists when someone runs the command, and it exists on the
-machine it protects. That is the state [#92](https://github.com/Gerrrt/HomeLab/issues/92)
-complained about for the firewall export, one host over, and it is the reason
-the vault holds nothing real yet.
+**A timer takes a set every night at 04:30.** This is
+`homelab-backup-sensitive`, [#404](https://github.com/Gerrrt/HomeLab/issues/404)
+step 9, installed with `make install-timers PROFILE=sensitive`
+([`schedule-maintenance.md`](schedule-maintenance.md#on-trinity-the-sensitive-profile)).
+Its outcome is `backup-sensitive` in the estate's `ScheduledJob*` alerts, so a
+night that fails, or a timer that stops, is a finding within two days. Every
+set is on `trinity` and on `oracle`. Both are in the same room and on the same
+power, so neither is the off-estate copy that
+[ADR-0023](../adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
+requires. That copy is step 10, and it is one reason the vault holds nothing
+real yet.
 
 **The key that opens it is not the only one.** A set encrypted to `trinity`'s
 key alone dies with `trinity`'s disk. [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
