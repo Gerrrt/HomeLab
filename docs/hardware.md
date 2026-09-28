@@ -146,8 +146,12 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it. It ships with the onboard NIC
   only; the I226 card the restore depends on was a separate purchase, made
-  2026-09-11 and the entry below — fitted 2026-09-25 for the rehearsal and
-  **taken out again afterwards; it is in the drawer, not in this box**.
+  2026-09-11 and the entry below — fitted 2026-09-25 for the rehearsal, and
+  **still fitted**. #686 recorded it as taken out afterwards and back in the
+  drawer. On 2026-09-28 the build found it in the second M.2 slot, as
+  `enp1s0` under Ubuntu's `igc` (an I226-V, `8086:125c` rev 04), and it stays
+  there, unconfigured
+  ([`build-the-sensitive-tier-host.md`](runbooks/build-the-sensitive-tier-host.md)).
   **The firewall restore was rehearsed on it on 2026-09-27** and restored
   with no interface-assignment prompt
   ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md#rehearse-the-restore-on-the-spare)).
@@ -198,9 +202,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
     arrived in.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
   **in hand since 2026-09-25**, fitted in `trinity` for #92's rehearsal, where
-  it came up as `igc0`, and **taken out afterwards: it is in the drawer**,
-  and goes back into `trinity`'s second M.2 slot on the day `trinity`
-  becomes the firewall. The
+  it came up as `igc0`, and **still in that slot**: recorded on 2026-09-27
+  as back in the drawer, and found fitted by #404's build on 2026-09-28.
+  `trinity` leaves it unconfigured (`enp1s0`), so the day `trinity` becomes
+  the firewall starts with the card already where the restore needs it. The
   second port on the ProDesk Micro above, matching the card
   in `morpheus` so a pfSense restore onto the spare brings the LAN up as
   `igc0` and asks nothing

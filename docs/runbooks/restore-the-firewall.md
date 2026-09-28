@@ -206,9 +206,13 @@ the same day (§5). **This section was rehearsed on that box on 2026-09-27**
 [below](#rehearse-the-restore-on-the-spare)), and the steps are the ones that
 worked, not the ones that were expected to.
 
-0. **Fit the I226 card.** Since the rehearsal it is kept in the drawer, not
-   in `trinity` ([`hardware.md`](../hardware.md)); it goes in the G4's second
-   M.2 slot. Without it there is no `igc0`, and the restore stops to ask.
+0. **Check the I226 card is in.** It stays fitted in `trinity`'s second M.2
+   slot, unconfigured by Ubuntu ([`hardware.md`](../hardware.md)). If it has
+   been taken out since, fit it: without it there is no `igc0`, and the
+   restore stops to ask. **`trinity`'s firmware now has an administrator
+   password**, in the operator's password manager
+   ([ADR-0054](../adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md)),
+   and F10 asks for it before any of the settings below.
    **Then the firmware, before the stick will boot.** Two things on the G4 stop the
    installer, and both were found the hard way:
    - **Secure Boot.** The stick is refused with *"Selected boot image did not
