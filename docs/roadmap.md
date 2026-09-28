@@ -265,10 +265,6 @@ Gated on the domain, on a household observation, or on something to publish.
   only if there is ever something to publish; the day it exists it replaces
   the dynamic DNS record
   ([ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)).
-- **[#139](https://github.com/Gerrrt/HomeLab/issues/139) Plex** — only if a
-  client on CasaBonita turns out to need it
-  ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)),
-  a test nobody has run.
 
 ## Tier extras
 
@@ -334,10 +330,6 @@ list, and each names what would put it there:
   short. Reaching 32 GB is above, in the purchase itself.
 - A Coral TPU and RTSP cameras: declined with Frigate
   ([ADR-0032](adr/0032-decline-frigate-while-the-cameras-are-ring.md)).
-- Plex Pass: [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
-  builds Jellyfin alone and adds Plex only if a client on CasaBonita turns out
-  to need it. Its headline feature is hardware transcoding, and the TS150's
-  Quick Sync already gives Jellyfin that for nothing.
 - A reachable address for the WireGuard endpoint, in either of its paid
   forms: [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
   answers it with a free dynamic DNS record instead. A **static address** is
@@ -424,6 +416,18 @@ them name the condition that would change the answer.
   cameras, an accelerator, and a separate row in ADR-0008's table for the
   continuous rule** — all three, each decided on its own
   ([#149](https://github.com/Gerrrt/HomeLab/issues/149)).
+- **Plex** — the media server the household already knows, with polished
+  clients, and ADR-0008 listed it beside Jellyfin for that reason. It is also
+  the one proprietary service on the shortlist: clients authenticate through
+  `plex.tv` even on a local network, nobody outside the vendor can read the
+  image that digest pinning fixes, and features have moved behind a
+  subscription before. ADR-0016 deferred it against one test, whether any
+  screen on CasaBonita lacks a working Jellyfin client, and the test was run by
+  2026-09-28: the LG OLED, a console, and the phones and tablets all play from
+  Jellyfin, and the Xumo box is not used for the library. Declined by
+  [ADR-0056](adr/0056-decline-plex-because-every-screen-on-casabonita-plays-jellyfin.md). **Reopened by a screen the household uses for
+  library media that has no working Jellyfin client**, with Remote Access off
+  even then ([#139](https://github.com/Gerrrt/HomeLab/issues/139)).
 - **Proxmox clustering** — joining `Saruman` and `ifrit` into one cluster once
   [#421](https://github.com/Gerrrt/HomeLab/issues/421) makes them two Proxmox
   hosts on VLAN 30: one pane of glass, guest migration, shared storage. The

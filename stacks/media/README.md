@@ -37,12 +37,13 @@ because of the section below.
 
 Jellyfin is the one video service, and that is a decision rather than a
 starting point. [ADR-0016]
-builds **Jellyfin alone** and adds Plex only if a screen on 40 turns out to
-have no working Jellyfin client — the LG OLED, which is the primary screen,
-has one. Plex authenticates its clients through `plex.tv` even on a local
-network, which would make a household service that works today depend on a
-third party staying up and keeping its terms. That is a deferral against a
-test nobody has run, not a rejection. Audiobookshelf ([#140]) joined it on
+built **Jellyfin alone** and deferred Plex against one test, whether any screen
+on 40 has no working Jellyfin client. The test was run by 2026-09-28: the LG
+OLED, a console, and the phones and tablets all play from Jellyfin, and the
+Xumo box is not used for the library. [ADR-0056] declines Plex. It
+authenticates its clients through `plex.tv` even on a local network, which
+would make a household service that works today depend on a third party
+staying up and keeping its terms. Audiobookshelf ([#140]) joined Jellyfin on
 [ADR-0008]'s test — an audiobook library is the same kind of data in the same
 place — for the one thing Jellyfin does not do: progress that follows a
 listener from a phone to a car to a speaker. **Audiobooks only**: the library
@@ -345,6 +346,7 @@ reopen condition is closed; the stack stays here.
 [ADR-0047]: ../../docs/adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md
 [ADR-0050]: ../../docs/adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md
 [ADR-0051]: ../../docs/adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md
+[ADR-0056]: ../../docs/adr/0056-decline-plex-because-every-screen-on-casabonita-plays-jellyfin.md
 [`build-the-nas.md`]: ../../docs/runbooks/build-the-nas.md
 [#138]: https://github.com/Gerrrt/HomeLab/issues/138
 [#140]: https://github.com/Gerrrt/HomeLab/issues/140

@@ -1541,9 +1541,6 @@ day's file carries the new version, and `check-versions` fails until
   sends the newest of each beyond it, on the second age recipient's medium,
   by [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md); what is left is
   the first visit, which is [#573](https://github.com/Gerrrt/HomeLab/issues/573)'s last box.
-- **Plex**, deferred by ADR-0016 against a test nobody has run: whether any
-  screen on 40 lacks a working Jellyfin client.
-  [#139](https://github.com/Gerrrt/HomeLab/issues/139) carries the test.
 - **SMART is decided and not yet running** — §6.4 waits on the console; and
   **patch state is decided and will not run**, by
   [ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),
