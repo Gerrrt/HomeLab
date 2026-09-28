@@ -48,12 +48,13 @@ The three answers weighed:
 photo disk unlocks from a keyfile on the encrypted root. Each disk also has a
 recovery passphrase, held in the operator's password manager.**
 
-- **The root.** Ubuntu Server 24.04's installer does LVM on LUKS, with a
-  passphrase. After the first boot, Clevis binds a `tpm2` pin to the same LUKS
-  device with `pcr_ids` `7`, and `clevis-initramfs` unlocks it at boot. The
-  installer's passphrase stays in its keyslot as the recovery key. It is Clevis
-  rather than `systemd-cryptenroll` because 24.04 Server boots through
-  initramfs-tools, which ignores `tpm2-device=` in `crypttab`. The runbook proves it
+- **The root.** Ubuntu Server 26.04's installer does LVM on LUKS, with a
+  passphrase. After the first boot, `systemd-cryptenroll` adds a `tpm2`
+  keyslot bound to PCR 7, and `crypttab`'s `tpm2-device=auto` has the
+  initramfs unlock with it. The installer's passphrase stays in its keyslot
+  as the recovery key. This works because 26.04 builds its initramfs with
+  dracut, which carries `systemd-cryptsetup`. 24.04's initramfs-tools ignores
+  `tpm2-device=`, and on 24.04 this would have had to be Clevis. The runbook proves it
   with a reboot nobody types at, before anything else is built on the host.
 - **PCR 7 alone.** PCR 7 measures the Secure Boot state and its keys. So the key
   unseals only while Secure Boot is on, with the same databases. Adding the
@@ -87,7 +88,7 @@ recovery passphrase, held in the operator's password manager.**
 - **A firmware update, a Secure Boot key change or a TPM clear stops the
   unattended boot.** The box then waits at the passphrase prompt. That is the
   designed failure, and it is the passphrase option's normal state, which
-  ADR-0023 accepts. After typing it, `clevis luks regen` re-seals to the new
+  ADR-0023 accepts. After typing it, re-enrolling the `tpm2` slot seals to the new
   PCR 7.
 - **Swapping the box for the firewall wipes all of this**
   ([ADR-0034](0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).

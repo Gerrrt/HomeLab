@@ -7,7 +7,7 @@ second sitting
 **You will need:**
 
 - A monitor and keyboard on the box for §§1–3.
-- An Ubuntu Server 24.04 LTS installer stick.
+- An Ubuntu Server 26.04 LTS installer stick.
 - The 2 TB USB drive.
 - A shell on `prometheus` with this repository's main checkout.
 - The pfSense UI from Hicks.
@@ -31,10 +31,11 @@ what §9 below proves on the real host.
 
 > [!IMPORTANT]
 > **The box arrives here from #92's rehearsal, not from the seller.** pfSense
-> is on it, Windows is gone, Secure Boot and legacy boot are both off, and the
-> I226 card is **in the drawer**, not in the second M.2 slot
-> ([`hardware.md`](../hardware.md)). Leave the card out. It goes back in on
-> the day `trinity` becomes the firewall
+> is on it, Windows is gone, and Secure Boot and legacy boot are both off.
+> **The I226 card stays fitted** in the second M.2 slot
+> ([`hardware.md`](../hardware.md)). Ubuntu sees it as `enp1s0`, and nothing
+> here configures it: it is there so that the day `trinity` becomes the
+> firewall is a straight-through restore
 > ([ADR-0034](../adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
 > [`restore-the-firewall.md`](restore-the-firewall.md) §3). Everything below
 > overwrites the rehearsal.
@@ -43,9 +44,9 @@ what §9 below proves on the real host.
 
 | | | |
 | --- | --- | --- |
-| OS | Ubuntu Server 24.04 LTS | The same as `prometheus` and `oracle`; `make check-versions` knows it |
+| OS | Ubuntu Server 26.04 LTS | Newer than `prometheus` and `oracle` (24.04), and supported two years longer. It builds its initramfs with dracut, which is what lets §4 use `systemd-cryptenroll`. Docker publishes packages for it (`resolute`) |
 | Address | `10.0.99.40/24`, static, plus a Kea reservation | Chosen on 2026-09-09 and already in the stack's `.env.example` as `DNS_BIND_ADDR` |
-| Root disk | LUKS2 under LVM; the key sealed to the TPM against PCR 7 by Clevis; the installer's passphrase kept as recovery | [ADR-0054](../adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md) |
+| Root disk | LUKS2 under LVM; the key enrolled in the TPM against PCR 7 by `systemd-cryptenroll`; the installer's passphrase kept as recovery | [ADR-0054](../adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md) |
 | Photo disk | LUKS2 on the 2 TB USB drive, opened at boot by a keyfile on the root, plus a recovery passphrase | ADR-0054 |
 | Immich's library | `/srv/immich`, the stack's `IMMICH_UPLOAD_LOCATION` default | [#132](https://github.com/Gerrrt/HomeLab/issues/132) |
 | Secrets | `secrets/sensitive.sops.yaml`, encrypted to `trinity`'s own age key | The `sensitive` rule in `.sops.yaml` |
@@ -86,7 +87,10 @@ and that one is formatted in §5, not here.
   run as `${RENDER_UID}`, the uid that runs `make up`. Nothing requires
   exactly 1000, but §5 chowns the library disk to whoever this is, so do not
   create a second login later and deploy from that one.
-- **Static addressing on the onboard NIC** (`eno1`, the I219-LM):
+- **Static addressing on the onboard NIC** (`eno1`, the I219-LM). The
+  installer defaults to DHCP, and on 2026-09-28 that default was kept by
+  accident: Kea handed out `10.0.99.100`, the first address in the pool.
+  Edit `eno1`, set IPv4 to *Manual*, and fill in:
 
   | | |
   | --- | --- |
@@ -96,7 +100,9 @@ and that one is formatted in §5, not here.
   | Name servers | `10.0.99.1` — Unbound on the gateway ([ADR-0010](../adr/0010-keep-the-resolver-on-the-gateway.md)) |
   | Search domains | `matrix.elysium` |
 
-  Leave the wireless interface unconfigured.
+  Leave the wireless interface (`wlp0s20f3`) and the I226 (`enp1s0`)
+  unconfigured. If the box came up on DHCP anyway, *If something goes wrong*
+  has the fix.
 - **Storage: custom is not needed.** Choose *Use an entire disk* on the
   512 GB Timetec NVMe, tick **Set up this disk as an LVM group** and **Encrypt
   the LVM group with LUKS**, and give it a passphrase generated in the
@@ -108,7 +114,8 @@ and that one is formatted in §5, not here.
   volume group unallocated, and `build-the-lab-guest.md` §2 records what that
   cost last time.
 - **Install OpenSSH server.** Import no keys here; §3 does it. Skip every
-  snap, Docker included.
+  snap the installer offers, Docker included. 26.04 installs `snapd` and two
+  base snaps regardless, which is harmless.
 
 When it asks you to remove the stick, go back into **F10**: **Advanced →
 Boot Options**, untick USB storage boot, and leave the NVMe first. Rack the
@@ -164,8 +171,7 @@ One block, pasted on `trinity`. It asks for your `sudo` password once:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl git make age \
-  clevis clevis-luks clevis-tpm2 clevis-initramfs
+sudo apt-get install -y ca-certificates curl git make age tpm2-tools
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
   | sudo tee /etc/apt/keyrings/docker.asc > /dev/null
@@ -183,19 +189,35 @@ sudo apt-get install -y /tmp/sops.deb && rm /tmp/sops.deb
 `sops` is `3.9.4` because that is what `prometheus` runs (`sops --version`
 there). Take whatever it says on the day.
 
-Then the seal. Find the LUKS partition, rather than assuming `p3`:
+Then the seal. Find the LUKS partition, rather than assuming `p3`, and
+enrol the TPM into a keyslot of its own:
 
 ```bash
 LUKS=$(sudo blkid -t TYPE=crypto_LUKS -o device | grep nvme)
 echo "$LUKS"
-sudo clevis luks bind -d "$LUKS" tpm2 '{"pcr_bank":"sha256","pcr_ids":"7"}'
+sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 "$LUKS"
+sudo sed -i '/^dm_crypt-0 /s/ luks$/ luks,tpm2-device=auto/' /etc/crypttab
+echo 'add_dracutmodules+=" tpm2-tss "' | sudo tee /etc/dracut.conf.d/tpm2.conf
 sudo update-initramfs -u -k all
-sudo clevis luks list -d "$LUKS"
 ```
 
-`bind` asks for the LUKS passphrase. That is the only time it is typed
-outside a recovery. `list` should print one line, `1: tpm2 '{"hash":"sha256","key":"ecc","pcr_bank":"sha256","pcr_ids":"7"}'`
-or close to it.
+`systemd-cryptenroll` asks for the LUKS passphrase. That is the only time it
+is typed outside a recovery. On 26.04, `update-initramfs` is dracut's
+wrapper, not initramfs-tools. The `tpm2-tss` line makes sure the TPM
+libraries go into the image, rather than relying on dracut to notice them.
+Then check all three halves:
+
+```bash
+sudo systemd-cryptenroll "$LUKS"
+cat /etc/crypttab
+sudo lsinitrd | grep -c -E 'tss2|systemd-cryptsetup'
+```
+
+1. The first lists two slots, `password` and `tpm2`.
+2. The second ends `luks,tpm2-device=auto`. The installer names the mapping
+   `dm_crypt-0`; if yours differs, the `sed` matched nothing, so edit that
+   line to match.
+3. The third prints a number above zero.
 
 **Now prove it. This is the step the whole ADR rests on:**
 
@@ -539,8 +561,9 @@ on the containers, and each is written in a document that already exists:
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| The box waits at the LUKS prompt after §4's reboot | `clevis-initramfs` did not make it into the initramfs, or PCR 7 changed between `bind` and boot | Type the passphrase. Check that `lsinitramfs /boot/initrd.img-$(uname -r) \| grep clevis` finds something; if not, `sudo update-initramfs -u -k all`. If it does, `sudo clevis luks regen -d "$LUKS" -s 1` re-seals to the PCR 7 you booted with |
-| It asks for the passphrase after a BIOS update or a Secure Boot change | PCR 7 moved — the designed failure (ADR-0054) | Type it, then `clevis luks regen` as above |
+| The box waits at the LUKS prompt after §4's reboot | `crypttab` lacks `tpm2-device=auto`, the initramfs lacks the TPM libraries, or PCR 7 changed between enrolment and boot | Type the passphrase. Re-run §4's three checks. If all three pass, re-enrol: `sudo systemd-cryptenroll --wipe-slot=tpm2 --tpm2-device=auto --tpm2-pcrs=7 "$LUKS"` |
+| It asks for the passphrase after a BIOS update or a Secure Boot change | PCR 7 moved — the designed failure (ADR-0054) | Type it, then re-enrol as above |
+| The box came up on `10.0.99.1xx`, not `.40` | The installer's network screen was left on DHCP | At the console: write `/etc/netplan/50-cloud-init.yaml` with `eno1` static as in §2, add `network: {config: disabled}` to `/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`, **delete** `/etc/netplan/00-installer-config.yaml` (it still says DHCP, and netplan merges both), then `sudo netplan try` and press Enter |
 | `mokutil --sb-state` says disabled | §1's Secure Boot setting did not survive, or HP's code was not typed | Fix it in F10, then re-bind. A seal made with Secure Boot off unseals with it off |
 | `/srv/immich` is empty after a reboot and `df` shows the root | The drive was unplugged or the `crypttab` line is wrong; `chattr` held | `systemctl status systemd-cryptsetup@immich`, fix, `sudo mount /srv/immich`. Immich refuses to start meanwhile, which is the point |
 | `make render` stops with *do NOT run `make certs ARGS=--ca` here* | `certificates/tier-ca.pem` is missing | §7 is not done |
