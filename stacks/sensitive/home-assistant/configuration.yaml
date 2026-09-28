@@ -32,6 +32,17 @@ http:
   # fixed address on the `sensitive` network for exactly this line. One
   # address rather than the network's subnet, so a sibling container cannot
   # forge X-Forwarded-For and have Home Assistant believe it.
+  #
+  # Since 2026.9 this block is read ONCE, on the first start against an empty
+  # volume. After that, .storage/http in the volume is the config that runs.
+  # Home Assistant imports it as a *pending* config and reverts to built-in
+  # defaults, with no proxy trusted, unless an admin confirms it within five
+  # minutes. After that it ignores this block for good, and it stops reading
+  # it entirely in 2027.2. On trinity's first start (2026-09-28) nobody could
+  # confirm it in time, so every request through Caddy got a 400. The
+  # README's Home Assistant bullets hold the fix, and the fix is the same on
+  # any fresh or restored-empty volume. This block stays so that a fresh
+  # volume imports these values rather than the defaults.
   use_x_forwarded_for: true
   trusted_proxies:
     - 172.28.99.2

@@ -195,10 +195,39 @@ time and lives in Caddy's `/data` volume, never on disk here.
   is one Home Assistant writes rather than one this repository ships. The
   packages README says the rest. Integrations and devices are still added
   through the UI: a config flow has no YAML form.
+- **Home Assistant's `http:` block is a one-time import, and it has to be
+  confirmed.** Since 2026.9 the YAML is migrated into `.storage/http` on the
+  first start against an empty volume, as a *pending* config. Home Assistant
+  reverts it to defaults, which trust no proxy, unless an admin promotes it
+  within five minutes, and never reads the YAML again. The symptom is
+  `400: Bad Request` on `homeassistant.matrix.elysium` and *"your HTTP
+  integration is not set-up for reverse proxies"* in its log. It hit
+  `trinity`'s first start on 2026-09-28. The fix is to do what the promote
+  call does, with the container stopped, using its own pinned image:
+
+  ```bash
+  docker stop sensitive-home-assistant
+  docker run --rm --network none -v sensitive_home-assistant-config:/config \
+    --entrypoint python3 "$(COMPOSE_FILE=stacks/sensitive/compose.yaml ./scripts/image-for.sh home-assistant)" -c '
+  import json, shutil
+  p = "/config/.storage/http"; shutil.copy2(p, p + ".bak")
+  d = json.load(open(p)); s = d["data"]; c = s["pending"]
+  assert c and c["trusted_proxies"] == ["172.28.99.2/32"], c
+  c["error"] = c["error_message"] = None
+  s["stable"], s["pending"] = c, None
+  json.dump(d, open(p, "w"), indent=2)'
+  docker start sensitive-home-assistant
+  ```
+
+  The `assert` refuses anything but the config this repository wrote. A
+  restore of `home-assistant-config` brings `.storage/http` back with it and
+  needs none of this.
 - **Caddy has a fixed address, `172.28.99.2`, for one reader.** Home
   Assistant's `trusted_proxies` names the proxy it will believe
   `X-Forwarded-For` from, and a Docker-assigned address is not a name. The
-  network's subnet is fixed for that one line and nothing else.
+  network's subnet is fixed for that one line and nothing else. Its
+  `ip_range` keeps Docker's own assignments in `.128` and up, because Caddy
+  starts last and on 2026-09-28 found `.2` already taken by Vaultwarden.
 - **AdGuard's configuration is the tracked file, every time.** `compose.yaml`
   copies `adguard/AdGuardHome.yaml` into a tmpfs on each start, with the admin
   hash substituted from `ADGUARD_ADMIN_PASSWORD_HASH`. A blocklist enabled in
@@ -385,11 +414,13 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the eleven volumes it archives has a
+volume it cannot verify, so each of the ten volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
 pinned image, beside the entries [#133] read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
-uid is a constant. The twelfth, `immich-model-cache`, is skipped by name: a
+uid is a constant. Two are skipped by name. `adguard-work` is skipped because
+archiving it would stop the house's only DNS forwarder, and nothing in it is
+worth restoring. `immich-model-cache` is skipped because a
 downloadable cache is not data, and a fresh host whose models have not been
 fetched yet would otherwise fail the whole run on an empty archive. Both
 scripts encrypt to **every recipient of

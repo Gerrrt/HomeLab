@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the twelve Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — eleven of which the backup archives
+**Target:** the twelve Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — ten of which the backup archives
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -26,7 +26,7 @@ most are rebuildable or re-fetched from somewhere else and five are not:
 | `step-ca-data` | The intermediate CA's tree | Re-minted on the monitoring host from the lab CA's key — [#404](https://github.com/Gerrrt/HomeLab/issues/404)'s procedure. Costs a runbook step, not data |
 | `caddy-data` | Caddy's storage: `instance.uuid`, the lock directory, later the ACME state | Recreated on the next start. Nothing here is worth a restore until step-ca issues leaves into it |
 | `caddy-config` | `autosave.json`, Caddy's copy of its last loaded config | Recreated on the next start from the `Caddyfile` |
-| `adguard-work` | AdGuard's blocklists, query log, statistics and UI sessions | Re-downloaded and re-accumulated. The query log is the household's browsing history, which is a reason to protect the archive, not to restore it |
+| `adguard-work` | AdGuard's blocklists, query log, statistics and UI sessions | Re-downloaded and re-accumulated. **Not archived at all since 2026-09-28**: archiving it meant stopping AdGuard, which since that day is the house's only DNS forwarder, and the query log is the household's browsing history. The settings are `adguard/AdGuardHome.yaml`, in git |
 
 So this runbook is mostly about those five, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
 said why it had to exist before that volume held anything: *"a password vault
@@ -300,10 +300,16 @@ restored volume by hand.
   not. The quiesced archive carries all three files, so the restore is
   consistent, and the first start of the restored service checkpoints the
   journal into the main file. §4 step 2 reads the trio for that reason.
-- **The 512-byte floor is real.** The first step-ca stand-in was a 20-byte
-  file in an empty tree, and the backup refused it as *implausibly small*. An
-  artefact of the stand-in — a real tree is kilobytes — but it is what the
-  floor is for.
+- **The byte floor refused a stand-in, and later a real volume.** The first
+  step-ca stand-in was a 20-byte file in an empty tree, and the backup refused
+  it as *implausibly small* under the old 512-byte floor. On `trinity`'s first
+  real backup (2026-09-28) the same floor refused `paperless-media`: 368 bytes,
+  holding the real, still-empty `./documents` tree. A byte count cannot tell
+  those two cases apart, because each age recipient adds about 100 bytes, so
+  the floor is now 256. It catches a truncated file and nothing else, and
+  `backup-volumes.sh` gives the measurements. Empty and wrong volumes are
+  refused by the entry count and the sentinel, which is what they were always
+  for.
 - **Caddy could not read its key.** `gen-certs.sh` writes the leaf's key `0640`,
   and a root that has dropped `CAP_DAC_OVERRIDE` is bound by that. Found by
   starting it; fixed with the `group_add` the estate's Grafana already has.

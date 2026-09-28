@@ -361,6 +361,14 @@ for entry in "${SERVICES[@]}"; do
   reload_one "${svc}" "${entry##*:}"
 done
 
-restart_alloy
+# Alloy is not in SERVICES, so the filter above never reached it, and it was
+# restarted unconditionally. Every stack until stacks/sensitive ran one. That
+# stack does not, because trinity's agent is the estate's, deployed by
+# deploy-agent.sh like oracle's. So its first `make up` (2026-09-28) died here,
+# after every container had started. The same rule as above applies: skip it
+# only when the stack does not declare it.
+if [[ -z "${declared}" ]] || grep -qx alloy <<<"${declared}"; then
+  restart_alloy
+fi
 
 printf '\033[0;32mreloaded\033[0m — every service re-read its config from disk\n'
