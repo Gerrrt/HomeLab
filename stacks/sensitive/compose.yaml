@@ -23,8 +23,9 @@
 # is the third, as four services — server, machine learning, Postgres,
 # Valkey — each in Home Assistant's shape, Paperless-ngx (#133) the fourth,
 # as three, and Vaultwarden (#131) the fifth — the one whose volume is the
-# vault, and the reason scripts/backup-volumes.sh learned this stack. ntfy
-# and Homepage (#136, #137) land the way Home Assistant did.
+# vault, and the reason scripts/backup-volumes.sh learned this stack.
+# Homepage (#137) is the sixth, and the household's page of links to the other
+# five. ntfy (#136) lands the way Home Assistant did.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -116,6 +117,7 @@ services:
           - immich.matrix.elysium
           - paperless.matrix.elysium
           - vaultwarden.matrix.elysium
+          - home.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -1077,6 +1079,96 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Homepage — the household's front page (#137)
+  # ---------------------------------------------------------------------------
+  # What exists on this tier and where it lives, at https://home.matrix.elysium
+  # — the entry point for the people who live here, as
+  # docs/runbooks/successor-handover.md is for whoever runs it next. A
+  # directory, not a status page: homepage/settings.yaml says why there are no
+  # status dots, and homepage/services.yaml which tiles read live numbers and
+  # why the rest are links. The three YAML files are the whole configuration,
+  # in the repository and mounted read-only; nothing about the page lives in a
+  # database or a volume, so there is nothing to back up and no sentinel.
+  #
+  # NO DOCKER SOCKET, although upstream's example mounts one for its container
+  # integration. A read-only mount of docker.sock is still the full Docker API
+  # — root on trinity, and every volume on this tier — handed to a page with
+  # no login at all (ADR-0022 re-accepts the SSO deferral for it on exactly
+  # that basis). Container state is what the Alloy agent already reports.
+  #
+  # As the operator, like Paperless: the mounted files are the checkout's,
+  # readable by whoever ran `make up`. With `user:` set the entrypoint's
+  # PUID/PGID branch is never taken — it chowns nothing and execs node as
+  # given — so nothing needs a capability and all are dropped.
+  #
+  # Read-only root, and the two places the image writes, both found by running
+  # the pinned image with exactly these options on trinity (2026-09-28):
+  # /app/config, which does not exist in the image — the entrypoint would
+  # `ln -s /config /app/config` on the root filesystem if it were missing,
+  # and Homepage copies docker.yaml and kubernetes.yaml into it at start —
+  # and Next.js's cache under /app/.next. Both tmpfs; the three config files
+  # are single-file mounts over the first, so `make up` pins their inodes
+  # through check_mounted_config.py like every other one (#355). LOG_TARGETS
+  # keeps logs on stdout, where every other container's are, rather than in a
+  # logs/ directory under the tmpfs. `docker diff` after serving the page and
+  # every widget showed nothing written but those mount points; CapEff 0.
+  #
+  # The widget credentials are two SOPS values handed in as HOMEPAGE_VAR_*,
+  # the prefix Homepage substitutes into services.yaml as {{HOMEPAGE_VAR_…}},
+  # and each is scoped read-only at the service that issued it
+  # (secrets/sensitive.example.yaml has the steps). The widgets call the
+  # tier's public names, which resolve to Caddy on this network through its
+  # aliases; NODE_EXTRA_CA_CERTS is the tier's root, the same file Caddy
+  # mounts, so Node trusts step-ca's leaves. Measured the same day: with
+  # placeholder tokens Immich and Paperless each answered 401 through Caddy —
+  # name, TLS and Host all good — and Prometheus answered from 10.0.99.20:9090,
+  # the /24 this host shares with it.
+  #
+  # HOMEPAGE_ALLOWED_HOSTS is the Host check on Homepage's API; any other Host
+  # gets a 400. Loopback on 3000 is always admitted, which is what the
+  # healthcheck below relies on.
+  #
+  # 256m: 101 MiB and 12 tasks after serving the page and all three widgets.
+  # A ceiling for a leak, not a size. No depends_on, for Vaultwarden's reason.
+  homepage:
+    <<: *service-defaults
+    image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61
+    container_name: sensitive-homepage
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    mem_limit: 256m
+    memswap_limit: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /app/config:size=4m,uid=${RENDER_UID:?run make render},gid=${RENDER_GID:?run make render},mode=0700
+      - /app/.next/cache:size=64m,uid=${RENDER_UID:?run make render},gid=${RENDER_GID:?run make render}
+      - /tmp:size=16m
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: home.matrix.elysium
+      LOG_TARGETS: stdout
+      NODE_EXTRA_CA_CERTS: /etc/homepage/tier-ca.pem
+      HOMEPAGE_VAR_IMMICH_API_KEY: ${HOMEPAGE_IMMICH_API_KEY:?set in secrets/sensitive.sops.yaml}
+      HOMEPAGE_VAR_PAPERLESS_TOKEN: ${HOMEPAGE_PAPERLESS_TOKEN:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - ./homepage/settings.yaml:/app/config/settings.yaml:ro
+      - ./homepage/services.yaml:/app/config/services.yaml:ro
+      - ./homepage/widgets.yaml:/app/config/widgets.yaml:ro
+      - ../../certificates/tier-ca.pem:/etc/homepage/tier-ca.pem:ro
+    expose:
+      - "3000"
+    healthcheck:
+      # The image's own HEALTHCHECK, written out with the port literal where
+      # the image's uses $PORT in a shell form. busybox wget; --probe proves
+      # it is in the image.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 # DIFFERENCE 4: one network, and it is the point. Every later service joins
 # `sensitive` with `expose:` only. Two members have `ports:` — Caddy, and

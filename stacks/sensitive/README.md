@@ -28,12 +28,14 @@ make up STACK=sensitive
 | paperless-db | `postgres` | *internal* (5432) | Paperless-ngx's own database. Metadata about documents; the documents themselves are files under `paperless-media` |
 | paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
+| homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on this tier and where it lives. A directory, not a status page — three tiles read live numbers with read-only tokens, the rest are links ([#137]) |
 
-Twelve services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Thirteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; and three are
-Paperless-ngx, the archive of what the household cannot get back. What is
+Paperless-ngx, the archive of what the household cannot get back; and Homepage
+is the page that tells the household the rest exist. What is
 absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -42,8 +44,8 @@ absent is as deliberate as what is here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No other services yet.** ntfy and Homepage ([#136], [#137]) each arrive as
-  Home Assistant, Immich, Paperless-ngx and Vaultwarden did: a service with
+- **No other services yet.** ntfy ([#136]) arrives as Home Assistant, Immich,
+  Paperless-ngx, Vaultwarden and Homepage did: a service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -65,13 +67,15 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               twelve services, one network, health-gated ordering
+compose.yaml               thirteen services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
 .env.example               non-sensitive tunables — edit this, not .env:
                              the library's mount point, and the ML switch
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
+homepage/                  settings, services and widgets YAML — Homepage's whole
+                           configuration, mounted read-only
 consume/                   untracked: drop a scan here and Paperless-ngx imports
                            and deletes it. Created by render-config.sh
 export/                    untracked: where document_exporter writes. Likewise
@@ -79,7 +83,7 @@ export/                    untracked: where document_exporter writes. Likewise
 
 Secrets are `secrets/sensitive.sops.yaml`, encrypted to this stack's own rule
 in `.sops.yaml` — `trinity`'s key opens this file and nothing else of the
-estate's (`secrets/sensitive.example.yaml` says why, and lists the six keys). The one file under
+estate's (`secrets/sensitive.example.yaml` says why, and lists the nine keys). The one file under
 `certificates/` this stack reads is `tier-ca.pem`, the tier's root
 certificate, written by `make tier-ca ARGS="--install …"` from the bundle
 minted on the monitoring host; every leaf is obtained from step-ca at run
@@ -414,6 +418,40 @@ around it is here.
      device without the operator present. The recommendation there is that the
      family's vault is hosted Bitwarden and this one keeps the operator's.
 
+## Homepage
+
+The household's page, at `https://home.matrix.elysium` — the one address on
+this tier that people who are not the operator are given. [#137] asked that it
+stay honest about what it is, and the three files under `homepage/` are where
+that is kept:
+
+- **A directory, not a status page.** No status dots, no `siteMonitor`, no
+  `ping` (`settings.yaml` says why). Uptime is Grafana's question; a green dot
+  that means "a socket opened" is worse than no dot. Grafana is linked from the
+  page so the two are not strangers.
+- **Three tiles read live numbers, and only with read-only credentials.**
+  Immich (a key with the single permission `server.statistics`), Paperless-ngx
+  (the token of a view-only `homepage` user) and Prometheus (no credential —
+  it has none, [#182] — read from `trinity` across the /24 it shares with
+  `prometheus`). Home Assistant, AdGuard, Vaultwarden and Grafana are links,
+  because none of them can issue a token that reads without also being able to
+  change something. `services.yaml` has the per-service reasoning.
+- **No Docker socket**, although upstream's example mounts one — the full
+  Docker API behind a page with no login ([ADR-0022]). `compose.yaml` says so
+  at the service.
+- **Deploy order.** The two tokens can be minted only once Immich and
+  Paperless are up, and the compose guards refuse `make up` until both are in
+  SOPS — so: mint them (`secrets/sensitive.example.yaml` has the clicks),
+  `make secrets-edit STACK=sensitive`, add the host override for
+  `home.matrix.elysium` on `morpheus`
+  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)),
+  then `make up STACK=sensitive`.
+- **Measured before it was written**, on `trinity`, from the pinned digest with
+  exactly the compose options: healthy, CapEff 0, nothing written outside its
+  tmpfs mounts, 101 MiB and 12 tasks; with placeholder tokens the Immich and
+  Paperless widgets got a 401 from the real services through Caddy and the tier
+  CA, which is the whole path short of a valid token.
+
 ## Backup and restore
 
 ```bash
@@ -553,6 +591,7 @@ it matters:
 [#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[#182]: https://github.com/Gerrrt/HomeLab/issues/182
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
 [#428]: https://github.com/Gerrrt/HomeLab/issues/428
