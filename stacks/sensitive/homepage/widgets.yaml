@@ -1,0 +1,18 @@
+---
+# The strip across the top of the page (#137). Deliberately almost empty.
+#
+# No `resources` widget: inside this container it reports the container's
+# cgroup and the image's root filesystem, not trinity — a number that looks
+# like the host's and is not. The host's real figures are in Grafana.
+#
+# No `search` widget: every keystroke would go to a third-party search engine
+# from a page on the management VLAN. The browser already has a search box.
+#
+# https://gethomepage.dev/configs/info-widgets/
+
+- datetime:
+    text_size: xl
+    format:
+      dateStyle: long
+      timeStyle: short
+      hourCycle: h23

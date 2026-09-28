@@ -41,7 +41,7 @@ updates:
       prometheus-stack:
         patterns: ["prom/*"]
 
-  # The sensitive tier. Its two images share nothing with the other stacks, so
+  # The sensitive tier. Its images share nothing with the other stacks, so
   # no groups; each bump is its own PR, and each is a deploy to a host the
   # operator has to be sitting in front of. Present before the host is, for
   # the reason the lab entry gives: pins rot from the day they are written.

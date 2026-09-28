@@ -116,6 +116,19 @@ vaultwarden.matrix.elysium {
 	}
 }
 
+# Homepage (#137), the household's front page. A short name on purpose: it is
+# the one address on this tier that people who are not the operator are told.
+# Its widgets call the other names above from inside the compose network, and
+# arrive here like any browser.
+home.matrix.elysium {
+	reverse_proxy homepage:3000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

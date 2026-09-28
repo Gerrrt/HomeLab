@@ -141,8 +141,12 @@ has been rehearsed on it.
   ([ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md));
   [#136](https://github.com/Gerrrt/HomeLab/issues/136) ntfy, which decides
   whether the in-house topic replaces the external ones or sits beside them;
-  and [#137](https://github.com/Gerrrt/HomeLab/issues/137) Homepage. The
-  restore path is rehearsed already:
+  and [#137](https://github.com/Gerrrt/HomeLab/issues/137) Homepage, authored
+  on 2026-09-28 against the running tier: `home.matrix.elysium`, a directory
+  and not a status page, with live numbers only where a read-only token can
+  read them (Immich, Paperless-ngx) or none is needed (Prometheus), and its
+  widget path measured through Caddy with placeholder tokens before the real
+  ones exist. The restore path is rehearsed already:
   → [runbook](runbooks/restore-the-sensitive-tier.md).
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
   **The drive is bought** — 2026-09-22, in
