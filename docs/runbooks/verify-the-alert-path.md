@@ -112,7 +112,7 @@ what makes the next one mean anything.
      alertname=AlertPathCutover severity=critical category=availability \
      --annotation=summary='#136 cutover: in-house and ntfy.sh'
    # on Wi-Fi: it arrives on the in-house urgent topic, on both phones,
-   #   readable rather than JSON
+   #   as a title and one line (templates/homelab.yml), not JSON
    # on mobile data, Wi-Fi off: it arrives on the ntfy.sh urgent topic
    amtool alert add --alertmanager.url=http://localhost:9093 \
      alertname=AlertPathCutover severity=critical category=availability \

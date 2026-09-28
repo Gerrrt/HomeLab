@@ -663,6 +663,10 @@ services:
         alertmanager:${NTFY_ALERTMANAGER_TOKEN:?set in secrets/sensitive.sops.yaml}:alertmanager
     volumes:
       - ./ntfy/server.yml:/etc/ntfy/server.yml:ro
+      # ntfy's default template-dir. homelab.yml there is what turns an
+      # Alertmanager payload into a title and a line; a directory mount, so
+      # check_mounted_config.py's single-file inode concern does not apply.
+      - ./ntfy/templates:/etc/ntfy/templates:ro
       - ntfy-data:/var/lib/ntfy
     expose:
       - "8080"

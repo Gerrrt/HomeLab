@@ -175,8 +175,10 @@ receivers:
   #   - The certificate is verified against the TIER'S root, mounted from
   #     certificates/tier-ca.pem. Per receiver, not process-wide: nothing else
   #     Alertmanager talks to is asked to trust it (ADR-0037, docs/security.md).
-  #   - Each URL ends `?template=alertmanager`, ntfy's built-in rendering of
-  #     this payload, so a phone shows a title and a summary instead of JSON.
+  #   - Each URL ends `?template=homelab`, the repository's rendering of this
+  #     payload in stacks/sensitive/ntfy/templates/homelab.yml, so a phone
+  #     shows a title and one line instead of JSON. The ntfy.sh copies use
+  #     `?template=alertmanager`, the built-in, since ntfy.sh cannot load ours.
   #
   # urgent and security carry a SECOND webhook each, to their ntfy.sh topic,
   # for the phone that is not on the home network and so cannot reach the
