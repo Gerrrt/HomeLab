@@ -39,6 +39,52 @@ docstring gives: it is a record, not a claim about now.
   is a row in `successor-handover.md`, not an alert. The swap found:
   TODO(window).
 
+## 2026-09-28
+
+- **`trinity` is built, and the sensitive tier runs on it**
+  ([#404](https://github.com/Gerrrt/HomeLab/issues/404)). Ubuntu 26.04.1,
+  not the planned 24.04, because the installer stick carried it; it was kept
+  on purpose.
+  - **Disks.** Both are LUKS2, and the root is enrolled in the TPM against
+    PCR 7 ([ADR-0054](adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md)).
+    26.04's dracut made that `systemd-cryptenroll` rather than Clevis. Two
+    reboots with nobody at the console came back unlocked, the photo disk
+    mounted.
+  - **Stack.** All twelve containers are healthy on overlay2. Every name
+    serves a seven-day leaf from the tier's own CA, minted on `prometheus`;
+    its root key never travelled.
+  - **The I226 card never left.** #686 recorded it back in the drawer. The
+    build found it in the second M.2 slot as `enp1s0`, and it stays there,
+    unconfigured.
+- **The first start found five things the stack could not show on paper.**
+  All are fixed in [#689](https://github.com/Gerrrt/HomeLab/pull/689):
+  - Caddy's pinned `172.28.99.2` sat inside Docker's range, and Vaultwarden
+    took it first.
+  - `reload-config.sh` restarted an Alloy this stack does not run.
+  - Home Assistant 2026.9 imports its `http:` YAML once, as a pending config,
+    and reverts it unless an admin confirms it within five minutes. Every
+    proxied request got a 400 until it was promoted by hand.
+  - The backup's 512-byte floor refused Paperless's real, still-empty library.
+  - The backup stopped AdGuard, which by then was the house's only DNS
+    forwarder.
+- **The house forwards DNS to AdGuard alone**
+  ([ADR-0055](adr/0055-forward-to-adguard-alone.md)). With the public
+  resolvers beside it, as ADR-0010 designed, Unbound spread lookups by RTT
+  and 38 of 60 blocked names leaked. With AdGuard alone, 60 of 60 were
+  blocked. Blocked names answer `SERVFAIL`, because Unbound's DNSSEC
+  validation rejects AdGuard's unproven block answers. `AdGuardNotAnswering`
+  is now critical at five minutes.
+- **The Hue bridge is `bifrost` at `10.0.20.20`**, reserved below Skids's
+  pool, with Home Assistant's one pass into Skids in force. ADR-0035 named
+  `.104`, but the bridge had drifted to `.113` and another device held `.104`.
+  All four #223 tripwires read 0 after pairing.
+- **pfSense's GUI certificate was replaced.** A case-insensitive search of
+  `config.xml` printed the old *GUI default* private key into a Claude Code
+  transcript. `pfSsh.php playback generateguicert` made a new one, and the old
+  one was deleted. The new one expires 2027-04-16; the same command renews it.
+- **Hicks reaches `trinity` on 443**, the eleventh named pass above *Block
+  access to Winterfell*.
+
 ## 2026-09-26
 
 - **Both Windows 11 Pro keys are bought and in use.** They were bought on

@@ -23,7 +23,7 @@ above CasaBonita, which the spectrum does not. Reasoning in
 | --- | --- | --- | --- | --- | --- |
 | WAN | — | — | ISP-assigned | Uplink | — |
 | LAN | — | — | `10.7.7.0/24` | Switch management only | Everything[^lan] |
-| [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet |
+| [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet, named ports on 20 |
 | [Hicks](#hicks--vlan-50--trusted) | 50 | 🟠 Orange | `10.0.50.0/24` | Trusted workstations | Internet, 30, named ports on 99[^hicks] |
 | [CasaBonita](#casabonita--vlan-40--media) | 40 | 🟡 Yellow | `10.0.40.0/24` | TVs and consoles | Internet |
 | [ImaginationLAN](#imaginationlan--vlan-30--lab) | 30 | 🟢 Green | `10.0.30.0/24` | Hypervisor / lab | Internet |
@@ -164,6 +164,7 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 | mjolnir | `10.0.99.10` | `28:29:86:xx:xx:xx` | APC Smart-UPS[^UPS] | — | Rack U1–U2 | UPS |
 | prometheus | `10.0.99.20` | `00:05:1b:xx:xx:xx` | Apple MacBook Pro (2012)[^MacBookPro] | Ubuntu 24.04 LTS | Shelf | **Observability stack** |
 | oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 24.04 LTS | Shelf | **Wiki**, and the off-host jobs |
+| trinity | `10.0.99.40` | `c4:65:16:xx:xx:xx` | HP ProDesk 600 G4 DM | Ubuntu 26.04 LTS | Shelf | **Sensitive tier**, and AdGuard, the house's DNS filter |
 
 ### Notes
 
@@ -179,20 +180,22 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 - pfSense's admin UI is reachable on this interface from Hicks only, by a
   named pass to `10.0.99.1:443`. Winterfell itself is blocked from it: the 99
   interface drops HTTP and HTTPS to `10.0.99.1` above its egress rule.
-- **One pass into Skids is decided and not yet created:**
-  `10.0.99.40 → 10.0.20.104` on `80,443/tcp` — `trinity`'s Home Assistant to
-  `bifrost`, the Hue bridge, and nothing else on 20 — inserted **above**
-  *Block access to Skids*, beside the two SNMP passes that already sit above
-  that block. Read on 2026-09-09: every other device on Skids is reached
+- **One pass into Skids, in force since 2026-09-28:**
+  `10.0.99.40 → 10.0.20.20` on `80,443/tcp` — `trinity`'s Home Assistant to
+  `bifrost`, the Hue bridge, and nothing else on 20 — **above** *Block access
+  to Skids*, beside the two SNMP passes that already sit above that block.
+  It is two rows, one per port. `.20` rather than the `.104` ADR-0035 wrote:
+  by build day the bridge had drifted to `.113` and another device held `.104`,
+  so the reservation went below the pool instead, where no lease can take it. Read on 2026-09-09: every other device on Skids is reached
   through a vendor's cloud or not at all, so the segment-wide row ADR-0008
   wrote as `99 → 20` narrows to one host on two ports, and a second device
   with a local API is a second row rather than a wider one.
   [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) records
   the reading and the reasons. It is created under
   [#404](https://github.com/Gerrrt/HomeLab/issues/404), in the same sitting as
-  the reservation that pins `bifrost` — Skids has none today — and once there
-  is a `trinity` to test it from. The *Reaches* column above gains "named
-  ports on 20" that day, not before.
+  the reservation that pins `bifrost`, and tested from `trinity` the same day:
+  Home Assistant paired, the pass carried 430 packets on 443, and all four #223
+  tripwires stayed at 0.
 - DHCP enabled, with static reservations for everything listed.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
@@ -242,7 +245,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 
 - Desktops are wired Cat6; one eero is wired as backhaul, the other two mesh.
 - **What this segment reaches on Winterfell is a list of destinations, not the
-  segment.** Ten passes sit above a logged *Block access to Winterfell*, and
+  segment.** Eleven passes sit above a logged *Block access to Winterfell*, and
   everything else from 50 to 99 is dropped:
 
   | Destination | Ports |
@@ -252,6 +255,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   | `10.0.99.10` — `mjolnir` | `80,443/tcp` UPS card |
   | `10.0.99.20` — `prometheus` | `3000/tcp` Grafana |
   | `10.0.99.30` — `oracle` | `80,443/tcp` the wiki |
+  | `10.0.99.40` — `trinity` | `443/tcp` the sensitive tier, since 2026-09-28 |
 
   **The source is the segment, not named hosts.** Every one of those passes is
   `vlan50 → …`, so any device on Hicks may use any of them. This note used to
@@ -553,7 +557,7 @@ the least trusted.
 | eero-iot-1 | `10.0.20.101` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Upper floor | Wi-Fi mesh |
 | eero-iot-2 | `10.0.20.102` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 | eero-iot-3 | `10.0.20.103` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Lower floor | Wi-Fi mesh |
-| bifrost | `10.0.20.104` | `ec:b5:fa:xx:xx:xx` | Philips Hue Bridge[^Huebridge] | — | Main floor | Lighting |
+| bifrost | `10.0.20.20` | `ec:b5:fa:xx:xx:xx` | Philips Hue Bridge[^Huebridge] | — | Main floor | Lighting |
 | speaker-01…04 | `.113`, `.124`, `.128`, `.132` | `d4:90:9c:xx:xx:xx`, `94:ea:32:xx:xx:xx`, `f4:34:f0:xx:xx:xx` | Apple HomePod[^homepod] | audioOS | Various | Assistant |
 | assistant-01…05 | `.105`, `.109`, `.114`, `.133`, `.144` | `74:d4:23:xx:xx:xx`, `58:a8:e8:xx:xx:xx`, `1c:fe:2b:xx:xx:xx`, `4c:ef:c0:xx:xx:xx`, `68:b6:91:xx:xx:xx` | Amazon Echo[^echo] | FireOS | Various | Assistant |
 | camera-01…07 | `.112`, `.118`, `.119`, `.126`, `.130`, `.145`, `.146` | `10:08:2c:xx:xx:xx`, `b4:bc:7c:xx:xx:xx`, `3c:e1:a1:xx:xx:xx`, `54:e0:19:xx:xx:xx`, `18:7f:88:xx:xx:xx` | Ring cameras, floodlights, doorbell[^floodlight] [^doorbell] [^camera] | — | Interior & exterior | Camera |
@@ -569,7 +573,7 @@ the least trusted.
 - Internet only. No device here can initiate a connection to any other segment,
   which is the entire reason this VLAN exists. A camera or a $20 Tuya device
   with a hardcoded credential is a foothold, not a light switch.
-- **Inbound, one exception is decided and not yet in force.** `trinity`'s Home
+- **Inbound, one exception, in force since 2026-09-28.** `trinity`'s Home
   Assistant reaches `bifrost` on `80,443/tcp` — the Hue bridge's local API,
   the only one on this segment; everything else here is reached through its
   vendor's cloud or not at all
@@ -578,14 +582,14 @@ the least trusted.
   above, the [#223](https://github.com/Gerrrt/HomeLab/issues/223) tripwire and
   the egress rule stay as they are, and the tripwire's counter — zero — is
   the test that the return traffic rides state and never reaches them. Skids
-  stays terminal outbound; the day the rule lands it is no longer terminal
-  inbound, for one host on two ports.
-- **No address here is reserved.** The pool is `.100–.200` and every device
-  above sits inside it by lease, so a row in this table is what a device had
-  when it was read, not what it will have. That is fine for a segment nothing
-  initiates into and stops being fine for `bifrost` the day a firewall rule
-  names it: the reservation is the precondition ADR-0035 puts before the
-  rule, and the first this segment will carry.
+  stays terminal outbound, and is no longer terminal inbound, for one host
+  on two ports.
+- **One address here is reserved: `bifrost` at `10.0.20.20`**, below the
+  `.100–.200` pool, since 2026-09-28. Every other device above sits inside
+  the pool by lease, so its row is what it had when it was read, not what it
+  will have. The build proved why the rule's destination could not be one of
+  those: between 2026-09-09 and 2026-09-28 the bridge moved from `.104` to
+  `.113`, and `.104` went to another device.
 - Device addresses and rooms are collapsed above deliberately. The exact
   camera-to-room mapping is not something a public repository needs to carry.
 

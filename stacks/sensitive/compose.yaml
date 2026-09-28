@@ -2,10 +2,8 @@
 # The sensitive tier: ADR-0008's household services, behind one reverse proxy.
 #
 # Deployed on: trinity (10.0.99.40, VLAN 99 / Winterfell) — the ProDesk 600 G4
-#              of ADR-0034, after the firewall restore has been rehearsed on it.
-#              NOT BUILT YET. #404 is the build; this file is what it deploys.
-#              Authored before the host exists, as stacks/lab was: #264 landed
-#              the stack a day before #262 built the guest it runs on.
+#              of ADR-0034. Deployed 2026-09-28 (#404); authored before the
+#              host existed, as stacks/lab was.
 # Deploy with:  make up STACK=sensitive      (from the repository root)
 #
 # ---------------------------------------------------------------------------
@@ -1085,12 +1083,22 @@ services:
 # subnets the estate routes; and outside the 172.30.30.0/24 ADR-0017 keeps
 # unrouted on ifrit, so a 172.28.99.x source in a firewall log still means
 # what that ADR says a 172.30.30.x one means — a leak reporting itself.
+#
+# A fixed subnet alone does not keep Caddy's address free. Docker hands out
+# the subnet's addresses from the bottom to whichever container attaches first,
+# and Caddy attaches last, because it waits on step-ca's health. On trinity's
+# first `make up` (2026-09-28) Vaultwarden had already taken .2, and Caddy failed
+# with "Address already in use". The monitoring-host rehearsal passed only
+# because it happened to start in a different order. `ip_range` confines
+# Docker's own assignments to the top half, so the one pinned address below
+# .128 cannot be taken, whatever order the containers start in.
 networks:
   sensitive:
     driver: bridge
     ipam:
       config:
         - subnet: 172.28.99.0/24
+          ip_range: 172.28.99.128/25
 
 volumes:
   caddy-data:

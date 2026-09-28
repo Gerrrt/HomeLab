@@ -2,6 +2,15 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> **The rule points at `10.0.20.20`, not `.104`.** Created 2026-09-28 under
+> [#404](https://github.com/Gerrrt/HomeLab/issues/404). By then the bridge had
+> drifted to `.113` by lease and another device held `.104`, so step 4's
+> "reserve it where it is" had no stable *where*. The reservation went below
+> Skids's `.100–.200` pool, where no lease can take it. Everything else here
+> held as written: source `trinity`, two ports, above *Block access to Skids*,
+> and the #223 tripwire at 0 after pairing.
+
 ## Context
 
 [ADR-0008](0008-place-services-by-data-trust.md) put Home Assistant on

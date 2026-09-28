@@ -3,9 +3,12 @@
 ADR-0008's sensitive tier — the household's password manager, photos, documents
 and home automation — on `trinity` (`10.0.99.40`, Winterfell / VLAN 99), the
 ProDesk 600 G4 that [ADR-0034] made the tier's host after the firewall restore
-has been rehearsed on it. **The host is not built yet**; [#404] is the build,
-and this directory is the stack it deploys, authored ahead of the hardware the
-way `stacks/lab` was.
+was rehearsed on it. **Deployed there since 2026-09-28**, built by
+[`build-the-sensitive-tier-host.md`](../../docs/runbooks/build-the-sensitive-tier-host.md)
+under [#404]. It was authored ahead of the hardware, the way `stacks/lab` was, and
+the first start found five things that the file could not show; the sections
+below carry each of them. **It holds no real data yet**: #404 step 10 is the
+gate.
 
 ```bash
 make up STACK=sensitive
@@ -16,7 +19,7 @@ make up STACK=sensitive
 | caddy | `caddy` | 443 (https) | The tier's published HTTPS port. Terminates TLS, routes by name to every service behind it ([#129]) |
 | step-ca | `smallstep/step-ca` | *internal* (9000) | The tier's certificate authority — a root of its own with an intermediate beneath it, issuing to Caddy over ACME ([#130], [ADR-0037]) |
 | home-assistant | `ghcr.io/home-assistant/home-assistant` | *internal* (8123) | Home automation, and what the `99 → 20` rule exists for — one pass, to the Hue bridge, scoped by [ADR-0035] ([#134]) |
-| adguard | `adguard/adguardhome` | 53 (dns), on `10.0.99.40` only | The DNS filter Unbound on `morpheus` forwards to under [ADR-0010] — never a client-facing resolver. The one port besides Caddy's, published to the firewall's forwarder and the blackbox prober and answered for nothing else; the UI is behind Caddy at `adguard.matrix.elysium` ([#135]) |
+| adguard | `adguard/adguardhome` | 53 (dns), on `10.0.99.40` only | The house's DNS filter, and since 2026-09-28 the **only** forwarder behind Unbound on `morpheus` ([ADR-0055], which replaces the fallback half of [ADR-0010]). It is never a client-facing resolver, and if it stops, outside names stop for the whole house. The one port besides Caddy's, published to the firewall's forwarder and the blackbox prober and answered for nothing else; the UI is behind Caddy at `adguard.matrix.elysium` ([#135]) |
 | immich-server | `ghcr.io/immich-app/immich-server` | *internal* (2283) | The photo library — API and job workers in one container, reached as `https://immich.matrix.elysium` through Caddy ([#132]) |
 | immich-machine-learning | `ghcr.io/immich-app/immich-machine-learning` | *internal* (3003) | Smart search, face detection and OCR for the server above. Behind the `ml` profile, on by default ([#132]) |
 | immich-db | `ghcr.io/immich-app/postgres` | *internal* (5432) | Immich's Postgres, with VectorChord preloaded, on the internal SSD ([#132]) |
@@ -195,10 +198,39 @@ time and lives in Caddy's `/data` volume, never on disk here.
   is one Home Assistant writes rather than one this repository ships. The
   packages README says the rest. Integrations and devices are still added
   through the UI: a config flow has no YAML form.
+- **Home Assistant's `http:` block is a one-time import, and it has to be
+  confirmed.** Since 2026.9 the YAML is migrated into `.storage/http` on the
+  first start against an empty volume, as a *pending* config. Home Assistant
+  reverts it to defaults, which trust no proxy, unless an admin promotes it
+  within five minutes, and never reads the YAML again. The symptom is
+  `400: Bad Request` on `homeassistant.matrix.elysium` and *"your HTTP
+  integration is not set-up for reverse proxies"* in its log. It hit
+  `trinity`'s first start on 2026-09-28. The fix is to do what the promote
+  call does, with the container stopped, using its own pinned image:
+
+  ```bash
+  docker stop sensitive-home-assistant
+  docker run --rm --network none -v sensitive_home-assistant-config:/config \
+    --entrypoint python3 "$(COMPOSE_FILE=stacks/sensitive/compose.yaml ./scripts/image-for.sh home-assistant)" -c '
+  import json, shutil
+  p = "/config/.storage/http"; shutil.copy2(p, p + ".bak")
+  d = json.load(open(p)); s = d["data"]; c = s["pending"]
+  assert c and c["trusted_proxies"] == ["172.28.99.2/32"], c
+  c["error"] = c["error_message"] = None
+  s["stable"], s["pending"] = c, None
+  json.dump(d, open(p, "w"), indent=2)'
+  docker start sensitive-home-assistant
+  ```
+
+  The `assert` refuses anything but the config this repository wrote. A
+  restore of `home-assistant-config` brings `.storage/http` back with it and
+  needs none of this.
 - **Caddy has a fixed address, `172.28.99.2`, for one reader.** Home
   Assistant's `trusted_proxies` names the proxy it will believe
   `X-Forwarded-For` from, and a Docker-assigned address is not a name. The
-  network's subnet is fixed for that one line and nothing else.
+  network's subnet is fixed for that one line and nothing else. Its
+  `ip_range` keeps Docker's own assignments in `.128` and up, because Caddy
+  starts last and on 2026-09-28 found `.2` already taken by Vaultwarden.
 - **AdGuard's configuration is the tracked file, every time.** `compose.yaml`
   copies `adguard/AdGuardHome.yaml` into a tmpfs on each start, with the admin
   hash substituted from `ADGUARD_ADMIN_PASSWORD_HASH`. A blocklist enabled in
@@ -385,11 +417,13 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the eleven volumes it archives has a
+volume it cannot verify, so each of the ten volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
 pinned image, beside the entries [#133] read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
-uid is a constant. The twelfth, `immich-model-cache`, is skipped by name: a
+uid is a constant. Two are skipped by name. `adguard-work` is skipped because
+archiving it would stop the house's only DNS forwarder, and nothing in it is
+worth restoring. `immich-model-cache` is skipped because a
 downloadable cache is not data, and a fresh host whose models have not been
 fetched yet would otherwise fail the whole run on an empty archive. Both
 scripts encrypt to **every recipient of
@@ -399,7 +433,7 @@ first key in `.sops.yaml` whichever rule it belonged to, which would have
 encrypted the estate's weekly backup to `trinity`'s key the day the placeholder
 was filled — the two defects [#428] describes.
 
-What this does **not** do, and [#404] step 5 still owes: nothing schedules
+What this does **not** do, and [#404] step 9 still owes: nothing schedules
 `make backup STACK=sensitive` on `trinity` — the `homelab-*` timers are the
 estate's — and nothing copies a set off the host, let alone off the estate,
 which is the copy [ADR-0023] requires before Immich or Paperless-ngx hold a
@@ -424,9 +458,9 @@ The restore that [#132] asks to see proven once is Immich's own: a fresh
 install, the library tree back on its disk, and the newest dump fed to
 `psql` inside `immich-db` — the procedure is upstream's *Backup and Restore*
 page, and its one hard rule is that the database is restored **before** the
-server first starts against the empty volume. It has not been rehearsed,
-because there is no host; it is [#404] step 5, and this section is what that
-step reads.
+server first starts against the empty volume. It has not been rehearsed
+yet. The host exists since 2026-09-28, and the rehearsal is part of [#404]
+step 10, before the first real photo; this section is what that step reads.
 
 ## Validate before deploying
 
@@ -501,6 +535,7 @@ it matters:
 [ADR-0023]: ../../docs/adr/0023-keep-the-household-recovery-path-outside-the-estate.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
+[ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131

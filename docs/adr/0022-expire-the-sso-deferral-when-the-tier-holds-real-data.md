@@ -15,6 +15,10 @@
 > already condemns as unable to carry a second factor in any edition.
 > **Triggers 1 and 3 are untouched and keep their full force.** Nothing here is
 > amended.
+>
+> **The disk-encryption choice below was made on 2026-09-27**, for `trinity`:
+> LUKS on both disks, with the root's key sealed to the TPM —
+> [ADR-0054](0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md).
 
 ## Context
 

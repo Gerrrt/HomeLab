@@ -26,24 +26,10 @@
 
 # --- AdGuard Home ------------------------------------------------------------
 #
-# WRITTEN OUT AND NOT ENABLED. AdGuard Home does not exist yet: ADR-0008 places
-# it on a low-power mini PC on Winterfell that #102 has neither bought nor
-# named, and ADR-0010's forwarding is not configured either — Unbound recurses
-# and forwards to nothing, verified on `morpheus` 2026-09-04 (#123). Enabling
-# these today would report a service down from the moment the file is loaded
-# until the box is racked, and this repository has agreed not to ship a check
-# that is permanently red for a known reason — it is the same call
-# targets/blackbox.yaml makes for the iLO and pfSense UIs.
-#
-# `10.0.99.40` below is the next free reservation in docs/network.md's
-# Winterfell table, following the .1/.10/.20/.30 spacing already there. It is
-# an assumption, not a decision: #102 assigns the address, and these two lines
-# are wrong until it does. No `host` label, for the same reason — the box has
-# no hostname to record, and the alerts name AdGuard rather than its machine.
-#
-# When the box exists, verify from the running exporter BEFORE uncommenting —
-# both the positive and, for the filtering probe, the negative, because a
-# probe that cannot go red is not a probe:
+# Enabled 2026-09-28, when trinity (10.0.99.40) came up with the sensitive
+# stack (#404, #135). Before these were uncommented, both were verified from
+# the running exporter, including the negative that proves the filtering probe
+# can go red:
 #
 #   docker exec blackbox-exporter wget -qO- \
 #     'http://localhost:9115/probe?target=10.0.99.40:53&module=dns_filters' \
@@ -53,19 +39,26 @@
 #     'http://localhost:9115/probe?target=10.0.99.1:53&module=dns_filters' \
 #     | grep -E '^probe_success'
 #
-# The first must report 1 and the second 0 — 10.0.99.1 is Unbound, which does
-# not filter. A `1` from both means the probe is measuring nothing.
-
-# - targets: ["10.0.99.40:53"]
-#   labels:
-#     module: dns_answers
-#     name: adguard
-#     check: liveness
-#     role: dns-filter
+# On that day: dns_answers 1 (2 records), dns_filters 1 against AdGuard, and
+# 0 against 10.0.99.1, which is Unbound and does not filter. A `1` from both
+# would mean the probe is measuring nothing, and so would a `0` from both.
+# Run the pair again after any change to the canary or the blocklists.
 #
-# - targets: ["10.0.99.40:53"]
-#   labels:
-#     module: dns_filters
-#     name: adguard
-#     check: filtering
-#     role: dns-filter
+# `host` is the machine, as in targets/blackbox.yaml. The alerts still name
+# AdGuard rather than its host.
+
+- targets: ["10.0.99.40:53"]
+  labels:
+    module: dns_answers
+    name: adguard
+    check: liveness
+    role: dns-filter
+    host: trinity
+
+- targets: ["10.0.99.40:53"]
+  labels:
+    module: dns_filters
+    name: adguard
+    check: filtering
+    role: dns-filter
+    host: trinity

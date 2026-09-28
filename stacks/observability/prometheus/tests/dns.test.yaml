@@ -20,10 +20,10 @@
 # liveness alert may fire. A test that only asserted firing would have passed
 # against a rule with no join at all.
 #
-# `instance` here is 10.0.99.40:53, matching the disabled targets in
-# targets/blackbox-dns.yaml. Both are an assumption about an address #102 has
-# not assigned; they are written the same way so that changing one and not the
-# other shows up as a diff rather than as two files quietly disagreeing.
+# `instance` here is 10.0.99.40:53, matching the live targets in
+# targets/blackbox-dns.yaml (trinity, since 2026-09-28). They are written the
+# same way so that changing one and not the other shows up as a diff rather
+# than as two files quietly disagreeing.
 rule_files:
   - ../rules/dns.rules.yaml
 
@@ -42,10 +42,10 @@ tests:
                  name="adguard", check="filtering", role="dns-filter"}'
         values: "0+0x45"
     alert_rule_test:
-      # `for: 15m` — still pending at ten minutes. This is what asserts the
-      # window is actually there, rather than a five-minute one inherited from
-      # the endpoint rules.
-      - eval_time: 10m
+      # `for: 5m` — still pending at four minutes. This asserts the window is
+      # there. It was 15m while Unbound fell back to public resolvers; since
+      # ADR-0055 there is no fallback, and the rule is critical.
+      - eval_time: 4m
         alertname: AdGuardNotAnswering
         exp_alerts: []
 
@@ -60,18 +60,19 @@ tests:
               check: liveness
               role: dns-filter
               component: dns
-              severity: warning
+              severity: critical
               category: availability
             exp_annotations:
-              summary: "adguard is not answering DNS — the house is resolving unfiltered"
+              summary: "adguard is not answering DNS — the house cannot resolve outside names"
               description: >-
-                Asked directly at 10.0.99.40:53 for fifteen minutes and got
-                no valid answer. Nothing is broken and nobody is blocked: Unbound on
-                morpheus has dropped it from forwarder selection and is answering
-                from the public upstreams, exactly as ADR-0010 intended. What has
-                stopped is filtering, and it stays stopped silently until this is
-                fixed. Check the container on the mini PC, then re-probe from the
-                exporter — targets/blackbox-dns.yaml has the command.
+                Asked directly at 10.0.99.40:53 for five minutes and got no
+                valid answer. AdGuard is the only forwarder behind Unbound on
+                morpheus (ADR-0055), so outside names are failing for every device
+                in the house. Internal matrix.elysium names still resolve from the
+                host overrides. Check the container on trinity (make ps
+                STACK=sensitive), then re-probe from the exporter. To restore DNS
+                before fixing AdGuard, add 1.1.1.1 back under System > General Setup
+                > DNS Servers on morpheus, and remove it again afterwards.
 
       # Silent, and this is the assertion that matters. Asserted well past the
       # 30m `for`, so a missing join could not hide behind a short evaluation.

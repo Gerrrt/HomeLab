@@ -165,12 +165,24 @@ VOL_OFFHOST="${VOL_OFFHOST:-atropos@10.0.99.30:backups/volumes/${STACK}}"
 # hanging a timer on a prompt.
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10)
 
-# An archive smaller than this is not a backup. Measured on this host: an empty
-# volume encrypts to 306 bytes, and the smallest real one (alertmanager-data,
-# 12 KB of mostly-sparse nflog and silences) to 872. 512 sits between them, and
-# is the same floor backup-firewall.sh:116 uses on a smaller artefact. The
-# structural guard is the entry count in verify(); this is belt and braces.
-MIN_BYTES=512
+# An archive smaller than this cannot even be an age header around a gzip
+# stream, so it is a truncated or empty FILE. It does not decide whether the
+# VOLUME was empty. verify()'s entry count and sentinel decide that.
+#
+# This was 512, set between an empty volume (306 bytes) and the smallest real
+# one (872) on the monitoring host. That line does not hold. Measured
+# 2026-09-28, empty tar.gz vs paperless-media's three empty directories:
+#
+#   recipients   empty volume   ./documents/{originals,thumbnails}
+#       1          306 bytes        371 bytes
+#       2          404 bytes        469 bytes
+#
+# Each recipient adds about 100 bytes of header, so with a second recipient an
+# EMPTY archive is larger than a real one with one. trinity's first backup
+# refused paperless-media at 368 bytes, with its sentinel present, before any
+# document had been consumed. Nothing is lost by the lower floor: an empty
+# volume still fails on `entries <= 1`, and a wrong one on its sentinel.
+MIN_BYTES=256
 
 # The archives are age-encrypted, so this is defence in depth rather than the
 # control. grafana-data is in here; it is cheap.
@@ -428,8 +440,18 @@ declare -A COMPANIONS=(
 # on erebor/apps rather than volumes, which is why none of jellyfin-config,
 # audiobookshelf-state and navidrome-data is declared there at all (ADR-0045,
 # ADR-0050). Navidrome's cache is a tmpfs, so it needs no entry here.
+# adguard-work joined 2026-09-28, for a reason the other two do not have:
+# archiving it meant stopping AdGuard, and since that day AdGuard is the only
+# forwarder behind morpheus's resolver. trinity's first backup took DNS away
+# from the whole house for about two minutes. The volume holds blocklists
+# AdGuard downloads again, statistics, UI sessions and a query log that
+# restore-the-sensitive-tier.md already says to protect rather than restore.
+# Its settings are adguard/AdGuardHome.yaml, in git. Not archiving it is
+# what takes AdGuard off the stop list: SERVICES is derived from the volumes
+# that ARE archived.
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
+  [adguard-work]="blocklists, stats and a query log AdGuard rebuilds; archiving it would stop the house's only DNS forwarder"
   [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"
 )
 

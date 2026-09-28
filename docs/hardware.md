@@ -67,10 +67,11 @@ quietly swapped.
 | `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SATA HDD, RAID 1 (`pve`); 2× 960 GB SATA SSD, RAID 1, LVM-thin `large_data` | Proxmox VE 9 |
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
+| `trinity` | HP ProDesk 600 G4 DM | i5-8500T | 32 GB | 512 GB NVMe SSD (LUKS2, TPM unlock) + 2 TB USB HDD (LUKS2, photos) | Ubuntu Server 26.04 LTS |
 | `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
-SNMP devices at a 60-second interval, six Alloy agents, and 30 days of metric
+SNMP devices at a 60-second interval, seven Alloy agents, and 30 days of metric
 retention without complaint — which is a useful thing to know before spending
 money on a monitoring host. Its RAM is soldered at 8 GB and it has no built-in
 Ethernet, so it reaches the network over a USB NIC.
@@ -146,8 +147,12 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
   firewall restore has been rehearsed on it. It ships with the onboard NIC
   only; the I226 card the restore depends on was a separate purchase, made
-  2026-09-11 and the entry below — fitted 2026-09-25 for the rehearsal and
-  **taken out again afterwards; it is in the drawer, not in this box**.
+  2026-09-11 and the entry below — fitted 2026-09-25 for the rehearsal, and
+  **still fitted**. #686 recorded it as taken out afterwards and back in the
+  drawer. On 2026-09-28 the build found it in the second M.2 slot, as
+  `enp1s0` under Ubuntu's `igc` (an I226-V, `8086:125c` rev 04), and it stays
+  there, unconfigured
+  ([`build-the-sensitive-tier-host.md`](runbooks/build-the-sensitive-tier-host.md)).
   **The firewall restore was rehearsed on it on 2026-09-27** and restored
   with no interface-assignment prompt
   ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md#rehearse-the-restore-on-the-spare)).
@@ -198,9 +203,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
     arrived in.
 - Intel I226-V 2.5 GbE card on an M.2 B+M-key adapter — bought 2026-09-11,
   **in hand since 2026-09-25**, fitted in `trinity` for #92's rehearsal, where
-  it came up as `igc0`, and **taken out afterwards: it is in the drawer**,
-  and goes back into `trinity`'s second M.2 slot on the day `trinity`
-  becomes the firewall. The
+  it came up as `igc0`, and **still in that slot**: recorded on 2026-09-27
+  as back in the drawer, and found fitted by #404's build on 2026-09-28.
+  `trinity` leaves it unconfigured (`enp1s0`), so the day `trinity` becomes
+  the firewall starts with the card already where the restore needs it. The
   second port on the ProDesk Micro above, matching the card
   in `morpheus` so a pfSense restore onto the spare brings the LAN up as
   `igc0` and asks nothing
@@ -225,7 +231,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 - 2 TB USB portable hard drive — on hand, previously a games console's
   storage. Becomes the photo library's disk on `trinity`
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404)): Immich's originals
-  on it, its database on the internal SSD, after a wipe and an `ext4` format.
+  on it, its database on the internal SSD. Wiped and formatted on
+  2026-09-28 as LUKS2 with `ext4` inside, opened at boot by a keyfile on the
+  encrypted root, with a recovery passphrase in a second keyslot
+  ([ADR-0054](adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md)).
+  It reports itself as a *PS4 Game Drive*.
   One consumer spinning disk with no mirror, so the off-estate copy
   [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
   requires is what protects it — the same as would have been true of a bought
