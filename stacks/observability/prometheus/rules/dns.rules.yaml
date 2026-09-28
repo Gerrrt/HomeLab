@@ -10,12 +10,15 @@
 # distinguishes "AdGuard is fine and this site was never on a list" from
 # "AdGuard has been dead for three weeks" (#126, filed again as #123).**
 #
-# Neither half of that is deployed. Unbound recurses from the root and forwards
-# to nothing today — measured on `morpheus` on 2026-09-04 under #123 and
-# appended to ADR-0010 — and AdGuard needs a mini PC #102 has not bought. These
-# rules are written ahead of the service so that the detection lands with the
-# decision rather than a fortnight after it, which is how a silent failure gets
-# its first three weeks.
+# SUPERSEDED FOR LIVENESS on 2026-09-28 by ADR-0055. With the public upstreams
+# listed alongside AdGuard, Unbound spread queries across all three by RTT, and
+# 38 of 60 blocked names leaked. So AdGuard is now the ONLY forwarder. An
+# unresponsive AdGuard no longer drops out quietly: the house stops resolving
+# outside names (internal ones still come from morpheus's host overrides). The
+# failure is loud now, and AdGuardNotAnswering below is critical and fast
+# because of it. AdGuardNotFiltering keeps the reasoning above. A filter that
+# fails open is still silent, and still a convenience lost rather than an
+# outage.
 #
 # Nothing already in this directory would catch it, and the near-misses are
 # worth naming so nobody writes one of them again:
@@ -33,15 +36,14 @@
 # **a probe through the normal resolver path always passes.** Query pfSense, get
 # an answer, mark AdGuard healthy — because the fallback is doing its job. Both
 # rules below read `job="blackbox-dns"`, whose targets are aimed at AdGuard's
-# own address on port 53. See targets/blackbox-dns.yaml, where they are written
-# out and disabled until #102 builds the box, and blackbox/blackbox.yaml for the
-# two questions the probes ask.
+# own address on port 53. See targets/blackbox-dns.yaml, live since 2026-09-28
+# against trinity, and blackbox/blackbox.yaml for the two questions the probes
+# ask.
 #
-# Both are `warning`. Nothing is down, nobody is blocked, and no data is at
-# risk: what has been lost is ad filtering, and ADR-0010 already says outright
-# that filtering here is a convenience rather than a control. alertmanager.yaml
-# routes warning to `default`, which is the normal notification this should be,
-# and no new receiver is needed.
+# AdGuardNotAnswering is `critical` since ADR-0055: it is the house's DNS.
+# AdGuardNotFiltering stays `warning`: what it loses is ad filtering, which
+# ADR-0010 calls a convenience rather than a control, and alertmanager.yaml
+# routes warning to `default`.
 #
 # BlackboxExporterDown in blackbox.rules.yaml covers the prober for both jobs —
 # a dead exporter makes these two silent rather than red, which is the failure
@@ -53,27 +55,30 @@ groups:
       # Liveness. The check that closes #126: does AdGuard answer queries at
       # all, asked directly rather than through the path that hides the answer.
       #
-      # `for: 15m` rather than the 5m the endpoint rules use, and longer on
-      # purpose. Five minutes is right when someone is blocked; here the house
-      # is resolving normally throughout, so the only thing a short window buys
-      # is a notification every time the container restarts for an update.
+      # `for: 5m`, the endpoint rules' window, and critical. This was 15m and
+      # warning while Unbound fell back to public resolvers. Since ADR-0055
+      # there is nothing to fall back to, so every minute here is a minute the
+      # house cannot resolve outside names. A container restart for an update
+      # takes seconds, and backup-volumes.sh no longer stops AdGuard, so five
+      # minutes does not page on routine maintenance.
       - alert: AdGuardNotAnswering
         expr: probe_success{job="blackbox-dns", check="liveness"} == 0
-        for: 15m
+        for: 5m
         labels:
           component: dns
-          severity: warning
+          severity: critical
           category: availability
         annotations:
-          summary: "{{ $labels.name }} is not answering DNS — the house is resolving unfiltered"
+          summary: "{{ $labels.name }} is not answering DNS — the house cannot resolve outside names"
           description: >-
-            Asked directly at {{ $labels.instance }} for fifteen minutes and got
-            no valid answer. Nothing is broken and nobody is blocked: Unbound on
-            morpheus has dropped it from forwarder selection and is answering
-            from the public upstreams, exactly as ADR-0010 intended. What has
-            stopped is filtering, and it stays stopped silently until this is
-            fixed. Check the container on the mini PC, then re-probe from the
-            exporter — targets/blackbox-dns.yaml has the command.
+            Asked directly at {{ $labels.instance }} for five minutes and got no
+            valid answer. AdGuard is the only forwarder behind Unbound on
+            morpheus (ADR-0055), so outside names are failing for every device
+            in the house. Internal matrix.elysium names still resolve from the
+            host overrides. Check the container on trinity (make ps
+            STACK=sensitive), then re-probe from the exporter. To restore DNS
+            before fixing AdGuard, add 1.1.1.1 back under System > General Setup
+            > DNS Servers on morpheus, and remove it again afterwards.
 
       # Function, and a quieter failure than the one above: a blocklist update
       # that silently stopped working leaves a perfectly healthy AdGuard

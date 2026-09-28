@@ -146,6 +146,19 @@ Expect:
 Anything else stops the build here. A disabled Secure Boot makes §4's seal
 meaningless, and a missing TPM makes it impossible.
 
+**Tell networkd to leave the other two interfaces alone.** 26.04's dracut
+leaves a catch-all, `zzzz-dracut-default.network`, that runs DHCP on every
+interface netplan does not name. That is the I226 (`enp1s0`) and the Wi-Fi
+(`wlp0s20f3`), so a cable in the wrong port would quietly take a lease:
+
+```bash
+printf '[Match]\nName=enp1s0 wlp0s20f3\n\n[Link]\nUnmanaged=yes\n' | sudo tee /etc/systemd/network/10-trinity-unmanaged.network
+sudo networkctl reload
+networkctl list
+```
+
+Both show `unmanaged`, and `eno1` shows `configured`.
+
 **The Kea reservation.** On `morpheus`: *Services → DHCP Server →
 WINTERFELL*, add a static mapping with `eno1`'s MAC (the line above prints
 it), `10.0.99.40`, hostname `trinity`, and description "Sensitive tier —
@@ -179,6 +192,8 @@ sudo chmod a+r /etc/apt/keyrings/docker.asc
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
   | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo install -d -m 0755 /etc/docker
+echo '{ "features": { "containerd-snapshotter": false } }' | sudo tee /etc/docker/daemon.json
 sudo apt-get update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 sudo usermod -aG docker "$USER"
@@ -188,6 +203,15 @@ sudo apt-get install -y /tmp/sops.deb && rm /tmp/sops.deb
 
 `sops` is `3.9.4` because that is what `prometheus` runs (`sops --version`
 there). Take whatever it says on the day.
+
+**`daemon.json` comes before Docker, on purpose.** A fresh Docker 29 stores
+images through containerd (`docker info` says `overlayfs`). The Alloy
+agent's cAdvisor half cannot read that store, and logs `cannot unix dial
+containerd` every few seconds with no per-container metrics. `prometheus` and
+`oracle` were installed on older Docker and kept `overlay2`. On 2026-09-28 this
+was found after the first `make up`; switching then cost a `make down`, a Docker
+restart and every image downloaded again. The volumes survived it.
+`docker info --format '{{.Driver}}'` must print `overlay2`.
 
 Then the seal. Find the LUKS partition, rather than assuming `p3`, and
 enrol the TPM into a keyslot of its own:
@@ -234,7 +258,7 @@ option, arrived at by accident.
 The repository, as you, after logging in again so the docker group applies:
 
 ```bash
-git clone https://github.com/Gerrrt/HomeLab.git ~/HomeLab
+git clone https://github.com/Gerrrt/HomeLab.git ~/code/Gerrrt/HomeLab
 docker ps > /dev/null && echo docker-ok
 ```
 
@@ -303,7 +327,7 @@ before any photograph depends on them.
 In your own terminal on `trinity`. None of this goes into a shared session.
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 make secrets-init STACK=sensitive
 ```
 
@@ -391,18 +415,22 @@ aliases in `compose.yaml`. A later service adds its name in all three places.
 ([ADR-0035](../adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md) step
 4).
 
-1. Read the bridge's full MAC off its current lease: *Status → DHCP Leases*,
-   the `ec:b5:fa:…` row at `10.0.20.104`.
+1. Find the bridge by its MAC, not its address: *Status → DHCP Leases*, the
+   `ec:b5:fa:…` row, hostname `ecb5fa…`. Skids reserves nothing else, so it
+   drifts. It was at `.104` on 2026-09-09 and at `.113` on 2026-09-28, with
+   `.104` held by another device.
 2. *Services → DHCP Server → SKIDS*, add a static mapping: that MAC,
-   `10.0.20.104`, hostname `bifrost`. An in-pool reservation holds under Kea.
-3. Power-cycle the bridge and confirm it comes back on `.104`.
+   **`10.0.20.20`**, below the `.100–.200` pool so no lease can ever hold it,
+   hostname `bifrost`.
+3. Power-cycle the bridge, or wait for its hourly renewal; Kea moves it
+   either way. Confirm it is on `.20` before writing the rule.
 
 **The pass.**
 
 - *Firewall → Rules → WINTERFELL*: Pass, TCP.
-- Source single host `10.0.99.40`, destination single host `10.0.20.104`.
+- Source single host `10.0.99.40`, destination single host `10.0.20.20`.
 - Destination ports 80 and 443. Either a port alias holding both, or two
-  rows. One alias keeps it one row, as ADR-0035's table draws it.
+  rows. On 2026-09-28 it was two rows.
 - Description "Home Assistant to the Hue bridge (ADR-0035)".
 - Drag it **above** *Block access to Skids*, beside the two SNMP passes that
   already sit there.
@@ -420,15 +448,15 @@ ssh admin@10.0.99.1 'pfctl -vsr' | grep -A2 -E 'Home Assistant to the Hue|Block 
 2. [#223](https://github.com/Gerrrt/HomeLab/issues/223)'s tripwire counter
    on Skids must stay `0` after Home Assistant has paired in §10. The return
    traffic rides state, and a non-zero count means it does not.
-3. `make check-firewall` must pass once `docs/firewall-claims.yaml` carries
-   the rule.
+3. `make check-firewall` still passes. The claims file states postures, not
+   rule bodies, so the rule itself is recorded in `network.md`.
 
 ## 9. Bring it up, and prove what `make validate` cannot
 
 On `trinity`:
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 make up STACK=sensitive
 make ps STACK=sensitive
 make check-container-health STACK=sensitive
@@ -442,6 +470,13 @@ Then the stack README's list, on the host it was written for:
   and `Verify return code: 0` against `certificates/tier-ca.pem`.
 - **The library is on the USB disk.** `docker exec sensitive-immich-server df -h /data`
   shows the `/dev/mapper/immich` filesystem, not the root.
+- **Home Assistant answers through Caddy.** On a fresh `home-assistant-config`
+  volume it will not: since 2026.9, Home Assistant imports `configuration.yaml`'s
+  `http:` block once, as a *pending* config, and reverts to defaults that trust
+  no proxy unless an admin confirms it within five minutes. The symptom is
+  `400: Bad Request` on `homeassistant.matrix.elysium`. The stack README's Home
+  Assistant bullets have the fix, and it takes a minute. Apply it before
+  onboarding.
 - **Home Assistant keeps booting under its hardening.** It is healthy above;
   the `dhcp` integration's `CAP_NET_RAW` error is the one expected line.
 - **AdGuard answers the prober and nobody else.** That is §11, step 1.
@@ -463,7 +498,8 @@ password there, which is why it is separate. Within a minute
 
 Distribute `certificates/tier-ca.pem` as
 [`build-the-tier-ca.md`](build-the-tier-ca.md) §6 says: the Mac's keychain
-(*Always Trust*), Firefox's own store, and each phone. On iOS, install the
+(*Always Trust*), which Chrome and Safari use, Firefox's own store if
+it is used, and each phone. To get it onto an iPhone, rename it `.crt` and AirDrop it. On iOS, install the
 profile **and then** enable it under *Settings → General → About →
 Certificate Trust Settings*.
 
@@ -480,16 +516,19 @@ floor, and recovery codes go in the password manager.
 | `https://immich.matrix.elysium` | The first sign-up is the admin | None. ADR-0022 records Immich as unable |
 | `https://adguard.matrix.elysium` | The password behind §6's hash | None — likewise |
 
-Home Assistant's Hue integration is added **by address**, `10.0.20.104`,
+Home Assistant's Hue integration is added **by address**, `10.0.20.20`,
 pressing the bridge's button when asked. That is the first traffic §8's pass
 carries. Read the tripwire again afterwards.
 
 ## 11. The forwarder
 
-[`forward-dns-to-adguard.md`](forward-dns-to-adguard.md) from its step 1. Its
-*Before you start* is now true. Step 4 takes AdGuard down on purpose, so put
-a silence on `AdGuardNotAnswering` first. And pick an hour nobody in the
-house is on a call.
+[`forward-dns-to-adguard.md`](forward-dns-to-adguard.md) from its step 1,
+with **AdGuard as the only forwarder**
+([ADR-0055](../adr/0055-forward-to-adguard-alone.md)): with the public resolvers
+beside it, 38 of 60 blocked names leaked. From then on, AdGuard being down
+means the house has no outside names, so `AdGuardNotAnswering` pages.
+Step 4 takes AdGuard down to prove that page arrives. Do not silence it, and
+pick ten minutes nobody needs the internet.
 
 ## 12. Backups, and the copy off the host
 
@@ -512,11 +551,15 @@ make backup STACK=sensitive ARGS=--list
 make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
-Both sides must be listed, and the dry run must pass.
+Both sides must be listed, and the dry run must pass. Ten volumes are
+archived. `immich-model-cache` and `adguard-work` are skipped by name, so AdGuard
+keeps answering the house's DNS while the rest of the stack is stopped. On
+2026-09-28, 150 of 150 lookups through `morpheus` succeeded during a backup.
 [`restore-the-sensitive-tier.md`](restore-the-sensitive-tier.md) §0 is the
 rest of what must be true.
 
-**A weekly timer for it arrives with the as-built change under #404.** The
+**A weekly timer for it is its own change under #404**, because its outcome
+has to reach the estate's staleness alerts under a job name of its own. The
 estate's `homelab-backup-volumes` unit is the monitoring host's, and its paths
 are `robo`'s. Until the timer is installed, a set exists only when someone
 runs the line above. Converging the host is
@@ -548,11 +591,13 @@ on the containers, and each is written in a document that already exists:
 
 - [`hardware.md`](../hardware.md): the Compute row, and the USB drive's entry
   saying encrypted `ext4`.
-- [`network.md`](../network.md): `trinity` in Winterfell's table and
-  `bifrost`'s reservation. Move the Skids pass from "decided" to "in force".
+- [`network.md`](../network.md): `trinity` in Winterfell's table,
+  `bifrost`'s reservation, the Skids pass in force, and the Hicks pass
+  counted in the named list.
 - [`architecture.md`](../architecture.md) and the stack README: not "not
   built".
-- `docs/firewall-claims.yaml`: the pass.
+- `docs/firewall-claims.yaml`: the count of Hicks passes in its comment. It
+  states postures, not rule bodies.
 - `blackbox-dns.yaml`: the forwarder runbook's two targets.
 - The issue: #129–#135 close by hand once §9–§11 verify (their PRs said
   `Refs`), and #404 closes on §13.
@@ -568,5 +613,9 @@ on the containers, and each is written in a document that already exists:
 | `/srv/immich` is empty after a reboot and `df` shows the root | The drive was unplugged or the `crypttab` line is wrong; `chattr` held | `systemctl status systemd-cryptsetup@immich`, fix, `sudo mount /srv/immich`. Immich refuses to start meanwhile, which is the point |
 | `make render` stops with *do NOT run `make certs ARGS=--ca` here* | `certificates/tier-ca.pem` is missing | §7 is not done |
 | A browser on Hicks times out on `https://*.matrix.elysium` | §3's Hicks pass is missing or below the block | Check *Firewall → Rules → HICKS* order |
-| Home Assistant cannot find the bridge | The pass is below *Block access to Skids*, or `bifrost` moved off `.104` | `pfctl -vsr` as in §8; the reservation |
+| Home Assistant cannot find the bridge | The pass is below *Block access to Skids*, or `bifrost` is not on `.20` | `pfctl -vsr` as in §8; the reservation |
+| `homeassistant.matrix.elysium` answers `400: Bad Request` | Home Assistant 2026.9+ reverted its imported `http:` config because nobody confirmed it within five minutes | The stack README's Home Assistant bullets: promote the pending config with the container stopped |
+| Caddy fails to start: *Address already in use* | Something took `172.28.99.2` (fixed since 2026-09-28 by the network's `ip_range`) | `make down STACK=sensitive`, then `make up`. If it recurs, check the `ip_range` is still in `compose.yaml` |
+| The Alloy agent logs `cannot unix dial containerd` and no container metrics arrive | Docker is on the containerd image store | §4's `daemon.json`, then `make down`, restart Docker, `make up` (the images download again), and `deploy-agent.sh` again |
+| The house loses outside DNS while `trinity` is fine | AdGuard stopped. Only the backup used to do that, and it no longer does | `make ps STACK=sensitive`; `AdGuardNotAnswering` pages at five minutes. The workaround is in `forward-dns-to-adguard.md` step 4 |
 | `make backup` fails on the copy | `oracle`'s `authorized_keys`, or `oracle` is off | §12. The set is still on `trinity`; `ARGS=--copy-only` catches up |

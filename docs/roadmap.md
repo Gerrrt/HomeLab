@@ -109,8 +109,15 @@ has been rehearsed on it.
   there, unconfigured, for the day `trinity` has to be the firewall.
   → [runbook](runbooks/restore-the-firewall.md#rehearse-the-restore-on-the-spare)
 - **[#404](https://github.com/Gerrrt/HomeLab/issues/404) Build the tier's
-  host.** After #92: the same box, wiped and built once the rehearsal is done
-  ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)).
+  host.** **Built and deployed 2026-09-28**
+  ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
+  → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
+  - the weekly backup timer (step 9);
+  - the DNS failure test, which proves `AdGuardNotAnswering` pages;
+  - the step 10 gate before the first real item: the Immich restore
+    rehearsal, the second age recipient, the off-estate copy, ADR-0022's
+    identity-provider record and ADR-0023's *Independent* test.
+
   [#533](https://github.com/Gerrrt/HomeLab/issues/533) follows the build;
   [#534](https://github.com/Gerrrt/HomeLab/issues/534)'s CI re-check is
   already done (#646).
