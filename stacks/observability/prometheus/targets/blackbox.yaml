@@ -119,22 +119,23 @@
 # HTTPS check any of trinity's sites has, so its expiry series is the first
 # evidence from outside that Caddy is renewing its seven-day leaves.
 #
-# NOT ENABLED until ntfy is serving on trinity and the name resolves — enabled
-# early, it pages `urgent` from the moment it is loaded. The cutover in
-# docs/runbooks/verify-the-alert-path.md verifies it from the running
-# exporter and then uncomments it:
+# Enabled 2026-09-28 at the cutover (#136), after this was run from the live
+# exporter on prometheus and answered probe_success 1, status 200, and a
+# probe_ssl_earliest_cert_expiry of 2026-10-05T21:59:04Z: the same seven-day
+# leaf Caddy was serving on trinity, so the chain verified against the tier's
+# root end to end. Re-run it the same way if this ever goes red:
 #
 #   docker exec blackbox-exporter wget -qO- \
 #     'http://localhost:9115/probe?target=https://ntfy.matrix.elysium/v1/health&module=http_2xx_tier_ca' \
 #     | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
-#
-# - targets: ["https://ntfy.matrix.elysium/v1/health"]
-#   labels:
-#     module: http_2xx_tier_ca
-#     name: ntfy
-#     role: alerting
-#     host: trinity
-#     via: dns
+
+- targets: ["https://ntfy.matrix.elysium/v1/health"]
+  labels:
+    module: http_2xx_tier_ca
+    name: ntfy
+    role: alerting
+    host: trinity
+    via: dns
 
 # --- Devices that otherwise only have SNMP ---------------------------------
 # An SNMP agent answering says nothing about the management UI a person would
