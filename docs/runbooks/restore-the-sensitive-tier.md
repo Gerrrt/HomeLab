@@ -300,10 +300,16 @@ restored volume by hand.
   not. The quiesced archive carries all three files, so the restore is
   consistent, and the first start of the restored service checkpoints the
   journal into the main file. §4 step 2 reads the trio for that reason.
-- **The 512-byte floor is real.** The first step-ca stand-in was a 20-byte
-  file in an empty tree, and the backup refused it as *implausibly small*. An
-  artefact of the stand-in — a real tree is kilobytes — but it is what the
-  floor is for.
+- **The byte floor refused a stand-in, and later a real volume.** The first
+  step-ca stand-in was a 20-byte file in an empty tree, and the backup refused
+  it as *implausibly small* under the old 512-byte floor. On `trinity`'s first
+  real backup (2026-09-28) the same floor refused `paperless-media`: 368 bytes,
+  holding the real, still-empty `./documents` tree. A byte count cannot tell
+  those two cases apart, because each age recipient adds about 100 bytes, so
+  the floor is now 256. It catches a truncated file and nothing else, and
+  `backup-volumes.sh` gives the measurements. Empty and wrong volumes are
+  refused by the entry count and the sentinel, which is what they were always
+  for.
 - **Caddy could not read its key.** `gen-certs.sh` writes the leaf's key `0640`,
   and a root that has dropped `CAP_DAC_OVERRIDE` is bound by that. Found by
   starting it; fixed with the `group_add` the estate's Grafana already has.
