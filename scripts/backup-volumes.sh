@@ -440,8 +440,18 @@ declare -A COMPANIONS=(
 # on erebor/apps rather than volumes, which is why none of jellyfin-config,
 # audiobookshelf-state and navidrome-data is declared there at all (ADR-0045,
 # ADR-0050). Navidrome's cache is a tmpfs, so it needs no entry here.
+# adguard-work joined 2026-09-28, for a reason the other two do not have:
+# archiving it meant stopping AdGuard, and since that day AdGuard is the only
+# forwarder behind morpheus's resolver. trinity's first backup took DNS away
+# from the whole house for about two minutes. The volume holds blocklists
+# AdGuard downloads again, statistics, UI sessions and a query log that
+# restore-the-sensitive-tier.md already says to protect rather than restore.
+# Its settings are adguard/AdGuardHome.yaml, in git. Not archiving it is
+# what takes AdGuard off the stop list: SERVICES is derived from the volumes
+# that ARE archived.
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
+  [adguard-work]="blocklists, stats and a query log AdGuard rebuilds; archiving it would stop the house's only DNS forwarder"
   [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"
 )
 

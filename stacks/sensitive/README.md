@@ -414,11 +414,13 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the eleven volumes it archives has a
+volume it cannot verify, so each of the ten volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
 pinned image, beside the entries [#133] read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
-uid is a constant. The twelfth, `immich-model-cache`, is skipped by name: a
+uid is a constant. Two are skipped by name. `adguard-work` is skipped because
+archiving it would stop the house's only DNS forwarder, and nothing in it is
+worth restoring. `immich-model-cache` is skipped because a
 downloadable cache is not data, and a fresh host whose models have not been
 fetched yet would otherwise fail the whole run on an empty archive. Both
 scripts encrypt to **every recipient of
