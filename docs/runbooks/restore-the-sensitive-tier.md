@@ -17,7 +17,7 @@ most are rebuildable or re-fetched from somewhere else and five are not:
 | --- | --- | --- |
 | `vaultwarden-data` | The vault: every account, every item, every TOTP secret, the RSA key that signs every session | **Lost.** Nothing in git, nothing on another host, nothing regenerates it. This is the one the tier exists to protect |
 | `home-assistant-config` | Home Assistant's own store: every login, every device credential a config flow produced, the recorder's history. `configuration.yaml` is the repository's and is mounted over it | **Lost**, and re-created by hand: every integration paired again, every credential re-issued by its vendor. ADR-0035 says why these live here and not in SOPS |
-| `immich-db` | Immich's metadata: every album, face, tag and the path of every original. The originals are on the USB disk, outside these volumes | **Lost**, unless Immich's own nightly dump beside the originals is intact — the stack README's Immich section has that route, and it is the one to prefer for a database older than the library |
+| `immich-db` | Immich's metadata: every album, face, tag and the path of every original. The originals are on the USB disk, outside these volumes | **Lost**, unless Immich's own nightly dump beside the originals is intact — [Restore Immich](#restore-immich) below has that route, and it is the one to prefer for a database older than the library |
 | `immich-model-cache` | Downloaded ML models | Re-fetched on first use. **Not archived at all** — skipped by name in `backup-volumes.sh`, so it is never in a set and `make up` creates it empty |
 | `paperless-media` | Every scanned original, its PDF/A copy and thumbnail | **Lost.** The stack README's Paperless section has the exporter, which is the version-portable second route |
 | `paperless-db-data` | Paperless-ngx's metadata: tags, correspondents, every document's fields | **Lost**, unless an export is intact — an export carries the metadata beside the files |
@@ -258,6 +258,147 @@ Then from a client on Hicks — the checks a shell cannot do:
 
 ---
 
+## Restore Immich
+
+Immich is two stores, and §2–§4 restore only one of them. The metadata is in
+`immich-db`; the photographs are a bind mount on the USB disk, in no backup
+set. What protects each is in the stack README's
+[*What backs Immich up*](../../stacks/sensitive/README.md#what-backs-immich-up-and-what-does-not-yet).
+A restore that brings back the database without the files — or the files
+without the database — serves a library of broken thumbnails, or an empty one.
+
+**Put the library back first.** Mount the disk (or its copy) at
+`IMMICH_UPLOAD_LOCATION` with `backups/`, `encoded-video/`, `library/`,
+`profile/`, `thumbs/` and `upload/` beneath it, owned by the deploying user.
+Every folder carries a `.immich` marker, and the server refuses to start
+when one is unreadable — that is the check that the mount is the library and
+not an empty directory.
+
+**Then the database, by one of two routes.**
+
+- **The volume**, out of a `make backup` set: §2 with `--only immich-db`.
+  Postgres finds a data directory, skips initialisation and needs no redo —
+  the set was taken from a stopped container.
+- **Immich's own dump**, newest in `IMMICH_UPLOAD_LOCATION/backups/`. This is
+  the route when the SSD and every set are gone and the disk is not, and the
+  one to prefer when the newest set is older than the newest photos. Upstream's
+  command-line restore, with this stack's names:
+
+```bash
+make render STACK=sensitive
+docker compose -f stacks/sensitive/compose.yaml create           # nothing runs yet
+docker volume rm sensitive_immich-db                             # only if it holds a database
+docker start sensitive-immich-db                                 # initialises an empty `immich`
+gunzip --stdout /srv/immich/backups/<dump>.sql.gz \
+  | sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT pg_catalog.set_config('search_path', 'public, pg_catalog', true);/g" \
+  | docker exec -i sensitive-immich-db psql --dbname=immich --username=postgres \
+      --single-transaction --set ON_ERROR_STOP=on
+make up STACK=sensitive
+```
+
+  A version mismatch between the dump's filename and the pinned image is
+  upstream's warning, not this runbook's: it migrates forward, it does not
+  migrate back. Restore on the version that wrote the dump when you can.
+
+**Before `make up` if you can, not after.** Upstream calls restoring into a
+database the server has never touched a hard rule. It is not one on v3.2.2 —
+see below — but a server started on an empty `immich-db` answers
+`isInitialized: false` and serves *create the first admin* on VLAN 99 to
+whoever reaches it first, and a phone that reconnects in that window is
+talking to a different, empty Immich. Keep the order.
+
+**Verify.** All three, against the numbers the restored database itself
+claims:
+
+```bash
+# 1. Not a fresh install. Both must be true; false/false is onboarding.
+docker exec sensitive-immich-server curl -fsS http://localhost:2283/api/server/config \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["isInitialized"], d["isOnboarded"])'
+
+# 2. The mount checks, and no drift between the schema and the image.
+docker logs sensitive-immich-server 2>&1 | grep -E 'Successfully verified system mount|schema drift'
+
+# 3. Every original is on the disk and is the file the database says it is.
+#    asset.checksum is the SHA-1 of the original. Expect bad=0.
+docker exec sensitive-immich-db psql -U postgres -d immich -AtF' ' \
+  -c "select encode(checksum,'hex'), \"originalPath\" from asset" \
+  | python3 -c '
+import hashlib, sys
+ok = bad = 0
+for line in sys.stdin:
+    s, p = line.rstrip("\n").split(" ", 1)
+    try:
+        h = hashlib.sha1(open("/srv/immich/" + p.removeprefix("/data/"), "rb").read()).hexdigest()
+    except FileNotFoundError:
+        h = None
+    if h == s: ok += 1
+    else: bad += 1; print("BAD", p)
+print(f"ok={ok} bad={bad}")'
+```
+
+A `BAD` line is a photograph the database remembers and the disk does not
+have — the case upstream's *Backup ordering* warns of when the files were
+copied before the database. A database dumped first and files copied second
+can only err the other way: files on disk that no asset row names, which cost
+a re-upload and nothing else.
+
+### Rehearsed on `trinity`, 2026-09-28
+
+Against the real library — 615 assets from two accounts, uploaded earlier
+that day — and without touching the live stack. The library was copied onto a
+tmpfs *after* a `pg_dump` of the live database, in upstream's order. Scratch
+containers were started by hand with `compose.yaml`'s options on an
+`--internal` network, with no port, and no machine-learning container.
+Everything was deleted afterwards.
+
+**What it established.**
+
+- **Immich's dump route.** 21 MB of `.sql.gz` restored into a fresh `immich-db`
+  in 19 seconds, in one transaction, with no errors. The server started on it
+  healthy in 12 seconds. It ran no migrations, found no schema drift, passed
+  all six mount checks and skipped the ~228k-row geodata import, because that
+  table came back too. `isInitialized` and `isOnboarded` were both true, and
+  both accounts were there.
+- **The volume route.** `make backup STACK=sensitive` wrote set
+  `20260928T203415Z`: ten volumes, 126 MB, the stack down 17 seconds, with
+  the set copied to `oracle` and verified there. `restore-volumes.sh --only
+  immich-db` into `COMPOSE_PROJECT_NAME=rehearse` brought the volume back
+  owned by `999`. Postgres skipped initialisation, and `data_checksums` was
+  still on. The server's result matched the dump route's.
+- **Every photograph checks out, on both routes.** The `(checksum,
+  originalPath)` list read from each restored database was byte-identical to
+  the live one. All 615 originals in the copy hashed to their checksum:
+  `ok=615 bad=0`.
+
+**What it found.**
+
+- **The order is a safety rule on v3.2.2, not a hard one.** A server started
+  first on an empty database ran every migration and offered onboarding. The
+  same dump then restored over it cleanly anyway, because `pg_dump --clean
+  --if-exists` drops what it recreates. The server restarted on that database
+  with both accounts and no drift. That was a dump from the *same* version.
+  A dump from an older version, restored over a newer schema, was not tried.
+- **Upstream's page restores into `--dbname=immich`, not `postgres`.** The
+  dump is a single-database `pg_dump`, so the database has to exist already.
+  The image's `POSTGRES_DB=immich` creates it on the first start.
+- **The live server rode out its database's stop.** `backup-volumes.sh` stops
+  `immich-db` and leaves `immich-server` running. The server logged no error
+  across the 17 seconds and answered `ping` afterwards.
+- **`restore-volumes.sh --only immich-db` still prints the whole tier's
+  warnings** (vault items and `rsa_key.pem`, step-ca leaves). That is noise
+  on a single-volume restore, not a fault.
+
+**What is still not proven.** Nothing came back from anywhere but `trinity`,
+and there is no copy of the originals off it. That is [#455](https://github.com/Gerrrt/HomeLab/issues/455),
+and until it exists the checksum pass above proves only that a copy of *this
+disk* restores. The restored server was not reached through Caddy, nor by a
+phone. A phone reconnecting to a restored server is the moment a wrong
+restore would first be noticed, and nobody has watched it. Machine learning
+did not run, so the face and CLIP vectors came back but nothing used them.
+A cross-version restore, the case upstream warns about, was not tried.
+
+---
+
 ## What is proven, and what is not
 
 The round trip was rehearsed on 2026-09-09 on the monitoring host, before
@@ -269,7 +410,8 @@ the twelve volumes seeded to look like the tier's — `home-assistant-config`,
 [#132](https://github.com/Gerrrt/HomeLab/issues/132) and
 [#133](https://github.com/Gerrrt/HomeLab/issues/133) landed the same day).
 Their sentinels were read off boots of the pinned images by the sessions that
-landed them, and their restore has not been rehearsed:
+landed them, and their restore was not rehearsed that day. `immich-db` has
+been since, on `trinity` and by both routes: [Restore Immich](#restore-immich). What was seeded:
 
 - Caddy from the pinned image, started under `compose.yaml`'s options with the
   real `Caddyfile` and a throwaway leaf, populated `caddy-data` and

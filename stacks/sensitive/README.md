@@ -485,6 +485,8 @@ unit and its installer are in
 What this does **not** give is a copy off the estate. `oracle` is in the same
 room and on the same power, and [ADR-0023] requires that copy before Immich or
 Paperless-ngx hold a real file. It is step 10's.
+And the volumes are not the photographs: the library is a bind mount, and
+no set contains it.
 
 ## What backs Immich up, and what does not yet
 
@@ -494,19 +496,31 @@ and before the first real photo arrives an off-estate copy has to exist whose
 staleness is visible. Three things hold the data, and they are protected by
 three different mechanisms — two of which do not exist yet.
 
+> [!WARNING]
+> **The first real photographs arrived before that copy did.** Two accounts
+> uploaded 615 assets between 16:59 and 17:01 UTC on 2026-09-28 — the day the
+> host was built, with [#455] undelivered and [ADR-0022]'s record and
+> [ADR-0023]'s *Independent* test still open. Until [#455] exists, the USB disk
+> is the only copy of the originals anywhere. The restore below proves the
+> metadata comes back; it cannot bring back a photograph that is on no other
+> disk.
+
 | What | Where | Protected by |
 | --- | --- | --- |
 | The originals, thumbnails and transcodes | `IMMICH_UPLOAD_LOCATION` — the USB disk | The off-estate copy [ADR-0023] requires. **Not built**: its destination, a WD Elements 5 TB, was bought on 2026-09-22 under [#455] and has not been delivered. It is the precondition on the first real photo, not on the container starting |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | The same copy — it is on the same disk, on purpose, so one copy of the disk is a copy of the metadata beside the originals |
-| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients. Immich's dump on the USB disk is the second route to the same metadata |
+| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `oracle` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
 
 The restore that [#132] asks to see proven once is Immich's own: a fresh
-install, the library tree back on its disk, and the newest dump fed to
-`psql` inside `immich-db` — the procedure is upstream's *Backup and Restore*
-page, and its one hard rule is that the database is restored **before** the
-server first starts against the empty volume. It has not been rehearsed
-yet. The host exists since 2026-09-28, and the rehearsal is part of [#404]
-step 10, before the first real photo; this section is what that step reads.
+install, the library tree back on its disk, and a dump fed to `psql` inside
+`immich-db` before the server first starts. **Rehearsed on `trinity` on
+2026-09-28** against copies of the real library, by both routes in the table —
+Immich's dump, and the `immich-db` volume out of a `make backup` set — with
+every one of the 615 originals hashed against the checksum the restored
+database holds for it. The procedure, what it proved and what it did not are
+[`restore-the-sensitive-tier.md` § Restore Immich](../../docs/runbooks/restore-the-sensitive-tier.md#restore-immich).
+Upstream calls the database-first order a hard rule; on v3.2.2 the rehearsal
+found it is a safety rule instead, and the runbook says why it is kept anyway.
 
 ## Validate before deploying
 

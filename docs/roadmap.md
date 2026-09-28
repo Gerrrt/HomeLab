@@ -114,9 +114,14 @@ has been rehearsed on it.
   → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
   - the DNS failure test, which proves `AdGuardNotAnswering` pages (and
     closes [#135](https://github.com/Gerrrt/HomeLab/issues/135));
-  - the step 10 gate before the first real item: the Immich restore
-    rehearsal, the second age recipient, the off-estate copy, ADR-0022's
-    identity-provider record and ADR-0023's *Independent* test.
+  - the step 10 gate, which the first real photos passed on 2026-09-28
+    while most of it was still open: the second age recipient, the
+    off-estate copy, ADR-0022's identity-provider record and ADR-0023's
+    *Independent* test. The Immich restore rehearsal is done
+    ([#132](https://github.com/Gerrrt/HomeLab/issues/132), →
+    [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)). Until
+    [#455](https://github.com/Gerrrt/HomeLab/issues/455) exists, the USB
+    disk is the only copy of the originals.
 
   [#533](https://github.com/Gerrrt/HomeLab/issues/533) follows the build;
   [#534](https://github.com/Gerrrt/HomeLab/issues/534)'s CI re-check is
