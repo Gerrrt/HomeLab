@@ -198,7 +198,9 @@ time and lives in Caddy's `/data` volume, never on disk here.
 - **Caddy has a fixed address, `172.28.99.2`, for one reader.** Home
   Assistant's `trusted_proxies` names the proxy it will believe
   `X-Forwarded-For` from, and a Docker-assigned address is not a name. The
-  network's subnet is fixed for that one line and nothing else.
+  network's subnet is fixed for that one line and nothing else. Its
+  `ip_range` keeps Docker's own assignments in `.128` and up, because Caddy
+  starts last and on 2026-09-28 found `.2` already taken by Vaultwarden.
 - **AdGuard's configuration is the tracked file, every time.** `compose.yaml`
   copies `adguard/AdGuardHome.yaml` into a tmpfs on each start, with the admin
   hash substituted from `ADGUARD_ADMIN_PASSWORD_HASH`. A blocklist enabled in
