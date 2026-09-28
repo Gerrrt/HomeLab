@@ -84,6 +84,15 @@ docstring gives: it is a record, not a claim about now.
   was shredded after `--install`. The tier's root is
   `SHA256 4C:C3:06:81:…:56:5E`. The expiry rule for seven-day leaves is still
   [#426](https://github.com/Gerrrt/HomeLab/issues/426).
+- **Home Assistant passed its acceptance on `trinity`**
+  ([#134](https://github.com/Gerrrt/HomeLab/issues/134)). Container flavour,
+  with no USB radio, as ADR-0035 decided. `bifrost`'s reservation, the pass
+  and the tripwire read are the `bifrost` bullet above. The leaf and the
+  `morpheus` override are the Caddy bullet's: `homeassistant.matrix.elysium`
+  is one of its six names. TOTP is enrolled on the one owner account, the only
+  account that is not system-generated. No long-lived access token exists, so
+  nothing is owed to SOPS. The hardening boot re-runs in CI on every change,
+  under #646.
 
 ## 2026-09-26
 
