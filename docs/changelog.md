@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-28
 
+- **The sensitive tier's backup is on a nightly timer**
+  ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9, the
+  acceptance item on [#131](https://github.com/Gerrrt/HomeLab/issues/131)).
+  - **What runs.** `homelab-backup-sensitive` runs `make backup STACK=sensitive`
+    on `trinity` at 04:30 every night. Each run already copies the set to
+    `oracle` ([#535](https://github.com/Gerrrt/HomeLab/issues/535)), so the
+    copy off the host was done. What was missing was anything that took a set
+    unless someone typed the command.
+  - **Why daily.** The estate's backup is weekly. This one is daily because it
+    holds the password vault, and a week of lost vault edits is the wrong
+    default.
+  - **How it is installed.** It is a second profile of `install-timers.sh`,
+    with its own table and its own `systemd/sensitive/` directory.
+    - The units carry `@DEPLOY_ROOT@` and `@RUN_USER@`, because the build
+      runbook writes `trinity`'s operator as `<you>`.
+    - `--check` verifies the rendered units everywhere, CI included.
+    - `--check` fails if a job name appears in both tables. The alert rules
+      join on the name alone, so a name on two hosts would make every join
+      many-to-many.
+  - **Alerts.** `ScheduledJobStale` now names `{{ $labels.instance }}` rather
+    than "the monitoring host". A promtool case pins the two-host join.
+  - **What it does not do.** `oracle` is in the same room, so this is still
+    not ADR-0023's copy off the estate. That copy is step 10.
+
 - **`trinity` is built, and the sensitive tier runs on it**
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404)). Ubuntu 26.04.1,
   not the planned 24.04, because the installer stick carried it; it was kept

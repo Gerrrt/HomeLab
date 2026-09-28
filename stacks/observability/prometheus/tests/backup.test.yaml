@@ -70,8 +70,45 @@ tests:
               description: >-
                 The timer has stopped running this, or every run since has
                 failed. Check `systemctl list-timers 'homelab-*'` and
-                `journalctl -u homelab-job-stale.service` on the monitoring
-                host — docs/runbooks/schedule-maintenance.md.
+                `journalctl -u homelab-job-stale.service` on prometheus —
+                docs/runbooks/schedule-maintenance.md.
+
+  # --- ScheduledJobStale: a second host joins one-to-one --------------------
+  #
+  # trinity declares its own threshold in its own textfile directory (#404
+  # step 9), so homelab_job_max_age_seconds now comes from two instances. The
+  # join is on(homelab_job) alone; it stays one-to-one only because no job
+  # name is in both tables (install-timers.sh check 8). This pins that the
+  # trinity job fires with trinity's instance, and the monitoring host's
+  # fresh job beside it stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="backup-sensitive", instance="trinity"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="backup-sensitive", instance="trinity"}'
+        values: "3600+0x180"
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="backup-volumes", instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="backup-volumes", instance="prometheus"}'
+        values: "100000+0x180"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: ScheduledJobStale
+        exp_alerts:
+          - exp_labels:
+              alertname: ScheduledJobStale
+              homelab_job: backup-sensitive
+              instance: trinity
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "backup-sensitive has not succeeded in 2h 0m 0s"
+              description: >-
+                The timer has stopped running this, or every run since has
+                failed. Check `systemctl list-timers 'homelab-*'` and
+                `journalctl -u homelab-backup-sensitive.service` on trinity —
+                docs/runbooks/schedule-maintenance.md.
 
   # --- ScheduledJobStale: verify-key-backup is not its business ------------
   #

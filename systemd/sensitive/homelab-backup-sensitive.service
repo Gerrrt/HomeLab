@@ -1,0 +1,60 @@
+# Nightly quiesced backup of the sensitive tier's volumes, on trinity (#404
+# step 9, the acceptance item for Vaultwarden in #131).
+#
+# The same job as ../homelab-backup-volumes.service, run against the other
+# stack on the other host, and that unit explains every directive below; this
+# one states only what differs. It lives in its own directory because it is
+# installed by a different profile of scripts/install-timers.sh
+# (`--profile sensitive`), which is also what asserts that its ExecStart= goes
+# through run-scheduled.sh.
+#
+# The @...@ tokens are rendered at install time from the sudo-ing user and the
+# checkout under their home. The build runbook writes trinity's operator as
+# <you>, and this file does not pin a name the runbook deliberately leaves
+# open. install-timers.sh refuses to render from anywhere but
+# ~<you>/code/Gerrrt/HomeLab, for the same reason the estate profile refuses
+# anywhere but robo's checkout.
+#
+# The copy off the host is not this unit's work: backup-volumes.sh sends every
+# set to atropos@oracle:backups/volumes/sensitive after the stack is back up and
+# checks each archive's sha256 on the far side (#535), and a failed copy is a
+# non-zero exit here. The copy off the ESTATE is ADR-0048's, carried by hand.
+[Unit]
+Description=HomeLab: quiesce the sensitive tier and archive its volumes
+Documentation=file://@DEPLOY_ROOT@/docs/runbooks/restore-the-sensitive-tier.md
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=@RUN_USER@
+Group=@RUN_GROUP@
+SupplementaryGroups=docker
+WorkingDirectory=@DEPLOY_ROOT@
+Environment=STACK=sensitive
+Environment=SOPS_AGE_KEY_FILE=@RUN_HOME@/.config/sops/age/keys.txt
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=@DEPLOY_ROOT@/scripts/run-scheduled.sh --job backup-sensitive --lock backups --lock-wait 900 -- /usr/bin/make -C @DEPLOY_ROOT@ backup
+# Vaultwarden, Home Assistant, Immich and Paperless-ngx are down for the length
+# of the archive; AdGuard is skipped by name and keeps answering the house's DNS
+# (stacks/sensitive/README.md). The ceiling is the monitoring host's, for the
+# same reason: a hang has no exit path, and the trap only restarts the stack on
+# one.
+TimeoutStartSec=1800
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=false
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-backup-sensitive
+
+# No [Install] section: the timer enables this, and a oneshot that could be
+# enabled on its own would stop the tier at every boot.
