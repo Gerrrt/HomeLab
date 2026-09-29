@@ -167,7 +167,7 @@ miniflux.matrix.elysium {
 	}
 }
 
-# Actual (#142, ADR-0060). The web app and the sync API its clients call are
+# Actual (#142, ADR-0061). The web app and the sync API its clients call are
 # the same origin, so one block serves both. The server is claimed before its
 # first start (scripts/seed-actual-password.sh), so there is never a moment
 # when this name offers "set a password" to whoever arrives first.

@@ -21,7 +21,7 @@ docstring gives: it is a record, not a claim about now.
 
 - **Actual is decided and authored for the sensitive tier, not deployed**
   ([#142](https://github.com/Gerrrt/HomeLab/issues/142),
-  [ADR-0060](adr/0060-add-actual-to-the-sensitive-tier.md)). It is the third
+  [ADR-0061](adr/0061-add-actual-to-the-sensitive-tier.md)). It is the third
   service beyond ADR-0008's nine, after Miniflux and Memos. It was chosen over Firefly
   III because it is one container on SQLite and keeps working when the server
   is down.

@@ -298,7 +298,7 @@ none is in the order until one is taken.
 
 - **[#142](https://github.com/Gerrrt/HomeLab/issues/142) Actual** is decided
   and authored
-  ([ADR-0060](adr/0060-add-actual-to-the-sensitive-tier.md)): Actual rather than
+  ([ADR-0061](adr/0061-add-actual-to-the-sensitive-tier.md)): Actual rather than
   Firefly III, and claimed from SOPS before its first start, because it has no
   password setting. What is left is the deploy on `trinity`:
   `ACTUAL_SERVER_PASSWORD` in SOPS, the `actual` host override on `morpheus`,
