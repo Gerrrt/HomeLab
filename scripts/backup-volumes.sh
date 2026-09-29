@@ -368,6 +368,13 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # finishes, with a 4 MB -wal and a -shm beside it, and ./artwork appears as
 # the scanner extracts covers. Nothing else is written there — the cache is a
 # tmpfs on ND_CACHEFOLDER.
+#
+# linkding's (linkding-data) is the fourth SQLite volume here (#144). Read off
+# two boots of the pinned image on 2026-09-29 under its compose hardening:
+# bootstrap.sh switches db.sqlite3 to WAL before the first request, so a -wal
+# and a -shm sit beside it from the first start, and secretkey.txt signs every
+# session — a restore without it logs everyone out, as Vaultwarden's
+# rsa_key.pem does. favicons and previews stay empty with background tasks off.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -388,6 +395,7 @@ declare -A SENTINEL=(
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
+  [linkding-data]="./db.sqlite3"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -421,6 +429,7 @@ declare -A COMPANIONS=(
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
+  [linkding-data]="./secretkey.txt ./db.sqlite3-wal"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and

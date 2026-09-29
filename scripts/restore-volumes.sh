@@ -147,6 +147,10 @@ declare -A EXPECT_UID=(
   # constant this table can carry, so they are not checked here.
   [paperless-db-data]=999
   [paperless-broker-data]=999
+  # linkding's bootstrap chowns its tree to www-data on every start, so a
+  # restore that came back as root would be repaired at the next one; 33 is
+  # what the archive was taken from, and what a correct restore shows.
+  [linkding-data]=33
 )
 
 FROM=""

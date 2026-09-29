@@ -35,11 +35,11 @@ Environment=STACK=sensitive
 Environment=SOPS_AGE_KEY_FILE=@RUN_HOME@/.config/sops/age/keys.txt
 EnvironmentFile=-/etc/default/homelab-timers
 ExecStart=@DEPLOY_ROOT@/scripts/run-scheduled.sh --job backup-sensitive --lock backups --lock-wait 900 -- /usr/bin/make -C @DEPLOY_ROOT@ backup
-# Vaultwarden, Home Assistant, Immich and Paperless-ngx are down for the length
-# of the archive; AdGuard is skipped by name and keeps answering the house's DNS
-# (stacks/sensitive/README.md). The ceiling is the monitoring host's, for the
-# same reason: a hang has no exit path, and the trap only restarts the stack on
-# one.
+# Vaultwarden, Home Assistant, Immich, Paperless-ngx and linkding are down for
+# the length of the archive; AdGuard is skipped by name and keeps answering the
+# house's DNS (stacks/sensitive/README.md). The ceiling is the monitoring
+# host's, for the same reason: a hang has no exit path, and the trap only
+# restarts the stack on one.
 TimeoutStartSec=1800
 Restart=no
 Nice=10

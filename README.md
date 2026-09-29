@@ -208,7 +208,8 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │                             #   built 2026-09-27 (ADR-0030, #266, #267)
 ├── stacks/sensitive/         # the household's tier — Caddy, step-ca, Home
 │                             #   Assistant, AdGuard Home, Immich, Paperless-ngx,
-│                             #   Vaultwarden, Homepage and ntfy so far; its own CA,
+│                             #   Vaultwarden, Homepage, ntfy and linkding so far
+│                             #   (ADR-0057); its own CA,
 │                             #   leaves over ACME (ADR-0037); on trinity since 2026-09-28 (ADR-0034, #404)
 ├── stacks/media/             # Jellyfin and Navidrome on smaug, under TrueNAS's
 │                             #   own Docker — deployed by hand, no secrets file

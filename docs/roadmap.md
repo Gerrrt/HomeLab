@@ -287,6 +287,14 @@ Gated on the domain, on a household observation, or on something to publish.
 Beyond ADR-0008's nine: each needs its own decision before it is authored, and
 none is in the order until one is taken.
 
+- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding: decided
+  and authored, not deployed.**
+  [ADR-0057](adr/0057-add-linkding-to-the-sensitive-tier-behind-one-factor.md)
+  places it on the sensitive tier behind a password and no second factor, and
+  it is authored in `stacks/sensitive`. Three steps remain, all on `trinity`:
+  `LINKDING_SUPERUSER_PASSWORD` into SOPS; the `links` host override on
+  `morpheus`; and `make up STACK=sensitive`.
+
 ## Everything still to buy
 
 The one list, because purchases kept appearing one at a time in issues, ADRs

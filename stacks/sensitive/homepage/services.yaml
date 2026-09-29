@@ -5,7 +5,8 @@
 # TWO KINDS OF TILE, and the difference is the point:
 #
 #   - A LINK: a name, a line saying what it is for, and an href. That is all
-#     it claims. Home Assistant, AdGuard, Vaultwarden and Grafana are links.
+#     it claims. Home Assistant, AdGuard, Vaultwarden, linkding and Grafana
+#     are links.
 #   - A WIDGET: live numbers read server-side, with a credential scoped
 #     READ-ONLY or none at all. Immich and Paperless-ngx are read from their
 #     own APIs; Prometheus, the UPS, the firewall, the iLO and the NAS are read
@@ -61,6 +62,13 @@
         icon: vaultwarden.svg
         href: https://vaultwarden.matrix.elysium
         description: Vaultwarden — the Bitwarden apps point here
+
+    - Bookmarks:
+        icon: linkding.svg
+        # A link and not a widget: Homepage has none for linkding, and its
+        # API token is the account's whole power, not a read-only scope.
+        href: https://links.matrix.elysium
+        description: linkding — the household's bookmarks
 
     - Home:
         icon: home-assistant.svg

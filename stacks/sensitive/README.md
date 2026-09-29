@@ -30,15 +30,17 @@ make up STACK=sensitive
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
 | homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on the estate and where it lives, grouped by VLAN. A directory, not a status page — seven tiles read live numbers, with read-only tokens or from Prometheus; the rest are links ([#137]) |
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
+| linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The first service beyond [ADR-0008]'s list, and [ADR-0057] is why it is here ([#144]) |
 
-Fourteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Fifteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
 Paperless-ngx, the archive of what the household cannot get back; Homepage
-is the page that tells the household the rest exist; and ntfy is the one the
-estate uses, to tell the operator what is wrong with the rest. What is
-absent is as deliberate as what is here:
+is the page that tells the household the rest exist; ntfy is the one the
+estate uses, to tell the operator what is wrong with the rest; and linkding is
+the first that [ADR-0008] did not name, added by [ADR-0057]. What is absent is
+as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
   telemetry must never reach VLAN 99 ([ADR-0007]); this host *is* on VLAN 99,
@@ -47,8 +49,8 @@ absent is as deliberate as what is here:
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
 - **No other services planned.** The next one, whenever it comes, arrives as
-  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage and ntfy did: a
-  service with
+  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy and
+  linkding did: a service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -70,7 +72,7 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               fourteen services, one network, health-gated ordering
+compose.yaml               fifteen services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -549,6 +551,48 @@ here.
   [ADR-0022] leaves ntfy out of its table for that reason: it authenticates no
   household identity.
 
+## linkding
+
+The household's bookmarks, at `https://links.matrix.elysium` ([#144]). It is
+the first service here that [ADR-0008] does not name, and [ADR-0057] is the
+decision that put it on this tier. `compose.yaml` has the service and what was
+measured on the pinned image. What has to be true around it is here.
+
+- **Root for the bootstrap, uid 33 for everything that serves.** The image's
+  `bootstrap.sh` runs as root, migrates, creates the superuser, and chowns the
+  volume to `www-data`. Then uwsgi drops to 33. It keeps four capabilities out
+  of `ALL` for that half and holds none afterwards. `compose.yaml` says what
+  each one is for, including the one that only matters on the second start:
+  without `DAC_OVERRIDE`, a migration fails and the container still reports
+  healthy.
+- **One account, and nobody signs up.** linkding has no self-registration. The
+  superuser is created on first start from `LINKDING_SUPERUSER_NAME` in `.env`
+  and `LINKDING_SUPERUSER_PASSWORD` in SOPS. After that, the variables do
+  nothing, so a rotation is done in linkding's settings and recorded in SOPS
+  afterwards. A second person's account is made in `/admin`, and it counts
+  toward [ADR-0022]'s third trigger like any other account on the tier.
+- **No second factor.** linkding has none of its own. It offers OIDC, or trust
+  in a proxy header, and neither exists here yet. It sits with Immich and
+  AdGuard Home in `security.md`'s list of services that cannot carry one.
+  [ADR-0057] records why that is accepted for a list of links, and that OIDC is
+  how it would get one if [ADR-0022]'s decision brings an identity provider.
+- **No favicons, on purpose.** `LD_DISABLE_BACKGROUND_TASKS` keeps linkding
+  from asking a third party for an icon for every site in the list. Adding a
+  bookmark still fetches that page's own title and description.
+- **Archiving pages is not what this is.** The `-plus` image, with Chromium,
+  would save snapshots. [ADR-0057] leaves that want to a different service and
+  a new decision.
+- **The name needs a host override.** `links.matrix.elysium` gets its leaf from
+  step-ca as a site block and an alias like every other name here. It still
+  needs its override on `morpheus`
+  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
+- **Backed up with the tier.** `linkding-data` is archived nightly with the
+  other volumes. The sentinel is `db.sqlite3`, with its `-wal` and
+  `secretkey.txt` reported beside it. A restore without the key logs everyone
+  out, and loses nothing else. A Netscape HTML export from linkding's settings
+  also imports into any browser, which makes it a copy nothing here is needed
+  to read.
+
 ## Backup and restore
 
 ```bash
@@ -557,7 +601,7 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the ten volumes it archives has a
+volume it cannot verify, so each of the eleven volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
 pinned image, beside the entries [#133] read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
@@ -695,6 +739,7 @@ it matters:
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
+[ADR-0057]: ../../docs/adr/0057-add-linkding-to-the-sensitive-tier-behind-one-factor.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -704,6 +749,7 @@ it matters:
 [#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[#144]: https://github.com/Gerrrt/HomeLab/issues/144
 [#182]: https://github.com/Gerrrt/HomeLab/issues/182
 [#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
