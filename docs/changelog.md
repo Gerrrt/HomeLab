@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **HomeBox is declined**
+  ([#148](https://github.com/Gerrrt/HomeLab/issues/148), closed). Every job
+  it was filed for already had a home: serials and warranty dates in
+  `hardware.md`, receipts and manuals in Paperless-ngx, licence keys in
+  Vaultwarden. The one thing left was a list of household objects, and that
+  does not earn a place on Winterfell.
+  [ADR-0057](adr/0057-decline-homebox-because-hardware-md-and-paperless-already-hold-its-records.md)
+  records the reasoning and what would reopen it.
+
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having
   lost 28.5 GiB since 15 Sep in steps of 1–5 GiB.
