@@ -130,9 +130,11 @@ route off the host:
   of the tier.
 - **Fifteen containers in the stack, where there were fourteen.** One more
   image for Dependabot to bump monthly. The CI boot step checks the hardening
-  on each bump. It does not prove that pdfium loads, which is the failure
-  decision 3 was measured against, so the deploy's check runs a tool and not
-  only the healthcheck.
+  on each bump, and then runs `stacks/sensitive/stirling-pdf/smoke.sh`. That
+  script logs in as the seeded admin and merges two pages through pdfium, so
+  the failure decision 3 was measured against fails CI rather than a
+  household member. With `/tmp` put back to `noexec`, the boot went healthy
+  and the smoke test failed on the merge's 500.
 - **One more login on Hicks's reach.** Every Stirling tool requires a session
   (an unauthenticated call answered 401), except the status endpoint the
   healthcheck reads.

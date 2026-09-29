@@ -590,7 +590,7 @@ and DIFFERENCE 13. What has to be true around it is here.
     mounted over the script it links makes it skip that step.
   - The PDF engine unpacks shared libraries into `/tmp`, so that tmpfs is
     `exec`. Without it the container is healthy and every pdfium tool
-    answers 500, which is why the check below runs a tool rather than
+    answers 500, which is why CI and the check below run a tool rather than
     trusting the healthcheck.
 - **LibreOffice runs sandboxed, as the same uid.** The service starts as
   `stirlingpdfuser` (1001), so the entrypoint cannot give LibreOffice a uid of
@@ -602,8 +602,11 @@ and DIFFERENCE 13. What has to be true around it is here.
   [ADR-0023] classes the service as unclassed. A rebuild costs the admin a
   TOTP re-enrolment.
 
-After a deploy or an image bump, run one tool that uses pdfium, not only the
-healthcheck. Merge two PDFs in the UI, or from `trinity`:
+CI does this on every change to the service or its image.
+[`stirling-pdf/smoke.sh`](stirling-pdf/smoke.sh) runs after the hardened boot:
+it logs in as the seeded admin, merges two pages through pdfium, and fails on
+anything but a PDF back. On `trinity`, after a deploy, do the same by hand:
+merge two PDFs in the UI, then
 
 ```bash
 docker logs sensitive-stirling-pdf 2>&1 | grep -E 'sandbox active|UnsatisfiedLink'
@@ -738,7 +741,9 @@ it matters:
   `compose.yaml` on an internal network, waits for its healthcheck, and reads
   read-only root, `CapDrop=ALL` and no-new-privileges back from the running
   container ([#534](https://github.com/Gerrrt/HomeLab/issues/534)). A bump
-  that does not boot hardened cannot merge. What it still cannot tell you is
+  that does not boot hardened cannot merge. A service whose healthcheck can
+  pass while its work fails also carries a `smoke.sh` in its config
+  directory, which the check runs next; Stirling-PDF is the first. What it still cannot tell you is
   whether the integrations you add later load under the same hardening;
   `make check-hardened-boot` is the same boot, run by hand.
 - **That AdGuard filters.** Its blocklists are downloaded on first start and

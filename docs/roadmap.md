@@ -292,8 +292,9 @@ none is in the order until one is taken.
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
   none reaches a disk. What is left is the deploy. Set
   `STIRLING_ADMIN_PASSWORD` with `make secrets-edit STACK=sensitive`, add the
-  `pdf` override on `morpheus`, `make up STACK=sensitive`, enrol TOTP, and run
-  one pdfium tool (a merge) rather than trusting the healthcheck.
+  `pdf` override on `morpheus`, `make up STACK=sensitive`, enrol TOTP, and
+  merge two PDFs in the UI. CI's smoke test already runs a merge on every
+  bump, but that proves the image and not `trinity`.
 
 ## Everything still to buy
 

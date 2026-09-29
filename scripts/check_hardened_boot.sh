@@ -20,7 +20,13 @@
 #                  with ALL capabilities dropped and no-new-privileges. Without
 #                  this a boot proves nothing about the hardening: a softened
 #                  compose.yaml would boot, pass, and cache a proof for it.
-#   3. gone        `down -v`, always, from a trap.
+#   3. works       only if the service's config directory holds a smoke.sh:
+#                  it is run with the container id and must exit 0. For a
+#                  service whose healthcheck can pass while its work fails.
+#                  Stirling-PDF is the case that asked for it (ADR-0057): with
+#                  a noexec /tmp it answered its status endpoint and returned
+#                  500 from every pdfium tool.
+#   4. gone        `down -v`, always, from a trap.
 #
 # The network is made INTERNAL for the boot by an override file, which is how
 # the 2026-09-09 proof was taken: no route out. A service that only boots when
@@ -29,7 +35,7 @@
 # THE PROOF IS CACHED, the way check_compose_health.py caches --probe's (#602).
 # What a boot establishes is a claim about its inputs: the service as `docker
 # compose config` resolves it (image digest included), every file under the
-# service's config directory, and this script. The key is a hash of all three,
+# service's config directory (smoke.sh included), and this script. The key is a hash of all three,
 # so a Dependabot bump — or any edit to the service, its config or this check —
 # misses and boots, and a docs-only diff pulls nothing. Nothing is skipped: a
 # missing proof is always a boot.
@@ -160,6 +166,14 @@ secopt="$(docker inspect -f '{{join .HostConfig.SecurityOpt ","}}' "${cid}")"
 [[ "${secopt}" == *no-new-privileges* ]] || { fail "no-new-privileges is not set (SecurityOpt=${secopt:-none})"; bad=1; }
 ((bad)) && exit 1
 pass "${STACK}/${SERVICE}: ran read-only, CapDrop=ALL, no-new-privileges"
+
+if [[ -f "${CONFIG_DIR}/smoke.sh" ]]; then
+  if ! bash "${CONFIG_DIR}/smoke.sh" "${cid}"; then
+    fail "${STACK}/${SERVICE}: healthy, but ${CONFIG_DIR}/smoke.sh failed"
+    exit 1
+  fi
+  pass "${STACK}/${SERVICE}: ${CONFIG_DIR}/smoke.sh passed"
+fi
 
 if [[ -n "${PROOF_CACHE}" ]]; then
   mkdir -p "$(dirname "${PROOF_CACHE}")"
