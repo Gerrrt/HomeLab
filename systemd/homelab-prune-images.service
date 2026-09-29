@@ -1,0 +1,48 @@
+# Weekly removal of Docker images no container uses, on the monitoring host.
+#
+# Nothing removed them before this, and they are most of what filled `/`.
+# Every Dependabot bump is a new digest, and `make validate` pulls the pinned
+# image of every service in every stack to exec its healthcheck binary
+# (check_compose_health.py --probe), including stacks that never run here. So
+# each superseded digest stayed on disk for good. On 2026-09-29 that was 91
+# images, 47.8 GB, 42.6 GB of it reclaimable, and HostDiskCritical had been
+# firing for two days on a root volume of 98 GiB.
+#
+# `docker image prune -a` removes only images no container references, running
+# or stopped, so the stack's own images are never touched: the backup's
+# stopped containers still hold theirs. No `until` filter: Docker's `until` is
+# the image's build time, not when it was pulled, so it cannot express "keep
+# what was pulled this week". An image removed here that `make validate` wants
+# again is re-pulled only on a proof-cache miss, which a new digest is anyway.
+#
+# Under the `backups` lock that converge and the backups share, so a prune can
+# never land between a converge's pull and its `compose up`.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: remove Docker images no container uses
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+After=docker.service
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+SupplementaryGroups=docker
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job prune-images --lock backups --lock-wait 900 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab prune-images
+TimeoutStartSec=1800
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=false
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-prune-images

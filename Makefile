@@ -341,6 +341,16 @@ silence-state: ## Collect Alertmanager's silences as metrics (#575)
 	@# only: Alertmanager binds to 127.0.0.1 (ADR-0012), so this runs here.
 	python3 scripts/collect_silences.py
 
+.PHONY: prune-images
+prune-images: ## Remove Docker images no container uses (weekly on the monitoring host)
+	@# The unit says why: nothing else removes superseded digests, and they
+	@# filled `/` once (#136's cutover found it, 2026-09-29). Only images no
+	@# container references, running or stopped. The before and after are
+	@# printed so the journal records what each run reclaimed.
+	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep '^Images'
+	docker image prune -a -f
+	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep '^Images'
+
 .PHONY: pkg-state
 pkg-state: ## Collect package state from morpheus over SSH (FreeBSD, runs as robo)
 	@# morpheus is the one host `patch-state` cannot cover: it is FreeBSD, with
