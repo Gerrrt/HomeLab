@@ -60,10 +60,6 @@ Closes when it is empty.
   previous SNMP community.** Closes with #444: the row cannot be verified,
   so it is retired by the hardware leaving, not by a measurement.
   → [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
-- **[#531](https://github.com/Gerrrt/HomeLab/issues/531) Fit `oracle`'s
-  cell.** The cell is bought. What closes it is the fit, the mains pull, and
-  the silence deleted rather than left to expire on 2026-10-08.
-  → [runbook](runbooks/replace-the-laptop-cell.md)
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
   UPS's signal.** Decided by
   [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).
@@ -71,7 +67,7 @@ Closes when it is empty.
   `Saruman` and `smaug` subscribed. The sequence is armed and not proved. The
   gate is a rack visit, which proves the order with `upsmon -c fsd` and pulls
   the mains once to replace the card's 47-minute claim with a number.
-  Shares a window with #531's fit and, if its parts have landed, #444.
+  Shares a window with #444 if its parts have landed.
   → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
   Prometheus and Loki ingest ports.** Reopened 2026-09-26: #319 closed it by
@@ -388,8 +384,8 @@ is the point, not a problem to spend money on.
 **The one exception, and it narrows this line rather than reversing it:** a
 **consumable whose failure is a safety or availability event** is not an
 upgrade. `prometheus`'s cell was that case and is replaced
-([#454](https://github.com/Gerrrt/HomeLab/issues/454)); `oracle`'s is bought
-and waits on the fit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)).
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)); so is `oracle`'s,
+fitted 2026-09-29 ([#531](https://github.com/Gerrrt/HomeLab/issues/531)).
 Nothing else about either machine is.
 
 ## Considered and declined

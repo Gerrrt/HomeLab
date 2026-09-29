@@ -140,6 +140,29 @@ docstring gives: it is a record, not a claim about now.
     (`Set MFA required=false for user admin`). That is ADR-0022's floor, and
     the last step of #143.
 
+- **`oracle`'s cell is replaced, and #531 closes**
+  ([#531](https://github.com/Gerrrt/HomeLab/issues/531),
+  [`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md#reusing-this-page-on-oracle)).
+  The Dell M5Y1K went in at 16:24 UTC, a latch swap with the machine off for
+  two and a half minutes.
+  - **The serial proves it.** `SMP-Sanyo2` / `DELL VN3N047` / `1650` became
+    `LGC-LGC2.8` / `DELL 7PY0D` / `88`, and the label reads M5Y1K. The old
+    pack went for recycling the same day.
+  - **The clock survived**, which is the datum
+    [#519](https://github.com/Gerrrt/HomeLab/issues/519) was short of. The
+    coin cell is separate on this machine, and the new boot opened at the
+    true time.
+  - **The silence was expired by hand at about 17:00**, half an hour after
+    the alert had already stopped. That is late again, as on the two battery
+    runbooks before it, and harmless only because the new pack read `1`
+    from its first scrape.
+  - **The mains pull ran at 17:08.** `HostOnBattery` fired for `oracle`
+    alone and reached the phone at 17:11. It drew 0.54 Ah/h, about 5.2 hours
+    from full. It ran 35 minutes against a 20-minute bound, because the call
+    to plug back in was missed.
+  - **Step 2 was skipped on this laptop too**, and `charge_full` reads
+    exactly its design figure, not yet a learned one.
+
 - **Actual is decided and authored for the sensitive tier, not deployed**
   ([#142](https://github.com/Gerrrt/HomeLab/issues/142),
   [ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)). It is the fifth
