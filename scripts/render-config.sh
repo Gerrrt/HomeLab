@@ -390,19 +390,54 @@ AM_CHANNELS=(
   "ALERTMANAGER_NTFY_TOKEN:ntfy_token"
 )
 AM_OUT_DIR="${STACK_DIR}/alertmanager/.rendered"
+
+# The ntfy.sh copies of urgent and security (#136) get the same rendering as
+# the in-house topics. ntfy.sh cannot load the repository's template file, but
+# it does run inline templates: `tpl=yes` with the title, message and priority
+# templates as the t, m and p query parameters, executed against the JSON body.
+# They are built here from stacks/sensitive/ntfy/templates/homelab.yml on
+# every render, so there is one template and not a second, hand-kept copy in
+# SOPS that drifts from it. SOPS holds the bare https://ntfy.sh/<topic>; any
+# query already on it is replaced. Checked on ntfy.sh itself when this was
+# written: a synthetic critical rendered as the in-house copy does, priority 5
+# included. The query is about 2.4 KB, well inside any URL limit that matters.
+NTFY_TEMPLATE="${REPO_ROOT}/stacks/sensitive/ntfy/templates/homelab.yml"
+external_query() {
+  python3 - "${NTFY_TEMPLATE}" <<'PY'
+import sys, urllib.parse, yaml
+t = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+missing = [k for k in ("title", "message", "priority") if not t.get(k)]
+if missing:
+    sys.exit(f"{sys.argv[1]} has no {', '.join(missing)}")
+print(urllib.parse.urlencode(
+    {"tpl": "yes", "t": t["title"], "m": t["message"], "p": t["priority"]}), end="")
+PY
+}
+
 if [[ -f "${AM_CONFIG}" ]]; then
   info "rendering ${#AM_CHANNELS[@]} alertmanager receiver URL(s)"
   mkdir -p "${AM_OUT_DIR}"
   chmod 700 "${AM_OUT_DIR}"
+  ext_query=""
   for channel in "${AM_CHANNELS[@]}"; do
     var="${channel%%:*}"
     file="${channel##*:}"
+    value="${!var}"
+    if [[ "${file}" == *_external_url ]]; then
+      if [[ -z "${ext_query}" ]]; then
+        [[ -f "${NTFY_TEMPLATE}" ]] \
+          || die "${NTFY_TEMPLATE#"${REPO_ROOT}/"} is missing; the ntfy.sh URLs are built from it"
+        ext_query="$(external_query)" \
+          || die "could not build the ntfy.sh template query from ${NTFY_TEMPLATE#"${REPO_ROOT}/"}"
+      fi
+      value="${value%%\?*}?${ext_query}"
+    fi
     # No trailing newline: Alertmanager takes the file's whole content as the
     # URL, and a newline in a URL is a delivery error rather than a warning.
-    printf '%s' "${!var}" > "${AM_OUT_DIR}/${file}"
+    printf '%s' "${value}" > "${AM_OUT_DIR}/${file}"
     chmod 600 "${AM_OUT_DIR}/${file}"
   done
-  unset channel var file
+  unset channel var file value ext_query
 
   # Every url_file (and credentials_file) alertmanager.yaml names must be one
   # this loop just wrote. A

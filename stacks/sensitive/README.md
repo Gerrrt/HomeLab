@@ -516,8 +516,10 @@ here.
   the title, the description's first sentence and the host as the message,
   and a priority that follows severity. Critical is 5, which on Android is the
   loud channel and on iOS is time-sensitive. The full text stays in
-  Alertmanager and Grafana. The ntfy.sh copies use ntfy's built-in
-  `alertmanager` template, because ntfy.sh cannot load ours.
+  Alertmanager and Grafana. The ntfy.sh copies look the same. ntfy.sh
+  cannot load a template file, so `render-config.sh` on the monitoring host
+  passes this one inline, as URL parameters built from the file at every
+  render. Change the file and `make render` there as well as `make up` here.
 - **No second factor.** ntfy has passwords and tokens. The only human account
   is `phone`, which can read three topics of alert text and nothing else.
   [ADR-0022] leaves ntfy out of its table for that reason: it authenticates no
