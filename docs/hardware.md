@@ -386,8 +386,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   at the swap, the Exos pair moves to the chipset's free ports on two plain
   SATA cables, bought for it because the only tray cable is the card's own
   mini-SAS breakout. The card and the breakout go on the shelf as the
-  fallback. Until the swap, everything in this paragraph describes the path
-  as it still is. The driver
+  fallback. **Done 2026-09-29, at the swap:** both Exos are on the
+  chipset's AHCI (`00:17.0`) at 6.0 Gbps, on `ata1` and `ata2`. `lspci -nn`
+  no longer lists `1000:005f`, and `erebor` imported there at the first
+  attempt, so the fallback was not used
+  ([`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md) step 5).
+  Everything else in this paragraph is the record of the card as it was,
+  from 2026-09-18 to 2026-09-29. The driver
   logged a disable/enable of its interrupts at 21:03:51 on 2026-09-19, the
   same second as the target reset in the fault's `dmesg` — the controller
   resetting itself around a disk that had stopped answering, which is the
@@ -400,6 +405,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   A photograph of the open case had been read here as an empty cage and was
   wrong; the BIOS summary is what caught it. The optical drive came out on
   2026-09-16 and the boot disk took its place, its port and both its cables.
+  **It went back in on 2026-09-29**, at the swap, for burning discs. It
+  answers as `sr0` on `ata5` at 1.5 Gbps. The boot disk stays on its bracket
+  in the same place and on `ata6`, and the cage fan was re-checked spinning.
   The bay is a cage carrying its own fan on the board's `AUX1_FAN` header, and
   that fan is **not optional**: it is the airflow over the drive bays, and two
   7200 rpm Exos under a scrub will want it. Reconnected after the swap and
@@ -496,8 +504,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the seller receiving it. So the replacement is a purchase, and it is the
   entry below. `ZVTBSDL3` stays in this entry as the drive that faulted.
 - Seagate Exos X20 18 TB, `ST18000NM003D`[^Exos2] — 3.5" SATA 6 Gb/s,
-  7200 rpm, **eBay Refurbished**, from goharddrive. **Bought 2026-09-24, in
-  transit**, with an estimated delivery of 2026-09-26 to 2026-09-29, under
+  7200 rpm, **eBay Refurbished**, from goharddrive. **Bought 2026-09-24,
+  fitted 2026-09-29**, serial `ZVTLQEZ7`, firmware `SN06` (the pair was on
+  `SN03`). The estimated delivery had been 2026-09-26 to 2026-09-29, under
   [#558](https://github.com/Gerrrt/HomeLab/issues/558). $499.99 and $51.50
   tax, **$551.49 all in**. It replaces `ZVTBSDL3` in `erebor`'s mirror,
   alongside `ZVTBS4NL`. It is the same part number as the pair above but
@@ -516,6 +525,27 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   resilver and scrub. A refurbished drive's hours are the listing's claim
   until SMART reads them. The Compute table still reads a two-disk mirror,
   and the pool is whole again only when the resilver completes.
+  **Checked 2026-09-29, and it is unused by the counter a reset cannot
+  touch.**
+  - **Seagate's lookup, 12:15 PDT:** *"Please contact the place of
+    purchase"*. This is the same answer `ZVTBSDL3` got, and it is what a
+    refurbished listing implies. The eBay/Allstate warranty is the remedy.
+  - **SMART at 13:46 PDT, before the Replace:** `PASSED`. 0 power-on
+    hours, one power cycle, 0 LBAs written, and 0 on every error count:
+    reallocated, pending, offline-uncorrectable, CRC and command timeout.
+    The error log is empty and no self-test is logged. 28 °C.
+  - **FARM:** **0 power-on, 0 spindle and 0 head-flight hours**, two power
+    cycles and three hardware resets. 20 heads, CMR, 18,204 spare sectors,
+    and 0 reallocated and 0 candidates on every head. The 12 V and 5 V
+    rails read 12.146 and 4.949. The assembly-date field reads `6201`,
+    recorded as printed. Read YYWW with its halves swapped, it would be
+    2026 week 01.
+  - **It joined `erebor` the same afternoon.** The resilver ran 23 s and
+    the scrub came back clean
+    ([`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md) step 5).
+    The pool is whole again.
+  - **Its extended self-test (an estimated 1,658 minutes) is not yet
+    read.** Its result is this entry's next line.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches
