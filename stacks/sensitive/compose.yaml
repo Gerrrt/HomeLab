@@ -30,7 +30,7 @@
 # ADR-0057 decided it before it was written here. Memos (#145) is the ninth,
 # decided by ADR-0059, and Mealie (#146) the tenth, decided by ADR-0060.
 # Actual (#142) is the eleventh, and the fourth beyond ADR-0008's nine, decided
-# the same way (ADR-0061).
+# the same way (ADR-0062).
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -1576,10 +1576,10 @@ services:
       start_period: 60s
 
   # ---------------------------------------------------------------------------
-  # Actual — the household's budget (#142, ADR-0061)
+  # Actual — the household's budget (#142, ADR-0062)
   # ---------------------------------------------------------------------------
   # The fourth service here beyond ADR-0008's nine, after Miniflux, Memos and
-  # Mealie, and decided by ADR-0061.
+  # Mealie, and decided by ADR-0062.
   # Actual is local-first: every client holds the whole budget and this is
   # the sync target between them, so the server being down stops syncing
   # and nothing else. It is still the one copy that is backed up.
@@ -1627,7 +1627,7 @@ services:
   #
   # Bank sync is off by what is absent: GoCardless and SimpleFIN need
   # credentials entered in the app, and without them the server reaches out
-  # to no one. Turning it on is a decision (ADR-0061 §4), not a setting.
+  # to no one. Turning it on is a decision (ADR-0062 §4), not a setting.
   #
   # The healthcheck is the image's own script, which the image ships but
   # does not declare as a HEALTHCHECK. It fetches /health on the configured
@@ -1738,5 +1738,5 @@ volumes:
   # Actual's account.sqlite (the password hash and sessions) and every
   # budget's file and sync messages. Every client holds a copy of the budget,
   # which survives losing this volume but not a bad sync, and so is not a
-  # backup of it (ADR-0061).
+  # backup of it (ADR-0062).
   actual-data:

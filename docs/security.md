@@ -58,7 +58,7 @@ and SSO, nothing between. So does Mealie
 ([ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)): it has
 OIDC and LDAP and no factor of its own, accepted because recipes are the only
 thing it holds. Actual is another
-([ADR-0061](adr/0061-add-actual-to-the-sensitive-tier.md)): its only factor beyond the one household
+([ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)): its only factor beyond the one household
 password is OpenID, and in password mode every signed-in device shares one
 session that a password change does not end. **Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a

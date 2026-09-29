@@ -40,7 +40,7 @@
 > **And a tenth: Actual, with no second factor.** It has none short of
 > OpenID, so it belongs in the table's "None" rows with Immich, AdGuard Home,
 > Miniflux, Memos and Mealie
-> ([ADR-0061](0061-add-actual-to-the-sensitive-tier.md)). The table is not
+> ([ADR-0062](0062-add-actual-to-the-sensitive-tier.md)). The table is not
 > edited.
 
 ## Context

@@ -36,7 +36,7 @@ make up STACK=sensitive
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
 | mealie | `ghcr.io/mealie-recipes/mealie` | *internal* (9000) | The household's recipes, meal plans and shopping list at `https://recipes.matrix.elysium`. Beyond ADR-0008's nine, decided by its own ADR, and **authored, not yet deployed** ([#146], [ADR-0060]) |
-| actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fourth service beyond ADR-0008's nine, after Miniflux, Memos and Mealie, by [ADR-0061] ([#142]) |
+| actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fourth service beyond ADR-0008's nine, after Miniflux, Memos and Mealie, by [ADR-0062] ([#142]) |
 
 Nineteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
@@ -709,7 +709,7 @@ already has.
 
 The household's budget ([#142]), and the fourth service here beyond [ADR-0008]'s nine, after Miniflux,
 Memos and Mealie.
-[ADR-0061] is the decision and why it is Actual rather than Firefly III.
+[ADR-0062] is the decision and why it is Actual rather than Firefly III.
 `compose.yaml` has the service and what was measured on the pinned image.
 What has to be true around it is here.
 
@@ -755,7 +755,7 @@ What has to be true around it is here.
   so the client counted is the phone rather than the proxy.
 - **No bank sync.** GoCardless and SimpleFIN are configured in the app, and
   neither is. Transactions come in as imported files (OFX, QFX, QIF, CSV,
-  CAMT). Turning bank sync on is a decision ([ADR-0061] §4). It puts a third
+  CAMT). Turning bank sync on is a decision ([ADR-0062] §4). It puts a third
   party's credentials in `account.sqlite` and has the server reach out on a
   schedule.
 - **Clients are a copy, not a backup.** Every client holds the whole budget,
@@ -927,7 +927,7 @@ it matters:
 [ADR-0059]: ../../docs/adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md
 [#124]: https://github.com/Gerrrt/HomeLab/issues/124
 [ADR-0060]: ../../docs/adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md
-[ADR-0061]: ../../docs/adr/0061-add-actual-to-the-sensitive-tier.md
+[ADR-0062]: ../../docs/adr/0062-add-actual-to-the-sensitive-tier.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
