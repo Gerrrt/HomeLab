@@ -287,6 +287,14 @@ Gated on the domain, on a household observation, or on something to publish.
 Beyond ADR-0008's nine: each needs its own decision before it is authored, and
 none is in the order until one is taken.
 
+- **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
+  decided and authored ([ADR-0057](adr/0057-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): on `trinity` behind Caddy at
+  `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
+  none reaches a disk. What is left is the deploy. Set
+  `STIRLING_ADMIN_PASSWORD` with `make secrets-edit STACK=sensitive`, add the
+  `pdf` override on `morpheus`, `make up STACK=sensitive`, enrol TOTP, and run
+  one pdfium tool (a merge) rather than trusting the healthcheck.
+
 ## Everything still to buy
 
 The one list, because purchases kept appearing one at a time in issues, ADRs
