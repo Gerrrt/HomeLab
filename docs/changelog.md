@@ -43,6 +43,21 @@ docstring gives: it is a record, not a claim about now.
   - **There is no TOTP, and its passkeys are not a second step.** Miniflux
     is named beside Immich and AdGuard as single-factor.
 
+- **Memos is the second *Tier extras* service decided, and authored**
+  ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
+  [ADR-0058](adr/0058-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
+  It is notes, not documentation: `docs/` stays the record, and #124 is not
+  answered by it. Measured on the pinned image, read-only with every
+  capability dropped: it runs as its own `10001` with no root step, idles at
+  15 MiB, and needs no secret. Two things differ from what #145 assumed:
+  - **It is not one file.** Attachments are written under `./assets`, and
+    while it runs the database's writes sit in `memos_prod.db-wal` (a clean
+    stop checkpoints them). The backup names all three.
+  - **Sign-up cannot be closed from compose.** It is a setting in the
+    database, so the first login has to close it.
+
+  Not yet deployed on `trinity`.
+
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having
   lost 28.5 GiB since 15 Sep in steps of 1–5 GiB.

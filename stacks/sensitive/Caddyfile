@@ -116,6 +116,16 @@ vaultwarden.matrix.elysium {
 	}
 }
 
+# Memos (#145, ADR-0058), the household's notes.
+memos.matrix.elysium {
+	reverse_proxy memos:5230
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # Homepage (#137), the household's front page. A short name on purpose: it is
 # the one address on this tier that people who are not the operator are told.
 # Its widgets call the other names above from inside the compose network, and

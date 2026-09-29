@@ -372,6 +372,12 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # finishes, with a 4 MB -wal and a -shm beside it, and ./artwork appears as
 # the scanner extracts covers. Nothing else is written there — the cache is a
 # tmpfs on ND_CACHEFOLDER.
+#
+# Memos' (memos-data, #145) is the sensitive tier's fourth SQLite, read off a
+# boot of the pinned image on 2026-09-29 as uid 10001: ./memos_prod.db exists
+# before the port opens, 4 KB, with the schema and every later write in a
+# -wal beside it until a checkpoint. A clean stop checkpoints: read after
+# `docker stop`, the main file held the account and the -wal was empty.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -382,6 +388,7 @@ declare -A SENTINEL=(
   [caddy-config]="./caddy/autosave.json"
   [step-ca-data]="./config/ca.json"
   [vaultwarden-data]="./db.sqlite3"
+  [memos-data]="./memos_prod.db"
   [home-assistant-config]="./.HA_VERSION"
   [adguard-work]="./data/sessions.db"
   [immich-db]="./PG_VERSION"
@@ -406,6 +413,12 @@ declare -A SENTINEL=(
 # registered a minute earlier, and db.sqlite3 read on its own shows no such
 # user. The quiesced archive carries all three files, so a restore is
 # consistent; a check that copies the main file alone is not.
+#
+# Memos is the same shape: while it runs, its fresh database is a 4 KB header
+# and the account and the first notes live only in memos_prod.db-wal. A clean
+# stop folds them back; a killed one leaves them there, which is why it is
+# listed. ./assets is where every attachment goes, and appears on the first
+# upload.
 declare -A COMPANIONS=(
   [prometheus-data]="./wal ./lock ./queries.active"
   [loki-data]="./wal ./index ./compactor"
@@ -416,6 +429,7 @@ declare -A COMPANIONS=(
   [caddy-config]=""
   [step-ca-data]="./certs ./secrets ./db"
   [vaultwarden-data]="./rsa_key.pem ./db.sqlite3-wal ./attachments ./sends ./icon_cache"
+  [memos-data]="./memos_prod.db-wal ./assets"
   [home-assistant-config]="./.storage ./home-assistant_v2.db"
   [adguard-work]="./data/stats.db ./data/filters"
   [immich-db]="./base ./pg_wal ./postgresql.conf"

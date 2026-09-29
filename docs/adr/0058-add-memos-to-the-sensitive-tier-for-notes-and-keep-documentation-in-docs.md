@@ -1,8 +1,9 @@
-# ADR-0057: Add Memos to the sensitive tier for notes, and keep documentation in docs
+# ADR-0058: Add Memos to the sensitive tier for notes, and keep documentation in docs
 
 **Status:** Accepted · 2026-09 · adds a service to the tier
-[ADR-0008](0008-place-services-by-data-trust.md) created, the first from the
-*Tier extras* milestone; decides [#145](https://github.com/Gerrrt/HomeLab/issues/145)
+[ADR-0008](0008-place-services-by-data-trust.md) created, the second from the
+*Tier extras* milestone after
+[ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)'s Miniflux; decides [#145](https://github.com/Gerrrt/HomeLab/issues/145)
 
 ## Context
 
@@ -18,7 +19,8 @@ or similar behind it — a dependency the estate otherwise avoids.
 
 [`roadmap.md`](../roadmap.md) puts every service beyond ADR-0008's nine in
 *Tier extras*, where "each needs its own decision before it is authored". This
-is that decision for the first of them.
+is that decision for the second of them, after Miniflux
+([ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
 
 **The placement.** ADR-0008 places by the trust of the data, not the function.
 Nothing about a notes service demands the higher-trust segment. What does is
@@ -89,8 +91,8 @@ every capability dropped:
 
 ## Consequences
 
-- **ADR-0008's service list is amended.** The sensitive tier is the nine it
-  named and Memos. ADR-0008's reasoning about the tiers is untouched, and
+- **ADR-0008's service list is amended,** by a note in it as ADR-0057 left
+  one: the sensitive tier is the nine it named, Miniflux and Memos. ADR-0008's reasoning about the tiers is untouched, and
   this does not make the other *Tier extras* decided. Each still needs its own
   decision.
 - **Under [ADR-0023](0023-keep-the-household-recovery-path-outside-the-estate.md),
@@ -100,8 +102,8 @@ every capability dropped:
   exists and its staleness is visible. Nothing in it may be the only copy of
   something the household needs to recover *from* an outage. That is what
   *Independent* would mean, and a note on `trinity` cannot be it.
-- **ADR-0022's list of services with no second factor grows by one,** by
-  this record rather than by an edit to it. The
+- **ADR-0022's list of services with no second factor grows by one,** in a
+  note beside Miniflux's; the table is not edited. The
   deferral's expiry is unchanged: it is keyed to real data on the tier, which
   Vaultwarden, Immich and Paperless-ngx reach first.
 - **One more host override.** `memos.matrix.elysium` is a Caddyfile site, a
