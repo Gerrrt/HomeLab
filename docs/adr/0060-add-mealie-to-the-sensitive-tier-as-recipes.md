@@ -1,4 +1,4 @@
-# ADR-0059: Add Mealie to the sensitive tier as `recipes`, with no second factor
+# ADR-0060: Add Mealie to the sensitive tier as `recipes`, with no second factor
 
 **Status:** Accepted · 2026-09 · adds a service to the tier
 [ADR-0008](0008-place-services-by-data-trust.md) created, beyond the nine it counted, and a name to
@@ -103,7 +103,7 @@ Measured on the pinned image on 2026-09-29:
    host with everything else here.
 
 4. **Mealie is named unable to carry a second factor**, beside Immich and
-   AdGuard Home, as Miniflux is. It is accepted without one because a compromised
+   AdGuard Home, as Miniflux and Memos are. It is accepted without one because a compromised
    Mealie account exposes recipes and a shopping list, and can write the same.
    Nothing on this service is a credential or a record. The route to a factor
    is the one Immich and AdGuard already wait on, an identity provider in
@@ -135,10 +135,10 @@ Measured on the pinned image on 2026-09-29:
 
 - **The tier runs one more container**, and one more service that the
   household depends on for something other than safety. `trinity` has the
-  memory: with this one and Miniflux, every ceiling in the stack sums to
-  17.1 GiB of its 32.
+  memory: with this one, Miniflux and Memos, every ceiling in the stack
+  sums to 17.2 GiB of its 32.
 - **ADR-0022's list of unable services grows again.** Grafana, Immich,
-  AdGuard Home, Miniflux and now Mealie. The argument for an identity provider gets one
+  AdGuard Home, Miniflux, Memos and now Mealie. The argument for an identity provider gets one
   service stronger each time, and this ADR makes that visible rather than
   quietly adding to it.
 - **Trigger 3 is now more likely to fire**, because this is a service whose

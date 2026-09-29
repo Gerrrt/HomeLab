@@ -116,6 +116,16 @@ vaultwarden.matrix.elysium {
 	}
 }
 
+# Memos (#145, ADR-0059), the household's notes.
+memos.matrix.elysium {
+	reverse_proxy memos:5230
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # Homepage (#137), the household's front page. A short name on purpose: it is
 # the one address on this tier that people who are not the operator are told.
 # Its widgets call the other names above from inside the compose network, and
@@ -157,7 +167,7 @@ miniflux.matrix.elysium {
 	}
 }
 
-# Mealie (#146, ADR-0059), the household's recipes. Named for what it is for,
+# Mealie (#146, ADR-0060), the household's recipes. Named for what it is for,
 # like `home`, because the people who use it will type it rather than find it.
 # BASE_URL in compose.yaml is this name, so the links Mealie builds in shared
 # recipes and invitations point here; X-Forwarded-For and -Proto are set

@@ -52,8 +52,10 @@ points at OAuth, and AdGuard has one password-only admin account. For those
 three an identity provider is the only route to a second factor rather than a
 heavier alternative to one. Miniflux joins them ([ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)): it has no TOTP, and
 its passkeys are a second way to log in rather than a second step, so they
-are left off. Mealie joins them too
-([ADR-0059](adr/0059-add-mealie-to-the-sensitive-tier-as-recipes.md)): it has
+are left off. Memos joins them too
+([ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)): passwords
+and SSO, nothing between. So does Mealie
+([ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)): it has
 OIDC and LDAP and no factor of its own, accepted because recipes are the only
 thing it holds. **Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a
@@ -743,7 +745,7 @@ this closes on.
   defaulted for that reason. Its REST API, which takes the admin's password
   without the login page, is off.
 - **Mealie fetches the page a user pastes, from `trinity`**
-  ([#146](https://github.com/Gerrrt/HomeLab/issues/146), [ADR-0059](adr/0059-add-mealie-to-the-sensitive-tier-as-recipes.md)).
+  ([#146](https://github.com/Gerrrt/HomeLab/issues/146), [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)).
   It fetches on request, not on a timer. It does not fetch inward: its
   `safehttp` transport refuses private, loopback, link-local, reserved and
   CGNAT addresses after DNS. That was measured against a recipe page on the

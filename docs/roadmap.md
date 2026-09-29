@@ -290,9 +290,14 @@ none is in the order until one is taken.
 - **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
   Deploying it on `trinity` is the stack README's *Adding it to the running
   tier*: two SOPS keys, one host override, `make up`.
+- **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
+  and authored in `stacks/sensitive`. What remains is the deploy on `trinity`:
+  the `memos` host override, `make up`, and registration closed at first login.
+  It holds no real notes until ADR-0023's *Durable* condition is met.
 - **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
   `recipes.matrix.elysium`.** Decided by
-  [ADR-0059](adr/0059-add-mealie-to-the-sensitive-tier-as-recipes.md) and
+  [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
   **authored, not yet deployed**. It is the one service here meant for the
   household to open rather than to benefit from. It uses no new firewall rule
   and no SOPS secret, and it has no second factor, which is named alongside

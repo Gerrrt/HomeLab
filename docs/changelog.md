@@ -44,7 +44,7 @@ docstring gives: it is a record, not a claim about now.
     is named beside Immich and AdGuard as single-factor.
 - **Mealie is decided and authored for the sensitive tier, as
   `recipes.matrix.elysium`** ([#146](https://github.com/Gerrrt/HomeLab/issues/146),
-  [ADR-0059](adr/0059-add-mealie-to-the-sensitive-tier-as-recipes.md)). It is
+  [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)). It is
   another *Tier extra*, beside Miniflux. It was measured on the pinned image
   before the file was written.
   - `/app/data` is root's. `PUID=0` turns the entrypoint's chown and gosu into
@@ -69,6 +69,21 @@ docstring gives: it is a record, not a claim about now.
   `10.0.99.40:443`. A new name behind it needs no new rule. Not deployed: the
   host override, `make up` and the first login are the build runbook's new
   *Deploy a later service*.
+
+- **Memos is the second *Tier extras* service decided, and authored**
+  ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
+  It is notes, not documentation: `docs/` stays the record, and #124 is not
+  answered by it. Measured on the pinned image, read-only with every
+  capability dropped: it runs as its own `10001` with no root step, idles at
+  15 MiB, and needs no secret. Two things differ from what #145 assumed:
+  - **It is not one file.** Attachments are written under `./assets`, and
+    while it runs the database's writes sit in `memos_prod.db-wal` (a clean
+    stop checkpoints them). The backup names all three.
+  - **Sign-up cannot be closed from compose.** It is a setting in the
+    database, so the first login has to close it.
+
+  Not yet deployed on `trinity`.
 
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having
