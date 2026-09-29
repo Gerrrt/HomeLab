@@ -116,7 +116,7 @@ vaultwarden.matrix.elysium {
 	}
 }
 
-# Memos (#145, ADR-0058), the household's notes.
+# Memos (#145, ADR-0059), the household's notes.
 memos.matrix.elysium {
 	reverse_proxy memos:5230
 

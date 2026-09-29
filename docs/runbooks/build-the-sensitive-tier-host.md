@@ -525,7 +525,7 @@ floor, and recovery codes go in the password manager.
 | `https://adguard.matrix.elysium` | The password behind §6's hash | None — likewise |
 | `https://ntfy.matrix.elysium` | User `phone` in the ntfy app on each phone, per the stack README's ntfy section; then the cutover in [`verify-the-alert-path.md`](verify-the-alert-path.md) | None. ntfy has none, and `phone` can only read alert text |
 | `https://miniflux.matrix.elysium` | `admin` and the password from §6 | None. Miniflux has no TOTP, and its passkeys are not a second step ([ADR-0057](../adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)) |
-| `https://memos.matrix.elysium` | The first sign-up is the admin; then close registration at once, per the stack README's Memos section | None. [ADR-0058](../adr/0058-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md) records Memos as unable |
+| `https://memos.matrix.elysium` | The first sign-up is the admin; then close registration at once, per the stack README's Memos section | None. [ADR-0059](../adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md) records Memos as unable |
 
 Home Assistant's Hue integration is added **by address**, `10.0.20.20`,
 pressing the bridge's button when asked. That is the first traffic §8's pass

@@ -28,7 +28,7 @@
 # five. ntfy (#136) is the seventh, and where the estate's alerts now arrive.
 # Miniflux (#147) is the eighth, and the first beyond ADR-0008's nine —
 # ADR-0057 decided it before it was written here. Memos (#145) is the ninth,
-# decided by ADR-0058.
+# decided by ADR-0059.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -586,13 +586,13 @@ services:
       start_period: 30s
 
   # ---------------------------------------------------------------------------
-  # Memos — the household's notes (#145, ADR-0058)
+  # Memos — the household's notes (#145, ADR-0059)
   # ---------------------------------------------------------------------------
   # The second service beyond ADR-0008's nine, and in Vaultwarden's shape:
   # `expose:` and no `ports:`, reached from Hicks by name through Caddy's 443
   # at https://memos.matrix.elysium, which the existing 50→99 pass already
   # allows. Notes, not documentation: docs/ stays the estate's record
-  # (ADR-0058 says why that is a boundary and not a preference).
+  # (ADR-0059 says why that is a boundary and not a preference).
   #
   # NOT root, unlike Vaultwarden. Measured on the pinned image on 2026-09-29:
   # /var/opt/memos is 10001:10001 2755 in the image, and a named volume mounted
@@ -1532,7 +1532,7 @@ volumes:
   # paperless-media, one of the volumes here whose loss is a loss of function
   # rather than of a record — docs/runbooks/restore-the-sensitive-tier.md.
   vaultwarden-data:
-  # Memos' database, its -wal, and ./assets, every attachment (ADR-0058).
+  # Memos' database, its -wal, and ./assets, every attachment (ADR-0059).
   memos-data:
   # ntfy's user.db and twelve hours of message cache. The first is rebuilt from
   # the environment on every start (DIFFERENCE 12) and the second has already

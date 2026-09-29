@@ -61,7 +61,7 @@ all of it under the existing 50→99 rule, so this adds no rule at all.
 > The paragraph is not edited, and this ADR is not superseded.*
 >
 > *Nor Memos, the household's notes, decided the same way in
-> [ADR-0058](0058-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md).*
+> [ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md).*
 
 **The streaming tier — CasaBonita (40).** A quiet N100-class NAS holds the bulk
 media library and runs Jellyfin, with Plex beside it for household convenience.

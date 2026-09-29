@@ -30,7 +30,7 @@ make up STACK=sensitive
 | paperless-db | `postgres` | *internal* (5432) | Paperless-ngx's own database. Metadata about documents; the documents themselves are files under `paperless-media` |
 | paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
-| memos | `neosmemo/memos` | *internal* (5230) | The household's quick notes, at `https://memos.matrix.elysium`. Notes, not documentation — the second service beyond [ADR-0008]'s nine, by [ADR-0058] ([#145]) |
+| memos | `neosmemo/memos` | *internal* (5230) | The household's quick notes, at `https://memos.matrix.elysium`. Notes, not documentation — the second service beyond [ADR-0008]'s nine, by [ADR-0059] ([#145]) |
 | homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on the estate and where it lives, grouped by VLAN. A directory, not a status page — seven tiles read live numbers, with read-only tokens or from Prometheus; the rest are links ([#137]) |
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
@@ -431,7 +431,7 @@ around it is here.
 ## Memos
 
 The household's notes, and the second *Tier extras* service —
-[ADR-0058] decided it before it was written. What the service does is in
+[ADR-0059] decided it before it was written. What the service does is in
 `compose.yaml`; what has to be true around it is here.
 
 - **Notes, not documentation.** Nothing about rebuilding or recovering the
@@ -456,7 +456,7 @@ The household's notes, and the second *Tier extras* service —
   ```
 
 - **Password only.** Memos has no TOTP. [ADR-0022] records the tier's other
-  services without one, and [ADR-0058] puts Memos beside them.
+  services without one, and [ADR-0059] puts Memos beside them.
 - **Not one file.** The database is WAL-mode — while it runs, a fresh
   `memos_prod.db` is a 4 KB header and everything else is in the `-wal`, which
   a clean stop checkpoints back — and attachments are files under `./assets`.
@@ -809,7 +809,7 @@ it matters:
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
 [ADR-0057]: ../../docs/adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md
-[ADR-0058]: ../../docs/adr/0058-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md
+[ADR-0059]: ../../docs/adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md
 [#124]: https://github.com/Gerrrt/HomeLab/issues/124
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130

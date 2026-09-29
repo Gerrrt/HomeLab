@@ -291,7 +291,7 @@ none is in the order until one is taken.
   Deploying it on `trinity` is the stack README's *Adding it to the running
   tier*: two SOPS keys, one host override, `make up`.
 - **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
-  [ADR-0058](adr/0058-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
   and authored in `stacks/sensitive`. What remains is the deploy on `trinity`:
   the `memos` host override, `make up`, and registration closed at first login.
   It holds no real notes until ADR-0023's *Durable* condition is met.

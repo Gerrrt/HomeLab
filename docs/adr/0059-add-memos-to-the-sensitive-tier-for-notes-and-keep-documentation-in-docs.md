@@ -1,4 +1,4 @@
-# ADR-0058: Add Memos to the sensitive tier for notes, and keep documentation in docs
+# ADR-0059: Add Memos to the sensitive tier for notes, and keep documentation in docs
 
 **Status:** Accepted · 2026-09 · adds a service to the tier
 [ADR-0008](0008-place-services-by-data-trust.md) created, the second from the

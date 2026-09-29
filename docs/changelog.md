@@ -45,7 +45,7 @@ docstring gives: it is a record, not a claim about now.
 
 - **Memos is the second *Tier extras* service decided, and authored**
   ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
-  [ADR-0058](adr/0058-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
   It is notes, not documentation: `docs/` stays the record, and #124 is not
   answered by it. Measured on the pinned image, read-only with every
   capability dropped: it runs as its own `10001` with no root step, idles at
