@@ -52,7 +52,9 @@ points at OAuth, and AdGuard has one password-only admin account. For those
 three an identity provider is the only route to a second factor rather than a
 heavier alternative to one. Miniflux joins them ([ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)): it has no TOTP, and
 its passkeys are a second way to log in rather than a second step, so they
-are left off. **Grafana is the only one of the six deployed
+are left off. Memos joins them too
+([ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)): passwords
+and SSO, nothing between. **Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a
 pending piece of work — it closes when an identity provider exists and not
 before.
