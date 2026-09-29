@@ -35,6 +35,10 @@ docstring gives: it is a record, not a claim about now.
   - **Memory:** 77 MiB idle, and 188 MiB peak importing 3,000 bookmarks.
   - **Background tasks are off**, so no third party is asked for a favicon for
     each bookmarked site.
+  - **The `links` host override is on `morpheus`**, added the same day as an
+    additional name on `trinity`, ahead of the deploy. It resolves to
+    `10.0.99.40`, and the reverse entry is still `trinity`. HTTPS to it fails
+    at the handshake until `make up` gives Caddy the site.
 - **HomeBox is declined**
   ([#148](https://github.com/Gerrrt/HomeLab/issues/148), closed). Every job
   it was filed for already had a home: serials and warranty dates in

@@ -657,8 +657,12 @@ measured on the pinned image. What has to be true around it is here.
   1. `make secrets-edit STACK=sensitive`, and add `LINKDING_SUPERUSER_PASSWORD`
      from `make gen-secret`. It goes in the password manager too. Commit the
      encrypted file.
-  2. On `morpheus`, add `links` to `trinity`'s *Additional Names for this
-     Host* ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
+  2. **Done 2026-09-29.** `links` is one of `trinity`'s *Additional Names for
+     this Host* on `morpheus`
+     ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
+     It answered `10.0.99.40` from `morpheus` that day, with the reverse entry
+     still `trinity`. Until step 3, HTTPS to it fails at the handshake: the
+     running Caddy has no site for the name yet.
   3. `make up STACK=sensitive`. Caddy is recreated for its new alias and site
      block, and step-ca issues the name's leaf on the first request.
   4. `make backup STACK=sensitive ARGS=--list` after the next nightly run:

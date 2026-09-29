@@ -292,7 +292,7 @@ none is in the order until one is taken.
   tier*: two SOPS keys, one host override, `make up`.
 - **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0059](adr/0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
   Deploying it on `trinity` is the same section of the stack README: one SOPS
-  key, one host override, `make up`.
+  key and `make up`. The host override was added on 2026-09-29.
 
 ## Everything still to buy
 
