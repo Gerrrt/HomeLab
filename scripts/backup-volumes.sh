@@ -387,6 +387,13 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # database is in rollback-journal mode, as Audiobookshelf's is, so there is
 # no -wal to list. ./backups is where Mealie's own exports would go; nothing
 # schedules one, and none is made.
+#
+# linkding's (linkding-data, #144) is the sixth SQLite here. Read off two boots
+# of the pinned image on 2026-09-29 under its compose hardening: bootstrap.sh
+# switches db.sqlite3 to WAL before the first request, so a -wal and a -shm sit
+# beside it from the first start, and secretkey.txt signs every session — a
+# restore without it logs everyone out, as Vaultwarden's rsa_key.pem does.
+# favicons and previews stay empty with background tasks off.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -410,6 +417,7 @@ declare -A SENTINEL=(
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
   [mealie-data]="./mealie.db"
+  [linkding-data]="./db.sqlite3"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -452,6 +460,7 @@ declare -A COMPANIONS=(
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
   [mealie-data]="./.secret ./.session_secret ./recipes ./users"
+  [linkding-data]="./secretkey.txt ./db.sqlite3-wal"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and
@@ -487,7 +496,7 @@ declare -A COMPANIONS=(
 # delivered. ADR-0023 classes ntfy as Unclassed for the same reason. Skipping
 # it also keeps ntfy running through a backup, which is when a failed backup
 # would want to page.
-# stirling-pdf-configs (#143) holds no document, by ADR-0061's design: they
+# stirling-pdf-configs (#143) holds no document, by ADR-0062's design: they
 # live on a tmpfs and never reach a volume. What it does hold is rebuilt on an
 # empty volume. The admin comes back from STIRLING_ADMIN_PASSWORD, the settings
 # are the environment's, and the keys it generates sign sessions and encrypt

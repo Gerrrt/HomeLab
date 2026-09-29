@@ -36,6 +36,11 @@
 > ([ADR-0060](0060-add-mealie-to-the-sensitive-tier-as-recipes.md)). Its
 > accounts count toward trigger 3 like any other account on the tier. The
 > table is not edited.
+>
+> **And a tenth, the same day: linkding, with no second factor.** It offers
+> OIDC or a trusted proxy header and nothing of its own, so its route is the
+> identity provider too. Adding it fires none of the triggers below
+> ([ADR-0061](0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
 
 ## Context
 

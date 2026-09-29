@@ -181,7 +181,19 @@ recipes.matrix.elysium {
 	}
 }
 
-# Stirling-PDF (#143, ADR-0061). Its uploads land on a 1 GiB tmpfs that is
+# linkding (#144, ADR-0061). Django reads the scheme from the
+# X-Forwarded-Proto Caddy sets, which is what lets a login POST from https://
+# pass its CSRF check without a trusted-origins list.
+links.matrix.elysium {
+	reverse_proxy linkding:9090
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Stirling-PDF (#143, ADR-0062). Its uploads land on a 1 GiB tmpfs that is
 # also the working space for every intermediate an OCR or a conversion
 # writes (compose.yaml, DIFFERENCE 13), and Stirling sets no upload limit of
 # its own. The cap here keeps one upload well under that space, so an

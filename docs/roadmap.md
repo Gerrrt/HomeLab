@@ -304,8 +304,11 @@ none is in the order until one is taken.
   Immich and AdGuard. What is left is the deploy on `trinity`: `make up`, the
   host override, and the first login and rename of the default admin
   (→ [runbook](runbooks/build-the-sensitive-tier-host.md#deploy-a-later-service)).
+- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
+  Deploying it on `trinity` is the same section of the stack README: one SOPS
+  key and `make up`. The host override was added on 2026-09-29.
 - **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
-  decided and authored ([ADR-0061](adr/0061-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): on `trinity` behind Caddy at
+  decided and authored ([ADR-0062](adr/0062-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): on `trinity` behind Caddy at
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
   none reaches a disk. What is left is the deploy. Set
   `STIRLING_ADMIN_PASSWORD` with `make secrets-edit STACK=sensitive`, add the

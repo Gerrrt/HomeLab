@@ -57,7 +57,10 @@ are left off. Memos joins them too
 and SSO, nothing between. So does Mealie
 ([ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)): it has
 OIDC and LDAP and no factor of its own, accepted because recipes are the only
-thing it holds. **Grafana is the only one of the six deployed
+thing it holds. So does linkding
+([ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)),
+which offers OIDC or a trusted proxy header and nothing of its own.
+**Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a
 pending piece of work — it closes when an identity provider exists and not
 before.
@@ -831,7 +834,7 @@ this closes on.
 - Grafana telemetry and update checks disabled.
 - Stirling-PDF's analytics, PostHog, Scarf and update checks disabled, and its
   heap dump on OOM too, because a dump would put the document being processed
-  on a disk ([ADR-0061](adr/0061-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
+  on a disk ([ADR-0062](adr/0062-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
 
 Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is
 what makes cAdvisor see the host's cgroups, and dropping every capability
