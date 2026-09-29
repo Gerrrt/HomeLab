@@ -20,10 +20,17 @@
 > LUKS on both disks, with the root's key sealed to the TPM —
 > [ADR-0054](0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md).
 >
-> **A service beyond the table, 2026-09-29.** Actual joins the tier and has
-> no second factor short of OpenID, so it belongs in the table's "None" rows
-> with Immich and AdGuard Home
-> ([ADR-0057](0057-add-actual-to-the-sensitive-tier.md)). The table is not
+> **The table below has a seventh row, as of 2026-09-29: Miniflux, with no
+> second factor.** It has no TOTP, and its passkeys are a second way to log
+> in rather than a second step. Its route to a factor is OIDC, which is the
+> identity provider again
+> ([ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
+> The table is not edited.
+>
+> **And an eighth, the same day: Actual, with no second factor.** It has none
+> short of OpenID, so it belongs in the table's "None" rows with Immich,
+> AdGuard Home and Miniflux
+> ([ADR-0058](0058-add-actual-to-the-sensitive-tier.md)). The table is not
 > edited.
 
 ## Context

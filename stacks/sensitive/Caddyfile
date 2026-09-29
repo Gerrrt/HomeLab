@@ -143,7 +143,21 @@ ntfy.matrix.elysium {
 	}
 }
 
-# Actual (#142, ADR-0057). The web app and the sync API its clients call are
+# Miniflux (#147, ADR-0057). Plain HTTP on the stack network; TLS ends here.
+# compose.yaml's BASE_URL is this name with https://, which is what Miniflux
+# builds its links and its cookies' Secure flag from. The REST API is off
+# (DISABLE_API), so everything under this name is the web UI and the two
+# per-user sync APIs the ADR keeps off until a client wants them.
+miniflux.matrix.elysium {
+	reverse_proxy miniflux:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Actual (#142, ADR-0058). The web app and the sync API its clients call are
 # the same origin, so one block serves both. The server is claimed before its
 # first start (scripts/seed-actual-password.sh), so there is never a moment
 # when this name offers "set a password" to whoever arrives first.

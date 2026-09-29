@@ -1,4 +1,4 @@
-# ADR-0057: Add Actual to the sensitive tier, and claim it before it answers
+# ADR-0058: Add Actual to the sensitive tier, and claim it before it answers
 
 **Status:** Accepted · 2026-09 · adds a service to the tier
 [ADR-0008](0008-place-services-by-data-trust.md) created, a row to the classes
@@ -32,8 +32,9 @@ is not in question: VLAN 99, on `trinity`, behind Caddy. Hicks already reaches
 Caddy's `443` under the 50→99 rule, and Actual answers nothing else, so no
 rule is added. This is an ADR rather than a changelog line because the
 roadmap requires every service beyond ADR-0008's nine to have a decision of
-its own, and because one fact about the image changes how it has to be
-deployed.
+its own, as Miniflux had in
+[ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md),
+and because one fact about the image changes how it has to be deployed.
 
 **Actual has no password setting.** A fresh server is *unclaimed*. The first
 client to reach it is offered "set a password", and whatever it sends becomes
@@ -128,7 +129,7 @@ Measured on `actualbudget/actual-server:26.9.0-alpine`, pinned by digest, on
 
 - **The tier grows by one container, one volume and one name.** The name
   needs a host override on `morpheus` when it is deployed, like the other
-  seven.
+  eight.
 - **One password and one session for the whole household.** Anyone who has
   the password, or any signed-in device, can read and change every budget.
   A lost phone is dealt with by signing every device out: the stack README

@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the fourteen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — eleven of which the backup archives
+**Target:** the fifteen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — twelve of which the backup archives
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -11,7 +11,7 @@ not repeated here: the scripts are the same, the phases are the same, and the
 reasons a restore is verified before anything is destroyed are argued there.
 What is different is what the volumes hold. On the observability host, four of
 five volumes are a *record* — metrics and logs that refill on their own. Here,
-most are rebuildable or re-fetched from somewhere else and six are not:
+most are rebuildable or re-fetched from somewhere else and seven are not:
 
 | Volume | What it holds | If it is lost |
 | --- | --- | --- |
@@ -23,6 +23,7 @@ most are rebuildable or re-fetched from somewhere else and six are not:
 | `paperless-db-data` | Paperless-ngx's metadata: tags, correspondents, every document's fields | **Lost**, unless an export is intact — an export carries the metadata beside the files |
 | `paperless-data` | The search index and the classifier | Rebuilt at the next start; the index is re-derived from the documents |
 | `paperless-broker-data` | Valkey's task queue | Nothing. Archived because it exists, worth nothing back |
+| `miniflux-db-data` | Miniflux's database: every subscription and category, read and starred state, and the entries not yet archived ([#147](https://github.com/Gerrrt/HomeLab/issues/147)) | **Lost**, unless an OPML export is at hand — the stack README's Miniflux section has it — and then the subscriptions come back and the read state and stars do not. Nothing else on the tier depends on it |
 | `actual-data` | Actual's server: `account.sqlite` (the password hash and the one session) and every budget's file and sync messages | **Lost** as a server copy. Each client holds the whole budget and can upload it again, which covers losing the server and not a bad sync. A lost `account.sqlite` alone costs a re-claim: `make up` seeds the SOPS password into an empty volume |
 | `step-ca-data` | The intermediate CA's tree | Re-minted on the monitoring host from the lab CA's key — [#404](https://github.com/Gerrrt/HomeLab/issues/404)'s procedure. Costs a runbook step, not data |
 | `caddy-data` | Caddy's storage: `instance.uuid`, the lock directory, later the ACME state | Recreated on the next start. Nothing here is worth a restore until step-ca issues leaves into it |
@@ -30,7 +31,7 @@ most are rebuildable or re-fetched from somewhere else and six are not:
 | `ntfy-data` | ntfy's `user.db` and twelve hours of message cache | Nothing. **Not archived at all** ([#136](https://github.com/Gerrrt/HomeLab/issues/136)): the users, access list and token are re-provisioned from `secrets/sensitive.sops.yaml` on every start, and the cache is notifications already delivered. `make up` creates it empty and ntfy fills it |
 | `adguard-work` | AdGuard's blocklists, query log, statistics and UI sessions | Re-downloaded and re-accumulated. **Not archived at all since 2026-09-28**: archiving it meant stopping AdGuard, which since that day is the house's only DNS forwarder, and the query log is the household's browsing history. The settings are `adguard/AdGuardHome.yaml`, in git |
 
-So this runbook is mostly about those six, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
+So this runbook is mostly about those seven, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
 said why it had to exist before that volume held anything: *"a password vault
 is the one service here where 'it is running' and 'it is recoverable' are
 entirely different claims, and only the second one counts on the day it
@@ -143,7 +144,7 @@ owning uid against the one the service needs: `0` for `vaultwarden-data`,
 `home-assistant-config`, `caddy-data` and `caddy-config`, because those
 services run as root for the reasons `compose.yaml` measures; `1000` for
 `step-ca-data`; `65534` for `adguard-work`; `999` for `immich-db`,
-`paperless-db-data` and `paperless-broker-data`. Paperless's other two belong
+`paperless-db-data`, `paperless-broker-data` and `miniflux-db-data`. Paperless's other two belong
 to whoever ran `make up`, which is not a constant the script can check, so
 look at those yourself. A mismatch is
 reported and never silently corrected.

@@ -287,9 +287,13 @@ Gated on the domain, on a household observation, or on something to publish.
 Beyond ADR-0008's nine: each needs its own decision before it is authored, and
 none is in the order until one is taken.
 
+- **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
+  Deploying it on `trinity` is the stack README's *Adding it to the running
+  tier*: two SOPS keys, one host override, `make up`.
+
 - **[#142](https://github.com/Gerrrt/HomeLab/issues/142) Actual** is decided
   and authored
-  ([ADR-0057](adr/0057-add-actual-to-the-sensitive-tier.md)): Actual rather than
+  ([ADR-0058](adr/0058-add-actual-to-the-sensitive-tier.md)): Actual rather than
   Firefly III, and claimed from SOPS before its first start, because it has no
   password setting. What is left is the deploy on `trinity`:
   `ACTUAL_SERVER_PASSWORD` in SOPS, the `actual` host override on `morpheus`,

@@ -322,7 +322,7 @@ hands off again, and `df -h /srv/immich` must show about 1.8T on
 `/dev/mapper/immich`. That proves the `crypttab` and `fstab` lines together,
 before any photograph depends on them.
 
-## 6. Its own age key, and the sixteen secrets
+## 6. Its own age key, and the eighteen secrets
 
 In your own terminal on `trinity`. None of this goes into a shared session.
 
@@ -350,6 +350,8 @@ what each key is for. The values:
 | `NTFY_ALERTMANAGER_PASSWORD_HASH` | `make gen-secret`, then `make hash-password` on it | No — the password is thrown away; this user logs in by token |
 | `NTFY_PHONE_PASSWORD_HASH` | `make hash-password` | **The password** — each phone's ntfy app logs in with it |
 | `NTFY_TOPIC_ALERTS`, `_URGENT`, `_SECURITY` | `make gen-secret`, three times | No. The monitoring host's receiver URLs end in the same three |
+| `MINIFLUX_DBPASS` | `make gen-secret` — never typed: it is spliced into a connection string | No |
+| `MINIFLUX_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
 | `ACTUAL_SERVER_PASSWORD` | `make gen-secret` | **Yes**, it is what each Actual client logs in with. §9's `make up` claims the server with it before Actual first starts |
 
 ```bash
@@ -410,9 +412,10 @@ make backup-firewall
 
 **Host overrides**, as [`add-a-host-override.md`](add-a-host-override.md)
 describes. One entry, host `trinity`, domain `matrix.elysium`, address
-`10.0.99.40`. The other eight names go under *Additional Names for this Host*:
+`10.0.99.40`. The other nine names go under *Additional Names for this Host*:
 
-`homeassistant`, `immich`, `paperless`, `vaultwarden`, `adguard`, `home`, `ntfy`, `actual`
+`homeassistant`, `immich`, `paperless`, `vaultwarden`, `adguard`, `home`, `ntfy`,
+`miniflux`, `actual`
 
 These are exactly the `Caddyfile`'s site names and the `caddy` service's
 aliases in `compose.yaml`. A later service adds its name in all three places.
@@ -468,11 +471,11 @@ make ps STACK=sensitive
 make check-container-health STACK=sensitive
 ```
 
-All fifteen services must be healthy, with the `ml` profile on as `.env.example` ships it.
+All seventeen services must be healthy, with the `ml` profile on as `.env.example` ships it.
 Then the stack README's list, on the host it was written for:
 
 - **The CA tree and ACME.** [`build-the-tier-ca.md`](build-the-tier-ca.md)
-  §5, once for each of the nine names: `certificate obtained` in Caddy's log,
+  §5, once for each of the ten names: `certificate obtained` in Caddy's log,
   and `Verify return code: 0` against `certificates/tier-ca.pem`.
 - **The library is on the USB disk.** `docker exec sensitive-immich-server df -h /data`
   shows the `/dev/mapper/immich` filesystem, not the root.
@@ -529,6 +532,7 @@ floor, and recovery codes go in the password manager.
 | `https://adguard.matrix.elysium` | The password behind §6's hash | None — likewise |
 | `https://actual.matrix.elysium` | *Use server* with that URL on each device, then the password from §6. No bank sync: import files | None. Actual has none short of OpenID, which ADR-0022 would have to decide |
 | `https://ntfy.matrix.elysium` | User `phone` in the ntfy app on each phone, per the stack README's ntfy section; then the cutover in [`verify-the-alert-path.md`](verify-the-alert-path.md) | None. ntfy has none, and `phone` can only read alert text |
+| `https://miniflux.matrix.elysium` | `admin` and the password from §6 | None. Miniflux has no TOTP, and its passkeys are not a second step ([ADR-0057](../adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)) |
 
 Home Assistant's Hue integration is added **by address**, `10.0.20.20`,
 pressing the bridge's button when asked. That is the first traffic §8's pass
@@ -565,7 +569,7 @@ make backup STACK=sensitive ARGS=--list
 make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
-Both sides must be listed, and the dry run must pass. Eleven volumes are
+Both sides must be listed, and the dry run must pass. Twelve volumes are
 archived. `immich-model-cache`, `adguard-work` and `ntfy-data` are skipped by
 name, so AdGuard keeps answering the house's DNS, and ntfy keeps delivering,
 while the rest of the stack is stopped. On
