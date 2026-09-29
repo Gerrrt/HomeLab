@@ -1209,13 +1209,15 @@ services:
   # `ln -s /config /app/config` on the root filesystem if it were missing,
   # and Homepage copies its sample of any config file that is missing into it,
   # some at start and the rest on the first page load — and Next.js's cache
-  # under /app/.next. Both tmpfs; the four config files that render are
+  # under /app/.next. Both tmpfs; the five config files that render are
   # single-file mounts over the first, and bookmarks.yaml is among them for a
   # reason the first deploy found: without it the sample was served, three
-  # links to GitHub, Reddit and YouTube on the household's page. The samples
-  # still copied — docker, kubernetes, proxmox — configure integrations this
-  # page does not use, and render nothing. `make up` pins the mounts' inodes
-  # through check_mounted_config.py like every other one (#355). LOG_TARGETS
+  # links to GitHub, Reddit and YouTube on the household's page. custom.css is
+  # the Tokyo Night theme, mounted for the same reason. The samples still
+  # copied — custom.js (empty), docker, kubernetes, proxmox — configure
+  # integrations this page does not use, and render nothing. `make up` pins
+  # the mounts' inodes through check_mounted_config.py like every other one
+  # (#355). LOG_TARGETS
   # keeps logs on stdout, where every other container's are, rather than in a
   # logs/ directory under the tmpfs. `docker diff` after serving the page and
   # every widget showed nothing written but those mount points; CapEff 0.
@@ -1263,6 +1265,7 @@ services:
       - ./homepage/services.yaml:/app/config/services.yaml:ro
       - ./homepage/widgets.yaml:/app/config/widgets.yaml:ro
       - ./homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
+      - ./homepage/custom.css:/app/config/custom.css:ro
       - ../../certificates/tier-ca.pem:/etc/homepage/tier-ca.pem:ro
     expose:
       - "3000"

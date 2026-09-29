@@ -155,7 +155,10 @@ has been rehearsed on it.
   and not a status page, with live numbers only where a read-only token can
   read them (Immich, Paperless-ngx) or none is needed (Prometheus), and its
   widget path measured through Caddy with placeholder tokens before the real
-  ones exist. The restore path is rehearsed already:
+  ones exist. Deployed and reading real numbers since; on 2026-09-29 it took
+  Tokyo Night, groups by VLAN, and four more tiles read from Prometheus (UPS,
+  firewall, iLO, NAS) with no new rule or credential. The restore path is
+  rehearsed already:
   → [runbook](runbooks/restore-the-sensitive-tier.md).
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
   **The drive is bought** — 2026-09-22, in
