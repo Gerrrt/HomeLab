@@ -56,12 +56,12 @@ and one test that only works with the machine running.**
 > silenced on 2026-09-17 until 2026-10-08
 > (`01cb81d7-5e19-4e6d-b386-f5c8c843032b`). That is the other laptop, it is the
 > finding [#454](https://github.com/Gerrrt/HomeLab/issues/454) produced rather
-> than a fault in this procedure, and that cell is second in line. **Since
-> 2026-09-19 it is identified — a Dell M5Y1K — and tracked by
-> [#531](https://github.com/Gerrrt/HomeLab/issues/531), bought the same day
-> and in transit**; what changes when this page is reused there is in
-> *Reusing this page on `oracle`* below. The silence suppresses 72 % **and anything lower**, so that cell's
-> further decay is not visible until it expires — see *What is still open*.
+> than a fault in this procedure, and that cell was second in line. **It was
+> replaced on 2026-09-29 under
+> [#531](https://github.com/Gerrrt/HomeLab/issues/531)** — a Dell M5Y1K, the
+> alert gone from its first scrape, the silence expired by hand the same day,
+> and the mains pull run; the record is in *Reusing this page on `oracle`*
+> below.
 >
 > **No silence is created anywhere in this runbook, and that is deliberate.**
 > Both of the battery runbooks beside this one are largely about a silence that
@@ -104,11 +104,11 @@ U4 is on UPS power so the laptops stay *reachable* through a cut, and the cell
 is what keeps this one *running* through it. That half was never tested from
 the day the machine was commissioned until step 8 ran on 2026-09-19.
 
-What this is **not** is a fix for `oracle`, whose cell measures worse at 72 %
-and is already firing. That cell is second in line, bought 2026-09-19 and in
-transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and this runbook is
-written to be reused for it — *Reusing this page on `oracle`* has the
-differences between the two machines.
+What this was **not** is a fix for `oracle`, whose cell measured worse at
+72 % and was already firing. That cell was second in line and was replaced on
+2026-09-29 ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) by reusing
+this runbook — *Reusing this page on `oracle`* has the differences between
+the two machines and the record of that swap.
 
 ## What goes blind while the lid is off
 
@@ -154,6 +154,53 @@ The two battery runbooks beside this one did not need this section, because
   rather than the observed.
 
 ## Reusing this page on `oracle`
+
+> **Done 2026-09-29. The M5Y1K is fitted, proved by a changed serial, held
+> `oracle` up through a 35-minute mains pull, and the silence is gone.
+> [#531](https://github.com/Gerrrt/HomeLab/issues/531) closes on this.**
+>
+> | | |
+> | --- | --- |
+> | Last boot on the old cell ends | 16:24:24 UTC |
+> | First boot on the new cell opens — the true time, clock intact | 16:26:49 |
+> | New `serial_number` first scraped; `HostBatteryHealthLow` gone | 16:30 |
+> | Silence `01cb81d7…` expired — late, see below | ~17:00:50 |
+> | Pack `Full`, 100 %, 2.800 Ah | 17:06:43 |
+> | Brick pulled — `AC` `online` 0 on sysfs | 17:07:58 (17:08 by the operator's clock) |
+> | First `online == 0` sample in Prometheus | 17:08:31 |
+> | `HostOnBattery` pending | ~17:09:10 |
+> | `HostOnBattery` firing | ~17:11:10 — about 3 min 10 s after the pull; the budget is four |
+> | Notification on the phone | 17:11, the same minute |
+> | Twenty-minute bound, 93 % | 17:27:58 — **not acted on**, see below |
+> | Brick back; `status` `Not charging`, then `Charging` | ~17:42:35, at 88 % |
+> | `online == 1` in Prometheus | 17:43:31 |
+> | `HostOnBattery` gone from `ALERTS` | ~17:44:10 |
+>
+> On battery about 34 min 40 s, 2.800 → 2.488 Ah: **0.54 Ah/h**, against a
+> sysfs average of 0.48 A at 16.4 V — **about 8–9 W, which empties this
+> 2.8 Ah pack in about 5.2 hours**. A fifth of `prometheus`'s draw, for the
+> wiki, its Postgres and an Alloy agent, idle on a Tuesday afternoon; one
+> measurement at one load on one day. `homelab_battery_runtime_seconds`
+> projected between 201 and 377 minutes across the window as the draw moved
+> between 0.44 and 0.59 A, and never came near `HostBatteryRuntimeLow`'s
+> thirty. `UpsOnBattery` never appeared and `HostOnBattery` never fired for
+> `prometheus`, so the plug pulled was the right one.
+>
+> **The test overran its bound by fourteen and a half minutes.** The call to
+> plug back in at 17:28 did not reach the operator; the pack was at 93 % then
+> and 88 % when it went back. Nothing was at risk at that depth, and the
+> overrun is why the Ah/h figure rests on a longer window than
+> `prometheus`'s did. The bound is still twenty minutes.
+>
+> **`charge_full` still reads exactly `2.8`** after the discharge. Twelve per
+> cent is not a learning cycle, so this is still the gauge's told figure, not
+> a measured one; the next deep discharge is what will move it, and until then
+> the `1` in step 7's ratio is a pack that has not been asked, not a pack at
+> full health.
+>
+> **`Not charging` for the first half-minute on mains is the Dell, not a
+> fault.** The firmware reports it as the adapter is recognised and before
+> it starts the charge; at 17:43:19 it read `Charging` at 1.45 A.
 
 Added 2026-09-19 under [#531](https://github.com/Gerrrt/HomeLab/issues/531),
 before that cell was bought, so the differences are written down while the
@@ -210,6 +257,13 @@ check is still the record, because the rule reads the flag and not the size
 of the step. Record the result on that issue either way: a pass here is the
 datum it is short of.
 
+**It passed on 2026-09-29.** The last boot on the old cell ends
+`16:24:24 UTC` and the first on the new one opens `16:26:49` — the true
+time, two and a half minutes later — the `timesyncd` grep printed nothing,
+and `HostClockUnsynchronised` never went pending for `oracle`. The coin cell
+did its job, and the RTC reset in #519 is a property of the MacBook, not of
+laptops.
+
 **Every query changes `instance`, and one changes the supply.** Step 1's
 loop, the ratio, and step 2's and step 8's alert queries all take
 `instance="oracle"`; the mains supply is `AC`, not `ADP1`, so step 1's
@@ -222,6 +276,14 @@ discriminator inverts: `HostOnBattery` fires for `oracle` and **not** for
 for that swap; *What is still open* says to do it properly here. The old cell
 comes out at about 30 % rather than full, and the path is proven before the
 new cell is asked to prove anything.
+
+**It did not run on 2026-09-29 either.** The old pack came out on mains, at
+100 %: Prometheus holds no `online == 0` sample and no `HostOnBattery` for
+`oracle` in the day before the fit. So step 2 has now been skipped on both
+laptops, and on neither swap was a step-8 failure going to be separable from
+the path. Step 8 passed here too, so again nothing had to be separated. If
+this page is used a third time, step 2 is the first thing to do, and it is
+the step to read before the machine is off rather than after.
 
 **The proof rows are different, and one of them is better.** This pack's
 info series carries a `serial_number` — `1650` on the cell in it now — and
@@ -236,30 +298,50 @@ seen.
 
 The baseline, read on 2026-09-19 from Prometheus with step 1's loop and the
 cell that is about to come out — the **Reads** column step 7 compares
-against, with **Observed** to be filled at the fit:
+against. **Observed** was filled on 2026-09-29, about half an hour after the
+fit, with the pack part-way through its first charge — so, as on
+`prometheus`, a first reading rather than a settled one:
 
-| Metric | Reads 2026-09-19, original cell | After a good new cell | Observed |
+| Metric | Reads 2026-09-19, original cell | After a good new cell | Observed 2026-09-29 |
 | --- | --- | --- | --- |
-| `node_power_supply_charge_full` | `2.021`, unchanged across 30 days | at or near `2.8` | |
-| `node_power_supply_charge_full_design` | `2.8` | `2.8`, or the pack's own figure | |
-| `charge_full / charge_full_design` | `0.7218` | `0.98`–`1.0`, or above it | |
-| `node_power_supply_cyclecount` | `0` — never reported | `0` — proves nothing here | |
-| `node_power_supply_charge_ampere` | `2.021` | any value that **moves** | |
-| `node_power_supply_capacity` | `100` | rises to `100` on charge | |
-| `node_power_supply_current_ampere` | `0.001` | non-zero while discharging | |
-| `node_power_supply_voltage_volt` | `16.179` on mains | `12`–`16.8`, and varying under load | |
-| `node_power_supply_voltage_min_design` | `14.8` | `14.8`, or the pack's own figure | |
-| `node_power_supply_temp_celsius` | not exported | not exported | |
-| `node_power_supply_present` | `1` | `1` | |
-| `node_power_supply_online{power_supply="AC"}` | `1` | `1` | |
-| info `manufacturer` | `SMP-Sanyo2` | may or may not change | |
-| info `model_name` | `DELL VN3N047` | may or may not change | |
-| info `serial_number` | `1650` | **must change** | |
-| info `status` | `Full` | `Charging`, then `Full` | |
+| `node_power_supply_charge_full` | `2.021`, unchanged across 30 days | at or near `2.8` | `2.8` — exactly design, see below |
+| `node_power_supply_charge_full_design` | `2.8` | `2.8`, or the pack's own figure | `2.8` |
+| `charge_full / charge_full_design` | `0.7218` | `0.98`–`1.0`, or above it | `1` |
+| `node_power_supply_cyclecount` | `0` — never reported | `0` — proves nothing here | `0` |
+| `node_power_supply_charge_ampere` | `2.021` | any value that **moves** | `2.771`, climbing |
+| `node_power_supply_capacity` | `100` | rises to `100` on charge | `96`, then `98` |
+| `node_power_supply_current_ampere` | `0.001` | non-zero while discharging | `0.454`, charging |
+| `node_power_supply_voltage_volt` | `16.179` on mains | `12`–`16.8`, and varying under load | `16.841` |
+| `node_power_supply_voltage_min_design` | `14.8` | `14.8`, or the pack's own figure | `14.8` |
+| `node_power_supply_temp_celsius` | not exported | not exported | not exported |
+| `node_power_supply_present` | `1` | `1` | `1` |
+| `node_power_supply_online{power_supply="AC"}` | `1` | `1` | `1` |
+| info `manufacturer` | `SMP-Sanyo2` | may or may not change | `LGC-LGC2.8` — changed |
+| info `model_name` | `DELL VN3N047` | may or may not change | `DELL 7PY0D` — changed |
+| info `serial_number` | `1650` | **must change** | `88` — changed |
+| info `status` | `Full` | `Charging`, then `Full` | `Charging` |
 
 The serial is exported with a leading space — `" 1650"` — because that is
 what the firmware writes to `/sys`; a label matcher that forgets the space
-matches nothing.
+matches nothing. The new pack's is padded the same way to the same width,
+so it is `"  88"`, with two.
+
+**Three info rows changed where the MacBook's changed none**, so on this
+machine the pack is proved by labels rather than by inference: the old
+series was last scraped before the power-down and the new one appears at
+16:30 UTC with a different serial, a different cell maker — LG Chem where
+the original was Sanyo — and a different Dell part number. The label on the
+pack reads Dell M5Y1K; `7PY0D` is the number its gauge carries, and it is
+recorded in [`../hardware.md`](../hardware.md) beside the others rather
+than treated as a mismatch. `voltage_min_design` and `charge_full_design`
+did **not** move, which on the MacBook would have been evidence of nothing
+and here is evidence of a pack built to Dell's own figures.
+
+**`charge_full` came back exactly equal to design**, which is the first
+failure shape step 7 names: a gauge reporting the figure it was told rather
+than one it has measured. It is not evidence of a bad pack, and not of a
+perfect one; the discharge in step 8 is what starts turning it into a
+measurement, and step 8's record says what it read afterwards.
 
 **Steps 4 and 6 are `oracle`'s own commands.** There is no `make backup` and
 no `make down` for this host — those are the stack's. Note the time, take any
@@ -287,6 +369,17 @@ docker exec alertmanager amtool silence query --alertmanager.url=http://localhos
 ```
 
 The second command should list nothing else for this host.
+
+**On 2026-09-29 it was deleted late again — the third time on three battery
+runbooks.** The host went down at 16:24 and the silence was expired at
+about 17:00 UTC, read off `alertmanager_silences{state="active"}` falling
+from 2 to 1 between 17:00:42 and 17:00:57, some half an hour after the new
+pack was reporting. It cost nothing this time, for a reason that is worth
+recording rather than relying on: the new pack read `1` from its first
+scrape, so `HostBatteryHealthLow` stopped firing on its own by about 16:30,
+and the silence spent its last half-hour covering an alert that was no
+longer there. A bad pack would have stayed hidden for that half-hour. The
+instruction above stands, and it is still at step 4, not after.
 [#351](https://github.com/Gerrrt/HomeLab/issues/351)'s silence on its 32
 reallocated sectors used to share this expiry; it was deleted when
 [#572](https://github.com/Gerrrt/HomeLab/issues/572) recorded the count in
@@ -787,44 +880,24 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
   unavailable. Step 8 passed on 2026-09-19, so the ambiguity a failure would
   have carried never had to be resolved, and that pass — plus the accidental
   firing of 2026-09-18 — is now the evidence the path works against the real
-  rule and the real adapter. Run step 2 properly when this page is reused on
-  `oracle`.
-- **`oracle`'s cell reads 72 %, its replacement is bought and in transit
-  ([#531](https://github.com/Gerrrt/HomeLab/issues/531)), and its alert is
-  silenced until 2026-10-08** — `01cb81d7-5e19-4e6d-b386-f5c8c843032b`, matching
-  `alertname="HostBatteryHealthLow"`, `instance="oracle"`,
-  `power_supply="BAT0"`. It is the one silence Alertmanager holds since
-  [#572](https://github.com/Gerrrt/HomeLab/issues/572) deleted the disk one, and its
-  comment begins with `#531` so that `SilenceExpiresSoon` names the owner when
-  it warns a week before 2026-10-08 ([#575](https://github.com/Gerrrt/HomeLab/issues/575)).
-  Because the rule is `< 0.8` and no label
-  carries the ratio, that silence hides any *further* decay of the cell as well
-  as the 72 % it was created for; re-read
-  `node_power_supply_charge_full{instance="oracle"} /
-  node_power_supply_charge_full_design{instance="oracle"}` rather than trusting
-  the absence of an alert.
-
-  This runbook is written to be reused for that cell, and since 2026-09-19
-  *Reusing this page on `oracle`* above carries the differences, the Dell's
-  baseline and the silence's deletion. The short form: its mains supply is
-  `AC` and not `ADP1`; its firmware reports `cyclecount` as `0` and always
-  has, so one of step 7's proof rows is unavailable there; it exports no
-  `temp_celsius`; its info series *does* carry a `serial_number`, which is a
-  proof row this machine lacks and the cleanest of them all; and its clock is
-  expected to survive the disconnect, because the coin cell that backs it is
-  separate from the pack — expected, and checked at the fit rather than
-  assumed, for [#519](https://github.com/Gerrrt/HomeLab/issues/519). If it
-  does not survive, `HostClockUnsynchronised` is what will say so, and because
-  `oracle` is not the monitoring host it sees that whole window rather than
-  the slice this one caught.
-- **Runtime-on-battery is projected on every cut, and was measured once.**
+  rule and the real adapter. It was not run on `oracle`'s swap either
+  (2026-09-29), and that step 8 passed as well — so both laptops' alert paths
+  are proven by the new cell, and neither by the old one.
+- **Runtime-on-battery is projected on every cut, and measured once per laptop.**
   `homelab_battery_runtime_seconds` and `HostBatteryRuntimeLow`
   ([#532](https://github.com/Gerrrt/HomeLab/issues/532)) read the pack's draw
   whenever the adapter loses input, so the series that would notice the figure
   halving now exists. The bounded measurement step 8 asks for ran on
-  2026-09-19 — 2.72 Ah/h, about 2.5 hours from full, one load on one day — and
-  is what the projection is proven against; the next cut is the first chance
-  to compare the two.
+  2026-09-19 on `prometheus` — 2.72 Ah/h, about 2.5 hours from full — and on
+  2026-09-29 on `oracle` — 0.54 Ah/h, about 5.2 hours — each one load on one
+  day, and they are what the projection is proven against; the next cut is
+  the first chance to compare the two.
+- **`oracle`'s `charge_full` has not been learned.** It read exactly `2.8`,
+  its design figure, before and after step 8's twelve-per-cent discharge, so
+  the ratio `HostBatteryHealthLow` reads is `1` by assertion rather than by
+  measurement. It becomes a measurement after a deep discharge, which nothing
+  schedules; the next long mains cut will do it, and a figure that then falls
+  well short of `2.8` is the pack answering the question late.
 - **Cell temperature is unmeasured on both laptops, by the packs' own doing.**
   `HostBatteryHot` is loaded and cannot fire: the A1437 returns a constant and
   the Dell exports nothing (step 3). `HostBatteryTempNotMeasured` records that
@@ -832,7 +905,12 @@ host being down. [`verify-the-alert-path.md`](verify-the-alert-path.md).
   trackpad inspection is the only detection for the failure mode
   [#454](https://github.com/Gerrrt/HomeLab/issues/454) opened with.
 
-**Closed since this page was written:** `HostBatteryHealthLow`'s description
+**Closed since this page was written:** `oracle`'s cell. It read 72 % under a
+silence set to 2026-10-08, and on 2026-09-29 it was replaced
+([#531](https://github.com/Gerrrt/HomeLab/issues/531)): a Dell M5Y1K proved by
+a changed serial, the clock intact across the swap, the silence expired by
+hand rather than left to lapse, and the mains pull run — *Reusing this page
+on `oracle`* has the record. `HostBatteryHealthLow`'s description
 named [`fit-the-ups-battery.md`](fit-the-ups-battery.md) — the rack pack in
 `mjolnir`, not this cell — because that was the only runbook there was when the
 rule was written. [#506](https://github.com/Gerrrt/HomeLab/pull/506) retargeted
