@@ -6,7 +6,7 @@
 #
 #   - A LINK: a name, a line saying what it is for, and an href. That is all
 #     it claims. Home Assistant, AdGuard, Vaultwarden, Miniflux, Memos,
-#     Mealie and Grafana are links.
+#     Mealie, linkding and Grafana are links.
 #   - A WIDGET: live numbers read server-side, with a credential scoped
 #     READ-ONLY or none at all. Immich and Paperless-ngx are read from their
 #     own APIs; Prometheus, the UPS, the firewall, the iLO and the NAS are read
@@ -70,6 +70,12 @@
         icon: memos.svg
         href: https://memos.matrix.elysium
         description: Memos — quick notes, kept in the house
+    - Bookmarks:
+        icon: linkding.svg
+        # A link and not a widget: Homepage has none for linkding, and its
+        # API token is the account's whole power, not a read-only scope.
+        href: https://links.matrix.elysium
+        description: linkding — the household's bookmarks
 
     - Home:
         icon: home-assistant.svg

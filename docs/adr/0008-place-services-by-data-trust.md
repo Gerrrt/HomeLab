@@ -62,6 +62,11 @@ all of it under the existing 50→99 rule, so this adds no rule at all.
 >
 > *Nor Memos, the household's notes, decided the same way in
 > [ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md).*
+>
+> *Nor linkding, a bookmark manager, by the same test — a bookmark collection
+> is a browsing history — decided in
+> [ADR-0061](0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md).
+> The placement above is unchanged and this ADR is not superseded.*
 
 **The streaming tier — CasaBonita (40).** A quiet N100-class NAS holds the bulk
 media library and runs Jellyfin, with Plex beside it for household convenience.

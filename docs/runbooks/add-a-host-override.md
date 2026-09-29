@@ -168,7 +168,9 @@ routes by Host — `homeassistant` and `vaultwarden` to begin with
 ([#134](https://github.com/Gerrrt/HomeLab/issues/134),
 [#131](https://github.com/Gerrrt/HomeLab/issues/131)), and `home` for
 Homepage ([#137](https://github.com/Gerrrt/HomeLab/issues/137)), the one the
-household is told. They land with the
+household is told, and `links` for linkding
+([#144](https://github.com/Gerrrt/HomeLab/issues/144)), added 2026-09-29 as
+an additional name on `trinity`, ahead of the service. They land with the
 build ([#404](https://github.com/Gerrrt/HomeLab/issues/404)), not before: an
 override for a host that does not answer moves the failure from *no such host*
 to *no route*, and a name on the break-glass card is the one thing

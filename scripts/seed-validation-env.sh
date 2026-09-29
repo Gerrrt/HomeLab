@@ -50,6 +50,7 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "PAPERLESS_DBPASS=validation-only"
   echo "PAPERLESS_ADMIN_PASSWORD=validation-only"
   echo "VAULTWARDEN_ADMIN_TOKEN=validation-only"
+  echo "LINKDING_SUPERUSER_PASSWORD=validation-only"
   echo "HOMEPAGE_IMMICH_API_KEY=validation-only"
   echo "HOMEPAGE_PAPERLESS_TOKEN=validation-only"
   # ntfy validates these at start and exits on a malformed one, so a boot of

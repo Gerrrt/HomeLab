@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **linkding is decided and authored for the sensitive tier; it is not
+  deployed** ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
+  [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+  It is the fourth service beyond ADR-0008's nine, after Miniflux, Memos and Mealie. It is behind
+  one factor because linkding has no other, and it is named in `security.md`
+  with Immich, AdGuard Home, Miniflux, Memos and Mealie.
+  - **Hardening needs four capabilities.** Measured on the pinned 1.47.0
+    image: the bootstrap needs root with `CHOWN`, `DAC_OVERRIDE`, `SETUID` and
+    `SETGID`, and every process that serves runs as uid 33 with no
+    capabilities.
+  - **The second boot is the one that finds `DAC_OVERRIDE`.** Without it,
+    `migrate` failed with "attempt to write a readonly database" and the
+    container still reported healthy.
+  - **Memory:** 77 MiB idle, and 188 MiB peak importing 3,000 bookmarks.
+  - **Background tasks are off**, so no third party is asked for a favicon for
+    each bookmarked site.
+  - **The `links` host override is on `morpheus`**, added the same day as an
+    additional name on `trinity`, ahead of the deploy. It resolves to
+    `10.0.99.40`, and the reverse entry is still `trinity`. HTTPS to it fails
+    at the handshake until `make up` gives Caddy the site.
 - **HomeBox is declined**
   ([#148](https://github.com/Gerrrt/HomeLab/issues/148), closed). Every job
   it was filed for already had a home: serials and warranty dates in

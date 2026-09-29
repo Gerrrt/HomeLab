@@ -535,6 +535,14 @@ jobs:
           ./scripts/check_hardened_boot.sh --stack sensitive
           --service ntfy --proof-cache .boot-proofs/proofs.txt
 
+      # linkding's bootstrap runs as root on four capabilities and drops to
+      # 33 (ADR-0061); an image that moved its data directory or its user
+      # would stop booting here rather than on trinity.
+      - name: Boot linkding under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service linkding --proof-cache .boot-proofs/proofs.txt
+
   # ---------------------------------------------------------------------------
   secret-scan:
     name: Secret scan

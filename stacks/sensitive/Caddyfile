@@ -181,6 +181,18 @@ recipes.matrix.elysium {
 	}
 }
 
+# linkding (#144, ADR-0061). Django reads the scheme from the
+# X-Forwarded-Proto Caddy sets, which is what lets a login POST from https://
+# pass its CSRF check without a trusted-origins list.
+links.matrix.elysium {
+	reverse_proxy linkding:9090
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

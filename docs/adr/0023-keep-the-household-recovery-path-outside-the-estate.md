@@ -100,6 +100,11 @@ service is allowed to hold real data.
 | AdGuard Home | **Never on the path** | Already true, under ADR-0010 |
 | ntfy, Homepage | **Unclassed** | They hold nothing a household would need back |
 
+> *[ADR-0061](0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)
+> classes linkding as **Unclassed**. It holds data worth backing up, and it is
+> backed up, but no recovery step runs through a bookmark. This ADR is not
+> superseded.*
+
 **Vaultwarden — the household's vault is not this vault.** The recommendation is
 that the family's own credentials live in hosted Bitwarden and that Vaultwarden
 keeps the operator's. Vaultwarden is Bitwarden-compatible by design, which is
