@@ -379,12 +379,21 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # -wal beside it until a checkpoint. A clean stop checkpoints: read after
 # `docker stop`, the main file held the account and the -wal was empty.
 #
-# linkding's (linkding-data, #144) is the fifth. Read off two boots of the
-# pinned image on 2026-09-29 under its compose hardening: bootstrap.sh switches
-# db.sqlite3 to WAL before the first request, so a -wal and a -shm sit beside
-# it from the first start, and secretkey.txt signs every session — a restore
-# without it logs everyone out, as Vaultwarden's rsa_key.pem does. favicons and
-# previews stay empty with background tasks off.
+# Mealie's (mealie-data, #146) was read off a boot of the pinned image on
+# 2026-09-29, as capless root and read-only: ./mealie.db exists before the
+# listener answers, with ./.secret and ./.session_secret beside it — the keys
+# that sign its tokens, generated on first start, so a restore without them
+# logs everyone out. ./recipes/<id>/ appears on the first import. The
+# database is in rollback-journal mode, as Audiobookshelf's is, so there is
+# no -wal to list. ./backups is where Mealie's own exports would go; nothing
+# schedules one, and none is made.
+#
+# linkding's (linkding-data, #144) is the sixth SQLite here. Read off two boots
+# of the pinned image on 2026-09-29 under its compose hardening: bootstrap.sh
+# switches db.sqlite3 to WAL before the first request, so a -wal and a -shm sit
+# beside it from the first start, and secretkey.txt signs every session — a
+# restore without it logs everyone out, as Vaultwarden's rsa_key.pem does.
+# favicons and previews stay empty with background tasks off.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -407,6 +416,7 @@ declare -A SENTINEL=(
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
+  [mealie-data]="./mealie.db"
   [linkding-data]="./db.sqlite3"
 )
 
@@ -449,6 +459,7 @@ declare -A COMPANIONS=(
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
+  [mealie-data]="./.secret ./.session_secret ./recipes ./users"
   [linkding-data]="./secretkey.txt ./db.sqlite3-wal"
 )
 

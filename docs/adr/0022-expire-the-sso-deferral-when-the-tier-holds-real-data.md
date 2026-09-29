@@ -31,10 +31,16 @@
 > and nothing between them
 > ([ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
 >
-> **And a ninth, the same day: linkding, with no second factor.** It offers
+> **And a ninth: Mealie, with no second factor.** It has OIDC and LDAP and no
+> factor of its own
+> ([ADR-0060](0060-add-mealie-to-the-sensitive-tier-as-recipes.md)). Its
+> accounts count toward trigger 3 like any other account on the tier. The
+> table is not edited.
+>
+> **And a tenth, the same day: linkding, with no second factor.** It offers
 > OIDC or a trusted proxy header and nothing of its own, so its route is the
 > identity provider too. Adding it fires none of the triggers below
-> ([ADR-0060](0060-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+> ([ADR-0061](0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
 
 ## Context
 

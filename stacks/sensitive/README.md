@@ -35,9 +35,10 @@ make up STACK=sensitive
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
-| linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The third service beyond ADR-0008's nine ([ADR-0060], [#144]) |
+| mealie | `ghcr.io/mealie-recipes/mealie` | *internal* (9000) | The household's recipes, meal plans and shopping list at `https://recipes.matrix.elysium`. Beyond ADR-0008's nine, decided by its own ADR, and **authored, not yet deployed** ([#146], [ADR-0060]) |
+| linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The fourth service beyond ADR-0008's nine ([ADR-0061], [#144]) |
 
-Eighteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Nineteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
@@ -45,8 +46,9 @@ Paperless-ngx, the archive of what the household cannot get back; Homepage
 is the page that tells the household the rest exist; ntfy is the one the
 estate uses, to tell the operator what is wrong with the rest; two are
 Miniflux, the first of the tier extras, decided by an ADR of its own before it
-was written here; Memos is the second and linkding the third, each decided the
-same way. What is absent is as deliberate as what is here:
+was written here; Memos is the second; Mealie is the third, the one the
+household is meant to open for its own sake; and linkding is the fourth. What
+is absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
   telemetry must never reach VLAN 99 ([ADR-0007]); this host *is* on VLAN 99,
@@ -56,9 +58,9 @@ same way. What is absent is as deliberate as what is here:
   not in the lab's: it is the estate's, deployed identically everywhere.
 - **No other services planned.** The next one, whenever it comes, arrives as
   Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy,
-  Miniflux, Memos and linkding did — and, beyond ADR-0008's nine, after an ADR
-  of its own, as [ADR-0057], [ADR-0059] and [ADR-0060] were for the last three:
-  a service with
+  Miniflux, Memos, Mealie and linkding did — and, beyond ADR-0008's nine,
+  after an ADR of its own, as [ADR-0057], [ADR-0059], [ADR-0060] and
+  [ADR-0061] were for the last four: a service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -80,7 +82,7 @@ same way. What is absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               eighteen services, one network, health-gated ordering
+compose.yaml               nineteen services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -659,10 +661,55 @@ factor. `compose.yaml` has what was measured on the pinned image.
   It is a reading list, not a secret. Keep it with the household's documents
   rather than in git.
 
+## Mealie
+
+The household's recipes, at `https://recipes.matrix.elysium`. It is on this
+tier because the phones that use it are on Hicks, not because recipes are
+sensitive ([ADR-0060]). Reaching it needs no rule beyond the `443` Hicks
+already has.
+
+- **Root with every capability dropped, as Vaultwarden runs.** `/app/data` is
+  root-owned in the image. `PUID=0` and `PGID=0` make the entrypoint's
+  user-switch a no-op, so it neither `chown`s nor `gosu`s. Measured before this
+  was written, under exactly the compose file's options: healthy, a login
+  answered, three recipes imported by URL, and nothing written outside
+  `/app/data`. It used 224 MiB idle and 396 MiB at the peak.
+- **SQLite, no database container, no SOPS secret.** The signing secrets are
+  generated into the volume on the first start and backed up with it. The admin
+  password is a hash in the database.
+- **Sign-up is off from the first start.** The registration endpoint answers
+  `403`. Accounts are made by the admin, and are for the two people ADR-0008
+  assumes. A third person's account is [ADR-0022]'s trigger 3.
+- **No second factor exists**, so there is none to enrol. [ADR-0060] records
+  it beside Immich and AdGuard. OIDC is the route, the day an identity
+  provider exists.
+- **The first login is the default admin**, `changeme@example.com` /
+  `MyPassword`, and it must be renamed and re-passworded before anyone else
+  is told the address
+  ([`build-the-sensitive-tier-host.md`](../../docs/runbooks/build-the-sensitive-tier-host.md#deploy-a-later-service)).
+  Forgotten afterwards, the image's own script resets it on the running
+  container:
+
+  ```bash
+  docker exec -it sensitive-mealie python3 \
+    /opt/mealie/lib/python3.14/site-packages/mealie/scripts/change_password.py
+  ```
+
+  The path names the image's Python version. If a bump moves it,
+  `docker exec sensitive-mealie find /opt/mealie -name change_password.py`
+  finds it.
+- **URL import fetches the page a user pastes**, from `trinity`, over
+  Winterfell's existing egress, and never inward. Its `safehttp` transport
+  refuses private, loopback and link-local addresses after DNS. That was
+  measured against a container on this network, `10.0.99.1` and
+  `10.0.99.20`, and no request arrived. `HTTP_ALLOW_LIST` is the one setting
+  that opens it, and `compose.yaml` writes it out empty. Adding a host to it
+  is a hole into Winterfell.
+
 ## linkding
 
 The household's bookmarks, at `https://links.matrix.elysium` ([#144]). It is
-the third service here that [ADR-0008] does not name, and [ADR-0060] is the
+the fourth service here that [ADR-0008] does not name, and [ADR-0061] is the
 decision that put it on this tier. `compose.yaml` has the service and what was
 measured on the pinned image. What has to be true around it is here.
 
@@ -681,14 +728,15 @@ measured on the pinned image. What has to be true around it is here.
   toward [ADR-0022]'s third trigger like any other account on the tier.
 - **No second factor.** linkding has none of its own. It offers OIDC, or trust
   in a proxy header, and neither exists here yet. It sits with Immich,
-  AdGuard Home, Miniflux and Memos in `security.md`'s list of services that cannot carry one.
-  [ADR-0060] records why that is accepted for a list of links, and that OIDC is
+  AdGuard Home, Miniflux, Memos and Mealie in `security.md`'s list of
+  services that cannot carry one.
+  [ADR-0061] records why that is accepted for a list of links, and that OIDC is
   how it would get one if [ADR-0022]'s decision brings an identity provider.
 - **No favicons, on purpose.** `LD_DISABLE_BACKGROUND_TASKS` keeps linkding
   from asking a third party for an icon for every site in the list. Adding a
   bookmark still fetches that page's own title and description.
 - **Archiving pages is not what this is.** The `-plus` image, with Chromium,
-  would save snapshots. [ADR-0060] leaves that want to a different service and
+  would save snapshots. [ADR-0061] leaves that want to a different service and
   a new decision.
 - **Adding it to the running tier**, as Miniflux is added. On `trinity`:
   1. `make secrets-edit STACK=sensitive`, and add `LINKDING_SUPERUSER_PASSWORD`
@@ -719,7 +767,7 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the thirteen volumes it archives has a
+volume it cannot verify, so each of the fourteen volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden and `memos_prod.db` for
 Memos, each read off a boot of the pinned image, beside the entries [#133]
 read off boots of every other — and
@@ -864,8 +912,9 @@ it matters:
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
 [ADR-0057]: ../../docs/adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md
 [ADR-0059]: ../../docs/adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md
-[ADR-0060]: ../../docs/adr/0060-add-linkding-to-the-sensitive-tier-behind-one-factor.md
+[ADR-0061]: ../../docs/adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md
 [#124]: https://github.com/Gerrrt/HomeLab/issues/124
+[ADR-0060]: ../../docs/adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -878,6 +927,7 @@ it matters:
 [#144]: https://github.com/Gerrrt/HomeLab/issues/144
 [#145]: https://github.com/Gerrrt/HomeLab/issues/145
 [#147]: https://github.com/Gerrrt/HomeLab/issues/147
+[#146]: https://github.com/Gerrrt/HomeLab/issues/146
 [#182]: https://github.com/Gerrrt/HomeLab/issues/182
 [#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md

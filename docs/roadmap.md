@@ -295,7 +295,16 @@ none is in the order until one is taken.
   and authored in `stacks/sensitive`. What remains is the deploy on `trinity`:
   the `memos` host override, `make up`, and registration closed at first login.
   It holds no real notes until ADR-0023's *Durable* condition is met.
-- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0060](adr/0060-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
+- **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
+  `recipes.matrix.elysium`.** Decided by
+  [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
+  **authored, not yet deployed**. It is the one service here meant for the
+  household to open rather than to benefit from. It uses no new firewall rule
+  and no SOPS secret, and it has no second factor, which is named alongside
+  Immich and AdGuard. What is left is the deploy on `trinity`: `make up`, the
+  host override, and the first login and rename of the default admin
+  (→ [runbook](runbooks/build-the-sensitive-tier-host.md#deploy-a-later-service)).
+- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
   Deploying it on `trinity` is the same section of the stack README: one SOPS
   key and `make up`. The host override was added on 2026-09-29.
 

@@ -536,7 +536,7 @@ jobs:
           --service ntfy --proof-cache .boot-proofs/proofs.txt
 
       # linkding's bootstrap runs as root on four capabilities and drops to
-      # 33 (ADR-0060); an image that moved its data directory or its user
+      # 33 (ADR-0061); an image that moved its data directory or its user
       # would stop booting here rather than on trinity.
       - name: Boot linkding under its hardening
         run: >-

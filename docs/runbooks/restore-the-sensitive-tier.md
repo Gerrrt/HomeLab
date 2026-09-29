@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the sixteen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — thirteen of which the backup archives
+**Target:** the seventeen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — fourteen of which the backup archives
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -263,6 +263,15 @@ python3 -c "import sqlite3;print(sqlite3.connect('/tmp/memos/memos_prod.db').exe
 docker exec sensitive-memos wget -qO- http://127.0.0.1:5230/api/v1/instance/settings/GENERAL \
   | grep -c '"disallowUserRegistration":true'
 #    Must be 1.
+
+# 8. mealie-data — the accounts predate the stamp, and the signing secret came
+#    back. Rollback-journal SQLite, so the main file alone is the database.
+docker exec sensitive-mealie python3 -c "import sqlite3;print(sqlite3.connect(
+  '/app/data/mealie.db').execute('select email, created_at from users').fetchall())"
+docker exec sensitive-mealie test -s /app/data/.secret && echo secret present
+#    Every account's created_at must PREDATE the stamp. A lone
+#    changeme@example.com created after it is a fresh database: the restore
+#    did not happen before the first start.
 ```
 
 Then from a client on Hicks — the checks a shell cannot do:

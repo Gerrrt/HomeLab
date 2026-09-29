@@ -1,4 +1,4 @@
-# ADR-0060: Add linkding to the sensitive tier, behind one factor
+# ADR-0061: Add linkding to the sensitive tier, behind one factor
 
 **Status:** Accepted · 2026-09 · adds a service to the tier
 [ADR-0008](0008-place-services-by-data-trust.md) created, and one to the list
@@ -20,7 +20,8 @@ a REST API. It does one thing and stops. It named two alternatives:
 The want as stated is "I can find the link again", not "the page still exists
 when the site is gone". linkding is the smallest answer to the first.
 
-ADR-0008 does not name it. It is the third of the tier's extras, after
+ADR-0008 does not name it. It is the fourth of the tier's extras, after
+Mealie in [ADR-0060](0060-add-mealie-to-the-sensitive-tier-as-recipes.md),
 Memos in [ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md) and
 Miniflux in [ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md). As with
 [ADR-0050](0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md),
@@ -41,7 +42,7 @@ of 2026-09-19 set two reasons:
    password, OIDC, or trust in a header set by an authenticating proxy. There
    is no TOTP and no WebAuthn. ADR-0022 counted the tier's services that
    cannot carry a factor (Grafana, Immich, AdGuard Home), ADR-0057 added
-   Miniflux, ADR-0059 added Memos, and adding another to that count is a decision to take in the
+   Miniflux, ADR-0059 Memos and ADR-0060 Mealie, and adding another to that count is a decision to take in the
    open.
 
 Measured on the pinned image (1.47.0) on 2026-09-29, under the options
@@ -97,7 +98,7 @@ Measured on the pinned image (1.47.0) on 2026-09-29, under the options
    `/admin`, and it counts toward ADR-0022's third trigger like any other.
 
 3. **Behind one factor, and named as such.** `docs/security.md` lists linkding
-   with Grafana, Immich, AdGuard Home, Miniflux and Memos as unable to carry a second
+   with Grafana, Immich, AdGuard Home, Miniflux, Memos and Mealie as unable to carry a second
    factor. This is accepted for three reasons:
    - The data is a list of links. It is the least sensitive content on the
      tier after Homepage's.
@@ -133,7 +134,7 @@ Measured on the pinned image (1.47.0) on 2026-09-29, under the options
 
 ## Consequences
 
-- **The tier has a eighteenth service and a thirteenth archived volume.** The
+- **The tier has a nineteenth service and a fourteenth archived volume.** The
   stack README, the build and restore runbooks, the backup tables and the
   Homepage page each gain a row.
 - **One more name on the leaf and in the resolver.** `links` needs a host
@@ -144,7 +145,7 @@ Measured on the pinned image (1.47.0) on 2026-09-29, under the options
   capabilities are held only by the root process that runs the migrations.
   The `compose.yaml` comment names the one-line `stat` that shows whether the
   premise still holds after an image bump.
-- **The "cannot carry a factor" list grows from five to six.** Each entry
+- **The "cannot carry a factor" list grows from six to seven.** Each entry
   makes an identity provider a little more worth its cost when ADR-0022's
   decision comes due. None of them brings that decision forward.
 - **No icons, by choice.** Someone who wants them turns on background tasks,

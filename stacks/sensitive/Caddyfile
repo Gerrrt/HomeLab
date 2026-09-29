@@ -167,7 +167,21 @@ miniflux.matrix.elysium {
 	}
 }
 
-# linkding (#144, ADR-0060). Django reads the scheme from the
+# Mealie (#146, ADR-0060), the household's recipes. Named for what it is for,
+# like `home`, because the people who use it will type it rather than find it.
+# BASE_URL in compose.yaml is this name, so the links Mealie builds in shared
+# recipes and invitations point here; X-Forwarded-For and -Proto are set
+# unasked.
+recipes.matrix.elysium {
+	reverse_proxy mealie:9000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# linkding (#144, ADR-0061). Django reads the scheme from the
 # X-Forwarded-Proto Caddy sets, which is what lets a login POST from https://
 # pass its CSRF check without a trusted-origins list.
 links.matrix.elysium {
