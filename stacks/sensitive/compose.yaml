@@ -26,8 +26,10 @@
 # vault, and the reason scripts/backup-volumes.sh learned this stack.
 # Homepage (#137) is the sixth, and the household's page of links to the other
 # five. ntfy (#136) is the seventh, and where the estate's alerts now arrive.
-# Stirling-PDF (#143) is the eighth, and the first beyond ADR-0008's nine:
-# ADR-0057 is its decision, and DIFFERENCE 13 the one new thing it does.
+# Miniflux (#147) is the eighth, and the first beyond ADR-0008's nine —
+# ADR-0057 decided it before it was written here.
+# Stirling-PDF (#143) is the ninth, and the second beyond ADR-0008's nine:
+# ADR-0059 is its decision, and DIFFERENCE 13 the one new thing it does.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -121,6 +123,7 @@ services:
           - vaultwarden.matrix.elysium
           - home.matrix.elysium
           - ntfy.matrix.elysium
+          - miniflux.matrix.elysium
           - pdf.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
@@ -1184,7 +1187,7 @@ services:
       start_period: 10s
 
   # ---------------------------------------------------------------------------
-  # Stirling-PDF — the household's PDF editor (#143, ADR-0057)
+  # Stirling-PDF — the household's PDF editor (#143, ADR-0059)
   # ---------------------------------------------------------------------------
   # Merge, split, rotate, convert, OCR, sign, compress: what otherwise goes to
   # whichever free PDF website ranks first that week. Paperless keeps
@@ -1426,6 +1429,126 @@ services:
       retries: 3
       start_period: 20s
 
+  # ---------------------------------------------------------------------------
+  # Miniflux — the feed reader (#147), the first of the tier extras
+  # ---------------------------------------------------------------------------
+  # Beyond ADR-0008's nine, so decided before it was authored: ADR-0057 has
+  # the placement, the steady outbound traffic this puts on VLAN 99, and why
+  # the admin account carries no second factor. Everything below was measured
+  # on the pinned image on 2026-09-29, booted with exactly these options
+  # against the pinned Postgres.
+  #
+  # The image's own user, 65534, and no `user:` line: it is a static Go
+  # binary in a distroless-shaped image that writes nothing to disk. Read-only
+  # root with no tmpfs at all — `docker diff` after migrations, admin creation
+  # and a restart showed only docker-init's mount point. 13 MiB idle; 256m is
+  # room for WORKER_POOL_SIZE's sixteen fetches in flight, and a ceiling for
+  # a leak rather than a size.
+  #
+  # The healthcheck is the binary's own `-healthcheck auto`, which calls
+  # /healthcheck on LISTEN_ADDR; the image has no shell, curl or wget, and
+  # --probe proves the flag is still there after a Dependabot bump.
+  miniflux:
+    <<: *service-defaults
+    image: miniflux/miniflux:2.3.3@sha256:49d7b60987616387c306a8023087b31f2c9b7b21288b523026cb04058e8b6dbb
+    container_name: sensitive-miniflux
+    mem_limit: 256m
+    memswap_limit: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    depends_on:
+      miniflux-db:
+        condition: service_healthy
+    environment:
+      # The same SOPS value miniflux-db reads as POSTGRES_PASSWORD, so the two
+      # cannot drift. libpq's keyword form rather than a postgres:// URL, so
+      # it folds under yamllint's line length; either way the password is
+      # spliced into a connection string, which is why the example file says
+      # `make gen-secret` and never a typed value — its output is
+      # alphanumeric, and a space or a quote would change what the string
+      # says rather than what the password is.
+      DATABASE_URL: >-
+        host=miniflux-db dbname=miniflux user=miniflux sslmode=disable
+        password=${MINIFLUX_DBPASS:?set in secrets/sensitive.sops.yaml}
+      RUN_MIGRATIONS: "1"
+      # The admin, created on first start and skipped on every start after
+      # ("Skipping admin user creation because it already exists", measured):
+      # the PAPERLESS_ADMIN_* shape, with the same `docker inspect` exposure
+      # accepted for the same reason. Rotating the SOPS value does NOT change
+      # the password — the README has the command that does.
+      CREATE_ADMIN: "1"
+      ADMIN_USERNAME: ${MINIFLUX_ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${MINIFLUX_ADMIN_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      BASE_URL: ${MINIFLUX_URL:-https://miniflux.matrix.elysium}
+      LISTEN_ADDR: 0.0.0.0:8080
+      # The REST API authenticates with the admin's own password over basic
+      # auth — measured: /v1/me answered 200 to it — so it is a second door
+      # to the same account that nothing here uses. Off, it answers a redirect
+      # to the login page. The Fever and Google Reader APIs are separate,
+      # per-user, off until someone turns them on in Settings › Integrations,
+      # and ADR-0057 decision 5 is what turning them on means.
+      DISABLE_API: "1"
+      # Stated rather than defaulted, because it is the property ADR-0057
+      # decision 4 rests on: the fetcher refuses any address in a private,
+      # loopback or link-local range, checked at dial time after DNS —
+      # measured against miniflux-db by name and against localhost, both
+      # refused. On VLAN 99 that is the gateway, step-ca and every host on
+      # Winterfell that a feed URL cannot be pointed at.
+      FETCHER_ALLOW_PRIVATE_NETWORKS: "0"
+      INTEGRATION_ALLOW_PRIVATE_NETWORKS: "0"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "/usr/bin/miniflux", "-healthcheck", "auto"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Postgres for Miniflux
+  # ---------------------------------------------------------------------------
+  # paperless-db's shape line for line, for its reasons: the image's own
+  # postgres user, read-only root with the socket directory and sort scratch
+  # on tmpfs, and the PG18 layout under /var/lib/postgresql. Its own
+  # container rather than a database in Paperless's, so that a restore of one
+  # service never has to reason about the other (ADR-0057). Miniflux does not
+  # support SQLite; this is its one dependency.
+  #
+  # 512m, paperless-db's number: 42 MiB after migrations, and shared_buffers
+  # defaults to 128 MB. The content is every stored entry, which the image's
+  # cleanup job archives after 60 days read and 180 unread.
+  miniflux-db:
+    <<: *service-defaults
+    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    container_name: sensitive-miniflux-db
+    user: "999:999"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:size=1m,uid=999,gid=999,mode=0755
+      - /tmp:size=64m
+    environment:
+      POSTGRES_DB: miniflux
+      POSTGRES_USER: miniflux
+      POSTGRES_PASSWORD: ${MINIFLUX_DBPASS:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - miniflux-db-data:/var/lib/postgresql
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "miniflux", "-d", "miniflux"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
 # DIFFERENCE 4: one network, and it is the point. Every later service joins
 # `sensitive` with `expose:` only. Two members have `ports:` — Caddy, and
 # AdGuard for the reason DIFFERENCE 7 gives — and a third is undoing
@@ -1483,9 +1606,13 @@ volumes:
   # the environment on every start (DIFFERENCE 12) and the second has already
   # been delivered, so scripts/backup-volumes.sh skips it by name.
   ntfy-data:
+  # Every subscription, category, read state and star, and the entries not
+  # yet archived. The OPML export in the README is the portable half; this is
+  # the whole of it.
+  miniflux-db-data:
   # Stirling-PDF's accounts (an H2 database, TOTP enrolments with it), its
   # generated settings.yml and keys, and the nightly SQL dump it takes of its
   # own database. No document ever lands here — those are DIFFERENCE 13's
   # tmpfs — and everything in it is rebuilt from the environment on an empty
-  # volume, so scripts/backup-volumes.sh skips it by name (ADR-0057).
+  # volume, so scripts/backup-volumes.sh skips it by name (ADR-0059).
   stirling-pdf-configs:

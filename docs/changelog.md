@@ -19,9 +19,32 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **HomeBox is declined**
+  ([#148](https://github.com/Gerrrt/HomeLab/issues/148), closed). Every job
+  it was filed for already had a home: serials and warranty dates in
+  `hardware.md`, receipts and manuals in Paperless-ngx, licence keys in
+  Vaultwarden. The one thing left was a list of household objects, and that
+  does not earn a place on Winterfell.
+  [ADR-0058](adr/0058-decline-homebox-because-hardware-md-and-paperless-already-hold-its-records.md)
+  records the reasoning and what would reopen it.
+
+- **Miniflux is authored for the sensitive tier, the first service beyond
+  ADR-0008's nine**
+  ([#147](https://github.com/Gerrrt/HomeLab/issues/147),
+  [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
+  It is authored and validated here, and not yet deployed on `trinity`.
+  - **Measured on the pinned image first.** It runs as 65534, read-only with
+    no tmpfs, at 13 MiB idle.
+  - **The fetcher refused `miniflux-db` by name and `localhost`** as private
+    addresses, which is the property that makes a URL-fetching service
+    tolerable on Winterfell.
+  - **The REST API answered 200 to the admin's password over basic auth**, so
+    it is off.
+  - **There is no TOTP, and its passkeys are not a second step.** Miniflux
+    is named beside Immich and AdGuard as single-factor.
 - **Stirling-PDF is decided and authored for the sensitive tier, not yet
   deployed** ([#143](https://github.com/Gerrrt/HomeLab/issues/143),
-  [ADR-0057](adr/0057-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). It is the first service beyond ADR-0008's nine. The
+  [ADR-0059](adr/0059-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). It is the second service beyond ADR-0008's nine, after Miniflux. The
   pinned image (`3.0.0`) was booted on `trinity` beside the live stack, on an
   internal network of its own, read-only, as uid 1001, with every capability
   dropped. It ran OCR, conversion, merge, rotate, split and compress, and three

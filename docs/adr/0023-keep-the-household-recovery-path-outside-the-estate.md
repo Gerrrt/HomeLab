@@ -100,9 +100,9 @@ service is allowed to hold real data.
 | AdGuard Home | **Never on the path** | Already true, under ADR-0010 |
 | ntfy, Homepage | **Unclassed** | They hold nothing a household would need back |
 
-> *Stirling-PDF, the first service beyond ADR-0008's nine, is **Unclassed** for
+> *Stirling-PDF, the second service beyond ADR-0008's nine, is **Unclassed** for
 > the same reason, by
-> [ADR-0057](0057-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md).
+> [ADR-0059](0059-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md).
 > The table is unchanged and this ADR is not superseded.*
 
 **Vaultwarden — the household's vault is not this vault.** The recommendation is

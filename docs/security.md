@@ -50,7 +50,9 @@ can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
 Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
 points at OAuth, and AdGuard has one password-only admin account. For those
 three an identity provider is the only route to a second factor rather than a
-heavier alternative to one. **Grafana is the only one of the six deployed
+heavier alternative to one. Miniflux joins them ([ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)): it has no TOTP, and
+its passkeys are a second way to log in rather than a second step, so they
+are left off. **Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a
 pending piece of work — it closes when an identity provider exists and not
 before.
@@ -727,6 +729,16 @@ this closes on.
   `cap_drop: [ALL]`: an `icmp` module needs `CAP_NET_RAW`, and handing one
   container back a capability the rest of the stack just gave up is a poor
   trade for a measurement TCP already provides.
+- **Miniflux polls the internet from `trinity`, on the same kind of path**
+  ([#147](https://github.com/Gerrrt/HomeLab/issues/147), [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)). Every subscribed feed is fetched about once an hour, and that
+  is the service working. What it may not do is fetch inward:
+  `FETCHER_ALLOW_PRIVATE_NETWORKS=0` refuses every private, loopback and
+  link-local address after DNS, measured against a container by name and
+  against `localhost`. That flag is the only thing between a feed URL and the
+  rest of Winterfell, because hosts on one segment do not cross the firewall
+  to reach each other. It is written out in `compose.yaml` rather than
+  defaulted for that reason. Its REST API, which takes the admin's password
+  without the login page, is off.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence
@@ -805,7 +817,7 @@ this closes on.
 - Grafana telemetry and update checks disabled.
 - Stirling-PDF's analytics, PostHog, Scarf and update checks disabled, and its
   heap dump on OOM too, because a dump would put the document being processed
-  on a disk ([ADR-0057](adr/0057-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
+  on a disk ([ADR-0059](adr/0059-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
 
 Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is
 what makes cAdvisor see the host's cgroups, and dropping every capability

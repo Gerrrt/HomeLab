@@ -322,7 +322,7 @@ hands off again, and `df -h /srv/immich` must show about 1.8T on
 `/dev/mapper/immich`. That proves the `crypttab` and `fstab` lines together,
 before any photograph depends on them.
 
-## 6. Its own age key, and the sixteen secrets
+## 6. Its own age key, and the eighteen secrets
 
 In your own terminal on `trinity`. None of this goes into a shared session.
 
@@ -351,6 +351,8 @@ what each key is for. The values:
 | `NTFY_ALERTMANAGER_PASSWORD_HASH` | `make gen-secret`, then `make hash-password` on it | No — the password is thrown away; this user logs in by token |
 | `NTFY_PHONE_PASSWORD_HASH` | `make hash-password` | **The password** — each phone's ntfy app logs in with it |
 | `NTFY_TOPIC_ALERTS`, `_URGENT`, `_SECURITY` | `make gen-secret`, three times | No. The monitoring host's receiver URLs end in the same three |
+| `MINIFLUX_DBPASS` | `make gen-secret` — never typed: it is spliced into a connection string | No |
+| `MINIFLUX_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
 
 ```bash
 make secrets-edit STACK=sensitive
@@ -412,7 +414,8 @@ make backup-firewall
 describes. One entry, host `trinity`, domain `matrix.elysium`, address
 `10.0.99.40`. The other eight names go under *Additional Names for this Host*:
 
-`homeassistant`, `immich`, `paperless`, `vaultwarden`, `adguard`, `home`, `ntfy`, `pdf`
+`homeassistant`, `immich`, `paperless`, `vaultwarden`, `adguard`, `home`, `ntfy`,
+`miniflux`, `pdf`
 
 These are exactly the `Caddyfile`'s site names and the `caddy` service's
 aliases in `compose.yaml`. A later service adds its name in all three places.
@@ -523,6 +526,7 @@ floor, and recovery codes go in the password manager.
 | `https://immich.matrix.elysium` | The first sign-up is the admin | None. ADR-0022 records Immich as unable |
 | `https://adguard.matrix.elysium` | The password behind §6's hash | None — likewise |
 | `https://ntfy.matrix.elysium` | User `phone` in the ntfy app on each phone, per the stack README's ntfy section; then the cutover in [`verify-the-alert-path.md`](verify-the-alert-path.md) | None. ntfy has none, and `phone` can only read alert text |
+| `https://miniflux.matrix.elysium` | `admin` and the password from §6 | None. Miniflux has no TOTP, and its passkeys are not a second step ([ADR-0057](../adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)) |
 
 Home Assistant's Hue integration is added **by address**, `10.0.20.20`,
 pressing the bridge's button when asked. That is the first traffic §8's pass
@@ -559,7 +563,7 @@ make backup STACK=sensitive ARGS=--list
 make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
-Both sides must be listed, and the dry run must pass. Ten volumes are
+Both sides must be listed, and the dry run must pass. Eleven volumes are
 archived. `immich-model-cache`, `adguard-work` and `ntfy-data` are skipped by
 name, so AdGuard keeps answering the house's DNS, and ntfy keeps delivering,
 while the rest of the stack is stopped. On

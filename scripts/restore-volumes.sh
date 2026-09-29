@@ -147,6 +147,8 @@ declare -A EXPECT_UID=(
   # constant this table can carry, so they are not checked here.
   [paperless-db-data]=999
   [paperless-broker-data]=999
+  # Miniflux's Postgres (#147), paperless-db's shape and uid.
+  [miniflux-db-data]=999
 )
 
 FROM=""

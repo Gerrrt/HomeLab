@@ -385,6 +385,7 @@ declare -A SENTINEL=(
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
   [paperless-broker-data]="./dump.rdb"
+  [miniflux-db-data]="./18/docker/PG_VERSION"
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
@@ -418,6 +419,7 @@ declare -A COMPANIONS=(
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
   [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
   [paperless-broker-data]=""
+  [miniflux-db-data]="./18/docker/base ./18/docker/pg_wal"
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
@@ -456,7 +458,7 @@ declare -A COMPANIONS=(
 # delivered. ADR-0023 classes ntfy as Unclassed for the same reason. Skipping
 # it also keeps ntfy running through a backup, which is when a failed backup
 # would want to page.
-# stirling-pdf-configs (#143) holds no document, by ADR-0057's design: they
+# stirling-pdf-configs (#143) holds no document, by ADR-0059's design: they
 # live on a tmpfs and never reach a volume. What it does hold is rebuilt on an
 # empty volume. The admin comes back from STIRLING_ADMIN_PASSWORD, the settings
 # are the environment's, and the keys it generates sign sessions and encrypt
