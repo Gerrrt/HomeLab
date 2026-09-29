@@ -497,7 +497,10 @@ here.
      difference is why [#66] split the channels.
 
   Android's app has to honour a user-installed root for the first step to
-  work. Record here whether the Pixel's did.
+  work, and it does: on 2026-09-28 the Pixel (Android 13) subscribed with the
+  tier's root installed under *Encryption & credentials › CA certificate* and
+  no setting in the app, and both phones received a test message published
+  with Alertmanager's token.
 - **A dead ntfy is reported through ntfy.sh.** A blackbox probe of
   `/v1/health`, verified against the tier's root, raises `EndpointUnreachable`,
   and the failed deliveries raise `AlertmanagerNotificationsFailing`. Both are
