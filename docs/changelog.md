@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **Miniflux and Memos are deployed on `trinity`**
+  ([#147](https://github.com/Gerrrt/HomeLab/issues/147),
+  [#145](https://github.com/Gerrrt/HomeLab/issues/145)). This corrects the
+  two entries below that say "not yet deployed". One `make up` brought both
+  up, and all sixteen containers reported healthy. Both names answer 200
+  through Caddy on leaves from the tier's CA.
+  - **The first attempt stopped at the backup, not the deploy.** The two
+    Postgres volumes, Miniflux's and Paperless's, shared the sentinel
+    `./18/docker/PG_VERSION`, and `backup-volumes.sh` refused the whole run.
+    [#734](https://github.com/Gerrrt/HomeLab/pull/734) gave Miniflux's
+    cluster `PGDATA=.../18/miniflux` before its volume existed, so nothing
+    moved.
+  - **Memos took ADR-0059, not 0057 or 0058.** Miniflux and HomeBox's decline
+    merged first. Parallel Tier extras branches each numbered their ADR from
+    the same main.
+  - **Both host overrides are in**, and both names resolve to `10.0.99.40`.
+    **Still open for Memos:** closing registration at first login. Neither
+    service holds real data yet.
+
 - **HomeBox is declined**
   ([#148](https://github.com/Gerrrt/HomeLab/issues/148), closed). Every job
   it was filed for already had a home: serials and warranty dates in

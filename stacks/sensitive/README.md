@@ -600,8 +600,9 @@ that [ADR-0008] did not name. [ADR-0057] decided it before it was written:
 the placement, the outbound traffic, and why the account has no second
 factor. `compose.yaml` has what was measured on the pinned image.
 
-- **Adding it to the running tier.** `trinity` was built before Miniflux was
-  written, so it arrives as a later service does rather than by
+- **Adding it to the running tier** — done on 2026-09-29, and kept as the
+  procedure for the next service. `trinity` was built before Miniflux was
+  written, so it arrived as a later service does rather than by
   [`build-the-sensitive-tier-host.md`](../../docs/runbooks/build-the-sensitive-tier-host.md),
   which carries it for a rebuild. On `trinity`:
   1. `make secrets-edit STACK=sensitive`, and add `MINIFLUX_DBPASS` and
