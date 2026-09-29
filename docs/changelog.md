@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **`prometheus`'s disk was two to three days from full, and is not now.**
+  `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having
+  lost 28.5 GiB since 15 Sep in steps of 1–5 GiB.
+  - **Half the SSD was never in use.** `/` was Ubuntu's guided-LVM default,
+    a 100 GiB logical volume on a 230.7 GiB volume group. It was grown online
+    with `lvextend -r -l +100%FREE`: 226.5 GiB, 128.7 GiB free. The lab guest's
+    build runbook already carried this step, and the monitoring host never
+    got it.
+  - **Images were most of the growth.** 91 images, 47.8 GB, 42.6 GB
+    reclaimable, because nothing ever removed a superseded digest and
+    `make validate` pulls every stack's pinned images. A weekly
+    `prune-images` job now does, Mondays 04:00, under the `backups` lock.
+  - **`/home` holds 24 GiB**, not yet broken down. The backup sets are the
+    suspect, and are capped at seven.
+
 - **The alert path runs through the in-house ntfy, and has been seen failing
   over** ([#136](https://github.com/Gerrrt/HomeLab/issues/136), closed).
   The cutover in
