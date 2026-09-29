@@ -301,8 +301,9 @@ none is in the order until one is taken.
   alongside Immich and AdGuard. The default admin was renamed and
   re-passworded the same day. Nothing is left.
 - **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
-  **Deployed on `trinity` 2026-09-29**, with its host override. What is left
-  is the operator's first login with the superuser password from SOPS.
+  **Deployed on `trinity` 2026-09-29**, with its host override, and the
+  operator's first login with the superuser password from SOPS is done.
+  Nothing is left.
 - **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
   **deployed on `trinity` 2026-09-29** ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): behind Caddy at
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
