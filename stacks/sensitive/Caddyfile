@@ -167,6 +167,45 @@ miniflux.matrix.elysium {
 	}
 }
 
+# Mealie (#146, ADR-0060), the household's recipes. Named for what it is for,
+# like `home`, because the people who use it will type it rather than find it.
+# BASE_URL in compose.yaml is this name, so the links Mealie builds in shared
+# recipes and invitations point here; X-Forwarded-For and -Proto are set
+# unasked.
+recipes.matrix.elysium {
+	reverse_proxy mealie:9000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# linkding (#144, ADR-0061). Django reads the scheme from the
+# X-Forwarded-Proto Caddy sets, which is what lets a login POST from https://
+# pass its CSRF check without a trusted-origins list.
+links.matrix.elysium {
+	reverse_proxy linkding:9090
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Actual (#142, ADR-0062). The web app and the sync API its clients call are
+# the same origin, so one block serves both. The server is claimed before its
+# first start (scripts/seed-actual-password.sh), so there is never a moment
+# when this name offers "set a password" to whoever arrives first.
+actual.matrix.elysium {
+	reverse_proxy actual:5006
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

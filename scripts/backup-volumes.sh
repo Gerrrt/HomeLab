@@ -342,6 +342,18 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # the same ./18/docker/PG_VERSION, check_sentinel_table() refused the whole
 # run, and a crossed mapping between them could not have been seen anyway.
 #
+# Actual's (actual-data, #142) was read off a boot of the pinned image on
+# 2026-09-29, read-only as 1001: ./server-files/account.sqlite and an empty
+# ./user-files exist before the listener answers, with ./.migrate beside them.
+# account.sqlite holds the password hash and the sessions. A budget is a
+# ./user-files/file-<id>.blob, written by its first upload (measured with a
+# 20 MiB one), and a group-<id>.sqlite of its sync messages beside it, whose
+# name is read from the source rather than seen. account.sqlite is in rollback-journal mode, not WAL
+# (header bytes 18-19 read 1 1), so there is no -wal to list, for
+# Audiobookshelf's reason below. The budgets are the record; the account
+# file is only how to reach them, and seed-actual-password.sh re-creates it
+# on an empty volume.
+#
 # Jellyfin's (jellyfin-config) is the one entry here that no compose file on
 # this host declares: it is an ARCHIVE name, consumed by scripts/backup-nas.sh,
 # which sources this file for the tables and verify() and pulls the directory
@@ -378,6 +390,22 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # before the port opens, 4 KB, with the schema and every later write in a
 # -wal beside it until a checkpoint. A clean stop checkpoints: read after
 # `docker stop`, the main file held the account and the -wal was empty.
+#
+# Mealie's (mealie-data, #146) was read off a boot of the pinned image on
+# 2026-09-29, as capless root and read-only: ./mealie.db exists before the
+# listener answers, with ./.secret and ./.session_secret beside it — the keys
+# that sign its tokens, generated on first start, so a restore without them
+# logs everyone out. ./recipes/<id>/ appears on the first import. The
+# database is in rollback-journal mode, as Audiobookshelf's is, so there is
+# no -wal to list. ./backups is where Mealie's own exports would go; nothing
+# schedules one, and none is made.
+#
+# linkding's (linkding-data, #144) is the sixth SQLite here. Read off two boots
+# of the pinned image on 2026-09-29 under its compose hardening: bootstrap.sh
+# switches db.sqlite3 to WAL before the first request, so a -wal and a -shm sit
+# beside it from the first start, and secretkey.txt signs every session — a
+# restore without it logs everyone out, as Vaultwarden's rsa_key.pem does.
+# favicons and previews stay empty with background tasks off.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -400,6 +428,9 @@ declare -A SENTINEL=(
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
+  [mealie-data]="./mealie.db"
+  [linkding-data]="./db.sqlite3"
+  [actual-data]="./server-files/account.sqlite"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -441,6 +472,9 @@ declare -A COMPANIONS=(
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
+  [mealie-data]="./.secret ./.session_secret ./recipes ./users"
+  [linkding-data]="./secretkey.txt ./db.sqlite3-wal"
+  [actual-data]="./user-files ./.migrate"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and

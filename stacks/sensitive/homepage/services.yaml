@@ -5,8 +5,8 @@
 # TWO KINDS OF TILE, and the difference is the point:
 #
 #   - A LINK: a name, a line saying what it is for, and an href. That is all
-#     it claims. Home Assistant, AdGuard, Vaultwarden, Miniflux, Memos and
-#     Grafana are links.
+#     it claims. Home Assistant, AdGuard, Vaultwarden, Miniflux, Memos,
+#     Mealie, linkding and Grafana are links.
 #   - A WIDGET: live numbers read server-side, with a credential scoped
 #     READ-ONLY or none at all. Immich and Paperless-ngx are read from their
 #     own APIs; Prometheus, the UPS, the firewall, the iLO and the NAS are read
@@ -17,6 +17,8 @@
 # also switch things. AdGuard Home has one account, the admin — its widget
 # would hold the admin password. Vaultwarden has no widget, and should not;
 # Memos' only token is a user's, with every right that user has.
+# Mealie's API tokens carry every right of the user who made them — there is
+# no read-only scope — so its widget would hold a key that can edit recipes.
 # Grafana's widget wants a username and password, and trinity does not carry
 # the estate's CA that Grafana's certificate is issued from (ADR-0037).
 # Prometheus already reports the observability stack's own state. A widget
@@ -64,15 +66,34 @@
         href: https://vaultwarden.matrix.elysium
         description: Vaultwarden — the Bitwarden apps point here
 
+    - Budget:
+        icon: actual-budget.svg
+        # A link and no widget. Homepage's Actual widget would need the one
+        # household password, and in password mode that password gets the
+        # same token every device shares. No read-only credential exists.
+        href: https://actual.matrix.elysium
+        description: Actual — the household budget
+
     - Notes:
         icon: memos.svg
         href: https://memos.matrix.elysium
         description: Memos — quick notes, kept in the house
+    - Bookmarks:
+        icon: linkding.svg
+        # A link and not a widget: Homepage has none for linkding, and its
+        # API token is the account's whole power, not a read-only scope.
+        href: https://links.matrix.elysium
+        description: linkding — the household's bookmarks
 
     - Home:
         icon: home-assistant.svg
         href: https://homeassistant.matrix.elysium
         description: Home Assistant — lights and devices
+
+    - Recipes:
+        icon: mealie.svg
+        href: https://recipes.matrix.elysium
+        description: Mealie — recipes, meal plans and the shopping list
 
     - Watch:
         icon: jellyfin.svg

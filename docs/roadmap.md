@@ -292,10 +292,32 @@ none is in the order until one is taken.
   that carries its two keys, and seeing `miniflux-db-data` in a nightly set.
 - **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
   [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
-  deployed on `trinity` 2026-09-29, and reachable from Hicks by name the
+  and deployed on `trinity` 2026-09-29, and reachable from Hicks by name the
   same day. What remains is registration closed at first login, which is
   open until the admin exists. It holds no real notes until ADR-0023's
   *Durable* condition is met.
+- **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
+  `recipes.matrix.elysium`.** Decided by
+  [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
+  **authored, not yet deployed**. It is the one service here meant for the
+  household to open rather than to benefit from. It uses no new firewall rule
+  and no SOPS secret, and it has no second factor, which is named alongside
+  Immich and AdGuard. What is left is the deploy on `trinity`: `make up`, the
+  host override, and the first login and rename of the default admin
+  (→ [runbook](runbooks/build-the-sensitive-tier-host.md#deploy-a-later-service)).
+- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
+  Deploying it on `trinity` is the same section of the stack README: one SOPS
+  key and `make up`. The host override was added on 2026-09-29.
+
+- **[#142](https://github.com/Gerrrt/HomeLab/issues/142) Actual** is decided
+  and authored
+  ([ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)): Actual rather than
+  Firefly III, and claimed from SOPS before its first start, because it has no
+  password setting. What is left is the deploy on `trinity`:
+  `ACTUAL_SERVER_PASSWORD` in SOPS, the `actual` host override on `morpheus`,
+  and `make up STACK=sensitive`. It holds no real budget before
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404) step 10, like the rest
+  of the tier.
 
 ## Everything still to buy
 

@@ -38,6 +38,54 @@ docstring gives: it is a record, not a claim about now.
     **Still open for Memos:** closing registration at first login. Neither
     service holds real data yet.
 
+- **Actual is decided and authored for the sensitive tier, not deployed**
+  ([#142](https://github.com/Gerrrt/HomeLab/issues/142),
+  [ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)). It is the fifth
+  service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding.
+  It was chosen over Firefly III because it is one container on SQLite and
+  keeps working when the server is down.
+  - **The pinned image has no password setting.** A fresh server is claimed
+    by whoever sets the first password. `scripts/seed-actual-password.sh`
+    claims it from SOPS inside the pinned image with `--network none`, before
+    its first start, and `make up` runs it every time. It was proved against a
+    throwaway volume: fresh, already claimed, a live check, and a wrong
+    password.
+  - **Every device shares one session, and a password change does not end
+    it.** Measured on 26.9.0, the token issued before a change validated
+    after it. The stack README has the sign-out, which was proved the same
+    way.
+  - **Measured on 26.9.0-alpine:**
+    - It runs as the image's own uid 1001, read-only, with no capabilities,
+      and writes nothing outside `/data`.
+    - It boots with no network.
+    - 279 MiB idle and 329 MiB at peak.
+    - Five failed logins per client per fifteen minutes.
+  - **Booted from `compose.yaml` itself** on `trinity`, on an internal
+    network with a spare subnet, because the live stack holds the fixed one:
+    healthy, read-only, all capabilities dropped, as 1001. CI's hardened boot
+    runs it on the real subnet.
+  - **Not done:** the deploy and a restore.
+
+- **linkding is decided and authored for the sensitive tier; it is not
+  deployed** ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
+  [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+  It is the fourth service beyond ADR-0008's nine, after Miniflux, Memos and Mealie. It is behind
+  one factor because linkding has no other, and it is named in `security.md`
+  with Immich, AdGuard Home, Miniflux, Memos and Mealie.
+  - **Hardening needs four capabilities.** Measured on the pinned 1.47.0
+    image: the bootstrap needs root with `CHOWN`, `DAC_OVERRIDE`, `SETUID` and
+    `SETGID`, and every process that serves runs as uid 33 with no
+    capabilities.
+  - **The second boot is the one that finds `DAC_OVERRIDE`.** Without it,
+    `migrate` failed with "attempt to write a readonly database" and the
+    container still reported healthy.
+  - **Memory:** 77 MiB idle, and 188 MiB peak importing 3,000 bookmarks.
+  - **Background tasks are off**, so no third party is asked for a favicon for
+    each bookmarked site.
+  - **The `links` host override is on `morpheus`**, added the same day as an
+    additional name on `trinity`, ahead of the deploy. It resolves to
+    `10.0.99.40`, and the reverse entry is still `trinity`. HTTPS to it fails
+    at the handshake until `make up` gives Caddy the site.
 - **HomeBox is declined**
   ([#148](https://github.com/Gerrrt/HomeLab/issues/148), closed). Every job
   it was filed for already had a home: serials and warranty dates in
@@ -61,6 +109,33 @@ docstring gives: it is a record, not a claim about now.
     it is off.
   - **There is no TOTP, and its passkeys are not a second step.** Miniflux
     is named beside Immich and AdGuard as single-factor.
+- **Mealie is decided and authored for the sensitive tier, as
+  `recipes.matrix.elysium`** ([#146](https://github.com/Gerrrt/HomeLab/issues/146),
+  [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)). It is
+  another *Tier extra*, beside Miniflux. It was measured on the pinned image
+  before the file was written.
+  - `/app/data` is root's. `PUID=0` turns the entrypoint's chown and gosu into
+    a no-op, so it runs as capless root, read-only, in Vaultwarden's shape.
+    Nothing was written outside the volume.
+  - SQLite in rollback-journal mode, with its signing secrets generated into
+    the volume, so there is no SOPS secret.
+  - With sign-up off, `/api/users/register` answers `403`.
+  - It uses 224 MiB idle and 396 MiB at the peak of three URL imports, under
+    a ceiling of 1024m.
+  - There is no second factor in the code. It is named beside Immich and
+    AdGuard.
+  - The bundled `change_password.py` reset the admin on a running container.
+    The old password then answered `401`.
+  - **URL import does not fetch inward.** A recipe page served on the same
+    network, by name and by address, and `127.0.0.1`, `10.0.99.1`,
+    `10.0.99.20:9090` and `169.254.169.254` each failed with
+    `InvalidDomainError`, and none of those requests arrived. With the host on
+    `HTTP_ALLOW_LIST`, the same page imported. The list is written out empty.
+
+  The issue's "existing 50→99 rule" is, since ADR-0031, the Hicks pass to
+  `10.0.99.40:443`. A new name behind it needs no new rule. Not deployed: the
+  host override, `make up` and the first login are the build runbook's new
+  *Deploy a later service*.
 
 - **Memos is the second *Tier extras* service decided, and authored**
   ([#145](https://github.com/Gerrrt/HomeLab/issues/145),

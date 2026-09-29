@@ -151,6 +151,15 @@ declare -A EXPECT_UID=(
   [paperless-broker-data]=999
   # Miniflux's Postgres (#147), paperless-db's shape and uid.
   [miniflux-db-data]=999
+  # Mealie runs as root for Vaultwarden's reason (compose.yaml, #146).
+  [mealie-data]=0
+  # linkding's bootstrap chowns its tree to www-data on every start, so a
+  # restore that came back as root would be repaired at the next one; 33 is
+  # what the archive was taken from, and what a correct restore shows.
+  [linkding-data]=33
+  # Actual runs as the image's own `actual` user, which owns /data in the
+  # image (#142). Back as root, it cannot open account.sqlite to log anyone in.
+  [actual-data]=1001
 )
 
 FROM=""

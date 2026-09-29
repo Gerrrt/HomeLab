@@ -59,7 +59,7 @@ Hicks, like Audiobookshelf's.
 
 ## Why there is no reverse proxy, and why that is not an omission
 
-`stacks/sensitive` puts twelve services behind Caddy and publishes exactly one
+`stacks/sensitive` puts seventeen services behind Caddy and publishes exactly one
 port, because that tier holds the data whose loss hurts. **This tier is the
 other half of [ADR-0008]'s bargain** and gets the opposite treatment on
 purpose:

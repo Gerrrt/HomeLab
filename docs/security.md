@@ -54,7 +54,16 @@ heavier alternative to one. Miniflux joins them ([ADR-0057](adr/0057-add-miniflu
 its passkeys are a second way to log in rather than a second step, so they
 are left off. Memos joins them too
 ([ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)): passwords
-and SSO, nothing between. **Grafana is the only one of the six deployed
+and SSO, nothing between. So does Mealie
+([ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)): it has
+OIDC and LDAP and no factor of its own, accepted because recipes are the only
+thing it holds. So does linkding
+([ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)),
+which offers OIDC or a trusted proxy header and nothing of its own. Actual is
+another ([ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)): its only factor beyond the one household
+password is OpenID, and in password mode every signed-in device shares one
+session that a password change does not end.
+**Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a
 pending piece of work — it closes when an identity provider exists and not
 before.
@@ -69,7 +78,7 @@ refuses the handshake rather than degrading.
 declines to make any of it highly available and constrains the path instead:
 **nothing the household needs in an emergency may have the estate on its only
 route.** The household's own credentials are recoverable without Vaultwarden;
-Immich and Paperless-ngx get an encrypted copy outside the estate whose
+Immich, Paperless-ngx and Actual get an encrypted copy outside the estate whose
 staleness is visible, off-*estate* rather than off-*host*, because `oracle`
 shares the rack and the power feed; nothing on the break-glass card depends on a
 certificate this estate issues; and nothing physical may be operable only
@@ -741,6 +750,15 @@ this closes on.
   to reach each other. It is written out in `compose.yaml` rather than
   defaulted for that reason. Its REST API, which takes the admin's password
   without the login page, is off.
+- **Mealie fetches the page a user pastes, from `trinity`**
+  ([#146](https://github.com/Gerrrt/HomeLab/issues/146), [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)).
+  It fetches on request, not on a timer. It does not fetch inward: its
+  `safehttp` transport refuses private, loopback, link-local, reserved and
+  CGNAT addresses after DNS. That was measured against a recipe page on the
+  compose network, by name and by address, and against `127.0.0.1`,
+  `10.0.99.1`, `10.0.99.20:9090` and `169.254.169.254`. None of those requests
+  arrived. `HTTP_ALLOW_LIST` is what would open it, so it is written out
+  empty in `compose.yaml`.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence
