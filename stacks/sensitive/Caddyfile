@@ -167,7 +167,21 @@ miniflux.matrix.elysium {
 	}
 }
 
-# Stirling-PDF (#143, ADR-0060). Its uploads land on a 1 GiB tmpfs that is
+# Mealie (#146, ADR-0060), the household's recipes. Named for what it is for,
+# like `home`, because the people who use it will type it rather than find it.
+# BASE_URL in compose.yaml is this name, so the links Mealie builds in shared
+# recipes and invitations point here; X-Forwarded-For and -Proto are set
+# unasked.
+recipes.matrix.elysium {
+	reverse_proxy mealie:9000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Stirling-PDF (#143, ADR-0061). Its uploads land on a 1 GiB tmpfs that is
 # also the working space for every intermediate an OCR or a conversion
 # writes (compose.yaml, DIFFERENCE 13), and Stirling sets no upload limit of
 # its own. The cap here keeps one upload well under that space, so an

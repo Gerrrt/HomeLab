@@ -42,9 +42,36 @@ docstring gives: it is a record, not a claim about now.
     it is off.
   - **There is no TOTP, and its passkeys are not a second step.** Miniflux
     is named beside Immich and AdGuard as single-factor.
+- **Mealie is decided and authored for the sensitive tier, as
+  `recipes.matrix.elysium`** ([#146](https://github.com/Gerrrt/HomeLab/issues/146),
+  [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)). It is
+  another *Tier extra*, beside Miniflux. It was measured on the pinned image
+  before the file was written.
+  - `/app/data` is root's. `PUID=0` turns the entrypoint's chown and gosu into
+    a no-op, so it runs as capless root, read-only, in Vaultwarden's shape.
+    Nothing was written outside the volume.
+  - SQLite in rollback-journal mode, with its signing secrets generated into
+    the volume, so there is no SOPS secret.
+  - With sign-up off, `/api/users/register` answers `403`.
+  - It uses 224 MiB idle and 396 MiB at the peak of three URL imports, under
+    a ceiling of 1024m.
+  - There is no second factor in the code. It is named beside Immich and
+    AdGuard.
+  - The bundled `change_password.py` reset the admin on a running container.
+    The old password then answered `401`.
+  - **URL import does not fetch inward.** A recipe page served on the same
+    network, by name and by address, and `127.0.0.1`, `10.0.99.1`,
+    `10.0.99.20:9090` and `169.254.169.254` each failed with
+    `InvalidDomainError`, and none of those requests arrived. With the host on
+    `HTTP_ALLOW_LIST`, the same page imported. The list is written out empty.
+
+  The issue's "existing 50→99 rule" is, since ADR-0031, the Hicks pass to
+  `10.0.99.40:443`. A new name behind it needs no new rule. Not deployed: the
+  host override, `make up` and the first login are the build runbook's new
+  *Deploy a later service*.
 - **Stirling-PDF is decided and authored for the sensitive tier, not yet
   deployed** ([#143](https://github.com/Gerrrt/HomeLab/issues/143),
-  [ADR-0060](adr/0060-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). It is the third service beyond ADR-0008's nine, after Miniflux and Memos. The
+  [ADR-0061](adr/0061-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). It is the fourth service beyond ADR-0008's nine, after Miniflux, Memos and Mealie. The
   pinned image (`3.0.0`) was booted on `trinity` beside the live stack, on an
   internal network of its own, read-only, as uid 1001, with every capability
   dropped. It ran OCR, conversion, merge, rotate, split and compress, and three

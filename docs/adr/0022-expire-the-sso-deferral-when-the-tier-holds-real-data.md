@@ -30,6 +30,12 @@
 > **And an eighth: Memos, with no second factor.** It has passwords and SSO
 > and nothing between them
 > ([ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
+>
+> **And a ninth: Mealie, with no second factor.** It has OIDC and LDAP and no
+> factor of its own
+> ([ADR-0060](0060-add-mealie-to-the-sensitive-tier-as-recipes.md)). Its
+> accounts count toward trigger 3 like any other account on the tier. The
+> table is not edited.
 
 ## Context
 

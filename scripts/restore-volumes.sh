@@ -151,6 +151,8 @@ declare -A EXPECT_UID=(
   [paperless-broker-data]=999
   # Miniflux's Postgres (#147), paperless-db's shape and uid.
   [miniflux-db-data]=999
+  # Mealie runs as root for Vaultwarden's reason (compose.yaml, #146).
+  [mealie-data]=0
 )
 
 FROM=""

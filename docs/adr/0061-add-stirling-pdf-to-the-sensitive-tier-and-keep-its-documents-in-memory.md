@@ -1,11 +1,13 @@
-# ADR-0060: Add Stirling-PDF to the sensitive tier and keep its documents in memory
+# ADR-0061: Add Stirling-PDF to the sensitive tier and keep its documents in memory
 
 **Status:** Accepted · 2026-09 · adds a service to the tier
-[ADR-0008](0008-place-services-by-data-trust.md) created, the third beyond its
+[ADR-0008](0008-place-services-by-data-trust.md) created, the fourth beyond its
 nine after Miniflux
 ([ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md))
-and Memos
-([ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md));
+Memos
+([ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md))
+and Mealie
+([ADR-0060](0060-add-mealie-to-the-sensitive-tier-as-recipes.md));
 decides [#143](https://github.com/Gerrrt/HomeLab/issues/143)
 
 ## Context
@@ -125,14 +127,14 @@ route off the host:
 
 ## Consequences
 
-- **The tier's memory ceilings rise by 3 GiB, from 16.2 to 19.2 GiB of
+- **The tier's memory ceilings rise by 3 GiB, from 17.2 to 20.2 GiB of
   `trinity`'s 32.** The heap is capped at 40% of the limit where
   the entrypoint would choose 70%, so the heap, the JVM's off-heap memory,
   LibreOffice, tesseract and a full `/tmp` fit together. `cpus: 2` keeps an
   OCR here from taking the cores Paperless's ceiling of four counts on.
   Re-derive both from `container_memory_rss` after a month, as for the rest
   of the tier.
-- **Eighteen containers in the stack, where there were seventeen.** One more
+- **Nineteen containers in the stack, where there were eighteen.** One more
   image for Dependabot to bump monthly. The CI boot step checks the hardening
   on each bump, and then runs `stacks/sensitive/stirling-pdf/smoke.sh`. That
   script logs in as the seeded admin and merges two pages through pdfium, so
