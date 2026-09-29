@@ -157,6 +157,20 @@ miniflux.matrix.elysium {
 	}
 }
 
+# Mealie (#146, ADR-0059), the household's recipes. Named for what it is for,
+# like `home`, because the people who use it will type it rather than find it.
+# BASE_URL in compose.yaml is this name, so the links Mealie builds in shared
+# recipes and invitations point here; X-Forwarded-For and -Proto are set
+# unasked.
+recipes.matrix.elysium {
+	reverse_proxy mealie:9000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

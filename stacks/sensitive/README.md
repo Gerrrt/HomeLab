@@ -34,16 +34,18 @@ make up STACK=sensitive
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
+| mealie | `ghcr.io/mealie-recipes/mealie` | *internal* (9000) | The household's recipes, meal plans and shopping list at `https://recipes.matrix.elysium`. Beyond ADR-0008's nine, decided by its own ADR, and **authored, not yet deployed** ([#146], [ADR-0059]) |
 
-Sixteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Seventeen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
 Paperless-ngx, the archive of what the household cannot get back; Homepage
 is the page that tells the household the rest exist; ntfy is the one the
-estate uses, to tell the operator what is wrong with the rest; and two are
+estate uses, to tell the operator what is wrong with the rest; two are
 Miniflux, the first of the tier extras, decided by an ADR of its own before it
-was written here. What is
+was written here; and Mealie is another, the one the household is meant to
+open for its own sake. What is
 absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -53,9 +55,9 @@ absent is as deliberate as what is here:
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
 - **No other services planned.** The next one, whenever it comes, arrives as
-  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy and
-  Miniflux did — and, beyond ADR-0008's nine, after an ADR of its own, as
-  [ADR-0057] was for Miniflux: a service with
+  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy,
+  Miniflux and Mealie did — and, beyond ADR-0008's nine, after an ADR of its own, as
+  [ADR-0057] was for Miniflux and [ADR-0059] for Mealie: a service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -77,7 +79,7 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               sixteen services, one network, health-gated ordering
+compose.yaml               seventeen services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -620,6 +622,51 @@ factor. `compose.yaml` has what was measured on the pinned image.
   It is a reading list, not a secret. Keep it with the household's documents
   rather than in git.
 
+## Mealie
+
+The household's recipes, at `https://recipes.matrix.elysium`. It is on this
+tier because the phones that use it are on Hicks, not because recipes are
+sensitive ([ADR-0059]). Reaching it needs no rule beyond the `443` Hicks
+already has.
+
+- **Root with every capability dropped, as Vaultwarden runs.** `/app/data` is
+  root-owned in the image. `PUID=0` and `PGID=0` make the entrypoint's
+  user-switch a no-op, so it neither `chown`s nor `gosu`s. Measured before this
+  was written, under exactly the compose file's options: healthy, a login
+  answered, three recipes imported by URL, and nothing written outside
+  `/app/data`. It used 224 MiB idle and 396 MiB at the peak.
+- **SQLite, no database container, no SOPS secret.** The signing secrets are
+  generated into the volume on the first start and backed up with it. The admin
+  password is a hash in the database.
+- **Sign-up is off from the first start.** The registration endpoint answers
+  `403`. Accounts are made by the admin, and are for the two people ADR-0008
+  assumes. A third person's account is [ADR-0022]'s trigger 3.
+- **No second factor exists**, so there is none to enrol. [ADR-0059] records
+  it beside Immich and AdGuard. OIDC is the route, the day an identity
+  provider exists.
+- **The first login is the default admin**, `changeme@example.com` /
+  `MyPassword`, and it must be renamed and re-passworded before anyone else
+  is told the address
+  ([`build-the-sensitive-tier-host.md`](../../docs/runbooks/build-the-sensitive-tier-host.md#deploy-a-later-service)).
+  Forgotten afterwards, the image's own script resets it on the running
+  container:
+
+  ```bash
+  docker exec -it sensitive-mealie python3 \
+    /opt/mealie/lib/python3.14/site-packages/mealie/scripts/change_password.py
+  ```
+
+  The path names the image's Python version. If a bump moves it,
+  `docker exec sensitive-mealie find /opt/mealie -name change_password.py`
+  finds it.
+- **URL import fetches the page a user pastes**, from `trinity`, over
+  Winterfell's existing egress, and never inward. Its `safehttp` transport
+  refuses private, loopback and link-local addresses after DNS. That was
+  measured against a container on this network, `10.0.99.1` and
+  `10.0.99.20`, and no request arrived. `HTTP_ALLOW_LIST` is the one setting
+  that opens it, and `compose.yaml` writes it out empty. Adding a host to it
+  is a hole into Winterfell.
+
 ## Backup and restore
 
 ```bash
@@ -628,7 +675,7 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the eleven volumes it archives has a
+volume it cannot verify, so each of the twelve volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
 pinned image, beside the entries [#133] read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
@@ -771,6 +818,7 @@ it matters:
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
 [ADR-0057]: ../../docs/adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md
+[ADR-0059]: ../../docs/adr/0059-add-mealie-to-the-sensitive-tier-as-recipes.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -781,6 +829,7 @@ it matters:
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
 [#147]: https://github.com/Gerrrt/HomeLab/issues/147
+[#146]: https://github.com/Gerrrt/HomeLab/issues/146
 [#182]: https://github.com/Gerrrt/HomeLab/issues/182
 [#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md

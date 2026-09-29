@@ -290,6 +290,15 @@ none is in the order until one is taken.
 - **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
   Deploying it on `trinity` is the stack README's *Adding it to the running
   tier*: two SOPS keys, one host override, `make up`.
+- **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
+  `recipes.matrix.elysium`.** Decided by
+  [ADR-0059](adr/0059-add-mealie-to-the-sensitive-tier-as-recipes.md) and
+  **authored, not yet deployed**. It is the one service here meant for the
+  household to open rather than to benefit from. It uses no new firewall rule
+  and no SOPS secret, and it has no second factor, which is named alongside
+  Immich and AdGuard. What is left is the deploy on `trinity`: `make up`, the
+  host override, and the first login and rename of the default admin
+  (→ [runbook](runbooks/build-the-sensitive-tier-host.md#deploy-a-later-service)).
 
 ## Everything still to buy
 

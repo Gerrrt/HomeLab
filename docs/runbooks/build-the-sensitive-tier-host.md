@@ -411,10 +411,10 @@ make backup-firewall
 
 **Host overrides**, as [`add-a-host-override.md`](add-a-host-override.md)
 describes. One entry, host `trinity`, domain `matrix.elysium`, address
-`10.0.99.40`. The other eight names go under *Additional Names for this Host*:
+`10.0.99.40`. The other nine names go under *Additional Names for this Host*:
 
 `homeassistant`, `immich`, `paperless`, `vaultwarden`, `adguard`, `home`, `ntfy`,
-`miniflux`
+`miniflux`, `recipes`
 
 These are exactly the `Caddyfile`'s site names and the `caddy` service's
 aliases in `compose.yaml`. A later service adds its name in all three places.
@@ -470,11 +470,11 @@ make ps STACK=sensitive
 make check-container-health STACK=sensitive
 ```
 
-All fourteen services must be healthy, with the `ml` profile on as `.env.example` ships it.
+All seventeen services must be healthy, with the `ml` profile on as `.env.example` ships it.
 Then the stack README's list, on the host it was written for:
 
 - **The CA tree and ACME.** [`build-the-tier-ca.md`](build-the-tier-ca.md)
-  §5, once for each of the eight names: `certificate obtained` in Caddy's log,
+  §5, once for each of the ten names: `certificate obtained` in Caddy's log,
   and `Verify return code: 0` against `certificates/tier-ca.pem`.
 - **The library is on the USB disk.** `docker exec sensitive-immich-server df -h /data`
   shows the `/dev/mapper/immich` filesystem, not the root.
@@ -523,6 +523,7 @@ floor, and recovery codes go in the password manager.
 | `https://paperless.matrix.elysium` | `admin` and the password from §6 | The profile's *Two-factor authentication* |
 | `https://immich.matrix.elysium` | The first sign-up is the admin | None. ADR-0022 records Immich as unable |
 | `https://adguard.matrix.elysium` | The password behind §6's hash | None — likewise |
+| `https://recipes.matrix.elysium` | `changeme@example.com` / `MyPassword`, Mealie's default admin: change both at once under *Profile*, then create the other account under *Admin → Users* | None. ADR-0059 records Mealie as unable |
 | `https://ntfy.matrix.elysium` | User `phone` in the ntfy app on each phone, per the stack README's ntfy section; then the cutover in [`verify-the-alert-path.md`](verify-the-alert-path.md) | None. ntfy has none, and `phone` can only read alert text |
 | `https://miniflux.matrix.elysium` | `admin` and the password from §6 | None. Miniflux has no TOTP, and its passkeys are not a second step ([ADR-0057](../adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)) |
 
@@ -561,7 +562,7 @@ make backup STACK=sensitive ARGS=--list
 make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
-Both sides must be listed, and the dry run must pass. Eleven volumes are
+Both sides must be listed, and the dry run must pass. Twelve volumes are
 archived. `immich-model-cache`, `adguard-work` and `ntfy-data` are skipped by
 name, so AdGuard keeps answering the house's DNS, and ntfy keeps delivering,
 while the rest of the stack is stopped. On
@@ -628,6 +629,52 @@ on the containers, and each is written in a document that already exists:
 - `blackbox-dns.yaml`: the forwarder runbook's two targets.
 - The issue: #129–#135 close by hand once §9–§11 verify (their PRs said
   `Refs`), and #404 closes on §13.
+
+## Deploy a later service
+
+For a service authored after this build, onto the running host. Miniflux and Mealie
+([ADR-0059](../adr/0059-add-mealie-to-the-sensitive-tier-as-recipes.md),
+`recipes`) arrived this way. The service's PR has already added its name in the
+`Caddyfile`, in the `caddy` aliases and in §11's list. This section covers the
+parts only the host and the firewall can do.
+
+1. **The name.** In pfSense, open `trinity`'s host override and add the new
+   name under *Additional Names for this Host*, as
+   [`add-a-host-override.md`](add-a-host-override.md) describes. Then
+   `make backup-firewall`. From Hicks, `dig +short recipes.matrix.elysium`
+   must answer `10.0.99.40`.
+2. **The containers.** On `trinity`:
+
+   ```bash
+   cd ~/code/Gerrrt/HomeLab
+   git pull
+   make up STACK=sensitive
+   make check-container-health STACK=sensitive
+   ```
+
+   Caddy is recreated, because its aliases changed. Its log must show
+   `certificate obtained` for the new name, and
+   [`build-the-tier-ca.md`](build-the-tier-ca.md) §5's `openssl` check must
+   say `Verify return code: 0`.
+3. **The first login**, from Hicks, as the service's row in §10's table says,
+   before anyone else is told the address. For Mealie, until the default admin
+   is renamed and re-passworded, anyone on Hicks can log in with it.
+4. **Sign-up is closed.** For Mealie:
+
+   ```bash
+   docker exec sensitive-mealie curl -s -o /dev/null -w '%{http_code}\n' \
+     -H 'Content-Type: application/json' -X POST \
+     http://localhost:9000/api/users/register \
+     -d '{"email":"nobody@matrix.elysium","username":"nobody","fullName":"x","password":"x","passwordConfirm":"x","group":"x","household":"x"}'
+   ```
+
+   `403`. A `201` is an account someone else could have made.
+5. **A backup that includes it.** Run `make backup STACK=sensitive`, then
+   `ARGS=--list`. The new volume is in the set, and its sentinel is present.
+   The nightly timer takes it from then on.
+6. **The records.** The service's roadmap entry and the `architecture.md` row
+   say *deployed* with the date, with a dated line in the changelog. The issue
+   closes.
 
 ## If something goes wrong
 

@@ -368,6 +368,25 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # finishes, with a 4 MB -wal and a -shm beside it, and ./artwork appears as
 # the scanner extracts covers. Nothing else is written there — the cache is a
 # tmpfs on ND_CACHEFOLDER.
+#
+# miniflux-db-data and paperless-db-data are the same image on the same
+# layout, so no file is in one archive and not the other; they cannot have
+# the same sentinel (check_sentinel_table refuses the run), and no choice of
+# sentinel tells them apart. Miniflux's is ./18/docker/global/pg_control,
+# present in every cluster, and each lists the other's sentinel among its
+# COMPANIONS, so each hit is soft (#468). What that gives up is the one thing
+# no sentinel could give: a crossed mapping between these two is not caught.
+# Both were ./18/docker/PG_VERSION when #147 merged, and every sensitive run,
+# --inventory included, died at load until this.
+#
+# Mealie's (mealie-data, #146) was read off a boot of the pinned image on
+# 2026-09-29, as capless root and read-only: ./mealie.db exists before the
+# listener answers, with ./.secret and ./.session_secret beside it — the keys
+# that sign its tokens, generated on first start, so a restore without them
+# logs everyone out. ./recipes/<id>/ appears on the first import. The
+# database is in rollback-journal mode, as Audiobookshelf's is, so there is
+# no -wal to list. ./backups is where Mealie's own exports would go; nothing
+# schedules one, and none is made.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -385,10 +404,11 @@ declare -A SENTINEL=(
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
   [paperless-broker-data]="./dump.rdb"
-  [miniflux-db-data]="./18/docker/PG_VERSION"
+  [miniflux-db-data]="./18/docker/global/pg_control"
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
+  [mealie-data]="./mealie.db"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -417,12 +437,13 @@ declare -A COMPANIONS=(
   [immich-db]="./base ./pg_wal ./postgresql.conf"
   [paperless-data]="./log ./celerybeat-schedule.db"
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
-  [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
+  [paperless-db-data]="./18/docker/base ./18/docker/pg_wal ./18/docker/global/pg_control"
   [paperless-broker-data]=""
-  [miniflux-db-data]="./18/docker/base ./18/docker/pg_wal"
+  [miniflux-db-data]="./18/docker/base ./18/docker/pg_wal ./18/docker/PG_VERSION"
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
+  [mealie-data]="./.secret ./.session_secret ./recipes ./users"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and

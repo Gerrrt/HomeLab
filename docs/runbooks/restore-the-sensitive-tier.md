@@ -241,6 +241,15 @@ docker exec sensitive-home-assistant wget -q -O - http://localhost:8123/api/onbo
 #    refused with 400:
 ./scripts/seed-ha-http.sh --check
 #    Must say "already present and trusts 172.28.99.2".
+
+# 7. mealie-data — the accounts predate the stamp, and the signing secret came
+#    back. Rollback-journal SQLite, so the main file alone is the database.
+docker exec sensitive-mealie python3 -c "import sqlite3;print(sqlite3.connect(
+  '/app/data/mealie.db').execute('select email, created_at from users').fetchall())"
+docker exec sensitive-mealie test -s /app/data/.secret && echo secret present
+#    Every account's created_at must PREDATE the stamp. A lone
+#    changeme@example.com created after it is a fresh database: the restore
+#    did not happen before the first start.
 ```
 
 Then from a client on Hicks — the checks a shell cannot do:
