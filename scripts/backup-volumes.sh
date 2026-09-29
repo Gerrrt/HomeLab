@@ -337,6 +337,10 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # move it here — loudly, since the script refuses to write an archive it
 # cannot verify; and Valkey's ./dump.rdb is written by `--save 60 1` and again
 # on the SIGTERM a quiesce sends, which is the case that was checked.
+# Miniflux's Postgres is the same image, so compose.yaml gives it
+# PGDATA=.../18/miniflux: with the image's default the two volumes carried
+# the same ./18/docker/PG_VERSION, check_sentinel_table() refused the whole
+# run, and a crossed mapping between them could not have been seen anyway.
 #
 # Jellyfin's (jellyfin-config) is the one entry here that no compose file on
 # this host declares: it is an ARCHIVE name, consumed by scripts/backup-nas.sh,
@@ -385,7 +389,7 @@ declare -A SENTINEL=(
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
   [paperless-broker-data]="./dump.rdb"
-  [miniflux-db-data]="./18/docker/PG_VERSION"
+  [miniflux-db-data]="./18/miniflux/PG_VERSION"
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
@@ -419,7 +423,7 @@ declare -A COMPANIONS=(
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
   [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
   [paperless-broker-data]=""
-  [miniflux-db-data]="./18/docker/base ./18/docker/pg_wal"
+  [miniflux-db-data]="./18/miniflux/base ./18/miniflux/pg_wal"
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
