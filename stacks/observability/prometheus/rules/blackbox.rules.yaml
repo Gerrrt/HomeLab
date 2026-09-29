@@ -97,10 +97,18 @@ groups:
       # is when a calendar reminder has clearly been missed. A `for` of an hour
       # on the warning costs nothing — expiry does not flap — and keeps a
       # single odd probe from paging.
+      #
+      # NOT FOR ACME LEAVES. A target labelled `renewal: acme` (the sensitive
+      # tier's, from its own step-ca) carries a seven-day certificate that is
+      # ALWAYS inside both thresholds, so both rules exclude it and
+      # TlsAcmeRenewalStalled below watches it instead. Learned the loud way:
+      # enabling the ntfy probe paged `urgent` within ten minutes with
+      # "ntfy's certificate has 7 days left" on a leaf Caddy had just issued
+      # (#136).
       - alert: TlsCertificateExpiringSoon
         expr: >-
           min by (name, role, host)
-            (probe_ssl_earliest_cert_expiry{job="blackbox"} - time())
+            (probe_ssl_earliest_cert_expiry{job="blackbox", renewal!="acme"} - time())
           / 86400 < 30
         for: 1h
         labels:
@@ -120,7 +128,7 @@ groups:
       - alert: TlsCertificateExpiryImminent
         expr: >-
           min by (name, role, host)
-            (probe_ssl_earliest_cert_expiry{job="blackbox"} - time())
+            (probe_ssl_earliest_cert_expiry{job="blackbox", renewal!="acme"} - time())
           / 86400 < 7
         for: 10m
         labels:
@@ -136,6 +144,35 @@ groups:
             device certificate keeps answering and browsers start refusing it.
             Reissue now — docs/runbooks/generate-certificates.md — and restart
             whatever serves it.
+
+      # The ACME half of expiry. A seven-day leaf (ADR-0037) is renewed by
+      # Caddy once a third of its life remains, about 56 hours, and retried
+      # from then on, so a healthy leaf never reads below ~2.3 days. Under 36
+      # hours means some twenty hours of failed renewals: step-ca down, the
+      # challenge failing, Caddy stuck. Critical, not warning, and deliberately
+      # so. The first leaf this watches is the in-house ntfy's, and when that
+      # lapses the in-house alert path goes with it, so the page has to reach
+      # `urgent` and its ntfy.sh copy. Every other name Caddy serves renews
+      # through the same step-ca, so one stalled leaf here is evidence about
+      # all of them.
+      - alert: TlsAcmeRenewalStalled
+        expr: >-
+          min by (name, role, host)
+            (probe_ssl_earliest_cert_expiry{job="blackbox", renewal="acme"} - time())
+          / 3600 < 36
+        for: 30m
+        labels:
+          component: blackbox
+          severity: critical
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }}'s ACME certificate has {{ $value | printf \"%.0f\" }}h left and has not renewed"
+          description: >-
+            Caddy on {{ $labels.host }} should have renewed this leaf about a day
+            ago. Read Caddy's log for the renewal error first
+            (`docker logs sensitive-caddy 2>&1 | grep -i renew`), then check
+            step-ca is healthy — docs/runbooks/build-the-tier-ca.md. When it
+            lapses, every name on the tier stops verifying.
 
       - alert: GatewayLatencyHigh
         # "Is it the house, or beyond the house?" — the first half of the
