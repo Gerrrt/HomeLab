@@ -19,6 +19,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **Stirling-PDF is deployed on `trinity`**
+  ([#143](https://github.com/Gerrrt/HomeLab/issues/143),
+  [ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). Only `stirling-pdf` and `caddy` were brought up
+  (`docker compose up -d --no-deps`), after `make render`, so the extras
+  authored beside it and not yet deployed stayed down. Caddy was recreated
+  for the new alias and site block, which took the tier's HTTPS away for a
+  few seconds.
+  - **Healthy in 42 s**, both containers. `check_mounted_config.py`,
+    `reload-config.sh` and `check_container_health.py` passed for everything
+    running. The three failures were Actual, linkding and Mealie, which are
+    authored and have never been started.
+  - **`stirling-pdf/smoke.sh` passed against the live container.** It
+    logged in as the admin seeded from SOPS, inside the container, so the
+    password never left it, and merged two pages through pdfium. The log
+    showed *"LibreOffice sandbox active (lo-sandbox: landlock ABI 8, seccomp
+    active)"* and no `UnsatisfiedLinkError`, and no job file was left in
+    `/tmp/stirling-pdf` afterwards.
+  - **Through Caddy, with the tier's root:**
+    - step-ca issued the leaf for `DNS:pdf.matrix.elysium` over tls-alpn-01
+      and it verified;
+    - `/api/v1/info/status` answered 200;
+    - a tool called without a session answered 401;
+    - a 300 MB upload was refused with 413 at the 256 MB cap.
+  - **786 MiB** at rest, under the 3 GiB limit.
+  - **Not done yet:** the `pdf` host override on `morpheus`, which does not
+    resolve yet, and TOTP on the admin account.
+
 - **Actual is decided and authored for the sensitive tier, not deployed**
   ([#142](https://github.com/Gerrrt/HomeLab/issues/142),
   [ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)). It is the fifth

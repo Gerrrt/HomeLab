@@ -308,13 +308,10 @@ none is in the order until one is taken.
   Deploying it on `trinity` is the same section of the stack README: one SOPS
   key and `make up`. The host override was added on 2026-09-29.
 - **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
-  decided and authored ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): on `trinity` behind Caddy at
+  **deployed on `trinity` 2026-09-29** ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): behind Caddy at
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
-  none reaches a disk. What is left is the deploy. Set
-  `STIRLING_ADMIN_PASSWORD` with `make secrets-edit STACK=sensitive`, add the
-  `pdf` override on `morpheus`, `make up STACK=sensitive`, enrol TOTP, and
-  merge two PDFs in the UI. CI's smoke test already runs a merge on every
-  bump, but that proves the image and not `trinity`.
+  none reaches a disk. What is left is the operator's: the `pdf` override on
+  `morpheus`, and TOTP on the admin at first login, before a real document.
 
 - **[#142](https://github.com/Gerrrt/HomeLab/issues/142) Actual** is decided
   and authored
