@@ -338,6 +338,18 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # cannot verify; and Valkey's ./dump.rdb is written by `--save 60 1` and again
 # on the SIGTERM a quiesce sends, which is the case that was checked.
 #
+# Actual's (actual-data, #142) was read off a boot of the pinned image on
+# 2026-09-29, read-only as 1001: ./server-files/account.sqlite and an empty
+# ./user-files exist before the listener answers, with ./.migrate beside them.
+# account.sqlite holds the password hash and the sessions. A budget is a
+# ./user-files/file-<id>.blob, written by its first upload (measured with a
+# 20 MiB one), and a group-<id>.sqlite of its sync messages beside it, whose
+# name is read from the source rather than seen. account.sqlite is in rollback-journal mode, not WAL
+# (header bytes 18-19 read 1 1), so there is no -wal to list, for
+# Audiobookshelf's reason below. The budgets are the record; the account
+# file is only how to reach them, and seed-actual-password.sh re-creates it
+# on an empty volume.
+#
 # Jellyfin's (jellyfin-config) is the one entry here that no compose file on
 # this host declares: it is an ARCHIVE name, consumed by scripts/backup-nas.sh,
 # which sources this file for the tables and verify() and pulls the directory
@@ -388,6 +400,7 @@ declare -A SENTINEL=(
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
+  [actual-data]="./server-files/account.sqlite"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -421,6 +434,7 @@ declare -A COMPANIONS=(
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
+  [actual-data]="./user-files ./.migrate"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and

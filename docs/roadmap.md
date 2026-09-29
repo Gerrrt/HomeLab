@@ -287,6 +287,16 @@ Gated on the domain, on a household observation, or on something to publish.
 Beyond ADR-0008's nine: each needs its own decision before it is authored, and
 none is in the order until one is taken.
 
+- **[#142](https://github.com/Gerrrt/HomeLab/issues/142) Actual** is decided
+  and authored
+  ([ADR-0057](adr/0057-add-actual-to-the-sensitive-tier.md)): Actual rather than
+  Firefly III, and claimed from SOPS before its first start, because it has no
+  password setting. What is left is the deploy on `trinity`:
+  `ACTUAL_SERVER_PASSWORD` in SOPS, the `actual` host override on `morpheus`,
+  and `make up STACK=sensitive`. It holds no real budget before
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404) step 10, like the rest
+  of the tier.
+
 ## Everything still to buy
 
 The one list, because purchases kept appearing one at a time in issues, ADRs

@@ -19,6 +19,12 @@
 > **The disk-encryption choice below was made on 2026-09-27**, for `trinity`:
 > LUKS on both disks, with the root's key sealed to the TPM —
 > [ADR-0054](0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md).
+>
+> **A service beyond the table, 2026-09-29.** Actual joins the tier and has
+> no second factor short of OpenID, so it belongs in the table's "None" rows
+> with Immich and AdGuard Home
+> ([ADR-0057](0057-add-actual-to-the-sensitive-tier.md)). The table is not
+> edited.
 
 ## Context
 

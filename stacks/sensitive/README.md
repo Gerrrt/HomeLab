@@ -30,14 +30,16 @@ make up STACK=sensitive
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
 | homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on the estate and where it lives, grouped by VLAN. A directory, not a status page — seven tiles read live numbers, with read-only tokens or from Prometheus; the rest are links ([#137]) |
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
+| actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The first service beyond ADR-0008's nine, by [ADR-0057] ([#142]) |
 
-Fourteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Fifteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
 Paperless-ngx, the archive of what the household cannot get back; Homepage
-is the page that tells the household the rest exist; and ntfy is the one the
-estate uses, to tell the operator what is wrong with the rest. What is
+is the page that tells the household the rest exist; ntfy is the one the
+estate uses, to tell the operator what is wrong with the rest; and Actual is
+the household's budget, the first here by a decision of its own. What is
 absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -70,7 +72,7 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               fourteen services, one network, health-gated ordering
+compose.yaml               fifteen services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -549,6 +551,72 @@ here.
   [ADR-0022] leaves ntfy out of its table for that reason: it authenticates no
   household identity.
 
+## Actual
+
+The household's budget ([#142]), and the first service here beyond [ADR-0008]'s nine.
+[ADR-0057] is the decision and why it is Actual rather than Firefly III.
+`compose.yaml` has the service and what was measured on the pinned image.
+What has to be true around it is here.
+
+- **Claimed before it is reachable.** Actual has no password setting. A fresh
+  server offers "set a password" to the first client that reaches it, and
+  accepts the answer once. `make up` runs `scripts/seed-actual-password.sh`
+  first. It claims an empty volume with `ACTUAL_SERVER_PASSWORD` from SOPS,
+  inside the pinned image with `--network none`, before the service ever
+  starts, and on every run after that it logs in with the SOPS value as a
+  check. The value is never handed to the container, so `docker inspect`
+  does not show it and it is not in `.env`. `--check` checks the running
+  service and changes nothing.
+- **One password for the household, and one session for every device.** In
+  password mode Actual has a single user. Every device that logs in is handed
+  the same session token, and by default it never expires. Measured on
+  26.9.0: a changed password leaves that token valid, so every device stays
+  signed in. To sign every device out, stop the service, delete the sessions,
+  and start it again:
+
+  ```bash
+  docker compose -f stacks/sensitive/compose.yaml stop actual
+  docker run --rm --network none --user 1001:1001 --read-only --cap-drop ALL \
+    -v sensitive_actual-data:/data --entrypoint node \
+    "$(COMPOSE_FILE=stacks/sensitive/compose.yaml ./scripts/image-for.sh actual)" \
+    -e "console.log(new (require('better-sqlite3'))('/data/server-files/account.sqlite').prepare('DELETE FROM sessions').run().changes)"
+  make up STACK=sensitive
+  ```
+
+  It prints the number of sessions deleted (one). The old token then gets
+  401, and the next login is issued a new one. Measured on a throwaway volume.
+- **Changing the password.** Change it in Actual (*Settings › Change
+  password*), or on `trinity` with
+  `docker exec -it sensitive-actual node src/scripts/reset-password.js`, which
+  needs a terminal. Then put the same value in SOPS. Change SOPS alone and the
+  next `make up` warns that the SOPS password no longer logs in, and changes
+  nothing. Follow a change made because the password leaked with the sign-out
+  above.
+- **Password login only.** `ACTUAL_ALLOWED_LOGIN_METHODS` is `password`.
+  Header login would take the password in a header from any "trusted proxy",
+  and the image trusts every private range by default. OpenID would be
+  [ADR-0022]'s decision. Logins and the first-run claim allow five failures per
+  client per fifteen minutes, and `ACTUAL_TRUSTED_PROXIES` names Caddy alone,
+  so the client counted is the phone rather than the proxy.
+- **No bank sync.** GoCardless and SimpleFIN are configured in the app, and
+  neither is. Transactions come in as imported files (OFX, QFX, QIF, CSV,
+  CAMT). Turning bank sync on is a decision ([ADR-0057] §4). It puts a third
+  party's credentials in `account.sqlite` and has the server reach out on a
+  schedule.
+- **Clients are a copy, not a backup.** Every client holds the whole budget,
+  which survives losing this server. It does not survive a bad sync, which
+  arrives on every client. The nightly set archives `actual-data` with the
+  service stopped. The sentinel is `./server-files/account.sqlite`, and the
+  budgets are in `./user-files`.
+- **Durable, and no second factor.** [ADR-0023] classes Actual with Immich
+  and Paperless-ngx: it may be down, it may not be lost. [ADR-0022]'s table
+  has it among the services with no second factor. Actual has none short of
+  OpenID.
+- **The name needs a host override.** `actual.matrix.elysium` is a site block
+  in the `Caddyfile` and an alias on Caddy, so step-ca issues it a leaf. The
+  override on `morpheus` is
+  [`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)'s.
+
 ## Backup and restore
 
 ```bash
@@ -557,7 +625,7 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the ten volumes it archives has a
+volume it cannot verify, so each of the eleven volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
 pinned image, beside the entries [#133] read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
@@ -695,6 +763,7 @@ it matters:
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
+[ADR-0057]: ../../docs/adr/0057-add-actual-to-the-sensitive-tier.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -704,6 +773,7 @@ it matters:
 [#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[#142]: https://github.com/Gerrrt/HomeLab/issues/142
 [#182]: https://github.com/Gerrrt/HomeLab/issues/182
 [#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md

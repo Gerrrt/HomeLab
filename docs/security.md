@@ -50,7 +50,10 @@ can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
 Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
 points at OAuth, and AdGuard has one password-only admin account. For those
 three an identity provider is the only route to a second factor rather than a
-heavier alternative to one. **Grafana is the only one of the six deployed
+heavier alternative to one. Actual is a fourth: its only factor beyond the one
+household password is OpenID, and in password mode every signed-in device
+shares one session that a password change does not end
+([ADR-0057](adr/0057-add-actual-to-the-sensitive-tier.md)). **Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a
 pending piece of work — it closes when an identity provider exists and not
 before.
@@ -65,7 +68,7 @@ refuses the handshake rather than degrading.
 declines to make any of it highly available and constrains the path instead:
 **nothing the household needs in an emergency may have the estate on its only
 route.** The household's own credentials are recoverable without Vaultwarden;
-Immich and Paperless-ngx get an encrypted copy outside the estate whose
+Immich, Paperless-ngx and Actual get an encrypted copy outside the estate whose
 staleness is visible, off-*estate* rather than off-*host*, because `oracle`
 shares the rack and the power feed; nothing on the break-glass card depends on a
 certificate this estate issues; and nothing physical may be operable only

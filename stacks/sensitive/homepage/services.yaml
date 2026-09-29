@@ -62,6 +62,14 @@
         href: https://vaultwarden.matrix.elysium
         description: Vaultwarden — the Bitwarden apps point here
 
+    - Budget:
+        icon: actual-budget.svg
+        # A link and no widget. Homepage's Actual widget would need the one
+        # household password, and in password mode that password gets the
+        # same token every device shares. No read-only credential exists.
+        href: https://actual.matrix.elysium
+        description: Actual — the household budget
+
     - Home:
         icon: home-assistant.svg
         href: https://homeassistant.matrix.elysium
