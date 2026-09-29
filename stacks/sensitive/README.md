@@ -32,14 +32,18 @@ make up STACK=sensitive
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
 | homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on the estate and where it lives, grouped by VLAN. A directory, not a status page — seven tiles read live numbers, with read-only tokens or from Prometheus; the rest are links ([#137]) |
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
+| miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
+| miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
 
-Fourteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Sixteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
 Paperless-ngx, the archive of what the household cannot get back; Homepage
-is the page that tells the household the rest exist; and ntfy is the one the
-estate uses, to tell the operator what is wrong with the rest. What is
+is the page that tells the household the rest exist; ntfy is the one the
+estate uses, to tell the operator what is wrong with the rest; and two are
+Miniflux, the first of the tier extras, decided by an ADR of its own before it
+was written here. What is
 absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -49,16 +53,17 @@ absent is as deliberate as what is here:
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
 - **No other services planned.** The next one, whenever it comes, arrives as
-  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage and ntfy did: a
-  service with
+  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy and
+  Miniflux did — and, beyond ADR-0008's nine, after an ADR of its own, as
+  [ADR-0057] was for Miniflux: a service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
   of its own is the one thing a review of it should refuse — AdGuard is the
   single argued exception, and `compose.yaml` makes the argument at DIFFERENCE 7
   so that the next one has to be made too.
-- **No shared database.** Immich and Paperless-ngx each run a Postgres of
-  their own — Immich's needs the vector extension and therefore a different
+- **No shared database.** Immich, Paperless-ngx and Miniflux each run a
+  Postgres of their own — Immich's needs the vector extension and therefore a different
   image — and one database per service is what lets `backup-volumes.sh`
   attribute every volume to the one service that owns it and stop only that.
 - **No Supervisor, no add-ons, no MQTT broker, no Zigbee coordinator.** Home
@@ -72,7 +77,7 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               fourteen services, one network, health-gated ordering
+compose.yaml               sixteen services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -551,6 +556,70 @@ here.
   [ADR-0022] leaves ntfy out of its table for that reason: it authenticates no
   household identity.
 
+## Miniflux
+
+The household's feed reader since [#147], and the first service on this tier
+that [ADR-0008] did not name. [ADR-0057] decided it before it was written:
+the placement, the outbound traffic, and why the account has no second
+factor. `compose.yaml` has what was measured on the pinned image.
+
+- **Adding it to the running tier.** `trinity` was built before Miniflux was
+  written, so it arrives as a later service does rather than by
+  [`build-the-sensitive-tier-host.md`](../../docs/runbooks/build-the-sensitive-tier-host.md),
+  which carries it for a rebuild. On `trinity`:
+  1. `make secrets-edit STACK=sensitive`, and add `MINIFLUX_DBPASS` and
+     `MINIFLUX_ADMIN_PASSWORD`, each from `make gen-secret`. The admin
+     password goes in the password manager too. Commit the encrypted file.
+  2. On `morpheus`, add `miniflux` to `trinity`'s *Additional Names for this
+     Host* ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
+  3. `make up STACK=sensitive`. Caddy is recreated for its new alias and
+     site block, and step-ca issues the name's leaf on the first request.
+  4. `make backup STACK=sensitive ARGS=--list` after the next nightly run:
+     `miniflux-db-data` is in the set.
+- **First login.** Sign in at `https://miniflux.matrix.elysium` as
+  `MINIFLUX_ADMIN_USER` (`admin` by default), with `MINIFLUX_ADMIN_PASSWORD`
+  from SOPS. The account is created on the first start and never touched by
+  the variable again. Rotate the password under *Settings*, or from the
+  host if the UI is lost:
+
+  ```bash
+  docker exec -it sensitive-miniflux /usr/bin/miniflux -reset-password
+  ```
+
+  Then record the new value in `secrets/sensitive.sops.yaml`, the way
+  Paperless's admin password is kept.
+- **No second factor, and none to enrol.** Miniflux has no TOTP. Its passkeys
+  (`WEBAUTHN`) are a second way to log in, not a second step — the password
+  still logs in on its own — so they are left off. The one route to a factor
+  is its OpenID Connect login, which waits on the identity provider [ADR-0022]
+  keeps deferring. `docs/security.md` names Miniflux beside Immich and AdGuard
+  for that reason.
+- **The REST API is off.** It accepts the admin's own password over basic
+  auth, which would be a second door to the account that nothing here uses.
+  With it off, Homepage's tile is a link rather than an unread count.
+- **The sync APIs stay off until a phone wants them.** Fever and Google
+  Reader are what third-party mobile clients speak. Each is turned on per
+  user under *Settings › Integrations*, with a username and password of its
+  own that bypasses the login page. Turning one on is [ADR-0057]'s decision 5:
+  use a generated password, keep it in the password manager, and record here
+  which client and when.
+- **It reaches outward all the time, and never inward.** Every subscription
+  is fetched on a timer (`POLLING_FREQUENCY`, sixty minutes by default), so
+  this container is a steady source of outbound HTTPS from VLAN 99 on the
+  firewall's graphs. The fetcher refuses every private, loopback and
+  link-local address after DNS, so a feed URL cannot be pointed at the
+  gateway, step-ca or anything else on Winterfell.
+- **Export the subscriptions now and then.** `miniflux-db-data` is in the
+  nightly set, and an OPML export is the portable half that survives a
+  version the database cannot come back to:
+
+  ```bash
+  docker exec sensitive-miniflux /usr/bin/miniflux -export-user-feeds admin > miniflux-feeds.opml
+  ```
+
+  It is a reading list, not a secret. Keep it with the household's documents
+  rather than in git.
+
 ## Backup and restore
 
 ```bash
@@ -559,7 +628,7 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the ten volumes it archives has a
+volume it cannot verify, so each of the eleven volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
 pinned image, beside the entries [#133] read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
@@ -701,6 +770,7 @@ it matters:
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
+[ADR-0057]: ../../docs/adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -710,6 +780,7 @@ it matters:
 [#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[#147]: https://github.com/Gerrrt/HomeLab/issues/147
 [#182]: https://github.com/Gerrrt/HomeLab/issues/182
 [#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md

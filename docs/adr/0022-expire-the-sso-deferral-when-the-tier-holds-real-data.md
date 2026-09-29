@@ -19,6 +19,13 @@
 > **The disk-encryption choice below was made on 2026-09-27**, for `trinity`:
 > LUKS on both disks, with the root's key sealed to the TPM —
 > [ADR-0054](0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md).
+>
+> **The table below has a seventh row, as of 2026-09-29: Miniflux, with no
+> second factor.** It has no TOTP, and its passkeys are a second way to log
+> in rather than a second step. Its route to a factor is OIDC, which is the
+> identity provider again
+> ([ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
+> The table is not edited.
 
 ## Context
 

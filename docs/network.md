@@ -166,6 +166,11 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   shelf and draws from a UPS-fed outlet, so on a mains cut the two laptops keep
   their network as well as their batteries
   ([#110](https://github.com/Gerrrt/HomeLab/issues/110)).
+- **`trinity` polls the internet on a timer.** Miniflux ([#147](https://github.com/Gerrrt/HomeLab/issues/147)) fetches every
+  subscribed feed about once an hour, so a steady trickle of outbound HTTPS
+  from `10.0.99.40` on the WAN graphs is that and not something to chase. It
+  leaves by Winterfell's existing egress rule, and its fetcher refuses every
+  private address, this segment's included ([ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
 - pfSense's admin UI is reachable on this interface from Hicks only, by a
   named pass to `10.0.99.1:443`. Winterfell itself is blocked from it: the 99
   interface drops HTTP and HTTPS to `10.0.99.1` above its egress rule.
