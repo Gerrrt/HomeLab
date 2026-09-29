@@ -518,13 +518,22 @@ jobs:
           path: .boot-proofs
           key: >-
             boot-proofs-${{ hashFiles('stacks/sensitive/compose.yaml',
-            'stacks/sensitive/home-assistant/**', 'scripts/check_hardened_boot.sh') }}
+            'stacks/sensitive/home-assistant/**', 'stacks/sensitive/ntfy/**',
+            'scripts/seed-validation-env.sh', 'scripts/check_hardened_boot.sh') }}
           restore-keys: boot-proofs-
 
       - name: Boot Home Assistant under its hardening
         run: >-
           ./scripts/check_hardened_boot.sh --stack sensitive
           --service home-assistant --proof-cache .boot-proofs/proofs.txt
+
+      # ntfy exits at start on a malformed hash or token, which is why
+      # seed-validation-env.sh seeds it well-formed ones (#136); this is the
+      # step that would say so if it stopped.
+      - name: Boot ntfy under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service ntfy --proof-cache .boot-proofs/proofs.txt
 
   # ---------------------------------------------------------------------------
   secret-scan:

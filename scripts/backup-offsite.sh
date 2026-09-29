@@ -232,8 +232,21 @@ if [[ "${1:-}" == "--self-test" ]]; then
   else
     printf '\033[0;33m  SKIP\033[0m /dev/shm is not available — the tmpfs refusal is unexercised\n'
   fi
-  SKIP_MEDIUM="" run /tmp
-  check "a DEST under /tmp is refused whatever is mounted there" 1 "clears or recreates"
+  # 2b is only reachable through a /tmp on a real disk. Where /tmp is itself a
+  # tmpfs — trinity, and any systemd host with tmp.mount on — 2a refuses it
+  # first, correctly and with the better diagnosis, and every other tree 2b
+  # names (/dev, /run, /proc, /sys) is synthetic everywhere. So the fixture
+  # follows what /tmp is on this host: the path refusal where it can be
+  # reached, and otherwise the refusal /tmp actually gets, with the gap said.
+  # Both still assert rc 1 — /tmp is refused on every host.
+  if [[ "$(stat -f -c %T /tmp 2>/dev/null)" == tmpfs ]]; then
+    SKIP_MEDIUM="" run /tmp
+    check "a DEST under /tmp is refused (here as tmpfs, by 2a)" 1 "not a medium"
+    printf '\033[0;33m  SKIP\033[0m /tmp is a tmpfs on this host — the path refusal (2b) is unexercised; CI covers it\n'
+  else
+    SKIP_MEDIUM="" run /tmp
+    check "a DEST under /tmp is refused whatever is mounted there" 1 "clears or recreates"
+  fi
 
   run "${M}" --list;              check "--list on an empty medium says so" 0 "nothing on the medium"
   run "${M}" --verify-only;       check "--verify-only on an empty medium is not a proof" 1 "nothing to verify"

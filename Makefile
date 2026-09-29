@@ -659,10 +659,12 @@ gen-secret: ## Generate a random secret (ARGS=--snmp for one per SNMP device)
 	./scripts/gen-secret.sh $(ARGS)
 
 .PHONY: hash-password
-hash-password: ## Bcrypt a password for AdGuard Home's admin account (prompted, never an argument)
+hash-password: ## Bcrypt a password for AdGuard's admin or ntfy's users (prompted, never an argument)
 	@# AdGuard Home keeps its admin password as a bcrypt hash, and the hash is
 	@# what secrets/sensitive.sops.yaml holds as ADGUARD_ADMIN_PASSWORD_HASH —
 	@# so the plaintext is typed once, here, and lives in the password manager.
+	@# ntfy's two NTFY_*_PASSWORD_HASH keys are made the same way: ntfy accepts
+	@# this cost-14 hash as it is (checked against the pinned image, #136).
 	@# `caddy hash-password` prompts without echo on a terminal and reads one
 	@# line from stdin without one, so `-t` is passed only when there is a tty
 	@# to pass; either way the password is never an argument, never in shell
@@ -828,7 +830,10 @@ install-timers: ## Install and enable the systemd timers on this host (needs sud
 	@# point every timer at a directory that gets deleted, and the symptom would
 	@# be jobs that silently never run — the exact condition this exists to make
 	@# visible.
-	sudo ./scripts/install-timers.sh --install
+	@#
+	@# PROFILE=sensitive installs trinity's schedule instead (#404 step 9). sudo
+	@# keeps SUDO_USER, which is who those units are rendered to run as.
+	sudo ./scripts/install-timers.sh --install $(if $(PROFILE),--profile $(PROFILE))
 
 .PHONY: deploy-agent
 deploy-agent: ## Deploy or redeploy the Alloy agent on a host (ARGS="[--runtime native] user@host")

@@ -39,7 +39,124 @@ docstring gives: it is a record, not a claim about now.
   is a row in `successor-handover.md`, not an alert. The swap found:
   TODO(window).
 
+## 2026-09-29
+
+- **The alert path runs through the in-house ntfy, and has been seen failing
+  over** ([#136](https://github.com/Gerrrt/HomeLab/issues/136), closed).
+  The cutover in
+  [`verify-the-alert-path.md`](runbooks/verify-the-alert-path.md#cutting-over-to-the-in-house-ntfy)
+  was run across both hosts with both phones in hand, and its table has the
+  times.
+  - **Both halves observed.** A synthetic page arrived in-house over Wi-Fi,
+    and on the ntfy.sh copy over mobile data. With ntfy stopped on
+    `trinity`, `EndpointUnreachable` paged through ntfy.sh at 03:18, six
+    minutes after the stop.
+  - **Alerts now read as a title and a line** on both copies, with priority
+    taken from severity
+    ([#716](https://github.com/Gerrrt/HomeLab/pull/716),
+    [#719](https://github.com/Gerrrt/HomeLab/pull/719)). Before that, the
+    phones got whole paragraphs, or raw JSON from ntfy.sh.
+  - **Three things only the cutover could find.**
+    - The tier's seven-day leaves tripped the estate's 7-day expiry rule on
+      the first probe
+      ([#718](https://github.com/Gerrrt/HomeLab/pull/718)).
+    - `make secrets-edit` leaves the deployment checkout dirty, and that
+      stopped convergence on `prometheus` for about four hours
+      ([#717](https://github.com/Gerrrt/HomeLab/pull/717),
+      [#720](https://github.com/Gerrrt/HomeLab/pull/720)).
+    - A secrets edit reaches Alertmanager only after `make render`.
+  - **Not run:** the runbook's lowered-Watchdog check and the
+    `category=security` page. They are recorded as open in the runbook.
+
 ## 2026-09-28
+
+- **ntfy is authored for the sensitive tier, and Alertmanager is repointed
+  at it** ([#136](https://github.com/Gerrrt/HomeLab/issues/136)). It is not
+  deployed, and the issue stays open until the cutover in
+  [`verify-the-alert-path.md`](runbooks/verify-the-alert-path.md) has been seen
+  working on both phones.
+  - **The decision #136 asked for.** The in-house topics replace ntfy.sh for
+    all three real channels, and `urgent` and `security` send to their ntfy.sh
+    topics as well. A phone away from home cannot reach `trinity`: nothing on
+    the tier is exposed, and the WireGuard path goes to the lab. So an
+    in-house-only page would wait for Wi-Fi. The heartbeat stays on
+    healthchecks.io (#408), and `check_alert_channels.py` now fails a heartbeat
+    pointed at any `.matrix.elysium` host.
+  - **The auth.** ntfy is deny-all, with two users. `alertmanager` may only
+    write the three topics, by token; `phone` may only read them. Users, ACLs
+    and the token come from `NTFY_AUTH_*` in the environment, built from SOPS.
+    Measured on the pinned image (v2.28.0) under the compose file's hardening:
+    - Anonymous requests got 403 either way.
+    - The token could publish and got 403 on read.
+    - `phone` could read and got 403 on publish.
+    - A rotated token and a changed hash each turned the old credential into
+      a 401 after a restart.
+
+    That last result is why `ntfy-data` is skipped by the backup rather than
+    archived.
+  - **Only the iPhone's wake-up leaves the house.** `upstream-base-url` sends
+    ntfy.sh the SHA-256 of the topic's URL, read off the image's own log, and
+    not the alert.
+  - **A dead ntfy still pages.** A blackbox probe verifies the tier's root with
+    the new `http_2xx_tier_ca` module. It is written out and enabled at
+    cutover. `AlertmanagerNotificationsFailing` and `EndpointUnreachable` are
+    critical, so they reach `urgent` and its ntfy.sh copy. `validate.sh` now
+    pins the `correctness` route alongside `availability`.
+  - **One thing the first boot taught.** ntfy exits at start on a malformed
+    bcrypt hash or token. `seed-validation-env.sh`'s `validation-only` would
+    have failed the new CI boot, so the ntfy seeds are well formed.
+    `check_hardened_boot.sh` could not run on `trinity` itself, because the
+    live stack owns the subnet. The same boot was run there under a throwaway
+    project with the subnet moved, and it came up healthy.
+- **Immich's restore is rehearsed on `trinity`, and the first real photos
+  came before the gate that was meant to precede them**
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132)). Two accounts
+  uploaded 615 assets at 16:59–17:01 UTC. At that point the off-estate copy
+  ([#455](https://github.com/Gerrrt/HomeLab/issues/455)), ADR-0022's record
+  and ADR-0023's *Independent* test were all still open, so the USB disk is
+  the only copy of the originals. That evening the restore was rehearsed
+  against copies of that library, by both routes:
+  - **Immich's `pg_dump`** went into a fresh `immich-db`, restored before the
+    server first started.
+  - **The `immich-db` volume** came out of the new set `20260928T203415Z`,
+    which the same run copied to `oracle`.
+  - **Result:** on both routes the server came up with no drift and no
+    onboarding, and all 615 originals hashed to their database checksum.
+  - **Upstream's hard rule is soft on v3.2.2:** a same-version dump restored
+    cleanly over a database the server had already initialised. The order is
+    kept anyway, because the gap serves *create the first admin* on VLAN 99.
+    → [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)
+- **Plex declined** ([#139](https://github.com/Gerrrt/HomeLab/issues/139)).
+  ADR-0016's test was run: the LG OLED, a console, and the household's phones
+  and tablets all play from Jellyfin, and the Xumo box is not used for the
+  library. No screen used for media lacks a Jellyfin client, so the deferral
+  becomes a decline,
+  [ADR-0056](adr/0056-decline-plex-because-every-screen-on-casabonita-plays-jellyfin.md), and
+  ADR-0008's list loses Plex. The media tier stays without secrets, and Plex
+  Pass leaves the purchase list.
+- **The sensitive tier's backup is on a nightly timer**
+  ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9, the
+  acceptance item on [#131](https://github.com/Gerrrt/HomeLab/issues/131)).
+  - **What runs.** `homelab-backup-sensitive` runs `make backup STACK=sensitive`
+    on `trinity` at 04:30 every night. Each run already copies the set to
+    `oracle` ([#535](https://github.com/Gerrrt/HomeLab/issues/535)), so the
+    copy off the host was done. What was missing was anything that took a set
+    unless someone typed the command.
+  - **Why daily.** The estate's backup is weekly. This one is daily because it
+    holds the password vault, and a week of lost vault edits is the wrong
+    default.
+  - **How it is installed.** It is a second profile of `install-timers.sh`,
+    with its own table and its own `systemd/sensitive/` directory.
+    - The units carry `@DEPLOY_ROOT@` and `@RUN_USER@`, because the build
+      runbook writes `trinity`'s operator as `<you>`.
+    - `--check` verifies the rendered units everywhere, CI included.
+    - `--check` fails if a job name appears in both tables. The alert rules
+      join on the name alone, so a name on two hosts would make every join
+      many-to-many.
+  - **Alerts.** `ScheduledJobStale` now names `{{ $labels.instance }}` rather
+    than "the monitoring host". A promtool case pins the two-host join.
+  - **What it does not do.** `oracle` is in the same room, so this is still
+    not ADR-0023's copy off the estate. That copy is step 10.
 
 - **`trinity` is built, and the sensitive tier runs on it**
   ([#404](https://github.com/Gerrrt/HomeLab/issues/404)). Ubuntu 26.04.1,
@@ -84,6 +201,66 @@ docstring gives: it is a record, not a claim about now.
   one was deleted. The new one expires 2027-04-16; the same command renews it.
 - **Hicks reaches `trinity` on 443**, the eleventh named pass above *Block
   access to Winterfell*.
+- **Caddy passed its acceptance on `trinity`**
+  ([#129](https://github.com/Gerrrt/HomeLab/issues/129)). All six names
+  returned `Verify return code: 0` from Hicks against
+  `certificates/tier-ca.pem`, each with a seven-day leaf from the tier
+  intermediate that Caddy holds under step-ca's ACME directory. Nothing is
+  mounted from `gen-certs.sh`. Only Caddy's `443/tcp` and AdGuard's
+  `10.0.99.40:53` are published. The host's other listeners are `sshd` on 22
+  and loopback-only services: systemd-resolved, chrony, and the Alloy agent's
+  `127.0.0.1:12345`.
+- **step-ca passed its acceptance on `trinity`**
+  ([#130](https://github.com/Gerrrt/HomeLab/issues/130)). Caddy logged
+  `certificate obtained successfully` six times, once per name, between
+  04:32:18 and 04:32:20 UTC, from `step-ca:9000-acme-acme-directory`. The
+  lines came from Loki, because the container log did not survive Caddy's
+  16:25 restart. Each leaf runs seven days, 2026-09-28 to 2026-10-05, and
+  verifies against `certificates/tier-ca.pem`. The provisioner in `ca.json`
+  carries ADR-0037's claims: `tls-alpn-01` only, 168 hours default and
+  maximum. The `step-ca-data` volume holds both certificates and the
+  intermediate's key, and `root_ca_key` is nowhere on the host. The bundle
+  was shredded after `--install`. The tier's root is
+  `SHA256 4C:C3:06:81:…:56:5E`. The expiry rule for seven-day leaves is still
+  [#426](https://github.com/Gerrrt/HomeLab/issues/426).
+- **Home Assistant passed its acceptance on `trinity`**
+  ([#134](https://github.com/Gerrrt/HomeLab/issues/134)). Container flavour,
+  with no USB radio, as ADR-0035 decided. `bifrost`'s reservation, the pass
+  and the tripwire read are the `bifrost` bullet above. The leaf and the
+  `morpheus` override are the Caddy bullet's: `homeassistant.matrix.elysium`
+  is one of its six names. TOTP is enrolled on the one owner account, the only
+  account that is not system-generated. No long-lived access token exists, so
+  nothing is owed to SOPS. The hardening boot re-runs in CI on every change,
+  under #646.
+- **Paperless-ngx passed its acceptance on `trinity`**
+  ([#133](https://github.com/Gerrrt/HomeLab/issues/133)). The load was
+  synthetic, on purpose: five one-page scans and one of 50 pages, all 300 dpi,
+  image-only and noised so Tesseract did real work. Each single page took
+  about 16 s; the 50 pages took 3 min 54 s. The container's `memory.peak` was
+  1716 MiB of its 3072m, with no OOM kill. It used 3.0 cores at the busiest
+  minute and was throttled for 0.2 s in all, so `THREADS_PER_WORKER=3` does the
+  limiting and `cpus: 4` is only the backstop. Nothing else went unhealthy,
+  and Vaultwarden through Caddy never took longer than 19 ms. Both limits
+  stand; the one-month `container_memory_rss` re-derivation still applies.
+  - **A backup interrupted the first run.** Another session's
+    `STACK=sensitive make backup` stopped the tier 90 seconds into the 50
+    pages. The file stayed in `consume/` and was consumed from scratch after
+    the restart, so the numbers above come from fresh cgroup counters. That
+    backup, `20260928T203415Z`, holds the five one-page test documents in its
+    `paperless-media` archive.
+  - **The test documents were deleted afterwards.** The shell's hard delete
+    removed the rows but not the files, so the 18 files under `media/` went
+    by hand. The index was rebuilt, and `document_sanity_checker` reports no
+    issues.
+- **Backup set `20260928T203415Z` was deleted**, correcting the Paperless-ngx
+  bullet above that says it holds the five test documents. It is gone from
+  `trinity` and from `oracle`. Rewriting its archives would have meant editing
+  `paperless-db-data` as well as `paperless-media`, and a backup edited after
+  the fact is no longer what was captured. Nothing real went with it:
+  `20260928T204939Z` was taken fifteen minutes later, after the cleanup, with
+  an empty Paperless library. Before the deletion, its eleven files were
+  checked byte-identical on both sides. The three sets left are the same on
+  both hosts.
 
 ## 2026-09-26
 

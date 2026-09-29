@@ -1,0 +1,38 @@
+---
+# Homepage's page settings (#137). Mounted read-only; a change here is
+# `make up STACK=sensitive`, and `git log` on this directory is the history of
+# what the household's front page says.
+#
+# https://gethomepage.dev/configs/settings/
+
+title: Home
+theme: dark
+color: slate
+headerStyle: clean
+
+# The version string and the update check both point at GitHub. The version is
+# the pin in compose.yaml, which Dependabot moves; the check is an outbound
+# call from a VLAN 99 container to a third party on every page load, for news
+# the operator already gets as a pull request.
+hideVersion: true
+disableUpdateCheck: true
+
+# A household page does not belong in a search index, and nothing off the
+# estate can reach it to index it anyway. Belt and braces.
+disableIndexing: true
+
+# NO STATUS DOTS. No `statusStyle` here and no `siteMonitor` or `ping` on any
+# tile in services.yaml, deliberately (#137): "a directory, not a status page".
+# A green dot that means "Homepage could open a socket" reads to the household
+# as "this works", and uptime is Grafana's question, answered by the blackbox
+# probes and alert rules on `prometheus`. A tile shows live numbers only where a
+# widget reads them from the service's own API, and a widget that cannot reach
+# its service says so in the tile.
+
+layout:
+  Household:
+    style: row
+    columns: 4
+  Estate:
+    style: row
+    columns: 3

@@ -6,6 +6,9 @@
 #          serves, see the table at the top of that file.
 # `name`   is what the alert says out loud, so write it for whoever is woken up.
 # `host`   is the machine the endpoint is expected on, as network.md names it.
+# `renewal` is `acme` for a certificate something renews on its own on a short
+#          lifetime — today, the sensitive tier's — and absent otherwise. It
+#          selects which expiry rules apply (blackbox.rules.yaml).
 # `via`    is how the endpoint was addressed: `dns` by the name a person types,
 #          `address` by its IP, `compose` by its service name on the compose
 #          network. A `dns` probe should have an `address` twin, because both
@@ -102,6 +105,43 @@
     role: alerting
     host: prometheus
     via: compose
+
+# --- The in-house ntfy, where alerts are delivered (#136) -------------------
+# Alertmanager's default, urgent and security receivers post to this service,
+# so its absence must page through something other than itself. The probe
+# fires EndpointUnreachable, which is critical and therefore routes to
+# `urgent` — the receiver that also has an ntfy.sh copy (validate.sh pins the
+# route). Without this target a dead ntfy would surface only as
+# AlertmanagerNotificationsFailing, once something else had tried to page.
+#
+# By name only, with no `address` twin: the leaf comes from step-ca over ACME
+# and carries the name and no IP SAN, and Caddy picks the site by SNI, so an
+# https probe of 10.0.99.40 fails for a reason that says nothing about ntfy.
+# `/v1/health` answers with no credential, deny-all notwithstanding. The
+# module verifies the chain against the TIER'S root, which is also the only
+# HTTPS check any of trinity's sites has, so its expiry series is the first
+# evidence from outside that Caddy is renewing its seven-day leaves.
+#
+# Enabled 2026-09-28 at the cutover (#136), after this was run from the live
+# exporter on prometheus and answered probe_success 1, status 200, and a
+# probe_ssl_earliest_cert_expiry of 2026-10-05T21:59:04Z: the same seven-day
+# leaf Caddy was serving on trinity, so the chain verified against the tier's
+# root end to end. Re-run it the same way if this ever goes red:
+#
+#   docker exec blackbox-exporter wget -qO- \
+#     'http://localhost:9115/probe?target=https://ntfy.matrix.elysium/v1/health&module=http_2xx_tier_ca' \
+#     | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
+
+- targets: ["https://ntfy.matrix.elysium/v1/health"]
+  labels:
+    module: http_2xx_tier_ca
+    name: ntfy
+    role: alerting
+    host: trinity
+    via: dns
+    # A seven-day ACME leaf: the two 30/7-day expiry rules skip it and
+    # TlsAcmeRenewalStalled watches it instead (blackbox.rules.yaml).
+    renewal: acme
 
 # --- Devices that otherwise only have SNMP ---------------------------------
 # An SNMP agent answering says nothing about the management UI a person would

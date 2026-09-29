@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-120 rules in total: 102 metric-based in `prometheus/rules/`, and 18 log-based in
+121 rules in total: 103 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -450,7 +450,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-102 rules across eleven files in `prometheus/rules/`:
+103 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -460,7 +460,7 @@ argument and for what to do when it exits 1.
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
 | `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion, and the two cases `up == 0` structurally cannot see — a remote-writing agent that stops pushing, and a scraped target that stops being a target at all. The second is `ScrapeTargetDisappeared`, added with the first scraped host ([#256](https://github.com/Gerrrt/HomeLab/issues/256)): an emptied or unparseable `targets/node.yaml` makes the series vanish rather than fall to 0, so `InstanceDown` stays silent and `RemoteWriteJobStale` excludes scraped jobs by design. The target for `smaug` was written into `targets/node.yaml` disabled on 2026-09-17 and enabled on 2026-09-19, once the exporter answered from the pool. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault. Since [#575](https://github.com/Gerrrt/HomeLab/issues/575) also whether an Alertmanager silence is about to lapse or names no owning issue, read from the per-silence series `scripts/collect_silences.py` writes every fifteen minutes — `alertmanager_silences` is a count per state and cannot say which alert, when, or whose |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
-| `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http. The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
+| `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — the sensitive tier's seven-day ACME leaves excepted, which `TlsAcmeRenewalStalled` watches for a stalled renewal instead — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http. The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense. Since [ADR-0055](adr/0055-forward-to-adguard-alone.md) AdGuard is the only forwarder, so `AdGuardNotAnswering` is **critical** at five minutes: the house cannot resolve outside names. `AdGuardNotFiltering` stays a warning, because a filter that fails open is a convenience lost, not an outage. The targets in `targets/blackbox-dns.yaml` are live since 2026-09-28, against AdGuard on `trinity` ([#126](https://github.com/Gerrrt/HomeLab/issues/126), [#404](https://github.com/Gerrrt/HomeLab/issues/404)) |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, whether the age-key proof record exists to be held to its deadline, whether the CA key's offline copy has been proved lately ([#496](https://github.com/Gerrrt/HomeLab/issues/496)), and whether the newest backup sets have been carried onto the second recipient's medium within ninety days ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)) |
 | `deploy.rules.yaml` | Whether this host is running what the repository says — an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` the host is. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
@@ -473,7 +473,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is eighty-two rules of 102 so far — the five
+against the broken rule too. Coverage is eighty-three rules of 103 so far — all eight
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
@@ -602,6 +602,20 @@ stops matching, and `amtool check-config` still reports SUCCESS — that mutatio
 was tried. `scripts/validate.sh` and CI therefore assert the table itself with
 `amtool config routes test --verify.receivers`, one assertion per row.
 
+**Where the three real channels deliver** changed on
+[#136](https://github.com/Gerrrt/HomeLab/issues/136). They now go to the
+sensitive tier's own ntfy on `trinity`, deny-all, with Alertmanager publishing
+by bearer token and verifying the leaf against the tier's root. `urgent` and
+`security` also keep a second webhook to their ntfy.sh topic, because a phone
+off the home network cannot reach the tier. Alertmanager counts each delivery
+separately, so either half can fail without taking the other with it. If the
+in-house ntfy is the thing that has failed, the page still goes out:
+`EndpointUnreachable` (from the `http_2xx_tier_ca` probe of
+`ntfy.matrix.elysium`) and `AlertmanagerNotificationsFailing` are both
+critical, so both reach `urgent` and its ntfy.sh copy. The runbook has the
+table and the cutover:
+[`verify-the-alert-path.md`](runbooks/verify-the-alert-path.md#where-the-real-alerts-go).
+
 Inhibit rules stop cascades: a down host suppresses its own disk warnings, a
 dead `snmp-exporter` suppresses the "every device is unreachable" storm that
 would otherwise follow, and a certificate inside seven days of expiry suppresses
@@ -716,7 +730,8 @@ spending almost all of ntfy.sh's free daily budget, so real alerts were refused
 at the end of every day ([#407](https://github.com/Gerrrt/HomeLab/issues/407)).
 The heartbeat now pings a healthchecks.io check, period 5m and grace 15m, which
 emails when a ping does not arrive; the three real channels stay on ntfy and
-have the budget to themselves.
+have the budget to themselves. (Since #136 only two of them use ntfy.sh at all,
+as the off-network copy of what the in-house ntfy receives; see *Routing*.)
 
 So now, if Prometheus stops evaluating, Alertmanager dies, or this host loses
 outbound network, something external notices — in principle. That is the

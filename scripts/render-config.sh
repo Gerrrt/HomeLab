@@ -115,7 +115,12 @@ the stack cannot start without them. Generate them with:
   make certs ARGS=--ca
   make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\"
 
-Full procedure in docs/runbooks/generate-certificates.md." ;;
+Full procedure in docs/runbooks/generate-certificates.md.
+
+tier-ca.pem is different: it is the sensitive tier's root, which Alertmanager
+and the blackbox exporter verify ntfy.matrix.elysium against (#136). It is
+written on this host by \`make tier-ca ARGS=--mint\`, the step that minted it —
+never by \`make certs\` (docs/runbooks/build-the-tier-ca.md)." ;;
     *)
       die "compose.yaml mounts these certificates, which are missing or empty:
 $(printf '  %s\n' "${absent[@]}")
@@ -280,6 +285,9 @@ if [[ -f "${AM_CONFIG}" ]]; then
     ALERTMANAGER_URGENT_WEBHOOK_URL
     ALERTMANAGER_SECURITY_WEBHOOK_URL
     ALERTMANAGER_HEARTBEAT_URL
+    ALERTMANAGER_URGENT_EXTERNAL_URL
+    ALERTMANAGER_SECURITY_EXTERNAL_URL
+    ALERTMANAGER_NTFY_TOKEN
   )
 fi
 
@@ -365,29 +373,75 @@ fi
 # default channel's variable predates the other two and is not
 # ALERTMANAGER_DEFAULT_WEBHOOK_URL, and renaming a key in an encrypted file to
 # suit a loop is a worse trade than writing the pair out.
+#
+# Since #136 the list carries two more URLs and one thing that is not a URL.
+# The *_external_url pair is the ntfy.sh copy of the urgent and security
+# channels, for a phone off the home network; ntfy_token is the bearer token
+# the in-house receivers present, read through `credentials_file` rather than
+# `url_file`. It is rendered by the same loop because it has the same needs —
+# a 0600 file, no trailing newline — and the cross-check below reads both keys.
 # ---------------------------------------------------------------------------
 AM_CHANNELS=(
   "ALERTMANAGER_WEBHOOK_URL:webhook_url"
   "ALERTMANAGER_URGENT_WEBHOOK_URL:urgent_url"
   "ALERTMANAGER_SECURITY_WEBHOOK_URL:security_url"
   "ALERTMANAGER_HEARTBEAT_URL:heartbeat_url"
+  "ALERTMANAGER_URGENT_EXTERNAL_URL:urgent_external_url"
+  "ALERTMANAGER_SECURITY_EXTERNAL_URL:security_external_url"
+  "ALERTMANAGER_NTFY_TOKEN:ntfy_token"
 )
 AM_OUT_DIR="${STACK_DIR}/alertmanager/.rendered"
+
+# The ntfy.sh copies of urgent and security (#136) get the same rendering as
+# the in-house topics. ntfy.sh cannot load the repository's template file, but
+# it does run inline templates: `tpl=yes` with the title, message and priority
+# templates as the t, m and p query parameters, executed against the JSON body.
+# They are built here from stacks/sensitive/ntfy/templates/homelab.yml on
+# every render, so there is one template and not a second, hand-kept copy in
+# SOPS that drifts from it. SOPS holds the bare https://ntfy.sh/<topic>; any
+# query already on it is replaced. Checked on ntfy.sh itself when this was
+# written: a synthetic critical rendered as the in-house copy does, priority 5
+# included. The query is about 2.4 KB, well inside any URL limit that matters.
+NTFY_TEMPLATE="${REPO_ROOT}/stacks/sensitive/ntfy/templates/homelab.yml"
+external_query() {
+  python3 - "${NTFY_TEMPLATE}" <<'PY'
+import sys, urllib.parse, yaml
+t = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+missing = [k for k in ("title", "message", "priority") if not t.get(k)]
+if missing:
+    sys.exit(f"{sys.argv[1]} has no {', '.join(missing)}")
+print(urllib.parse.urlencode(
+    {"tpl": "yes", "t": t["title"], "m": t["message"], "p": t["priority"]}), end="")
+PY
+}
+
 if [[ -f "${AM_CONFIG}" ]]; then
   info "rendering ${#AM_CHANNELS[@]} alertmanager receiver URL(s)"
   mkdir -p "${AM_OUT_DIR}"
   chmod 700 "${AM_OUT_DIR}"
+  ext_query=""
   for channel in "${AM_CHANNELS[@]}"; do
     var="${channel%%:*}"
     file="${channel##*:}"
+    value="${!var}"
+    if [[ "${file}" == *_external_url ]]; then
+      if [[ -z "${ext_query}" ]]; then
+        [[ -f "${NTFY_TEMPLATE}" ]] \
+          || die "${NTFY_TEMPLATE#"${REPO_ROOT}/"} is missing; the ntfy.sh URLs are built from it"
+        ext_query="$(external_query)" \
+          || die "could not build the ntfy.sh template query from ${NTFY_TEMPLATE#"${REPO_ROOT}/"}"
+      fi
+      value="${value%%\?*}?${ext_query}"
+    fi
     # No trailing newline: Alertmanager takes the file's whole content as the
     # URL, and a newline in a URL is a delivery error rather than a warning.
-    printf '%s' "${!var}" > "${AM_OUT_DIR}/${file}"
+    printf '%s' "${value}" > "${AM_OUT_DIR}/${file}"
     chmod 600 "${AM_OUT_DIR}/${file}"
   done
-  unset channel var file
+  unset channel var file value ext_query
 
-  # Every url_file alertmanager.yaml names must be one this loop just wrote. A
+  # Every url_file (and credentials_file) alertmanager.yaml names must be one
+  # this loop just wrote. A
   # url_file that does not exist is not a config error — Alertmanager reads it
   # at notify time, so the stack starts, amtool check-config passes, and the
   # first real alert is the thing that discovers the missing file. Adding a
@@ -399,7 +453,7 @@ if [[ -f "${AM_CONFIG}" ]]; then
   # Anchored on `url_file:` rather than on the path fragment. A bare
   # `secrets/[a-z_]+` also matched `secrets/observability.sops.yaml` in this
   # file's own header comment, and reported the header as a missing channel.
-  done < <(grep -oE 'url_file:[[:space:]]*/etc/alertmanager/secrets/[a-z_]+' \
+  done < <(grep -oE '(url|credentials)_file:[[:space:]]*/etc/alertmanager/secrets/[a-z_]+' \
              "${AM_CONFIG}" \
            | sed 's|.*/||' | sort -u)
 fi
@@ -471,6 +525,14 @@ COMPOSE_VARS=(
   PAPERLESS_DBPASS
   PAPERLESS_ADMIN_PASSWORD
   VAULTWARDEN_ADMIN_TOKEN
+  HOMEPAGE_IMMICH_API_KEY
+  HOMEPAGE_PAPERLESS_TOKEN
+  NTFY_ALERTMANAGER_PASSWORD_HASH
+  NTFY_PHONE_PASSWORD_HASH
+  NTFY_ALERTMANAGER_TOKEN
+  NTFY_TOPIC_ALERTS
+  NTFY_TOPIC_URGENT
+  NTFY_TOPIC_SECURITY
   INDEXER_PASSWORD
   DASHBOARD_PASSWORD
   API_PASSWORD

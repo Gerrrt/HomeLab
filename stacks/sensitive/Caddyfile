@@ -116,6 +116,33 @@ vaultwarden.matrix.elysium {
 	}
 }
 
+# Homepage (#137), the household's front page. A short name on purpose: it is
+# the one address on this tier that people who are not the operator are told.
+# Its widgets call the other names above from inside the compose network, and
+# arrive here like any browser.
+home.matrix.elysium {
+	reverse_proxy homepage:3000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# ntfy (#136). Alertmanager on prometheus publishes here and the phones
+# subscribe here; a subscription is a long-lived HTTP stream or a WebSocket,
+# and reverse_proxy carries both unasked. The access log records the request
+# URI, which is why Alertmanager's token travels in an Authorization header
+# and never as ntfy's `?auth=` parameter.
+ntfy.matrix.elysium {
+	reverse_proxy ntfy:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

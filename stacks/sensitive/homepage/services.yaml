@@ -1,0 +1,91 @@
+---
+# What exists on the sensitive tier and where it lives (#137) — the page the
+# people who live here open, where docs/ is the successor operator's.
+#
+# TWO KINDS OF TILE, and the difference is the point:
+#
+#   - A LINK: a name, a line saying what it is for, and an href. That is all
+#     it claims. Home Assistant, AdGuard, Vaultwarden and Grafana are links.
+#   - A WIDGET: live numbers read from the service's own API, server-side,
+#     with a credential scoped READ-ONLY. Immich, Paperless-ngx and Prometheus
+#     are widgets, because each has a credential that can be scoped that way
+#     (or needs none).
+#
+# Why the links are links. Home Assistant's long-lived access token carries
+# every right of the user who minted it, and a user that can read state can
+# also switch things. AdGuard Home has one account, the admin — its widget
+# would hold the admin password. Vaultwarden has no widget, and should not.
+# Grafana's widget wants a username and password, and trinity does not carry
+# the estate's CA that Grafana's certificate is issued from (ADR-0037).
+# Prometheus already reports the observability stack's own state. A widget
+# holding a credential that could change what it displays is worse than a link.
+#
+# Widget URLs are the tier's public names, not the containers': inside the
+# compose network each resolves to Caddy through its alias, so a widget reads
+# over the same TLS path the household's browser uses — and Paperless accepts
+# the request because PAPERLESS_URL names that Host. NODE_EXTRA_CA_CERTS in
+# compose.yaml is what lets Node trust the tier's leaves.
+#
+# `{{HOMEPAGE_VAR_*}}` is Homepage's own substitution from the container's
+# environment; compose.yaml fills those from secrets/sensitive.sops.yaml.
+# This file never holds a credential.
+#
+# https://gethomepage.dev/configs/services/
+
+- Household:
+    - Photos:
+        icon: immich.svg
+        href: https://immich.matrix.elysium
+        description: Immich — the family's photos and videos
+        widget:
+          type: immich
+          url: https://immich.matrix.elysium
+          # Immich >= v1.118 speaks the v2 API; the key needs
+          # `server.statistics` and nothing else.
+          version: 2
+          key: "{{HOMEPAGE_VAR_IMMICH_API_KEY}}"
+          fields: ["photos", "videos", "storage"]
+
+    - Documents:
+        icon: paperless-ngx.svg
+        href: https://paperless.matrix.elysium
+        description: Paperless-ngx — scanned post, tax, insurance, records
+        widget:
+          type: paperlessngx
+          url: https://paperless.matrix.elysium
+          # The API token of the view-only `homepage` user, not the
+          # superuser's (secrets/sensitive.example.yaml has the steps).
+          key: "{{HOMEPAGE_VAR_PAPERLESS_TOKEN}}"
+
+    - Passwords:
+        icon: vaultwarden.svg
+        href: https://vaultwarden.matrix.elysium
+        description: Vaultwarden — the Bitwarden apps point here
+
+    - Home:
+        icon: home-assistant.svg
+        href: https://homeassistant.matrix.elysium
+        description: Home Assistant — lights and devices
+
+- Estate:
+    - Grafana:
+        icon: grafana.svg
+        href: https://grafana.matrix.elysium:3000
+        description: Dashboards and alerts, on prometheus — is it up?
+
+    - Prometheus:
+        icon: prometheus.svg
+        # No href: 9090 is not reachable from Hicks (the 50→99 rule passes
+        # 3000 on prometheus and nothing else), so a link would be a tile
+        # that fails when clicked. The widget is read from here, trinity,
+        # which shares the /24 with prometheus and needs no rule. Prometheus
+        # has no authentication at all (#182), so there is no key.
+        description: Scrape targets up, as Prometheus sees them
+        widget:
+          type: prometheus
+          url: http://10.0.99.20:9090
+
+    - AdGuard Home:
+        icon: adguard-home.svg
+        href: https://adguard.matrix.elysium
+        description: The DNS filter behind the firewall's resolver

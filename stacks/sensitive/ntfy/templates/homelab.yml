@@ -1,0 +1,68 @@
+---
+# How an Alertmanager notification looks on a phone (#136). Alertmanager's
+# in-house receivers post to `?template=homelab`, and ntfy renders this file
+# against the webhook's JSON before it stores or pushes anything.
+#
+# Every rule in the estate carries a one-line `summary` and a `description`
+# that is a paragraph, written for someone at a keyboard. A phone wants the
+# first and a hint of the second:
+#
+#   title     a severity marker and the summary. For a group of several, the
+#             count and the alert name.
+#   message   the description's first sentence (at most 200 characters), and
+#             the host. For a group, one line per alert's summary.
+#   priority  critical 5, warning 3, and resolved or anything else 2, so a
+#             page is loud, a warning is ordinary and the daily Watchdog,
+#             whose severity is `none`, is quiet.
+#
+# Checked against every alerting rule's description when it was written. Four
+# first sentences run past 200 characters and are trimmed with an ellipsis,
+# and the rules with no description show severity and category instead,
+# because an empty message makes ntfy print "triggered". The full text is in
+# Alertmanager and Grafana. `.yml`, not `.yaml`: ntfy loads nothing else.
+#
+# TWO READERS. ntfy on trinity loads this file (`make up STACK=sensitive`).
+# scripts/render-config.sh on the monitoring host also reads it and passes the
+# same three templates to ntfy.sh inline, in the URLs of the ntfy.sh copies,
+# because ntfy.sh cannot load a file. So a change here needs `make render` on
+# prometheus too, or the two copies of a page stop looking alike.
+title: |
+  {{- $sev := .commonLabels.severity | default "" -}}
+  {{- if eq .status "resolved" }}✅ Resolved: {{ else if eq $sev "critical" }}🔴 {{ end -}}
+  {{- if and (ne .status "resolved") (ne $sev "critical") -}}
+    {{- if eq $sev "warning" }}🟠 {{ else }}🔵 {{ end -}}
+  {{- end -}}
+  {{- $n := len .alerts -}}
+  {{- if eq $n 1 -}}
+    {{- $a := index .alerts 0 -}}
+    {{- $a.annotations.summary | default $a.labels.alertname -}}
+  {{- else -}}
+    {{- $n }} × {{ .commonLabels.alertname | default "alerts" -}}
+  {{- end -}}
+message: |
+  {{- $n := len .alerts -}}
+  {{- if eq $n 1 -}}
+    {{- $a := index .alerts 0 -}}
+    {{- $d := $a.annotations.description | default "" | trim -}}
+    {{- if $d }}{{ $d = first (splitList ". " $d) | trimSuffix "." }}{{ end -}}
+    {{- if gt (len $d) 200 -}}
+      {{- $d = printf "%s…" (trunc 199 $d | trim) -}}
+    {{- else if $d -}}
+      {{- $d = printf "%s." $d -}}
+    {{- end -}}
+    {{- if not $d -}}
+      {{- $sevl := $a.labels.severity | default "no severity" -}}
+      {{- $d = printf "%s · %s" $sevl ($a.labels.category | default "uncategorised") -}}
+    {{- end -}}
+    {{- $d -}}
+    {{- $where := $a.labels.host | default ($a.labels.instance | default "") -}}
+    {{- if $where }}{{ "\n" }}📍 {{ $where }}{{ end -}}
+  {{- else -}}
+    {{- range $i, $a := .alerts -}}
+      {{- if $i }}{{ "\n" }}{{ end -}}
+      • {{ $a.annotations.summary | default $a.labels.alertname }}
+    {{- end -}}
+  {{- end -}}
+priority: |
+  {{- $sev := .commonLabels.severity | default "" -}}
+  {{- if eq .status "resolved" }}2{{ else if eq $sev "critical" }}5{{ else if eq $sev "warning" }}3{{ else }}2{{ end -}}

@@ -116,7 +116,9 @@ tests:
                 (ntfy.sh's daily quota, #407), clientError or serverError means it
                 answered with an error, and contextDeadlineExceeded means it did
                 not answer at all. This alert travels the same path it reports on,
-                so if it reached you, at least one receiver still works.
+                so if it reached you, at least one receiver still works — and being
+                critical it goes to `urgent`, whose ntfy.sh copy reaches a phone
+                even when the in-house ntfy is the thing failing (#136).
 
   # --- AlertmanagerNotificationsFailing: quiet on a flat counter ------------
   # Alertmanager exports this counter for every integration it knows, at zero,

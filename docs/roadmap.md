@@ -101,11 +101,16 @@ has been rehearsed on it.
   host.** **Built and deployed 2026-09-28**
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
   → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
-  - the weekly backup timer (step 9);
-  - the DNS failure test, which proves `AdGuardNotAnswering` pages;
-  - the step 10 gate before the first real item: the Immich restore
-    rehearsal, the second age recipient, the off-estate copy, ADR-0022's
-    identity-provider record and ADR-0023's *Independent* test.
+  - the DNS failure test, which proves `AdGuardNotAnswering` pages (and
+    closes [#135](https://github.com/Gerrrt/HomeLab/issues/135));
+  - the step 10 gate, which the first real photos passed on 2026-09-28
+    while most of it was still open: the second age recipient, the
+    off-estate copy, ADR-0022's identity-provider record and ADR-0023's
+    *Independent* test. The Immich restore rehearsal is done
+    ([#132](https://github.com/Gerrrt/HomeLab/issues/132), →
+    [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)). Until
+    [#455](https://github.com/Gerrrt/HomeLab/issues/455) exists, the USB
+    disk is the only copy of the originals.
 
   [#533](https://github.com/Gerrrt/HomeLab/issues/533) follows the build;
   [#534](https://github.com/Gerrrt/HomeLab/issues/534)'s CI re-check is
@@ -118,20 +123,28 @@ has been rehearsed on it.
   ([ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md);
   [#426](https://github.com/Gerrrt/HomeLab/issues/426)'s expiry rule lands with
   it — → [runbook](runbooks/build-the-tier-ca.md)); then
-  [#135](https://github.com/Gerrrt/HomeLab/issues/135) AdGuard Home, whose
-  `morpheus` half is a resolution-mode change
-  ([ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md), →
-  [runbook](runbooks/forward-dns-to-adguard.md));
+  [#135](https://github.com/Gerrrt/HomeLab/issues/135) AdGuard Home, serving
+  since 2026-09-28 with `morpheus` forwarding to it alone
+  ([ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md),
+  [ADR-0055](adr/0055-forward-to-adguard-alone.md)) and both probes live, open
+  only for the failure test (→ [runbook](runbooks/forward-dns-to-adguard.md#4-stop-adguard-on-purpose-and-time-the-page));
   [#131](https://github.com/Gerrrt/HomeLab/issues/131) Vaultwarden;
   [#132](https://github.com/Gerrrt/HomeLab/issues/132) Immich;
   [#133](https://github.com/Gerrrt/HomeLab/issues/133) Paperless-ngx;
-  [#134](https://github.com/Gerrrt/HomeLab/issues/134) Home Assistant, whose
-  `99 → 20` rule also waits on a Kea reservation for the Hue bridge
+  [#134](https://github.com/Gerrrt/HomeLab/issues/134) Home Assistant
   ([ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md));
-  [#136](https://github.com/Gerrrt/HomeLab/issues/136) ntfy, which decides
-  whether the in-house topic replaces the external ones or sits beside them;
-  and [#137](https://github.com/Gerrrt/HomeLab/issues/137) Homepage. The
-  restore path is rehearsed already:
+  [#136](https://github.com/Gerrrt/HomeLab/issues/136) ntfy — authored, with
+  the decision taken both ways at once: the in-house topics replace ntfy.sh for
+  all three real channels, and `urgent` and `security` page ntfy.sh as well,
+  because a phone away from home cannot reach the tier. The deploy and the
+  observed end-to-end check remain
+  (→ [runbook](runbooks/verify-the-alert-path.md#cutting-over-to-the-in-house-ntfy));
+  and [#137](https://github.com/Gerrrt/HomeLab/issues/137) Homepage, authored
+  on 2026-09-28 against the running tier: `home.matrix.elysium`, a directory
+  and not a status page, with live numbers only where a read-only token can
+  read them (Immich, Paperless-ngx) or none is needed (Prometheus), and its
+  widget path measured through Caddy with placeholder tokens before the real
+  ones exist. The restore path is rehearsed already:
   → [runbook](runbooks/restore-the-sensitive-tier.md).
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
   **The drive is bought** — 2026-09-22, in
@@ -254,10 +267,6 @@ Gated on the domain, on a household observation, or on something to publish.
   only if there is ever something to publish; the day it exists it replaces
   the dynamic DNS record
   ([ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)).
-- **[#139](https://github.com/Gerrrt/HomeLab/issues/139) Plex** — only if a
-  client on CasaBonita turns out to need it
-  ([ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)),
-  a test nobody has run.
 
 ## Tier extras
 
@@ -323,10 +332,6 @@ list, and each names what would put it there:
   short. Reaching 32 GB is above, in the purchase itself.
 - A Coral TPU and RTSP cameras: declined with Frigate
   ([ADR-0032](adr/0032-decline-frigate-while-the-cameras-are-ring.md)).
-- Plex Pass: [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
-  builds Jellyfin alone and adds Plex only if a client on CasaBonita turns out
-  to need it. Its headline feature is hardware transcoding, and the TS150's
-  Quick Sync already gives Jellyfin that for nothing.
 - A reachable address for the WireGuard endpoint, in either of its paid
   forms: [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
   answers it with a free dynamic DNS record instead. A **static address** is
@@ -413,6 +418,18 @@ them name the condition that would change the answer.
   cameras, an accelerator, and a separate row in ADR-0008's table for the
   continuous rule** — all three, each decided on its own
   ([#149](https://github.com/Gerrrt/HomeLab/issues/149)).
+- **Plex** — the media server the household already knows, with polished
+  clients, and ADR-0008 listed it beside Jellyfin for that reason. It is also
+  the one proprietary service on the shortlist: clients authenticate through
+  `plex.tv` even on a local network, nobody outside the vendor can read the
+  image that digest pinning fixes, and features have moved behind a
+  subscription before. ADR-0016 deferred it against one test, whether any
+  screen on CasaBonita lacks a working Jellyfin client, and the test was run by
+  2026-09-28: the LG OLED, a console, and the phones and tablets all play from
+  Jellyfin, and the Xumo box is not used for the library. Declined by
+  [ADR-0056](adr/0056-decline-plex-because-every-screen-on-casabonita-plays-jellyfin.md). **Reopened by a screen the household uses for
+  library media that has no working Jellyfin client**, with Remote Access off
+  even then ([#139](https://github.com/Gerrrt/HomeLab/issues/139)).
 - **Proxmox clustering** — joining `Saruman` and `ifrit` into one cluster once
   [#421](https://github.com/Gerrrt/HomeLab/issues/421) makes them two Proxmox
   hosts on VLAN 30: one pane of glass, guest migration, shared storage. The

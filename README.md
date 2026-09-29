@@ -69,7 +69,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 7 provisioned dashboards, 141 panels, and
-  120 alert rules — 102 metric-based in Prometheus, 18 log-based in Loki — sharing
+  121 alert rules — 103 metric-based in Prometheus, 18 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -98,7 +98,7 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 55 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 56 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 36
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
@@ -195,7 +195,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 .
 ├── stacks/observability/     # the deployed stack — one compose file, eight services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 102 alert rules
+│   ├── prometheus/           # config, file_sd targets, 103 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 18 LogQL rules
 │   ├── alloy/                # the agent config directory, shipped to every host
@@ -207,9 +207,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── stacks/soc/               # Wazuh and Velociraptor on odin, a second guest —
 │                             #   built 2026-09-27 (ADR-0030, #266, #267)
 ├── stacks/sensitive/         # the household's tier — Caddy, step-ca, Home
-│                             #   Assistant, AdGuard Home, Immich, Paperless-ngx
-│                             #   and Vaultwarden so far; its own CA, leaves over
-│                             #   ACME (ADR-0037); on trinity since 2026-09-28 (ADR-0034, #404)
+│                             #   Assistant, AdGuard Home, Immich, Paperless-ngx,
+│                             #   Vaultwarden, Homepage and ntfy so far; its own CA,
+│                             #   leaves over ACME (ADR-0037); on trinity since 2026-09-28 (ADR-0034, #404)
 ├── stacks/media/             # Jellyfin and Navidrome on smaug, under TrueNAS's
 │                             #   own Docker — deployed by hand, no secrets file
 │                             #   by decision (ADR-0040, #528)

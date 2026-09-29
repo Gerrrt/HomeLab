@@ -23,9 +23,9 @@
 # ---------------------------------------------------------------------------
 # Why this stack is three media services
 # ---------------------------------------------------------------------------
-# ADR-0016 decided Jellyfin alone, and Plex only if a screen on 40 turns out to
-# have no working Jellyfin client — a deferral against a test nobody has run,
-# not a rejection. Audiobookshelf (#140, ADR-0050) joined it on the argument
+# ADR-0016 decided Jellyfin alone, and deferred Plex until a screen on 40
+# turned out to have no working Jellyfin client. None did, so ADR-0056
+# declines Plex. Audiobookshelf (#140, ADR-0050) joined Jellyfin on the argument
 # that an audiobook library is the same kind of data in the same place, and
 # brought the one thing Jellyfin does not do: listening progress that follows
 # a person between a phone, a car and a speaker. Navidrome (#141) joined on
@@ -350,7 +350,7 @@ services:
   #      stack still has no secrets file (#528).
   navidrome:
     <<: *service-defaults
-    image: deluan/navidrome:0.64.1@sha256:df22d661b8d0322c33754d999b567150df9e131a47ae53be71fed0154bf8cef5
+    image: deluan/navidrome:0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
     container_name: media-navidrome
     user: "${NAVIDROME_UID:?}:${NAVIDROME_GID:?}"
     environment:

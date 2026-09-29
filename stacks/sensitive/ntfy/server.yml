@@ -1,0 +1,44 @@
+---
+# ntfy's configuration (#136) — every setting, and no credential.
+#
+# The users, their access and Alertmanager's token are NOT here: they arrive
+# as NTFY_AUTH_USERS / _ACCESS / _TOKENS from secrets/sensitive.sops.yaml, and
+# compose.yaml (DIFFERENCE 12) says why the environment rather than this file.
+# What is here is what the server is, and ntfy fills in what a key omits.
+
+# The URL the phones and Alertmanager use, and what ntfy hashes to name the
+# upstream poll topic below — change it and the iPhone's subscription has to
+# be made again.
+base-url: "https://ntfy.matrix.elysium"
+
+# Plain HTTP on the compose network; TLS ends at Caddy, like every service here.
+listen-http: ":8080"
+
+# Caddy is the only thing that can reach 8080, so X-Forwarded-For is the
+# client's address on Hicks or Winterfell, and the per-visitor rate limits
+# count phones rather than the proxy.
+behind-proxy: true
+
+# Messages survive a restart for the default twelve hours, so a phone that was
+# off-network when an alert fired still finds it when it reconnects.
+cache-file: "/var/lib/ntfy/cache.db"
+
+# Deny-all is the whole security posture: anything not granted by an ACL in
+# the environment is refused, anonymous or not. The default is read-write for
+# everyone, which on a server Alertmanager publishes to is an open relay.
+auth-file: "/var/lib/ntfy/user.db"
+auth-default-access: "deny-all"
+
+# Accounts are declared, never created: no sign-up, and login only so the web
+# app and the phones can present the `phone` user.
+enable-signup: false
+enable-login: true
+
+# iOS instant delivery. ntfy.sh receives a content-free poll request for the
+# hashed topic and wakes the iPhone through APNs; the phone then fetches the
+# message from this server. compose.yaml says what that does and does not
+# disclose.
+upstream-base-url: "https://ntfy.sh"
+
+# No attachment-cache-dir, so attachments are off: nothing that publishes here
+# sends a file, and an upload path on this segment is a surface with no user.

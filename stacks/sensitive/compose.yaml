@@ -23,8 +23,9 @@
 # is the third, as four services — server, machine learning, Postgres,
 # Valkey — each in Home Assistant's shape, Paperless-ngx (#133) the fourth,
 # as three, and Vaultwarden (#131) the fifth — the one whose volume is the
-# vault, and the reason scripts/backup-volumes.sh learned this stack. ntfy
-# and Homepage (#136, #137) land the way Home Assistant did.
+# vault, and the reason scripts/backup-volumes.sh learned this stack.
+# Homepage (#137) is the sixth, and the household's page of links to the other
+# five. ntfy (#136) is the seventh, and where the estate's alerts now arrive.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -35,7 +36,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are eleven such places, each marked DIFFERENCE.
+# the sibling file. There are twelve such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -116,6 +117,8 @@ services:
           - immich.matrix.elysium
           - paperless.matrix.elysium
           - vaultwarden.matrix.elysium
+          - home.matrix.elysium
+          - ntfy.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -340,7 +343,7 @@ services:
   # nothing to hold is a mount nothing reads.
   home-assistant:
     <<: *service-defaults
-    image: ghcr.io/home-assistant/home-assistant:2026.9.3@sha256:d8922685169707fd91e8b9729902d975f06157d005e422874d201e0261dda196
+    image: ghcr.io/home-assistant/home-assistant:2026.9.4@sha256:3e6710a7ab2a61311d9d899b719f6c3657791c63e8f4942cec4ebc42401d6b76
     container_name: sensitive-home-assistant
     init: false
     # A ceiling to catch a leak, not a measurement: #114's method — median and
@@ -578,6 +581,105 @@ services:
       start_period: 30s
 
   # ---------------------------------------------------------------------------
+  # ntfy — where the estate's alerts are delivered (#136)
+  # ---------------------------------------------------------------------------
+  # Alertmanager on prometheus posts here, over Caddy's 443 on the same VLAN,
+  # and the phones subscribe here. The urgent and security channels ALSO keep
+  # their ntfy.sh topic, as a second webhook in alertmanager.yaml, because a
+  # phone off the home network cannot reach this service: nothing is exposed,
+  # and the WireGuard path (ADR-0042) goes to the lab, not here. The heartbeat
+  # is not here and never may be (#408): a watcher inside the house fails with
+  # the house. docs/runbooks/verify-the-alert-path.md has the whole picture.
+  #
+  # DIFFERENCE 12: auth is declared in the environment, and the environment is
+  # authoritative. `auth-default-access: deny-all` in ntfy/server.yml means an
+  # open relay is not one setting away, and the users, their ACLs and
+  # Alertmanager's token arrive as NTFY_AUTH_USERS / _ACCESS / _TOKENS, built
+  # below from SOPS. ntfy re-provisions its user.db from these on every start
+  # — measured on the pinned image: a changed hash and a rotated token each
+  # made the old credential answer 401 after a restart, and an ACL entry
+  # removed from the list answered 403. So rotation is `make secrets-edit` and
+  # `make up`, and the volume holds nothing that is not re-derived from here,
+  # which is why scripts/backup-volumes.sh skips it by name.
+  #
+  # Two users, each able to do one thing. `alertmanager` may WRITE the three
+  # topics and nothing else, by token; `phone` may READ them and nothing else,
+  # by password — its bcrypt hash is what SOPS holds (`make hash-password`).
+  # Measured with this exact list: anonymous publish and read 403, the token
+  # publishing 200 and reading 403, `phone` reading 200 and publishing 403,
+  # either against a topic outside the list 403, sign-up refused.
+  #
+  # The topic names come from SOPS too. With auth on, a name is not a
+  # credential the way it is on ntfy.sh (docs/security.md, the rotation of
+  # 2026-08-20), but #136 asked that they be treated as one, and a name
+  # guessable from this file is one less thing an attacker has to learn.
+  #
+  # upstream-base-url is ntfy.sh, for the iPhone. iOS delivers only through
+  # APNs, which only ntfy.sh can reach, so this server posts a content-free
+  # poll request there — the SHA-256 of the topic's URL and nothing else,
+  # read off the pinned image's own log — and the phone then fetches the
+  # message from here. The alert text never leaves the house; the fact and
+  # time of a message does. The Pixel keeps its own connection and needs none
+  # of it.
+  #
+  # Root with every capability dropped, as Vaultwarden (DIFFERENCE 2's
+  # argument): the pinned image has no /var/lib/ntfy at all, so the named
+  # volume is created root-owned and a non-root ntfy cannot open its own
+  # database. `docker diff` on the boot above showed nothing written outside
+  # it. Re-check when the image moves:
+  #
+  #   docker run --rm --entrypoint ls <ntfy image> -ld /var/lib/ntfy
+  #
+  # 128m: 14 MiB and ten tasks on that boot. Ten times, to bound a leak.
+  ntfy:
+    <<: *service-defaults
+    image: binwiederhier/ntfy:v2.28.0@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
+    container_name: sensitive-ntfy
+    command: ["serve"]
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    # Folded scalars, one entry per line: YAML joins them with ", " and ntfy
+    # trims the space after each comma (checked on the pinned image). The
+    # `alertmanager` user's hash is of a password nobody keeps — ntfy requires
+    # one per user, and that user authenticates by token alone.
+    environment:
+      NTFY_AUTH_USERS: >-
+        alertmanager:${NTFY_ALERTMANAGER_PASSWORD_HASH:?set in secrets/sensitive.sops.yaml}:user,
+        phone:${NTFY_PHONE_PASSWORD_HASH:?set in secrets/sensitive.sops.yaml}:user
+      NTFY_AUTH_ACCESS: >-
+        alertmanager:${NTFY_TOPIC_ALERTS:?set in secrets/sensitive.sops.yaml}:wo,
+        alertmanager:${NTFY_TOPIC_URGENT:?set in secrets/sensitive.sops.yaml}:wo,
+        alertmanager:${NTFY_TOPIC_SECURITY:?set in secrets/sensitive.sops.yaml}:wo,
+        phone:${NTFY_TOPIC_ALERTS}:ro,
+        phone:${NTFY_TOPIC_URGENT}:ro,
+        phone:${NTFY_TOPIC_SECURITY}:ro
+      NTFY_AUTH_TOKENS: >-
+        alertmanager:${NTFY_ALERTMANAGER_TOKEN:?set in secrets/sensitive.sops.yaml}:alertmanager
+    volumes:
+      - ./ntfy/server.yml:/etc/ntfy/server.yml:ro
+      # ntfy's default template-dir. homelab.yml there is what turns an
+      # Alertmanager payload into a title and a line; a directory mount, so
+      # check_mounted_config.py's single-file inode concern does not apply.
+      - ./ntfy/templates:/etc/ntfy/templates:ro
+      - ntfy-data:/var/lib/ntfy
+    expose:
+      - "8080"
+    healthcheck:
+      # Answers {"healthy":true} with no credential, deny-all notwithstanding.
+      # busybox wget; --probe proves it is in the image.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
   # Immich — the service ADR-0008 named as the cost of the decision (#132)
   # ---------------------------------------------------------------------------
   # "A large, rapidly-moving codebase with an upload endpoint" on the segment
@@ -640,7 +742,7 @@ services:
   # — and move the number and this paragraph together.
   immich-server:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-server:v3.2.2@sha256:79cc1623323d5894922686d8743b4780181428f98eecbfb58ce12c41ef02d1ea
+    image: ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2
     container_name: sensitive-immich-server
     init: false
     # 3 GiB: the server transcodes video with ffmpeg inside this container,
@@ -705,7 +807,7 @@ services:
 
   immich-machine-learning:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-machine-learning:v3.2.2@sha256:60dfcf266a9ef3b7376f5678e8c980d4fb61db5fc48c078fe8a326ab1535d60d
+    image: ghcr.io/immich-app/immich-machine-learning:v3.2.4@sha256:e16c2f166a8174901959fdf85e2e4c7bd1ebc4b37e0b6655de97c41408a260c4
     container_name: sensitive-immich-machine-learning
     # Behind a profile so that .env.example's COMPOSE_PROFILES line is the
     # switch (#132: "consider disabling the machine-learning container
@@ -877,7 +979,11 @@ services:
   # THREADS_PER_WORKER in .env.example are what Paperless is asked to use, and
   # their product (3) sits under the ceiling so the webserver, the scheduler
   # and Postgres are not throttled by a consumer that is. Throttling is not
-  # silent: ContainerCpuThrottled reads the same cgroup counters.
+  # silent: ContainerCpuThrottled reads the same cgroup counters. Measured on
+  # trinity on 2026-09-28 under a synthetic 50-page 300 dpi backlog: 3.0
+  # cores at the busiest minute, 9 throttled periods in 4 minutes (0.2 s),
+  # and Vaultwarden through Caddy never slower than 19 ms. The product of 3
+  # is doing the limiting, and the ceiling is the backstop it was meant to be.
   #
   # DIFFERENCE 11: NOT read_only, where every other long-running container in
   # the estate is. OCR is scratch-heavy — ocrmypdf renders every page to an
@@ -889,11 +995,14 @@ services:
   # the pinned image as ${RENDER_UID} with cap_drop before this was written;
   # the README carries what that run showed.
   #
-  # Memory: 3072m, unmeasured on the hardware and stated as such. The estate
-  # sizes from fourteen days of RSS; this box does not exist. Upstream's floor
-  # is 2 GB for the whole install; this is that plus room for one document's
-  # OCR, on a box with 32 GB. Re-derive from container_memory_rss once trinity
-  # has run a month, the way stacks/observability did for its seven.
+  # Memory: 3072m, set before the box existed from upstream's 2 GB floor for
+  # the whole install plus room for one document's OCR. Measured on trinity on
+  # 2026-09-28: memory.peak 1716 MiB across five one-page scans and a 50-page
+  # 300 dpi backlog, no oom_kill — 56 % of the limit, kept rather than cut on
+  # one sample, since a longer or denser scan grows the working set. The
+  # estate sizes from fourteen days of RSS; re-derive from
+  # container_memory_rss once trinity has run a month, the way
+  # stacks/observability did for its seven.
   #
   # The healthcheck is the image's own (curl against 8000, which ALLOWED_HOSTS
   # always admits for localhost), written out so check_compose_health.py
@@ -1003,7 +1112,7 @@ services:
   # application's: shared_buffers defaults to 128 MB and this is four times it.
   paperless-db:
     <<: *service-defaults
-    image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
     container_name: sensitive-paperless-db
     user: "999:999"
     mem_limit: 512m
@@ -1071,6 +1180,96 @@ services:
       retries: 3
       start_period: 10s
 
+  # ---------------------------------------------------------------------------
+  # Homepage — the household's front page (#137)
+  # ---------------------------------------------------------------------------
+  # What exists on this tier and where it lives, at https://home.matrix.elysium
+  # — the entry point for the people who live here, as
+  # docs/runbooks/successor-handover.md is for whoever runs it next. A
+  # directory, not a status page: homepage/settings.yaml says why there are no
+  # status dots, and homepage/services.yaml which tiles read live numbers and
+  # why the rest are links. The three YAML files are the whole configuration,
+  # in the repository and mounted read-only; nothing about the page lives in a
+  # database or a volume, so there is nothing to back up and no sentinel.
+  #
+  # NO DOCKER SOCKET, although upstream's example mounts one for its container
+  # integration. A read-only mount of docker.sock is still the full Docker API
+  # — root on trinity, and every volume on this tier — handed to a page with
+  # no login at all (ADR-0022 re-accepts the SSO deferral for it on exactly
+  # that basis). Container state is what the Alloy agent already reports.
+  #
+  # As the operator, like Paperless: the mounted files are the checkout's,
+  # readable by whoever ran `make up`. With `user:` set the entrypoint's
+  # PUID/PGID branch is never taken — it chowns nothing and execs node as
+  # given — so nothing needs a capability and all are dropped.
+  #
+  # Read-only root, and the two places the image writes, both found by running
+  # the pinned image with exactly these options on trinity (2026-09-28):
+  # /app/config, which does not exist in the image — the entrypoint would
+  # `ln -s /config /app/config` on the root filesystem if it were missing,
+  # and Homepage copies docker.yaml and kubernetes.yaml into it at start —
+  # and Next.js's cache under /app/.next. Both tmpfs; the three config files
+  # are single-file mounts over the first, so `make up` pins their inodes
+  # through check_mounted_config.py like every other one (#355). LOG_TARGETS
+  # keeps logs on stdout, where every other container's are, rather than in a
+  # logs/ directory under the tmpfs. `docker diff` after serving the page and
+  # every widget showed nothing written but those mount points; CapEff 0.
+  #
+  # The widget credentials are two SOPS values handed in as HOMEPAGE_VAR_*,
+  # the prefix Homepage substitutes into services.yaml as {{HOMEPAGE_VAR_…}},
+  # and each is scoped read-only at the service that issued it
+  # (secrets/sensitive.example.yaml has the steps). The widgets call the
+  # tier's public names, which resolve to Caddy on this network through its
+  # aliases; NODE_EXTRA_CA_CERTS is the tier's root, the same file Caddy
+  # mounts, so Node trusts step-ca's leaves. Measured the same day: with
+  # placeholder tokens Immich and Paperless each answered 401 through Caddy —
+  # name, TLS and Host all good — and Prometheus answered from 10.0.99.20:9090,
+  # the /24 this host shares with it.
+  #
+  # HOMEPAGE_ALLOWED_HOSTS is the Host check on Homepage's API; any other Host
+  # gets a 400. Loopback on 3000 is always admitted, which is what the
+  # healthcheck below relies on.
+  #
+  # 256m: 101 MiB and 12 tasks after serving the page and all three widgets.
+  # A ceiling for a leak, not a size. No depends_on, for Vaultwarden's reason.
+  homepage:
+    <<: *service-defaults
+    image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61
+    container_name: sensitive-homepage
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    mem_limit: 256m
+    memswap_limit: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /app/config:size=4m,uid=${RENDER_UID:?run make render},gid=${RENDER_GID:?run make render},mode=0700
+      - /app/.next/cache:size=64m,uid=${RENDER_UID:?run make render},gid=${RENDER_GID:?run make render}
+      - /tmp:size=16m
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: home.matrix.elysium
+      LOG_TARGETS: stdout
+      NODE_EXTRA_CA_CERTS: /etc/homepage/tier-ca.pem
+      HOMEPAGE_VAR_IMMICH_API_KEY: ${HOMEPAGE_IMMICH_API_KEY:?set in secrets/sensitive.sops.yaml}
+      HOMEPAGE_VAR_PAPERLESS_TOKEN: ${HOMEPAGE_PAPERLESS_TOKEN:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - ./homepage/settings.yaml:/app/config/settings.yaml:ro
+      - ./homepage/services.yaml:/app/config/services.yaml:ro
+      - ./homepage/widgets.yaml:/app/config/widgets.yaml:ro
+      - ../../certificates/tier-ca.pem:/etc/homepage/tier-ca.pem:ro
+    expose:
+      - "3000"
+    healthcheck:
+      # The image's own HEALTHCHECK, written out with the port literal where
+      # the image's uses $PORT in a shell form. busybox wget; --probe proves
+      # it is in the image.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
 # DIFFERENCE 4: one network, and it is the point. Every later service joins
 # `sensitive` with `expose:` only. Two members have `ports:` — Caddy, and
 # AdGuard for the reason DIFFERENCE 7 gives — and a third is undoing
@@ -1124,3 +1323,7 @@ volumes:
   # paperless-media, one of the volumes here whose loss is a loss of function
   # rather than of a record — docs/runbooks/restore-the-sensitive-tier.md.
   vaultwarden-data:
+  # ntfy's user.db and twelve hours of message cache. The first is rebuilt from
+  # the environment on every start (DIFFERENCE 12) and the second has already
+  # been delivered, so scripts/backup-volumes.sh skips it by name.
+  ntfy-data:

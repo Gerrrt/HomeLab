@@ -59,12 +59,23 @@
 # target already resolves its image via scripts/image-for.sh, which
 # check_image_pins.py does enforce.
 #
+# WHY THERE ARE TWO PROFILES
+#
+# `estate` is the monitoring host's schedule: systemd/*, robo's checkout, the
+# JOBS table. `sensitive` is trinity's (#404 step 9): systemd/sensitive/*, the
+# checkout of whoever built that host, the SENSITIVE_JOBS table. Two hosts, two
+# textfile directories, two declaration files — and one set of alert rules,
+# because every rule joins on(homelab_job) and a job name appears in exactly
+# one table. --check always checks both, so neither table can drift from its
+# units unnoticed; --install, --uninstall and --list act on the one named.
+#
 # Usage:
 #   scripts/install-timers.sh --check [--skips-file <path>]   assert the schedule is coherent (offline, no privilege)
 #   scripts/install-timers.sh --check --require-all           the same, with a skip counted as a failure (CI)
 #   scripts/install-timers.sh --install [--no-run]            install and enable the timers (needs root)
 #   scripts/install-timers.sh --uninstall                     stop, disable and remove them (needs root)
 #   scripts/install-timers.sh --list                          print the table
+#   --profile estate|sensitive                                which host's schedule (default estate)
 
 set -uo pipefail
 
@@ -156,6 +167,21 @@ JOBS=(
   "offsite-copy      -                          7776000  backup-offsite"
 )
 
+# trinity's schedule (#404 step 9). One row: the nightly backup of the
+# sensitive tier, which also copies each set to oracle (#535). Two days, twice
+# the daily period, for the same reason as every row above. The job name is
+# what keeps the alert joins one-to-one across hosts, so it must not reuse a
+# name from JOBS — check 8 below asserts that.
+#
+# The units under systemd/sensitive/ carry @DEPLOY_ROOT@, @RUN_USER@,
+# @RUN_GROUP@ and @RUN_HOME@ rather than a name, because the build runbook
+# writes trinity's operator as <you>. render_unit() fills them in.
+SENSITIVE_UNIT_DIR="${REPO_ROOT}/systemd/sensitive"
+SENSITIVE_PLACEHOLDER="@DEPLOY_ROOT@"
+SENSITIVE_JOBS=(
+  "backup-sensitive  homelab-backup-sensitive    172800  backup"
+)
+
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[0;34m--\033[0m %s\n' "$*"; }
 warn() { printf '\033[0;33mwarning:\033[0m %s\n' "$*" >&2; }
@@ -195,8 +221,10 @@ MODE=""
 SKIPS_FILE=""
 RUN_ONCE=1
 REQUIRE_ALL=0
+PROFILE=estate
 while (($#)); do
   case "$1" in
+    --profile)    PROFILE="${2:-}"; shift ;;
     --check)      MODE=check ;;
     --install)    MODE=install ;;
     --uninstall)  MODE=uninstall ;;
@@ -210,6 +238,8 @@ while (($#)); do
   shift
 done
 [[ -n "${MODE}" ]] || { usage >&2; die "pick a mode"; }
+[[ "${PROFILE}" == estate || "${PROFILE}" == sensitive ]] \
+  || die "--profile must be estate or sensitive, not '${PROFILE}'"
 
 # Fields of one JOBS row, by name, so callers never index into the string.
 job_name()   { awk '{print $1}' <<<"$1"; }
@@ -217,10 +247,47 @@ job_unit()   { awk '{print $2}' <<<"$1"; }
 job_maxage() { awk '{print $3}' <<<"$1"; }
 job_target() { awk '{print $4}' <<<"$1"; }
 
+# Point UNIT_DIR, DEPLOY_ROOT and JOBS at one profile. The estate's values are
+# kept aside first so --check can switch back and forth.
+ESTATE_UNIT_DIR="${UNIT_DIR}"
+ESTATE_DEPLOY_ROOT="${DEPLOY_ROOT}"
+ESTATE_JOBS=("${JOBS[@]}")
+use_profile() {
+  case "$1" in
+    estate)
+      UNIT_DIR="${ESTATE_UNIT_DIR}"; DEPLOY_ROOT="${ESTATE_DEPLOY_ROOT}"
+      JOBS=("${ESTATE_JOBS[@]}") ;;
+    sensitive)
+      UNIT_DIR="${SENSITIVE_UNIT_DIR}"; DEPLOY_ROOT="${SENSITIVE_PLACEHOLDER}"
+      JOBS=("${SENSITIVE_JOBS[@]}") ;;
+  esac
+}
+
+# Fill a sensitive-profile unit's @...@ tokens. The one place they are named.
+render_unit() {
+  local src="$1" dst="$2" root="$3" user="$4" group="$5" home="$6"
+  sed -e "s|@DEPLOY_ROOT@|${root}|g" -e "s|@RUN_USER@|${user}|g" \
+      -e "s|@RUN_GROUP@|${group}|g" -e "s|@RUN_HOME@|${home}|g" "${src}" > "${dst}"
+}
+
+# Whether this checkout is the one serving the sensitive tier: a container is
+# running whose compose working directory is this checkout's stacks/sensitive.
+# A path test alone cannot tell, because robo's checkout on the monitoring host
+# is also ~/code/Gerrrt/HomeLab — and a laptop's may be too. `docker compose ps`
+# cannot either: a worktree shares the project name, and without rendered
+# secrets it will not parse the file at all.
+sensitive_served_here() {
+  command -v docker >/dev/null 2>&1 || return 1
+  docker ps -q \
+    --filter "label=com.docker.compose.project.working_dir=${REPO_ROOT}/stacks/sensitive" 2>/dev/null \
+    | grep -q .
+}
+
 # ---------------------------------------------------------------------------
 # list
 # ---------------------------------------------------------------------------
 if [[ "${MODE}" == list ]]; then
+  use_profile "${PROFILE}"
   printf '%-18s %-26s %10s  %s\n' job unit max_age target
   for row in "${JOBS[@]}"; do
     printf '%-18s %-26s %10s  %s\n' \
@@ -233,84 +300,91 @@ fi
 # check
 # ---------------------------------------------------------------------------
 if [[ "${MODE}" == check ]]; then
-  # 1. Every unit named in the table exists, as a pair.
-  for row in "${JOBS[@]}"; do
-    unit="$(job_unit "${row}")"
-    [[ "${unit}" == "-" ]] && continue
-    for kind in service timer; do
-      [[ -f "${UNIT_DIR}/${unit}.${kind}" ]] \
-        || fail "${unit}.${kind} is named in the table but missing from systemd/"
-    done
-  done
-
-  # 2. Every unit file on disk is named in the table. Catches the reverse
-  #    drift: a unit added to systemd/ with no threshold declared for it would
-  #    run on a timer with nothing watching whether it stopped.
-  for f in "${UNIT_DIR}"/*.service "${UNIT_DIR}"/*.timer; do
-    [[ -e "${f}" ]] || continue
-    base="$(basename "${f}")"; base="${base%.*}"
-    grep -qE "(^| )${base}( |$)" <<<"${JOBS[*]}" \
-      || fail "$(basename "${f}") is not in the JOBS table in $(basename "${BASH_SOURCE[0]}")"
-  done
-
-  # 3. Every ExecStart goes through the wrapper, names its job correctly, and
-  #    calls a make target that exists.
-  for row in "${JOBS[@]}"; do
-    unit="$(job_unit "${row}")"; name="$(job_name "${row}")"; target="$(job_target "${row}")"
-    if [[ "${unit}" != "-" ]]; then
-      svc="${UNIT_DIR}/${unit}.service"
-      [[ -f "${svc}" ]] || continue
-      exec_line="$(grep -m1 '^ExecStart=' "${svc}" || true)"
-      [[ "${exec_line}" == "ExecStart=${DEPLOY_ROOT}/scripts/run-scheduled.sh "* ]] \
-        || fail "${unit}.service ExecStart does not start with ${DEPLOY_ROOT}/scripts/run-scheduled.sh"
-      [[ "${exec_line}" == *"--job ${name} "* ]] \
-        || fail "${unit}.service does not pass --job ${name}"
-      grep -q "^WorkingDirectory=${DEPLOY_ROOT}\$" "${svc}" \
-        || fail "${unit}.service WorkingDirectory is not ${DEPLOY_ROOT}"
-    fi
-    grep -qE "^${target}:" "${REPO_ROOT}/Makefile" \
-      || fail "${name} names make target '${target}', which is not in the Makefile"
-  done
-
-  # 4. The declared threshold is at least twice the timer's real period.
-  #
-  #    Derived from the calendar expression rather than from a second copy of
-  #    the cadence: the two consecutive elapses systemd itself computes ARE the
-  #    period, so a schedule edited in the .timer and not here cannot pass.
-  if command -v systemd-analyze >/dev/null 2>&1; then
+  # Checks 1-4 are about the repository alone, so they run for both
+  # profiles everywhere: a sensitive unit that drifts from its row fails CI
+  # exactly as an estate one does.
+  for check_profile in estate sensitive; do
+    use_profile "${check_profile}"
+    # 1. Every unit named in the table exists, as a pair.
     for row in "${JOBS[@]}"; do
-      unit="$(job_unit "${row}")"; name="$(job_name "${row}")"; maxage="$(job_maxage "${row}")"
-      if [[ "${unit}" == "-" ]]; then
-        pass "${name}: no timer, ${maxage}s deadline declared for the human"
-        continue
-      fi
-      timer="${UNIT_DIR}/${unit}.timer"
-      [[ -f "${timer}" ]] || continue
-      cal="$(grep -m1 '^OnCalendar=' "${timer}" | cut -d= -f2-)"
-      readarray -t elapses < <(
-        systemd-analyze calendar --iterations=2 "${cal}" 2>/dev/null \
-          | sed -n 's/^ *\(Next elapse\|Iteration #2\): *//p'
-      )
-      if ((${#elapses[@]} < 2)); then
-        skip "${name}: could not derive a period from '${cal}'"
-        continue
-      fi
-      first="$(date -d "${elapses[0]}" +%s 2>/dev/null || true)"
-      second="$(date -d "${elapses[1]}" +%s 2>/dev/null || true)"
-      if [[ -z "${first}" || -z "${second}" ]]; then
-        skip "${name}: could not parse the elapse times for '${cal}'"
-        continue
-      fi
-      period=$((second - first))
-      if ((maxage >= 2 * period)); then
-        pass "${name}: ${cal} every ${period}s, alerts at ${maxage}s"
-      else
-        fail "${name}: max_age ${maxage}s is less than twice the ${period}s period of '${cal}' — one late run would alert"
-      fi
+      unit="$(job_unit "${row}")"
+      [[ "${unit}" == "-" ]] && continue
+      for kind in service timer; do
+        [[ -f "${UNIT_DIR}/${unit}.${kind}" ]] \
+          || fail "${unit}.${kind} is named in the ${check_profile} table but missing from ${UNIT_DIR#"${REPO_ROOT}"/}/"
+      done
     done
-  else
-    skip "systemd-analyze not installed — cadence vs threshold unchecked"
-  fi
+
+    # 2. Every unit file on disk is named in the table. Catches the reverse
+    #    drift: a unit added to systemd/ with no threshold declared for it would
+    #    run on a timer with nothing watching whether it stopped.
+    for f in "${UNIT_DIR}"/*.service "${UNIT_DIR}"/*.timer; do
+      [[ -e "${f}" ]] || continue
+      base="$(basename "${f}")"; base="${base%.*}"
+      grep -qE "(^| )${base}( |$)" <<<"${JOBS[*]}" \
+        || fail "$(basename "${f}") is not in the ${check_profile} table in $(basename "${BASH_SOURCE[0]}")"
+    done
+
+    # 3. Every ExecStart goes through the wrapper, names its job correctly, and
+    #    calls a make target that exists.
+    for row in "${JOBS[@]}"; do
+      unit="$(job_unit "${row}")"; name="$(job_name "${row}")"; target="$(job_target "${row}")"
+      if [[ "${unit}" != "-" ]]; then
+        svc="${UNIT_DIR}/${unit}.service"
+        [[ -f "${svc}" ]] || continue
+        exec_line="$(grep -m1 '^ExecStart=' "${svc}" || true)"
+        [[ "${exec_line}" == "ExecStart=${DEPLOY_ROOT}/scripts/run-scheduled.sh "* ]] \
+          || fail "${unit}.service ExecStart does not start with ${DEPLOY_ROOT}/scripts/run-scheduled.sh"
+        [[ "${exec_line}" == *"--job ${name} "* ]] \
+          || fail "${unit}.service does not pass --job ${name}"
+        grep -q "^WorkingDirectory=${DEPLOY_ROOT}\$" "${svc}" \
+          || fail "${unit}.service WorkingDirectory is not ${DEPLOY_ROOT}"
+      fi
+      grep -qE "^${target}:" "${REPO_ROOT}/Makefile" \
+        || fail "${name} names make target '${target}', which is not in the Makefile"
+    done
+
+    # 4. The declared threshold is at least twice the timer's real period.
+    #
+    #    Derived from the calendar expression rather than from a second copy of
+    #    the cadence: the two consecutive elapses systemd itself computes ARE the
+    #    period, so a schedule edited in the .timer and not here cannot pass.
+    if command -v systemd-analyze >/dev/null 2>&1; then
+      for row in "${JOBS[@]}"; do
+        unit="$(job_unit "${row}")"; name="$(job_name "${row}")"; maxage="$(job_maxage "${row}")"
+        if [[ "${unit}" == "-" ]]; then
+          pass "${name}: no timer, ${maxage}s deadline declared for the human"
+          continue
+        fi
+        timer="${UNIT_DIR}/${unit}.timer"
+        [[ -f "${timer}" ]] || continue
+        cal="$(grep -m1 '^OnCalendar=' "${timer}" | cut -d= -f2-)"
+        readarray -t elapses < <(
+          systemd-analyze calendar --iterations=2 "${cal}" 2>/dev/null \
+            | sed -n 's/^ *\(Next elapse\|Iteration #2\): *//p'
+        )
+        if ((${#elapses[@]} < 2)); then
+          skip "${name}: could not derive a period from '${cal}'"
+          continue
+        fi
+        first="$(date -d "${elapses[0]}" +%s 2>/dev/null || true)"
+        second="$(date -d "${elapses[1]}" +%s 2>/dev/null || true)"
+        if [[ -z "${first}" || -z "${second}" ]]; then
+          skip "${name}: could not parse the elapse times for '${cal}'"
+          continue
+        fi
+        period=$((second - first))
+        if ((maxage >= 2 * period)); then
+          pass "${name}: ${cal} every ${period}s, alerts at ${maxage}s"
+        else
+          fail "${name}: max_age ${maxage}s is less than twice the ${period}s period of '${cal}' — one late run would alert"
+        fi
+      done
+    else
+      skip "systemd-analyze not installed — cadence vs threshold unchecked"
+    fi
+  done
+  use_profile estate
 
   # 5. Unit syntax. systemd-analyze verify resolves ExecStart against the real
   #    filesystem, so it only means anything from the deployment checkout; from
@@ -323,6 +397,28 @@ if [[ "${MODE}" == check ]]; then
     pass "systemd-analyze verify"
   else
     fail "systemd-analyze verify"
+  fi
+
+  # 5b. The sensitive units, rendered against THIS checkout and user. They name
+  #     no fixed path, so unlike the estate's they can be verified anywhere —
+  #     including CI, which is the point: the only copy that reaches trinity is
+  #     the rendered one.
+  if command -v systemd-analyze >/dev/null 2>&1; then
+    render_dir="$(mktemp -d)"
+    for f in "${SENSITIVE_UNIT_DIR}"/*.service "${SENSITIVE_UNIT_DIR}"/*.timer; do
+      [[ -e "${f}" ]] || continue
+      render_unit "${f}" "${render_dir}/$(basename "${f}")" \
+        "${REPO_ROOT}" "$(id -un)" "$(id -gn)" "${HOME}"
+    done
+    if grep -q '@[A-Z_]*@' "${render_dir}"/* 2>/dev/null; then
+      fail "a sensitive unit carries a token render_unit() does not fill: $(grep -ho '@[A-Z_]*@' "${render_dir}"/* | sort -u | tr '\n' ' ')"
+    elif systemd-analyze verify "${render_dir}"/*.service "${render_dir}"/*.timer 2>&1 \
+        | grep -v '^/usr/lib/systemd/\|^/etc/systemd/'; (( PIPESTATUS[0] == 0 )); then
+      pass "systemd-analyze verify (sensitive, rendered)"
+    else
+      fail "systemd-analyze verify (sensitive, rendered)"
+    fi
+    rm -rf "${render_dir}"
   fi
 
   # 6. That every declared timer is actually ENABLED on this host.
@@ -380,6 +476,41 @@ if [[ "${MODE}" == check ]]; then
     fi
   fi
 
+  # 6b. The same question on trinity. "The deployment checkout" there is the
+  #     one the sensitive stack is running from, since the path is <you>'s.
+  if ! command -v systemctl >/dev/null 2>&1; then
+    skip "systemctl not found — installed sensitive timers unchecked"
+  elif ! sensitive_served_here; then
+    skip_offhost "the sensitive stack is not served from this checkout — its timers are not this host's"
+  else
+    missing=()
+    for row in "${SENSITIVE_JOBS[@]}"; do
+      unit="$(job_unit "${row}")"
+      state="$(systemctl is-enabled "${unit}.timer" 2>/dev/null || true)"
+      case "${state}" in
+        enabled | enabled-runtime | static | indirect | generated) ;;
+        *) missing+=("$(job_name "${row}") (${unit}.timer: ${state:-not installed})") ;;
+      esac
+    done
+    if ((${#missing[@]} == 0)); then
+      pass "every sensitive timer is enabled on this host"
+    else
+      fail "the sensitive stack runs here but these are not enabled: ${missing[*]}"
+      printf '        Fix with: make install-timers PROFILE=sensitive\n'
+    fi
+  fi
+
+  # 8. No job name in both tables. The alert rules join on(homelab_job) alone,
+  #    so a name declared on two hosts would make every join many-to-many and
+  #    the rules would error rather than fire.
+  dupes="$(for row in "${ESTATE_JOBS[@]}" "${SENSITIVE_JOBS[@]}"; do job_name "${row}"; done \
+    | sort | uniq -d | tr '\n' ' ')"
+  if [[ -z "${dupes}" ]]; then
+    pass "no job name is declared by both profiles"
+  else
+    fail "declared by both profiles: ${dupes}"
+  fi
+
   # 7. That CI calls this at all.
   #
   #    Everything above ran in scripts/validate.sh and in no CI job, so it
@@ -411,6 +542,7 @@ fi
 # ---------------------------------------------------------------------------
 [[ "$(id -u)" == 0 ]] || die "--${MODE} needs root: sudo $0 --${MODE}"
 command -v systemctl >/dev/null 2>&1 || die "systemctl not found — this host does not run systemd"
+use_profile "${PROFILE}"
 
 if [[ "${MODE}" == uninstall ]]; then
   for row in "${JOBS[@]}"; do
@@ -433,12 +565,26 @@ fi
 # a directory that disappears — and the failure would look like the jobs simply
 # never running, which is the exact condition this whole change exists to make
 # visible.
-[[ "${REPO_ROOT}" == "${DEPLOY_ROOT}" ]] \
-  || die "refusing to install from ${REPO_ROOT}
+#
+# The sensitive profile's units name no path, so the same refusal is made
+# against the one they are about to be rendered with: the build runbook's
+# ~<you>/code/Gerrrt/HomeLab, where <you> is whoever ran sudo.
+if [[ "${PROFILE}" == sensitive ]]; then
+  RUN_USER="${SUDO_USER:-}"
+  [[ -n "${RUN_USER}" && "${RUN_USER}" != root ]] \
+    || die "run this through sudo as the user who owns the checkout: make install-timers PROFILE=sensitive"
+  RUN_HOME="$(getent passwd "${RUN_USER}" | cut -d: -f6)"
+  DEPLOY_ROOT="${RUN_HOME}/code/Gerrrt/HomeLab"
+  [[ "${REPO_ROOT}" == "${DEPLOY_ROOT}" ]] \
+    || die "refusing to install from ${REPO_ROOT}
+The sensitive units are rendered with ${DEPLOY_ROOT}. Install from that checkout."
+else
+  [[ "${REPO_ROOT}" == "${DEPLOY_ROOT}" ]] \
+    || die "refusing to install from ${REPO_ROOT}
 The committed units hardcode ${DEPLOY_ROOT}. Install from that checkout."
-
-RUN_USER="$(sed -n 's/^User=//p' "${UNIT_DIR}/homelab-backup-volumes.service" | head -1)"
-[[ -n "${RUN_USER}" ]] || die "no User= in homelab-backup-volumes.service"
+  RUN_USER="$(sed -n 's/^User=//p' "${UNIT_DIR}/homelab-backup-volumes.service" | head -1)"
+  [[ -n "${RUN_USER}" ]] || die "no User= in homelab-backup-volumes.service"
+fi
 id "${RUN_USER}" >/dev/null 2>&1 || die "user ${RUN_USER} does not exist on this host"
 
 # 0755 and 0644, not 0700. Alloy reads this directory as root with cap_drop:
@@ -451,8 +597,15 @@ info "textfile directory: ${TEXTFILE_DIR}"
 for row in "${JOBS[@]}"; do
   unit="$(job_unit "${row}")"
   [[ "${unit}" == "-" ]] && continue
-  install -m 0644 "${UNIT_DIR}/${unit}.service" "${SYSTEMD_DIR}/${unit}.service"
-  install -m 0644 "${UNIT_DIR}/${unit}.timer"   "${SYSTEMD_DIR}/${unit}.timer"
+  for kind in service timer; do
+    if [[ "${PROFILE}" == sensitive ]]; then
+      render_unit "${UNIT_DIR}/${unit}.${kind}" "${SYSTEMD_DIR}/${unit}.${kind}" \
+        "${DEPLOY_ROOT}" "${RUN_USER}" "$(id -gn "${RUN_USER}")" "${RUN_HOME}"
+      chmod 0644 "${SYSTEMD_DIR}/${unit}.${kind}"
+    else
+      install -m 0644 "${UNIT_DIR}/${unit}.${kind}" "${SYSTEMD_DIR}/${unit}.${kind}"
+    fi
+  done
 done
 systemctl daemon-reload
 
@@ -481,12 +634,13 @@ done
 
 # Run each job once so the timers do not spend their first night looking like
 # jobs that have never run — and so the plumbing is proven now rather than
-# at 03:30. backup-volumes is excluded: it quiesces the monitoring stack, and
-# that is not something to do as a side effect of an install.
+# at 03:30. A backup is excluded — backup-volumes and backup-sensitive both
+# quiesce a stack, and that is not something to do as a side effect of an
+# install.
 if ((RUN_ONCE)); then
   for row in "${JOBS[@]}"; do
     unit="$(job_unit "${row}")"; name="$(job_name "${row}")"
-    [[ "${unit}" == "-" || "${name}" == "backup-volumes" ]] && continue
+    [[ "${unit}" == "-" || "$(job_target "${row}")" == "backup" ]] && continue
     info "priming ${name}"
     systemctl start "${unit}.service" || warn "${name} failed on its first run — journalctl -u ${unit}.service"
   done
@@ -494,6 +648,11 @@ fi
 
 printf '\n'
 green "installed — systemctl list-timers 'homelab-*'"
+if [[ "${PROFILE}" == sensitive ]]; then
+  info "backup-sensitive was NOT primed: it stops the tier. Run it when you can watch:"
+  info "  sudo systemctl start homelab-backup-sensitive.service"
+  exit 0
+fi
 info "backup-volumes was NOT primed: it stops the stack. Run it when you can watch:"
 info "  sudo systemctl start homelab-backup-volumes.service"
 info "verify-key-backup has no timer and never will — docs/runbooks/back-up-the-age-key.md"

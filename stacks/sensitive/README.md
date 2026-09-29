@@ -28,12 +28,16 @@ make up STACK=sensitive
 | paperless-db | `postgres` | *internal* (5432) | Paperless-ngx's own database. Metadata about documents; the documents themselves are files under `paperless-media` |
 | paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
+| homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on this tier and where it lives. A directory, not a status page — three tiles read live numbers with read-only tokens, the rest are links ([#137]) |
+| ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 
-Twelve services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Fourteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
-names as the price of putting the tier on Winterfell at all; and three are
-Paperless-ngx, the archive of what the household cannot get back. What is
+names as the price of putting the tier on Winterfell at all; three are
+Paperless-ngx, the archive of what the household cannot get back; Homepage
+is the page that tells the household the rest exist; and ntfy is the one the
+estate uses, to tell the operator what is wrong with the rest. What is
 absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -42,8 +46,9 @@ absent is as deliberate as what is here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No other services yet.** ntfy and Homepage ([#136], [#137]) each arrive as
-  Home Assistant, Immich, Paperless-ngx and Vaultwarden did: a service with
+- **No other services planned.** The next one, whenever it comes, arrives as
+  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage and ntfy did: a
+  service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -65,13 +70,16 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               twelve services, one network, health-gated ordering
+compose.yaml               fourteen services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
 .env.example               non-sensitive tunables — edit this, not .env:
                              the library's mount point, and the ML switch
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
+homepage/                  settings, services and widgets YAML — Homepage's whole
+                           configuration, mounted read-only
+ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
 consume/                   untracked: drop a scan here and Paperless-ngx imports
                            and deletes it. Created by render-config.sh
 export/                    untracked: where document_exporter writes. Likewise
@@ -79,7 +87,7 @@ export/                    untracked: where document_exporter writes. Likewise
 
 Secrets are `secrets/sensitive.sops.yaml`, encrypted to this stack's own rule
 in `.sops.yaml` — `trinity`'s key opens this file and nothing else of the
-estate's (`secrets/sensitive.example.yaml` says why, and lists the six keys). The one file under
+estate's (`secrets/sensitive.example.yaml` says why, and lists every key). The one file under
 `certificates/` this stack reads is `tier-ca.pem`, the tier's root
 certificate, written by `make tier-ca ARGS="--install …"` from the bundle
 minted on the monitoring host; every leaf is obtained from step-ca at run
@@ -249,21 +257,27 @@ time and lives in Caddy's `/data` volume, never on disk here.
   bind fails on it. The forwarder edit on `morpheus` that makes any of this
   matter is [`forward-dns-to-adguard.md`](../../docs/runbooks/forward-dns-to-adguard.md),
   and it is the whole client-side change.
-- **Nothing converges this stack.** The `homelab-*` timers are the estate's;
-  `make validate` notes their absence here as a skip, not a failure. This stack
-  is deployed by hand, from a checkout on `trinity`.
+- **Nothing converges this stack.** It is deployed by hand, from a checkout
+  on `trinity` ([#533] is the change that would converge it). The one timer
+  here is the nightly backup, `homelab-backup-sensitive`, which
+  `make install-timers PROFILE=sensitive` installs. `make validate` on
+  `trinity` fails until it is installed.
 - **Memory limits are set from day one, and now a CPU ceiling too.** [#129]'s
   ask, and the one place this file departs from the lab's reasoning — a proxy
   and a CA have working sets a limit can be stated for without a machine to
   measure. Immich's four are ceilings rather than derivations, and
   `compose.yaml` says what was measured underneath them and when to
-  re-derive. Paperless-ngx's numbers are stated as *unmeasured on the hardware
-  they are for*: `cpus: 4` of the ProDesk's six because OCR takes every core
-  it is given for minutes, and `3072m` because upstream's floor is 2 GB for
-  the whole install. What was measured, on the monitoring host on 2026-09-09
-  from the pinned images: 747 MiB working set idle, 825 MiB consuming a
-  one-page 200 dpi scan, 22 processes. Re-derive from `container_memory_rss`
-  once `trinity` has run a month.
+  re-derive. Paperless-ngx's were set before the box existed — `cpus: 4` of
+  the ProDesk's six because OCR takes every core it is given for minutes, and
+  `3072m` because upstream's floor is 2 GB for the whole install — and were
+  first measured on the monitoring host on 2026-09-09 from the pinned images:
+  747 MiB working set idle, 825 MiB consuming a one-page 200 dpi scan, 22
+  processes. **On `trinity` on 2026-09-28** they held under a synthetic
+  backlog — five one-page scans and one of 50 pages, all 300 dpi and
+  image-only: a peak of 1716 MiB, no OOM kill, 3.0 cores at the busiest
+  minute and 0.2 s throttled in total, 3 min 54 s for the 50 pages, and
+  Vaultwarden through Caddy never slower than 19 ms meanwhile. Both limits
+  stand. Re-derive from `container_memory_rss` once `trinity` has run a month.
 - **Caddy joins the operator's group.** `gen-certs.sh` writes the leaf's key
   `0640`, owned by whoever ran it, and root inside a container that has dropped
   `CAP_DAC_OVERRIDE` is bound by that mode like any other uid — measured: the
@@ -342,10 +356,9 @@ a `manifest.json` that a fresh install of the *same* version re-imports.
 Upstream is explicit that an export does not cross versions, so it is the
 form to send off-estate rather than the form to rely on across an upgrade.
 
-Two things this does **not** do, stated rather than implied. **Nothing
-schedules it**: the `homelab-backup-volumes` unit carries
-`STACK=observability` and the timers are the estate's; a timer for this stack
-arrives with the host under [#404]. And **nothing here is the off-estate copy**
+One thing this does **not** do, stated rather than implied. It is
+scheduled: `homelab-backup-sensitive` runs it nightly on `trinity` and copies
+each set to `oracle` ([#404] step 9). But **nothing here is the off-estate copy**
 [ADR-0023] requires before the first real document — encrypted, keyed to a
 second holder, with visible freshness. That is the precondition on the data
 arriving, not on the container starting, and it is still open.
@@ -409,6 +422,109 @@ around it is here.
      device without the operator present. The recommendation there is that the
      family's vault is hosted Bitwarden and this one keeps the operator's.
 
+## Homepage
+
+The household's page, at `https://home.matrix.elysium` — the one address on
+this tier that people who are not the operator are given. [#137] asked that it
+stay honest about what it is, and the three files under `homepage/` are where
+that is kept:
+
+- **A directory, not a status page.** No status dots, no `siteMonitor`, no
+  `ping` (`settings.yaml` says why). Uptime is Grafana's question; a green dot
+  that means "a socket opened" is worse than no dot. Grafana is linked from the
+  page so the two are not strangers.
+- **Three tiles read live numbers, and only with read-only credentials.**
+  Immich (a key with the single permission `server.statistics`), Paperless-ngx
+  (the token of a view-only `homepage` user) and Prometheus (no credential —
+  it has none, [#182] — read from `trinity` across the /24 it shares with
+  `prometheus`). Home Assistant, AdGuard, Vaultwarden and Grafana are links,
+  because none of them can issue a token that reads without also being able to
+  change something. `services.yaml` has the per-service reasoning.
+- **No Docker socket**, although upstream's example mounts one — the full
+  Docker API behind a page with no login ([ADR-0022]). `compose.yaml` says so
+  at the service.
+- **Deploy order.** The two tokens can be minted only once Immich and
+  Paperless are up, and the compose guards refuse `make up` until both are in
+  SOPS — so: mint them (`secrets/sensitive.example.yaml` has the clicks),
+  `make secrets-edit STACK=sensitive`, add the host override for
+  `home.matrix.elysium` on `morpheus`
+  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)),
+  then `make up STACK=sensitive`.
+- **Measured before it was written**, on `trinity`, from the pinned digest with
+  exactly the compose options: healthy, CapEff 0, nothing written outside its
+  tmpfs mounts, 101 MiB and 12 tasks; with placeholder tokens the Immich and
+  Paperless widgets got a 401 from the real services through Caddy and the tier
+  CA, which is the whole path short of a valid token.
+
+## ntfy
+
+Where the estate's alerts are delivered since [#136], replacing ntfy.sh for
+every channel but two. `compose.yaml` has the service, its measurements, and
+DIFFERENCE 12. [`verify-the-alert-path.md`](../../docs/runbooks/verify-the-alert-path.md)
+has the routing it serves and the cutover. What has to be true around it is
+here.
+
+- **Deny-all, and two users who can each do one thing.** `alertmanager`
+  publishes to the three topics by bearer token and cannot read them. `phone`
+  reads them by password and cannot publish. Nobody else can do either,
+  anonymous or not, and nobody can sign up. The list lives in SOPS and is
+  applied on every start, so a rotation is `make secrets-edit STACK=sensitive`
+  and `make up`. Rotating the token means the monitoring host's copy too,
+  `ALERTMANAGER_NTFY_TOKEN`.
+- **Urgent and security go to ntfy.sh as well.** A phone off the home network
+  cannot reach this service: nothing on the tier is exposed, and the WireGuard
+  path goes to the lab. So the two channels that page carry a second webhook to
+  their old ntfy.sh topics. `default` does not, and a warning raised while you
+  are out waits in the twelve-hour cache until the phone is back on Wi-Fi.
+- **The iPhone is woken through ntfy.sh, and learns nothing else from it.**
+  iOS delivers only through APNs, which only ntfy.sh can reach. So
+  `upstream-base-url` makes this server post a content-free poll request there:
+  the SHA-256 of the topic's URL, and nothing else, as the pinned image's own log
+  showed. The phone then fetches the message from here. ntfy.sh therefore
+  learns that a message exists, and when. It never learns what the message
+  says, and without this the iPhone sees an alert only when the app is opened.
+- **The phones need the tier's root, the same as for Immich.** Each phone
+  needs the root installed and, on iOS, enabled
+  ([`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md) §6).
+  Then, in the ntfy app on each phone:
+  1. Add the three in-house topics, with server
+     `https://ntfy.matrix.elysium` and user `phone`. The password is in the
+     password manager; the topic names are in `secrets/sensitive.sops.yaml`.
+  2. Keep the two ntfy.sh subscriptions. They are the off-network pager.
+  3. On iOS, leave the app's *default server* at `ntfy.sh`. The upstream
+     wake-ups arrive through it.
+  4. Give `urgent` a sound that wakes you and `default` none. That per-topic
+     difference is why [#66] split the channels.
+
+  Android's app has to honour a user-installed root for the first step to
+  work, and it does: on 2026-09-28 the Pixel (Android 13) subscribed with the
+  tier's root installed under *Encryption & credentials › CA certificate* and
+  no setting in the app, and both phones received a test message published
+  with Alertmanager's token.
+- **A dead ntfy is reported through ntfy.sh.** A blackbox probe of
+  `/v1/health`, verified against the tier's root, raises `EndpointUnreachable`,
+  and the failed deliveries raise `AlertmanagerNotificationsFailing`. Both are
+  critical, so both route to `urgent` and its ntfy.sh copy. The probe is the
+  only HTTPS check any of this tier's sites has from outside.
+- **Nothing to back up.** `ntfy-data` holds `user.db`, rebuilt from SOPS on
+  every start, and `cache.db`, at most twelve hours of notifications that were
+  already delivered. [ADR-0023] classes ntfy as unclassed for the same reason.
+  `backup-volumes.sh` skips the volume by name, which also keeps ntfy up
+  through a backup, the moment a failed backup would want to page.
+- **Alerts arrive as a title and a line.** `ntfy/templates/homelab.yml`
+  renders each Alertmanager payload with a severity marker and the summary as
+  the title, the description's first sentence and the host as the message,
+  and a priority that follows severity. Critical is 5, which on Android is the
+  loud channel and on iOS is time-sensitive. The full text stays in
+  Alertmanager and Grafana. The ntfy.sh copies look the same. ntfy.sh
+  cannot load a template file, so `render-config.sh` on the monitoring host
+  passes this one inline, as URL parameters built from the file at every
+  render. Change the file and `make render` there as well as `make up` here.
+- **No second factor.** ntfy has passwords and tokens. The only human account
+  is `phone`, which can read three topics of alert text and nothing else.
+  [ADR-0022] leaves ntfy out of its table for that reason: it authenticates no
+  household identity.
+
 ## Backup and restore
 
 ```bash
@@ -421,7 +537,9 @@ volume it cannot verify, so each of the ten volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
 pinned image, beside the entries [#133] read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
-uid is a constant. Two are skipped by name. `adguard-work` is skipped because
+uid is a constant. Three are skipped by name. `ntfy-data` is skipped because
+ntfy rebuilds its users from SOPS on every start and its cache is notifications
+already delivered. `adguard-work` is skipped because
 archiving it would stop the house's only DNS forwarder, and nothing in it is
 worth restoring. `immich-model-cache` is skipped because a
 downloadable cache is not data, and a fresh host whose models have not been
@@ -433,12 +551,17 @@ first key in `.sops.yaml` whichever rule it belonged to, which would have
 encrypted the estate's weekly backup to `trinity`'s key the day the placeholder
 was filled — the two defects [#428] describes.
 
-What this does **not** do, and [#404] step 9 still owes: nothing schedules
-`make backup STACK=sensitive` on `trinity` — the `homelab-*` timers are the
-estate's — and nothing copies a set off the host, let alone off the estate,
-which is the copy [ADR-0023] requires before Immich or Paperless-ngx hold a
-real file. A set in `backups/volumes/` on `trinity` protects against a bad
-upgrade and a mistyped command, and against nothing that happens to `trinity`.
+**When it runs, and where the sets go.** `homelab-backup-sensitive` runs it
+every night at 04:30 ([#404] step 9). Each set is copied to `oracle` and
+checked there by sha256 ([#535]). The run's outcome is the `backup-sensitive`
+job in the estate's `ScheduledJob*` alerts, with a two-day threshold. The
+unit and its installer are in
+[`schedule-maintenance.md`](../../docs/runbooks/schedule-maintenance.md#on-trinity-the-sensitive-profile).
+What this does **not** give is a copy off the estate. `oracle` is in the same
+room and on the same power, and [ADR-0023] requires that copy before Immich or
+Paperless-ngx hold a real file. It is step 10's.
+And the volumes are not the photographs: the library is a bind mount, and
+no set contains it.
 
 ## What backs Immich up, and what does not yet
 
@@ -448,19 +571,31 @@ and before the first real photo arrives an off-estate copy has to exist whose
 staleness is visible. Three things hold the data, and they are protected by
 three different mechanisms — two of which do not exist yet.
 
+> [!WARNING]
+> **The first real photographs arrived before that copy did.** Two accounts
+> uploaded 615 assets between 16:59 and 17:01 UTC on 2026-09-28 — the day the
+> host was built, with [#455] undelivered and [ADR-0022]'s record and
+> [ADR-0023]'s *Independent* test still open. Until [#455] exists, the USB disk
+> is the only copy of the originals anywhere. The restore below proves the
+> metadata comes back; it cannot bring back a photograph that is on no other
+> disk.
+
 | What | Where | Protected by |
 | --- | --- | --- |
 | The originals, thumbnails and transcodes | `IMMICH_UPLOAD_LOCATION` — the USB disk | The off-estate copy [ADR-0023] requires. **Not built**: its destination, a WD Elements 5 TB, was bought on 2026-09-22 under [#455] and has not been delivered. It is the precondition on the first real photo, not on the container starting |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | The same copy — it is on the same disk, on purpose, so one copy of the disk is a copy of the metadata beside the originals |
-| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients. Immich's dump on the USB disk is the second route to the same metadata |
+| The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `oracle` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
 
 The restore that [#132] asks to see proven once is Immich's own: a fresh
-install, the library tree back on its disk, and the newest dump fed to
-`psql` inside `immich-db` — the procedure is upstream's *Backup and Restore*
-page, and its one hard rule is that the database is restored **before** the
-server first starts against the empty volume. It has not been rehearsed
-yet. The host exists since 2026-09-28, and the rehearsal is part of [#404]
-step 10, before the first real photo; this section is what that step reads.
+install, the library tree back on its disk, and a dump fed to `psql` inside
+`immich-db` before the server first starts. **Rehearsed on `trinity` on
+2026-09-28** against copies of the real library, by both routes in the table —
+Immich's dump, and the `immich-db` volume out of a `make backup` set — with
+every one of the 615 originals hashed against the checksum the restored
+database holds for it. The procedure, what it proved and what it did not are
+[`restore-the-sensitive-tier.md` § Restore Immich](../../docs/runbooks/restore-the-sensitive-tier.md#restore-immich).
+Upstream calls the database-first order a hard rule; on v3.2.2 the rehearsal
+found it is a safety rule instead, and the runbook says why it is kept anyway.
 
 ## Validate before deploying
 
@@ -545,7 +680,11 @@ it matters:
 [#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[#182]: https://github.com/Gerrrt/HomeLab/issues/182
+[#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
 [#428]: https://github.com/Gerrrt/HomeLab/issues/428
 [#455]: https://github.com/Gerrrt/HomeLab/issues/455
+[#533]: https://github.com/Gerrrt/HomeLab/issues/533
+[#535]: https://github.com/Gerrrt/HomeLab/issues/535
