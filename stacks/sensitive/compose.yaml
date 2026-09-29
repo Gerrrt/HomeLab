@@ -31,6 +31,8 @@
 # decided by ADR-0059, and Mealie (#146) the tenth, decided by ADR-0060.
 # linkding (#144) is the eleventh, and the fourth beyond those nine; ADR-0061
 # is why it is here, and why it is behind one factor.
+# Actual (#142) is the twelfth, and the fifth beyond those nine, decided the
+# same way (ADR-0062).
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -128,6 +130,7 @@ services:
           - miniflux.matrix.elysium
           - recipes.matrix.elysium
           - links.matrix.elysium
+          - actual.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -1658,6 +1661,98 @@ services:
       retries: 3
       start_period: 60s
 
+  # ---------------------------------------------------------------------------
+  # Actual — the household's budget (#142, ADR-0062)
+  # ---------------------------------------------------------------------------
+  # The fifth service here beyond ADR-0008's nine, after Miniflux, Memos,
+  # Mealie and linkding, and decided by ADR-0062.
+  # Actual is local-first: every client holds the whole budget and this is
+  # the sync target between them, so the server being down stops syncing
+  # and nothing else. It is still the one copy that is backed up.
+  #
+  # As the image's own `actual` user, 1001:1001. The image declares no USER
+  # and would run node as root, but it ships that user and /data is owned by
+  # it (1001:1001 755), so a named volume mounted there inherits that on first
+  # use. The user is set here rather than left as root with capabilities
+  # dropped, which is what Vaultwarden does because its image offers no user.
+  #
+  # Read off 26.9.0-alpine on 2026-09-29 with exactly these options:
+  #   - read-only root, no capabilities, as 1001: it came up healthy, and
+  #     `docker diff` showed nothing at all written outside /data. So there
+  #     is no tmpfs beyond the anchor's /tmp.
+  #   - /data holds server-files/account.sqlite (the password hash and
+  #     sessions) and user-files/ (one encrypted-or-not blob per budget, plus
+  #     its sync messages). account.sqlite is in rollback-journal mode, not
+  #     WAL: the header's journal bytes read 1 1.
+  #   - It booted and answered /health with `--network none`, so nothing is
+  #     fetched at start.
+  #
+  # Re-check the premise when the image moves:
+  #
+  #   docker run --rm --entrypoint stat <actual image> -c '%u:%g %a' /data
+  #
+  # If that prints something other than 1001:1001 755, revisit the user line.
+  #
+  # There is NO password setting. A fresh server is unclaimed until the first
+  # client sets one. scripts/seed-actual-password.sh claims it from SOPS with
+  # `--network none` before the first start, and `make up` runs it every time.
+  # The value is not in this file or in .env: the service never reads it.
+  #
+  # Password login and nothing else. The image allows password, header and
+  # OpenID. Header login takes the password in an x-actual-password header
+  # from any "trusted proxy", and that list defaults to all of 10/8,
+  # 172.16/12 and 192.168/16. It is unreachable while the only auth row is
+  # the password's, and a header attempt was refused with 400 on the pinned
+  # image. The two lines make that a setting rather than a property of the
+  # database. OpenID is a decision for ADR-0022, not a variable.
+  #
+  # ACTUAL_TRUSTED_PROXIES is Caddy's fixed address alone, which is the second
+  # reader of the pin DIFFERENCE 4 argues. /account/login and /bootstrap
+  # allow five failures per client per fifteen minutes (measured: the sixth
+  # got 429). With the proxy named, "client" is the phone on Hicks, not Caddy.
+  #
+  # Bank sync is off by what is absent: GoCardless and SimpleFIN need
+  # credentials entered in the app, and without them the server reaches out
+  # to no one. Turning it on is a decision (ADR-0062 §4), not a setting.
+  #
+  # The healthcheck is the image's own script, which the image ships but
+  # does not declare as a HEALTHCHECK. It fetches /health on the configured
+  # port and exits 1 unless the status is UP. --probe proves node is in the
+  # image; that the script is there and passes is what CI's hardened boot
+  # proves.
+  #
+  # 1g: 279 MiB idle RSS, and a high-water mark of 329 MiB after taking a
+  # 20 MiB budget upload. Most of it is the web app the server also serves.
+  # About three times the peak: a ceiling for a leak, not a size. No
+  # depends_on, for Vaultwarden's reason.
+  actual:
+    <<: *service-defaults
+    image: actualbudget/actual-server:26.9.0-alpine@sha256:1c14eef351234f4b5dd0433865b5de89d70bdbdc57368d5b07e910662c6498f9
+    container_name: sensitive-actual
+    user: "1001:1001"
+    mem_limit: 1g
+    memswap_limit: 1g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    environment:
+      ACTUAL_LOGIN_METHOD: password
+      ACTUAL_ALLOWED_LOGIN_METHODS: password
+      ACTUAL_TRUSTED_PROXIES: 172.28.99.2/32
+    volumes:
+      - actual-data:/data
+    expose:
+      - "5006"
+    healthcheck:
+      test: ["CMD", "node", "src/scripts/health-check.js"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
 # DIFFERENCE 4: one network, and it is the point. Every later service joins
 # `sensitive` with `expose:` only. Two members have `ports:` — Caddy, and
 # AdGuard for the reason DIFFERENCE 7 gives — and a third is undoing
@@ -1730,3 +1825,8 @@ volumes:
   # sessions. Favicons and previews would live here too; with background tasks
   # off, those directories stay empty.
   linkding-data:
+  # Actual's account.sqlite (the password hash and sessions) and every
+  # budget's file and sync messages. Every client holds a copy of the budget,
+  # which survives losing this volume but not a bad sync, and so is not a
+  # backup of it (ADR-0062).
+  actual-data:

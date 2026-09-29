@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the seventeen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — fourteen of which the backup archives
+**Target:** the eighteen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — fifteen of which the backup archives
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -11,7 +11,7 @@ not repeated here: the scripts are the same, the phases are the same, and the
 reasons a restore is verified before anything is destroyed are argued there.
 What is different is what the volumes hold. On the observability host, four of
 five volumes are a *record* — metrics and logs that refill on their own. Here,
-most are rebuildable or re-fetched from somewhere else and eight are not:
+most are rebuildable or re-fetched from somewhere else and nine are not:
 
 | Volume | What it holds | If it is lost |
 | --- | --- | --- |
@@ -26,13 +26,14 @@ most are rebuildable or re-fetched from somewhere else and eight are not:
 | `paperless-data` | The search index and the classifier | Rebuilt at the next start; the index is re-derived from the documents |
 | `paperless-broker-data` | Valkey's task queue | Nothing. Archived because it exists, worth nothing back |
 | `miniflux-db-data` | Miniflux's database: every subscription and category, read and starred state, and the entries not yet archived ([#147](https://github.com/Gerrrt/HomeLab/issues/147)) | **Lost**, unless an OPML export is at hand — the stack README's Miniflux section has it — and then the subscriptions come back and the read state and stars do not. Nothing else on the tier depends on it |
+| `actual-data` | Actual's server: `account.sqlite` (the password hash and the one session) and every budget's file and sync messages | **Lost** as a server copy. Each client holds the whole budget and can upload it again, which covers losing the server and not a bad sync. A lost `account.sqlite` alone costs a re-claim: `make up` seeds the SOPS password into an empty volume |
 | `step-ca-data` | The intermediate CA's tree | Re-minted on the monitoring host from the lab CA's key — [#404](https://github.com/Gerrrt/HomeLab/issues/404)'s procedure. Costs a runbook step, not data |
 | `caddy-data` | Caddy's storage: `instance.uuid`, the lock directory, later the ACME state | Recreated on the next start. Nothing here is worth a restore until step-ca issues leaves into it |
 | `caddy-config` | `autosave.json`, Caddy's copy of its last loaded config | Recreated on the next start from the `Caddyfile` |
 | `ntfy-data` | ntfy's `user.db` and twelve hours of message cache | Nothing. **Not archived at all** ([#136](https://github.com/Gerrrt/HomeLab/issues/136)): the users, access list and token are re-provisioned from `secrets/sensitive.sops.yaml` on every start, and the cache is notifications already delivered. `make up` creates it empty and ntfy fills it |
 | `adguard-work` | AdGuard's blocklists, query log, statistics and UI sessions | Re-downloaded and re-accumulated. **Not archived at all since 2026-09-28**: archiving it meant stopping AdGuard, which since that day is the house's only DNS forwarder, and the query log is the household's browsing history. The settings are `adguard/AdGuardHome.yaml`, in git |
 
-So this runbook is mostly about those eight, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
+So this runbook is mostly about those nine, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
 said why it had to exist before that volume held anything: *"a password vault
 is the one service here where 'it is running' and 'it is recoverable' are
 entirely different claims, and only the second one counts on the day it
@@ -272,6 +273,15 @@ docker exec sensitive-mealie test -s /app/data/.secret && echo secret present
 #    Every account's created_at must PREDATE the stamp. A lone
 #    changeme@example.com created after it is a fresh database: the restore
 #    did not happen before the first start.
+
+# 9. actual-data — the server is claimed, by the password it had, and the
+#    budgets are there. `make up` in step 1 ran the seed first: if it printed
+#    "claimed with the SOPS password before first start", the volume was EMPTY
+#    when it ran and the restore did not happen. After the fact:
+./scripts/seed-actual-password.sh --check
+#    Must say "already claimed, and the SOPS password logs in".
+docker exec sensitive-actual ls -l /data/user-files
+#    One file-<id>.blob per budget, dated no later than the stamp.
 ```
 
 Then from a client on Hicks — the checks a shell cannot do:
@@ -285,6 +295,12 @@ Then from a client on Hicks — the checks a shell cannot do:
   fine over a volume that never changed, because the web vault is in the image.
   Find one thing you know was added after the set was taken and confirm it is
   gone.
+- **Actual's clients still hold their own copies.** A restore puts the
+  server back to the stamp. It does not reach the phones and laptops, which
+  may hold changes made after it. If the restore was for a bad sync, the
+  clients hold the bad copy too. Decide which copy is the real one before
+  any client syncs. How a client resolves the difference has not been
+  measured: do it on one device first.
 
 ---
 

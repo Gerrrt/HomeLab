@@ -157,6 +157,9 @@ declare -A EXPECT_UID=(
   # restore that came back as root would be repaired at the next one; 33 is
   # what the archive was taken from, and what a correct restore shows.
   [linkding-data]=33
+  # Actual runs as the image's own `actual` user, which owns /data in the
+  # image (#142). Back as root, it cannot open account.sqlite to log anyone in.
+  [actual-data]=1001
 )
 
 FROM=""

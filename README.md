@@ -98,7 +98,7 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 61 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 62 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 36
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
@@ -209,7 +209,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 ├── stacks/sensitive/         # the household's tier — Caddy, step-ca, Home
 │                             #   Assistant, AdGuard Home, Immich, Paperless-ngx,
 │                             #   Vaultwarden, Homepage, ntfy, Miniflux, Memos,
-│                             #   Mealie and linkding so far; its own CA, leaves over ACME
+│                             #   Mealie, linkding and Actual so far; its own CA, leaves over ACME
 │                             #   (ADR-0037); on trinity since 2026-09-28 (ADR-0034, #404)
 ├── stacks/media/             # Jellyfin and Navidrome on smaug, under TrueNAS's
 │                             #   own Docker — deployed by hand, no secrets file

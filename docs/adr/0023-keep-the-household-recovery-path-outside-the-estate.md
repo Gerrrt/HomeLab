@@ -2,6 +2,14 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> **Actual is Durable, 2026-09-29.** The household's budget joins the tier
+> in the class of Immich and Paperless-ngx, and holds no real data before the
+> off-estate copy exists, for the same reason. Every client keeps a copy of
+> the budget, which survives losing the server and not a bad sync
+> ([ADR-0062](0062-add-actual-to-the-sensitive-tier.md)). The table below is
+> not edited.
+
 ## Context
 
 [ADR-0008](0008-place-services-by-data-trust.md) puts Vaultwarden, Immich,

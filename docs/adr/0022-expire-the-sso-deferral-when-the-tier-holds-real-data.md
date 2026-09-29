@@ -41,6 +41,12 @@
 > OIDC or a trusted proxy header and nothing of its own, so its route is the
 > identity provider too. Adding it fires none of the triggers below
 > ([ADR-0061](0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+>
+> **And an eleventh: Actual, with no second factor.** It has none short of
+> OpenID, so it belongs in the table's "None" rows with Immich, AdGuard Home,
+> Miniflux, Memos, Mealie and linkding
+> ([ADR-0062](0062-add-actual-to-the-sensitive-tier.md)). The table is not
+> edited.
 
 ## Context
 

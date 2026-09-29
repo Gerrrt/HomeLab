@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **Actual is decided and authored for the sensitive tier, not deployed**
+  ([#142](https://github.com/Gerrrt/HomeLab/issues/142),
+  [ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)). It is the fifth
+  service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding.
+  It was chosen over Firefly III because it is one container on SQLite and
+  keeps working when the server is down.
+  - **The pinned image has no password setting.** A fresh server is claimed
+    by whoever sets the first password. `scripts/seed-actual-password.sh`
+    claims it from SOPS inside the pinned image with `--network none`, before
+    its first start, and `make up` runs it every time. It was proved against a
+    throwaway volume: fresh, already claimed, a live check, and a wrong
+    password.
+  - **Every device shares one session, and a password change does not end
+    it.** Measured on 26.9.0, the token issued before a change validated
+    after it. The stack README has the sign-out, which was proved the same
+    way.
+  - **Measured on 26.9.0-alpine:**
+    - It runs as the image's own uid 1001, read-only, with no capabilities,
+      and writes nothing outside `/data`.
+    - It boots with no network.
+    - 279 MiB idle and 329 MiB at peak.
+    - Five failed logins per client per fifteen minutes.
+  - **Booted from `compose.yaml` itself** on `trinity`, on an internal
+    network with a spare subnet, because the live stack holds the fixed one:
+    healthy, read-only, all capabilities dropped, as 1001. CI's hardened boot
+    runs it on the real subnet.
+  - **Not done:** the deploy and a restore.
+
 - **linkding is decided and authored for the sensitive tier; it is not
   deployed** ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
   [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).

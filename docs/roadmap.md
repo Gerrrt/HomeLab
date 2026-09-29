@@ -308,6 +308,16 @@ none is in the order until one is taken.
   Deploying it on `trinity` is the same section of the stack README: one SOPS
   key and `make up`. The host override was added on 2026-09-29.
 
+- **[#142](https://github.com/Gerrrt/HomeLab/issues/142) Actual** is decided
+  and authored
+  ([ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)): Actual rather than
+  Firefly III, and claimed from SOPS before its first start, because it has no
+  password setting. What is left is the deploy on `trinity`:
+  `ACTUAL_SERVER_PASSWORD` in SOPS, the `actual` host override on `morpheus`,
+  and `make up STACK=sensitive`. It holds no real budget before
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404) step 10, like the rest
+  of the tier.
+
 ## Everything still to buy
 
 The one list, because purchases kept appearing one at a time in issues, ADRs
