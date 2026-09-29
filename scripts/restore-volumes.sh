@@ -137,6 +137,8 @@ declare -A EXPECT_UID=(
   [caddy-config]=0
   [step-ca-data]=1000
   [vaultwarden-data]=0
+  # Memos runs as the image's own 10001, which owns /var/opt/memos in it.
+  [memos-data]=10001
   [home-assistant-config]=0
   # AdGuard runs as nobody and its work directory is nobody's in the image.
   [adguard-work]=65534

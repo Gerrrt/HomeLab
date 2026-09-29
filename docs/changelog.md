@@ -21,8 +21,8 @@ docstring gives: it is a record, not a claim about now.
 
 - **Actual is decided and authored for the sensitive tier, not deployed**
   ([#142](https://github.com/Gerrrt/HomeLab/issues/142),
-  [ADR-0059](adr/0059-add-actual-to-the-sensitive-tier.md)). It is the second
-  service beyond ADR-0008's nine, after Miniflux. It was chosen over Firefly
+  [ADR-0060](adr/0060-add-actual-to-the-sensitive-tier.md)). It is the third
+  service beyond ADR-0008's nine, after Miniflux and Memos. It was chosen over Firefly
   III because it is one container on SQLite and keeps working when the server
   is down.
   - **The pinned image has no password setting.** A fresh server is claimed
@@ -70,6 +70,21 @@ docstring gives: it is a record, not a claim about now.
     it is off.
   - **There is no TOTP, and its passkeys are not a second step.** Miniflux
     is named beside Immich and AdGuard as single-factor.
+
+- **Memos is the second *Tier extras* service decided, and authored**
+  ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
+  It is notes, not documentation: `docs/` stays the record, and #124 is not
+  answered by it. Measured on the pinned image, read-only with every
+  capability dropped: it runs as its own `10001` with no root step, idles at
+  15 MiB, and needs no secret. Two things differ from what #145 assumed:
+  - **It is not one file.** Attachments are written under `./assets`, and
+    while it runs the database's writes sit in `memos_prod.db-wal` (a clean
+    stop checkpoints them). The backup names all three.
+  - **Sign-up cannot be closed from compose.** It is a setting in the
+    database, so the first login has to close it.
+
+  Not yet deployed on `trinity`.
 
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having
