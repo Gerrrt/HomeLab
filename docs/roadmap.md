@@ -311,8 +311,8 @@ none is in the order until one is taken.
 - **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
   **deployed on `trinity` 2026-09-29** ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): behind Caddy at
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
-  none reaches a disk. The `pdf` override on `morpheus` is in. What is left is
-  TOTP on the admin at first login, before a real document.
+  none reaches a disk. The `pdf` override on `morpheus` is in, and TOTP is
+  enrolled on the admin. Nothing is left; #143 closes with this.
 
 - **[#142](https://github.com/Gerrrt/HomeLab/issues/142) Actual** is decided
   and authored
