@@ -287,6 +287,10 @@ Gated on the domain, on a household observation, or on something to publish.
 Beyond ADR-0008's nine: each needs its own decision before it is authored, and
 none is in the order until one is taken.
 
+- **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
+  Deploying it on `trinity` is the stack README's *Adding it to the running
+  tier*: two SOPS keys, one host override, `make up`.
+
 ## Everything still to buy
 
 The one list, because purchases kept appearing one at a time in issues, ADRs
@@ -452,7 +456,7 @@ them name the condition that would change the answer.
   list of household objects, which does not earn a place on the segment
   ADR-0008 calls its real cost, and which would be a second inventory that
   drifts from the first. Declined by
-  [ADR-0057](adr/0057-decline-homebox-because-hardware-md-and-paperless-already-hold-its-records.md).
+  [ADR-0058](adr/0058-decline-homebox-because-hardware-md-and-paperless-already-hold-its-records.md).
   **Reopened by a household need to track non-infrastructure possessions that
   Paperless's tags cannot meet**, with the proposal saying what leaves
   `hardware.md` so there is still one inventory

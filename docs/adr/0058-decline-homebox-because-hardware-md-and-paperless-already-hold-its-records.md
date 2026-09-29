@@ -1,4 +1,4 @@
-# ADR-0057: Decline HomeBox because hardware.md and Paperless already hold its records
+# ADR-0058: Decline HomeBox because hardware.md and Paperless already hold its records
 
 **Status:** Accepted · 2026-09 · decides [#148](https://github.com/Gerrrt/HomeLab/issues/148)
 
