@@ -42,6 +42,32 @@ docstring gives: it is a record, not a claim about now.
   - **Not yet:** a nightly set with `actual-data` in it, and a real budget,
     which waits on [#404](https://github.com/Gerrrt/HomeLab/issues/404)
     step 10 like the rest of the tier.
+- **linkding and Mealie are deployed on `trinity`**
+  ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
+  [#146](https://github.com/Gerrrt/HomeLab/issues/146)). This corrects their
+  entries below that say they are not yet deployed. Both sessions that
+  authored them had ended, so the deploy was run once from the Stirling-PDF
+  session, after linkding's sentinel fix
+  ([#738](https://github.com/Gerrrt/HomeLab/pull/738)) had merged.
+  - **A dry run first.** `docker compose up -d --remove-orphans --dry-run`
+    listed only the two containers and their two volumes as new. Nothing
+    running was recreated, Caddy included. `make up STACK=sensitive` then
+    passed its own checks: `check_container_health.py` reported all twenty
+    services with a healthcheck healthy.
+  - **Through Caddy.** step-ca issued the leaves for `links.matrix.elysium`
+    and `recipes.matrix.elysium`, and both verify against the tier's root.
+    linkding answers with the 302 to its login page, and Mealie answers 200.
+  - **The backup loads.** `backup-volumes.sh --inventory` lists
+    `linkding-data` and `mealie-data` with no sentinel refusal.
+  - **Mealie's public default admin was live until it was changed.**
+    `changeme@example.com` / `MyPassword` logged in (200) from the moment
+    the container started. It was renamed and re-passworded minutes later,
+    and the default login then answered 401. Self sign-up refuses a
+    well-formed request with 403, *"User Registration is Disabled"*. A
+    Mealie deploy should change that login before anything else. The window
+    was minutes, and on Hicks only.
+  - **linkding's first login** with the SOPS superuser password is the
+    operator's, and is not recorded here.
 
 - **The sensitive backup would have stopped before archiving anything,
   from the first run after linkding merged**
@@ -82,6 +108,37 @@ docstring gives: it is a record, not a claim about now.
   - **Both host overrides are in**, and both names resolve to `10.0.99.40`.
     **Still open for Memos:** closing registration at first login. Neither
     service holds real data yet.
+- **Stirling-PDF is deployed on `trinity`**
+  ([#143](https://github.com/Gerrrt/HomeLab/issues/143),
+  [ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). Only `stirling-pdf` and `caddy` were brought up
+  (`docker compose up -d --no-deps`), after `make render`, so the extras
+  authored beside it and not yet deployed stayed down. Caddy was recreated
+  for the new alias and site block, which took the tier's HTTPS away for a
+  few seconds.
+  - **Healthy in 42 s**, both containers. `check_mounted_config.py`,
+    `reload-config.sh` and `check_container_health.py` passed for everything
+    running. The three failures were Actual, linkding and Mealie, which are
+    authored and have never been started.
+  - **`stirling-pdf/smoke.sh` passed against the live container.** It
+    logged in as the admin seeded from SOPS, inside the container, so the
+    password never left it, and merged two pages through pdfium. The log
+    showed *"LibreOffice sandbox active (lo-sandbox: landlock ABI 8, seccomp
+    active)"* and no `UnsatisfiedLinkError`, and no job file was left in
+    `/tmp/stirling-pdf` afterwards.
+  - **Through Caddy, with the tier's root:**
+    - step-ca issued the leaf for `DNS:pdf.matrix.elysium` over tls-alpn-01
+      and it verified;
+    - `/api/v1/info/status` answered 200;
+    - a tool called without a session answered 401;
+    - a 300 MB upload was refused with 413 at the 256 MB cap.
+  - **786 MiB** at rest, under the 3 GiB limit.
+  - **The `pdf` host override was added on `morpheus` the same day.** Through
+    it, `pdf.matrix.elysium` resolves to `10.0.99.40` and answers 200 on a
+    leaf that verifies against the tier's root.
+  - **TOTP is enrolled on the admin**, at first login from Hicks, before any
+    real document. Stirling logged the forced enrolment as satisfied
+    (`Set MFA required=false for user admin`). That is ADR-0022's floor, and
+    the last step of #143.
 
 - **Actual is decided and authored for the sensitive tier, not deployed**
   ([#142](https://github.com/Gerrrt/HomeLab/issues/142),
