@@ -406,6 +406,22 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # beside it from the first start, and secretkey.txt signs every session — a
 # restore without it logs everyone out, as Vaultwarden's rsa_key.pem does.
 # favicons and previews stay empty with background tasks off.
+#
+# Its sentinel is ./secretkey.txt, NOT ./db.sqlite3: that is Vaultwarden's, and
+# load_inventory() refused the table the day linkding joined it (#731), which
+# stops every sensitive backup before anything is archived. The volume cannot
+# take a nested path the way miniflux-db-data did (#734): /etc/linkding holds
+# the application, so the volume can only be mounted at data/ itself. So the
+# two share an entry and differ in their sentinels, the way loki-data and
+# paperless-data share ./index (#468): ./db.sqlite3 is in linkding's
+# COMPANIONS, which makes Vaultwarden's sentinel in a linkding archive a soft
+# hit, excused only while ./secretkey.txt is present too. A crossed mapping is
+# still caught both ways: a vault archive lacks secretkey.txt, and a linkding
+# archive under the vault's name carries a sentinel the vault does not list.
+# Read off the pinned 1.47.0 image on 2026-09-29, booted with its compose
+# hardening: secretkey.txt is written before the first healthy check, and was
+# byte-identical after a second start and a clean stop. No volume on trinity
+# carries one at its top level.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -429,7 +445,7 @@ declare -A SENTINEL=(
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
   [mealie-data]="./mealie.db"
-  [linkding-data]="./db.sqlite3"
+  [linkding-data]="./secretkey.txt"
   [actual-data]="./server-files/account.sqlite"
 )
 
@@ -473,7 +489,7 @@ declare -A COMPANIONS=(
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
   [mealie-data]="./.secret ./.session_secret ./recipes ./users"
-  [linkding-data]="./secretkey.txt ./db.sqlite3-wal"
+  [linkding-data]="./db.sqlite3 ./db.sqlite3-wal"
   [actual-data]="./user-files ./.migrate"
 )
 

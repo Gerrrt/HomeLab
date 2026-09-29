@@ -758,9 +758,9 @@ measured on the pinned image. What has to be true around it is here.
   4. `make backup STACK=sensitive ARGS=--list` after the next nightly run:
      `linkding-data` is in the set.
 - **Backed up with the tier.** `linkding-data` is archived nightly with the
-  other volumes. The sentinel is `db.sqlite3`, with its `-wal` and
-  `secretkey.txt` reported beside it. A restore without the key logs everyone
-  out, and loses nothing else. A Netscape HTML export from linkding's settings
+  other volumes. The sentinel is `secretkey.txt`, because `db.sqlite3` is
+  already Vaultwarden's. The database and its `-wal` are reported beside it.
+  A restore without the key logs everyone out, and loses nothing else. A Netscape HTML export from linkding's settings
   also imports into any browser, which makes it a copy nothing here is needed
   to read.
 
