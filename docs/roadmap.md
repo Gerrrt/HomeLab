@@ -116,8 +116,10 @@ has been rehearsed on it.
     *Independent* test. The Immich restore rehearsal is done
     ([#132](https://github.com/Gerrrt/HomeLab/issues/132), →
     [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)). Until
-    [#455](https://github.com/Gerrrt/HomeLab/issues/455) exists, the USB
-    disk is the only copy of the originals.
+    [#455](https://github.com/Gerrrt/HomeLab/issues/455) exists, the
+    originals' only copy beyond the USB disk is the nightly one to `oracle`,
+    in the same room
+    ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
 
   [#533](https://github.com/Gerrrt/HomeLab/issues/533) follows the build;
   [#534](https://github.com/Gerrrt/HomeLab/issues/534)'s CI re-check is
@@ -167,10 +169,12 @@ has been rehearsed on it.
   present**. Whether that key is
   [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
   second recipient or a separate one is the decision this issue still owes.
-  Before the tier holds real data, not after:
+  It was meant to come before the tier held real data, and it did not.
   [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)'s
-  first trigger is the first real photo or document, so this precedes Immich
-  and Paperless-ngx going live.
+  first trigger, the first real photo, fired on 2026-09-28. Until this lands,
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)'s
+  nightly copy to `oracle` stands in for the library, off-host and not
+  off-estate. When this lands, it supersedes ADR-0064.
 
 ## NAS
 

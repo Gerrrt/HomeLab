@@ -168,9 +168,11 @@ JOBS=(
   "offsite-copy      -                          7776000  backup-offsite"
 )
 
-# trinity's schedule (#404 step 9). One row: the nightly backup of the
-# sensitive tier, which also copies each set to oracle (#535). Two days, twice
-# the daily period, for the same reason as every row above. The job name is
+# trinity's schedule (#404 step 9). Two rows: the nightly backup of the
+# sensitive tier's volumes, which also copies each set to oracle (#535), and
+# the nightly copy of Immich's library, which no volume set can hold
+# (ADR-0064). Two days each, twice the daily period, for the same reason as
+# every row above. The job name is
 # what keeps the alert joins one-to-one across hosts, so it must not reuse a
 # name from JOBS — check 8 below asserts that.
 #
@@ -181,6 +183,7 @@ SENSITIVE_UNIT_DIR="${REPO_ROOT}/systemd/sensitive"
 SENSITIVE_PLACEHOLDER="@DEPLOY_ROOT@"
 SENSITIVE_JOBS=(
   "backup-sensitive  homelab-backup-sensitive    172800  backup"
+  "backup-library    homelab-backup-library      172800  backup-library"
 )
 
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -650,6 +653,7 @@ fi
 printf '\n'
 green "installed — systemctl list-timers 'homelab-*'"
 if [[ "${PROFILE}" == sensitive ]]; then
+  info "backup-library was primed: it stops nothing, and oracle now holds a set"
   info "backup-sensitive was NOT primed: it stops the tier. Run it when you can watch:"
   info "  sudo systemctl start homelab-backup-sensitive.service"
   exit 0

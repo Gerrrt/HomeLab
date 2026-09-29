@@ -9,6 +9,16 @@
 > the budget, which survives losing the server and not a bad sync
 > ([ADR-0062](0062-add-actual-to-the-sensitive-tier.md)). The table below is
 > not edited.
+>
+> **An interim copy of Immich's library, 2026-09-29, and it does not satisfy
+> this ADR.** The first real photographs arrived on 2026-09-28, before the
+> copy this ADR requires. Since 2026-09-29 the library has been copied nightly,
+> encrypted, to `oracle`
+> ([ADR-0064](0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+> That copy is off the host but not off the estate, and its key is `trinity`'s
+> alone. Immich's row below is unmet until
+> [#455](https://github.com/Gerrrt/HomeLab/issues/455) exists. The table is
+> not edited.
 
 ## Context
 
