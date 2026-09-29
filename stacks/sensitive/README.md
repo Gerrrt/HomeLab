@@ -28,7 +28,7 @@ make up STACK=sensitive
 | paperless-db | `postgres` | *internal* (5432) | Paperless-ngx's own database. Metadata about documents; the documents themselves are files under `paperless-media` |
 | paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
-| homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on this tier and where it lives. A directory, not a status page — three tiles read live numbers with read-only tokens, the rest are links ([#137]) |
+| homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on the estate and where it lives, grouped by VLAN. A directory, not a status page — seven tiles read live numbers, with read-only tokens or from Prometheus; the rest are links ([#137]) |
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 
 Fourteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
@@ -77,8 +77,8 @@ home-assistant/            configuration.yaml and packages/, mounted read-only
 .env.example               non-sensitive tunables — edit this, not .env:
                              the library's mount point, and the ML switch
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
-homepage/                  settings, services, widgets and bookmarks YAML — its whole
-                           configuration, mounted read-only
+homepage/                  settings, services, widgets and bookmarks YAML and
+                           custom.css — its whole configuration, mounted read-only
 ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
 consume/                   untracked: drop a scan here and Paperless-ngx imports
                            and deletes it. Created by render-config.sh
@@ -426,28 +426,42 @@ around it is here.
 
 The household's page, at `https://home.matrix.elysium` — the one address on
 this tier that people who are not the operator are given. [#137] asked that it
-stay honest about what it is, and the three files under `homepage/` are where
-that is kept:
+stay honest about what it is, and the files under `homepage/` are where that
+is kept:
 
 - **A directory, not a status page.** No status dots, no `siteMonitor`, no
   `ping` (`settings.yaml` says why). Uptime is Grafana's question; a green dot
   that means "a socket opened" is worse than no dot. Grafana is linked from the
   page so the two are not strangers.
-- **Three groups, and the household sees two.** *Household* — photos,
-  documents, passwords, the house, Jellyfin and ntfy — and *Estate* are open;
-  *Admin*, the operator's consoles (firewall, switch, UPS, NAS, Proxmox, iLO,
-  the lab's Grafana, Wazuh, Velociraptor), starts collapsed. Every Admin link
-  is a login page Hicks already reaches through a named pass; listing it grants
-  nothing. Below the tiles, `bookmarks.yaml` holds the house wiki and where to
+- **Household first, then the estate by VLAN.** *Household* — photos,
+  documents, passwords, the house, Jellyfin and ntfy — comes first. Every
+  other tile sits under its host's segment, in the order and with the rack
+  colour of [`docs/network.md`](../../docs/network.md)'s table:
+  *🔴 Winterfell · VLAN 99* (Grafana, Prometheus, AdGuard, the firewall, the
+  UPS, the wiki) is open; *🟢 ImaginationLAN · VLAN 30* (Proxmox, iLO, the lab's
+  Grafana, Wazuh, Velociraptor), *🟡 CasaBonita · VLAN 40* (the NAS) and
+  *⚪ Switch LAN* start collapsed. Every console link is a login page Hicks
+  already reaches through a named pass; listing it grants nothing. Below the
+  tiles, `bookmarks.yaml` holds the house wiki and where to
   get each app. It is tracked because without it Homepage serves its own
   sample — GitHub, Reddit and YouTube, which the first deploy did.
-- **Three tiles read live numbers, and only with read-only credentials.**
-  Immich (a key with the single permission `server.statistics`), Paperless-ngx
-  (the token of a view-only `homepage` user) and Prometheus (no credential —
-  it has none, [#182] — read from `trinity` across the /24 it shares with
-  `prometheus`). Home Assistant, AdGuard, Vaultwarden and Grafana are links,
+- **Seven tiles read live numbers, and only with read-only credentials or
+  none.** Immich (a key with the single permission `server.statistics`) and
+  Paperless-ngx (the token of a view-only `homepage` user) are read from their
+  own APIs. Prometheus, the UPS (charge, runtime, load), the firewall (pf
+  states), the iLO (watts) and the NAS (pool free) are read from Prometheus,
+  which has no credential ([#182]) and shares a /24 with `trinity`. That is how
+  tiles on VLANs `trinity` cannot reach show numbers with no new rule:
+  Prometheus already scrapes them, and each query is one a Grafana dashboard
+  already runs. Numbers only, never up/down. Home Assistant, AdGuard, Vaultwarden and Grafana are links,
   because none of them can issue a token that reads without also being able to
   change something. `services.yaml` has the per-service reasoning.
+- **Tokyo Night, frosted.** `custom.css` redefines the `slate` palette that
+  `settings.yaml` names and draws a gradient behind translucent cards
+  (`cardBlur: md`); no image or font is fetched. It is tracked and mounted for
+  the bookmarks reason: without it Homepage serves its own (empty) sample. Its
+  selectors come from the pinned bundle, not a documented contract, so a
+  Dependabot bump is where to look if the cards go flat.
 - **No Docker socket**, although upstream's example mounts one — the full
   Docker API behind a page with no login ([ADR-0022]). `compose.yaml` says so
   at the service.

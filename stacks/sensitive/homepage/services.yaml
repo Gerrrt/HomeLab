@@ -6,10 +6,10 @@
 #
 #   - A LINK: a name, a line saying what it is for, and an href. That is all
 #     it claims. Home Assistant, AdGuard, Vaultwarden and Grafana are links.
-#   - A WIDGET: live numbers read from the service's own API, server-side,
-#     with a credential scoped READ-ONLY. Immich, Paperless-ngx and Prometheus
-#     are widgets, because each has a credential that can be scoped that way
-#     (or needs none).
+#   - A WIDGET: live numbers read server-side, with a credential scoped
+#     READ-ONLY or none at all. Immich and Paperless-ngx are read from their
+#     own APIs; Prometheus, the UPS, the firewall, the iLO and the NAS are read
+#     from Prometheus, which already scrapes them (see the VLAN groups below).
 #
 # Why the links are links. Home Assistant's long-lived access token carries
 # every right of the user who minted it, and a user that can read state can
@@ -80,7 +80,26 @@
         href: https://ntfy.matrix.elysium
         description: ntfy — the house's alerts, in the ntfy phone app
 
-- Estate:
+# EVERYTHING ELSE, BY VLAN. Household above is what the people who live here
+# use; below it, every tile sits under the segment its host is on, in the
+# order and with the rack colour of docs/network.md's table — so the page
+# reads the way the rack does. Only Winterfell is open by default; the rest
+# are the operator's consoles and start collapsed (settings.yaml).
+#
+# Every Admin-style tile is a link to a login page Hicks can already reach
+# through a named pass in docs/network.md — putting it here grants nothing.
+# By address where no name exists, because an override for a name only this
+# page uses would be a second place to keep in step.
+#
+# THE NUMBERS ON TILES OUTSIDE THIS VLAN come from Prometheus, not from the
+# device. trinity cannot reach VLAN 30 or 40 at all, but `prometheus`
+# (10.0.99.20, on this /24) already scrapes the UPS, the firewall and the
+# iLO over SNMP and smaug over node_exporter, and has no authentication
+# (#182) — so a `prometheusmetric` widget shows them with no new rule and no
+# new credential. Each query is one a Grafana dashboard already runs, named
+# beside it. Numbers only, never up/down: uptime is Grafana's question.
+
+- 🔴 Winterfell · VLAN 99:
     - Grafana:
         icon: grafana.svg
         href: https://grafana.matrix.elysium:3000
@@ -103,32 +122,53 @@
         href: https://adguard.matrix.elysium
         description: The DNS filter behind the firewall's resolver
 
-# THE OPERATOR'S CONSOLES, collapsed by default (settings.yaml) so the page
-# the household opens is the two groups above. Every one of these is a link to
-# a login page Hicks can already reach through a named pass in docs/network.md
-# — putting it here grants nothing. None is a widget: trinity cannot reach
-# VLAN 30 or 40 at all, nor morpheus's UI from 99, and the two it can reach
-# (mjolnir, and prometheus above) have no widget or already have one. By
-# address where no name exists, because an override for a name only this page
-# uses would be a second place to keep in step.
-- Admin:
     - Firewall:
         icon: pfsense.svg
         href: https://morpheus.matrix.elysium
         description: pfSense on morpheus
-    - Switch:
-        icon: mdi-switch
-        # Plain HTTP by ADR-0018 — the switch has no certificate to offer.
-        href: http://neo.matrix.elysium/
-        description: The core switch's management UI
+        # network-snmp.json's state-table panel.
+        widget:
+          type: prometheusmetric
+          url: http://10.0.99.20:9090
+          refreshInterval: 60000
+          metrics:
+            - label: States
+              query: pfStateTableCount{instance="10.0.99.1"}
+              format:
+                type: number
+
     - UPS:
         icon: apc.svg
         href: https://10.0.99.10
         description: mjolnir — the rack UPS's management card
-    - NAS:
-        icon: truenas.svg
-        href: https://10.0.40.30
-        description: TrueNAS on smaug
+        # ups-power.json's charge, runtime and load panels (RFC 1628 UPS-MIB).
+        widget:
+          type: prometheusmetric
+          url: http://10.0.99.20:9090
+          refreshInterval: 60000
+          metrics:
+            - label: Charge
+              query: upsEstimatedChargeRemaining{instance="10.0.99.10"}
+              format:
+                type: percent
+            - label: Runtime
+              query: upsEstimatedMinutesRemaining{instance="10.0.99.10"}
+              format:
+                type: number
+                suffix: " min"
+            - label: Load
+              query: upsOutputPercentLoad{instance="10.0.99.10"}
+              format:
+                type: percent
+
+    - Wiki:
+        icon: mdi-book-open-variant
+        # oracle serves it over plain HTTP only; it is also the name on the
+        # printed card (docs/runbooks/add-a-host-override.md).
+        href: http://lemmiwinks.matrix.elysium
+        description: oracle — the house wiki
+
+- 🟢 ImaginationLAN · VLAN 30:
     - Proxmox:
         icon: proxmox.svg
         href: https://10.0.30.110:8006
@@ -137,6 +177,17 @@
         icon: hpe.svg
         href: https://10.0.30.10
         description: shiva's out-of-band console
+        # network-snmp.json's iLO power panel (CPQHLTH-MIB).
+        widget:
+          type: prometheusmetric
+          url: http://10.0.99.20:9090
+          refreshInterval: 60000
+          metrics:
+            - label: Power
+              query: cpqHePowerMeterCurrReading{instance="10.0.30.10"}
+              format:
+                type: number
+                suffix: " W"
     - Lab Grafana:
         icon: grafana.svg
         href: https://10.0.30.40:3000
@@ -149,3 +200,28 @@
         icon: mdi-bird
         href: https://10.0.30.60:8889/
         description: odin — endpoint forensics GUI
+
+- 🟡 CasaBonita · VLAN 40:
+    - NAS:
+        icon: truenas.svg
+        href: https://10.0.40.30
+        description: TrueNAS on smaug
+        # node_exporter on smaug. ZFS datasets share their pool's free space,
+        # so the pool's root mount's `avail` is the pool's; a "used" figure
+        # would have to sum every dataset and still miss snapshots.
+        widget:
+          type: prometheusmetric
+          url: http://10.0.99.20:9090
+          refreshInterval: 300000
+          metrics:
+            - label: erebor free
+              query: node_filesystem_avail_bytes{instance="smaug",mountpoint="/mnt/erebor"}
+              format:
+                type: bytes
+
+- ⚪ Switch LAN:
+    - Switch:
+        icon: mdi-switch
+        # Plain HTTP by ADR-0018 — the switch has no certificate to offer.
+        href: http://neo.matrix.elysium/
+        description: neo — the core switch's management UI
