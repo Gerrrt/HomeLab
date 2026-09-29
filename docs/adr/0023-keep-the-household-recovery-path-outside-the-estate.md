@@ -112,6 +112,11 @@ service is allowed to hold real data.
 > classes linkding as **Unclassed**. It holds data worth backing up, and it is
 > backed up, but no recovery step runs through a bookmark. This ADR is not
 > superseded.*
+>
+> *Stirling-PDF, the sixth service beyond ADR-0008's nine, is **Unclassed** for
+> ntfy's and Homepage's reason: it holds nothing a household would need back
+> ([ADR-0063](0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
+> The table is unchanged and this ADR is not superseded.*
 
 **Vaultwarden — the household's vault is not this vault.** The recommendation is
 that the family's own credentials live in hosted Bitwarden and that Vaultwarden

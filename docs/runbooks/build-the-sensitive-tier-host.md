@@ -322,7 +322,7 @@ hands off again, and `df -h /srv/immich` must show about 1.8T on
 `/dev/mapper/immich`. That proves the `crypttab` and `fstab` lines together,
 before any photograph depends on them.
 
-## 6. Its own age key, and the nineteen secrets
+## 6. Its own age key, and the twenty secrets
 
 In your own terminal on `trinity`. None of this goes into a shared session.
 
@@ -345,6 +345,7 @@ what each key is for. The values:
 | `PAPERLESS_SECRET_KEY` | `make gen-secret` | No |
 | `PAPERLESS_DBPASS` | `make gen-secret` | No |
 | `PAPERLESS_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
+| `STIRLING_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and a rebuild of the unbacked-up volume recreates the admin from it |
 | `HOMEPAGE_IMMICH_API_KEY`, `HOMEPAGE_PAPERLESS_TOKEN` | Minted in Immich and Paperless-ngx once they are up, each read-only — the clicks are beside the keys in the example file | No |
 | `NTFY_ALERTMANAGER_TOKEN` | the pinned image's `ntfy token generate` — the command is beside the key | No. The monitoring host's `ALERTMANAGER_NTFY_TOKEN` is the other copy |
 | `NTFY_ALERTMANAGER_PASSWORD_HASH` | `make gen-secret`, then `make hash-password` on it | No — the password is thrown away; this user logs in by token |
@@ -416,7 +417,7 @@ describes. One entry, host `trinity`, domain `matrix.elysium`, address
 `10.0.99.40`. The other twelve names go under *Additional Names for this Host*:
 
 `homeassistant`, `immich`, `paperless`, `vaultwarden`, `adguard`, `home`, `ntfy`,
-`miniflux`, `memos`, `recipes`, `links`, `actual`
+`miniflux`, `memos`, `recipes`, `links`, `actual`, `pdf`
 
 These are exactly the `Caddyfile`'s site names and the `caddy` service's
 aliases in `compose.yaml`. A later service adds its name in all three places.
@@ -529,6 +530,7 @@ floor, and recovery codes go in the password manager.
 | `https://homeassistant.matrix.elysium` | Onboarding creates the owner | *Profile → Security → Multi-factor authentication* |
 | `https://vaultwarden.matrix.elysium/admin` | The token from §6; invite each account; each registers at the vault | *Settings → Security → Two-step login*, per account |
 | `https://paperless.matrix.elysium` | `admin` and the password from §6 | The profile's *Two-factor authentication* |
+| `https://pdf.matrix.elysium` | `admin` and `STIRLING_ADMIN_PASSWORD` from §6 | The account settings' two-factor section; Stirling marks the seeded admin MFA-required |
 | `https://immich.matrix.elysium` | The first sign-up is the admin | None. ADR-0022 records Immich as unable |
 | `https://adguard.matrix.elysium` | The password behind §6's hash | None — likewise |
 | `https://recipes.matrix.elysium` | `changeme@example.com` / `MyPassword`, Mealie's default admin: change both at once under *Profile*, then create the other account under *Admin → Users* | None. ADR-0060 records Mealie as unable |

@@ -6,7 +6,7 @@
 #
 #   - A LINK: a name, a line saying what it is for, and an href. That is all
 #     it claims. Home Assistant, AdGuard, Vaultwarden, Miniflux, Memos,
-#     Mealie, linkding and Grafana are links.
+#     Mealie, linkding, Stirling-PDF and Grafana are links.
 #   - A WIDGET: live numbers read server-side, with a credential scoped
 #     READ-ONLY or none at all. Immich and Paperless-ngx are read from their
 #     own APIs; Prometheus, the UPS, the firewall, the iLO and the NAS are read
@@ -60,6 +60,13 @@
           # The API token of the view-only `homepage` user, not the
           # superuser's (secrets/sensitive.example.yaml has the steps).
           key: "{{HOMEPAGE_VAR_PAPERLESS_TOKEN}}"
+
+    - PDF tools:
+        icon: stirling-pdf.svg
+        # A link: Stirling keeps nothing, so there is no number worth a
+        # credential on this page (ADR-0063).
+        href: https://pdf.matrix.elysium
+        description: Stirling-PDF — merge, split, sign, OCR; nothing leaves the house
 
     - Passwords:
         icon: vaultwarden.svg
