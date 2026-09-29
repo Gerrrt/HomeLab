@@ -287,14 +287,15 @@ Gated on the domain, on a household observation, or on something to publish.
 Beyond ADR-0008's nine: each needs its own decision before it is authored, and
 none is in the order until one is taken.
 
-- **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
-  Deploying it on `trinity` is the stack README's *Adding it to the running
-  tier*: two SOPS keys, one host override, `make up`.
+- **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md), deployed on `trinity` 2026-09-29.
+  What remains is committing the encrypted `secrets/sensitive.sops.yaml`
+  that carries its two keys, and seeing `miniflux-db-data` in a nightly set.
 - **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
   [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
-  and authored in `stacks/sensitive`. What remains is the deploy on `trinity`:
-  the `memos` host override, `make up`, and registration closed at first login.
-  It holds no real notes until ADR-0023's *Durable* condition is met.
+  and deployed on `trinity` 2026-09-29, and reachable from Hicks by name the
+  same day. What remains is registration closed at first login, which is
+  open until the admin exists. It holds no real notes until ADR-0023's
+  *Durable* condition is met.
 - **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
   `recipes.matrix.elysium`.** Decided by
   [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
