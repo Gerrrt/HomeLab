@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **HomeBox is declined**
+  ([#148](https://github.com/Gerrrt/HomeLab/issues/148), closed). Every job
+  it was filed for already had a home: serials and warranty dates in
+  `hardware.md`, receipts and manuals in Paperless-ngx, licence keys in
+  Vaultwarden. The one thing left was a list of household objects, and that
+  does not earn a place on Winterfell.
+  [ADR-0058](adr/0058-decline-homebox-because-hardware-md-and-paperless-already-hold-its-records.md)
+  records the reasoning and what would reopen it.
+
 - **Miniflux is authored for the sensitive tier, the first service beyond
   ADR-0008's nine**
   ([#147](https://github.com/Gerrrt/HomeLab/issues/147),
