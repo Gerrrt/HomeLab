@@ -47,9 +47,9 @@ than carrying a second copy that drifts.
 > longer the NAS existing. It is that ADR-0027's sync job was designed against
 > a Linux host and `smaug` runs TrueNAS
 > ([#485](https://github.com/Gerrrt/HomeLab/issues/485) carries the re-read),
-> and that `erebor` is one disk until
-> [#558](https://github.com/Gerrrt/HomeLab/issues/558). Until both are
-> answered, a lost mirrored pair loses the record of what the estate saw, which
+> and that `erebor` was one disk until
+> [#558](https://github.com/Gerrrt/HomeLab/issues/558) — answered
+> 2026-09-29, when the mirror resilvered. Until both are answered, a lost mirrored pair loses the record of what the estate saw, which
 > cannot be rebuilt from a runbook the way a domain controller can. Snapshot
 > the guest in Proxmox before each exercise, and treat the store as practice
 > rather than evidence. **Decided 2026-09-23, not yet built:**

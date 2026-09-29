@@ -359,6 +359,17 @@ anything in this runbook.
 > in [`hardware.md`](../hardware.md)'s `smaug` entry, and the consequence —
 > a controller between ZFS and its disks, and what that means for the swap —
 > is in the disk runbook's step 4 and open list.
+>
+> **Re-cabled 2026-09-29, and now on the chipset.** At the disk swap
+> ([ADR-0052](../adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)),
+> both trays went onto the chipset on two new plain SATA cables, the
+> MegaRAID came out, and the pool imported there. The links read `ata1` and
+> `ata2` at 6.0 Gbps for the Exos, `ata6` for the boot SSD, and `ata5` for
+> the optical drive, which went back in the same day. `ata3` and `ata4` are
+> free. Board connector labels were not read, so this names ports the way
+> the kernel does. The instruction below still names `SATA2` and `SATA3`.
+> That is kept as the record of what was believed. For a rebuild, cable any
+> free chipset port and confirm the port with `dmesg`.
 
 Power down, unplug, hold the power button five seconds, ground yourself.
 
@@ -1234,10 +1245,11 @@ reopens it.
 [#140](https://github.com/Gerrrt/HomeLab/issues/140),
 [ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md).
 The service is in `compose.yaml` from the day it merged, and **nothing here
-has been done on this host.** The roadmap holds it until the mirror is whole
+has been done on this host.** The roadmap held it until the mirror was whole
 ([#558](https://github.com/Gerrrt/HomeLab/issues/558)): its state lands on
 `erebor/apps` like Jellyfin's, and a pool of one disk is not the place to
-start accumulating a new thing worth backing up.
+start accumulating a new thing worth backing up. **The gate opened
+2026-09-29**, when the resilver and the scrub completed.
 
 Until this section runs, `scripts/backup-nas.sh` carries
 `audiobookshelf-state` as **pending** and skips it by name when its directory
@@ -1325,8 +1337,9 @@ service that is not there yet. Step 8 is where that stops being allowed.
 
 [#141](https://github.com/Gerrrt/HomeLab/issues/141). Navidrome is in
 `compose.yaml` from the day it merged, and on this host only step 1 has been
-done. It waits on the same gate as §6.5, the mirror being whole
-([#558](https://github.com/Gerrrt/HomeLab/issues/558)), and it is carried in
+done. It waited on the same gate as §6.5, the mirror being whole
+([#558](https://github.com/Gerrrt/HomeLab/issues/558)), which opened on
+2026-09-29. It is carried in
 `scripts/backup-nas.sh` the same way: `navidrome-data` is **pending**, skipped
 by name while its directory is absent from the snapshot, until step 8.
 
@@ -1375,7 +1388,8 @@ by name while its directory is absent from the snapshot, until step 8.
 > `https`, `8096`, `4533` and the block, in that order, on `igc0.50`; the
 > monitoring host was refused on `4533`; the `igc0.40` tripwire read
 > **0 packets**. What a pass with no listener cannot prove — that Hicks
-> reaches it — is step 5. Steps 2–8 wait on #558.
+> reaches it — is step 5. Steps 2–8 waited on #558, and the mirror has been
+> whole since 2026-09-29.
 
 ### §6.7 — Turn version collection on
 
@@ -1485,6 +1499,14 @@ day's file carries the new version, and `check-versions` fails until
 > tray can be touched. The return was opened on 2026-09-20 and the seller's
 > choice is what the swap now waits on.
 > [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries the swap.
+>
+> **2026-09-29: the `zpool status erebor` line is true again.** `ZVTLQEZ7`
+> replaced `ZVTBSDL3` on the chipset's ports, with the MegaRAID out. The
+> resilver ran 1.99 GiB in 23 s, and the scrub repaired 0 B with 0 errors.
+> `up{job="node",instance="smaug"}` reads 1, and no alert or silence is
+> left for the host.
+> [`replace-the-nas-disk.md`](replace-the-nas-disk.md) steps 5 and 6 have
+> the readings.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
@@ -1516,13 +1538,13 @@ day's file carries the new version, and `check-versions` fails until
 
 ## §8 — What this leaves open
 
-- **A faulted disk, one day in.** `ZVTBSDL3` FAULTED on 2026-09-19 and the
-  pool is a mirror of one until it is replaced;
-  [`replace-the-nas-disk.md`](replace-the-nas-disk.md) is the procedure and
-  [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries it. Its step
-  2, the copy off this host, ran on 2026-09-20 (§6.2), and its step 3 opened
-  the return the same day; what is left is the seller's choice, the wipe
-  and the ship, and the swap when a drive arrives.
+- **No spare.** `ZVTBSDL3` FAULTED on 2026-09-19. The mirror was one disk
+  until `ZVTLQEZ7` resilvered in on 2026-09-29
+  ([`replace-the-nas-disk.md`](replace-the-nas-disk.md),
+  [#558](https://github.com/Gerrrt/HomeLab/issues/558)). The next fault
+  takes the same ten days unless a drive is already on the shelf. Two bays
+  is all the chassis gives, so a spare would be a cold one. That is the
+  question the disk runbook's open list leaves unasked.
 - **[#255](https://github.com/Gerrrt/HomeLab/issues/255)**, the residual saying
   this host ships no logs, which is true the day it exists.
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
