@@ -67,6 +67,19 @@
         href: https://homeassistant.matrix.elysium
         description: Home Assistant — lights and devices
 
+    - Watch:
+        icon: jellyfin.svg
+        # On smaug, VLAN 40: Hicks has a pass for 8096, trinity has none, so
+        # this is a link and cannot be a widget without a new 99→40 rule —
+        # not worth one for a play count.
+        href: http://10.0.40.30:8096
+        description: Jellyfin — films and TV on the NAS
+
+    - Notifications:
+        icon: ntfy.svg
+        href: https://ntfy.matrix.elysium
+        description: ntfy — the house's alerts, in the ntfy phone app
+
 - Estate:
     - Grafana:
         icon: grafana.svg
@@ -89,3 +102,50 @@
         icon: adguard-home.svg
         href: https://adguard.matrix.elysium
         description: The DNS filter behind the firewall's resolver
+
+# THE OPERATOR'S CONSOLES, collapsed by default (settings.yaml) so the page
+# the household opens is the two groups above. Every one of these is a link to
+# a login page Hicks can already reach through a named pass in docs/network.md
+# — putting it here grants nothing. None is a widget: trinity cannot reach
+# VLAN 30 or 40 at all, nor morpheus's UI from 99, and the two it can reach
+# (mjolnir, and prometheus above) have no widget or already have one. By
+# address where no name exists, because an override for a name only this page
+# uses would be a second place to keep in step.
+- Admin:
+    - Firewall:
+        icon: pfsense.svg
+        href: https://morpheus.matrix.elysium
+        description: pfSense on morpheus
+    - Switch:
+        icon: mdi-switch
+        # Plain HTTP by ADR-0018 — the switch has no certificate to offer.
+        href: http://neo.matrix.elysium/
+        description: The core switch's management UI
+    - UPS:
+        icon: apc.svg
+        href: https://10.0.99.10
+        description: mjolnir — the rack UPS's management card
+    - NAS:
+        icon: truenas.svg
+        href: https://10.0.40.30
+        description: TrueNAS on smaug
+    - Proxmox:
+        icon: proxmox.svg
+        href: https://10.0.30.110:8006
+        description: Saruman — the lab's hypervisor
+    - iLO:
+        icon: hpe.svg
+        href: https://10.0.30.10
+        description: shiva's out-of-band console
+    - Lab Grafana:
+        icon: grafana.svg
+        href: https://10.0.30.40:3000
+        description: alexander — the lab's own observability
+    - Wazuh:
+        icon: wazuh.svg
+        href: https://10.0.30.60/
+        description: odin — the SOC's SIEM dashboard
+    - Velociraptor:
+        icon: mdi-bird
+        href: https://10.0.30.60:8889/
+        description: odin — endpoint forensics GUI

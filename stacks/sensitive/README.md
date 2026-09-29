@@ -77,7 +77,7 @@ home-assistant/            configuration.yaml and packages/, mounted read-only
 .env.example               non-sensitive tunables — edit this, not .env:
                              the library's mount point, and the ML switch
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
-homepage/                  settings, services and widgets YAML — Homepage's whole
+homepage/                  settings, services, widgets and bookmarks YAML — its whole
                            configuration, mounted read-only
 ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
 consume/                   untracked: drop a scan here and Paperless-ngx imports
@@ -433,6 +433,14 @@ that is kept:
   `ping` (`settings.yaml` says why). Uptime is Grafana's question; a green dot
   that means "a socket opened" is worse than no dot. Grafana is linked from the
   page so the two are not strangers.
+- **Three groups, and the household sees two.** *Household* — photos,
+  documents, passwords, the house, Jellyfin and ntfy — and *Estate* are open;
+  *Admin*, the operator's consoles (firewall, switch, UPS, NAS, Proxmox, iLO,
+  the lab's Grafana, Wazuh, Velociraptor), starts collapsed. Every Admin link
+  is a login page Hicks already reaches through a named pass; listing it grants
+  nothing. Below the tiles, `bookmarks.yaml` holds the house wiki and where to
+  get each app. It is tracked because without it Homepage serves its own
+  sample — GitHub, Reddit and YouTube, which the first deploy did.
 - **Three tiles read live numbers, and only with read-only credentials.**
   Immich (a key with the single permission `server.statistics`), Paperless-ngx
   (the token of a view-only `homepage` user) and Prometheus (no credential —

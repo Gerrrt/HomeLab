@@ -1188,7 +1188,7 @@ services:
   # docs/runbooks/successor-handover.md is for whoever runs it next. A
   # directory, not a status page: homepage/settings.yaml says why there are no
   # status dots, and homepage/services.yaml which tiles read live numbers and
-  # why the rest are links. The three YAML files are the whole configuration,
+  # why the rest are links. The four YAML files are the whole configuration,
   # in the repository and mounted read-only; nothing about the page lives in a
   # database or a volume, so there is nothing to back up and no sentinel.
   #
@@ -1207,9 +1207,14 @@ services:
   # the pinned image with exactly these options on trinity (2026-09-28):
   # /app/config, which does not exist in the image — the entrypoint would
   # `ln -s /config /app/config` on the root filesystem if it were missing,
-  # and Homepage copies docker.yaml and kubernetes.yaml into it at start —
-  # and Next.js's cache under /app/.next. Both tmpfs; the three config files
-  # are single-file mounts over the first, so `make up` pins their inodes
+  # and Homepage copies its sample of any config file that is missing into it,
+  # some at start and the rest on the first page load — and Next.js's cache
+  # under /app/.next. Both tmpfs; the four config files that render are
+  # single-file mounts over the first, and bookmarks.yaml is among them for a
+  # reason the first deploy found: without it the sample was served, three
+  # links to GitHub, Reddit and YouTube on the household's page. The samples
+  # still copied — docker, kubernetes, proxmox — configure integrations this
+  # page does not use, and render nothing. `make up` pins the mounts' inodes
   # through check_mounted_config.py like every other one (#355). LOG_TARGETS
   # keeps logs on stdout, where every other container's are, rather than in a
   # logs/ directory under the tmpfs. `docker diff` after serving the page and
@@ -1257,6 +1262,7 @@ services:
       - ./homepage/settings.yaml:/app/config/settings.yaml:ro
       - ./homepage/services.yaml:/app/config/services.yaml:ro
       - ./homepage/widgets.yaml:/app/config/widgets.yaml:ro
+      - ./homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
       - ../../certificates/tier-ca.pem:/etc/homepage/tier-ca.pem:ro
     expose:
       - "3000"
