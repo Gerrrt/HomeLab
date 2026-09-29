@@ -54,7 +54,10 @@ heavier alternative to one. Miniflux joins them ([ADR-0057](adr/0057-add-miniflu
 its passkeys are a second way to log in rather than a second step, so they
 are left off. Memos joins them too
 ([ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)): passwords
-and SSO, nothing between. **Grafana is the only one of the six deployed
+and SSO, nothing between. So does Mealie
+([ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)): it has
+OIDC and LDAP and no factor of its own, accepted because recipes are the only
+thing it holds. **Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a
 pending piece of work — it closes when an identity provider exists and not
 before.
@@ -741,6 +744,15 @@ this closes on.
   to reach each other. It is written out in `compose.yaml` rather than
   defaulted for that reason. Its REST API, which takes the admin's password
   without the login page, is off.
+- **Mealie fetches the page a user pastes, from `trinity`**
+  ([#146](https://github.com/Gerrrt/HomeLab/issues/146), [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)).
+  It fetches on request, not on a timer. It does not fetch inward: its
+  `safehttp` transport refuses private, loopback, link-local, reserved and
+  CGNAT addresses after DNS. That was measured against a recipe page on the
+  compose network, by name and by address, and against `127.0.0.1`,
+  `10.0.99.1`, `10.0.99.20:9090` and `169.254.169.254`. None of those requests
+  arrived. `HTTP_ALLOW_LIST` is what would open it, so it is written out
+  empty in `compose.yaml`.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence

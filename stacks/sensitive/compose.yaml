@@ -28,7 +28,7 @@
 # five. ntfy (#136) is the seventh, and where the estate's alerts now arrive.
 # Miniflux (#147) is the eighth, and the first beyond ADR-0008's nine —
 # ADR-0057 decided it before it was written here. Memos (#145) is the ninth,
-# decided by ADR-0059.
+# decided by ADR-0059, and Mealie (#146) the tenth, decided by ADR-0060.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -124,6 +124,7 @@ services:
           - home.matrix.elysium
           - ntfy.matrix.elysium
           - miniflux.matrix.elysium
+          - recipes.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -1479,6 +1480,98 @@ services:
       retries: 3
       start_period: 30s
 
+  # ---------------------------------------------------------------------------
+  # Mealie — the household's recipes (#146, ADR-0060)
+  # ---------------------------------------------------------------------------
+  # Beyond ADR-0008's nine, so decided before it was authored, and a service
+  # people other than the operator open on purpose, from a phone in the kitchen. Hence
+  # a name that says what it is for, https://recipes.matrix.elysium, the way
+  # Homepage's is `home` rather than `homepage`. Vaultwarden's shape otherwise:
+  # `expose:` and no `ports:`, reached from Hicks only through Caddy's 443.
+  #
+  # Root with EVERY capability dropped, for DIFFERENCE 2's measured reason: in
+  # the pinned image /app/data is 0:0 755, so a named volume mounted there is
+  # root's, and a non-root Mealie cannot create its own database. The
+  # entrypoint (/app/run.sh) would otherwise usermod, `chown -R /app` and gosu
+  # to 911 — three capabilities' worth of work. PUID=0 and PGID=0 match the
+  # uid it is already running as, which is the script's own branch for "no
+  # switch needed", so none of that runs and no capability is asked for.
+  # Measured on the pinned image with exactly these options on 2026-09-29: it
+  # came up healthy, created the database, answered a login and imported
+  # three recipes by URL, and `docker diff` showed nothing written outside
+  # /app/data. Re-check the premise when the image moves:
+  #
+  #   docker run --rm --entrypoint stat <mealie image> -c '%u:%g %a' /app/data
+  #
+  # SQLite, not Postgres: one household's recipes are a few megabytes, and a
+  # database container would be a second thing to back up for no gain. The
+  # database is in rollback-journal mode (`PRAGMA journal_mode` reads
+  # `delete`), so there is no -wal whose absence would lose the last writes.
+  #
+  # No SOPS secret. The token-signing secrets (.secret, .session_secret) are
+  # generated into /app/data on the first start and travel with the volume's
+  # backup; the admin password is a bcrypt hash in the database, set at the
+  # first login (build-the-sensitive-tier-host.md §10). The way back in
+  # without it is the image's own script, run against the live container —
+  # proved on a scratch boot, the old password answering 401 afterwards:
+  #
+  #   docker exec -it sensitive-mealie python3 \
+  #     /opt/mealie/lib/python3.14/site-packages/mealie/scripts/change_password.py
+  #
+  # ALLOW_SIGNUP is false from the first start: POST /api/users/register then
+  # answers 403 "User Registration is Disabled", measured. Household accounts
+  # are made by the admin, or by invitation link from the admin's group. No
+  # second factor exists to enrol — ADR-0060 names Mealie beside Immich and
+  # AdGuard under ADR-0022's floor. SMTP, LDAP, OIDC and OpenAI stay unset.
+  #
+  # URL import reaches out: the server fetches the page the user pasted, over
+  # Winterfell's existing egress (ADR-0060). It never reaches in. Every fetch
+  # goes through Mealie's safehttp transport, which resolves the name and
+  # refuses private, loopback, link-local, reserved and CGNAT addresses at
+  # connect time. Measured: an import of a recipe page served from this
+  # network, by name and by address, and of 127.0.0.1, 10.0.99.1,
+  # 10.0.99.20:9090 and 169.254.169.254, each failed `InvalidDomainError`
+  # with no request arriving. The same page imported once its host was on
+  # HTTP_ALLOW_LIST. That list is the only thing between a pasted URL and the
+  # rest of Winterfell, so it is written out empty below rather than
+  # defaulted, as Miniflux's FETCHER_ALLOW_PRIVATE_NETWORKS is.
+  #
+  # 1024m: 224 MiB idle on the pinned image, 396 MiB at the peak of three URL
+  # imports back to back. Two and a half times the peak, to bound a leak
+  # rather than to size. No depends_on, for Vaultwarden's reason.
+  mealie:
+    <<: *service-defaults
+    image: ghcr.io/mealie-recipes/mealie:v3.28.0@sha256:8b02290f4d1806f02acac6f25f6d48a3c965612fda1f8e914d5af533276f8688
+    container_name: sensitive-mealie
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      PUID: "0"
+      PGID: "0"
+      BASE_URL: https://recipes.matrix.elysium
+      ALLOW_SIGNUP: "false"
+      DB_ENGINE: sqlite
+      HTTP_ALLOW_LIST: ""
+      TZ: ${MEALIE_TZ:-America/Los_Angeles}
+    volumes:
+      - mealie-data:/app/data
+    expose:
+      - "9000"
+    healthcheck:
+      # The image's own script: curl against /api/app/about on its own port.
+      # curl ships in the image, and check_compose_health.py --probe proves it.
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
 # DIFFERENCE 4: one network, and it is the point. Every later service joins
 # `sensitive` with `expose:` only. Two members have `ports:` — Caddy, and
 # AdGuard for the reason DIFFERENCE 7 gives — and a third is undoing
@@ -1542,3 +1635,8 @@ volumes:
   # yet archived. The OPML export in the README is the portable half; this is
   # the whole of it.
   miniflux-db-data:
+
+  # ---------------------------------------------------------------------------
+  # Mealie's SQLite database, its two generated token-signing secrets,
+  # recipe images and user avatars — everything it has (ADR-0060).
+  mealie-data:
