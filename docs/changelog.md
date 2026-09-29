@@ -69,17 +69,6 @@ docstring gives: it is a record, not a claim about now.
   `10.0.99.40:443`. A new name behind it needs no new rule. Not deployed: the
   host override, `make up` and the first login are the build runbook's new
   *Deploy a later service*.
-- **Every sensitive backup had been refusing to start since Miniflux merged,
-  and does not now.** `miniflux-db-data` took `paperless-db-data`'s sentinel,
-  `./18/docker/PG_VERSION`, and `check_sentinel_table` refuses two volumes
-  sharing one at load, so `make backup STACK=sensitive` died before stopping
-  anything. `--inventory` died too, so `make validate` did not see it. The
-  checkout on `trinity` had not pulled it yet, so no nightly run failed.
-  Miniflux's sentinel is now `./18/docker/global/pg_control`, and each lists
-  the other's among its companions (#468's soft hit). Two Postgres 18
-  volumes cannot be told apart by any file, and the comment says so. Proved
-  against synthetic archives of that layout: each verified as either volume,
-  and a Jellyfin archive offered as `miniflux-db-data` was still refused.
 
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having

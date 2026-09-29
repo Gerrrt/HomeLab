@@ -1371,6 +1371,16 @@ services:
   # service never has to reason about the other (ADR-0057). Miniflux does not
   # support SQLite; this is its one dependency.
   #
+  # One departure from paperless-db: PGDATA names the cluster directory
+  # ./18/miniflux rather than the image's ./18/docker. The two volumes were
+  # otherwise laid out identically, so backup-volumes.sh could not tell one
+  # archive from the other and refused to run at all (its sentinel table
+  # forbids a shared sentinel). Set before the volume was ever created on
+  # trinity, so nothing moves. Measured on the pinned image on 2026-09-29,
+  # under exactly these options: initdb writes ./18/miniflux/PG_VERSION, the
+  # server reports that data_directory, and pg_isready answers. A move to 19
+  # is a sibling ./19/miniflux, the way ./19/docker would be.
+  #
   # 512m, paperless-db's number: 42 MiB after migrations, and shared_buffers
   # defaults to 128 MB. The content is every stored entry, which the image's
   # cleanup job archives after 60 days read and 180 unread.
@@ -1392,6 +1402,7 @@ services:
       POSTGRES_DB: miniflux
       POSTGRES_USER: miniflux
       POSTGRES_PASSWORD: ${MINIFLUX_DBPASS:?set in secrets/sensitive.sops.yaml}
+      PGDATA: /var/lib/postgresql/18/miniflux
     volumes:
       - miniflux-db-data:/var/lib/postgresql
     expose:

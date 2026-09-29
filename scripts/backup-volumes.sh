@@ -337,6 +337,10 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # move it here — loudly, since the script refuses to write an archive it
 # cannot verify; and Valkey's ./dump.rdb is written by `--save 60 1` and again
 # on the SIGTERM a quiesce sends, which is the case that was checked.
+# Miniflux's Postgres is the same image, so compose.yaml gives it
+# PGDATA=.../18/miniflux: with the image's default the two volumes carried
+# the same ./18/docker/PG_VERSION, check_sentinel_table() refused the whole
+# run, and a crossed mapping between them could not have been seen anyway.
 #
 # Jellyfin's (jellyfin-config) is the one entry here that no compose file on
 # this host declares: it is an ARCHIVE name, consumed by scripts/backup-nas.sh,
@@ -369,16 +373,6 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # the scanner extracts covers. Nothing else is written there — the cache is a
 # tmpfs on ND_CACHEFOLDER.
 #
-# miniflux-db-data and paperless-db-data are the same image on the same
-# layout, so no file is in one archive and not the other; they cannot have
-# the same sentinel (check_sentinel_table refuses the run), and no choice of
-# sentinel tells them apart. Miniflux's is ./18/docker/global/pg_control,
-# present in every cluster, and each lists the other's sentinel among its
-# COMPANIONS, so each hit is soft (#468). What that gives up is the one thing
-# no sentinel could give: a crossed mapping between these two is not caught.
-# Both were ./18/docker/PG_VERSION when #147 merged, and every sensitive run,
-# --inventory included, died at load until this.
-#
 # Mealie's (mealie-data, #146) was read off a boot of the pinned image on
 # 2026-09-29, as capless root and read-only: ./mealie.db exists before the
 # listener answers, with ./.secret and ./.session_secret beside it — the keys
@@ -404,7 +398,7 @@ declare -A SENTINEL=(
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
   [paperless-broker-data]="./dump.rdb"
-  [miniflux-db-data]="./18/docker/global/pg_control"
+  [miniflux-db-data]="./18/miniflux/PG_VERSION"
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
@@ -437,9 +431,9 @@ declare -A COMPANIONS=(
   [immich-db]="./base ./pg_wal ./postgresql.conf"
   [paperless-data]="./log ./celerybeat-schedule.db"
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
-  [paperless-db-data]="./18/docker/base ./18/docker/pg_wal ./18/docker/global/pg_control"
+  [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
   [paperless-broker-data]=""
-  [miniflux-db-data]="./18/docker/base ./18/docker/pg_wal ./18/docker/PG_VERSION"
+  [miniflux-db-data]="./18/miniflux/base ./18/miniflux/pg_wal"
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
