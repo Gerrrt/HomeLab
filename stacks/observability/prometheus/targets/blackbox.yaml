@@ -6,6 +6,9 @@
 #          serves, see the table at the top of that file.
 # `name`   is what the alert says out loud, so write it for whoever is woken up.
 # `host`   is the machine the endpoint is expected on, as network.md names it.
+# `renewal` is `acme` for a certificate something renews on its own on a short
+#          lifetime — today, the sensitive tier's — and absent otherwise. It
+#          selects which expiry rules apply (blackbox.rules.yaml).
 # `via`    is how the endpoint was addressed: `dns` by the name a person types,
 #          `address` by its IP, `compose` by its service name on the compose
 #          network. A `dns` probe should have an `address` twin, because both
@@ -136,6 +139,9 @@
     role: alerting
     host: trinity
     via: dns
+    # A seven-day ACME leaf: the two 30/7-day expiry rules skip it and
+    # TlsAcmeRenewalStalled watches it instead (blackbox.rules.yaml).
+    renewal: acme
 
 # --- Devices that otherwise only have SNMP ---------------------------------
 # An SNMP agent answering says nothing about the management UI a person would

@@ -506,3 +506,60 @@ tests:
       - eval_time: 40m
         alertname: InternetLatencyHigh
         exp_alerts: []
+
+  # --- ACME leaves: out of the 30/7-day rules, into their own ---------------
+  # The page this exists for: a seven-day leaf, freshly issued, read as "7
+  # days left" and paged `urgent` the day the ntfy probe was enabled (#136).
+  # A healthy one at five days must fire neither estate expiry rule; the same
+  # leaf at 30 hours, a day after Caddy should have renewed it, must fire
+  # TlsAcmeRenewalStalled and only that.
+  - interval: 1m
+    input_series:
+      # Five days out at t=0, healthy.
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://ntfy.matrix.elysium/v1/health",
+                 name="ntfy", role="alerting", host="trinity", via="dns", renewal="acme"}'
+        values: "432000+0x180"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: TlsCertificateExpiringSoon
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: TlsCertificateExpiryImminent
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: TlsAcmeRenewalStalled
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      # 30 hours out at t=1h (108000 + 3600): a stalled renewal.
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://ntfy.matrix.elysium/v1/health",
+                 name="ntfy", role="alerting", host="trinity", via="dns", renewal="acme"}'
+        values: "111600+0x120"
+    alert_rule_test:
+      # `for: 30m`: pending at 20 minutes.
+      - eval_time: 20m
+        alertname: TlsAcmeRenewalStalled
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: TlsAcmeRenewalStalled
+        exp_alerts:
+          - exp_labels:
+              alertname: TlsAcmeRenewalStalled
+              name: ntfy
+              role: alerting
+              host: trinity
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "ntfy's ACME certificate has 30h left and has not renewed"
+              description: >-
+                Caddy on trinity should have renewed this leaf about a day
+                ago. Read Caddy's log for the renewal error first
+                (`docker logs sensitive-caddy 2>&1 | grep -i renew`), then check
+                step-ca is healthy — docs/runbooks/build-the-tier-ca.md. When it
+                lapses, every name on the tier stops verifying.
+      - eval_time: 1h
+        alertname: TlsCertificateExpiryImminent
+        exp_alerts: []
