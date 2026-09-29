@@ -33,6 +33,8 @@
 # is why it is here, and why it is behind one factor.
 # Actual (#142) is the twelfth, and the fifth beyond those nine, decided the
 # same way (ADR-0062).
+# Stirling-PDF (#143) is the thirteenth, and the sixth beyond those nine:
+# ADR-0063 is its decision, and DIFFERENCE 13 the one new thing it does.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -43,7 +45,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are twelve such places, each marked DIFFERENCE.
+# the sibling file. There are thirteen such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -131,6 +133,7 @@ services:
           - recipes.matrix.elysium
           - links.matrix.elysium
           - actual.matrix.elysium
+          - pdf.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -1257,6 +1260,150 @@ services:
       start_period: 10s
 
   # ---------------------------------------------------------------------------
+  # Stirling-PDF — the household's PDF editor (#143, ADR-0063)
+  # ---------------------------------------------------------------------------
+  # Merge, split, rotate, convert, OCR, sign, compress: what otherwise goes to
+  # whichever free PDF website ranks first that week. Paperless keeps
+  # documents; this edits them and keeps nothing, and the settings below are
+  # how "keeps nothing" is made true rather than hoped.
+  #
+  # DIFFERENCE 13: the documents are held in memory on purpose. Every upload,
+  # every intermediate and every result lives under /tmp, and /tmp is a tmpfs
+  # charged to this container's memory.max — so a half-processed P60 is never
+  # on a disk, and a restart erases whatever a crashed job left. This is the
+  # trade DIFFERENCE 11 refused for Paperless, taken the other way for a
+  # different workload: Paperless OCRs a backlog unattended and must not be
+  # OOM-killed halfway through it; this OCRs one document while someone
+  # watches, and the worst case is that they see an error and try again. The
+  # ceiling below is sized for a full tmpfs on top of the measured peak.
+  #
+  # `exec` on that tmpfs, where Docker's default is noexec, and not by choice.
+  # The PDF engine (jpdfium, pdfium over Panama) unpacks its shared libraries
+  # into java.io.tmpdir at first use, and the entrypoint pins that to
+  # /tmp/stirling-pdf on the java command line, where nothing else can
+  # override it. Under noexec the container boots healthy and then every
+  # pdfium-backed tool — merge first — answers 500 with "failed to map
+  # segment from shared object". Found by running the tools, not the
+  # healthcheck, on 2026-09-29. The root filesystem stays read-only, so what
+  # exec adds is a place a compromised process could write and run a binary
+  # for as long as the container lives, with no capabilities, as uid 1001.
+  #
+  # Nothing calls home: analytics, PostHog, Scarf and the update check are
+  # all off, which the running app confirmed from /api/v1/config/app-config
+  # on the same boot, and that boot was on an internal network with no route
+  # out. The heap dump the image enables on OOM is turned off too, because a
+  # dump of this JVM would contain the document it ran out of memory on,
+  # written to /configs, which is a disk.
+  #
+  # Runs as the image's stirlingpdfuser (1001) from the start. The entrypoint
+  # would drop to it from root with setpriv, which needs CAP_SETUID and
+  # CAP_SETGID; `user:` makes that drop unnecessary, and the entrypoint takes
+  # its non-root branch as written. The one thing that branch gives up is a
+  # separate uid for LibreOffice. The Landlock and seccomp sandbox around it
+  # still applies without root, and STIRLING_LO_SANDBOX=required makes a
+  # kernel that cannot provide it refuse conversions rather than run them
+  # unconfined. On the test boot it reported "landlock ABI 8, seccomp active".
+  #
+  # Memory, measured 2026-09-29 on the pinned image with these options: 790 MiB
+  # idle, 1342–1454 MiB peak across a 20- and a 40-page 300 dpi OCR, an RTF
+  # conversion through LibreOffice, merge, rotate, split and compress, no
+  # oom_kill. The heap is capped at 40 % (about 1.2 GiB), down from the 70 %
+  # the entrypoint picks, so the heap, the JVM's off-heap, LibreOffice,
+  # tesseract and a full 1 GiB /tmp all fit under 3072m together.
+  # Re-derive from container_memory_rss after a month, as for the rest. `cpus: 2`
+  # is DIFFERENCE 10 again: an OCR here must not take cores Paperless's
+  # ceiling of four is counting on.
+  stirling-pdf:
+    <<: *service-defaults
+    image: stirlingtools/stirling-pdf:3.0.0@sha256:66b6edb8ee62e307a8b335166e8931a6e65b39c9bf73b5e517fbfe9c613ba221
+    container_name: sensitive-stirling-pdf
+    # DIFFERENCE 5 and 8 again: the image's entrypoint is `tini --
+    # /scripts/init.sh`, an init of its own.
+    init: false
+    user: "1001:1001"
+    mem_limit: 3072m
+    memswap_limit: 3072m
+    cpus: 2
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      # DIFFERENCE 13: the documents.
+      - /tmp:size=1g,exec,uid=1001,gid=1001,mode=1777
+      # The LibreOffice profile, rebuilt on every start.
+      - /home/stirlingpdfuser:size=64m,uid=1001,gid=1001,mode=0700
+      # Its own log files. The same lines go to stdout, which is where they
+      # are read.
+      - /logs:size=64m,uid=1001,gid=1001,mode=0700
+      # Three directories the entrypoint insists it can write, and Spring
+      # writes default pipeline configs into the first at start, which is fatal
+      # on a read-only root. Server-side storage and watched folders are off,
+      # so nothing else is ever written to them.
+      - /pipeline:size=4m,uid=1001,gid=1001,mode=0700
+      - /customFiles:size=4m,uid=1001,gid=1001,mode=0700
+      - /storage:size=4m,uid=1001,gid=1001,mode=0700
+    environment:
+      # The admin, created on the first start against an empty volume and
+      # never touched by these variables again, as for PAPERLESS_ADMIN_*. TOTP
+      # on this account at first login is ADR-0022's floor. The README has the
+      # step.
+      SECURITY_ENABLELOGIN: "true"
+      SECURITY_INITIALLOGIN_USERNAME: ${STIRLING_ADMIN_USER:-admin}
+      SECURITY_INITIALLOGIN_PASSWORD: ${STIRLING_ADMIN_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      # Nothing calls home, and nothing phones a URL on a user's behalf.
+      SYSTEM_ENABLEANALYTICS: "false"
+      SYSTEM_ENABLEPOSTHOG: "false"
+      SYSTEM_ENABLESCARF: "false"
+      SYSTEM_SHOWUPDATE: "false"
+      SYSTEM_ENABLEURLTOPDF: "false"
+      SYSTEM_GOOGLEVISIBILITY: "false"
+      AIENGINE_ENABLED: "false"
+      # The phone-upload QR codes would point a phone at this name, and the
+      # phones that could resolve it are the ones that can already open the
+      # page. Off rather than half-working.
+      SYSTEM_ENABLEMOBILESCANNER: "false"
+      SYSTEM_ENABLEMOBILESIGNATURE: "false"
+      # An empty CORS list means every origin, with credentials, and not "CORS
+      # off". Pinned to the one name. A preflight from any other origin
+      # answered 403 on the test boot.
+      SYSTEM_FRONTENDURL: https://pdf.matrix.elysium
+      SYSTEM_CORSALLOWEDORIGINS: https://pdf.matrix.elysium
+      # Stirling deletes a job's files when the job finishes; this is the sweep
+      # for the ones a failed job leaves. An hour rather than a day, every ten
+      # minutes rather than thirty, and on every start.
+      SYSTEM_TEMPFILEMANAGEMENT_MAXAGEHOURS: "1"
+      SYSTEM_TEMPFILEMANAGEMENT_CLEANUPINTERVALMINUTES: "10"
+      SYSTEM_TEMPFILEMANAGEMENT_STARTUPCLEANUP: "true"
+      SPRINGDOC_API_DOCS_ENABLED: "false"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+      STIRLING_LO_SANDBOX: required
+      # Appended after the image's own JVM flags, and HotSpot takes the last of
+      # a repeated flag: no heap dump, and 40 % where the entrypoint would say
+      # 70. Both were read back from the running JVM's environment.
+      JAVA_CUSTOM_OPTS: -XX:-HeapDumpOnOutOfMemoryError -XX:MaxRAMPercentage=40
+    volumes:
+      - stirling-pdf-configs:/configs
+      # The entrypoint symlinks this script into /usr/local/bin under
+      # `set -e`, which is fatal on a read-only root. It only links the file
+      # if it is executable, and /dev/null is not, so the diagnostics
+      # shortcuts are skipped and nothing else changes. /usr/local/bin cannot
+      # be a tmpfs instead, because gs and unoserver live there.
+      - /dev/null:/scripts/stirling-diagnostics.sh:ro
+    expose:
+      - "8080"
+    healthcheck:
+      # The image's own, in exec form: curl against the unauthenticated
+      # status endpoint. --probe proves curl is still in the image after a
+      # bump. Healthy 42 s after start on the test boot, and start_period is
+      # the image's own 120 s for a slower first JVM start on trinity.
+      test: ["CMD", "curl", "-fs", "--max-time", "10", "http://localhost:8080/api/v1/info/status"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
+
+  # ---------------------------------------------------------------------------
   # Homepage — the household's front page (#137)
   # ---------------------------------------------------------------------------
   # What exists on this tier and where it lives, at https://home.matrix.elysium
@@ -1830,3 +1977,9 @@ volumes:
   # which survives losing this volume but not a bad sync, and so is not a
   # backup of it (ADR-0062).
   actual-data:
+  # Stirling-PDF's accounts (an H2 database, TOTP enrolments with it), its
+  # generated settings.yml and keys, and the nightly SQL dump it takes of its
+  # own database. No document ever lands here — those are DIFFERENCE 13's
+  # tmpfs — and everything in it is rebuilt from the environment on an empty
+  # volume, so scripts/backup-volumes.sh skips it by name (ADR-0063).
+  stirling-pdf-configs:

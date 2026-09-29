@@ -510,10 +510,19 @@ declare -A COMPANIONS=(
 # delivered. ADR-0023 classes ntfy as Unclassed for the same reason. Skipping
 # it also keeps ntfy running through a backup, which is when a failed backup
 # would want to page.
+# stirling-pdf-configs (#143) holds no document, by ADR-0063's design: they
+# live on a tmpfs and never reach a volume. What it does hold is rebuilt on an
+# empty volume. The admin comes back from STIRLING_ADMIN_PASSWORD, the settings
+# are the environment's, and the keys it generates sign sessions and encrypt
+# integrations this deployment does not use. A rebuild costs the admin's TOTP
+# enrolment and any account added in the UI since, which is a re-enrolment,
+# not a record lost. The nightly SQL dump Stirling writes into the same volume
+# is left out for the same reason.
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
   [adguard-work]="blocklists, stats and a query log AdGuard rebuilds; archiving it would stop the house's only DNS forwarder"
   [ntfy-data]="users re-provisioned from SOPS on every start, and twelve hours of notifications already delivered"
+  [stirling-pdf-configs]="an admin rebuilt from SOPS and settings from the environment; documents are never on it"
   [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"
 )
 

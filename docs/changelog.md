@@ -117,6 +117,25 @@ docstring gives: it is a record, not a claim about now.
   `10.0.99.40:443`. A new name behind it needs no new rule. Not deployed: the
   host override, `make up` and the first login are the build runbook's new
   *Deploy a later service*.
+- **Stirling-PDF is decided and authored for the sensitive tier, not yet
+  deployed** ([#143](https://github.com/Gerrrt/HomeLab/issues/143),
+  [ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). It is the sixth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie, linkding and Actual. The
+  pinned image (`3.0.0`) was booted on `trinity` beside the live stack, on an
+  internal network of its own, read-only, as uid 1001, with every capability
+  dropped. It ran OCR, conversion, merge, rotate, split and compress, and three
+  things were found by running it:
+  - **The entrypoint dies on a read-only root.** It `ln -s`es diagnostics
+    shortcuts into `/usr/local/bin` under `set -e`. `/dev/null` mounted over
+    the script it links makes it skip that step.
+  - **A `noexec` `/tmp` breaks every pdfium tool while the container stays
+    healthy.** The PDF engine unpacks its libraries there, and merge answered
+    500 with *failed to map segment from shared object*. So that tmpfs is
+    `exec`.
+  - **The image writes a heap dump to `/configs` on OOM**, and a dump would
+    hold the document. It is turned off.
+
+  Memory: 790 MiB idle and 1.4 GiB at peak through a 40-page 300 dpi OCR,
+  under a 3 GiB limit that also holds the 1 GiB of document tmpfs.
 
 - **Memos is the second *Tier extras* service decided, and authored**
   ([#145](https://github.com/Gerrrt/HomeLab/issues/145),

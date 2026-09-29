@@ -38,8 +38,9 @@ make up STACK=sensitive
 | mealie | `ghcr.io/mealie-recipes/mealie` | *internal* (9000) | The household's recipes, meal plans and shopping list at `https://recipes.matrix.elysium`. Beyond ADR-0008's nine, decided by its own ADR, and **authored, not yet deployed** ([#146], [ADR-0060]) |
 | linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The fourth service beyond ADR-0008's nine ([ADR-0061], [#144]) |
 | actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fifth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding, by [ADR-0062] ([#142]) |
+| stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0063]) |
 
-Twenty services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Twenty-one services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
@@ -48,8 +49,9 @@ is the page that tells the household the rest exist; ntfy is the one the
 estate uses, to tell the operator what is wrong with the rest; two are
 Miniflux, the first of the tier extras, decided by an ADR of its own before it
 was written here; Memos is the second; Mealie is the third, the one the
-household is meant to open for its own sake; linkding is the fourth; and Actual
-is the household's budget, the fifth. What is absent is as deliberate as what
+household is meant to open for its own sake; linkding is the fourth; Actual
+is the household's budget, the fifth; and Stirling-PDF, the sixth, is the one
+that keeps nothing. What is absent is as deliberate as what
 is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -60,9 +62,10 @@ is here:
   not in the lab's: it is the estate's, deployed identically everywhere.
 - **No other services planned.** The next one, whenever it comes, arrives as
   Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy,
-  Miniflux, Memos, Mealie and linkding did — and, beyond ADR-0008's nine,
-  after an ADR of its own, as [ADR-0057], [ADR-0059], [ADR-0060] and
-  [ADR-0061] were for the last four: a service with
+  Miniflux, Memos, Mealie, linkding, Actual and Stirling-PDF did — and, beyond
+  ADR-0008's nine, after an ADR of its own, as [ADR-0057], [ADR-0059],
+  [ADR-0060], [ADR-0061], [ADR-0062] and [ADR-0063] were for the last six: a
+  service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -828,6 +831,68 @@ What has to be true around it is here.
   override on `morpheus` is
   [`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)'s.
 
+## Stirling-PDF
+
+The household's PDF editor since [#143]. It does the jobs that otherwise go to
+a free converter website: merge, split, rotate, convert, OCR, sign, compress.
+[ADR-0063] is the decision. `compose.yaml` has the service, the measurements
+and DIFFERENCE 13. What has to be true around it is here.
+
+- **Documents never reach a disk.** Uploads, intermediates and results live in
+  `/tmp`, a 1 GiB tmpfs counted against the container's 3 GiB limit.
+  Stirling deletes a job's files when the job ends, sweeps anything a failed
+  job left every ten minutes, and a restart erases the rest. The one volume,
+  `stirling-pdf-configs`, holds accounts and settings. If a document ever
+  turns up there, something has gone wrong.
+- **A big enough job fails instead of spilling.** A scan that fills the
+  tmpfs, or an OCR that pushes the container past its limit, fails with an
+  error, and the fix is to split the document. Caddy refuses uploads over
+  256 MB before they reach it. On 2026-09-29 a 40-page 300 dpi OCR peaked at
+  1.4 GiB. No household document is near the limit.
+- **The admin comes from SOPS, once.** `STIRLING_ADMIN_USER` in `.env.example`
+  and `STIRLING_ADMIN_PASSWORD` in SOPS, read on the first start against an
+  empty volume and never again. A rotation is done in the UI first and
+  recorded in SOPS after. SOPS matters here more than for Paperless, because
+  the volume is not backed up and a rebuild recreates the admin from it.
+  **Enrol TOTP at first login**, in the account settings, before the first
+  real document. Stirling marks the seeded admin as MFA-required. That is
+  [ADR-0022]'s floor.
+- **Nothing phones home, and the hardening was checked, not just set.**
+  Analytics, PostHog, Scarf, the update check, URL-to-PDF, the AI engine and
+  the mobile QR upload are off. CORS is pinned to the one name, and the heap
+  dump on OOM is off because it would write a document to `/configs`. The
+  running app's `/api/v1/config/app-config` showed each of these on a boot
+  with no route out.
+- **Its hardening had two costs, both found by running it.**
+  - The entrypoint `ln -s`es diagnostics shortcuts into `/usr/local/bin`
+    under `set -e`, which kills the container on a read-only root. `/dev/null`
+    mounted over the script it links makes it skip that step.
+  - The PDF engine unpacks shared libraries into `/tmp`, so that tmpfs is
+    `exec`. Without it the container is healthy and every pdfium tool
+    answers 500, which is why CI and the check below run a tool rather than
+    trusting the healthcheck.
+- **LibreOffice runs sandboxed, as the same uid.** The service starts as
+  `stirlingpdfuser` (1001), so the entrypoint cannot give LibreOffice a uid of
+  its own. It keeps its Landlock and seccomp sandbox, and
+  `STIRLING_LO_SANDBOX=required` refuses a conversion on a kernel that cannot
+  provide it. Its startup log line says which: *"LibreOffice sandbox active
+  (lo-sandbox: landlock ABI 8, seccomp active)"*.
+- **Nothing to back up.** `backup-volumes.sh` skips the volume by name, and
+  [ADR-0023] classes the service as unclassed. A rebuild costs the admin a
+  TOTP re-enrolment.
+
+CI does this on every change to the service or its image.
+[`stirling-pdf/smoke.sh`](stirling-pdf/smoke.sh) runs after the hardened boot:
+it logs in as the seeded admin, merges two pages through pdfium, and fails on
+anything but a PDF back. On `trinity`, after a deploy, do the same by hand:
+merge two PDFs in the UI, then
+
+```bash
+docker logs sensitive-stirling-pdf 2>&1 | grep -E 'sandbox active|UnsatisfiedLink'
+```
+
+The first line should appear; the second should not.
+
 ## Backup and restore
 
 ```bash
@@ -960,7 +1025,9 @@ it matters:
   `compose.yaml` on an internal network, waits for its healthcheck, and reads
   read-only root, `CapDrop=ALL` and no-new-privileges back from the running
   container ([#534](https://github.com/Gerrrt/HomeLab/issues/534)). A bump
-  that does not boot hardened cannot merge. What it still cannot tell you is
+  that does not boot hardened cannot merge. A service whose healthcheck can
+  pass while its work fails also carries a `smoke.sh` in its config
+  directory, which the check runs next; Stirling-PDF is the first. What it still cannot tell you is
   whether the integrations you add later load under the same hardening;
   `make check-hardened-boot` is the same boot, run by hand.
 - **That AdGuard filters.** Its blocklists are downloaded on first start and
@@ -985,6 +1052,7 @@ it matters:
 [#124]: https://github.com/Gerrrt/HomeLab/issues/124
 [ADR-0060]: ../../docs/adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md
 [ADR-0062]: ../../docs/adr/0062-add-actual-to-the-sensitive-tier.md
+[ADR-0063]: ../../docs/adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -999,6 +1067,7 @@ it matters:
 [#145]: https://github.com/Gerrrt/HomeLab/issues/145
 [#147]: https://github.com/Gerrrt/HomeLab/issues/147
 [#146]: https://github.com/Gerrrt/HomeLab/issues/146
+[#143]: https://github.com/Gerrrt/HomeLab/issues/143
 [#182]: https://github.com/Gerrrt/HomeLab/issues/182
 [#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
