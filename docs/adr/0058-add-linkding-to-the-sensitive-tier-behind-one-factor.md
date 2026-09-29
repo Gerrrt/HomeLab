@@ -1,4 +1,4 @@
-# ADR-0057: Add linkding to the sensitive tier, behind one factor
+# ADR-0058: Add linkding to the sensitive tier, behind one factor
 
 **Status:** Accepted · 2026-09 · adds a service to the tier
 [ADR-0008](0008-place-services-by-data-trust.md) created, and one to the list
@@ -20,9 +20,10 @@ a REST API. It does one thing and stops. It named two alternatives:
 The want as stated is "I can find the link again", not "the page still exists
 when the site is gone". linkding is the smallest answer to the first.
 
-ADR-0008 does not name it. As with
+ADR-0008 does not name it. It is the second of the tier's extras, after
+Miniflux in [ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md). As with
 [ADR-0050](0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md),
-its test is the trust of the data, not the function. **A bookmark collection is
+ADR-0008's test is the trust of the data, not the function. **A bookmark collection is
 a browsing history by another name**: modest one entry at a time, revealing in
 aggregate. That is the same kind of data as AdGuard Home's query log, which the
 tier already holds. It belongs on Winterfell and not on a segment shared with
@@ -38,8 +39,9 @@ of 2026-09-19 set two reasons:
 2. **linkding cannot carry a second factor.** Its logins are Django's
    password, OIDC, or trust in a header set by an authenticating proxy. There
    is no TOTP and no WebAuthn. ADR-0022 counted the tier's services that
-   cannot carry a factor (Grafana, Immich, AdGuard Home), and adding one to that
-   count is a decision to take in the open.
+   cannot carry a factor (Grafana, Immich, AdGuard Home), ADR-0057 added
+   Miniflux, and adding another to that count is a decision to take in the
+   open.
 
 Measured on the pinned image (1.47.0) on 2026-09-29, under the options
 `compose.yaml` gives it:
@@ -88,14 +90,14 @@ Measured on the pinned image (1.47.0) on 2026-09-29, under the options
    by 33.
 
 2. **One superuser, from SOPS, on first start only.** This is Paperless's
-   shape. `LINKDING_SUPERUSER_PASSWORD` is the tier's sixteenth key, and the
+   shape. `LINKDING_SUPERUSER_PASSWORD` is the tier's eighteenth key, and the
    user name defaults in `.env.example`. linkding has no self-registration, so
    there is no sign-up to turn off. A second person's account is made in
    `/admin`, and it counts toward ADR-0022's third trigger like any other.
 
 3. **Behind one factor, and named as such.** `docs/security.md` lists linkding
-   with Grafana, Immich and AdGuard Home as unable to carry a second factor.
-   This is accepted for three reasons:
+   with Grafana, Immich, AdGuard Home and Miniflux as unable to carry a second
+   factor. This is accepted for three reasons:
    - The data is a list of links. It is the least sensitive content on the
      tier after Homepage's.
    - It is reachable only from Hicks.
@@ -130,7 +132,7 @@ Measured on the pinned image (1.47.0) on 2026-09-29, under the options
 
 ## Consequences
 
-- **The tier has a fifteenth service and an eleventh archived volume.** The
+- **The tier has a seventeenth service and a twelfth archived volume.** The
   stack README, the build and restore runbooks, the backup tables and the
   Homepage page each gain a row.
 - **One more name on the leaf and in the resolver.** `links` needs a host
@@ -141,7 +143,7 @@ Measured on the pinned image (1.47.0) on 2026-09-29, under the options
   capabilities are held only by the root process that runs the migrations.
   The `compose.yaml` comment names the one-line `stat` that shows whether the
   premise still holds after an image bump.
-- **The "cannot carry a factor" list grows from three to four.** Each entry
+- **The "cannot carry a factor" list grows from four to five.** Each entry
   makes an identity provider a little more worth its cost when ADR-0022's
   decision comes due. None of them brings that decision forward.
 - **No icons, by choice.** Someone who wants them turns on background tasks,

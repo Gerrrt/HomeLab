@@ -287,13 +287,12 @@ Gated on the domain, on a household observation, or on something to publish.
 Beyond ADR-0008's nine: each needs its own decision before it is authored, and
 none is in the order until one is taken.
 
-- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding: decided
-  and authored, not deployed.**
-  [ADR-0057](adr/0057-add-linkding-to-the-sensitive-tier-behind-one-factor.md)
-  places it on the sensitive tier behind a password and no second factor, and
-  it is authored in `stacks/sensitive`. Three steps remain, all on `trinity`:
-  `LINKDING_SUPERUSER_PASSWORD` into SOPS; the `links` host override on
-  `morpheus`; and `make up STACK=sensitive`.
+- **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
+  Deploying it on `trinity` is the stack README's *Adding it to the running
+  tier*: two SOPS keys, one host override, `make up`.
+- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0058](adr/0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
+  Deploying it on `trinity` is the same section of the stack README: one SOPS
+  key, one host override, `make up`.
 
 ## Everything still to buy
 

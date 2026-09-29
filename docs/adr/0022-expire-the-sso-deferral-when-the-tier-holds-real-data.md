@@ -19,6 +19,18 @@
 > **The disk-encryption choice below was made on 2026-09-27**, for `trinity`:
 > LUKS on both disks, with the root's key sealed to the TPM —
 > [ADR-0054](0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md).
+>
+> **The table below has a seventh row, as of 2026-09-29: Miniflux, with no
+> second factor.** It has no TOTP, and its passkeys are a second way to log
+> in rather than a second step. Its route to a factor is OIDC, which is the
+> identity provider again
+> ([ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
+> The table is not edited.
+>
+> **And an eighth, the same day: linkding, with no second factor.** It offers
+> OIDC or a trusted proxy header and nothing of its own, so its route is the
+> identity provider too. Adding it fires none of the triggers below
+> ([ADR-0058](0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
 
 ## Context
 
@@ -55,11 +67,6 @@ authenticate a person, that substitute exists for half of them:
 | Immich | **None.** Upstream has declined it repeatedly and points at OAuth — which in this house means Authelia or Authentik |
 | Grafana OSS | **None, in any edition.** "Grafana and the Grafana Cloud portal currently do not include built-in support for multi-factor authentication"; the documented route is an external identity provider |
 | AdGuard Home | **None.** One admin account, password only |
-
-> *[ADR-0057](0057-add-linkding-to-the-sensitive-tier-behind-one-factor.md)
-> adds a seventh row: **linkding — none.** It offers OIDC or a trusted proxy
-> header, so it has the same route to a factor as Immich. Adding it fires none
-> of the triggers below. This ADR is not superseded.*
 
 ntfy and Homepage are left out of that table because neither authenticates a
 household identity — ntfy has basic auth on a topic, Homepage has no login at

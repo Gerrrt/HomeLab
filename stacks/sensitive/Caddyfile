@@ -143,7 +143,21 @@ ntfy.matrix.elysium {
 	}
 }
 
-# linkding (#144, ADR-0057). Django reads the scheme from the
+# Miniflux (#147, ADR-0057). Plain HTTP on the stack network; TLS ends here.
+# compose.yaml's BASE_URL is this name with https://, which is what Miniflux
+# builds its links and its cookies' Secure flag from. The REST API is off
+# (DISABLE_API), so everything under this name is the web UI and the two
+# per-user sync APIs the ADR keeps off until a client wants them.
+miniflux.matrix.elysium {
+	reverse_proxy miniflux:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# linkding (#144, ADR-0058). Django reads the scheme from the
 # X-Forwarded-Proto Caddy sets, which is what lets a login POST from https://
 # pass its CSRF check without a trusted-origins list.
 links.matrix.elysium {

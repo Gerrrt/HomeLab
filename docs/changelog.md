@@ -21,10 +21,10 @@ docstring gives: it is a record, not a claim about now.
 
 - **linkding is decided and authored for the sensitive tier; it is not
   deployed** ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
-  [ADR-0057](adr/0057-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
-  It is the first service beyond ADR-0008's nine. It is behind one factor
-  because linkding has no other, and it is named in `security.md` with Immich
-  and AdGuard Home.
+  [ADR-0058](adr/0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+  It is the second service beyond ADR-0008's nine, after Miniflux. It is behind
+  one factor because linkding has no other, and it is named in `security.md`
+  with Immich, AdGuard Home and Miniflux.
   - **Hardening needs four capabilities.** Measured on the pinned 1.47.0
     image: the bootstrap needs root with `CHOWN`, `DAC_OVERRIDE`, `SETUID` and
     `SETGID`, and every process that serves runs as uid 33 with no
@@ -35,6 +35,20 @@ docstring gives: it is a record, not a claim about now.
   - **Memory:** 77 MiB idle, and 188 MiB peak importing 3,000 bookmarks.
   - **Background tasks are off**, so no third party is asked for a favicon for
     each bookmarked site.
+- **Miniflux is authored for the sensitive tier, the first service beyond
+  ADR-0008's nine**
+  ([#147](https://github.com/Gerrrt/HomeLab/issues/147),
+  [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
+  It is authored and validated here, and not yet deployed on `trinity`.
+  - **Measured on the pinned image first.** It runs as 65534, read-only with
+    no tmpfs, at 13 MiB idle.
+  - **The fetcher refused `miniflux-db` by name and `localhost`** as private
+    addresses, which is the property that makes a URL-fetching service
+    tolerable on Winterfell.
+  - **The REST API answered 200 to the admin's password over basic auth**, so
+    it is off.
+  - **There is no TOTP, and its passkeys are not a second step.** Miniflux
+    is named beside Immich and AdGuard as single-factor.
 
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having

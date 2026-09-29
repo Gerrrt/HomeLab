@@ -46,13 +46,16 @@ unbuilt, and on Winterfell when it is built — but the lab's own Grafana on
 `alexander` did, and that is one of the three below that cannot carry a factor
 at all. The other two triggers keep their full force. Until then the floor is per-application TOTP,
 and it does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
-can each carry a second factor; **Grafana, Immich, AdGuard Home and linkding
-cannot** — Grafana OSS has no MFA in any edition, Immich's upstream has declined
-it and points at OAuth, AdGuard has one password-only admin account, and
-linkding offers OIDC or a trusted proxy header and nothing of its own
-([ADR-0057](adr/0057-add-linkding-to-the-sensitive-tier-behind-one-factor.md)
-added it knowing that). For those four an identity provider is the only route to a second factor rather than a
-heavier alternative to one. **Grafana is the only one of the six deployed
+can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
+Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
+points at OAuth, and AdGuard has one password-only admin account. For those
+three an identity provider is the only route to a second factor rather than a
+heavier alternative to one. Miniflux joins them ([ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)): it has no TOTP, and
+its passkeys are a second way to log in rather than a second step, so they
+are left off. So does linkding
+([ADR-0058](adr/0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md)),
+which offers OIDC or a trusted proxy header and nothing of its own.
+**Grafana is the only one of the six deployed
 today**, which makes "no MFA" a standing property of the estate rather than a
 pending piece of work — it closes when an identity provider exists and not
 before.
@@ -729,6 +732,16 @@ this closes on.
   `cap_drop: [ALL]`: an `icmp` module needs `CAP_NET_RAW`, and handing one
   container back a capability the rest of the stack just gave up is a poor
   trade for a measurement TCP already provides.
+- **Miniflux polls the internet from `trinity`, on the same kind of path**
+  ([#147](https://github.com/Gerrrt/HomeLab/issues/147), [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)). Every subscribed feed is fetched about once an hour, and that
+  is the service working. What it may not do is fetch inward:
+  `FETCHER_ALLOW_PRIVATE_NETWORKS=0` refuses every private, loopback and
+  link-local address after DNS, measured against a container by name and
+  against `localhost`. That flag is the only thing between a feed URL and the
+  rest of Winterfell, because hosts on one segment do not cross the firewall
+  to reach each other. It is written out in `compose.yaml` rather than
+  defaulted for that reason. Its REST API, which takes the admin's password
+  without the login page, is off.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence

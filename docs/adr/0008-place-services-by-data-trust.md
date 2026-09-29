@@ -55,11 +55,15 @@ all of it under the existing 50→99 rule, so this adds no rule at all.
 > recovery path may not run through this box. The placement above is unchanged
 > and this ADR is not superseded.*
 >
-> *A service outside that list joins the tier by a decision of its own, taken
-> by this paragraph's test.
-> [ADR-0057](0057-add-linkding-to-the-sensitive-tier-behind-one-factor.md) is
-> the first: linkding, because a bookmark collection is a browsing history. The
-> placement above is unchanged and this ADR is not superseded.*
+> *The tier has one service this paragraph does not count: Miniflux, a feed
+> reader, placed here by this ADR's own test and decided on its own in
+> [ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md).
+> The paragraph is not edited, and this ADR is not superseded.*
+>
+> *linkding, a bookmark manager, is a second, by the same test — a bookmark
+> collection is a browsing history — and decided in
+> [ADR-0058](0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md).
+> The placement above is unchanged and this ADR is not superseded.*
 
 **The streaming tier — CasaBonita (40).** A quiet N100-class NAS holds the bulk
 media library and runs Jellyfin, with Plex beside it for household convenience.

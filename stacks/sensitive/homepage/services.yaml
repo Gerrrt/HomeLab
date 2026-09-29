@@ -5,8 +5,8 @@
 # TWO KINDS OF TILE, and the difference is the point:
 #
 #   - A LINK: a name, a line saying what it is for, and an href. That is all
-#     it claims. Home Assistant, AdGuard, Vaultwarden, linkding and Grafana
-#     are links.
+#     it claims. Home Assistant, AdGuard, Vaultwarden, Miniflux, linkding and
+#     Grafana are links.
 #   - A WIDGET: live numbers read server-side, with a credential scoped
 #     READ-ONLY or none at all. Immich and Paperless-ngx are read from their
 #     own APIs; Prometheus, the UPS, the firewall, the iLO and the NAS are read
@@ -87,6 +87,14 @@
         icon: ntfy.svg
         href: https://ntfy.matrix.elysium
         description: ntfy — the house's alerts, in the ntfy phone app
+
+    - Reading:
+        icon: miniflux.svg
+        # A link: Homepage's miniflux widget reads the REST API, which is off
+        # (compose.yaml says why), and turning it on for an unread count would
+        # hand the page a key to the whole account.
+        href: https://miniflux.matrix.elysium
+        description: Miniflux — news feeds and blogs
 
 # EVERYTHING ELSE, BY VLAN. Household above is what the people who live here
 # use; below it, every tile sits under the segment its host is on, in the
