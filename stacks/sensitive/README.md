@@ -37,9 +37,10 @@ make up STACK=sensitive
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
 | mealie | `ghcr.io/mealie-recipes/mealie` | *internal* (9000) | The household's recipes, meal plans and shopping list at `https://recipes.matrix.elysium`. Beyond ADR-0008's nine, decided by its own ADR, and **authored, not yet deployed** ([#146], [ADR-0060]) |
 | linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The fourth service beyond ADR-0008's nine ([ADR-0061], [#144]) |
-| stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0062]) |
+| actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fifth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding, by [ADR-0062] ([#142]) |
+| stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0063]) |
 
-Twenty services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Twenty-one services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
@@ -48,9 +49,10 @@ is the page that tells the household the rest exist; ntfy is the one the
 estate uses, to tell the operator what is wrong with the rest; two are
 Miniflux, the first of the tier extras, decided by an ADR of its own before it
 was written here; Memos is the second; Mealie is the third, the one the
-household is meant to open for its own sake; linkding is the fourth; and
-Stirling-PDF, the fifth, is the one that keeps nothing. What
-is absent is as deliberate as what is here:
+household is meant to open for its own sake; linkding is the fourth; Actual
+is the household's budget, the fifth; and Stirling-PDF, the sixth, is the one
+that keeps nothing. What is absent is as deliberate as what
+is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
   telemetry must never reach VLAN 99 ([ADR-0007]); this host *is* on VLAN 99,
@@ -60,9 +62,10 @@ is absent is as deliberate as what is here:
   not in the lab's: it is the estate's, deployed identically everywhere.
 - **No other services planned.** The next one, whenever it comes, arrives as
   Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy,
-  Miniflux, Memos, Mealie, linkding and Stirling-PDF did — and, beyond
+  Miniflux, Memos, Mealie, linkding, Actual and Stirling-PDF did — and, beyond
   ADR-0008's nine, after an ADR of its own, as [ADR-0057], [ADR-0059],
-  [ADR-0060], [ADR-0061] and [ADR-0062] were for the last five: a service with
+  [ADR-0060], [ADR-0061], [ADR-0062] and [ADR-0063] were for the last six: a
+  service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -84,7 +87,7 @@ is absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               nineteen services, one network, health-gated ordering
+compose.yaml               twenty services, one network, health-gated ordering
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -761,11 +764,78 @@ measured on the pinned image. What has to be true around it is here.
   also imports into any browser, which makes it a copy nothing here is needed
   to read.
 
+## Actual
+
+The household's budget ([#142]), and the fifth service here beyond [ADR-0008]'s nine, after Miniflux,
+Memos, Mealie and linkding.
+[ADR-0062] is the decision and why it is Actual rather than Firefly III.
+`compose.yaml` has the service and what was measured on the pinned image.
+What has to be true around it is here.
+
+- **Claimed before it is reachable.** Actual has no password setting. A fresh
+  server offers "set a password" to the first client that reaches it, and
+  accepts the answer once. `make up` runs `scripts/seed-actual-password.sh`
+  first. It claims an empty volume with `ACTUAL_SERVER_PASSWORD` from SOPS,
+  inside the pinned image with `--network none`, before the service ever
+  starts, and on every run after that it logs in with the SOPS value as a
+  check. The value is never handed to the container, so `docker inspect`
+  does not show it and it is not in `.env`. `--check` checks the running
+  service and changes nothing.
+- **One password for the household, and one session for every device.** In
+  password mode Actual has a single user. Every device that logs in is handed
+  the same session token, and by default it never expires. Measured on
+  26.9.0: a changed password leaves that token valid, so every device stays
+  signed in. To sign every device out, stop the service, delete the sessions,
+  and start it again:
+
+  ```bash
+  docker compose -f stacks/sensitive/compose.yaml stop actual
+  docker run --rm --network none --user 1001:1001 --read-only --cap-drop ALL \
+    -v sensitive_actual-data:/data --entrypoint node \
+    "$(COMPOSE_FILE=stacks/sensitive/compose.yaml ./scripts/image-for.sh actual)" \
+    -e "console.log(new (require('better-sqlite3'))('/data/server-files/account.sqlite').prepare('DELETE FROM sessions').run().changes)"
+  make up STACK=sensitive
+  ```
+
+  It prints the number of sessions deleted (one). The old token then gets
+  401, and the next login is issued a new one. Measured on a throwaway volume.
+- **Changing the password.** Change it in Actual (*Settings › Change
+  password*), or on `trinity` with
+  `docker exec -it sensitive-actual node src/scripts/reset-password.js`, which
+  needs a terminal. Then put the same value in SOPS. Change SOPS alone and the
+  next `make up` warns that the SOPS password no longer logs in, and changes
+  nothing. Follow a change made because the password leaked with the sign-out
+  above.
+- **Password login only.** `ACTUAL_ALLOWED_LOGIN_METHODS` is `password`.
+  Header login would take the password in a header from any "trusted proxy",
+  and the image trusts every private range by default. OpenID would be
+  [ADR-0022]'s decision. Logins and the first-run claim allow five failures per
+  client per fifteen minutes, and `ACTUAL_TRUSTED_PROXIES` names Caddy alone,
+  so the client counted is the phone rather than the proxy.
+- **No bank sync.** GoCardless and SimpleFIN are configured in the app, and
+  neither is. Transactions come in as imported files (OFX, QFX, QIF, CSV,
+  CAMT). Turning bank sync on is a decision ([ADR-0062] §4). It puts a third
+  party's credentials in `account.sqlite` and has the server reach out on a
+  schedule.
+- **Clients are a copy, not a backup.** Every client holds the whole budget,
+  which survives losing this server. It does not survive a bad sync, which
+  arrives on every client. The nightly set archives `actual-data` with the
+  service stopped. The sentinel is `./server-files/account.sqlite`, and the
+  budgets are in `./user-files`.
+- **Durable, and no second factor.** [ADR-0023] classes Actual with Immich
+  and Paperless-ngx: it may be down, it may not be lost. [ADR-0022]'s table
+  has it among the services with no second factor. Actual has none short of
+  OpenID.
+- **The name needs a host override.** `actual.matrix.elysium` is a site block
+  in the `Caddyfile` and an alias on Caddy, so step-ca issues it a leaf. The
+  override on `morpheus` is
+  [`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)'s.
+
 ## Stirling-PDF
 
 The household's PDF editor since [#143]. It does the jobs that otherwise go to
 a free converter website: merge, split, rotate, convert, OCR, sign, compress.
-[ADR-0062] is the decision. `compose.yaml` has the service, the measurements
+[ADR-0063] is the decision. `compose.yaml` has the service, the measurements
 and DIFFERENCE 13. What has to be true around it is here.
 
 - **Documents never reach a disk.** Uploads, intermediates and results live in
@@ -831,7 +901,7 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the fourteen volumes it archives has a
+volume it cannot verify, so each of the fifteen volumes it archives has a
 sentinel entry there — `db.sqlite3` for Vaultwarden and `memos_prod.db` for
 Memos, each read off a boot of the pinned image, beside the entries [#133]
 read off boots of every other — and
@@ -981,7 +1051,8 @@ it matters:
 [ADR-0061]: ../../docs/adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md
 [#124]: https://github.com/Gerrrt/HomeLab/issues/124
 [ADR-0060]: ../../docs/adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md
-[ADR-0062]: ../../docs/adr/0062-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
+[ADR-0062]: ../../docs/adr/0062-add-actual-to-the-sensitive-tier.md
+[ADR-0063]: ../../docs/adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -991,6 +1062,7 @@ it matters:
 [#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[#142]: https://github.com/Gerrrt/HomeLab/issues/142
 [#144]: https://github.com/Gerrrt/HomeLab/issues/144
 [#145]: https://github.com/Gerrrt/HomeLab/issues/145
 [#147]: https://github.com/Gerrrt/HomeLab/issues/147

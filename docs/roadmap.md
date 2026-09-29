@@ -308,13 +308,23 @@ none is in the order until one is taken.
   Deploying it on `trinity` is the same section of the stack README: one SOPS
   key and `make up`. The host override was added on 2026-09-29.
 - **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
-  decided and authored ([ADR-0062](adr/0062-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): on `trinity` behind Caddy at
+  decided and authored ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): on `trinity` behind Caddy at
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
   none reaches a disk. What is left is the deploy. Set
   `STIRLING_ADMIN_PASSWORD` with `make secrets-edit STACK=sensitive`, add the
   `pdf` override on `morpheus`, `make up STACK=sensitive`, enrol TOTP, and
   merge two PDFs in the UI. CI's smoke test already runs a merge on every
   bump, but that proves the image and not `trinity`.
+
+- **[#142](https://github.com/Gerrrt/HomeLab/issues/142) Actual** is decided
+  and authored
+  ([ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)): Actual rather than
+  Firefly III, and claimed from SOPS before its first start, because it has no
+  password setting. What is left is the deploy on `trinity`:
+  `ACTUAL_SERVER_PASSWORD` in SOPS, the `actual` host override on `morpheus`,
+  and `make up STACK=sensitive`. It holds no real budget before
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404) step 10, like the rest
+  of the tier.
 
 ## Everything still to buy
 

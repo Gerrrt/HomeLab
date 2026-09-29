@@ -342,6 +342,18 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # the same ./18/docker/PG_VERSION, check_sentinel_table() refused the whole
 # run, and a crossed mapping between them could not have been seen anyway.
 #
+# Actual's (actual-data, #142) was read off a boot of the pinned image on
+# 2026-09-29, read-only as 1001: ./server-files/account.sqlite and an empty
+# ./user-files exist before the listener answers, with ./.migrate beside them.
+# account.sqlite holds the password hash and the sessions. A budget is a
+# ./user-files/file-<id>.blob, written by its first upload (measured with a
+# 20 MiB one), and a group-<id>.sqlite of its sync messages beside it, whose
+# name is read from the source rather than seen. account.sqlite is in rollback-journal mode, not WAL
+# (header bytes 18-19 read 1 1), so there is no -wal to list, for
+# Audiobookshelf's reason below. The budgets are the record; the account
+# file is only how to reach them, and seed-actual-password.sh re-creates it
+# on an empty volume.
+#
 # Jellyfin's (jellyfin-config) is the one entry here that no compose file on
 # this host declares: it is an ARCHIVE name, consumed by scripts/backup-nas.sh,
 # which sources this file for the tables and verify() and pulls the directory
@@ -418,6 +430,7 @@ declare -A SENTINEL=(
   [navidrome-data]="./navidrome.db"
   [mealie-data]="./mealie.db"
   [linkding-data]="./db.sqlite3"
+  [actual-data]="./server-files/account.sqlite"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -461,6 +474,7 @@ declare -A COMPANIONS=(
   [navidrome-data]="./navidrome.db-wal ./artwork"
   [mealie-data]="./.secret ./.session_secret ./recipes ./users"
   [linkding-data]="./secretkey.txt ./db.sqlite3-wal"
+  [actual-data]="./user-files ./.migrate"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and
@@ -496,7 +510,7 @@ declare -A COMPANIONS=(
 # delivered. ADR-0023 classes ntfy as Unclassed for the same reason. Skipping
 # it also keeps ntfy running through a backup, which is when a failed backup
 # would want to page.
-# stirling-pdf-configs (#143) holds no document, by ADR-0062's design: they
+# stirling-pdf-configs (#143) holds no document, by ADR-0063's design: they
 # live on a tmpfs and never reach a volume. What it does hold is rebuilt on an
 # empty volume. The admin comes back from STIRLING_ADMIN_PASSWORD, the settings
 # are the environment's, and the keys it generates sign sessions and encrypt

@@ -193,7 +193,20 @@ links.matrix.elysium {
 	}
 }
 
-# Stirling-PDF (#143, ADR-0062). Its uploads land on a 1 GiB tmpfs that is
+# Actual (#142, ADR-0062). The web app and the sync API its clients call are
+# the same origin, so one block serves both. The server is claimed before its
+# first start (scripts/seed-actual-password.sh), so there is never a moment
+# when this name offers "set a password" to whoever arrives first.
+actual.matrix.elysium {
+	reverse_proxy actual:5006
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Stirling-PDF (#143, ADR-0063). Its uploads land on a 1 GiB tmpfs that is
 # also the working space for every intermediate an OCR or a conversion
 # writes (compose.yaml, DIFFERENCE 13), and Stirling sets no upload limit of
 # its own. The cap here keeps one upload well under that space, so an

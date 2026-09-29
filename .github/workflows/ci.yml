@@ -545,7 +545,7 @@ jobs:
           --service linkding --proof-cache .boot-proofs/proofs.txt
       # Stirling-PDF runs read-only as a non-root uid its entrypoint was
       # written to drop to, not start as, with every document on tmpfs
-      # (ADR-0062). Each of those is a way for an upstream bump to stop it
+      # (ADR-0063). Each of those is a way for an upstream bump to stop it
       # booting, and this is where that would show. Its healthcheck can pass
       # while pdfium cannot load, so stirling-pdf/smoke.sh merges two pages
       # after the boot as well.
@@ -553,6 +553,15 @@ jobs:
         run: >-
           ./scripts/check_hardened_boot.sh --stack sensitive
           --service stirling-pdf --proof-cache .boot-proofs/proofs.txt
+
+      # Actual runs as the image's own user with a read-only root and no
+      # tmpfs of its own: every one of those is a way a node app can fail at
+      # start, and an image that begins writing outside /data would fail here
+      # first rather than on trinity (#142, ADR-0062).
+      - name: Boot Actual under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service actual --proof-cache .boot-proofs/proofs.txt
 
   # ---------------------------------------------------------------------------
   secret-scan:
