@@ -61,8 +61,10 @@ docstring gives: it is a record, not a claim about now.
     - a tool called without a session answered 401;
     - a 300 MB upload was refused with 413 at the 256 MB cap.
   - **786 MiB** at rest, under the 3 GiB limit.
-  - **Not done yet:** the `pdf` host override on `morpheus`, which does not
-    resolve yet, and TOTP on the admin account.
+  - **The `pdf` host override was added on `morpheus` the same day.** Through
+    it, `pdf.matrix.elysium` resolves to `10.0.99.40` and answers 200 on a
+    leaf that verifies against the tier's root. What is left is TOTP on the
+    admin account at first login.
 
 - **Actual is decided and authored for the sensitive tier, not deployed**
   ([#142](https://github.com/Gerrrt/HomeLab/issues/142),
