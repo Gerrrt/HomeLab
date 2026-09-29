@@ -1,0 +1,38 @@
+---
+# The short link list under the tiles (#137).
+#
+# TRACKED ON PURPOSE. With no bookmarks.yaml mounted, Homepage copies its own
+# sample into the config tmpfs on the first page load — GitHub, Reddit and
+# YouTube — and serves it. That is what the first deploy showed: three links
+# nobody chose, on the household's page. Mounting this file is what stops it.
+#
+# Help first, then where to get each app the services above are used through.
+# External links are ordinary hyperlinks, opened by the browser; nothing here
+# is fetched by Homepage.
+#
+# https://gethomepage.dev/configs/bookmarks/
+
+- Help:
+    - House wiki:
+        - icon: mdi-book-open-variant
+          # oracle serves it over plain HTTP only; it is also the name on the
+          # printed card (docs/runbooks/add-a-host-override.md).
+          href: http://lemmiwinks.matrix.elysium
+          description: How things work here
+
+- Get the apps:
+    - Immich (photos):
+        - icon: immich.svg
+          href: https://docs.immich.app/features/mobile-app
+    - Bitwarden (passwords):
+        - icon: bitwarden.svg
+          href: https://bitwarden.com/download/
+    - Home Assistant:
+        - icon: home-assistant.svg
+          href: https://companion.home-assistant.io/
+    - Jellyfin (watch):
+        - icon: jellyfin.svg
+          href: https://jellyfin.org/downloads/clients/
+    - ntfy (alerts):
+        - icon: ntfy.svg
+          href: https://docs.ntfy.sh/subscribe/phone/

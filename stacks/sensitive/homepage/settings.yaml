@@ -32,7 +32,11 @@ disableIndexing: true
 layout:
   Household:
     style: row
-    columns: 4
+    columns: 3
   Estate:
     style: row
     columns: 3
+  Admin:
+    style: row
+    columns: 3
+    initiallyCollapsed: true
