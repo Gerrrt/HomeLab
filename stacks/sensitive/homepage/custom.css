@@ -1,0 +1,85 @@
+/*
+ * Tokyo Night, and frosted cards on a gradient (#137).
+ *
+ * TRACKED AND MOUNTED ON PURPOSE, like bookmarks.yaml: with no custom.css
+ * mounted, Homepage copies its own (empty) sample into the config tmpfs and
+ * serves that from /api/config/custom.css on every page load.
+ *
+ * HOW THE PALETTE IS SWAPPED. Homepage colours everything from --color-50 …
+ * --color-900 (space-separated RGB triplets), set by a `.theme-<color>` class
+ * on <html>. settings.yaml keeps `color: slate`, and the rule below redefines
+ * slate — doubled so it outranks the image's own `.theme-slate`, whichever
+ * stylesheet loads last. 50 is the lightest (text), 900 the darkest (page).
+ *
+ * The selectors past the palette — .service-card, .service-block,
+ * .service-group-name, #page_wrapper — are read from the pinned v2.4.0
+ * bundle, not from any documented contract. A Dependabot bump that renames
+ * them leaves the palette working and the page merely flatter; look here
+ * first if the cards stop being translucent.
+ *
+ * No image and no font is fetched: the background is a gradient drawn here,
+ * so the page still loads nothing but itself.
+ *
+ * Palette: https://github.com/folke/tokyonight.nvim (night)
+ */
+
+.theme-slate.theme-slate {
+  --color-50: 192 202 245;   /* fg */
+  --color-100: 169 177 214;  /* fg_dark */
+  --color-200: 154 165 206;
+  --color-300: 115 122 162;  /* dark5 */
+  --color-400: 86 95 137;    /* comment */
+  --color-500: 65 72 104;    /* terminal_black */
+  --color-600: 59 66 97;
+  --color-700: 41 46 66;     /* bg_highlight */
+  --color-800: 31 35 53;
+  --color-900: 26 27 38;     /* bg */
+  --color-logo-start: 122 162 247; /* blue */
+  --color-logo-stop: 187 154 247;  /* magenta */
+
+  --tn-blue: 122 162 247;
+  --tn-cyan: 125 207 255;
+  --tn-magenta: 187 154 247;
+}
+
+/* The page: bg_dark at the edges, a faint blue and magenta glow behind the
+   tiles. `fixed` so the glow stays put while the groups scroll over it. */
+html.dark {
+  background-color: rgb(22 22 30);
+  background-image:
+    radial-gradient(ellipse 60% 50% at 15% 10%, rgb(var(--tn-blue) / 0.16), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 85% 85%, rgb(var(--tn-magenta) / 0.14), transparent 70%),
+    linear-gradient(160deg, rgb(26 27 38), rgb(22 22 30));
+  background-attachment: fixed;
+}
+
+html.dark body,
+#page_wrapper {
+  background: transparent;
+}
+
+/* Frosted cards. `cardBlur: md` in settings.yaml adds the backdrop blur; this
+   gives it something to blur through — the dark stock card is white at 5%. */
+html.dark .service-card {
+  background-color: rgb(var(--color-800) / 0.45);
+  border: 1px solid rgb(var(--color-50) / 0.06);
+}
+
+html.dark .service-card:hover {
+  background-color: rgb(var(--color-700) / 0.55);
+  border-color: rgb(var(--tn-blue) / 0.35);
+}
+
+/* A widget's number boxes inside a card. */
+html.dark .service-block {
+  background-color: rgb(var(--color-900) / 0.45);
+}
+
+html.dark .service-group-name {
+  color: rgb(var(--tn-blue));
+}
+
+html.dark .service-card a:hover .service-name,
+html.dark a:hover > .service-name {
+  color: rgb(var(--tn-cyan));
+}

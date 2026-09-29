@@ -49,10 +49,6 @@ What an entry here may contain:
 
 Closes when it is empty.
 
-- **[#531](https://github.com/Gerrrt/HomeLab/issues/531) Fit `oracle`'s
-  cell.** The cell is bought. What closes it is the fit, the mains pull, and
-  the silence deleted rather than left to expire on 2026-10-08.
-  → [runbook](runbooks/replace-the-laptop-cell.md)
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
   UPS's signal.** Decided by
   [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).
@@ -60,7 +56,7 @@ Closes when it is empty.
   `Saruman` and `smaug` subscribed. The sequence is armed and not proved. The
   gate is a rack visit, which proves the order with `upsmon -c fsd` and pulls
   the mains once to replace the card's 47-minute claim with a number.
-  Shares a window with #531's fit and, if its parts have landed, #444.
+  Shares a window with #444 if its parts have landed.
   → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
   Prometheus and Loki ingest ports.** Reopened 2026-09-26: #319 closed it by
@@ -144,7 +140,10 @@ has been rehearsed on it.
   and not a status page, with live numbers only where a read-only token can
   read them (Immich, Paperless-ngx) or none is needed (Prometheus), and its
   widget path measured through Caddy with placeholder tokens before the real
-  ones exist. The restore path is rehearsed already:
+  ones exist. Deployed and reading real numbers since; on 2026-09-29 it took
+  Tokyo Night, groups by VLAN, and four more tiles read from Prometheus (UPS,
+  firewall, iLO, NAS) with no new rule or credential. The restore path is
+  rehearsed already:
   → [runbook](runbooks/restore-the-sensitive-tier.md).
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
   **The drive is bought** — 2026-09-22, in
@@ -273,6 +272,32 @@ Gated on the domain, on a household observation, or on something to publish.
 Beyond ADR-0008's nine: each needs its own decision before it is authored, and
 none is in the order until one is taken.
 
+- **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md), deployed on `trinity` 2026-09-29.
+  What remains is committing the encrypted `secrets/sensitive.sops.yaml`
+  that carries its two keys, and seeing `miniflux-db-data` in a nightly set.
+- **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
+  and deployed on `trinity` 2026-09-29, and reachable from Hicks by name the
+  same day. What remains is registration closed at first login, which is
+  open until the admin exists. It holds no real notes until ADR-0023's
+  *Durable* condition is met.
+- **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
+  `recipes.matrix.elysium`.** Decided by
+  [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
+  **deployed on `trinity` 2026-09-29**. It is the one service here meant for
+  the household to open rather than to benefit from. It uses no new firewall
+  rule and no SOPS secret, and it has no second factor, which is named
+  alongside Immich and AdGuard. The default admin was renamed and
+  re-passworded the same day. Nothing is left.
+- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
+  **Deployed on `trinity` 2026-09-29**, with its host override. What is left
+  is the operator's first login with the superuser password from SOPS.
+- **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
+  **deployed on `trinity` 2026-09-29** ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): behind Caddy at
+  `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
+  none reaches a disk. The `pdf` override on `morpheus` is in, and TOTP is
+  enrolled on the admin. Nothing is left; #143 closes with this.
+
 ## Everything still to buy
 
 The one list, because purchases kept appearing one at a time in issues, ADRs
@@ -348,8 +373,8 @@ is the point, not a problem to spend money on.
 **The one exception, and it narrows this line rather than reversing it:** a
 **consumable whose failure is a safety or availability event** is not an
 upgrade. `prometheus`'s cell was that case and is replaced
-([#454](https://github.com/Gerrrt/HomeLab/issues/454)); `oracle`'s is bought
-and waits on the fit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)).
+([#454](https://github.com/Gerrrt/HomeLab/issues/454)); so is `oracle`'s,
+fitted 2026-09-29 ([#531](https://github.com/Gerrrt/HomeLab/issues/531)).
 Nothing else about either machine is.
 
 ## Considered and declined
@@ -430,6 +455,19 @@ them name the condition that would change the answer.
   [ADR-0056](adr/0056-decline-plex-because-every-screen-on-casabonita-plays-jellyfin.md). **Reopened by a screen the household uses for
   library media that has no working Jellyfin client**, with Remote Access off
   even then ([#139](https://github.com/Gerrrt/HomeLab/issues/139)).
+- **HomeBox** — a home inventory with items, locations, warranties and receipts
+  as attachments. It was proposed for the sensitive tier as the place for the
+  serials `hardware.md` withheld. By the time it was argued, `hardware.md`
+  carried the serials and warranty dates itself. Paperless-ngx already held the
+  receipts and manuals, and a licence key is Vaultwarden's. What remained was a
+  list of household objects, which does not earn a place on the segment
+  ADR-0008 calls its real cost, and which would be a second inventory that
+  drifts from the first. Declined by
+  [ADR-0058](adr/0058-decline-homebox-because-hardware-md-and-paperless-already-hold-its-records.md).
+  **Reopened by a household need to track non-infrastructure possessions that
+  Paperless's tags cannot meet**, with the proposal saying what leaves
+  `hardware.md` so there is still one inventory
+  ([#148](https://github.com/Gerrrt/HomeLab/issues/148)).
 - **Proxmox clustering** — joining `Saruman` and `ifrit` into one cluster once
   [#421](https://github.com/Gerrrt/HomeLab/issues/421) makes them two Proxmox
   hosts on VLAN 30: one pane of glass, guest migration, shared storage. The

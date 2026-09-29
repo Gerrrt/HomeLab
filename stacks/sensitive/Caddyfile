@@ -116,6 +116,16 @@ vaultwarden.matrix.elysium {
 	}
 }
 
+# Memos (#145, ADR-0059), the household's notes.
+memos.matrix.elysium {
+	reverse_proxy memos:5230
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # Homepage (#137), the household's front page. A short name on purpose: it is
 # the one address on this tier that people who are not the operator are told.
 # Its widgets call the other names above from inside the compose network, and
@@ -136,6 +146,78 @@ home.matrix.elysium {
 # and never as ntfy's `?auth=` parameter.
 ntfy.matrix.elysium {
 	reverse_proxy ntfy:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Miniflux (#147, ADR-0057). Plain HTTP on the stack network; TLS ends here.
+# compose.yaml's BASE_URL is this name with https://, which is what Miniflux
+# builds its links and its cookies' Secure flag from. The REST API is off
+# (DISABLE_API), so everything under this name is the web UI and the two
+# per-user sync APIs the ADR keeps off until a client wants them.
+miniflux.matrix.elysium {
+	reverse_proxy miniflux:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Mealie (#146, ADR-0060), the household's recipes. Named for what it is for,
+# like `home`, because the people who use it will type it rather than find it.
+# BASE_URL in compose.yaml is this name, so the links Mealie builds in shared
+# recipes and invitations point here; X-Forwarded-For and -Proto are set
+# unasked.
+recipes.matrix.elysium {
+	reverse_proxy mealie:9000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# linkding (#144, ADR-0061). Django reads the scheme from the
+# X-Forwarded-Proto Caddy sets, which is what lets a login POST from https://
+# pass its CSRF check without a trusted-origins list.
+links.matrix.elysium {
+	reverse_proxy linkding:9090
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Actual (#142, ADR-0062). The web app and the sync API its clients call are
+# the same origin, so one block serves both. The server is claimed before its
+# first start (scripts/seed-actual-password.sh), so there is never a moment
+# when this name offers "set a password" to whoever arrives first.
+actual.matrix.elysium {
+	reverse_proxy actual:5006
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Stirling-PDF (#143, ADR-0063). Its uploads land on a 1 GiB tmpfs that is
+# also the working space for every intermediate an OCR or a conversion
+# writes (compose.yaml, DIFFERENCE 13), and Stirling sets no upload limit of
+# its own. The cap here keeps one upload well under that space, so an
+# oversized file is refused at the door with a 413 rather than filling
+# the tmpfs halfway through a job. 256 MB is a very large scan; a household
+# document is a few.
+pdf.matrix.elysium {
+	request_body {
+		max_size 256MB
+	}
+	reverse_proxy stirling-pdf:8080
 
 	log {
 		output stdout

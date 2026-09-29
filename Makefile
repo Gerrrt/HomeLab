@@ -52,6 +52,15 @@ help: ## Show this help
 
 .PHONY: up
 up: render ## Render config and start the stack
+	@# Home Assistant's HTTP settings live in its volume's .storage/http, not in
+	@# configuration.yaml, and a fresh volume without them trusts no proxy, so
+	@# every request through Caddy gets 400. Seeded before any container starts;
+	@# an existing store is only checked, never overwritten (seed-ha-http.sh).
+	@if [ "$(STACK)" = sensitive ]; then ./scripts/seed-ha-http.sh; fi
+	@# Actual has no password setting: a fresh server belongs to whoever reaches
+	@# it first. Claimed from SOPS with no network before its first start; a
+	@# claimed one is only checked (seed-actual-password.sh, ADR-0062).
+	@if [ "$(STACK)" = sensitive ]; then ./scripts/seed-actual-password.sh; fi
 	$(COMPOSE) up -d --remove-orphans
 	@# `up -d` recreates a container only when its *service definition* changes,
 	@# so a freshly rendered snmp.yaml or an edited prometheus.yaml is invisible
@@ -340,6 +349,16 @@ silence-state: ## Collect Alertmanager's silences as metrics (#575)
 	@# lapses returns its alert to a phone with nothing to say why. Loopback
 	@# only: Alertmanager binds to 127.0.0.1 (ADR-0012), so this runs here.
 	python3 scripts/collect_silences.py
+
+.PHONY: prune-images
+prune-images: ## Remove Docker images no container uses (weekly on the monitoring host)
+	@# The unit says why: nothing else removes superseded digests, and they
+	@# filled `/` once (#136's cutover found it, 2026-09-29). Only images no
+	@# container references, running or stopped. The before and after are
+	@# printed so the journal records what each run reclaimed.
+	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep '^Images'
+	docker image prune -a -f
+	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep '^Images'
 
 .PHONY: pkg-state
 pkg-state: ## Collect package state from morpheus over SSH (FreeBSD, runs as robo)

@@ -26,13 +26,32 @@ disableIndexing: true
 # A green dot that means "Homepage could open a socket" reads to the household
 # as "this works", and uptime is Grafana's question, answered by the blackbox
 # probes and alert rules on `prometheus`. A tile shows live numbers only where a
-# widget reads them from the service's own API, and a widget that cannot reach
-# its service says so in the tile.
+# widget reads them — from the service's own API, or from what Prometheus
+# already scrapes — and a widget that cannot reach its source says so in the
+# tile.
 
+# Tokyo Night lives in custom.css, which redefines `slate` — keep the two in
+# step. cardBlur is what makes the cards frosted over its gradient.
+cardBlur: md
+
+# Household first, then one group per VLAN in docs/network.md's order. Only
+# Winterfell is open by default; the others are the operator's consoles.
 layout:
   Household:
     style: row
-    columns: 4
-  Estate:
+    columns: 3
+  🔴 Winterfell · VLAN 99:
     style: row
     columns: 3
+  🟢 ImaginationLAN · VLAN 30:
+    style: row
+    columns: 3
+    initiallyCollapsed: true
+  🟡 CasaBonita · VLAN 40:
+    style: row
+    columns: 3
+    initiallyCollapsed: true
+  ⚪ Switch LAN:
+    style: row
+    columns: 3
+    initiallyCollapsed: true

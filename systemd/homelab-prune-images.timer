@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeLab: weekly removal of unused Docker images
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-prune-images.service
+# Mondays 04:00: clear of Sunday's 03:30 backup and its lock, and of the
+# hourly converge at :25. Weekly because the growth it answers is a few
+# gigabytes a week, arriving with Dependabot bumps and validate runs.
+OnCalendar=Mon *-*-* 04:00:00
+RandomizedDelaySec=600
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

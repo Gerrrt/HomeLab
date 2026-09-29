@@ -41,6 +41,298 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **Actual is deployed on `trinity`**
+  ([#142](https://github.com/Gerrrt/HomeLab/issues/142), closed;
+  [ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)). This corrects the
+  "not deployed" entry below.
+  - **Not by `make up`.** It was brought up on its own, and did not touch the
+    rest of the stack: first `scripts/seed-actual-password.sh`, then
+    `docker compose up -d --no-deps actual`. The running Caddy already had
+    the site and the alias, from the Stirling-PDF `make up` earlier the same
+    day, so it was not recreated.
+  - **It was never reachable unclaimed.** The seed claimed the empty
+    `actual-data` volume with `--network none` before the service first
+    started, and reported "claimed with the SOPS password before first
+    start". After the start, `--check` reported that the SOPS password logs
+    in.
+  - **Through Caddy**, as a phone on Hicks reaches it:
+    `https://actual.matrix.elysium` answers 200, and the leaf verifies against
+    the tier root. `/account/needs-bootstrap` reports it claimed, with
+    password login only. Caddy's log shows the certificate was obtained.
+  - **The `actual` host override on `morpheus`** was added the same day. It
+    resolves to `10.0.99.40`.
+  - **Not yet:** a nightly set with `actual-data` in it, and a real budget,
+    which waits on [#404](https://github.com/Gerrrt/HomeLab/issues/404)
+    step 10 like the rest of the tier.
+- **linkding and Mealie are deployed on `trinity`**
+  ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
+  [#146](https://github.com/Gerrrt/HomeLab/issues/146)). This corrects their
+  entries below that say they are not yet deployed. Both sessions that
+  authored them had ended, so the deploy was run once from the Stirling-PDF
+  session, after linkding's sentinel fix
+  ([#738](https://github.com/Gerrrt/HomeLab/pull/738)) had merged.
+  - **A dry run first.** `docker compose up -d --remove-orphans --dry-run`
+    listed only the two containers and their two volumes as new. Nothing
+    running was recreated, Caddy included. `make up STACK=sensitive` then
+    passed its own checks: `check_container_health.py` reported all twenty
+    services with a healthcheck healthy.
+  - **Through Caddy.** step-ca issued the leaves for `links.matrix.elysium`
+    and `recipes.matrix.elysium`, and both verify against the tier's root.
+    linkding answers with the 302 to its login page, and Mealie answers 200.
+  - **The backup loads.** `backup-volumes.sh --inventory` lists
+    `linkding-data` and `mealie-data` with no sentinel refusal.
+  - **Mealie's public default admin was live until it was changed.**
+    `changeme@example.com` / `MyPassword` logged in (200) from the moment
+    the container started. It was renamed and re-passworded minutes later,
+    and the default login then answered 401. Self sign-up refuses a
+    well-formed request with 403, *"User Registration is Disabled"*. A
+    Mealie deploy should change that login before anything else. The window
+    was minutes, and on Hicks only.
+  - **linkding's first login** with the SOPS superuser password is the
+    operator's, and is not recorded here.
+
+- **The sensitive backup would have stopped before archiving anything,
+  from the first run after linkding merged**
+  ([#144](https://github.com/Gerrrt/HomeLab/issues/144)).
+  - **Cause.** #731 gave `linkding-data` the sentinel `./db.sqlite3`, which is
+    `vaultwarden-data`'s, and `load_inventory()` refuses a table where two
+    volumes share one. That is the same failure #734 fixed for Miniflux the
+    same day.
+  - **Why it was not fixed the same way.** Miniflux's fix, a nested cluster
+    directory, is not open to linkding: its application lives in
+    `/etc/linkding`, so the volume can only be mounted at `data/`.
+  - **The fix.** Linkding's sentinel is now `./secretkey.txt`, and
+    `./db.sqlite3` moves to its companions: #468's soft-hit rule, as
+    `loki-data` and `paperless-data` share `./index`.
+  - **Measured on the pinned 1.47.0 image:** `secretkey.txt` exists before
+    the first healthy check and was unchanged after a restart and a clean
+    stop. No volume on `trinity` has one at its top level.
+  - **Proved with `verify()` on synthetic archives:** each archive verifies
+    under its own name, and each is refused under the other's.
+  - **Timing.** It was caught about twelve hours before the first 04:30 run
+    that would have hit it, on the checkout the timer runs from.
+
+- **Miniflux and Memos are deployed on `trinity`**
+  ([#147](https://github.com/Gerrrt/HomeLab/issues/147),
+  [#145](https://github.com/Gerrrt/HomeLab/issues/145)). This corrects the
+  two entries below that say "not yet deployed". One `make up` brought both
+  up, and all sixteen containers reported healthy. Both names answer 200
+  through Caddy on leaves from the tier's CA.
+  - **The first attempt stopped at the backup, not the deploy.** The two
+    Postgres volumes, Miniflux's and Paperless's, shared the sentinel
+    `./18/docker/PG_VERSION`, and `backup-volumes.sh` refused the whole run.
+    [#734](https://github.com/Gerrrt/HomeLab/pull/734) gave Miniflux's
+    cluster `PGDATA=.../18/miniflux` before its volume existed, so nothing
+    moved.
+  - **Memos took ADR-0059, not 0057 or 0058.** Miniflux and HomeBox's decline
+    merged first. Parallel Tier extras branches each numbered their ADR from
+    the same main.
+  - **Both host overrides are in**, and both names resolve to `10.0.99.40`.
+    **Still open for Memos:** closing registration at first login. Neither
+    service holds real data yet.
+- **Stirling-PDF is deployed on `trinity`**
+  ([#143](https://github.com/Gerrrt/HomeLab/issues/143),
+  [ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). Only `stirling-pdf` and `caddy` were brought up
+  (`docker compose up -d --no-deps`), after `make render`, so the extras
+  authored beside it and not yet deployed stayed down. Caddy was recreated
+  for the new alias and site block, which took the tier's HTTPS away for a
+  few seconds.
+  - **Healthy in 42 s**, both containers. `check_mounted_config.py`,
+    `reload-config.sh` and `check_container_health.py` passed for everything
+    running. The three failures were Actual, linkding and Mealie, which are
+    authored and have never been started.
+  - **`stirling-pdf/smoke.sh` passed against the live container.** It
+    logged in as the admin seeded from SOPS, inside the container, so the
+    password never left it, and merged two pages through pdfium. The log
+    showed *"LibreOffice sandbox active (lo-sandbox: landlock ABI 8, seccomp
+    active)"* and no `UnsatisfiedLinkError`, and no job file was left in
+    `/tmp/stirling-pdf` afterwards.
+  - **Through Caddy, with the tier's root:**
+    - step-ca issued the leaf for `DNS:pdf.matrix.elysium` over tls-alpn-01
+      and it verified;
+    - `/api/v1/info/status` answered 200;
+    - a tool called without a session answered 401;
+    - a 300 MB upload was refused with 413 at the 256 MB cap.
+  - **786 MiB** at rest, under the 3 GiB limit.
+  - **The `pdf` host override was added on `morpheus` the same day.** Through
+    it, `pdf.matrix.elysium` resolves to `10.0.99.40` and answers 200 on a
+    leaf that verifies against the tier's root.
+  - **TOTP is enrolled on the admin**, at first login from Hicks, before any
+    real document. Stirling logged the forced enrolment as satisfied
+    (`Set MFA required=false for user admin`). That is ADR-0022's floor, and
+    the last step of #143.
+
+- **`oracle`'s cell is replaced, and #531 closes**
+  ([#531](https://github.com/Gerrrt/HomeLab/issues/531),
+  [`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md#reusing-this-page-on-oracle)).
+  The Dell M5Y1K went in at 16:24 UTC, a latch swap with the machine off for
+  two and a half minutes.
+  - **The serial proves it.** `SMP-Sanyo2` / `DELL VN3N047` / `1650` became
+    `LGC-LGC2.8` / `DELL 7PY0D` / `88`, and the label reads M5Y1K. The old
+    pack went for recycling the same day.
+  - **The clock survived**, which is the datum
+    [#519](https://github.com/Gerrrt/HomeLab/issues/519) was short of. The
+    coin cell is separate on this machine, and the new boot opened at the
+    true time.
+  - **The silence was expired by hand at about 17:00**, half an hour after
+    the alert had already stopped. That is late again, as on the two battery
+    runbooks before it, and harmless only because the new pack read `1`
+    from its first scrape.
+  - **The mains pull ran at 17:08.** `HostOnBattery` fired for `oracle`
+    alone and reached the phone at 17:11. It drew 0.54 Ah/h, about 5.2 hours
+    from full. It ran 35 minutes against a 20-minute bound, because the call
+    to plug back in was missed.
+  - **Step 2 was skipped on this laptop too**, and `charge_full` reads
+    exactly its design figure, not yet a learned one.
+
+- **Actual is decided and authored for the sensitive tier, not deployed**
+  ([#142](https://github.com/Gerrrt/HomeLab/issues/142),
+  [ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)). It is the fifth
+  service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding.
+  It was chosen over Firefly III because it is one container on SQLite and
+  keeps working when the server is down.
+  - **The pinned image has no password setting.** A fresh server is claimed
+    by whoever sets the first password. `scripts/seed-actual-password.sh`
+    claims it from SOPS inside the pinned image with `--network none`, before
+    its first start, and `make up` runs it every time. It was proved against a
+    throwaway volume: fresh, already claimed, a live check, and a wrong
+    password.
+  - **Every device shares one session, and a password change does not end
+    it.** Measured on 26.9.0, the token issued before a change validated
+    after it. The stack README has the sign-out, which was proved the same
+    way.
+  - **Measured on 26.9.0-alpine:**
+    - It runs as the image's own uid 1001, read-only, with no capabilities,
+      and writes nothing outside `/data`.
+    - It boots with no network.
+    - 279 MiB idle and 329 MiB at peak.
+    - Five failed logins per client per fifteen minutes.
+  - **Booted from `compose.yaml` itself** on `trinity`, on an internal
+    network with a spare subnet, because the live stack holds the fixed one:
+    healthy, read-only, all capabilities dropped, as 1001. CI's hardened boot
+    runs it on the real subnet.
+  - **Not done:** the deploy and a restore.
+
+- **linkding is decided and authored for the sensitive tier; it is not
+  deployed** ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
+  [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+  It is the fourth service beyond ADR-0008's nine, after Miniflux, Memos and Mealie. It is behind
+  one factor because linkding has no other, and it is named in `security.md`
+  with Immich, AdGuard Home, Miniflux, Memos and Mealie.
+  - **Hardening needs four capabilities.** Measured on the pinned 1.47.0
+    image: the bootstrap needs root with `CHOWN`, `DAC_OVERRIDE`, `SETUID` and
+    `SETGID`, and every process that serves runs as uid 33 with no
+    capabilities.
+  - **The second boot is the one that finds `DAC_OVERRIDE`.** Without it,
+    `migrate` failed with "attempt to write a readonly database" and the
+    container still reported healthy.
+  - **Memory:** 77 MiB idle, and 188 MiB peak importing 3,000 bookmarks.
+  - **Background tasks are off**, so no third party is asked for a favicon for
+    each bookmarked site.
+  - **The `links` host override is on `morpheus`**, added the same day as an
+    additional name on `trinity`, ahead of the deploy. It resolves to
+    `10.0.99.40`, and the reverse entry is still `trinity`. HTTPS to it fails
+    at the handshake until `make up` gives Caddy the site.
+- **HomeBox is declined**
+  ([#148](https://github.com/Gerrrt/HomeLab/issues/148), closed). Every job
+  it was filed for already had a home: serials and warranty dates in
+  `hardware.md`, receipts and manuals in Paperless-ngx, licence keys in
+  Vaultwarden. The one thing left was a list of household objects, and that
+  does not earn a place on Winterfell.
+  [ADR-0058](adr/0058-decline-homebox-because-hardware-md-and-paperless-already-hold-its-records.md)
+  records the reasoning and what would reopen it.
+
+- **Miniflux is authored for the sensitive tier, the first service beyond
+  ADR-0008's nine**
+  ([#147](https://github.com/Gerrrt/HomeLab/issues/147),
+  [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
+  It is authored and validated here, and not yet deployed on `trinity`.
+  - **Measured on the pinned image first.** It runs as 65534, read-only with
+    no tmpfs, at 13 MiB idle.
+  - **The fetcher refused `miniflux-db` by name and `localhost`** as private
+    addresses, which is the property that makes a URL-fetching service
+    tolerable on Winterfell.
+  - **The REST API answered 200 to the admin's password over basic auth**, so
+    it is off.
+  - **There is no TOTP, and its passkeys are not a second step.** Miniflux
+    is named beside Immich and AdGuard as single-factor.
+- **Mealie is decided and authored for the sensitive tier, as
+  `recipes.matrix.elysium`** ([#146](https://github.com/Gerrrt/HomeLab/issues/146),
+  [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md)). It is
+  another *Tier extra*, beside Miniflux. It was measured on the pinned image
+  before the file was written.
+  - `/app/data` is root's. `PUID=0` turns the entrypoint's chown and gosu into
+    a no-op, so it runs as capless root, read-only, in Vaultwarden's shape.
+    Nothing was written outside the volume.
+  - SQLite in rollback-journal mode, with its signing secrets generated into
+    the volume, so there is no SOPS secret.
+  - With sign-up off, `/api/users/register` answers `403`.
+  - It uses 224 MiB idle and 396 MiB at the peak of three URL imports, under
+    a ceiling of 1024m.
+  - There is no second factor in the code. It is named beside Immich and
+    AdGuard.
+  - The bundled `change_password.py` reset the admin on a running container.
+    The old password then answered `401`.
+  - **URL import does not fetch inward.** A recipe page served on the same
+    network, by name and by address, and `127.0.0.1`, `10.0.99.1`,
+    `10.0.99.20:9090` and `169.254.169.254` each failed with
+    `InvalidDomainError`, and none of those requests arrived. With the host on
+    `HTTP_ALLOW_LIST`, the same page imported. The list is written out empty.
+
+  The issue's "existing 50→99 rule" is, since ADR-0031, the Hicks pass to
+  `10.0.99.40:443`. A new name behind it needs no new rule. Not deployed: the
+  host override, `make up` and the first login are the build runbook's new
+  *Deploy a later service*.
+- **Stirling-PDF is decided and authored for the sensitive tier, not yet
+  deployed** ([#143](https://github.com/Gerrrt/HomeLab/issues/143),
+  [ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). It is the sixth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie, linkding and Actual. The
+  pinned image (`3.0.0`) was booted on `trinity` beside the live stack, on an
+  internal network of its own, read-only, as uid 1001, with every capability
+  dropped. It ran OCR, conversion, merge, rotate, split and compress, and three
+  things were found by running it:
+  - **The entrypoint dies on a read-only root.** It `ln -s`es diagnostics
+    shortcuts into `/usr/local/bin` under `set -e`. `/dev/null` mounted over
+    the script it links makes it skip that step.
+  - **A `noexec` `/tmp` breaks every pdfium tool while the container stays
+    healthy.** The PDF engine unpacks its libraries there, and merge answered
+    500 with *failed to map segment from shared object*. So that tmpfs is
+    `exec`.
+  - **The image writes a heap dump to `/configs` on OOM**, and a dump would
+    hold the document. It is turned off.
+
+  Memory: 790 MiB idle and 1.4 GiB at peak through a 40-page 300 dpi OCR,
+  under a 3 GiB limit that also holds the 1 GiB of document tmpfs.
+
+- **Memos is the second *Tier extras* service decided, and authored**
+  ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
+  It is notes, not documentation: `docs/` stays the record, and #124 is not
+  answered by it. Measured on the pinned image, read-only with every
+  capability dropped: it runs as its own `10001` with no root step, idles at
+  15 MiB, and needs no secret. Two things differ from what #145 assumed:
+  - **It is not one file.** Attachments are written under `./assets`, and
+    while it runs the database's writes sit in `memos_prod.db-wal` (a clean
+    stop checkpoints them). The backup names all three.
+  - **Sign-up cannot be closed from compose.** It is a setting in the
+    database, so the first login has to close it.
+
+  Not yet deployed on `trinity`.
+
+- **`prometheus`'s disk was two to three days from full, and is not now.**
+  `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having
+  lost 28.5 GiB since 15 Sep in steps of 1–5 GiB.
+  - **Half the SSD was never in use.** `/` was Ubuntu's guided-LVM default,
+    a 100 GiB logical volume on a 230.7 GiB volume group. It was grown online
+    with `lvextend -r -l +100%FREE`: 226.5 GiB, 128.7 GiB free. The lab guest's
+    build runbook already carried this step, and the monitoring host never
+    got it.
+  - **Images were most of the growth.** 91 images, 47.8 GB, 42.6 GB
+    reclaimable, because nothing ever removed a superseded digest and
+    `make validate` pulls every stack's pinned images. A weekly
+    `prune-images` job now does, Mondays 04:00, under the `backups` lock.
+  - **`/home` holds 24 GiB**, not yet broken down. The backup sets are the
+    suspect, and are capped at seven.
+
 - **The alert path runs through the in-house ntfy, and has been seen failing
   over** ([#136](https://github.com/Gerrrt/HomeLab/issues/136), closed).
   The cutover in

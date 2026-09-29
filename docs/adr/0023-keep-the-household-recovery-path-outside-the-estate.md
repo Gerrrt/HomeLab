@@ -2,6 +2,14 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> **Actual is Durable, 2026-09-29.** The household's budget joins the tier
+> in the class of Immich and Paperless-ngx, and holds no real data before the
+> off-estate copy exists, for the same reason. Every client keeps a copy of
+> the budget, which survives losing the server and not a bad sync
+> ([ADR-0062](0062-add-actual-to-the-sensitive-tier.md)). The table below is
+> not edited.
+
 ## Context
 
 [ADR-0008](0008-place-services-by-data-trust.md) puts Vaultwarden, Immich,
@@ -99,6 +107,16 @@ service is allowed to hold real data.
 | Caddy, step-ca | **Never on the path** | No household recovery step depends on either |
 | AdGuard Home | **Never on the path** | Already true, under ADR-0010 |
 | ntfy, Homepage | **Unclassed** | They hold nothing a household would need back |
+
+> *[ADR-0061](0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)
+> classes linkding as **Unclassed**. It holds data worth backing up, and it is
+> backed up, but no recovery step runs through a bookmark. This ADR is not
+> superseded.*
+>
+> *Stirling-PDF, the sixth service beyond ADR-0008's nine, is **Unclassed** for
+> ntfy's and Homepage's reason: it holds nothing a household would need back
+> ([ADR-0063](0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
+> The table is unchanged and this ADR is not superseded.*
 
 **Vaultwarden — the household's vault is not this vault.** The recommendation is
 that the family's own credentials live in hosted Bitwarden and that Vaultwarden

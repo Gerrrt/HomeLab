@@ -337,6 +337,22 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # move it here — loudly, since the script refuses to write an archive it
 # cannot verify; and Valkey's ./dump.rdb is written by `--save 60 1` and again
 # on the SIGTERM a quiesce sends, which is the case that was checked.
+# Miniflux's Postgres is the same image, so compose.yaml gives it
+# PGDATA=.../18/miniflux: with the image's default the two volumes carried
+# the same ./18/docker/PG_VERSION, check_sentinel_table() refused the whole
+# run, and a crossed mapping between them could not have been seen anyway.
+#
+# Actual's (actual-data, #142) was read off a boot of the pinned image on
+# 2026-09-29, read-only as 1001: ./server-files/account.sqlite and an empty
+# ./user-files exist before the listener answers, with ./.migrate beside them.
+# account.sqlite holds the password hash and the sessions. A budget is a
+# ./user-files/file-<id>.blob, written by its first upload (measured with a
+# 20 MiB one), and a group-<id>.sqlite of its sync messages beside it, whose
+# name is read from the source rather than seen. account.sqlite is in rollback-journal mode, not WAL
+# (header bytes 18-19 read 1 1), so there is no -wal to list, for
+# Audiobookshelf's reason below. The budgets are the record; the account
+# file is only how to reach them, and seed-actual-password.sh re-creates it
+# on an empty volume.
 #
 # Jellyfin's (jellyfin-config) is the one entry here that no compose file on
 # this host declares: it is an ARCHIVE name, consumed by scripts/backup-nas.sh,
@@ -368,6 +384,44 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # finishes, with a 4 MB -wal and a -shm beside it, and ./artwork appears as
 # the scanner extracts covers. Nothing else is written there — the cache is a
 # tmpfs on ND_CACHEFOLDER.
+#
+# Memos' (memos-data, #145) is the sensitive tier's fourth SQLite, read off a
+# boot of the pinned image on 2026-09-29 as uid 10001: ./memos_prod.db exists
+# before the port opens, 4 KB, with the schema and every later write in a
+# -wal beside it until a checkpoint. A clean stop checkpoints: read after
+# `docker stop`, the main file held the account and the -wal was empty.
+#
+# Mealie's (mealie-data, #146) was read off a boot of the pinned image on
+# 2026-09-29, as capless root and read-only: ./mealie.db exists before the
+# listener answers, with ./.secret and ./.session_secret beside it — the keys
+# that sign its tokens, generated on first start, so a restore without them
+# logs everyone out. ./recipes/<id>/ appears on the first import. The
+# database is in rollback-journal mode, as Audiobookshelf's is, so there is
+# no -wal to list. ./backups is where Mealie's own exports would go; nothing
+# schedules one, and none is made.
+#
+# linkding's (linkding-data, #144) is the sixth SQLite here. Read off two boots
+# of the pinned image on 2026-09-29 under its compose hardening: bootstrap.sh
+# switches db.sqlite3 to WAL before the first request, so a -wal and a -shm sit
+# beside it from the first start, and secretkey.txt signs every session — a
+# restore without it logs everyone out, as Vaultwarden's rsa_key.pem does.
+# favicons and previews stay empty with background tasks off.
+#
+# Its sentinel is ./secretkey.txt, NOT ./db.sqlite3: that is Vaultwarden's, and
+# load_inventory() refused the table the day linkding joined it (#731), which
+# stops every sensitive backup before anything is archived. The volume cannot
+# take a nested path the way miniflux-db-data did (#734): /etc/linkding holds
+# the application, so the volume can only be mounted at data/ itself. So the
+# two share an entry and differ in their sentinels, the way loki-data and
+# paperless-data share ./index (#468): ./db.sqlite3 is in linkding's
+# COMPANIONS, which makes Vaultwarden's sentinel in a linkding archive a soft
+# hit, excused only while ./secretkey.txt is present too. A crossed mapping is
+# still caught both ways: a vault archive lacks secretkey.txt, and a linkding
+# archive under the vault's name carries a sentinel the vault does not list.
+# Read off the pinned 1.47.0 image on 2026-09-29, booted with its compose
+# hardening: secretkey.txt is written before the first healthy check, and was
+# byte-identical after a second start and a clean stop. No volume on trinity
+# carries one at its top level.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -378,6 +432,7 @@ declare -A SENTINEL=(
   [caddy-config]="./caddy/autosave.json"
   [step-ca-data]="./config/ca.json"
   [vaultwarden-data]="./db.sqlite3"
+  [memos-data]="./memos_prod.db"
   [home-assistant-config]="./.HA_VERSION"
   [adguard-work]="./data/sessions.db"
   [immich-db]="./PG_VERSION"
@@ -385,9 +440,13 @@ declare -A SENTINEL=(
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
   [paperless-broker-data]="./dump.rdb"
+  [miniflux-db-data]="./18/miniflux/PG_VERSION"
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
+  [mealie-data]="./mealie.db"
+  [linkding-data]="./secretkey.txt"
+  [actual-data]="./server-files/account.sqlite"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -401,6 +460,12 @@ declare -A SENTINEL=(
 # registered a minute earlier, and db.sqlite3 read on its own shows no such
 # user. The quiesced archive carries all three files, so a restore is
 # consistent; a check that copies the main file alone is not.
+#
+# Memos is the same shape: while it runs, its fresh database is a 4 KB header
+# and the account and the first notes live only in memos_prod.db-wal. A clean
+# stop folds them back; a killed one leaves them there, which is why it is
+# listed. ./assets is where every attachment goes, and appears on the first
+# upload.
 declare -A COMPANIONS=(
   [prometheus-data]="./wal ./lock ./queries.active"
   [loki-data]="./wal ./index ./compactor"
@@ -411,6 +476,7 @@ declare -A COMPANIONS=(
   [caddy-config]=""
   [step-ca-data]="./certs ./secrets ./db"
   [vaultwarden-data]="./rsa_key.pem ./db.sqlite3-wal ./attachments ./sends ./icon_cache"
+  [memos-data]="./memos_prod.db-wal ./assets"
   [home-assistant-config]="./.storage ./home-assistant_v2.db"
   [adguard-work]="./data/stats.db ./data/filters"
   [immich-db]="./base ./pg_wal ./postgresql.conf"
@@ -418,9 +484,13 @@ declare -A COMPANIONS=(
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
   [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
   [paperless-broker-data]=""
+  [miniflux-db-data]="./18/miniflux/base ./18/miniflux/pg_wal"
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
+  [mealie-data]="./.secret ./.session_secret ./recipes ./users"
+  [linkding-data]="./db.sqlite3 ./db.sqlite3-wal"
+  [actual-data]="./user-files ./.migrate"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and
@@ -456,10 +526,19 @@ declare -A COMPANIONS=(
 # delivered. ADR-0023 classes ntfy as Unclassed for the same reason. Skipping
 # it also keeps ntfy running through a backup, which is when a failed backup
 # would want to page.
+# stirling-pdf-configs (#143) holds no document, by ADR-0063's design: they
+# live on a tmpfs and never reach a volume. What it does hold is rebuilt on an
+# empty volume. The admin comes back from STIRLING_ADMIN_PASSWORD, the settings
+# are the environment's, and the keys it generates sign sessions and encrypt
+# integrations this deployment does not use. A rebuild costs the admin's TOTP
+# enrolment and any account added in the UI since, which is a re-enrolment,
+# not a record lost. The nightly SQL dump Stirling writes into the same volume
+# is left out for the same reason.
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
   [adguard-work]="blocklists, stats and a query log AdGuard rebuilds; archiving it would stop the house's only DNS forwarder"
   [ntfy-data]="users re-provisioned from SOPS on every start, and twelve hours of notifications already delivered"
+  [stirling-pdf-configs]="an admin rebuilt from SOPS and settings from the environment; documents are never on it"
   [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"
 )
 

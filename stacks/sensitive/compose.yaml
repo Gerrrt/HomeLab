@@ -26,6 +26,15 @@
 # vault, and the reason scripts/backup-volumes.sh learned this stack.
 # Homepage (#137) is the sixth, and the household's page of links to the other
 # five. ntfy (#136) is the seventh, and where the estate's alerts now arrive.
+# Miniflux (#147) is the eighth, and the first beyond ADR-0008's nine —
+# ADR-0057 decided it before it was written here. Memos (#145) is the ninth,
+# decided by ADR-0059, and Mealie (#146) the tenth, decided by ADR-0060.
+# linkding (#144) is the eleventh, and the fourth beyond those nine; ADR-0061
+# is why it is here, and why it is behind one factor.
+# Actual (#142) is the twelfth, and the fifth beyond those nine, decided the
+# same way (ADR-0062).
+# Stirling-PDF (#143) is the thirteenth, and the sixth beyond those nine:
+# ADR-0063 is its decision, and DIFFERENCE 13 the one new thing it does.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -36,7 +45,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are twelve such places, each marked DIFFERENCE.
+# the sibling file. There are thirteen such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -117,8 +126,14 @@ services:
           - immich.matrix.elysium
           - paperless.matrix.elysium
           - vaultwarden.matrix.elysium
+          - memos.matrix.elysium
           - home.matrix.elysium
           - ntfy.matrix.elysium
+          - miniflux.matrix.elysium
+          - recipes.matrix.elysium
+          - links.matrix.elysium
+          - actual.matrix.elysium
+          - pdf.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -575,6 +590,70 @@ services:
       # path DOMAIN implies, which here is /alive. curl ships in the image, and
       # check_compose_health.py --probe proves that on every run.
       test: ["CMD", "/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Memos — the household's notes (#145, ADR-0059)
+  # ---------------------------------------------------------------------------
+  # The second service beyond ADR-0008's nine, and in Vaultwarden's shape:
+  # `expose:` and no `ports:`, reached from Hicks by name through Caddy's 443
+  # at https://memos.matrix.elysium, which the existing 50→99 pass already
+  # allows. Notes, not documentation: docs/ stays the estate's record
+  # (ADR-0059 says why that is a boundary and not a preference).
+  #
+  # NOT root, unlike Vaultwarden. Measured on the pinned image on 2026-09-29:
+  # /var/opt/memos is 10001:10001 2755 in the image, and a named volume mounted
+  # there inherits it, so the process can start as that uid directly. The
+  # image's entrypoint starts as root to chown the directory and su-exec down;
+  # started as 10001 it skips that block and execs the binary, so it needs no
+  # capability at all. Booted with exactly these options it came up healthy,
+  # created its database, took a user, and stored an upload.
+  #
+  # What the volume holds, read off that boot: memos_prod.db in WAL mode —
+  # while it runs, a fresh database is 4 KB with everything in the -wal beside
+  # it, and a clean stop checkpoints it back — and ./assets, where the default
+  # LOCAL storage writes every attachment. So it is one database and a
+  # directory of files, not the one file #145 hoped.
+  #
+  # No secret. Sign-up is an instance setting stored in the database, not an
+  # environment variable: the first account becomes the admin, and the README
+  # has the step that turns registration off behind it.
+  #
+  # MEMOS_INSTANCE_URL is the canonical external URL, used for links it
+  # generates. MEMOS_TRUSTED_PROXIES is the image's default ("private") made
+  # explicit: only Caddy on the bridge can reach 5230, so X-Forwarded-For is
+  # believed, and the rate limit sees the client on Hicks.
+  #
+  # 128m: 15 MiB RSS idle on the pinned image, and the same after an upload.
+  # Eight times that, to bound a leak rather than to size.
+  memos:
+    <<: *service-defaults
+    image: neosmemo/memos:0.31.0@sha256:24c2707ddd8fbd2ceaa7a61ecab86a53cdcde640b24ce572b73da14b00b5785f
+    container_name: sensitive-memos
+    user: "10001:10001"
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    environment:
+      MEMOS_PORT: "5230"
+      MEMOS_INSTANCE_URL: https://memos.matrix.elysium
+      MEMOS_TRUSTED_PROXIES: private
+    volumes:
+      - memos-data:/var/opt/memos
+    expose:
+      - "5230"
+    healthcheck:
+      # /healthz answers once the database is open. wget is busybox's, in the
+      # Alpine base; check_compose_health.py --probe proves it on every run.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5230/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -1181,6 +1260,150 @@ services:
       start_period: 10s
 
   # ---------------------------------------------------------------------------
+  # Stirling-PDF — the household's PDF editor (#143, ADR-0063)
+  # ---------------------------------------------------------------------------
+  # Merge, split, rotate, convert, OCR, sign, compress: what otherwise goes to
+  # whichever free PDF website ranks first that week. Paperless keeps
+  # documents; this edits them and keeps nothing, and the settings below are
+  # how "keeps nothing" is made true rather than hoped.
+  #
+  # DIFFERENCE 13: the documents are held in memory on purpose. Every upload,
+  # every intermediate and every result lives under /tmp, and /tmp is a tmpfs
+  # charged to this container's memory.max — so a half-processed P60 is never
+  # on a disk, and a restart erases whatever a crashed job left. This is the
+  # trade DIFFERENCE 11 refused for Paperless, taken the other way for a
+  # different workload: Paperless OCRs a backlog unattended and must not be
+  # OOM-killed halfway through it; this OCRs one document while someone
+  # watches, and the worst case is that they see an error and try again. The
+  # ceiling below is sized for a full tmpfs on top of the measured peak.
+  #
+  # `exec` on that tmpfs, where Docker's default is noexec, and not by choice.
+  # The PDF engine (jpdfium, pdfium over Panama) unpacks its shared libraries
+  # into java.io.tmpdir at first use, and the entrypoint pins that to
+  # /tmp/stirling-pdf on the java command line, where nothing else can
+  # override it. Under noexec the container boots healthy and then every
+  # pdfium-backed tool — merge first — answers 500 with "failed to map
+  # segment from shared object". Found by running the tools, not the
+  # healthcheck, on 2026-09-29. The root filesystem stays read-only, so what
+  # exec adds is a place a compromised process could write and run a binary
+  # for as long as the container lives, with no capabilities, as uid 1001.
+  #
+  # Nothing calls home: analytics, PostHog, Scarf and the update check are
+  # all off, which the running app confirmed from /api/v1/config/app-config
+  # on the same boot, and that boot was on an internal network with no route
+  # out. The heap dump the image enables on OOM is turned off too, because a
+  # dump of this JVM would contain the document it ran out of memory on,
+  # written to /configs, which is a disk.
+  #
+  # Runs as the image's stirlingpdfuser (1001) from the start. The entrypoint
+  # would drop to it from root with setpriv, which needs CAP_SETUID and
+  # CAP_SETGID; `user:` makes that drop unnecessary, and the entrypoint takes
+  # its non-root branch as written. The one thing that branch gives up is a
+  # separate uid for LibreOffice. The Landlock and seccomp sandbox around it
+  # still applies without root, and STIRLING_LO_SANDBOX=required makes a
+  # kernel that cannot provide it refuse conversions rather than run them
+  # unconfined. On the test boot it reported "landlock ABI 8, seccomp active".
+  #
+  # Memory, measured 2026-09-29 on the pinned image with these options: 790 MiB
+  # idle, 1342–1454 MiB peak across a 20- and a 40-page 300 dpi OCR, an RTF
+  # conversion through LibreOffice, merge, rotate, split and compress, no
+  # oom_kill. The heap is capped at 40 % (about 1.2 GiB), down from the 70 %
+  # the entrypoint picks, so the heap, the JVM's off-heap, LibreOffice,
+  # tesseract and a full 1 GiB /tmp all fit under 3072m together.
+  # Re-derive from container_memory_rss after a month, as for the rest. `cpus: 2`
+  # is DIFFERENCE 10 again: an OCR here must not take cores Paperless's
+  # ceiling of four is counting on.
+  stirling-pdf:
+    <<: *service-defaults
+    image: stirlingtools/stirling-pdf:3.0.0@sha256:66b6edb8ee62e307a8b335166e8931a6e65b39c9bf73b5e517fbfe9c613ba221
+    container_name: sensitive-stirling-pdf
+    # DIFFERENCE 5 and 8 again: the image's entrypoint is `tini --
+    # /scripts/init.sh`, an init of its own.
+    init: false
+    user: "1001:1001"
+    mem_limit: 3072m
+    memswap_limit: 3072m
+    cpus: 2
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      # DIFFERENCE 13: the documents.
+      - /tmp:size=1g,exec,uid=1001,gid=1001,mode=1777
+      # The LibreOffice profile, rebuilt on every start.
+      - /home/stirlingpdfuser:size=64m,uid=1001,gid=1001,mode=0700
+      # Its own log files. The same lines go to stdout, which is where they
+      # are read.
+      - /logs:size=64m,uid=1001,gid=1001,mode=0700
+      # Three directories the entrypoint insists it can write, and Spring
+      # writes default pipeline configs into the first at start, which is fatal
+      # on a read-only root. Server-side storage and watched folders are off,
+      # so nothing else is ever written to them.
+      - /pipeline:size=4m,uid=1001,gid=1001,mode=0700
+      - /customFiles:size=4m,uid=1001,gid=1001,mode=0700
+      - /storage:size=4m,uid=1001,gid=1001,mode=0700
+    environment:
+      # The admin, created on the first start against an empty volume and
+      # never touched by these variables again, as for PAPERLESS_ADMIN_*. TOTP
+      # on this account at first login is ADR-0022's floor. The README has the
+      # step.
+      SECURITY_ENABLELOGIN: "true"
+      SECURITY_INITIALLOGIN_USERNAME: ${STIRLING_ADMIN_USER:-admin}
+      SECURITY_INITIALLOGIN_PASSWORD: ${STIRLING_ADMIN_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      # Nothing calls home, and nothing phones a URL on a user's behalf.
+      SYSTEM_ENABLEANALYTICS: "false"
+      SYSTEM_ENABLEPOSTHOG: "false"
+      SYSTEM_ENABLESCARF: "false"
+      SYSTEM_SHOWUPDATE: "false"
+      SYSTEM_ENABLEURLTOPDF: "false"
+      SYSTEM_GOOGLEVISIBILITY: "false"
+      AIENGINE_ENABLED: "false"
+      # The phone-upload QR codes would point a phone at this name, and the
+      # phones that could resolve it are the ones that can already open the
+      # page. Off rather than half-working.
+      SYSTEM_ENABLEMOBILESCANNER: "false"
+      SYSTEM_ENABLEMOBILESIGNATURE: "false"
+      # An empty CORS list means every origin, with credentials, and not "CORS
+      # off". Pinned to the one name. A preflight from any other origin
+      # answered 403 on the test boot.
+      SYSTEM_FRONTENDURL: https://pdf.matrix.elysium
+      SYSTEM_CORSALLOWEDORIGINS: https://pdf.matrix.elysium
+      # Stirling deletes a job's files when the job finishes; this is the sweep
+      # for the ones a failed job leaves. An hour rather than a day, every ten
+      # minutes rather than thirty, and on every start.
+      SYSTEM_TEMPFILEMANAGEMENT_MAXAGEHOURS: "1"
+      SYSTEM_TEMPFILEMANAGEMENT_CLEANUPINTERVALMINUTES: "10"
+      SYSTEM_TEMPFILEMANAGEMENT_STARTUPCLEANUP: "true"
+      SPRINGDOC_API_DOCS_ENABLED: "false"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+      STIRLING_LO_SANDBOX: required
+      # Appended after the image's own JVM flags, and HotSpot takes the last of
+      # a repeated flag: no heap dump, and 40 % where the entrypoint would say
+      # 70. Both were read back from the running JVM's environment.
+      JAVA_CUSTOM_OPTS: -XX:-HeapDumpOnOutOfMemoryError -XX:MaxRAMPercentage=40
+    volumes:
+      - stirling-pdf-configs:/configs
+      # The entrypoint symlinks this script into /usr/local/bin under
+      # `set -e`, which is fatal on a read-only root. It only links the file
+      # if it is executable, and /dev/null is not, so the diagnostics
+      # shortcuts are skipped and nothing else changes. /usr/local/bin cannot
+      # be a tmpfs instead, because gs and unoserver live there.
+      - /dev/null:/scripts/stirling-diagnostics.sh:ro
+    expose:
+      - "8080"
+    healthcheck:
+      # The image's own, in exec form: curl against the unauthenticated
+      # status endpoint. --probe proves curl is still in the image after a
+      # bump. Healthy 42 s after start on the test boot, and start_period is
+      # the image's own 120 s for a slower first JVM start on trinity.
+      test: ["CMD", "curl", "-fs", "--max-time", "10", "http://localhost:8080/api/v1/info/status"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
+
+  # ---------------------------------------------------------------------------
   # Homepage — the household's front page (#137)
   # ---------------------------------------------------------------------------
   # What exists on this tier and where it lives, at https://home.matrix.elysium
@@ -1188,7 +1411,7 @@ services:
   # docs/runbooks/successor-handover.md is for whoever runs it next. A
   # directory, not a status page: homepage/settings.yaml says why there are no
   # status dots, and homepage/services.yaml which tiles read live numbers and
-  # why the rest are links. The three YAML files are the whole configuration,
+  # why the rest are links. The four YAML files are the whole configuration,
   # in the repository and mounted read-only; nothing about the page lives in a
   # database or a volume, so there is nothing to back up and no sentinel.
   #
@@ -1207,10 +1430,17 @@ services:
   # the pinned image with exactly these options on trinity (2026-09-28):
   # /app/config, which does not exist in the image — the entrypoint would
   # `ln -s /config /app/config` on the root filesystem if it were missing,
-  # and Homepage copies docker.yaml and kubernetes.yaml into it at start —
-  # and Next.js's cache under /app/.next. Both tmpfs; the three config files
-  # are single-file mounts over the first, so `make up` pins their inodes
-  # through check_mounted_config.py like every other one (#355). LOG_TARGETS
+  # and Homepage copies its sample of any config file that is missing into it,
+  # some at start and the rest on the first page load — and Next.js's cache
+  # under /app/.next. Both tmpfs; the five config files that render are
+  # single-file mounts over the first, and bookmarks.yaml is among them for a
+  # reason the first deploy found: without it the sample was served, three
+  # links to GitHub, Reddit and YouTube on the household's page. custom.css is
+  # the Tokyo Night theme, mounted for the same reason. The samples still
+  # copied — custom.js (empty), docker, kubernetes, proxmox — configure
+  # integrations this page does not use, and render nothing. `make up` pins
+  # the mounts' inodes through check_mounted_config.py like every other one
+  # (#355). LOG_TARGETS
   # keeps logs on stdout, where every other container's are, rather than in a
   # logs/ directory under the tmpfs. `docker diff` after serving the page and
   # every widget showed nothing written but those mount points; CapEff 0.
@@ -1257,6 +1487,8 @@ services:
       - ./homepage/settings.yaml:/app/config/settings.yaml:ro
       - ./homepage/services.yaml:/app/config/services.yaml:ro
       - ./homepage/widgets.yaml:/app/config/widgets.yaml:ro
+      - ./homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
+      - ./homepage/custom.css:/app/config/custom.css:ro
       - ../../certificates/tier-ca.pem:/etc/homepage/tier-ca.pem:ro
     expose:
       - "3000"
@@ -1265,6 +1497,404 @@ services:
       # the image's uses $PORT in a shell form. busybox wget; --probe proves
       # it is in the image.
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Miniflux — the feed reader (#147), the first of the tier extras
+  # ---------------------------------------------------------------------------
+  # Beyond ADR-0008's nine, so decided before it was authored: ADR-0057 has
+  # the placement, the steady outbound traffic this puts on VLAN 99, and why
+  # the admin account carries no second factor. Everything below was measured
+  # on the pinned image on 2026-09-29, booted with exactly these options
+  # against the pinned Postgres.
+  #
+  # The image's own user, 65534, and no `user:` line: it is a static Go
+  # binary in a distroless-shaped image that writes nothing to disk. Read-only
+  # root with no tmpfs at all — `docker diff` after migrations, admin creation
+  # and a restart showed only docker-init's mount point. 13 MiB idle; 256m is
+  # room for WORKER_POOL_SIZE's sixteen fetches in flight, and a ceiling for
+  # a leak rather than a size.
+  #
+  # The healthcheck is the binary's own `-healthcheck auto`, which calls
+  # /healthcheck on LISTEN_ADDR; the image has no shell, curl or wget, and
+  # --probe proves the flag is still there after a Dependabot bump.
+  miniflux:
+    <<: *service-defaults
+    image: miniflux/miniflux:2.3.3@sha256:49d7b60987616387c306a8023087b31f2c9b7b21288b523026cb04058e8b6dbb
+    container_name: sensitive-miniflux
+    mem_limit: 256m
+    memswap_limit: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    depends_on:
+      miniflux-db:
+        condition: service_healthy
+    environment:
+      # The same SOPS value miniflux-db reads as POSTGRES_PASSWORD, so the two
+      # cannot drift. libpq's keyword form rather than a postgres:// URL, so
+      # it folds under yamllint's line length; either way the password is
+      # spliced into a connection string, which is why the example file says
+      # `make gen-secret` and never a typed value — its output is
+      # alphanumeric, and a space or a quote would change what the string
+      # says rather than what the password is.
+      DATABASE_URL: >-
+        host=miniflux-db dbname=miniflux user=miniflux sslmode=disable
+        password=${MINIFLUX_DBPASS:?set in secrets/sensitive.sops.yaml}
+      RUN_MIGRATIONS: "1"
+      # The admin, created on first start and skipped on every start after
+      # ("Skipping admin user creation because it already exists", measured):
+      # the PAPERLESS_ADMIN_* shape, with the same `docker inspect` exposure
+      # accepted for the same reason. Rotating the SOPS value does NOT change
+      # the password — the README has the command that does.
+      CREATE_ADMIN: "1"
+      ADMIN_USERNAME: ${MINIFLUX_ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${MINIFLUX_ADMIN_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      BASE_URL: ${MINIFLUX_URL:-https://miniflux.matrix.elysium}
+      LISTEN_ADDR: 0.0.0.0:8080
+      # The REST API authenticates with the admin's own password over basic
+      # auth — measured: /v1/me answered 200 to it — so it is a second door
+      # to the same account that nothing here uses. Off, it answers a redirect
+      # to the login page. The Fever and Google Reader APIs are separate,
+      # per-user, off until someone turns them on in Settings › Integrations,
+      # and ADR-0057 decision 5 is what turning them on means.
+      DISABLE_API: "1"
+      # Stated rather than defaulted, because it is the property ADR-0057
+      # decision 4 rests on: the fetcher refuses any address in a private,
+      # loopback or link-local range, checked at dial time after DNS —
+      # measured against miniflux-db by name and against localhost, both
+      # refused. On VLAN 99 that is the gateway, step-ca and every host on
+      # Winterfell that a feed URL cannot be pointed at.
+      FETCHER_ALLOW_PRIVATE_NETWORKS: "0"
+      INTEGRATION_ALLOW_PRIVATE_NETWORKS: "0"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "/usr/bin/miniflux", "-healthcheck", "auto"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Postgres for Miniflux
+  # ---------------------------------------------------------------------------
+  # paperless-db's shape line for line, for its reasons: the image's own
+  # postgres user, read-only root with the socket directory and sort scratch
+  # on tmpfs, and the PG18 layout under /var/lib/postgresql. Its own
+  # container rather than a database in Paperless's, so that a restore of one
+  # service never has to reason about the other (ADR-0057). Miniflux does not
+  # support SQLite; this is its one dependency.
+  #
+  # One departure from paperless-db: PGDATA names the cluster directory
+  # ./18/miniflux rather than the image's ./18/docker. The two volumes were
+  # otherwise laid out identically, so backup-volumes.sh could not tell one
+  # archive from the other and refused to run at all (its sentinel table
+  # forbids a shared sentinel). Set before the volume was ever created on
+  # trinity, so nothing moves. Measured on the pinned image on 2026-09-29,
+  # under exactly these options: initdb writes ./18/miniflux/PG_VERSION, the
+  # server reports that data_directory, and pg_isready answers. A move to 19
+  # is a sibling ./19/miniflux, the way ./19/docker would be.
+  #
+  # 512m, paperless-db's number: 42 MiB after migrations, and shared_buffers
+  # defaults to 128 MB. The content is every stored entry, which the image's
+  # cleanup job archives after 60 days read and 180 unread.
+  miniflux-db:
+    <<: *service-defaults
+    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    container_name: sensitive-miniflux-db
+    user: "999:999"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:size=1m,uid=999,gid=999,mode=0755
+      - /tmp:size=64m
+    environment:
+      POSTGRES_DB: miniflux
+      POSTGRES_USER: miniflux
+      POSTGRES_PASSWORD: ${MINIFLUX_DBPASS:?set in secrets/sensitive.sops.yaml}
+      PGDATA: /var/lib/postgresql/18/miniflux
+    volumes:
+      - miniflux-db-data:/var/lib/postgresql
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "miniflux", "-d", "miniflux"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Mealie — the household's recipes (#146, ADR-0060)
+  # ---------------------------------------------------------------------------
+  # Beyond ADR-0008's nine, so decided before it was authored, and a service
+  # people other than the operator open on purpose, from a phone in the kitchen. Hence
+  # a name that says what it is for, https://recipes.matrix.elysium, the way
+  # Homepage's is `home` rather than `homepage`. Vaultwarden's shape otherwise:
+  # `expose:` and no `ports:`, reached from Hicks only through Caddy's 443.
+  #
+  # Root with EVERY capability dropped, for DIFFERENCE 2's measured reason: in
+  # the pinned image /app/data is 0:0 755, so a named volume mounted there is
+  # root's, and a non-root Mealie cannot create its own database. The
+  # entrypoint (/app/run.sh) would otherwise usermod, `chown -R /app` and gosu
+  # to 911 — three capabilities' worth of work. PUID=0 and PGID=0 match the
+  # uid it is already running as, which is the script's own branch for "no
+  # switch needed", so none of that runs and no capability is asked for.
+  # Measured on the pinned image with exactly these options on 2026-09-29: it
+  # came up healthy, created the database, answered a login and imported
+  # three recipes by URL, and `docker diff` showed nothing written outside
+  # /app/data. Re-check the premise when the image moves:
+  #
+  #   docker run --rm --entrypoint stat <mealie image> -c '%u:%g %a' /app/data
+  #
+  # SQLite, not Postgres: one household's recipes are a few megabytes, and a
+  # database container would be a second thing to back up for no gain. The
+  # database is in rollback-journal mode (`PRAGMA journal_mode` reads
+  # `delete`), so there is no -wal whose absence would lose the last writes.
+  #
+  # No SOPS secret. The token-signing secrets (.secret, .session_secret) are
+  # generated into /app/data on the first start and travel with the volume's
+  # backup; the admin password is a bcrypt hash in the database, set at the
+  # first login (build-the-sensitive-tier-host.md §10). The way back in
+  # without it is the image's own script, run against the live container —
+  # proved on a scratch boot, the old password answering 401 afterwards:
+  #
+  #   docker exec -it sensitive-mealie python3 \
+  #     /opt/mealie/lib/python3.14/site-packages/mealie/scripts/change_password.py
+  #
+  # ALLOW_SIGNUP is false from the first start: POST /api/users/register then
+  # answers 403 "User Registration is Disabled", measured. Household accounts
+  # are made by the admin, or by invitation link from the admin's group. No
+  # second factor exists to enrol — ADR-0060 names Mealie beside Immich and
+  # AdGuard under ADR-0022's floor. SMTP, LDAP, OIDC and OpenAI stay unset.
+  #
+  # URL import reaches out: the server fetches the page the user pasted, over
+  # Winterfell's existing egress (ADR-0060). It never reaches in. Every fetch
+  # goes through Mealie's safehttp transport, which resolves the name and
+  # refuses private, loopback, link-local, reserved and CGNAT addresses at
+  # connect time. Measured: an import of a recipe page served from this
+  # network, by name and by address, and of 127.0.0.1, 10.0.99.1,
+  # 10.0.99.20:9090 and 169.254.169.254, each failed `InvalidDomainError`
+  # with no request arriving. The same page imported once its host was on
+  # HTTP_ALLOW_LIST. That list is the only thing between a pasted URL and the
+  # rest of Winterfell, so it is written out empty below rather than
+  # defaulted, as Miniflux's FETCHER_ALLOW_PRIVATE_NETWORKS is.
+  #
+  # 1024m: 224 MiB idle on the pinned image, 396 MiB at the peak of three URL
+  # imports back to back. Two and a half times the peak, to bound a leak
+  # rather than to size. No depends_on, for Vaultwarden's reason.
+  mealie:
+    <<: *service-defaults
+    image: ghcr.io/mealie-recipes/mealie:v3.28.0@sha256:8b02290f4d1806f02acac6f25f6d48a3c965612fda1f8e914d5af533276f8688
+    container_name: sensitive-mealie
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      PUID: "0"
+      PGID: "0"
+      BASE_URL: https://recipes.matrix.elysium
+      ALLOW_SIGNUP: "false"
+      DB_ENGINE: sqlite
+      HTTP_ALLOW_LIST: ""
+      TZ: ${MEALIE_TZ:-America/Los_Angeles}
+    volumes:
+      - mealie-data:/app/data
+    expose:
+      - "9000"
+    healthcheck:
+      # The image's own script: curl against /api/app/about on its own port.
+      # curl ships in the image, and check_compose_health.py --probe proves it.
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # linkding — the household's bookmarks (#144, ADR-0061)
+  # ---------------------------------------------------------------------------
+  # One process and one SQLite file. Beyond ADR-0008's list, and placed here
+  # by that ADR's own test: a bookmark collection is a browsing history by
+  # another name. The plain image, not `-plus`: that variant adds Chromium to
+  # archive pages, which ADR-0061 leaves to a different service if it is ever
+  # wanted.
+  #
+  # Root with four capabilities, and then not root at all. The image's
+  # bootstrap.sh runs as root: it creates the data tree, runs the migrations,
+  # creates the superuser, `chown -R www-data:` the volume, and execs uwsgi,
+  # whose uwsgi.ini drops to www-data (33). Every process that serves a
+  # request runs as 33 with CapEff 0, read from /proc on the pinned image. The
+  # four are what the root half needs, each measured by taking it away:
+  #
+  #   SETUID, SETGID   uwsgi's drop to 33. Without them: "setgid(): Operation
+  #                    not permitted", exit 1.
+  #   CHOWN            the chown of the volume. /etc/linkding/data is 0:0 755
+  #                    in the image, so a fresh named volume is root's.
+  #   DAC_OVERRIDE     the SECOND start. Once the tree is 33's, root without it
+  #                    cannot write db.sqlite3, and `migrate` fails with
+  #                    "attempt to write a readonly database" — and bootstrap.sh
+  #                    has no `set -e`, so uwsgi starts anyway and the
+  #                    healthcheck passes over a migration that never ran. The
+  #                    first image bump that shipped one would have gone green.
+  #
+  # `user: 33` from the start needs none of them and boots clean, but only on a
+  # volume that is already 33's; a fresh one is root's, and a seed step that
+  # chowns it is the hand-run command DIFFERENCE 2 turns down. Re-check the
+  # premise when the image moves:
+  #
+  #   docker run --rm --entrypoint stat <linkding image> -c '%u:%g %a' /etc/linkding/data
+  #
+  # LD_DISABLE_BACKGROUND_TASKS: the task runner exists to fetch favicons and
+  # preview images, which is a request from trinity to a third party for every
+  # site bookmarked — the list this tier is holding back from the network,
+  # handed out one hostname at a time. Off, and the list shows no icons.
+  # Adding a bookmark still fetches that page's title and description, from
+  # the site itself, which the browser adding it has just visited.
+  #
+  # No LD_CSRF_TRUSTED_ORIGINS. Measured: a login POST with Origin
+  # https://links.matrix.elysium and the X-Forwarded-Proto Caddy sets is
+  # accepted without it.
+  #
+  # 512m: 77 MiB idle, 188 MiB peak importing 3,000 bookmarks from a Netscape
+  # file. Bounds a leak rather than sizing. No depends_on, for Vaultwarden's
+  # reason.
+  linkding:
+    <<: *service-defaults
+    image: sissbruecker/linkding:1.47.0@sha256:e35cb50e0581178f245125ffaa909c565416c94c9f22ace305a7d234a4345522
+    container_name: sensitive-linkding
+    mem_limit: 512m
+    memswap_limit: 512m
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      # uwsgi's pidfile, and nothing else: `docker diff` after two boots
+      # showed no write outside the volume.
+      - /tmp:size=16m
+    environment:
+      LD_DISABLE_BACKGROUND_TASKS: "True"
+      # The superuser, created on first start and never touched again by
+      # these variables — Paperless's shape, with the same `docker inspect`
+      # exposure accepted. linkding has no second factor; ADR-0061 says what
+      # stands in for one.
+      LD_SUPERUSER_NAME: ${LINKDING_SUPERUSER_NAME:-admin}
+      LD_SUPERUSER_PASSWORD: ${LINKDING_SUPERUSER_PASSWORD:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - linkding-data:/etc/linkding/data
+    expose:
+      - "9090"
+    healthcheck:
+      # The image's own, with the port literal: curl against /health.
+      test: ["CMD", "curl", "-fsS", "--max-time", "2", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Actual — the household's budget (#142, ADR-0062)
+  # ---------------------------------------------------------------------------
+  # The fifth service here beyond ADR-0008's nine, after Miniflux, Memos,
+  # Mealie and linkding, and decided by ADR-0062.
+  # Actual is local-first: every client holds the whole budget and this is
+  # the sync target between them, so the server being down stops syncing
+  # and nothing else. It is still the one copy that is backed up.
+  #
+  # As the image's own `actual` user, 1001:1001. The image declares no USER
+  # and would run node as root, but it ships that user and /data is owned by
+  # it (1001:1001 755), so a named volume mounted there inherits that on first
+  # use. The user is set here rather than left as root with capabilities
+  # dropped, which is what Vaultwarden does because its image offers no user.
+  #
+  # Read off 26.9.0-alpine on 2026-09-29 with exactly these options:
+  #   - read-only root, no capabilities, as 1001: it came up healthy, and
+  #     `docker diff` showed nothing at all written outside /data. So there
+  #     is no tmpfs beyond the anchor's /tmp.
+  #   - /data holds server-files/account.sqlite (the password hash and
+  #     sessions) and user-files/ (one encrypted-or-not blob per budget, plus
+  #     its sync messages). account.sqlite is in rollback-journal mode, not
+  #     WAL: the header's journal bytes read 1 1.
+  #   - It booted and answered /health with `--network none`, so nothing is
+  #     fetched at start.
+  #
+  # Re-check the premise when the image moves:
+  #
+  #   docker run --rm --entrypoint stat <actual image> -c '%u:%g %a' /data
+  #
+  # If that prints something other than 1001:1001 755, revisit the user line.
+  #
+  # There is NO password setting. A fresh server is unclaimed until the first
+  # client sets one. scripts/seed-actual-password.sh claims it from SOPS with
+  # `--network none` before the first start, and `make up` runs it every time.
+  # The value is not in this file or in .env: the service never reads it.
+  #
+  # Password login and nothing else. The image allows password, header and
+  # OpenID. Header login takes the password in an x-actual-password header
+  # from any "trusted proxy", and that list defaults to all of 10/8,
+  # 172.16/12 and 192.168/16. It is unreachable while the only auth row is
+  # the password's, and a header attempt was refused with 400 on the pinned
+  # image. The two lines make that a setting rather than a property of the
+  # database. OpenID is a decision for ADR-0022, not a variable.
+  #
+  # ACTUAL_TRUSTED_PROXIES is Caddy's fixed address alone, which is the second
+  # reader of the pin DIFFERENCE 4 argues. /account/login and /bootstrap
+  # allow five failures per client per fifteen minutes (measured: the sixth
+  # got 429). With the proxy named, "client" is the phone on Hicks, not Caddy.
+  #
+  # Bank sync is off by what is absent: GoCardless and SimpleFIN need
+  # credentials entered in the app, and without them the server reaches out
+  # to no one. Turning it on is a decision (ADR-0062 §4), not a setting.
+  #
+  # The healthcheck is the image's own script, which the image ships but
+  # does not declare as a HEALTHCHECK. It fetches /health on the configured
+  # port and exits 1 unless the status is UP. --probe proves node is in the
+  # image; that the script is there and passes is what CI's hardened boot
+  # proves.
+  #
+  # 1g: 279 MiB idle RSS, and a high-water mark of 329 MiB after taking a
+  # 20 MiB budget upload. Most of it is the web app the server also serves.
+  # About three times the peak: a ceiling for a leak, not a size. No
+  # depends_on, for Vaultwarden's reason.
+  actual:
+    <<: *service-defaults
+    image: actualbudget/actual-server:26.9.0-alpine@sha256:1c14eef351234f4b5dd0433865b5de89d70bdbdc57368d5b07e910662c6498f9
+    container_name: sensitive-actual
+    user: "1001:1001"
+    mem_limit: 1g
+    memswap_limit: 1g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    environment:
+      ACTUAL_LOGIN_METHOD: password
+      ACTUAL_ALLOWED_LOGIN_METHODS: password
+      ACTUAL_TRUSTED_PROXIES: 172.28.99.2/32
+    volumes:
+      - actual-data:/data
+    expose:
+      - "5006"
+    healthcheck:
+      test: ["CMD", "node", "src/scripts/health-check.js"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -1323,7 +1953,33 @@ volumes:
   # paperless-media, one of the volumes here whose loss is a loss of function
   # rather than of a record — docs/runbooks/restore-the-sensitive-tier.md.
   vaultwarden-data:
+  # Memos' database, its -wal, and ./assets, every attachment (ADR-0059).
+  memos-data:
   # ntfy's user.db and twelve hours of message cache. The first is rebuilt from
   # the environment on every start (DIFFERENCE 12) and the second has already
   # been delivered, so scripts/backup-volumes.sh skips it by name.
   ntfy-data:
+  # Every subscription, category, read state and star, and the entries not
+  # yet archived. The OPML export in the README is the portable half; this is
+  # the whole of it.
+  miniflux-db-data:
+
+  # ---------------------------------------------------------------------------
+  # Mealie's SQLite database, its two generated token-signing secrets,
+  # recipe images and user avatars — everything it has (ADR-0060).
+  mealie-data:
+  # linkding's database, in WAL mode, and the secretkey.txt that signs its
+  # sessions. Favicons and previews would live here too; with background tasks
+  # off, those directories stay empty.
+  linkding-data:
+  # Actual's account.sqlite (the password hash and sessions) and every
+  # budget's file and sync messages. Every client holds a copy of the budget,
+  # which survives losing this volume but not a bad sync, and so is not a
+  # backup of it (ADR-0062).
+  actual-data:
+  # Stirling-PDF's accounts (an H2 database, TOTP enrolments with it), its
+  # generated settings.yml and keys, and the nightly SQL dump it takes of its
+  # own database. No document ever lands here — those are DIFFERENCE 13's
+  # tmpfs — and everything in it is rebuilt from the environment on an empty
+  # volume, so scripts/backup-volumes.sh skips it by name (ADR-0063).
+  stirling-pdf-configs:

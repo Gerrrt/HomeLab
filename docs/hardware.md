@@ -43,12 +43,12 @@ laptop reports no cell at all
 45 °C, and when a host on its cell has under thirty minutes left
 ([#532](https://github.com/Gerrrt/HomeLab/issues/532)). `prometheus`'s cell was
 replaced on 2026-09-18 and reads 101 % of its design capacity at one cycle;
-`oracle`'s is the original, reads 72 %, and its replacement — a Dell M5Y1K —
-was bought on 2026-09-19 and is in transit, with eBay's estimate moved to
-2026-09-28 ([#531](https://github.com/Gerrrt/HomeLab/issues/531)). `prometheus`'s runtime
-was measured on 2026-09-19: 2.72 Ah/h at the stack's load, about 2.5 hours
-from a full pack, one measurement on one day. `oracle`'s has never been
-measured. Neither pack reports a moving cell temperature — the Dell exports
+`oracle`'s read 72 % and was replaced on 2026-09-29 by a Dell M5Y1K, which
+reads 100 % — its design figure, not yet a learned one
+([#531](https://github.com/Gerrrt/HomeLab/issues/531)). Each runtime was
+measured once, on one day at one load: `prometheus` 2.72 Ah/h at the stack's
+load, about 2.5 hours from a full pack (2026-09-19); `oracle` 0.54 Ah/h,
+about 5.2 hours (2026-09-29). Neither pack reports a moving cell temperature — the Dell exports
 none, and the A1437 fitted to `prometheus` returns a constant — so the
 temperature alert is blind until a pack that measures is fitted, and
 `HostBatteryTempNotMeasured` says so.
@@ -740,17 +740,38 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the estate has had for either laptop, and one measurement on one day.
   ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) carries
   the baseline, the stack-down window — 14:53 to about 18:12 on the day, over
-  its own two-hour bound — and the disposal.) `oracle`'s cell reads 72 % and is
-  second in line, bought 2026-09-19 — the entry below.
+  its own two-hour bound — and the disposal.) `oracle`'s cell read 72 % and was
+  second in line, bought 2026-09-19 and fitted 2026-09-29 — the entry below.
 - Dell M5Y1K 4-cell pack for `oracle`[^M5Y1K] — 14.8 V, 40 Wh, the latched
   pack the Inspiron 15-3565 in the Compute table takes. **Identified and
-  bought 2026-09-19, in transit**, under
+  bought 2026-09-19, fitted 2026-09-29**, under
   [#531](https://github.com/Gerrrt/HomeLab/issues/531): the part was written
   down here before the money was spent, which is the order that issue asks
   for, and the purchase followed the same day. The listing calls it genuine
   Dell, which — as with the A1437 above — is the listing's claim until the
   pack is looked at; a Dell label and a `serial_number` that is not `1650`
   are what would settle it, and the fit records which it turned out to be.
+  **Both settled it: it is a Dell pack.** The label reads M5Y1K, and the
+  machine reads `manufacturer` `LGC-LGC2.8`, `model_name` `DELL 7PY0D` and
+  `serial_number` `88` — a different serial, a different cell maker (LG Chem
+  where the original was Sanyo) and a sixth Dell part number for the same
+  pack, to add to the five below. Design figures unchanged at 2.8 Ah and
+  14.8 V. It read `charge_full` 2.8 Ah of 2.8 — exactly design, which is a
+  gauge that has not learned the pack yet rather than a measurement — and
+  `HostBatteryHealthLow` stopped firing from its first scrape. The machine
+  was off for two and a half minutes, 16:24:24 to 16:26:49 UTC, and its
+  clock came back at the true time, which is the answer
+  [#519](https://github.com/Gerrrt/HomeLab/issues/519) wanted from this
+  host. The old pack went for recycling the same day. **Checked the same
+  afternoon, and the check that closed #531:** the mains pull on the full
+  pack. `oracle` ran on it for about 35 minutes — fourteen past the bound,
+  because the call to plug back in was missed — from 100 % to 88 %,
+  `HostOnBattery` fired for it alone and reached the phone about three
+  minutes after the pull, and the draw measured 0.54 Ah/h: about 5.2 hours
+  from full, one measurement on one day
+  ([`replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md#reusing-this-page-on-oracle)).
+  `charge_full` still read exactly design afterwards, so the 100 % is the
+  gauge's told figure until a deep discharge teaches it.
   The listing quoted delivery in two to four days. It had not arrived by
   2026-09-26, and eBay's estimate had moved to 2026-09-28. The number comes off the
   machine rather than off the listing: `/sys/class/power_supply/BAT0` reports `model_name`
@@ -766,8 +787,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   than the cell that exception was written for: `charge_full` 2.021 Ah of
   2.8 Ah design, **72 %**, read 2026-09-12 and unchanged on 2026-09-19 — the
   same figure across the whole 30-day retention — below
-  `HostBatteryHealthLow`'s 80 % line, and that alert has fired for it since
-  2026-09-14 under a silence that expires 2026-10-08. **A bare battery, not a
+  `HostBatteryHealthLow`'s 80 % line. That alert fired for it from
+  2026-09-14 until the fit, under a silence set to expire 2026-10-08 and
+  expired by hand on 2026-09-29 instead. **A bare battery, not a
   kit**: unlike the MacBook's glued cell this one sits behind a slide latch on
   the underside, so the swap is a latch and a lift with the machine off, and
   needs no solvent, no screws and no tools. The machine's coin cell is a
@@ -775,7 +797,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   reaches — the reason its clock is expected to survive the disconnect that
   reset `prometheus`'s
   ([#519](https://github.com/Gerrrt/HomeLab/issues/519)), and a thing the fit
-  checks rather than assumes. What proves the swap differs from the MacBook
+  checked rather than assumed — it did survive. What proves the swap differs from the MacBook
   too: this pack's info series carries a `serial_number`, which the MacBook's
   does not, so a changed serial is the clean proof row; and its firmware
   reports `cyclecount` as `0` always and exports no `temp_celsius`, so two of

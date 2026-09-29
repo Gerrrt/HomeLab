@@ -987,8 +987,11 @@ groups:
       # depends on either figure: HostBatteryHealthLow reads the RATIO, so a
       # design figure that moves is absorbed rather than breaking the rule.
       #
-      # oracle's cell is unchanged and still firing; its replacement was bought
-      # on 2026-09-19 and is in transit (#531).
+      # oracle's cell was replaced on 2026-09-29 (#531): a Dell M5Y1K whose
+      # serial changed, reading charge_full exactly at its 2.8 Ah design — told,
+      # not yet learned. Its mains pull the same day: pending at the first
+      # offline sample, firing about 3 min after the pull; 0.54 Ah/h, about
+      # 5.2 h from full. One measurement.
       # docs/runbooks/replace-the-laptop-cell.md has the fit and the mains pull
       # that closed #454 on 2026-09-19: HostOnBattery pending at the first
       # offline sample, firing 2m32s after the plug, resolved a minute after it
@@ -1068,10 +1071,11 @@ groups:
         # reads, and 80 % is where it draws the line. Warning, an hour, the
         # hardware route: the action is ordering a cell, not waking anyone.
         #
-        # oracle reads 72 % and fires the day this lands. That is the finding,
-        # not a fault in the rule: #454 ranked prometheus first on age alone,
-        # and the measurement puts oracle's cell in worse shape. It stays
-        # firing until the cell is replaced, and a silence on it is fine.
+        # oracle read 72 % and fired the day this landed. That was the
+        # finding, not a fault in the rule: #454 ranked prometheus first on
+        # age alone, and the measurement put oracle's cell in worse shape. It
+        # fired until the cell was replaced on 2026-09-29 (#531), under a
+        # silence expired by hand that day rather than left to lapse.
         expr: >-
           (
             node_power_supply_charge_full / node_power_supply_charge_full_design

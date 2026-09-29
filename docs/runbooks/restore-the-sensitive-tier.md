@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the thirteen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — ten of which the backup archives
+**Target:** the eighteen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — fifteen of which the backup archives
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -11,25 +11,29 @@ not repeated here: the scripts are the same, the phases are the same, and the
 reasons a restore is verified before anything is destroyed are argued there.
 What is different is what the volumes hold. On the observability host, four of
 five volumes are a *record* — metrics and logs that refill on their own. Here,
-most are rebuildable or re-fetched from somewhere else and five are not:
+most are rebuildable or re-fetched from somewhere else and nine are not:
 
 | Volume | What it holds | If it is lost |
 | --- | --- | --- |
 | `vaultwarden-data` | The vault: every account, every item, every TOTP secret, the RSA key that signs every session | **Lost.** Nothing in git, nothing on another host, nothing regenerates it. This is the one the tier exists to protect |
+| `memos-data` | Memos: every account, every note in `memos_prod.db` (and its `-wal`), every attachment under `./assets` | **Lost.** Nothing regenerates it. [ADR-0059](../adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md) keeps estate documentation out of it, so what is lost is the household's notes, not a way back |
 | `home-assistant-config` | Home Assistant's own store: every login, every device credential a config flow produced, the recorder's history. `configuration.yaml` is the repository's and is mounted over it | **Lost**, and re-created by hand: every integration paired again, every credential re-issued by its vendor. ADR-0035 says why these live here and not in SOPS |
 | `immich-db` | Immich's metadata: every album, face, tag and the path of every original. The originals are on the USB disk, outside these volumes | **Lost**, unless Immich's own nightly dump beside the originals is intact — [Restore Immich](#restore-immich) below has that route, and it is the one to prefer for a database older than the library |
 | `immich-model-cache` | Downloaded ML models | Re-fetched on first use. **Not archived at all** — skipped by name in `backup-volumes.sh`, so it is never in a set and `make up` creates it empty |
 | `paperless-media` | Every scanned original, its PDF/A copy and thumbnail | **Lost.** The stack README's Paperless section has the exporter, which is the version-portable second route |
 | `paperless-db-data` | Paperless-ngx's metadata: tags, correspondents, every document's fields | **Lost**, unless an export is intact — an export carries the metadata beside the files |
+| `linkding-data` | linkding's database, WAL mode, and `secretkey.txt`, which signs its sessions | **Lost**, unless a Netscape HTML export from linkding's settings is intact. It imports into linkding or any browser. A missing `secretkey.txt` alone costs a login and nothing else |
 | `paperless-data` | The search index and the classifier | Rebuilt at the next start; the index is re-derived from the documents |
 | `paperless-broker-data` | Valkey's task queue | Nothing. Archived because it exists, worth nothing back |
+| `miniflux-db-data` | Miniflux's database: every subscription and category, read and starred state, and the entries not yet archived ([#147](https://github.com/Gerrrt/HomeLab/issues/147)) | **Lost**, unless an OPML export is at hand — the stack README's Miniflux section has it — and then the subscriptions come back and the read state and stars do not. Nothing else on the tier depends on it |
+| `actual-data` | Actual's server: `account.sqlite` (the password hash and the one session) and every budget's file and sync messages | **Lost** as a server copy. Each client holds the whole budget and can upload it again, which covers losing the server and not a bad sync. A lost `account.sqlite` alone costs a re-claim: `make up` seeds the SOPS password into an empty volume |
 | `step-ca-data` | The intermediate CA's tree | Re-minted on the monitoring host from the lab CA's key — [#404](https://github.com/Gerrrt/HomeLab/issues/404)'s procedure. Costs a runbook step, not data |
 | `caddy-data` | Caddy's storage: `instance.uuid`, the lock directory, later the ACME state | Recreated on the next start. Nothing here is worth a restore until step-ca issues leaves into it |
 | `caddy-config` | `autosave.json`, Caddy's copy of its last loaded config | Recreated on the next start from the `Caddyfile` |
 | `ntfy-data` | ntfy's `user.db` and twelve hours of message cache | Nothing. **Not archived at all** ([#136](https://github.com/Gerrrt/HomeLab/issues/136)): the users, access list and token are re-provisioned from `secrets/sensitive.sops.yaml` on every start, and the cache is notifications already delivered. `make up` creates it empty and ntfy fills it |
 | `adguard-work` | AdGuard's blocklists, query log, statistics and UI sessions | Re-downloaded and re-accumulated. **Not archived at all since 2026-09-28**: archiving it meant stopping AdGuard, which since that day is the house's only DNS forwarder, and the query log is the household's browsing history. The settings are `adguard/AdGuardHome.yaml`, in git |
 
-So this runbook is mostly about those five, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
+So this runbook is mostly about those nine, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
 said why it had to exist before that volume held anything: *"a password vault
 is the one service here where 'it is running' and 'it is recoverable' are
 entirely different claims, and only the second one counts on the day it
@@ -107,7 +111,9 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 | Caddy answers 502 for the vault | The container is not up. Not a volume problem — `make logs STACK=sensitive SERVICE=vaultwarden` | — |
 | Browser refuses the certificate | The leaf, not a volume — the name is not in its SANs, or it expired | `compose.yaml`'s `make certs` line |
 | step-ca will not start, log says `config/ca.json` | `step-ca-data` empty or replaced | §2, or re-mint from the monitoring host |
+| linkding's list is empty, or its login refuses the password from SOPS | `linkding-data` empty or replaced. On an empty volume linkding creates a fresh superuser from SOPS and an empty list | §2, `linkding-data` |
 | Home Assistant offers onboarding instead of a login | `home-assistant-config` empty or replaced — `.storage/auth` is gone | §2, `home-assistant-config` |
+| Memos offers to create the first account, or its notes are gone | `memos-data` empty or replaced | §2, `memos-data` |
 | The host's disk is gone | Hardware | §3, after rebuilding the host |
 | Files under `/var/lib/docker/volumes` deleted or encrypted | Ransomware, or a mis-aimed `rm -rf` | §3 — and **not** from a set on this host |
 
@@ -141,8 +147,10 @@ archive into it. It asks you to type the stamp, and it needs a terminal to ask
 owning uid against the one the service needs: `0` for `vaultwarden-data`,
 `home-assistant-config`, `caddy-data` and `caddy-config`, because those
 services run as root for the reasons `compose.yaml` measures; `1000` for
-`step-ca-data`; `65534` for `adguard-work`; `999` for `immich-db`,
-`paperless-db-data` and `paperless-broker-data`. Paperless's other two belong
+`step-ca-data`; `10001` for `memos-data`; `65534` for `adguard-work`; `999` for `immich-db`,
+`paperless-db-data`, `paperless-broker-data` and `miniflux-db-data`; `33` for
+`linkding-data`, which linkding's own start chowns back to 33 anyway.
+Paperless's other two belong
 to whoever ran `make up`, which is not a constant the script can check, so
 look at those yourself. A mismatch is
 reported and never silently corrected.
@@ -175,6 +183,13 @@ Same, without `--only`. On a rebuilt host, in this order:
 > Assistant on an empty volume writes a fresh store and offers onboarding, the
 > same waste. step-ca is the safe one: on an empty volume it refuses to start
 > at all.
+>
+> **Home Assistant's HTTP settings come back with the volume.** They are
+> `.storage/http`, inside `home-assistant-config`, and they are what makes it
+> trust Caddy. A restored volume carries them, and `make up`'s seed step leaves
+> an existing store alone. A rebuild with no set to restore gets them from
+> `scripts/seed-ha-http.sh`, which `make up` runs on the empty volume. Either
+> way, §4 step 6 checks them.
 
 `step-ca-data` has a second route: re-mint the intermediate on the monitoring
 host and populate the volume by hand, as the build does. Prefer that over a set
@@ -229,6 +244,44 @@ docker exec sensitive-step-ca step ca health --ca-url https://localhost:9000 \
 docker exec sensitive-home-assistant wget -q -O - http://localhost:8123/api/onboarding \
   | grep -c '"done": false'
 #    Must be 0: every onboarding step is already done in a restored store.
+#    And the HTTP settings came back too, so requests through Caddy are not
+#    refused with 400:
+./scripts/seed-ha-http.sh --check
+#    Must say "already present and trusts 172.28.99.2".
+
+# 7. memos-data — the account table, read the way step 2 reads the vault's:
+#    with the -wal, which is where the last writes are if the stop was not
+#    clean. created_ts is epoch seconds.
+mkdir -p /tmp/memos
+for f in memos_prod.db memos_prod.db-wal memos_prod.db-shm; do
+  docker run --rm -v sensitive_memos-data:/d:ro \
+    "$(./scripts/image-for.sh archiver)" cat "/d/$f" > "/tmp/memos/$f" 2>/dev/null || true
+done
+python3 -c "import sqlite3;print(sqlite3.connect('/tmp/memos/memos_prod.db').execute(
+  'select username, created_ts from user').fetchall())"
+#    Every account must PREDATE the stamp, and registration must still be
+#    closed — it is a setting in this database, so a restore can reopen it:
+docker exec sensitive-memos wget -qO- http://127.0.0.1:5230/api/v1/instance/settings/GENERAL \
+  | grep -c '"disallowUserRegistration":true'
+#    Must be 1.
+
+# 8. mealie-data — the accounts predate the stamp, and the signing secret came
+#    back. Rollback-journal SQLite, so the main file alone is the database.
+docker exec sensitive-mealie python3 -c "import sqlite3;print(sqlite3.connect(
+  '/app/data/mealie.db').execute('select email, created_at from users').fetchall())"
+docker exec sensitive-mealie test -s /app/data/.secret && echo secret present
+#    Every account's created_at must PREDATE the stamp. A lone
+#    changeme@example.com created after it is a fresh database: the restore
+#    did not happen before the first start.
+
+# 9. actual-data — the server is claimed, by the password it had, and the
+#    budgets are there. `make up` in step 1 ran the seed first: if it printed
+#    "claimed with the SOPS password before first start", the volume was EMPTY
+#    when it ran and the restore did not happen. After the fact:
+./scripts/seed-actual-password.sh --check
+#    Must say "already claimed, and the SOPS password logs in".
+docker exec sensitive-actual ls -l /data/user-files
+#    One file-<id>.blob per budget, dated no later than the stamp.
 ```
 
 Then from a client on Hicks — the checks a shell cannot do:
@@ -242,6 +295,12 @@ Then from a client on Hicks — the checks a shell cannot do:
   fine over a volume that never changed, because the web vault is in the image.
   Find one thing you know was added after the set was taken and confirm it is
   gone.
+- **Actual's clients still hold their own copies.** A restore puts the
+  server back to the stamp. It does not reach the phones and laptops, which
+  may hold changes made after it. If the restore was for a bad sync, the
+  clients hold the bad copy too. Decide which copy is the real one before
+  any client syncs. How a client resolves the difference has not been
+  measured: do it on one device first.
 
 ---
 

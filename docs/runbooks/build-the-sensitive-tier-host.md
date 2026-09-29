@@ -322,7 +322,7 @@ hands off again, and `df -h /srv/immich` must show about 1.8T on
 `/dev/mapper/immich`. That proves the `crypttab` and `fstab` lines together,
 before any photograph depends on them.
 
-## 6. Its own age key, and the fifteen secrets
+## 6. Its own age key, and the twenty secrets
 
 In your own terminal on `trinity`. None of this goes into a shared session.
 
@@ -345,11 +345,16 @@ what each key is for. The values:
 | `PAPERLESS_SECRET_KEY` | `make gen-secret` | No |
 | `PAPERLESS_DBPASS` | `make gen-secret` | No |
 | `PAPERLESS_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
+| `STIRLING_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and a rebuild of the unbacked-up volume recreates the admin from it |
 | `HOMEPAGE_IMMICH_API_KEY`, `HOMEPAGE_PAPERLESS_TOKEN` | Minted in Immich and Paperless-ngx once they are up, each read-only — the clicks are beside the keys in the example file | No |
 | `NTFY_ALERTMANAGER_TOKEN` | the pinned image's `ntfy token generate` — the command is beside the key | No. The monitoring host's `ALERTMANAGER_NTFY_TOKEN` is the other copy |
 | `NTFY_ALERTMANAGER_PASSWORD_HASH` | `make gen-secret`, then `make hash-password` on it | No — the password is thrown away; this user logs in by token |
 | `NTFY_PHONE_PASSWORD_HASH` | `make hash-password` | **The password** — each phone's ntfy app logs in with it |
 | `NTFY_TOPIC_ALERTS`, `_URGENT`, `_SECURITY` | `make gen-secret`, three times | No. The monitoring host's receiver URLs end in the same three |
+| `MINIFLUX_DBPASS` | `make gen-secret` — never typed: it is spliced into a connection string | No |
+| `MINIFLUX_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
+| `LINKDING_SUPERUSER_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and the only thing guarding the list ([ADR-0061](../adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)) |
+| `ACTUAL_SERVER_PASSWORD` | `make gen-secret` | **Yes**, it is what each Actual client logs in with. §9's `make up` claims the server with it before Actual first starts |
 
 ```bash
 make secrets-edit STACK=sensitive
@@ -409,9 +414,10 @@ make backup-firewall
 
 **Host overrides**, as [`add-a-host-override.md`](add-a-host-override.md)
 describes. One entry, host `trinity`, domain `matrix.elysium`, address
-`10.0.99.40`. The other seven names go under *Additional Names for this Host*:
+`10.0.99.40`. The other twelve names go under *Additional Names for this Host*:
 
-`homeassistant`, `immich`, `paperless`, `vaultwarden`, `adguard`, `home`, `ntfy`
+`homeassistant`, `immich`, `paperless`, `vaultwarden`, `adguard`, `home`, `ntfy`,
+`miniflux`, `memos`, `recipes`, `links`, `actual`, `pdf`
 
 These are exactly the `Caddyfile`'s site names and the `caddy` service's
 aliases in `compose.yaml`. A later service adds its name in all three places.
@@ -467,21 +473,27 @@ make ps STACK=sensitive
 make check-container-health STACK=sensitive
 ```
 
-All fourteen services must be healthy, with the `ml` profile on as `.env.example` ships it.
+All twenty services must be healthy, with the `ml` profile on as `.env.example` ships it.
 Then the stack README's list, on the host it was written for:
 
 - **The CA tree and ACME.** [`build-the-tier-ca.md`](build-the-tier-ca.md)
-  §5, once for each of the eight names: `certificate obtained` in Caddy's log,
+  §5, once for each of the thirteen names: `certificate obtained` in Caddy's log,
   and `Verify return code: 0` against `certificates/tier-ca.pem`.
 - **The library is on the USB disk.** `docker exec sensitive-immich-server df -h /data`
   shows the `/dev/mapper/immich` filesystem, not the root.
-- **Home Assistant answers through Caddy.** On a fresh `home-assistant-config`
-  volume it will not: since 2026.9, Home Assistant imports `configuration.yaml`'s
-  `http:` block once, as a *pending* config, and reverts to defaults that trust
-  no proxy unless an admin confirms it within five minutes. The symptom is
-  `400: Bad Request` on `homeassistant.matrix.elysium`. The stack README's Home
-  Assistant bullets have the fix, and it takes a minute. Apply it before
-  onboarding.
+- **Home Assistant answers through Caddy.** `make up` ran
+  `scripts/seed-ha-http.sh` before starting anything, and it printed
+  `.storage/http written, trusting 172.28.99.2`. Since 2026.9 Home Assistant
+  keeps its HTTP settings in its volume, and a fresh volume without them trusts
+  no proxy. `scripts/seed-ha-http.sh --check` confirms it at any time. On
+  2026-09-28, before the seed existed, this step needed a hand promotion; the
+  stack README says why.
+- **Actual was claimed before it started.** `make up` ran
+  `scripts/seed-actual-password.sh` too, and on a fresh volume it printed
+  `claimed with the SOPS password before first start`. After that it prints
+  `already claimed, and the SOPS password logs in`. So nothing on Hicks ever
+  saw Actual's "set a password" page.
+  `scripts/seed-actual-password.sh --check` confirms it at any time.
 - **Home Assistant keeps booting under its hardening.** It is healthy above;
   the `dhcp` integration's `CAP_NET_RAW` error is the one expected line.
 - **AdGuard answers the prober and nobody else.** That is §11, step 1.
@@ -518,9 +530,15 @@ floor, and recovery codes go in the password manager.
 | `https://homeassistant.matrix.elysium` | Onboarding creates the owner | *Profile → Security → Multi-factor authentication* |
 | `https://vaultwarden.matrix.elysium/admin` | The token from §6; invite each account; each registers at the vault | *Settings → Security → Two-step login*, per account |
 | `https://paperless.matrix.elysium` | `admin` and the password from §6 | The profile's *Two-factor authentication* |
+| `https://pdf.matrix.elysium` | `admin` and `STIRLING_ADMIN_PASSWORD` from §6 | The account settings' two-factor section; Stirling marks the seeded admin MFA-required |
 | `https://immich.matrix.elysium` | The first sign-up is the admin | None. ADR-0022 records Immich as unable |
 | `https://adguard.matrix.elysium` | The password behind §6's hash | None — likewise |
+| `https://recipes.matrix.elysium` | `changeme@example.com` / `MyPassword`, Mealie's default admin: change both at once under *Profile*, then create the other account under *Admin → Users* | None. ADR-0060 records Mealie as unable |
+| `https://links.matrix.elysium` | `admin` and the password from §6 | None. linkding has none, and ADR-0061 accepts that |
+| `https://actual.matrix.elysium` | *Use server* with that URL on each device, then the password from §6. No bank sync: import files | None. Actual has none short of OpenID, which ADR-0022 would have to decide |
 | `https://ntfy.matrix.elysium` | User `phone` in the ntfy app on each phone, per the stack README's ntfy section; then the cutover in [`verify-the-alert-path.md`](verify-the-alert-path.md) | None. ntfy has none, and `phone` can only read alert text |
+| `https://miniflux.matrix.elysium` | `admin` and the password from §6 | None. Miniflux has no TOTP, and its passkeys are not a second step ([ADR-0057](../adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)) |
+| `https://memos.matrix.elysium` | The first sign-up is the admin; then close registration at once, per the stack README's Memos section | None. [ADR-0059](../adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md) records Memos as unable |
 
 Home Assistant's Hue integration is added **by address**, `10.0.20.20`,
 pressing the bridge's button when asked. That is the first traffic §8's pass
@@ -557,7 +575,7 @@ make backup STACK=sensitive ARGS=--list
 make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
-Both sides must be listed, and the dry run must pass. Ten volumes are
+Both sides must be listed, and the dry run must pass. Fifteen volumes are
 archived. `immich-model-cache`, `adguard-work` and `ntfy-data` are skipped by
 name, so AdGuard keeps answering the house's DNS, and ntfy keeps delivering,
 while the rest of the stack is stopped. On
@@ -625,6 +643,52 @@ on the containers, and each is written in a document that already exists:
 - The issue: #129–#135 close by hand once §9–§11 verify (their PRs said
   `Refs`), and #404 closes on §13.
 
+## Deploy a later service
+
+For a service authored after this build, onto the running host. Miniflux, Memos and Mealie
+([ADR-0060](../adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md),
+`recipes`) arrived this way. The service's PR has already added its name in the
+`Caddyfile`, in the `caddy` aliases and in §11's list. This section covers the
+parts only the host and the firewall can do.
+
+1. **The name.** In pfSense, open `trinity`'s host override and add the new
+   name under *Additional Names for this Host*, as
+   [`add-a-host-override.md`](add-a-host-override.md) describes. Then
+   `make backup-firewall`. From Hicks, `dig +short recipes.matrix.elysium`
+   must answer `10.0.99.40`.
+2. **The containers.** On `trinity`:
+
+   ```bash
+   cd ~/code/Gerrrt/HomeLab
+   git pull
+   make up STACK=sensitive
+   make check-container-health STACK=sensitive
+   ```
+
+   Caddy is recreated, because its aliases changed. Its log must show
+   `certificate obtained` for the new name, and
+   [`build-the-tier-ca.md`](build-the-tier-ca.md) §5's `openssl` check must
+   say `Verify return code: 0`.
+3. **The first login**, from Hicks, as the service's row in §10's table says,
+   before anyone else is told the address. For Mealie, until the default admin
+   is renamed and re-passworded, anyone on Hicks can log in with it.
+4. **Sign-up is closed.** For Mealie:
+
+   ```bash
+   docker exec sensitive-mealie curl -s -o /dev/null -w '%{http_code}\n' \
+     -H 'Content-Type: application/json' -X POST \
+     http://localhost:9000/api/users/register \
+     -d '{"email":"nobody@matrix.elysium","username":"nobody","fullName":"x","password":"x","passwordConfirm":"x","group":"x","household":"x"}'
+   ```
+
+   `403`. A `201` is an account someone else could have made.
+5. **A backup that includes it.** Run `make backup STACK=sensitive`, then
+   `ARGS=--list`. The new volume is in the set, and its sentinel is present.
+   The nightly timer takes it from then on.
+6. **The records.** The service's roadmap entry and the `architecture.md` row
+   say *deployed* with the date, with a dated line in the changelog. The issue
+   closes.
+
 ## If something goes wrong
 
 | Symptom | Cause | Fix |
@@ -637,7 +701,7 @@ on the containers, and each is written in a document that already exists:
 | `make render` stops with *do NOT run `make certs ARGS=--ca` here* | `certificates/tier-ca.pem` is missing | §7 is not done |
 | A browser on Hicks times out on `https://*.matrix.elysium` | §3's Hicks pass is missing or below the block | Check *Firewall → Rules → HICKS* order |
 | Home Assistant cannot find the bridge | The pass is below *Block access to Skids*, or `bifrost` is not on `.20` | `pfctl -vsr` as in §8; the reservation |
-| `homeassistant.matrix.elysium` answers `400: Bad Request` | Home Assistant 2026.9+ reverted its imported `http:` config because nobody confirmed it within five minutes | The stack README's Home Assistant bullets: promote the pending config with the container stopped |
+| `homeassistant.matrix.elysium` answers `400: Bad Request` | `.storage/http` does not trust Caddy: the volume was started by something other than `make up`, or its store was changed | `scripts/seed-ha-http.sh --check` says which. Then stop Home Assistant, run `scripts/seed-ha-http.sh --force`, and start it again |
 | Caddy fails to start: *Address already in use* | Something took `172.28.99.2` (fixed since 2026-09-28 by the network's `ip_range`) | `make down STACK=sensitive`, then `make up`. If it recurs, check the `ip_range` is still in `compose.yaml` |
 | The Alloy agent logs `cannot unix dial containerd` and no container metrics arrive | Docker is on the containerd image store | §4's `daemon.json`, then `make down`, restart Docker, `make up` (the images download again), and `deploy-agent.sh` again |
 | The house loses outside DNS while `trinity` is fine | AdGuard stopped. Only the backup used to do that, and it no longer does | `make ps STACK=sensitive`; `AdGuardNotAnswering` pages at five minutes. The workaround is in `forward-dns-to-adguard.md` step 4 |

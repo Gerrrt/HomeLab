@@ -5,16 +5,20 @@
 # TWO KINDS OF TILE, and the difference is the point:
 #
 #   - A LINK: a name, a line saying what it is for, and an href. That is all
-#     it claims. Home Assistant, AdGuard, Vaultwarden and Grafana are links.
-#   - A WIDGET: live numbers read from the service's own API, server-side,
-#     with a credential scoped READ-ONLY. Immich, Paperless-ngx and Prometheus
-#     are widgets, because each has a credential that can be scoped that way
-#     (or needs none).
+#     it claims. Home Assistant, AdGuard, Vaultwarden, Miniflux, Memos,
+#     Mealie, linkding, Stirling-PDF and Grafana are links.
+#   - A WIDGET: live numbers read server-side, with a credential scoped
+#     READ-ONLY or none at all. Immich and Paperless-ngx are read from their
+#     own APIs; Prometheus, the UPS, the firewall, the iLO and the NAS are read
+#     from Prometheus, which already scrapes them (see the VLAN groups below).
 #
 # Why the links are links. Home Assistant's long-lived access token carries
 # every right of the user who minted it, and a user that can read state can
 # also switch things. AdGuard Home has one account, the admin — its widget
-# would hold the admin password. Vaultwarden has no widget, and should not.
+# would hold the admin password. Vaultwarden has no widget, and should not;
+# Memos' only token is a user's, with every right that user has.
+# Mealie's API tokens carry every right of the user who made them — there is
+# no read-only scope — so its widget would hold a key that can edit recipes.
 # Grafana's widget wants a username and password, and trinity does not carry
 # the estate's CA that Grafana's certificate is issued from (ADR-0037).
 # Prometheus already reports the observability stack's own state. A widget
@@ -57,17 +61,88 @@
           # superuser's (secrets/sensitive.example.yaml has the steps).
           key: "{{HOMEPAGE_VAR_PAPERLESS_TOKEN}}"
 
+    - PDF tools:
+        icon: stirling-pdf.svg
+        # A link: Stirling keeps nothing, so there is no number worth a
+        # credential on this page (ADR-0063).
+        href: https://pdf.matrix.elysium
+        description: Stirling-PDF — merge, split, sign, OCR; nothing leaves the house
+
     - Passwords:
         icon: vaultwarden.svg
         href: https://vaultwarden.matrix.elysium
         description: Vaultwarden — the Bitwarden apps point here
+
+    - Budget:
+        icon: actual-budget.svg
+        # A link and no widget. Homepage's Actual widget would need the one
+        # household password, and in password mode that password gets the
+        # same token every device shares. No read-only credential exists.
+        href: https://actual.matrix.elysium
+        description: Actual — the household budget
+
+    - Notes:
+        icon: memos.svg
+        href: https://memos.matrix.elysium
+        description: Memos — quick notes, kept in the house
+    - Bookmarks:
+        icon: linkding.svg
+        # A link and not a widget: Homepage has none for linkding, and its
+        # API token is the account's whole power, not a read-only scope.
+        href: https://links.matrix.elysium
+        description: linkding — the household's bookmarks
 
     - Home:
         icon: home-assistant.svg
         href: https://homeassistant.matrix.elysium
         description: Home Assistant — lights and devices
 
-- Estate:
+    - Recipes:
+        icon: mealie.svg
+        href: https://recipes.matrix.elysium
+        description: Mealie — recipes, meal plans and the shopping list
+
+    - Watch:
+        icon: jellyfin.svg
+        # On smaug, VLAN 40: Hicks has a pass for 8096, trinity has none, so
+        # this is a link and cannot be a widget without a new 99→40 rule —
+        # not worth one for a play count.
+        href: http://10.0.40.30:8096
+        description: Jellyfin — films and TV on the NAS
+
+    - Notifications:
+        icon: ntfy.svg
+        href: https://ntfy.matrix.elysium
+        description: ntfy — the house's alerts, in the ntfy phone app
+
+    - Reading:
+        icon: miniflux.svg
+        # A link: Homepage's miniflux widget reads the REST API, which is off
+        # (compose.yaml says why), and turning it on for an unread count would
+        # hand the page a key to the whole account.
+        href: https://miniflux.matrix.elysium
+        description: Miniflux — news feeds and blogs
+
+# EVERYTHING ELSE, BY VLAN. Household above is what the people who live here
+# use; below it, every tile sits under the segment its host is on, in the
+# order and with the rack colour of docs/network.md's table — so the page
+# reads the way the rack does. Only Winterfell is open by default; the rest
+# are the operator's consoles and start collapsed (settings.yaml).
+#
+# Every Admin-style tile is a link to a login page Hicks can already reach
+# through a named pass in docs/network.md — putting it here grants nothing.
+# By address where no name exists, because an override for a name only this
+# page uses would be a second place to keep in step.
+#
+# THE NUMBERS ON TILES OUTSIDE THIS VLAN come from Prometheus, not from the
+# device. trinity cannot reach VLAN 30 or 40 at all, but `prometheus`
+# (10.0.99.20, on this /24) already scrapes the UPS, the firewall and the
+# iLO over SNMP and smaug over node_exporter, and has no authentication
+# (#182) — so a `prometheusmetric` widget shows them with no new rule and no
+# new credential. Each query is one a Grafana dashboard already runs, named
+# beside it. Numbers only, never up/down: uptime is Grafana's question.
+
+- 🔴 Winterfell · VLAN 99:
     - Grafana:
         icon: grafana.svg
         href: https://grafana.matrix.elysium:3000
@@ -89,3 +164,107 @@
         icon: adguard-home.svg
         href: https://adguard.matrix.elysium
         description: The DNS filter behind the firewall's resolver
+
+    - Firewall:
+        icon: pfsense.svg
+        href: https://morpheus.matrix.elysium
+        description: pfSense on morpheus
+        # network-snmp.json's state-table panel.
+        widget:
+          type: prometheusmetric
+          url: http://10.0.99.20:9090
+          refreshInterval: 60000
+          metrics:
+            - label: States
+              query: pfStateTableCount{instance="10.0.99.1"}
+              format:
+                type: number
+
+    - UPS:
+        icon: apc.svg
+        href: https://10.0.99.10
+        description: mjolnir — the rack UPS's management card
+        # ups-power.json's charge, runtime and load panels (RFC 1628 UPS-MIB).
+        widget:
+          type: prometheusmetric
+          url: http://10.0.99.20:9090
+          refreshInterval: 60000
+          metrics:
+            - label: Charge
+              query: upsEstimatedChargeRemaining{instance="10.0.99.10"}
+              format:
+                type: percent
+            - label: Runtime
+              query: upsEstimatedMinutesRemaining{instance="10.0.99.10"}
+              format:
+                type: number
+                suffix: " min"
+            - label: Load
+              query: upsOutputPercentLoad{instance="10.0.99.10"}
+              format:
+                type: percent
+
+    - Wiki:
+        icon: mdi-book-open-variant
+        # oracle serves it over plain HTTP only; it is also the name on the
+        # printed card (docs/runbooks/add-a-host-override.md).
+        href: http://lemmiwinks.matrix.elysium
+        description: oracle — the house wiki
+
+- 🟢 ImaginationLAN · VLAN 30:
+    - Proxmox:
+        icon: proxmox.svg
+        href: https://10.0.30.110:8006
+        description: Saruman — the lab's hypervisor
+    - iLO:
+        icon: hpe.svg
+        href: https://10.0.30.10
+        description: shiva's out-of-band console
+        # network-snmp.json's iLO power panel (CPQHLTH-MIB).
+        widget:
+          type: prometheusmetric
+          url: http://10.0.99.20:9090
+          refreshInterval: 60000
+          metrics:
+            - label: Power
+              query: cpqHePowerMeterCurrReading{instance="10.0.30.10"}
+              format:
+                type: number
+                suffix: " W"
+    - Lab Grafana:
+        icon: grafana.svg
+        href: https://10.0.30.40:3000
+        description: alexander — the lab's own observability
+    - Wazuh:
+        icon: wazuh.svg
+        href: https://10.0.30.60/
+        description: odin — the SOC's SIEM dashboard
+    - Velociraptor:
+        icon: mdi-bird
+        href: https://10.0.30.60:8889/
+        description: odin — endpoint forensics GUI
+
+- 🟡 CasaBonita · VLAN 40:
+    - NAS:
+        icon: truenas.svg
+        href: https://10.0.40.30
+        description: TrueNAS on smaug
+        # node_exporter on smaug. ZFS datasets share their pool's free space,
+        # so the pool's root mount's `avail` is the pool's; a "used" figure
+        # would have to sum every dataset and still miss snapshots.
+        widget:
+          type: prometheusmetric
+          url: http://10.0.99.20:9090
+          refreshInterval: 300000
+          metrics:
+            - label: erebor free
+              query: node_filesystem_avail_bytes{instance="smaug",mountpoint="/mnt/erebor"}
+              format:
+                type: bytes
+
+- ⚪ Switch LAN:
+    - Switch:
+        icon: mdi-switch
+        # Plain HTTP by ADR-0018 — the switch has no certificate to offer.
+        href: http://neo.matrix.elysium/
+        description: neo — the core switch's management UI
