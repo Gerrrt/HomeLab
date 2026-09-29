@@ -19,6 +19,29 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **Actual is deployed on `trinity`**
+  ([#142](https://github.com/Gerrrt/HomeLab/issues/142), closed;
+  [ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)). This corrects the
+  "not deployed" entry below.
+  - **Not by `make up`.** It was brought up on its own, and did not touch the
+    rest of the stack: first `scripts/seed-actual-password.sh`, then
+    `docker compose up -d --no-deps actual`. The running Caddy already had
+    the site and the alias, from the Stirling-PDF `make up` earlier the same
+    day, so it was not recreated.
+  - **It was never reachable unclaimed.** The seed claimed the empty
+    `actual-data` volume with `--network none` before the service first
+    started, and reported "claimed with the SOPS password before first
+    start". After the start, `--check` reported that the SOPS password logs
+    in.
+  - **Through Caddy**, as a phone on Hicks reaches it:
+    `https://actual.matrix.elysium` answers 200, and the leaf verifies against
+    the tier root. `/account/needs-bootstrap` reports it claimed, with
+    password login only. Caddy's log shows the certificate was obtained.
+  - **The `actual` host override on `morpheus`** was added the same day. It
+    resolves to `10.0.99.40`.
+  - **Not yet:** a nightly set with `actual-data` in it, and a real budget,
+    which waits on [#404](https://github.com/Gerrrt/HomeLab/issues/404)
+    step 10 like the rest of the tier.
 - **linkding and Mealie are deployed on `trinity`**
   ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
   [#146](https://github.com/Gerrrt/HomeLab/issues/146)). This corrects their
