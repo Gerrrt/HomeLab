@@ -56,6 +56,11 @@ authenticate a person, that substitute exists for half of them:
 | Grafana OSS | **None, in any edition.** "Grafana and the Grafana Cloud portal currently do not include built-in support for multi-factor authentication"; the documented route is an external identity provider |
 | AdGuard Home | **None.** One admin account, password only |
 
+> *[ADR-0057](0057-add-linkding-to-the-sensitive-tier-behind-one-factor.md)
+> adds a seventh row: **linkding — none.** It offers OIDC or a trusted proxy
+> header, so it has the same route to a factor as Immich. Adding it fires none
+> of the triggers below. This ADR is not superseded.*
+
 ntfy and Homepage are left out of that table because neither authenticates a
 household identity — ntfy has basic auth on a topic, Homepage has no login at
 all.

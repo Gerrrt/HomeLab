@@ -54,6 +54,12 @@ all of it under the existing 50→99 rule, so this adds no rule at all.
 > that constraint — no service here has to stay reachable, but the household's
 > recovery path may not run through this box. The placement above is unchanged
 > and this ADR is not superseded.*
+>
+> *A service outside that list joins the tier by a decision of its own, taken
+> by this paragraph's test.
+> [ADR-0057](0057-add-linkding-to-the-sensitive-tier-behind-one-factor.md) is
+> the first: linkding, because a bookmark collection is a browsing history. The
+> placement above is unchanged and this ADR is not superseded.*
 
 **The streaming tier — CasaBonita (40).** A quiet N100-class NAS holds the bulk
 media library and runs Jellyfin, with Plex beside it for household convenience.
