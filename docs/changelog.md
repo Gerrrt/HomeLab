@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **Stirling-PDF is decided and authored for the sensitive tier, not yet
+  deployed** ([#143](https://github.com/Gerrrt/HomeLab/issues/143),
+  [ADR-0057](adr/0057-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). It is the first service beyond ADR-0008's nine. The
+  pinned image (`3.0.0`) was booted on `trinity` beside the live stack, on an
+  internal network of its own, read-only, as uid 1001, with every capability
+  dropped. It ran OCR, conversion, merge, rotate, split and compress, and three
+  things were found by running it:
+  - **The entrypoint dies on a read-only root.** It `ln -s`es diagnostics
+    shortcuts into `/usr/local/bin` under `set -e`. `/dev/null` mounted over
+    the script it links makes it skip that step.
+  - **A `noexec` `/tmp` breaks every pdfium tool while the container stays
+    healthy.** The PDF engine unpacks its libraries there, and merge answered
+    500 with *failed to map segment from shared object*. So that tmpfs is
+    `exec`.
+  - **The image writes a heap dump to `/configs` on OOM**, and a dump would
+    hold the document. It is turned off.
+
+  Memory: 790 MiB idle and 1.4 GiB at peak through a 40-page 300 dpi OCR,
+  under a 3 GiB limit that also holds the 1 GiB of document tmpfs.
+
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having
   lost 28.5 GiB since 15 Sep in steps of 1–5 GiB.

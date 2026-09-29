@@ -803,6 +803,9 @@ this closes on.
   arrive silently via `:latest`. Dependabot proposes the bumps; CI validates
   them.
 - Grafana telemetry and update checks disabled.
+- Stirling-PDF's analytics, PostHog, Scarf and update checks disabled, and its
+  heap dump on OOM too, because a dump would put the document being processed
+  on a disk ([ADR-0057](adr/0057-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
 
 Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is
 what makes cAdvisor see the host's cgroups, and dropping every capability

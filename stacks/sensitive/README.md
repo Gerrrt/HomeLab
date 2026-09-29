@@ -30,14 +30,16 @@ make up STACK=sensitive
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
 | homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on the estate and where it lives, grouped by VLAN. A directory, not a status page — seven tiles read live numbers, with read-only tokens or from Prometheus; the rest are links ([#137]) |
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
+| stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0057]) |
 
-Fourteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Fifteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
 Paperless-ngx, the archive of what the household cannot get back; Homepage
-is the page that tells the household the rest exist; and ntfy is the one the
-estate uses, to tell the operator what is wrong with the rest. What is
+is the page that tells the household the rest exist; ntfy is the one the
+estate uses, to tell the operator what is wrong with the rest; and Stirling-PDF,
+the first beyond ADR-0008's nine, is the one that keeps nothing. What is
 absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -46,9 +48,10 @@ absent is as deliberate as what is here:
   `scripts/deploy-agent.sh`, pushing to `10.0.99.20`, needing no new rule and
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
-- **No other services planned.** The next one, whenever it comes, arrives as
-  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage and ntfy did: a
-  service with
+- **No other services planned.** The next one, whenever it comes, needs a
+  decision first if it is beyond ADR-0008's nine, as Stirling-PDF did
+  ([ADR-0057]). It arrives as Home Assistant, Immich, Paperless-ngx,
+  Vaultwarden, Homepage, ntfy and Stirling-PDF did: a service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -549,6 +552,65 @@ here.
   [ADR-0022] leaves ntfy out of its table for that reason: it authenticates no
   household identity.
 
+## Stirling-PDF
+
+The household's PDF editor since [#143]. It does the jobs that otherwise go to
+a free converter website: merge, split, rotate, convert, OCR, sign, compress.
+[ADR-0057] is the decision. `compose.yaml` has the service, the measurements
+and DIFFERENCE 13. What has to be true around it is here.
+
+- **Documents never reach a disk.** Uploads, intermediates and results live in
+  `/tmp`, a 1 GiB tmpfs counted against the container's 3 GiB limit.
+  Stirling deletes a job's files when the job ends, sweeps anything a failed
+  job left every ten minutes, and a restart erases the rest. The one volume,
+  `stirling-pdf-configs`, holds accounts and settings. If a document ever
+  turns up there, something has gone wrong.
+- **A big enough job fails instead of spilling.** A scan that fills the
+  tmpfs, or an OCR that pushes the container past its limit, fails with an
+  error, and the fix is to split the document. Caddy refuses uploads over
+  256 MB before they reach it. On 2026-09-29 a 40-page 300 dpi OCR peaked at
+  1.4 GiB. No household document is near the limit.
+- **The admin comes from SOPS, once.** `STIRLING_ADMIN_USER` in `.env.example`
+  and `STIRLING_ADMIN_PASSWORD` in SOPS, read on the first start against an
+  empty volume and never again. A rotation is done in the UI first and
+  recorded in SOPS after. SOPS matters here more than for Paperless, because
+  the volume is not backed up and a rebuild recreates the admin from it.
+  **Enrol TOTP at first login**, in the account settings, before the first
+  real document. Stirling marks the seeded admin as MFA-required. That is
+  [ADR-0022]'s floor.
+- **Nothing phones home, and the hardening was checked, not just set.**
+  Analytics, PostHog, Scarf, the update check, URL-to-PDF, the AI engine and
+  the mobile QR upload are off. CORS is pinned to the one name, and the heap
+  dump on OOM is off because it would write a document to `/configs`. The
+  running app's `/api/v1/config/app-config` showed each of these on a boot
+  with no route out.
+- **Its hardening had two costs, both found by running it.**
+  - The entrypoint `ln -s`es diagnostics shortcuts into `/usr/local/bin`
+    under `set -e`, which kills the container on a read-only root. `/dev/null`
+    mounted over the script it links makes it skip that step.
+  - The PDF engine unpacks shared libraries into `/tmp`, so that tmpfs is
+    `exec`. Without it the container is healthy and every pdfium tool
+    answers 500, which is why the check below runs a tool rather than
+    trusting the healthcheck.
+- **LibreOffice runs sandboxed, as the same uid.** The service starts as
+  `stirlingpdfuser` (1001), so the entrypoint cannot give LibreOffice a uid of
+  its own. It keeps its Landlock and seccomp sandbox, and
+  `STIRLING_LO_SANDBOX=required` refuses a conversion on a kernel that cannot
+  provide it. Its startup log line says which: *"LibreOffice sandbox active
+  (lo-sandbox: landlock ABI 8, seccomp active)"*.
+- **Nothing to back up.** `backup-volumes.sh` skips the volume by name, and
+  [ADR-0023] classes the service as unclassed. A rebuild costs the admin a
+  TOTP re-enrolment.
+
+After a deploy or an image bump, run one tool that uses pdfium, not only the
+healthcheck. Merge two PDFs in the UI, or from `trinity`:
+
+```bash
+docker logs sensitive-stirling-pdf 2>&1 | grep -E 'sandbox active|UnsatisfiedLink'
+```
+
+The first line should appear; the second should not.
+
 ## Backup and restore
 
 ```bash
@@ -695,6 +757,7 @@ it matters:
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
+[ADR-0057]: ../../docs/adr/0057-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -704,6 +767,7 @@ it matters:
 [#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[#143]: https://github.com/Gerrrt/HomeLab/issues/143
 [#182]: https://github.com/Gerrrt/HomeLab/issues/182
 [#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md

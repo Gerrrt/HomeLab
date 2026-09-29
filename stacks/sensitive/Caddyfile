@@ -143,6 +143,25 @@ ntfy.matrix.elysium {
 	}
 }
 
+# Stirling-PDF (#143, ADR-0057). Its uploads land on a 1 GiB tmpfs that is
+# also the working space for every intermediate an OCR or a conversion
+# writes (compose.yaml, DIFFERENCE 13), and Stirling sets no upload limit of
+# its own. The cap here keeps one upload well under that space, so an
+# oversized file is refused at the door with a 413 rather than filling
+# the tmpfs halfway through a job. 256 MB is a very large scan; a household
+# document is a few.
+pdf.matrix.elysium {
+	request_body {
+		max_size 256MB
+	}
+	reverse_proxy stirling-pdf:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

@@ -535,6 +535,15 @@ jobs:
           ./scripts/check_hardened_boot.sh --stack sensitive
           --service ntfy --proof-cache .boot-proofs/proofs.txt
 
+      # Stirling-PDF runs read-only as a non-root uid its entrypoint was
+      # written to drop to, not start as, with every document on tmpfs
+      # (ADR-0057). Each of those is a way for an upstream bump to stop it
+      # booting, and this is where that would show.
+      - name: Boot Stirling-PDF under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service stirling-pdf --proof-cache .boot-proofs/proofs.txt
+
   # ---------------------------------------------------------------------------
   secret-scan:
     name: Secret scan
