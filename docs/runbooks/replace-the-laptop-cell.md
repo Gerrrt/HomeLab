@@ -175,6 +175,7 @@ The two battery runbooks beside this one did not need this section, because
 > | Brick back; `status` `Not charging`, then `Charging` | ~17:42:35, at 88 % |
 > | `online == 1` in Prometheus | 17:43:31 |
 > | `HostOnBattery` gone from `ALERTS` | ~17:44:10 |
+> | Resolve notification cleared on the phone | ~17:47 — recalled at 18:07 as "about twenty minutes ago", so to a few minutes only |
 >
 > On battery about 34 min 40 s, 2.800 → 2.488 Ah: **0.54 Ah/h**, against a
 > sysfs average of 0.48 A at 16.4 V — **about 8–9 W, which empties this
