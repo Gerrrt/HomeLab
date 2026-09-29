@@ -1,5 +1,6 @@
 ---
-# The strip across the top of the page (#137). Deliberately almost empty.
+# The strip across the top of the page (#137). Deliberately almost empty:
+# the date and time, and the weather.
 #
 # No `resources` widget: inside this container it reports the container's
 # cgroup and the image's root filesystem, not trinity — a number that looks
@@ -16,3 +17,22 @@
       dateStyle: long
       timeStyle: short
       hourCycle: h23
+
+# Weather, the one third-party call on the page and a deliberate one: data the
+# household wants, fetched server-side from trinity over Winterfell's existing
+# *Allow internet* egress (docs/network.md), from Open-Meteo, which takes no
+# key. The browser never talks to Open-Meteo.
+#
+# The location is COARSE ON PURPOSE. This repository is public, so the
+# coordinates are Bellevue's rounded to one decimal place — about 10 km, a
+# city and not a street. Do not sharpen them here.
+- openmeteo:
+    label: Bellevue
+    latitude: 47.6
+    longitude: -122.2
+    timezone: America/Los_Angeles
+    units: imperial
+    # Minutes between fetches; the forecast does not change faster.
+    cache: 15
+    format:
+      maximumFractionDigits: 0

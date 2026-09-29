@@ -456,6 +456,10 @@ is kept:
   already runs. Numbers only, never up/down. Home Assistant, AdGuard, Vaultwarden and Grafana are links,
   because none of them can issue a token that reads without also being able to
   change something. `services.yaml` has the per-service reasoning.
+- **Weather is the one third-party call, and a coarse one.** `widgets.yaml`
+  has Open-Meteo (no key), fetched server-side from `trinity` over
+  Winterfell's existing egress, for Bellevue rounded to one decimal place —
+  about 10 km — because this repository is public.
 - **Tokyo Night, frosted.** `custom.css` redefines the `slate` palette that
   `settings.yaml` names and draws a gradient behind translucent cards
   (`cardBlur: md`); no image or font is fetched. It is tracked and mounted for
