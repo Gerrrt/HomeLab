@@ -70,9 +70,61 @@ Two consequences are worth holding in mind:
 Run this once, when #136 is deployed. Do it in order: each step's check is
 what makes the next one mean anything.
 
+> **Done 2026-09-28/29**, on `trinity` and `prometheus`, with both phones in
+> hand ([#136](https://github.com/Gerrrt/HomeLab/issues/136)). Times are UTC,
+> read from Caddy's access log, ntfy's cache and Prometheus's `ALERTS`:
+>
+> | | |
+> | --- | --- |
+> | ntfy up; leaf issued by step-ca, verified against `tier-ca.pem` | 2026-09-28 21:59:03 |
+> | Deny-all from outside: anonymous publish and read `403`, sign-up refused | 2026-09-28, step 4 |
+> | Test publish with Alertmanager's token, received on both phones; the Pixel trusts the user-installed root | 2026-09-28, step 5 |
+> | Probe from the live exporter: `probe_success 1`, leaf expiry 2026-10-05 21:59:04 | 2026-09-28, step 7 |
+> | First delivery from `prometheus` through the in-house path (`template=alertmanager`, before #716) | 2026-09-29 01:29:53 |
+> | First delivery rendered by `homelab.yml` | 02:00:02 |
+> | Synthetic page resolved, in-house, new format (`✅ Resolved: …`) | 02:07:05 |
+> | Synthetic page firing, **seen on the ntfy.sh copy with Wi-Fi off**, in the same format (#719) | 03:11:18 |
+> | `docker stop sensitive-ntfy` | 03:12:05 |
+> | Probe fails | 03:12:25 |
+> | `EndpointUnreachable` for `ntfy` pending | 03:13:25 |
+> | `EndpointUnreachable` fires | 03:18:26 |
+> | **Page received on the ntfy.sh urgent topic** | 03:18 |
+> | `AlertmanagerNotificationsFailing` pending, `integration="webhook"` (the in-house half failing) | 03:19:26 |
+> | `docker start sensitive-ntfy`; healthy | 03:20:07; 03:20:14 |
+> | Held-back notifications delivered in-house on Alertmanager's retries, including the drill's own page | 03:20:29, 03:20:42 |
+> | `EndpointUnreachable` resolves | 03:21 (in-house `✅ Resolved` at 03:23:29) |
+> | `AlertmanagerNotificationsFailing` fires, `reason="serverError"` (Caddy's 502 for the stopped upstream), with ntfy already back | 03:24:26, delivered 03:24:32 |
+>
+> What the cutover found, each fixed on the day:
+>
+> - **Enabling the probe paged `urgent` within ten minutes**, with "ntfy's
+>   certificate has 7 days left" (02:04:29). The tier's leaves always last
+>   seven days, so they were always inside the estate's 7-day rule. The
+>   estate's two expiry rules now skip `renewal: acme` targets, and
+>   `TlsAcmeRenewalStalled` watches those instead
+>   ([#718](https://github.com/Gerrrt/HomeLab/pull/718)).
+> - **`make secrets-edit` leaves the deployment checkout dirty.** The
+>   encrypted file is tracked. On `prometheus` that raised `DeployDrifted` and
+>   stopped convergence for about four hours. The edited files were committed
+>   encrypted ([#717](https://github.com/Gerrrt/HomeLab/pull/717),
+>   [#720](https://github.com/Gerrrt/HomeLab/pull/720)).
+> - **A secrets edit changes nothing until `make render`.** Alertmanager reads
+>   the rendered files under `.rendered/`, not SOPS. The first synthetic page
+>   (01:57:05) went out on the old URLs for that reason.
+> - **The phones received walls of text** until #716 and #719 gave both copies
+>   a title and a line.
+>
+> **Not run:** step 8's second half. Neither the lowered Watchdog route (daily
+> route to the in-house alerts topic only) nor the `category=security` page
+> has been observed. The daily Watchdog has arrived in-house only since the
+> cutover, which is evidence for the first but not a drill.
+
 1. **Secrets on `trinity`.** Run `make secrets-edit STACK=sensitive` and set
    the six `NTFY_*` keys, as `secrets/sensitive.example.yaml` describes them.
-   Keep the `phone` password in the password manager.
+   New keys are new lines at the bottom of the file; the template is not
+   merged in. Keep the `phone` password in the password manager. The edit
+   leaves the tracked, encrypted file modified. Commit it through a pull
+   request, as #717 did.
 2. **Serve it.** On `trinity`, run `make up STACK=sensitive`, then look for
    `certificate obtained` for `ntfy.matrix.elysium` in Caddy's log.
 3. **The name.** Add `ntfy` under *Additional Names for this Host* on
@@ -102,19 +154,25 @@ what makes the next one mean anything.
 
    Then run `make up`. Rendering refuses to start without
    `certificates/tier-ca.pem`, which `make tier-ca ARGS=--mint` left on this host.
+   Commit the encrypted file through a pull request (#720 did), or
+   `DeployDrifted` stops convergence here. Any later change to these URLs
+   takes `make render`: Alertmanager reads the rendered files, not SOPS.
 7. **The probe.** Verify from the running exporter, then uncomment the ntfy
    target in `prometheus/targets/blackbox.yaml`. The command is in the comment
    above it.
 8. **Observe delivery, on both paths.** Fire a synthetic page and resolve it:
 
+   `amtool` is not installed on the host; it is in the container.
+
    ```bash
-   amtool alert add --alertmanager.url=http://localhost:9093 \
+   docker exec alertmanager amtool alert add --alertmanager.url=http://localhost:9093 \
      alertname=AlertPathCutover severity=critical category=availability \
      --annotation=summary='#136 cutover: in-house and ntfy.sh'
    # on Wi-Fi: it arrives on the in-house urgent topic, on both phones,
    #   as a title and one line (templates/homelab.yml), not JSON
-   # on mobile data, Wi-Fi off: it arrives on the ntfy.sh urgent topic
-   amtool alert add --alertmanager.url=http://localhost:9093 \
+   # on mobile data, Wi-Fi off: it arrives on the ntfy.sh urgent topic,
+   #   in the same format (render-config.sh passes the template inline)
+   docker exec alertmanager amtool alert add --alertmanager.url=http://localhost:9093 \
      alertname=AlertPathCutover severity=critical category=availability \
      --end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
    ```
@@ -122,9 +180,19 @@ what makes the next one mean anything.
    Then lower the second Watchdog route as in *Confirming it actually works*,
    below. It must arrive on the in-house alerts topic, and nowhere else. The
    same check with `category=security` proves the security pair.
+   Resolve before firing again. While it is still firing, `urgent` does not
+   resend it for four hours. Changes to a group that has already notified go
+   out on its next `group_interval` tick, up to five minutes later.
 9. **Kill it, and be paged anyway.** Run `docker stop sensitive-ntfy` on
-   `trinity`. Within about ten minutes `EndpointUnreachable` for `ntfy` must
-   arrive on the ntfy.sh urgent topic. Then run `docker start sensitive-ntfy`.
+   `trinity`. `EndpointUnreachable` for `ntfy` must arrive on the ntfy.sh
+   urgent topic, about six minutes later: a probe cycle, then the rule's
+   five-minute `for`. Then run `docker start sensitive-ntfy`.
+   `AlertmanagerNotificationsFailing` for `webhook` goes pending a minute after
+   the page. It counts failures over fifteen minutes, so it fires about five
+   minutes later even with ntfy back, reporting the drill truthfully with
+   `reason="serverError"`, and clears on its own. In-house pages sent during a
+   short outage are not lost: Alertmanager retries them, and they arrive after
+   the restart.
 
 A 200 is not evidence. Only a notification seen on a phone is, and step 8 is
 seen twice, on two networks. Write the times down here, the way the table
