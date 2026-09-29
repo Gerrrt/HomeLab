@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the seventeen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — fourteen of which the backup archives
+**Target:** the eighteen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — fifteen of which the backup archives
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -11,7 +11,7 @@ not repeated here: the scripts are the same, the phases are the same, and the
 reasons a restore is verified before anything is destroyed are argued there.
 What is different is what the volumes hold. On the observability host, four of
 five volumes are a *record* — metrics and logs that refill on their own. Here,
-most are rebuildable or re-fetched from somewhere else and eight are not:
+most are rebuildable or re-fetched from somewhere else and nine are not:
 
 | Volume | What it holds | If it is lost |
 | --- | --- | --- |
@@ -22,6 +22,7 @@ most are rebuildable or re-fetched from somewhere else and eight are not:
 | `immich-model-cache` | Downloaded ML models | Re-fetched on first use. **Not archived at all** — skipped by name in `backup-volumes.sh`, so it is never in a set and `make up` creates it empty |
 | `paperless-media` | Every scanned original, its PDF/A copy and thumbnail | **Lost.** The stack README's Paperless section has the exporter, which is the version-portable second route |
 | `paperless-db-data` | Paperless-ngx's metadata: tags, correspondents, every document's fields | **Lost**, unless an export is intact — an export carries the metadata beside the files |
+| `linkding-data` | linkding's database, WAL mode, and `secretkey.txt`, which signs its sessions | **Lost**, unless a Netscape HTML export from linkding's settings is intact. It imports into linkding or any browser. A missing `secretkey.txt` alone costs a login and nothing else |
 | `paperless-data` | The search index and the classifier | Rebuilt at the next start; the index is re-derived from the documents |
 | `paperless-broker-data` | Valkey's task queue | Nothing. Archived because it exists, worth nothing back |
 | `miniflux-db-data` | Miniflux's database: every subscription and category, read and starred state, and the entries not yet archived ([#147](https://github.com/Gerrrt/HomeLab/issues/147)) | **Lost**, unless an OPML export is at hand — the stack README's Miniflux section has it — and then the subscriptions come back and the read state and stars do not. Nothing else on the tier depends on it |
@@ -32,7 +33,7 @@ most are rebuildable or re-fetched from somewhere else and eight are not:
 | `ntfy-data` | ntfy's `user.db` and twelve hours of message cache | Nothing. **Not archived at all** ([#136](https://github.com/Gerrrt/HomeLab/issues/136)): the users, access list and token are re-provisioned from `secrets/sensitive.sops.yaml` on every start, and the cache is notifications already delivered. `make up` creates it empty and ntfy fills it |
 | `adguard-work` | AdGuard's blocklists, query log, statistics and UI sessions | Re-downloaded and re-accumulated. **Not archived at all since 2026-09-28**: archiving it meant stopping AdGuard, which since that day is the house's only DNS forwarder, and the query log is the household's browsing history. The settings are `adguard/AdGuardHome.yaml`, in git |
 
-So this runbook is mostly about those eight, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
+So this runbook is mostly about those nine, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
 said why it had to exist before that volume held anything: *"a password vault
 is the one service here where 'it is running' and 'it is recoverable' are
 entirely different claims, and only the second one counts on the day it
@@ -110,6 +111,7 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 | Caddy answers 502 for the vault | The container is not up. Not a volume problem — `make logs STACK=sensitive SERVICE=vaultwarden` | — |
 | Browser refuses the certificate | The leaf, not a volume — the name is not in its SANs, or it expired | `compose.yaml`'s `make certs` line |
 | step-ca will not start, log says `config/ca.json` | `step-ca-data` empty or replaced | §2, or re-mint from the monitoring host |
+| linkding's list is empty, or its login refuses the password from SOPS | `linkding-data` empty or replaced. On an empty volume linkding creates a fresh superuser from SOPS and an empty list | §2, `linkding-data` |
 | Home Assistant offers onboarding instead of a login | `home-assistant-config` empty or replaced — `.storage/auth` is gone | §2, `home-assistant-config` |
 | Memos offers to create the first account, or its notes are gone | `memos-data` empty or replaced | §2, `memos-data` |
 | The host's disk is gone | Hardware | §3, after rebuilding the host |
@@ -146,7 +148,9 @@ owning uid against the one the service needs: `0` for `vaultwarden-data`,
 `home-assistant-config`, `caddy-data` and `caddy-config`, because those
 services run as root for the reasons `compose.yaml` measures; `1000` for
 `step-ca-data`; `10001` for `memos-data`; `65534` for `adguard-work`; `999` for `immich-db`,
-`paperless-db-data`, `paperless-broker-data` and `miniflux-db-data`. Paperless's other two belong
+`paperless-db-data`, `paperless-broker-data` and `miniflux-db-data`; `33` for
+`linkding-data`, which linkding's own start chowns back to 33 anyway.
+Paperless's other two belong
 to whoever ran `make up`, which is not a constant the script can check, so
 look at those yourself. A mismatch is
 reported and never silently corrected.

@@ -181,6 +181,18 @@ recipes.matrix.elysium {
 	}
 }
 
+# linkding (#144, ADR-0061). Django reads the scheme from the
+# X-Forwarded-Proto Caddy sets, which is what lets a login POST from https://
+# pass its CSRF check without a trusted-origins list.
+links.matrix.elysium {
+	reverse_proxy linkding:9090
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # Actual (#142, ADR-0062). The web app and the sync API its clients call are
 # the same origin, so one block serves both. The server is claimed before its
 # first start (scripts/seed-actual-password.sh), so there is never a moment

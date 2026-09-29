@@ -29,8 +29,10 @@
 # Miniflux (#147) is the eighth, and the first beyond ADR-0008's nine —
 # ADR-0057 decided it before it was written here. Memos (#145) is the ninth,
 # decided by ADR-0059, and Mealie (#146) the tenth, decided by ADR-0060.
-# Actual (#142) is the eleventh, and the fourth beyond ADR-0008's nine, decided
-# the same way (ADR-0062).
+# linkding (#144) is the eleventh, and the fourth beyond those nine; ADR-0061
+# is why it is here, and why it is behind one factor.
+# Actual (#142) is the twelfth, and the fifth beyond those nine, decided the
+# same way (ADR-0062).
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -127,6 +129,7 @@ services:
           - ntfy.matrix.elysium
           - miniflux.matrix.elysium
           - recipes.matrix.elysium
+          - links.matrix.elysium
           - actual.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
@@ -1576,10 +1579,93 @@ services:
       start_period: 60s
 
   # ---------------------------------------------------------------------------
+  # linkding — the household's bookmarks (#144, ADR-0061)
+  # ---------------------------------------------------------------------------
+  # One process and one SQLite file. Beyond ADR-0008's list, and placed here
+  # by that ADR's own test: a bookmark collection is a browsing history by
+  # another name. The plain image, not `-plus`: that variant adds Chromium to
+  # archive pages, which ADR-0061 leaves to a different service if it is ever
+  # wanted.
+  #
+  # Root with four capabilities, and then not root at all. The image's
+  # bootstrap.sh runs as root: it creates the data tree, runs the migrations,
+  # creates the superuser, `chown -R www-data:` the volume, and execs uwsgi,
+  # whose uwsgi.ini drops to www-data (33). Every process that serves a
+  # request runs as 33 with CapEff 0, read from /proc on the pinned image. The
+  # four are what the root half needs, each measured by taking it away:
+  #
+  #   SETUID, SETGID   uwsgi's drop to 33. Without them: "setgid(): Operation
+  #                    not permitted", exit 1.
+  #   CHOWN            the chown of the volume. /etc/linkding/data is 0:0 755
+  #                    in the image, so a fresh named volume is root's.
+  #   DAC_OVERRIDE     the SECOND start. Once the tree is 33's, root without it
+  #                    cannot write db.sqlite3, and `migrate` fails with
+  #                    "attempt to write a readonly database" — and bootstrap.sh
+  #                    has no `set -e`, so uwsgi starts anyway and the
+  #                    healthcheck passes over a migration that never ran. The
+  #                    first image bump that shipped one would have gone green.
+  #
+  # `user: 33` from the start needs none of them and boots clean, but only on a
+  # volume that is already 33's; a fresh one is root's, and a seed step that
+  # chowns it is the hand-run command DIFFERENCE 2 turns down. Re-check the
+  # premise when the image moves:
+  #
+  #   docker run --rm --entrypoint stat <linkding image> -c '%u:%g %a' /etc/linkding/data
+  #
+  # LD_DISABLE_BACKGROUND_TASKS: the task runner exists to fetch favicons and
+  # preview images, which is a request from trinity to a third party for every
+  # site bookmarked — the list this tier is holding back from the network,
+  # handed out one hostname at a time. Off, and the list shows no icons.
+  # Adding a bookmark still fetches that page's title and description, from
+  # the site itself, which the browser adding it has just visited.
+  #
+  # No LD_CSRF_TRUSTED_ORIGINS. Measured: a login POST with Origin
+  # https://links.matrix.elysium and the X-Forwarded-Proto Caddy sets is
+  # accepted without it.
+  #
+  # 512m: 77 MiB idle, 188 MiB peak importing 3,000 bookmarks from a Netscape
+  # file. Bounds a leak rather than sizing. No depends_on, for Vaultwarden's
+  # reason.
+  linkding:
+    <<: *service-defaults
+    image: sissbruecker/linkding:1.47.0@sha256:e35cb50e0581178f245125ffaa909c565416c94c9f22ace305a7d234a4345522
+    container_name: sensitive-linkding
+    mem_limit: 512m
+    memswap_limit: 512m
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      # uwsgi's pidfile, and nothing else: `docker diff` after two boots
+      # showed no write outside the volume.
+      - /tmp:size=16m
+    environment:
+      LD_DISABLE_BACKGROUND_TASKS: "True"
+      # The superuser, created on first start and never touched again by
+      # these variables — Paperless's shape, with the same `docker inspect`
+      # exposure accepted. linkding has no second factor; ADR-0061 says what
+      # stands in for one.
+      LD_SUPERUSER_NAME: ${LINKDING_SUPERUSER_NAME:-admin}
+      LD_SUPERUSER_PASSWORD: ${LINKDING_SUPERUSER_PASSWORD:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - linkding-data:/etc/linkding/data
+    expose:
+      - "9090"
+    healthcheck:
+      # The image's own, with the port literal: curl against /health.
+      test: ["CMD", "curl", "-fsS", "--max-time", "2", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
   # Actual — the household's budget (#142, ADR-0062)
   # ---------------------------------------------------------------------------
-  # The fourth service here beyond ADR-0008's nine, after Miniflux, Memos and
-  # Mealie, and decided by ADR-0062.
+  # The fifth service here beyond ADR-0008's nine, after Miniflux, Memos,
+  # Mealie and linkding, and decided by ADR-0062.
   # Actual is local-first: every client holds the whole budget and this is
   # the sync target between them, so the server being down stops syncing
   # and nothing else. It is still the one copy that is backed up.
@@ -1735,6 +1821,10 @@ volumes:
   # Mealie's SQLite database, its two generated token-signing secrets,
   # recipe images and user avatars — everything it has (ADR-0060).
   mealie-data:
+  # linkding's database, in WAL mode, and the secretkey.txt that signs its
+  # sessions. Favicons and previews would live here too; with background tasks
+  # off, those directories stay empty.
+  linkding-data:
   # Actual's account.sqlite (the password hash and sessions) and every
   # budget's file and sync messages. Every client holds a copy of the budget,
   # which survives losing this volume but not a bad sync, and so is not a
