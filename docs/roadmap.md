@@ -35,9 +35,9 @@ What an entry here may contain:
    on the box closes 2026-10-08, and the rehearsal is the step that ends it.
 3. [**NAS**](https://github.com/Gerrrt/HomeLab/milestone/4) and
    [**Saruman: the domain, then the SOC**](https://github.com/Gerrrt/HomeLab/milestone/3)
-   — side by side, with no order between them. Each has one issue that goes
-   first for its own reason: a mirror that is one disk, and a domain that
-   everything else on that host points at.
+   — side by side, with no order between them. The domain goes first on
+   `Saruman`, because everything else on that host points at it; the NAS's
+   first issue, the one-disk mirror, is done.
 4. [**automation**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
    pipeline that populates the domain; it runs from `phoenix`, which exists.
 5. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
@@ -178,27 +178,19 @@ has been rehearsed on it.
 
 ## NAS
 
-Closes when the faulted Exos is replaced and the mirror resilvered, and a
-workstation can mount the share.
+Closes when a workstation can mount the share. Its other condition, the
+faulted Exos replaced and the mirror resilvered, is met and is in
+[`changelog.md`](changelog.md).
 
-- **[#558](https://github.com/Gerrrt/HomeLab/issues/558) Replace the faulted
-  Exos.** First: `erebor` is one disk until the swap and the resilver.
-  → [runbook](runbooks/replace-the-nas-disk.md)
-- **[#571](https://github.com/Gerrrt/HomeLab/issues/571) Decide what stands
-  between ZFS and the pair.** Decided by
-  [ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md): the chipset's
-  AHCI ports, and the MegaRAID comes out at the swap. Closes with #558, once
-  `hardware.md` describes the path as it is.
 - **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf** is
   authored — the service, a fifth Hicks pass it needs and the #140 text said
   it did not, and its archive in the NAS pull, `pending` until deployed
   ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
   What is left is [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 on
-  `smaug`, gated on the mirror being whole, which is #558.
+  `smaug`, and nothing gates it.
   [#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome is authored
   the same way — its archive `pending` beside Audiobookshelf's — and its
-  4533 pass already exists; what is left is the rest of §6.6, behind the
-  same gate.
+  4533 pass already exists; what is left is the rest of §6.6.
 
 ## Saruman: the domain, then the SOC
 
@@ -239,7 +231,7 @@ Closes when Wazuh and Velociraptor report the six agents in.
   (`10.0.30.80`) with its datastore on `erebor/pbs` over NFSv4, and TrueNAS
   snapshots as the copy it cannot prune. What is left is the build: the
   guest, the dataset and share, the `2049` pass on `morpheus`, and a verify
-  job the lab can see. A whole mirror to send to still waits on #558.
+  job the lab can see.
   → [runbook](runbooks/build-the-backup-guest.md)
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
@@ -305,8 +297,9 @@ none is in the order until one is taken.
   alongside Immich and AdGuard. The default admin was renamed and
   re-passworded the same day. Nothing is left.
 - **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
-  **Deployed on `trinity` 2026-09-29**, with its host override. What is left
-  is the operator's first login with the superuser password from SOPS.
+  **Deployed on `trinity` 2026-09-29**, with its host override, and the
+  operator's first login with the superuser password from SOPS is done.
+  Nothing is left.
 - **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
   **deployed on `trinity` 2026-09-29** ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): behind Caddy at
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so

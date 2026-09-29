@@ -48,6 +48,40 @@ docstring gives: it is a record, not a claim about now.
   - **Not yet:** the timer is not installed (`make install-timers
     PROFILE=sensitive`). Every set is encrypted to `trinity`'s key alone.
     ADR-0023's copy is still #455's.
+- **`erebor` is a whole mirror again, and the MegaRAID is out**
+  ([#558](https://github.com/Gerrrt/HomeLab/issues/558) and
+  [#571](https://github.com/Gerrrt/HomeLab/issues/571), both closing;
+  [ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md);
+  [`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md) steps 5
+  and 6).
+  - **The replacement is `ZVTLQEZ7`**, the refurbished Exos X20 bought on
+    2026-09-24 after the return came back as a refund. It runs firmware
+    `SN06`. Seagate's lookup says *contact the place of purchase*, so the
+    warranty is eBay's. FARM read **0 power-on, spindle and head-flight
+    hours**, with 0 on every error count across all 20 heads, before the
+    drive was used.
+  - **The chipset move first.** `ZVTBS4NL` went onto a chipset port on a
+    new SATA cable, and the card came out with its breakout. The pool
+    imported `DEGRADED` exactly as it had been on the card, so the fallback
+    was not needed. The Exos are on `ata1` and `ata2` at 6.0 Gbps.
+  - **Resilver and scrub.** The Replace (the UI button is *Manage VDEVs*,
+    not the *Manage Devices* the runbook said) resilvered 1.99 GiB in 23 s,
+    finishing at 13:52 PDT. The scrub repaired 0 B with 0 errors at 13:56.
+    The pool holds 1.91 GiB, which is why both took seconds.
+  - **Step 6 read true.** The exporter reports the pool online. No silence
+    is left. The five NAS backup sets are complete on the monitoring host
+    and on `oracle`, and the timer is installed.
+  - **One alert the runbook did not predict.** `SmartDriveBadSectors`
+    fired for `/dev/sdb` about 30 minutes after the boot, while the live
+    `sdb` read 0 on every count. The textfile the exporter served had been
+    written by the 08:30 cron under the pre-swap letters. Rewriting it by
+    hand cleared the alert, and step 5 now says to do that at every swap.
+    Which series in the old file tripped the rule was not captured, so that
+    part is probable rather than proven.
+  - **The optical drive went back in** on `ata5`, for burning discs.
+  - **Still to read:** the new disk's extended self-test, about 28 hours,
+    whose result goes in `hardware.md`.
+
 - **Actual is deployed on `trinity`**
   ([#142](https://github.com/Gerrrt/HomeLab/issues/142), closed;
   [ADR-0062](adr/0062-add-actual-to-the-sensitive-tier.md)). This corrects the
