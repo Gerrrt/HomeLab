@@ -30,7 +30,7 @@
 > **And an eighth, the same day: linkding, with no second factor.** It offers
 > OIDC or a trusted proxy header and nothing of its own, so its route is the
 > identity provider too. Adding it fires none of the triggers below
-> ([ADR-0058](0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+> ([ADR-0059](0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
 
 ## Context
 

@@ -352,7 +352,7 @@ what each key is for. The values:
 | `NTFY_TOPIC_ALERTS`, `_URGENT`, `_SECURITY` | `make gen-secret`, three times | No. The monitoring host's receiver URLs end in the same three |
 | `MINIFLUX_DBPASS` | `make gen-secret` — never typed: it is spliced into a connection string | No |
 | `MINIFLUX_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
-| `LINKDING_SUPERUSER_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and the only thing guarding the list ([ADR-0058](../adr/0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md)) |
+| `LINKDING_SUPERUSER_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and the only thing guarding the list ([ADR-0059](../adr/0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md)) |
 
 ```bash
 make secrets-edit STACK=sensitive
@@ -524,7 +524,7 @@ floor, and recovery codes go in the password manager.
 | `https://paperless.matrix.elysium` | `admin` and the password from §6 | The profile's *Two-factor authentication* |
 | `https://immich.matrix.elysium` | The first sign-up is the admin | None. ADR-0022 records Immich as unable |
 | `https://adguard.matrix.elysium` | The password behind §6's hash | None — likewise |
-| `https://links.matrix.elysium` | `admin` and the password from §6 | None. linkding has none, and ADR-0058 accepts that |
+| `https://links.matrix.elysium` | `admin` and the password from §6 | None. linkding has none, and ADR-0059 accepts that |
 | `https://ntfy.matrix.elysium` | User `phone` in the ntfy app on each phone, per the stack README's ntfy section; then the cutover in [`verify-the-alert-path.md`](verify-the-alert-path.md) | None. ntfy has none, and `phone` can only read alert text |
 | `https://miniflux.matrix.elysium` | `admin` and the password from §6 | None. Miniflux has no TOTP, and its passkeys are not a second step ([ADR-0057](../adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)) |
 

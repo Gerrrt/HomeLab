@@ -1,4 +1,4 @@
-# ADR-0058: Add linkding to the sensitive tier, behind one factor
+# ADR-0059: Add linkding to the sensitive tier, behind one factor
 
 **Status:** Accepted · 2026-09 · adds a service to the tier
 [ADR-0008](0008-place-services-by-data-trust.md) created, and one to the list

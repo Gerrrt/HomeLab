@@ -28,7 +28,7 @@
 # five. ntfy (#136) is the seventh, and where the estate's alerts now arrive.
 # Miniflux (#147) is the eighth, and the first beyond ADR-0008's nine —
 # ADR-0057 decided it before it was written here.
-# linkding (#144) is the ninth, and the second beyond those nine; ADR-0058 is
+# linkding (#144) is the ninth, and the second beyond those nine; ADR-0059 is
 # why it is here, and why it is behind one factor.
 #
 # ---------------------------------------------------------------------------
@@ -1406,12 +1406,12 @@ services:
       start_period: 30s
 
   # ---------------------------------------------------------------------------
-  # linkding — the household's bookmarks (#144, ADR-0058)
+  # linkding — the household's bookmarks (#144, ADR-0059)
   # ---------------------------------------------------------------------------
   # One process and one SQLite file. Beyond ADR-0008's list, and placed here
   # by that ADR's own test: a bookmark collection is a browsing history by
   # another name. The plain image, not `-plus`: that variant adds Chromium to
-  # archive pages, which ADR-0058 leaves to a different service if it is ever
+  # archive pages, which ADR-0059 leaves to a different service if it is ever
   # wanted.
   #
   # Root with four capabilities, and then not root at all. The image's
@@ -1472,7 +1472,7 @@ services:
       LD_DISABLE_BACKGROUND_TASKS: "True"
       # The superuser, created on first start and never touched again by
       # these variables — Paperless's shape, with the same `docker inspect`
-      # exposure accepted. linkding has no second factor; ADR-0058 says what
+      # exposure accepted. linkding has no second factor; ADR-0059 says what
       # stands in for one.
       LD_SUPERUSER_NAME: ${LINKDING_SUPERUSER_NAME:-admin}
       LD_SUPERUSER_PASSWORD: ${LINKDING_SUPERUSER_PASSWORD:?set in secrets/sensitive.sops.yaml}

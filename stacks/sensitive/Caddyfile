@@ -157,7 +157,7 @@ miniflux.matrix.elysium {
 	}
 }
 
-# linkding (#144, ADR-0058). Django reads the scheme from the
+# linkding (#144, ADR-0059). Django reads the scheme from the
 # X-Forwarded-Proto Caddy sets, which is what lets a login POST from https://
 # pass its CSRF check without a trusted-origins list.
 links.matrix.elysium {

@@ -21,7 +21,7 @@ docstring gives: it is a record, not a claim about now.
 
 - **linkding is decided and authored for the sensitive tier; it is not
   deployed** ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
-  [ADR-0058](adr/0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+  [ADR-0059](adr/0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
   It is the second service beyond ADR-0008's nine, after Miniflux. It is behind
   one factor because linkding has no other, and it is named in `security.md`
   with Immich, AdGuard Home and Miniflux.
@@ -35,6 +35,15 @@ docstring gives: it is a record, not a claim about now.
   - **Memory:** 77 MiB idle, and 188 MiB peak importing 3,000 bookmarks.
   - **Background tasks are off**, so no third party is asked for a favicon for
     each bookmarked site.
+- **HomeBox is declined**
+  ([#148](https://github.com/Gerrrt/HomeLab/issues/148), closed). Every job
+  it was filed for already had a home: serials and warranty dates in
+  `hardware.md`, receipts and manuals in Paperless-ngx, licence keys in
+  Vaultwarden. The one thing left was a list of household objects, and that
+  does not earn a place on Winterfell.
+  [ADR-0058](adr/0058-decline-homebox-because-hardware-md-and-paperless-already-hold-its-records.md)
+  records the reasoning and what would reopen it.
+
 - **Miniflux is authored for the sensitive tier, the first service beyond
   ADR-0008's nine**
   ([#147](https://github.com/Gerrrt/HomeLab/issues/147),

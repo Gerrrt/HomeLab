@@ -290,7 +290,7 @@ none is in the order until one is taken.
 - **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
   Deploying it on `trinity` is the stack README's *Adding it to the running
   tier*: two SOPS keys, one host override, `make up`.
-- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0058](adr/0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
+- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0059](adr/0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
   Deploying it on `trinity` is the same section of the stack README: one SOPS
   key, one host override, `make up`.
 
@@ -451,6 +451,19 @@ them name the condition that would change the answer.
   [ADR-0056](adr/0056-decline-plex-because-every-screen-on-casabonita-plays-jellyfin.md). **Reopened by a screen the household uses for
   library media that has no working Jellyfin client**, with Remote Access off
   even then ([#139](https://github.com/Gerrrt/HomeLab/issues/139)).
+- **HomeBox** — a home inventory with items, locations, warranties and receipts
+  as attachments. It was proposed for the sensitive tier as the place for the
+  serials `hardware.md` withheld. By the time it was argued, `hardware.md`
+  carried the serials and warranty dates itself. Paperless-ngx already held the
+  receipts and manuals, and a licence key is Vaultwarden's. What remained was a
+  list of household objects, which does not earn a place on the segment
+  ADR-0008 calls its real cost, and which would be a second inventory that
+  drifts from the first. Declined by
+  [ADR-0058](adr/0058-decline-homebox-because-hardware-md-and-paperless-already-hold-its-records.md).
+  **Reopened by a household need to track non-infrastructure possessions that
+  Paperless's tags cannot meet**, with the proposal saying what leaves
+  `hardware.md` so there is still one inventory
+  ([#148](https://github.com/Gerrrt/HomeLab/issues/148)).
 - **Proxmox clustering** — joining `Saruman` and `ifrit` into one cluster once
   [#421](https://github.com/Gerrrt/HomeLab/issues/421) makes them two Proxmox
   hosts on VLAN 30: one pane of glass, guest migration, shared storage. The

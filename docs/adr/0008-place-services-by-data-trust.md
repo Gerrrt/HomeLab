@@ -62,7 +62,7 @@ all of it under the existing 50→99 rule, so this adds no rule at all.
 >
 > *linkding, a bookmark manager, is a second, by the same test — a bookmark
 > collection is a browsing history — and decided in
-> [ADR-0058](0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md).
+> [ADR-0059](0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md).
 > The placement above is unchanged and this ADR is not superseded.*
 
 **The streaming tier — CasaBonita (40).** A quiet N100-class NAS holds the bulk

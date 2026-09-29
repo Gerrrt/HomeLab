@@ -34,7 +34,7 @@ make up STACK=sensitive
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
-| linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The second service beyond ADR-0008's nine ([ADR-0058], [#144]) |
+| linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The second service beyond ADR-0008's nine ([ADR-0059], [#144]) |
 
 Seventeen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
@@ -56,7 +56,7 @@ absent is as deliberate as what is here:
 - **No other services planned.** The next one, whenever it comes, arrives as
   Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy and
   Miniflux and linkding did — and, beyond ADR-0008's nine, after an ADR of
-  its own, as [ADR-0057] was for Miniflux and [ADR-0058] for linkding: a
+  its own, as [ADR-0057] was for Miniflux and [ADR-0059] for linkding: a
   service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
@@ -625,7 +625,7 @@ factor. `compose.yaml` has what was measured on the pinned image.
 ## linkding
 
 The household's bookmarks, at `https://links.matrix.elysium` ([#144]). It is
-the second service here that [ADR-0008] does not name, and [ADR-0058] is the
+the second service here that [ADR-0008] does not name, and [ADR-0059] is the
 decision that put it on this tier. `compose.yaml` has the service and what was
 measured on the pinned image. What has to be true around it is here.
 
@@ -645,13 +645,13 @@ measured on the pinned image. What has to be true around it is here.
 - **No second factor.** linkding has none of its own. It offers OIDC, or trust
   in a proxy header, and neither exists here yet. It sits with Immich,
   AdGuard Home and Miniflux in `security.md`'s list of services that cannot carry one.
-  [ADR-0058] records why that is accepted for a list of links, and that OIDC is
+  [ADR-0059] records why that is accepted for a list of links, and that OIDC is
   how it would get one if [ADR-0022]'s decision brings an identity provider.
 - **No favicons, on purpose.** `LD_DISABLE_BACKGROUND_TASKS` keeps linkding
   from asking a third party for an icon for every site in the list. Adding a
   bookmark still fetches that page's own title and description.
 - **Archiving pages is not what this is.** The `-plus` image, with Chromium,
-  would save snapshots. [ADR-0058] leaves that want to a different service and
+  would save snapshots. [ADR-0059] leaves that want to a different service and
   a new decision.
 - **Adding it to the running tier**, as Miniflux is added. On `trinity`:
   1. `make secrets-edit STACK=sensitive`, and add `LINKDING_SUPERUSER_PASSWORD`
@@ -821,7 +821,7 @@ it matters:
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
 [ADR-0057]: ../../docs/adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md
-[ADR-0058]: ../../docs/adr/0058-add-linkding-to-the-sensitive-tier-behind-one-factor.md
+[ADR-0059]: ../../docs/adr/0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
