@@ -299,15 +299,14 @@ none is in the order until one is taken.
 - **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
   `recipes.matrix.elysium`.** Decided by
   [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
-  **authored, not yet deployed**. It is the one service here meant for the
-  household to open rather than to benefit from. It uses no new firewall rule
-  and no SOPS secret, and it has no second factor, which is named alongside
-  Immich and AdGuard. What is left is the deploy on `trinity`: `make up`, the
-  host override, and the first login and rename of the default admin
-  (→ [runbook](runbooks/build-the-sensitive-tier-host.md#deploy-a-later-service)).
+  **deployed on `trinity` 2026-09-29**. It is the one service here meant for
+  the household to open rather than to benefit from. It uses no new firewall
+  rule and no SOPS secret, and it has no second factor, which is named
+  alongside Immich and AdGuard. The default admin was renamed and
+  re-passworded the same day. Nothing is left.
 - **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
-  Deploying it on `trinity` is the same section of the stack README: one SOPS
-  key and `make up`. The host override was added on 2026-09-29.
+  **Deployed on `trinity` 2026-09-29**, with its host override. What is left
+  is the operator's first login with the superuser password from SOPS.
 - **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
   **deployed on `trinity` 2026-09-29** ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): behind Caddy at
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so

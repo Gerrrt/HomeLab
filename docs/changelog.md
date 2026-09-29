@@ -19,6 +19,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **linkding and Mealie are deployed on `trinity`**
+  ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
+  [#146](https://github.com/Gerrrt/HomeLab/issues/146)). This corrects their
+  entries below that say they are not yet deployed. Both sessions that
+  authored them had ended, so the deploy was run once from the Stirling-PDF
+  session, after linkding's sentinel fix
+  ([#738](https://github.com/Gerrrt/HomeLab/pull/738)) had merged.
+  - **A dry run first.** `docker compose up -d --remove-orphans --dry-run`
+    listed only the two containers and their two volumes as new. Nothing
+    running was recreated, Caddy included. `make up STACK=sensitive` then
+    passed its own checks: `check_container_health.py` reported all twenty
+    services with a healthcheck healthy.
+  - **Through Caddy.** step-ca issued the leaves for `links.matrix.elysium`
+    and `recipes.matrix.elysium`, and both verify against the tier's root.
+    linkding answers with the 302 to its login page, and Mealie answers 200.
+  - **The backup loads.** `backup-volumes.sh --inventory` lists
+    `linkding-data` and `mealie-data` with no sentinel refusal.
+  - **Mealie's public default admin was live until it was changed.**
+    `changeme@example.com` / `MyPassword` logged in (200) from the moment
+    the container started. It was renamed and re-passworded minutes later,
+    and the default login then answered 401. Self sign-up refuses a
+    well-formed request with 403, *"User Registration is Disabled"*. A
+    Mealie deploy should change that login before anything else. The window
+    was minutes, and on Hicks only.
+  - **linkding's first login** with the SOPS superuser password is the
+    operator's, and is not recorded here.
+
 - **The sensitive backup would have stopped before archiving anything,
   from the first run after linkding merged**
   ([#144](https://github.com/Gerrrt/HomeLab/issues/144)).
