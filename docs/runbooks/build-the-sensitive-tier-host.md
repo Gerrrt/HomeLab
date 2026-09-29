@@ -475,13 +475,13 @@ Then the stack README's list, on the host it was written for:
   and `Verify return code: 0` against `certificates/tier-ca.pem`.
 - **The library is on the USB disk.** `docker exec sensitive-immich-server df -h /data`
   shows the `/dev/mapper/immich` filesystem, not the root.
-- **Home Assistant answers through Caddy.** On a fresh `home-assistant-config`
-  volume it will not: since 2026.9, Home Assistant imports `configuration.yaml`'s
-  `http:` block once, as a *pending* config, and reverts to defaults that trust
-  no proxy unless an admin confirms it within five minutes. The symptom is
-  `400: Bad Request` on `homeassistant.matrix.elysium`. The stack README's Home
-  Assistant bullets have the fix, and it takes a minute. Apply it before
-  onboarding.
+- **Home Assistant answers through Caddy.** `make up` ran
+  `scripts/seed-ha-http.sh` before starting anything, and it printed
+  `.storage/http written, trusting 172.28.99.2`. Since 2026.9 Home Assistant
+  keeps its HTTP settings in its volume, and a fresh volume without them trusts
+  no proxy. `scripts/seed-ha-http.sh --check` confirms it at any time. On
+  2026-09-28, before the seed existed, this step needed a hand promotion; the
+  stack README says why.
 - **Home Assistant keeps booting under its hardening.** It is healthy above;
   the `dhcp` integration's `CAP_NET_RAW` error is the one expected line.
 - **AdGuard answers the prober and nobody else.** That is §11, step 1.
@@ -637,7 +637,7 @@ on the containers, and each is written in a document that already exists:
 | `make render` stops with *do NOT run `make certs ARGS=--ca` here* | `certificates/tier-ca.pem` is missing | §7 is not done |
 | A browser on Hicks times out on `https://*.matrix.elysium` | §3's Hicks pass is missing or below the block | Check *Firewall → Rules → HICKS* order |
 | Home Assistant cannot find the bridge | The pass is below *Block access to Skids*, or `bifrost` is not on `.20` | `pfctl -vsr` as in §8; the reservation |
-| `homeassistant.matrix.elysium` answers `400: Bad Request` | Home Assistant 2026.9+ reverted its imported `http:` config because nobody confirmed it within five minutes | The stack README's Home Assistant bullets: promote the pending config with the container stopped |
+| `homeassistant.matrix.elysium` answers `400: Bad Request` | `.storage/http` does not trust Caddy: the volume was started by something other than `make up`, or its store was changed | `scripts/seed-ha-http.sh --check` says which. Then stop Home Assistant, run `scripts/seed-ha-http.sh --force`, and start it again |
 | Caddy fails to start: *Address already in use* | Something took `172.28.99.2` (fixed since 2026-09-28 by the network's `ip_range`) | `make down STACK=sensitive`, then `make up`. If it recurs, check the `ip_range` is still in `compose.yaml` |
 | The Alloy agent logs `cannot unix dial containerd` and no container metrics arrive | Docker is on the containerd image store | §4's `daemon.json`, then `make down`, restart Docker, `make up` (the images download again), and `deploy-agent.sh` again |
 | The house loses outside DNS while `trinity` is fine | AdGuard stopped. Only the backup used to do that, and it no longer does | `make ps STACK=sensitive`; `AdGuardNotAnswering` pages at five minutes. The workaround is in `forward-dns-to-adguard.md` step 4 |

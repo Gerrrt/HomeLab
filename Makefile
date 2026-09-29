@@ -52,6 +52,11 @@ help: ## Show this help
 
 .PHONY: up
 up: render ## Render config and start the stack
+	@# Home Assistant's HTTP settings live in its volume's .storage/http, not in
+	@# configuration.yaml, and a fresh volume without them trusts no proxy, so
+	@# every request through Caddy gets 400. Seeded before any container starts;
+	@# an existing store is only checked, never overwritten (seed-ha-http.sh).
+	@if [ "$(STACK)" = sensitive ]; then ./scripts/seed-ha-http.sh; fi
 	$(COMPOSE) up -d --remove-orphans
 	@# `up -d` recreates a container only when its *service definition* changes,
 	@# so a freshly rendered snmp.yaml or an edited prometheus.yaml is invisible
