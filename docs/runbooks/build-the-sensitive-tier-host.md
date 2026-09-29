@@ -352,7 +352,7 @@ what each key is for. The values:
 | `NTFY_TOPIC_ALERTS`, `_URGENT`, `_SECURITY` | `make gen-secret`, three times | No. The monitoring host's receiver URLs end in the same three |
 | `MINIFLUX_DBPASS` | `make gen-secret` — never typed: it is spliced into a connection string | No |
 | `MINIFLUX_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
-| `LINKDING_SUPERUSER_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and the only thing guarding the list ([ADR-0059](../adr/0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md)) |
+| `LINKDING_SUPERUSER_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and the only thing guarding the list ([ADR-0060](../adr/0060-add-linkding-to-the-sensitive-tier-behind-one-factor.md)) |
 
 ```bash
 make secrets-edit STACK=sensitive
@@ -412,10 +412,10 @@ make backup-firewall
 
 **Host overrides**, as [`add-a-host-override.md`](add-a-host-override.md)
 describes. One entry, host `trinity`, domain `matrix.elysium`, address
-`10.0.99.40`. The other nine names go under *Additional Names for this Host*:
+`10.0.99.40`. The other ten names go under *Additional Names for this Host*:
 
 `homeassistant`, `immich`, `paperless`, `vaultwarden`, `adguard`, `home`, `ntfy`,
-`miniflux`, `links`
+`miniflux`, `memos`, `links`
 
 These are exactly the `Caddyfile`'s site names and the `caddy` service's
 aliases in `compose.yaml`. A later service adds its name in all three places.
@@ -471,11 +471,11 @@ make ps STACK=sensitive
 make check-container-health STACK=sensitive
 ```
 
-All seventeen services must be healthy, with the `ml` profile on as `.env.example` ships it.
+All eighteen services must be healthy, with the `ml` profile on as `.env.example` ships it.
 Then the stack README's list, on the host it was written for:
 
 - **The CA tree and ACME.** [`build-the-tier-ca.md`](build-the-tier-ca.md)
-  §5, once for each of the ten names: `certificate obtained` in Caddy's log,
+  §5, once for each of the eleven names: `certificate obtained` in Caddy's log,
   and `Verify return code: 0` against `certificates/tier-ca.pem`.
 - **The library is on the USB disk.** `docker exec sensitive-immich-server df -h /data`
   shows the `/dev/mapper/immich` filesystem, not the root.
@@ -524,9 +524,10 @@ floor, and recovery codes go in the password manager.
 | `https://paperless.matrix.elysium` | `admin` and the password from §6 | The profile's *Two-factor authentication* |
 | `https://immich.matrix.elysium` | The first sign-up is the admin | None. ADR-0022 records Immich as unable |
 | `https://adguard.matrix.elysium` | The password behind §6's hash | None — likewise |
-| `https://links.matrix.elysium` | `admin` and the password from §6 | None. linkding has none, and ADR-0059 accepts that |
+| `https://links.matrix.elysium` | `admin` and the password from §6 | None. linkding has none, and ADR-0060 accepts that |
 | `https://ntfy.matrix.elysium` | User `phone` in the ntfy app on each phone, per the stack README's ntfy section; then the cutover in [`verify-the-alert-path.md`](verify-the-alert-path.md) | None. ntfy has none, and `phone` can only read alert text |
 | `https://miniflux.matrix.elysium` | `admin` and the password from §6 | None. Miniflux has no TOTP, and its passkeys are not a second step ([ADR-0057](../adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)) |
+| `https://memos.matrix.elysium` | The first sign-up is the admin; then close registration at once, per the stack README's Memos section | None. [ADR-0059](../adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md) records Memos as unable |
 
 Home Assistant's Hue integration is added **by address**, `10.0.20.20`,
 pressing the bridge's button when asked. That is the first traffic §8's pass
@@ -563,7 +564,7 @@ make backup STACK=sensitive ARGS=--list
 make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
-Both sides must be listed, and the dry run must pass. Twelve volumes are
+Both sides must be listed, and the dry run must pass. Thirteen volumes are
 archived. `immich-model-cache`, `adguard-work` and `ntfy-data` are skipped by
 name, so AdGuard keeps answering the house's DNS, and ntfy keeps delivering,
 while the rest of the stack is stopped. On

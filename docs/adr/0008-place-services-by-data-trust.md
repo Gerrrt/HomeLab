@@ -60,9 +60,12 @@ all of it under the existing 50→99 rule, so this adds no rule at all.
 > [ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md).
 > The paragraph is not edited, and this ADR is not superseded.*
 >
-> *linkding, a bookmark manager, is a second, by the same test — a bookmark
-> collection is a browsing history — and decided in
-> [ADR-0059](0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md).
+> *Nor Memos, the household's notes, decided the same way in
+> [ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md).*
+>
+> *Nor linkding, a bookmark manager, by the same test — a bookmark collection
+> is a browsing history — decided in
+> [ADR-0060](0060-add-linkding-to-the-sensitive-tier-behind-one-factor.md).
 > The placement above is unchanged and this ADR is not superseded.*
 
 **The streaming tier — CasaBonita (40).** A quiet N100-class NAS holds the bulk

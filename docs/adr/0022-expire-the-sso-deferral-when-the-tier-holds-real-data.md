@@ -27,10 +27,14 @@
 > ([ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
 > The table is not edited.
 >
-> **And an eighth, the same day: linkding, with no second factor.** It offers
+> **And an eighth: Memos, with no second factor.** It has passwords and SSO
+> and nothing between them
+> ([ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
+>
+> **And a ninth, the same day: linkding, with no second factor.** It offers
 > OIDC or a trusted proxy header and nothing of its own, so its route is the
 > identity provider too. Adding it fires none of the triggers below
-> ([ADR-0059](0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+> ([ADR-0060](0060-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
 
 ## Context
 

@@ -1,6 +1,6 @@
 # Runbook: Restore the sensitive tier
 
-**Target:** the fifteen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — twelve of which the backup archives
+**Target:** the sixteen Docker data volumes on `trinity` (10.0.99.40), VLAN 99 — thirteen of which the backup archives
 **Time:** ten minutes for one volume; half an hour for the set on a rebuilt host
 **You will need:** a backup set, an age identity the set was encrypted to —
 `trinity`'s own key, or the technical second's — and the stack stopped; the
@@ -11,11 +11,12 @@ not repeated here: the scripts are the same, the phases are the same, and the
 reasons a restore is verified before anything is destroyed are argued there.
 What is different is what the volumes hold. On the observability host, four of
 five volumes are a *record* — metrics and logs that refill on their own. Here,
-most are rebuildable or re-fetched from somewhere else and seven are not:
+most are rebuildable or re-fetched from somewhere else and eight are not:
 
 | Volume | What it holds | If it is lost |
 | --- | --- | --- |
 | `vaultwarden-data` | The vault: every account, every item, every TOTP secret, the RSA key that signs every session | **Lost.** Nothing in git, nothing on another host, nothing regenerates it. This is the one the tier exists to protect |
+| `memos-data` | Memos: every account, every note in `memos_prod.db` (and its `-wal`), every attachment under `./assets` | **Lost.** Nothing regenerates it. [ADR-0059](../adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md) keeps estate documentation out of it, so what is lost is the household's notes, not a way back |
 | `home-assistant-config` | Home Assistant's own store: every login, every device credential a config flow produced, the recorder's history. `configuration.yaml` is the repository's and is mounted over it | **Lost**, and re-created by hand: every integration paired again, every credential re-issued by its vendor. ADR-0035 says why these live here and not in SOPS |
 | `immich-db` | Immich's metadata: every album, face, tag and the path of every original. The originals are on the USB disk, outside these volumes | **Lost**, unless Immich's own nightly dump beside the originals is intact — [Restore Immich](#restore-immich) below has that route, and it is the one to prefer for a database older than the library |
 | `immich-model-cache` | Downloaded ML models | Re-fetched on first use. **Not archived at all** — skipped by name in `backup-volumes.sh`, so it is never in a set and `make up` creates it empty |
@@ -31,7 +32,7 @@ most are rebuildable or re-fetched from somewhere else and seven are not:
 | `ntfy-data` | ntfy's `user.db` and twelve hours of message cache | Nothing. **Not archived at all** ([#136](https://github.com/Gerrrt/HomeLab/issues/136)): the users, access list and token are re-provisioned from `secrets/sensitive.sops.yaml` on every start, and the cache is notifications already delivered. `make up` creates it empty and ntfy fills it |
 | `adguard-work` | AdGuard's blocklists, query log, statistics and UI sessions | Re-downloaded and re-accumulated. **Not archived at all since 2026-09-28**: archiving it meant stopping AdGuard, which since that day is the house's only DNS forwarder, and the query log is the household's browsing history. The settings are `adguard/AdGuardHome.yaml`, in git |
 
-So this runbook is mostly about those seven, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
+So this runbook is mostly about those eight, and [#131](https://github.com/Gerrrt/HomeLab/issues/131)
 said why it had to exist before that volume held anything: *"a password vault
 is the one service here where 'it is running' and 'it is recoverable' are
 entirely different claims, and only the second one counts on the day it
@@ -111,6 +112,7 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 | step-ca will not start, log says `config/ca.json` | `step-ca-data` empty or replaced | §2, or re-mint from the monitoring host |
 | linkding's list is empty, or its login refuses the password from SOPS | `linkding-data` empty or replaced. On an empty volume linkding creates a fresh superuser from SOPS and an empty list | §2, `linkding-data` |
 | Home Assistant offers onboarding instead of a login | `home-assistant-config` empty or replaced — `.storage/auth` is gone | §2, `home-assistant-config` |
+| Memos offers to create the first account, or its notes are gone | `memos-data` empty or replaced | §2, `memos-data` |
 | The host's disk is gone | Hardware | §3, after rebuilding the host |
 | Files under `/var/lib/docker/volumes` deleted or encrypted | Ransomware, or a mis-aimed `rm -rf` | §3 — and **not** from a set on this host |
 
@@ -144,7 +146,7 @@ archive into it. It asks you to type the stamp, and it needs a terminal to ask
 owning uid against the one the service needs: `0` for `vaultwarden-data`,
 `home-assistant-config`, `caddy-data` and `caddy-config`, because those
 services run as root for the reasons `compose.yaml` measures; `1000` for
-`step-ca-data`; `65534` for `adguard-work`; `999` for `immich-db`,
+`step-ca-data`; `10001` for `memos-data`; `65534` for `adguard-work`; `999` for `immich-db`,
 `paperless-db-data`, `paperless-broker-data` and `miniflux-db-data`; `33` for
 `linkding-data`, which linkding's own start chowns back to 33 anyway.
 Paperless's other two belong
@@ -245,6 +247,22 @@ docker exec sensitive-home-assistant wget -q -O - http://localhost:8123/api/onbo
 #    refused with 400:
 ./scripts/seed-ha-http.sh --check
 #    Must say "already present and trusts 172.28.99.2".
+
+# 7. memos-data — the account table, read the way step 2 reads the vault's:
+#    with the -wal, which is where the last writes are if the stop was not
+#    clean. created_ts is epoch seconds.
+mkdir -p /tmp/memos
+for f in memos_prod.db memos_prod.db-wal memos_prod.db-shm; do
+  docker run --rm -v sensitive_memos-data:/d:ro \
+    "$(./scripts/image-for.sh archiver)" cat "/d/$f" > "/tmp/memos/$f" 2>/dev/null || true
+done
+python3 -c "import sqlite3;print(sqlite3.connect('/tmp/memos/memos_prod.db').execute(
+  'select username, created_ts from user').fetchall())"
+#    Every account must PREDATE the stamp, and registration must still be
+#    closed — it is a setting in this database, so a restore can reopen it:
+docker exec sensitive-memos wget -qO- http://127.0.0.1:5230/api/v1/instance/settings/GENERAL \
+  | grep -c '"disallowUserRegistration":true'
+#    Must be 1.
 ```
 
 Then from a client on Hicks — the checks a shell cannot do:

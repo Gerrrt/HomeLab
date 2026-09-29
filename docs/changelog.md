@@ -21,10 +21,10 @@ docstring gives: it is a record, not a claim about now.
 
 - **linkding is decided and authored for the sensitive tier; it is not
   deployed** ([#144](https://github.com/Gerrrt/HomeLab/issues/144),
-  [ADR-0059](adr/0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
-  It is the second service beyond ADR-0008's nine, after Miniflux. It is behind
+  [ADR-0060](adr/0060-add-linkding-to-the-sensitive-tier-behind-one-factor.md)).
+  It is the third service beyond ADR-0008's nine, after Miniflux and Memos. It is behind
   one factor because linkding has no other, and it is named in `security.md`
-  with Immich, AdGuard Home and Miniflux.
+  with Immich, AdGuard Home, Miniflux and Memos.
   - **Hardening needs four capabilities.** Measured on the pinned 1.47.0
     image: the bootstrap needs root with `CHOWN`, `DAC_OVERRIDE`, `SETUID` and
     `SETGID`, and every process that serves runs as uid 33 with no
@@ -62,6 +62,21 @@ docstring gives: it is a record, not a claim about now.
     it is off.
   - **There is no TOTP, and its passkeys are not a second step.** Miniflux
     is named beside Immich and AdGuard as single-factor.
+
+- **Memos is the second *Tier extras* service decided, and authored**
+  ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
+  It is notes, not documentation: `docs/` stays the record, and #124 is not
+  answered by it. Measured on the pinned image, read-only with every
+  capability dropped: it runs as its own `10001` with no root step, idles at
+  15 MiB, and needs no secret. Two things differ from what #145 assumed:
+  - **It is not one file.** Attachments are written under `./assets`, and
+    while it runs the database's writes sit in `memos_prod.db-wal` (a clean
+    stop checkpoints them). The backup names all three.
+  - **Sign-up cannot be closed from compose.** It is a setting in the
+    database, so the first login has to close it.
+
+  Not yet deployed on `trinity`.
 
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having

@@ -290,7 +290,12 @@ none is in the order until one is taken.
 - **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
   Deploying it on `trinity` is the stack README's *Adding it to the running
   tier*: two SOPS keys, one host override, `make up`.
-- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0059](adr/0059-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
+- **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
+  and authored in `stacks/sensitive`. What remains is the deploy on `trinity`:
+  the `memos` host override, `make up`, and registration closed at first login.
+  It holds no real notes until ADR-0023's *Durable* condition is met.
+- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0060](adr/0060-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
   Deploying it on `trinity` is the same section of the stack README: one SOPS
   key and `make up`. The host override was added on 2026-09-29.
 
