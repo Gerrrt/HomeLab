@@ -59,7 +59,7 @@ up: render ## Render config and start the stack
 	@if [ "$(STACK)" = sensitive ]; then ./scripts/seed-ha-http.sh; fi
 	@# Actual has no password setting: a fresh server belongs to whoever reaches
 	@# it first. Claimed from SOPS with no network before its first start; a
-	@# claimed one is only checked (seed-actual-password.sh, ADR-0058).
+	@# claimed one is only checked (seed-actual-password.sh, ADR-0059).
 	@if [ "$(STACK)" = sensitive ]; then ./scripts/seed-actual-password.sh; fi
 	$(COMPOSE) up -d --remove-orphans
 	@# `up -d` recreates a container only when its *service definition* changes,

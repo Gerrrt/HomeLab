@@ -1,4 +1,4 @@
-# ADR-0058: Add Actual to the sensitive tier, and claim it before it answers
+# ADR-0059: Add Actual to the sensitive tier, and claim it before it answers
 
 **Status:** Accepted · 2026-09 · adds a service to the tier
 [ADR-0008](0008-place-services-by-data-trust.md) created, a row to the classes

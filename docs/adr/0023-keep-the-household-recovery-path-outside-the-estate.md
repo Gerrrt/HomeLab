@@ -7,7 +7,7 @@
 > in the class of Immich and Paperless-ngx, and holds no real data before the
 > off-estate copy exists, for the same reason. Every client keeps a copy of
 > the budget, which survives losing the server and not a bad sync
-> ([ADR-0058](0058-add-actual-to-the-sensitive-tier.md)). The table below is
+> ([ADR-0059](0059-add-actual-to-the-sensitive-tier.md)). The table below is
 > not edited.
 
 ## Context

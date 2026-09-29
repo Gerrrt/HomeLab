@@ -30,7 +30,7 @@
 > **And an eighth, the same day: Actual, with no second factor.** It has none
 > short of OpenID, so it belongs in the table's "None" rows with Immich,
 > AdGuard Home and Miniflux
-> ([ADR-0058](0058-add-actual-to-the-sensitive-tier.md)). The table is not
+> ([ADR-0059](0059-add-actual-to-the-sensitive-tier.md)). The table is not
 > edited.
 
 ## Context

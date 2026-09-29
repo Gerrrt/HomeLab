@@ -34,7 +34,7 @@ make up STACK=sensitive
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
-| actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The second service beyond ADR-0008's nine, by [ADR-0058] ([#142]) |
+| actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The second service beyond ADR-0008's nine, by [ADR-0059] ([#142]) |
 
 Seventeen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
@@ -624,7 +624,7 @@ factor. `compose.yaml` has what was measured on the pinned image.
 ## Actual
 
 The household's budget ([#142]), and the second service here beyond [ADR-0008]'s nine, after Miniflux.
-[ADR-0058] is the decision and why it is Actual rather than Firefly III.
+[ADR-0059] is the decision and why it is Actual rather than Firefly III.
 `compose.yaml` has the service and what was measured on the pinned image.
 What has to be true around it is here.
 
@@ -670,7 +670,7 @@ What has to be true around it is here.
   so the client counted is the phone rather than the proxy.
 - **No bank sync.** GoCardless and SimpleFIN are configured in the app, and
   neither is. Transactions come in as imported files (OFX, QFX, QIF, CSV,
-  CAMT). Turning bank sync on is a decision ([ADR-0058] §4). It puts a third
+  CAMT). Turning bank sync on is a decision ([ADR-0059] §4). It puts a third
   party's credentials in `account.sqlite` and has the server reach out on a
   schedule.
 - **Clients are a copy, not a backup.** Every client holds the whole budget,
@@ -838,7 +838,7 @@ it matters:
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
 [ADR-0057]: ../../docs/adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md
-[ADR-0058]: ../../docs/adr/0058-add-actual-to-the-sensitive-tier.md
+[ADR-0059]: ../../docs/adr/0059-add-actual-to-the-sensitive-tier.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
