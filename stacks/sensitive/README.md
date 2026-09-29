@@ -206,36 +206,34 @@ time and lives in Caddy's `/data` volume, never on disk here.
   is one Home Assistant writes rather than one this repository ships. The
   packages README says the rest. Integrations and devices are still added
   through the UI: a config flow has no YAML form.
-- **Home Assistant's `http:` block is a one-time import, and it has to be
-  confirmed.** Since 2026.9 the YAML is migrated into `.storage/http` on the
-  first start against an empty volume, as a *pending* config. Home Assistant
-  reverts it to defaults, which trust no proxy, unless an admin promotes it
-  within five minutes, and never reads the YAML again. The symptom is
-  `400: Bad Request` on `homeassistant.matrix.elysium` and *"your HTTP
-  integration is not set-up for reverse proxies"* in its log. It hit
-  `trinity`'s first start on 2026-09-28. The fix is to do what the promote
-  call does, with the container stopped, using its own pinned image:
-
-  ```bash
-  docker stop sensitive-home-assistant
-  docker run --rm --network none -v sensitive_home-assistant-config:/config \
-    --entrypoint python3 "$(COMPOSE_FILE=stacks/sensitive/compose.yaml ./scripts/image-for.sh home-assistant)" -c '
-  import json, shutil
-  p = "/config/.storage/http"; shutil.copy2(p, p + ".bak")
-  d = json.load(open(p)); s = d["data"]; c = s["pending"]
-  assert c and c["trusted_proxies"] == ["172.28.99.2/32"], c
-  c["error"] = c["error_message"] = None
-  s["stable"], s["pending"] = c, None
-  json.dump(d, open(p, "w"), indent=2)'
-  docker start sensitive-home-assistant
-  ```
-
-  The `assert` refuses anything but the config this repository wrote. A
-  restore of `home-assistant-config` brings `.storage/http` back with it and
-  needs none of this.
+- **Home Assistant's HTTP settings are seeded into its volume, not written in
+  `configuration.yaml`.** Since 2026.9 they live in `.storage/http`. A YAML
+  `http:` block is imported once, as a *pending* config that reverts to
+  defaults unless an admin promotes it within five minutes, and from 2027.2 it
+  is not read at all. The defaults trust no proxy. So the store is written
+  before Home Assistant's first start by `scripts/seed-ha-http.sh`, which
+  `make up STACK=sensitive` runs first. It writes the *stable* slot with
+  `pending` empty, which Home Assistant runs as-is: no trial, nothing to
+  promote. It builds the file in the pinned image, from Home Assistant's own
+  schema and store version.
+  - **A fresh volume is seeded.** Proved 2026-09-29 against the real
+    `compose.yaml` under a throwaway project: a request with
+    `X-Forwarded-For` from `172.28.99.2` got `302`, from `.3` got `400`, and
+    an unseeded control got `400` from both.
+  - **An existing store is never overwritten.** A restored volume brings its
+    own `.storage/http` back, and a live one may have been changed in the UI.
+    `make up` only checks it, and warns if it does not trust Caddy.
+  - **`scripts/seed-ha-http.sh --check`** reads it without changing anything.
+  - **`--force`**, with Home Assistant stopped, rewrites it. That is the fix
+    for the one symptom this prevents: `400: Bad Request` on
+    `homeassistant.matrix.elysium`, with *"your HTTP integration is not set-up
+    for reverse proxies"* in its log, as on `trinity`'s first start on
+    2026-09-28.
 - **Caddy has a fixed address, `172.28.99.2`, for one reader.** Home
   Assistant's `trusted_proxies` names the proxy it will believe
-  `X-Forwarded-For` from, and a Docker-assigned address is not a name. The
+  `X-Forwarded-For` from, and a Docker-assigned address is not a name.
+  `seed-ha-http.sh` reads the address from `compose.yaml`'s one `ipv4_address:`, so
+  the two cannot drift. The
   network's subnet is fixed for that one line and nothing else. Its
   `ip_range` keeps Docker's own assignments in `.128` and up, because Caddy
   starts last and on 2026-09-28 found `.2` already taken by Vaultwarden.

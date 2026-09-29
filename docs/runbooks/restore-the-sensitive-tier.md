@@ -175,6 +175,13 @@ Same, without `--only`. On a rebuilt host, in this order:
 > Assistant on an empty volume writes a fresh store and offers onboarding, the
 > same waste. step-ca is the safe one: on an empty volume it refuses to start
 > at all.
+>
+> **Home Assistant's HTTP settings come back with the volume.** They are
+> `.storage/http`, inside `home-assistant-config`, and they are what makes it
+> trust Caddy. A restored volume carries them, and `make up`'s seed step leaves
+> an existing store alone. A rebuild with no set to restore gets them from
+> `scripts/seed-ha-http.sh`, which `make up` runs on the empty volume. Either
+> way, §4 step 6 checks them.
 
 `step-ca-data` has a second route: re-mint the intermediate on the monitoring
 host and populate the volume by hand, as the build does. Prefer that over a set
@@ -229,6 +236,10 @@ docker exec sensitive-step-ca step ca health --ca-url https://localhost:9000 \
 docker exec sensitive-home-assistant wget -q -O - http://localhost:8123/api/onboarding \
   | grep -c '"done": false'
 #    Must be 0: every onboarding step is already done in a restored store.
+#    And the HTTP settings came back too, so requests through Caddy are not
+#    refused with 400:
+./scripts/seed-ha-http.sh --check
+#    Must say "already present and trusts 172.28.99.2".
 ```
 
 Then from a client on Hicks — the checks a shell cannot do:
