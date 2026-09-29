@@ -20,6 +20,12 @@
 # and the rules with no description show severity and category instead,
 # because an empty message makes ntfy print "triggered". The full text is in
 # Alertmanager and Grafana. `.yml`, not `.yaml`: ntfy loads nothing else.
+#
+# TWO READERS. ntfy on trinity loads this file (`make up STACK=sensitive`).
+# scripts/render-config.sh on the monitoring host also reads it and passes the
+# same three templates to ntfy.sh inline, in the URLs of the ntfy.sh copies,
+# because ntfy.sh cannot load a file. So a change here needs `make render` on
+# prometheus too, or the two copies of a page stop looking alike.
 title: |
   {{- $sev := .commonLabels.severity | default "" -}}
   {{- if eq .status "resolved" }}✅ Resolved: {{ else if eq $sev "critical" }}🔴 {{ end -}}
