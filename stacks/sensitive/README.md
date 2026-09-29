@@ -7,8 +7,10 @@ was rehearsed on it. **Deployed there since 2026-09-28**, built by
 [`build-the-sensitive-tier-host.md`](../../docs/runbooks/build-the-sensitive-tier-host.md)
 under [#404]. It was authored ahead of the hardware, the way `stacks/lab` was, and
 the first start found five things that the file could not show; the sections
-below carry each of them. **It holds no real data yet**: #404 step 10 is the
-gate.
+below carry each of them. **It holds real data since 2026-09-28** — Immich's
+first 615 photographs, which arrived before the off-estate copy that #404 step
+10 gates them on; [*What backs Immich up*](#what-backs-immich-up-and-what-does-not-yet)
+says what that leaves exposed.
 
 ```bash
 make up STACK=sensitive
@@ -575,9 +577,11 @@ no set contains it.
 
 The photographs are the household data most likely to be irreplaceable, and
 [ADR-0023] classes Immich as *durable*: it may be down, it may not be lost,
-and before the first real photo arrives an off-estate copy has to exist whose
-staleness is visible. Three things hold the data, and they are protected by
-three different mechanisms — two of which do not exist yet.
+and an off-estate copy whose staleness is visible was to exist before the
+first real photo arrived. It did not; the warning below is the record. Three
+things hold the data, and they are protected by two different mechanisms —
+one of which, the off-estate copy that covers the first two rows, does not
+exist yet.
 
 > [!WARNING]
 > **The first real photographs arrived before that copy did.** Two accounts
@@ -590,7 +594,7 @@ three different mechanisms — two of which do not exist yet.
 
 | What | Where | Protected by |
 | --- | --- | --- |
-| The originals, thumbnails and transcodes | `IMMICH_UPLOAD_LOCATION` — the USB disk | The off-estate copy [ADR-0023] requires. **Not built**: its destination, a WD Elements 5 TB, was bought on 2026-09-22 under [#455] and has not been delivered. It is the precondition on the first real photo, not on the container starting |
+| The originals, thumbnails and transcodes | `IMMICH_UPLOAD_LOCATION` — the USB disk | The off-estate copy [ADR-0023] requires. **Not built**: its destination, a WD Elements 5 TB, was bought on 2026-09-22 under [#455] and has not been delivered. [ADR-0023] made it the precondition on the first real photo; the photos came first, as the warning above records |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | The same copy — it is on the same disk, on purpose, so one copy of the disk is a copy of the metadata beside the originals |
 | The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `oracle` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
 
@@ -623,16 +627,18 @@ throwaway keypair where the real one will be mounted.
 What `make validate` still does **not** prove about this stack, in the order
 it matters:
 
-- **That it runs on `trinity`.** Nothing here has been deployed there — the
-  host is [#404]. What has been run is the pieces in isolation, on the
-  monitoring host: the Immich services on 2026-09-09 with these exact
+- **That it runs on `trinity`.** That is proved by running it there, which
+  it has since 2026-09-28 under [#404], by
+  [`build-the-sensitive-tier-host.md`](../../docs/runbooks/build-the-sensitive-tier-host.md)
+  §9. Before the host existed, what had been run was the pieces in isolation,
+  on the monitoring host: the Immich services on 2026-09-09 with these exact
   settings, an admin created, an upload made and the ML models fetched, which
   is how the read-only findings in `compose.yaml` were made; Paperless-ngx and
   its two dependencies the same way, a scan consumed and deleted as the
   operator's uid; Caddy with this `Caddyfile` under the compose file's options;
   Vaultwarden likewise; and a full `make backup` / `make restore` round trip of
   four of the volumes with a seeded account in the vault — the runbook says
-  exactly what that proved. That is a rehearsal of the file, not of the host.
+  exactly what that proved. That was a rehearsal of the file, not of the host.
 - **That the CA tree exists.** `step-ca` starts only against a populated
   volume, and the volume is populated by a procedure run on two hosts. A fresh
   `make up` on a bare `trinity` fails on `config/ca.json`, loudly and on
