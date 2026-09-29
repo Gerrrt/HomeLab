@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **The sensitive backup would have stopped before archiving anything,
+  from the first run after linkding merged**
+  ([#144](https://github.com/Gerrrt/HomeLab/issues/144)).
+  - **Cause.** #731 gave `linkding-data` the sentinel `./db.sqlite3`, which is
+    `vaultwarden-data`'s, and `load_inventory()` refuses a table where two
+    volumes share one. That is the same failure #734 fixed for Miniflux the
+    same day.
+  - **Why it was not fixed the same way.** Miniflux's fix, a nested cluster
+    directory, is not open to linkding: its application lives in
+    `/etc/linkding`, so the volume can only be mounted at `data/`.
+  - **The fix.** Linkding's sentinel is now `./secretkey.txt`, and
+    `./db.sqlite3` moves to its companions: #468's soft-hit rule, as
+    `loki-data` and `paperless-data` share `./index`.
+  - **Measured on the pinned 1.47.0 image:** `secretkey.txt` exists before
+    the first healthy check and was unchanged after a restart and a clean
+    stop. No volume on `trinity` has one at its top level.
+  - **Proved with `verify()` on synthetic archives:** each archive verifies
+    under its own name, and each is refused under the other's.
+  - **Timing.** It was caught about twelve hours before the first 04:30 run
+    that would have hit it, on the checkout the timer runs from.
+
 - **Miniflux and Memos are deployed on `trinity`**
   ([#147](https://github.com/Gerrrt/HomeLab/issues/147),
   [#145](https://github.com/Gerrrt/HomeLab/issues/145)). This corrects the
