@@ -17,6 +17,35 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-29
+
+- **The alert path runs through the in-house ntfy, and has been seen failing
+  over** ([#136](https://github.com/Gerrrt/HomeLab/issues/136), closed).
+  The cutover in
+  [`verify-the-alert-path.md`](runbooks/verify-the-alert-path.md#cutting-over-to-the-in-house-ntfy)
+  was run across both hosts with both phones in hand, and its table has the
+  times.
+  - **Both halves observed.** A synthetic page arrived in-house over Wi-Fi,
+    and on the ntfy.sh copy over mobile data. With ntfy stopped on
+    `trinity`, `EndpointUnreachable` paged through ntfy.sh at 03:18, six
+    minutes after the stop.
+  - **Alerts now read as a title and a line** on both copies, with priority
+    taken from severity
+    ([#716](https://github.com/Gerrrt/HomeLab/pull/716),
+    [#719](https://github.com/Gerrrt/HomeLab/pull/719)). Before that, the
+    phones got whole paragraphs, or raw JSON from ntfy.sh.
+  - **Three things only the cutover could find.**
+    - The tier's seven-day leaves tripped the estate's 7-day expiry rule on
+      the first probe
+      ([#718](https://github.com/Gerrrt/HomeLab/pull/718)).
+    - `make secrets-edit` leaves the deployment checkout dirty, and that
+      stopped convergence on `prometheus` for about four hours
+      ([#717](https://github.com/Gerrrt/HomeLab/pull/717),
+      [#720](https://github.com/Gerrrt/HomeLab/pull/720)).
+    - A secrets edit reaches Alertmanager only after `make render`.
+  - **Not run:** the runbook's lowered-Watchdog check and the
+    `category=security` page. They are recorded as open in the runbook.
+
 ## 2026-09-28
 
 - **ntfy is authored for the sensitive tier, and Alertmanager is repointed
