@@ -44,7 +44,7 @@ docstring gives: it is a record, not a claim about now.
     is named beside Immich and AdGuard as single-factor.
 - **Stirling-PDF is decided and authored for the sensitive tier, not yet
   deployed** ([#143](https://github.com/Gerrrt/HomeLab/issues/143),
-  [ADR-0059](adr/0059-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). It is the second service beyond ADR-0008's nine, after Miniflux. The
+  [ADR-0060](adr/0060-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)). It is the third service beyond ADR-0008's nine, after Miniflux and Memos. The
   pinned image (`3.0.0`) was booted on `trinity` beside the live stack, on an
   internal network of its own, read-only, as uid 1001, with every capability
   dropped. It ran OCR, conversion, merge, rotate, split and compress, and three
@@ -61,6 +61,21 @@ docstring gives: it is a record, not a claim about now.
 
   Memory: 790 MiB idle and 1.4 GiB at peak through a 40-page 300 dpi OCR,
   under a 3 GiB limit that also holds the 1 GiB of document tmpfs.
+
+- **Memos is the second *Tier extras* service decided, and authored**
+  ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
+  It is notes, not documentation: `docs/` stays the record, and #124 is not
+  answered by it. Measured on the pinned image, read-only with every
+  capability dropped: it runs as its own `10001` with no root step, idles at
+  15 MiB, and needs no secret. Two things differ from what #145 assumed:
+  - **It is not one file.** Attachments are written under `./assets`, and
+    while it runs the database's writes sit in `memos_prod.db-wal` (a clean
+    stop checkpoints them). The backup names all three.
+  - **Sign-up cannot be closed from compose.** It is a setting in the
+    database, so the first login has to close it.
+
+  Not yet deployed on `trinity`.
 
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having

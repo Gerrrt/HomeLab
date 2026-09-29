@@ -337,6 +337,10 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # move it here — loudly, since the script refuses to write an archive it
 # cannot verify; and Valkey's ./dump.rdb is written by `--save 60 1` and again
 # on the SIGTERM a quiesce sends, which is the case that was checked.
+# Miniflux's Postgres is the same image, so compose.yaml gives it
+# PGDATA=.../18/miniflux: with the image's default the two volumes carried
+# the same ./18/docker/PG_VERSION, check_sentinel_table() refused the whole
+# run, and a crossed mapping between them could not have been seen anyway.
 #
 # Jellyfin's (jellyfin-config) is the one entry here that no compose file on
 # this host declares: it is an ARCHIVE name, consumed by scripts/backup-nas.sh,
@@ -368,6 +372,12 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # finishes, with a 4 MB -wal and a -shm beside it, and ./artwork appears as
 # the scanner extracts covers. Nothing else is written there — the cache is a
 # tmpfs on ND_CACHEFOLDER.
+#
+# Memos' (memos-data, #145) is the sensitive tier's fourth SQLite, read off a
+# boot of the pinned image on 2026-09-29 as uid 10001: ./memos_prod.db exists
+# before the port opens, 4 KB, with the schema and every later write in a
+# -wal beside it until a checkpoint. A clean stop checkpoints: read after
+# `docker stop`, the main file held the account and the -wal was empty.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -378,6 +388,7 @@ declare -A SENTINEL=(
   [caddy-config]="./caddy/autosave.json"
   [step-ca-data]="./config/ca.json"
   [vaultwarden-data]="./db.sqlite3"
+  [memos-data]="./memos_prod.db"
   [home-assistant-config]="./.HA_VERSION"
   [adguard-work]="./data/sessions.db"
   [immich-db]="./PG_VERSION"
@@ -385,7 +396,7 @@ declare -A SENTINEL=(
   [paperless-media]="./documents"
   [paperless-db-data]="./18/docker/PG_VERSION"
   [paperless-broker-data]="./dump.rdb"
-  [miniflux-db-data]="./18/docker/PG_VERSION"
+  [miniflux-db-data]="./18/miniflux/PG_VERSION"
   [jellyfin-config]="./data/jellyfin.db"
   [audiobookshelf-state]="./config/absdatabase.sqlite"
   [navidrome-data]="./navidrome.db"
@@ -402,6 +413,12 @@ declare -A SENTINEL=(
 # registered a minute earlier, and db.sqlite3 read on its own shows no such
 # user. The quiesced archive carries all three files, so a restore is
 # consistent; a check that copies the main file alone is not.
+#
+# Memos is the same shape: while it runs, its fresh database is a 4 KB header
+# and the account and the first notes live only in memos_prod.db-wal. A clean
+# stop folds them back; a killed one leaves them there, which is why it is
+# listed. ./assets is where every attachment goes, and appears on the first
+# upload.
 declare -A COMPANIONS=(
   [prometheus-data]="./wal ./lock ./queries.active"
   [loki-data]="./wal ./index ./compactor"
@@ -412,6 +429,7 @@ declare -A COMPANIONS=(
   [caddy-config]=""
   [step-ca-data]="./certs ./secrets ./db"
   [vaultwarden-data]="./rsa_key.pem ./db.sqlite3-wal ./attachments ./sends ./icon_cache"
+  [memos-data]="./memos_prod.db-wal ./assets"
   [home-assistant-config]="./.storage ./home-assistant_v2.db"
   [adguard-work]="./data/stats.db ./data/filters"
   [immich-db]="./base ./pg_wal ./postgresql.conf"
@@ -419,7 +437,7 @@ declare -A COMPANIONS=(
   [paperless-media]="./documents/originals ./documents/archive ./documents/thumbnails"
   [paperless-db-data]="./18/docker/base ./18/docker/pg_wal"
   [paperless-broker-data]=""
-  [miniflux-db-data]="./18/docker/base ./18/docker/pg_wal"
+  [miniflux-db-data]="./18/miniflux/base ./18/miniflux/pg_wal"
   [jellyfin-config]="./data/jellyfin.db-wal ./config/system.xml ./metadata ./plugins"
   [audiobookshelf-state]="./config/migrations ./metadata/items ./metadata/logs"
   [navidrome-data]="./navidrome.db-wal ./artwork"
@@ -458,7 +476,7 @@ declare -A COMPANIONS=(
 # delivered. ADR-0023 classes ntfy as Unclassed for the same reason. Skipping
 # it also keeps ntfy running through a backup, which is when a failed backup
 # would want to page.
-# stirling-pdf-configs (#143) holds no document, by ADR-0059's design: they
+# stirling-pdf-configs (#143) holds no document, by ADR-0060's design: they
 # live on a tmpfs and never reach a volume. What it does hold is rebuilt on an
 # empty volume. The admin comes back from STIRLING_ADMIN_PASSWORD, the settings
 # are the environment's, and the keys it generates sign sessions and encrypt

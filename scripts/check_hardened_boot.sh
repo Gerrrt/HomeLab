@@ -23,7 +23,7 @@
 #   3. works       only if the service's config directory holds a smoke.sh:
 #                  it is run with the container id and must exit 0. For a
 #                  service whose healthcheck can pass while its work fails.
-#                  Stirling-PDF is the case that asked for it (ADR-0059): with
+#                  Stirling-PDF is the case that asked for it (ADR-0060): with
 #                  a noexec /tmp it answered its status endpoint and returned
 #                  500 from every pdfium tool.
 #   4. gone        `down -v`, always, from a trap.

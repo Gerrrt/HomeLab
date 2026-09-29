@@ -290,8 +290,13 @@ none is in the order until one is taken.
 - **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
   Deploying it on `trinity` is the stack README's *Adding it to the running
   tier*: two SOPS keys, one host override, `make up`.
+- **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
+  and authored in `stacks/sensitive`. What remains is the deploy on `trinity`:
+  the `memos` host override, `make up`, and registration closed at first login.
+  It holds no real notes until ADR-0023's *Durable* condition is met.
 - **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
-  decided and authored ([ADR-0059](adr/0059-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): on `trinity` behind Caddy at
+  decided and authored ([ADR-0060](adr/0060-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): on `trinity` behind Caddy at
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
   none reaches a disk. What is left is the deploy. Set
   `STIRLING_ADMIN_PASSWORD` with `make secrets-edit STACK=sensitive`, add the

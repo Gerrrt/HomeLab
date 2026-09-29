@@ -538,7 +538,7 @@ jobs:
 
       # Stirling-PDF runs read-only as a non-root uid its entrypoint was
       # written to drop to, not start as, with every document on tmpfs
-      # (ADR-0059). Each of those is a way for an upstream bump to stop it
+      # (ADR-0060). Each of those is a way for an upstream bump to stop it
       # booting, and this is where that would show. Its healthcheck can pass
       # while pdfium cannot load, so stirling-pdf/smoke.sh merges two pages
       # after the boot as well.

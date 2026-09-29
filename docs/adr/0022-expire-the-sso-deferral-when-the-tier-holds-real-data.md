@@ -26,6 +26,10 @@
 > identity provider again
 > ([ADR-0057](0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
 > The table is not edited.
+>
+> **And an eighth: Memos, with no second factor.** It has passwords and SSO
+> and nothing between them
+> ([ADR-0059](0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)).
 
 ## Context
 

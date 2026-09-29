@@ -5,8 +5,8 @@
 # TWO KINDS OF TILE, and the difference is the point:
 #
 #   - A LINK: a name, a line saying what it is for, and an href. That is all
-#     it claims. Home Assistant, AdGuard, Vaultwarden, Miniflux, Stirling-PDF
-#     and Grafana are links.
+#     it claims. Home Assistant, AdGuard, Vaultwarden, Miniflux, Memos,
+#     Stirling-PDF and Grafana are links.
 #   - A WIDGET: live numbers read server-side, with a credential scoped
 #     READ-ONLY or none at all. Immich and Paperless-ngx are read from their
 #     own APIs; Prometheus, the UPS, the firewall, the iLO and the NAS are read
@@ -15,7 +15,8 @@
 # Why the links are links. Home Assistant's long-lived access token carries
 # every right of the user who minted it, and a user that can read state can
 # also switch things. AdGuard Home has one account, the admin — its widget
-# would hold the admin password. Vaultwarden has no widget, and should not.
+# would hold the admin password. Vaultwarden has no widget, and should not;
+# Memos' only token is a user's, with every right that user has.
 # Grafana's widget wants a username and password, and trinity does not carry
 # the estate's CA that Grafana's certificate is issued from (ADR-0037).
 # Prometheus already reports the observability stack's own state. A widget
@@ -61,7 +62,7 @@
     - PDF tools:
         icon: stirling-pdf.svg
         # A link: Stirling keeps nothing, so there is no number worth a
-        # credential on this page (ADR-0059).
+        # credential on this page (ADR-0060).
         href: https://pdf.matrix.elysium
         description: Stirling-PDF — merge, split, sign, OCR; nothing leaves the house
 
@@ -69,6 +70,11 @@
         icon: vaultwarden.svg
         href: https://vaultwarden.matrix.elysium
         description: Vaultwarden — the Bitwarden apps point here
+
+    - Notes:
+        icon: memos.svg
+        href: https://memos.matrix.elysium
+        description: Memos — quick notes, kept in the house
 
     - Home:
         icon: home-assistant.svg

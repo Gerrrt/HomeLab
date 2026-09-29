@@ -27,9 +27,10 @@
 # Homepage (#137) is the sixth, and the household's page of links to the other
 # five. ntfy (#136) is the seventh, and where the estate's alerts now arrive.
 # Miniflux (#147) is the eighth, and the first beyond ADR-0008's nine —
-# ADR-0057 decided it before it was written here.
-# Stirling-PDF (#143) is the ninth, and the second beyond ADR-0008's nine:
-# ADR-0059 is its decision, and DIFFERENCE 13 the one new thing it does.
+# ADR-0057 decided it before it was written here. Memos (#145) is the ninth,
+# decided by ADR-0059.
+# Stirling-PDF (#143) is the tenth, and the third beyond ADR-0008's nine:
+# ADR-0060 is its decision, and DIFFERENCE 13 the one new thing it does.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -121,6 +122,7 @@ services:
           - immich.matrix.elysium
           - paperless.matrix.elysium
           - vaultwarden.matrix.elysium
+          - memos.matrix.elysium
           - home.matrix.elysium
           - ntfy.matrix.elysium
           - miniflux.matrix.elysium
@@ -581,6 +583,70 @@ services:
       # path DOMAIN implies, which here is /alive. curl ships in the image, and
       # check_compose_health.py --probe proves that on every run.
       test: ["CMD", "/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Memos — the household's notes (#145, ADR-0059)
+  # ---------------------------------------------------------------------------
+  # The second service beyond ADR-0008's nine, and in Vaultwarden's shape:
+  # `expose:` and no `ports:`, reached from Hicks by name through Caddy's 443
+  # at https://memos.matrix.elysium, which the existing 50→99 pass already
+  # allows. Notes, not documentation: docs/ stays the estate's record
+  # (ADR-0059 says why that is a boundary and not a preference).
+  #
+  # NOT root, unlike Vaultwarden. Measured on the pinned image on 2026-09-29:
+  # /var/opt/memos is 10001:10001 2755 in the image, and a named volume mounted
+  # there inherits it, so the process can start as that uid directly. The
+  # image's entrypoint starts as root to chown the directory and su-exec down;
+  # started as 10001 it skips that block and execs the binary, so it needs no
+  # capability at all. Booted with exactly these options it came up healthy,
+  # created its database, took a user, and stored an upload.
+  #
+  # What the volume holds, read off that boot: memos_prod.db in WAL mode —
+  # while it runs, a fresh database is 4 KB with everything in the -wal beside
+  # it, and a clean stop checkpoints it back — and ./assets, where the default
+  # LOCAL storage writes every attachment. So it is one database and a
+  # directory of files, not the one file #145 hoped.
+  #
+  # No secret. Sign-up is an instance setting stored in the database, not an
+  # environment variable: the first account becomes the admin, and the README
+  # has the step that turns registration off behind it.
+  #
+  # MEMOS_INSTANCE_URL is the canonical external URL, used for links it
+  # generates. MEMOS_TRUSTED_PROXIES is the image's default ("private") made
+  # explicit: only Caddy on the bridge can reach 5230, so X-Forwarded-For is
+  # believed, and the rate limit sees the client on Hicks.
+  #
+  # 128m: 15 MiB RSS idle on the pinned image, and the same after an upload.
+  # Eight times that, to bound a leak rather than to size.
+  memos:
+    <<: *service-defaults
+    image: neosmemo/memos:0.31.0@sha256:24c2707ddd8fbd2ceaa7a61ecab86a53cdcde640b24ce572b73da14b00b5785f
+    container_name: sensitive-memos
+    user: "10001:10001"
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    environment:
+      MEMOS_PORT: "5230"
+      MEMOS_INSTANCE_URL: https://memos.matrix.elysium
+      MEMOS_TRUSTED_PROXIES: private
+    volumes:
+      - memos-data:/var/opt/memos
+    expose:
+      - "5230"
+    healthcheck:
+      # /healthz answers once the database is open. wget is busybox's, in the
+      # Alpine base; check_compose_health.py --probe proves it on every run.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5230/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -1187,7 +1253,7 @@ services:
       start_period: 10s
 
   # ---------------------------------------------------------------------------
-  # Stirling-PDF — the household's PDF editor (#143, ADR-0059)
+  # Stirling-PDF — the household's PDF editor (#143, ADR-0060)
   # ---------------------------------------------------------------------------
   # Merge, split, rotate, convert, OCR, sign, compress: what otherwise goes to
   # whichever free PDF website ranks first that week. Paperless keeps
@@ -1517,6 +1583,16 @@ services:
   # service never has to reason about the other (ADR-0057). Miniflux does not
   # support SQLite; this is its one dependency.
   #
+  # One departure from paperless-db: PGDATA names the cluster directory
+  # ./18/miniflux rather than the image's ./18/docker. The two volumes were
+  # otherwise laid out identically, so backup-volumes.sh could not tell one
+  # archive from the other and refused to run at all (its sentinel table
+  # forbids a shared sentinel). Set before the volume was ever created on
+  # trinity, so nothing moves. Measured on the pinned image on 2026-09-29,
+  # under exactly these options: initdb writes ./18/miniflux/PG_VERSION, the
+  # server reports that data_directory, and pg_isready answers. A move to 19
+  # is a sibling ./19/miniflux, the way ./19/docker would be.
+  #
   # 512m, paperless-db's number: 42 MiB after migrations, and shared_buffers
   # defaults to 128 MB. The content is every stored entry, which the image's
   # cleanup job archives after 60 days read and 180 unread.
@@ -1538,6 +1614,7 @@ services:
       POSTGRES_DB: miniflux
       POSTGRES_USER: miniflux
       POSTGRES_PASSWORD: ${MINIFLUX_DBPASS:?set in secrets/sensitive.sops.yaml}
+      PGDATA: /var/lib/postgresql/18/miniflux
     volumes:
       - miniflux-db-data:/var/lib/postgresql
     expose:
@@ -1602,6 +1679,8 @@ volumes:
   # paperless-media, one of the volumes here whose loss is a loss of function
   # rather than of a record — docs/runbooks/restore-the-sensitive-tier.md.
   vaultwarden-data:
+  # Memos' database, its -wal, and ./assets, every attachment (ADR-0059).
+  memos-data:
   # ntfy's user.db and twelve hours of message cache. The first is rebuilt from
   # the environment on every start (DIFFERENCE 12) and the second has already
   # been delivered, so scripts/backup-volumes.sh skips it by name.
@@ -1614,5 +1693,5 @@ volumes:
   # generated settings.yml and keys, and the nightly SQL dump it takes of its
   # own database. No document ever lands here — those are DIFFERENCE 13's
   # tmpfs — and everything in it is rebuilt from the environment on an empty
-  # volume, so scripts/backup-volumes.sh skips it by name (ADR-0059).
+  # volume, so scripts/backup-volumes.sh skips it by name (ADR-0060).
   stirling-pdf-configs:

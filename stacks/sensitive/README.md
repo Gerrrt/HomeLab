@@ -30,13 +30,14 @@ make up STACK=sensitive
 | paperless-db | `postgres` | *internal* (5432) | Paperless-ngx's own database. Metadata about documents; the documents themselves are files under `paperless-media` |
 | paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
+| memos | `neosmemo/memos` | *internal* (5230) | The household's quick notes, at `https://memos.matrix.elysium`. Notes, not documentation — the second service beyond [ADR-0008]'s nine, by [ADR-0059] ([#145]) |
 | homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on the estate and where it lives, grouped by VLAN. A directory, not a status page — seven tiles read live numbers, with read-only tokens or from Prometheus; the rest are links ([#137]) |
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
-| stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0059]) |
+| stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0060]) |
 
-Seventeen services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Eighteen services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
@@ -44,7 +45,8 @@ Paperless-ngx, the archive of what the household cannot get back; Homepage
 is the page that tells the household the rest exist; ntfy is the one the
 estate uses, to tell the operator what is wrong with the rest; two are
 Miniflux, the first of the tier extras, decided by an ADR of its own before it
-was written here; and Stirling-PDF, the second, is the one that keeps nothing.
+was written here; Memos, the second, holds the household's notes; and
+Stirling-PDF, the third, is the one that keeps nothing.
 What is
 absent is as deliberate as what is here:
 
@@ -56,9 +58,9 @@ absent is as deliberate as what is here:
   not in the lab's: it is the estate's, deployed identically everywhere.
 - **No other services planned.** The next one, whenever it comes, arrives as
   Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy,
-  Miniflux and Stirling-PDF did — and, beyond ADR-0008's nine, after an ADR of
-  its own, as [ADR-0057] was for Miniflux and [ADR-0059] for Stirling-PDF: a
-  service with
+  Miniflux, Memos and Stirling-PDF did — and, beyond ADR-0008's nine, after an
+  ADR of its own, as [ADR-0057], [ADR-0059] and [ADR-0060] were for those
+  three: a service with
   `expose:`, a block in the `Caddyfile`, a name on the leaf and in the resolver,
   its credential in SOPS where it takes one from outside, and a sentinel for its
   volume in `scripts/backup-volumes.sh`. A service in this file with `ports:`
@@ -430,6 +432,42 @@ around it is here.
      device without the operator present. The recommendation there is that the
      family's vault is hosted Bitwarden and this one keeps the operator's.
 
+## Memos
+
+The household's notes, and the second *Tier extras* service —
+[ADR-0059] decided it before it was written. What the service does is in
+`compose.yaml`; what has to be true around it is here.
+
+- **Notes, not documentation.** Nothing about rebuilding or recovering the
+  estate lives in Memos as its home; `docs/` is that, and [#124] is a `docs/`
+  problem. A note on `trinity` is exactly as down as `trinity` is.
+- **Not root, and no capabilities.** The image's data directory is
+  `10001:10001`, so it starts as that uid and skips the entrypoint's `chown`
+  and `su-exec`. Measured on the pinned image with exactly the compose file's
+  options: healthy on `/healthz`, a user created, an upload stored, 15 MiB
+  resident.
+- **Close registration at first login.** The first account registered becomes
+  the admin, and sign-up is a setting in the database rather than the
+  environment, so it cannot be closed from this file. Register the admin at
+  `https://memos.matrix.elysium`, then as that admin set *disallow user
+  registration* in the instance's general settings before anything else. The
+  household's accounts are created from the admin settings after that. Check
+  it held, on `trinity` — the setting is readable without logging in, and the
+  line should contain `"disallowUserRegistration":true`:
+
+  ```bash
+  docker exec sensitive-memos wget -qO- http://127.0.0.1:5230/api/v1/instance/settings/GENERAL
+  ```
+
+- **Password only.** Memos has no TOTP. [ADR-0022] records the tier's other
+  services without one, and [ADR-0059] puts Memos beside them.
+- **Not one file.** The database is WAL-mode — while it runs, a fresh
+  `memos_prod.db` is a 4 KB header and everything else is in the `-wal`, which
+  a clean stop checkpoints back — and attachments are files under `./assets`.
+  The backup names all three.
+- **Durable, under [ADR-0023].** No real notes before the off-estate copy the
+  class requires, for the same reason as Paperless-ngx.
+
 ## Homepage
 
 The household's page, at `https://home.matrix.elysium` — the one address on
@@ -627,7 +665,7 @@ factor. `compose.yaml` has what was measured on the pinned image.
 
 The household's PDF editor since [#143]. It does the jobs that otherwise go to
 a free converter website: merge, split, rotate, convert, OCR, sign, compress.
-[ADR-0059] is the decision. `compose.yaml` has the service, the measurements
+[ADR-0060] is the decision. `compose.yaml` has the service, the measurements
 and DIFFERENCE 13. What has to be true around it is here.
 
 - **Documents never reach a disk.** Uploads, intermediates and results live in
@@ -693,9 +731,10 @@ make restore STACK=sensitive ARGS="--dry-run --from latest"
 ```
 
 `backup-volumes.sh` derives the volume list from `compose.yaml` and refuses a
-volume it cannot verify, so each of the eleven volumes it archives has a
-sentinel entry there — `db.sqlite3` for Vaultwarden, read off a boot of the
-pinned image, beside the entries [#133] read off boots of every other — and
+volume it cannot verify, so each of the twelve volumes it archives has a
+sentinel entry there — `db.sqlite3` for Vaultwarden and `memos_prod.db` for
+Memos, each read off a boot of the pinned image, beside the entries [#133]
+read off boots of every other — and
 `restore-volumes.sh` knows the uid each must come back owned by where that
 uid is a constant. Three are skipped by name. `ntfy-data` is skipped because
 ntfy rebuilds its users from SOPS on every start and its cache is notifications
@@ -838,7 +877,9 @@ it matters:
 [ADR-0037]: ../../docs/adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md
 [ADR-0055]: ../../docs/adr/0055-forward-to-adguard-alone.md
 [ADR-0057]: ../../docs/adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md
-[ADR-0059]: ../../docs/adr/0059-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
+[ADR-0059]: ../../docs/adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md
+[#124]: https://github.com/Gerrrt/HomeLab/issues/124
+[ADR-0060]: ../../docs/adr/0060-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -848,6 +889,7 @@ it matters:
 [#135]: https://github.com/Gerrrt/HomeLab/issues/135
 [#136]: https://github.com/Gerrrt/HomeLab/issues/136
 [#137]: https://github.com/Gerrrt/HomeLab/issues/137
+[#145]: https://github.com/Gerrrt/HomeLab/issues/145
 [#147]: https://github.com/Gerrrt/HomeLab/issues/147
 [#143]: https://github.com/Gerrrt/HomeLab/issues/143
 [#182]: https://github.com/Gerrrt/HomeLab/issues/182
