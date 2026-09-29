@@ -167,6 +167,20 @@ miniflux.matrix.elysium {
 	}
 }
 
+# Mealie (#146, ADR-0060), the household's recipes. Named for what it is for,
+# like `home`, because the people who use it will type it rather than find it.
+# BASE_URL in compose.yaml is this name, so the links Mealie builds in shared
+# recipes and invitations point here; X-Forwarded-For and -Proto are set
+# unasked.
+recipes.matrix.elysium {
+	reverse_proxy mealie:9000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # Actual (#142, ADR-0061). The web app and the sync API its clients call are
 # the same origin, so one block serves both. The server is claimed before its
 # first start (scripts/seed-actual-password.sh), so there is never a moment
