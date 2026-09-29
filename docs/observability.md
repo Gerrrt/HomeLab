@@ -50,7 +50,7 @@ it is not closed by anything in this document.
 | syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
 | pfSense logs | syslog → Alloy on 1514 | stream | `filterlog` decisions, `suricata` alerts, `kea-dhcp4` leases |
-| MokerLink switch | snmp-exporter | 60s | Interface status and 64-bit octet counters |
+| Switch (`neo`, CRS326) | snmp-exporter, SNMPv3 | 60s | Interface status and 64-bit octet counters |
 | APC UPS | snmp-exporter | 60s | Charge, runtime, load, voltage, alarms |
 | ProLiant iLO | snmp-exporter | 60s | Temperature, PSU, drive and battery health |
 | The stack itself | Prometheus | 15s | Every component scrapes itself |

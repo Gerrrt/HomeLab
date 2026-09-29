@@ -16,12 +16,14 @@ auths:
     priv_protocol: AES
     priv_password: ${SNMP_PRIVPASS_ILO}
     version: 3
-  auth_mokerlink:
-    community: ${SNMP_COMMUNITY_MOKERLINK}
-    security_level: noAuthNoPriv
-    auth_protocol: MD5
-    priv_protocol: DES
-    version: 2
+  auth_neo:
+    security_level: authPriv
+    username: prometheus
+    password: ${SNMP_AUTHPASS_NEO}
+    auth_protocol: SHA
+    priv_protocol: AES
+    priv_password: ${SNMP_PRIVPASS_NEO}
+    version: 3
   auth_pfsense:
     community: ${SNMP_COMMUNITY_PFSENSE}
     security_level: noAuthNoPriv

@@ -206,7 +206,7 @@ inherits without knowing.
 | **The UPS battery pack** | A pack was fitted 2026-08-28 and passed its self-test; packs are consumables and this one is on a biweekly test schedule | `UpsSelfTestFailed` and `UpsBatteryUnproven` key on the self-test result, which is the single honest signal this card emits — every charge, runtime and alarm value it reports was fabricated while the bay was empty. Two things remain open: the card's test *schedule* is unwatched ([#249](https://github.com/Gerrrt/HomeLab/issues/249)), and `upsBasicBatteryLastReplaceDate` still reads a pre-fit date, so it is not a usable record of the pack's age |
 | **Mains power to the monitoring path** | Any cut | The rack is on the UPS; the switch carrying `prometheus` and `oracle` is not, so both laptops keep running and go deaf. Stated in [`security.md`](../security.md#threat-model) |
 | **Container images going stale** | Continuously, once nobody merges | Dependabot proposes bumps and CI validates them, and convergence deploys a merge within the hour. An unattended estate simply stops receiving updates — nothing alerts on it |
-| **The switch's previous SNMP community** | Already true, indefinitely | An accepted residual, not a pending fix: `neo`'s firmware will not persist a deletion from the community table. Recorded in [`SECURITY.md`](../../SECURITY.md), method in [`rotate-snmp-community.md`](rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row) |
+| **The switch's leaf certificate** | 825 days from issue, TODO(window) — so on TODO(window) + 825 days. The switch cannot renew it ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)) | **Nothing pages on it.** The switch UI is not probed from Winterfell, because the switch LAN is closed to VLAN 99 apart from SNMP, so no expiry rule sees this leaf. You find out when a browser on Hicks refuses `https://neo.matrix.elysium/`. Reissue with `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2"` from the main checkout, then import it on the switch as [`swap-the-switch.md`](swap-the-switch.md) §1.4 does. The address still works when the name does not |
 
 > [!CAUTION]
 > The three entries at the top of that table are all failures of *notification*,
@@ -242,7 +242,7 @@ community per polled device, and the four Alertmanager URLs. Details in
 **What it does not hold**, and what you will therefore have to obtain from the
 outgoing operator directly:
 
-- The pfSense, MokerLink, iLO and APC network-card **admin passwords**. None of
+- The pfSense, switch (`neo`, RouterOS), iLO and APC network-card **admin passwords**. None of
   them are in this repository in any form.
 - Jellyfin's and Navidrome's admins on `smaug`, and TrueNAS's own web-UI
   admin. None is in this repository in any form — `stacks/media` has no
