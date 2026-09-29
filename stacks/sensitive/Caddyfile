@@ -143,6 +143,20 @@ ntfy.matrix.elysium {
 	}
 }
 
+# Miniflux (#147, ADR-0057). Plain HTTP on the stack network; TLS ends here.
+# compose.yaml's BASE_URL is this name with https://, which is what Miniflux
+# builds its links and its cookies' Secure flag from. The REST API is off
+# (DISABLE_API), so everything under this name is the web UI and the two
+# per-user sync APIs the ADR keeps off until a client wants them.
+miniflux.matrix.elysium {
+	reverse_proxy miniflux:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

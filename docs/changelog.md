@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **Miniflux is authored for the sensitive tier, the first service beyond
+  ADR-0008's nine**
+  ([#147](https://github.com/Gerrrt/HomeLab/issues/147),
+  [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
+  It is authored and validated here, and not yet deployed on `trinity`.
+  - **Measured on the pinned image first.** It runs as 65534, read-only with
+    no tmpfs, at 13 MiB idle.
+  - **The fetcher refused `miniflux-db` by name and `localhost`** as private
+    addresses, which is the property that makes a URL-fetching service
+    tolerable on Winterfell.
+  - **The REST API answered 200 to the admin's password over basic auth**, so
+    it is off.
+  - **There is no TOTP, and its passkeys are not a second step.** Miniflux
+    is named beside Immich and AdGuard as single-factor.
+
 - **`prometheus`'s disk was two to three days from full, and is not now.**
   `HostDiskCritical` had been firing since 27 Sep: 5.3 GiB free on `/`, having
   lost 28.5 GiB since 15 Sep in steps of 1–5 GiB.

@@ -287,6 +287,10 @@ Gated on the domain, on a household observation, or on something to publish.
 Beyond ADR-0008's nine: each needs its own decision before it is authored, and
 none is in the order until one is taken.
 
+- **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md) and authored in `stacks/sensitive`.
+  Deploying it on `trinity` is the stack README's *Adding it to the running
+  tier*: two SOPS keys, one host override, `make up`.
+
 ## Everything still to buy
 
 The one list, because purchases kept appearing one at a time in issues, ADRs
