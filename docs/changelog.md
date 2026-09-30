@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **The sensitive tier's expiry rules are a pair, in hours**
+  ([#426](https://github.com/Gerrrt/HomeLab/issues/426)). #718 had already
+  shipped the tier-CA blackbox module, kept `renewal: acme` targets out of the
+  30- and 7-day rules and added `TlsAcmeRenewalStalled` (critical, under 36h).
+  What the issue still asked for was the warning half and its inhibit.
+  `TlsAcmeRenewalLate` warns under 48h, about eight hours after Caddy should
+  have renewed at ~56h. Alertmanager inhibits it under the critical rule by
+  `name`, the same shape as the days pair, so a stalled renewal pages once.
+
 - **SMART series are keyed on the port a drive is cabled to, not its letter**
   ([#745](https://github.com/Gerrrt/HomeLab/issues/745),
   [ADR-0066](adr/0066-key-smart-series-on-the-port-not-the-letter.md)).
@@ -80,6 +89,7 @@ docstring gives: it is a record, not a claim about now.
   a floating tag, is not carried over. `scripts/backup-wiki.sh` pulls a
   `pg_dump` to `prometheus` nightly, the first dump in the repository. The
   cutover on `oracle` is next, recorded in the stack's README.
+||||||| parent of e6136bd (feat(observability): a warning tier for ACME leaves, so the hours pair matches the days one (#426))
 
 - **`backup-library`'s first timed run failed, and the unit is fixed**
   ([#132](https://github.com/Gerrrt/HomeLab/issues/132),

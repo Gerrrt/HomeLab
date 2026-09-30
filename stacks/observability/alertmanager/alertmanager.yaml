@@ -161,6 +161,13 @@ inhibit_rules:
     target_matchers: [alertname = "TlsCertificateExpiringSoon"]
     equal: ["name"]
 
+  # The same shape for the sensitive tier's seven-day ACME leaves, in hours:
+  # a leaf inside 36 is still inside 48, and one stalled renewal pages once
+  # (#426).
+  - source_matchers: [alertname = "TlsAcmeRenewalStalled"]
+    target_matchers: [alertname = "TlsAcmeRenewalLate"]
+    equal: ["name"]
+
 receivers:
   - name: "null"
 

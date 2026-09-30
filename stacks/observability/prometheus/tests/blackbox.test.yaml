@@ -510,9 +510,11 @@ tests:
   # --- ACME leaves: out of the 30/7-day rules, into their own ---------------
   # The page this exists for: a seven-day leaf, freshly issued, read as "7
   # days left" and paged `urgent` the day the ntfy probe was enabled (#136).
-  # A healthy one at five days must fire neither estate expiry rule; the same
-  # leaf at 30 hours, a day after Caddy should have renewed it, must fire
-  # TlsAcmeRenewalStalled and only that.
+  # A healthy one at five days must fire neither estate expiry rule nor
+  # either hours rule. At 40 hours, some sixteen hours after Caddy should have
+  # renewed it, TlsAcmeRenewalLate fires alone. At 30 hours, a day late, both
+  # hours rules fire at Prometheus and neither days rule does. Keeping the
+  # warning off the phone is left to alertmanager.yaml's inhibit (#426).
   - interval: 1m
     input_series:
       # Five days out at t=0, healthy.
@@ -527,6 +529,44 @@ tests:
         alertname: TlsCertificateExpiryImminent
         exp_alerts: []
       - eval_time: 2h
+        alertname: TlsAcmeRenewalLate
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: TlsAcmeRenewalStalled
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      # 40 hours out at t=1h (144000 + 3600): renewal late, not yet stalled.
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://ntfy.matrix.elysium/v1/health",
+                 name="ntfy", role="alerting", host="trinity", via="dns", renewal="acme"}'
+        values: "147600+0x120"
+    alert_rule_test:
+      # `for: 30m`: pending at 20 minutes.
+      - eval_time: 20m
+        alertname: TlsAcmeRenewalLate
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: TlsAcmeRenewalLate
+        exp_alerts:
+          - exp_labels:
+              alertname: TlsAcmeRenewalLate
+              name: ntfy
+              role: alerting
+              host: trinity
+              component: blackbox
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "ntfy's ACME certificate has 40h left"
+              description: >-
+                Caddy on trinity should have renewed this leaf at about
+                56 hours left and has not. Nothing has stopped verifying yet;
+                TlsAcmeRenewalStalled pages at 36. Read Caddy's log for the renewal
+                error (`docker logs sensitive-caddy 2>&1 | grep -i renew`), then
+                check step-ca is healthy — docs/runbooks/build-the-tier-ca.md.
+      # 40 is not 36. The critical tier stays silent.
+      - eval_time: 1h
         alertname: TlsAcmeRenewalStalled
         exp_alerts: []
 
@@ -563,3 +603,24 @@ tests:
       - eval_time: 1h
         alertname: TlsCertificateExpiryImminent
         exp_alerts: []
+      # The warning fires beside it at Prometheus; alertmanager.yaml's inhibit
+      # is what keeps it off the phone.
+      - eval_time: 1h
+        alertname: TlsAcmeRenewalLate
+        exp_alerts:
+          - exp_labels:
+              alertname: TlsAcmeRenewalLate
+              name: ntfy
+              role: alerting
+              host: trinity
+              component: blackbox
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "ntfy's ACME certificate has 30h left"
+              description: >-
+                Caddy on trinity should have renewed this leaf at about
+                56 hours left and has not. Nothing has stopped verifying yet;
+                TlsAcmeRenewalStalled pages at 36. Read Caddy's log for the renewal
+                error (`docker logs sensitive-caddy 2>&1 | grep -i renew`), then
+                check step-ca is healthy — docs/runbooks/build-the-tier-ca.md.
