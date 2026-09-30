@@ -31,6 +31,21 @@ docstring gives: it is a record, not a claim about now.
   the preflight so a refused run leaves nothing. The record is in
   `stacks/wiki/README.md`.
 
+- **SMART series are keyed on the port a drive is cabled to, not its letter**
+  ([#745](https://github.com/Gerrrt/HomeLab/issues/745),
+  [ADR-0066](adr/0066-key-smart-series-on-the-port-not-the-letter.md)).
+  - **The collector adds `slot`** to every per-device series. It is the
+    drive's `/dev/disk/by-path` name, and the device label where there is
+    none.
+  - **The baseline is keyed on it.** `smaug`'s row is
+    `pci-0000:00:17.0-ata-6`, the S3520's port. `SmartDriveBadSectors` joins
+    `on(host, slot)`, and a series from an older collector uses its `device`
+    as the slot, so `oracle`'s row still names `/dev/sda`.
+  - **A second bug went with it.** `SmartDriveBadSectorsGrowing` matched a
+    series to itself a week back by letter, so a drive with 4 sectors landing
+    on a letter that had held 0 would have read as growth. It had not fired
+    yet.
+
 - **Navidrome is deployed on `smaug`**
   ([#141](https://github.com/Gerrrt/HomeLab/issues/141), closing;
   [`build-the-nas.md`](runbooks/build-the-nas.md) §6.6).
