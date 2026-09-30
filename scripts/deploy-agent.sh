@@ -383,7 +383,20 @@ native)
     info "installing alloy ${VERSION} (${installed:-not installed}) from ${url}"
     curl -fsSL --retry 3 -o "${STAGE}/alloy.deb" "$url" \
       || die "download failed — check the release page for the asset name; nothing was changed"
-    DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -q "${STAGE}/alloy.deb" >/dev/null
+    # --force-confold: /etc/default/alloy is the package's conffile, and this
+    # script rewrites it below, so on an upgrade dpkg finds it modified and asks
+    # whether to keep it. There is no terminal on this side of ssh, so the
+    # question ends the install with "dpkg returned an error code (1)" and a
+    # half-configured package. Saruman's 1.19.2 -> 1.20.0 upgrade failed with
+    # exactly that line on 2026-09-30, with dpkg's reason thrown away. Keep
+    # ours; it is rewritten a few lines down anyway. apt's output is now kept,
+    # and shown on failure, so the next reason is not a guess.
+    if ! DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -q \
+         -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
+         "${STAGE}/alloy.deb" >"${STAGE}/apt.log" 2>&1; then
+      tail -20 "${STAGE}/apt.log" >&2
+      die "installing alloy ${VERSION} failed — dpkg's last lines are above"
+    fi
     pass "installed $(dpkg-query -W -f='alloy ${Version}' alloy)"
   fi
 
