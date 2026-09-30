@@ -29,7 +29,7 @@ them, and say why they are bind mounts and not volumes.
 | --- | --- | --- | --- |
 | jellyfin | `jellyfin/jellyfin` | 8096 (http), on the segment | The media server the televisions reach directly, with Quick Sync hardware transcoding on the E3-1225 v6's HD P630 ([#138], [ADR-0016]) |
 | audiobookshelf | `ghcr.io/advplyr/audiobookshelf` | 13378 (http), to Hicks through the 13378 pass | Audiobooks, with listening progress that syncs between a person's devices ([#140], [ADR-0050]). **Deployed 2026-09-29** — [`build-the-nas.md`] §6.5 |
-| navidrome | `deluan/navidrome` | 4533 (http), to Hicks through the 4533 pass | The music server, over the Subsonic API, for the apps on the phones ([#141]). **Authored, not yet deployed** — [`build-the-nas.md`] §6.6 |
+| navidrome | `deluan/navidrome` | 4533 (http), to Hicks through the 4533 pass | The music server, over the Subsonic API, for the apps on the phones ([#141]). **Deployed 2026-09-30** — [`build-the-nas.md`] §6.6 |
 | node-exporter | `prom/node-exporter` | 9100 (http), to `10.0.99.20` only | How this host is monitored at all — Prometheus scrapes it, because nothing on this segment may push ([#256], [ADR-0016]); it also serves the SMART textfile a root cron job on the host writes ([#483], [ADR-0047]) |
 
 Four services, and three of them are the tier. `node-exporter` is here
@@ -161,7 +161,7 @@ volume layout rather than in a policy document:
 | `${JELLYFIN_CONFIG_PATH}` → `/config` | database, users, **watch history, resume positions**, metadata | **yes** — `scripts/backup-nas.sh`, weekly, from a ZFS snapshot of `erebor/apps` |
 | `${AUDIOBOOKSHELF_STATE_PATH}/config` → `/config`, `…/metadata` → `/metadata` | the database — users, libraries, **every listener's position in every book** — and covers, per-item metadata, logs | **yes** — the same pull, the same snapshot, archive `audiobookshelf-state` ([ADR-0050]); `required` since §6.5 ran on 2026-09-29, so a missing directory fails the pull by name |
 | `jellyfin-cache` | transcode scratch, image caches | no — regenerable |
-| `${NAVIDROME_DATA_PATH}` → `/data` | Navidrome's database — **users, playlists, favourites, play counts** — and extracted artwork | **yes** — the same pull, the same snapshot, its own archive in the set, `pending` until deployed |
+| `${NAVIDROME_DATA_PATH}` → `/data` | Navidrome's database — **users, playlists, favourites, play counts** — and extracted artwork | **yes** — the same pull, the same snapshot, archive `navidrome-data`; `required` since §6.6 ran on 2026-09-30, so a missing directory fails the pull by name |
 | `/cache` (tmpfs) | Navidrome's transcodes and resized artwork | no — regenerable, and gone on restart |
 | `${MEDIA_PATH}` → `/media`, `${AUDIOBOOKS_PATH}` → `/audiobooks`, `${MUSIC_PATH}` → `/music` | the library itself | no — see below |
 

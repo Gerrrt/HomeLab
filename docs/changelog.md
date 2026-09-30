@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **Navidrome is deployed on `smaug`**
+  ([#141](https://github.com/Gerrrt/HomeLab/issues/141), closing;
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.6).
+  - **It had run since 2026-09-23.** Its admin, `gerrrt`, was made from the
+    web form that evening. The `pending` row pulled `navidrome-data` into
+    every NAS set from `20260926T034052Z` on. The Done block records it and
+    names the cause: a bare `up -d` starts every service whose directories
+    exist.
+  - **The 4533 pass is proven from Hicks**, eight days after it was made.
+    `/ping` answered a workstation, and a Subsonic app on a phone played a
+    track: a generated test tone, because the library holds no music yet.
+    The monitoring host is still refused.
+  - **One admin.** A second one made from the shell was deleted.
+    `POST /auth/createAdmin` with no body answers 422, not 403, so
+    `navidrome user list` is the check.
+  - **Backed up and required.** The set `20260930T131627Z` holds all three
+    media archives and verified on `atropos`. `navidrome-data` is now
+    `required` in `backup-nas.sh`.
+  - **The `igc0.40` tripwire still reads zero.**
+- **`SmartDriveBadSectors` fired for `smaug` on the boot SSD's recorded
+  four**, the letter-drift [#745](https://github.com/Gerrrt/HomeLab/issues/745)
+  describes. The TrueNAS middleware placed the S3520 on `sdb` and the Exos
+  on `sda` and `sdc`, with `erebor` ONLINE and no errors. Rerunning the
+  collector by hand wrote `sdb` 4 and both Exos 0. On the monitoring host,
+  `make smart-state` rendered the baseline as `/dev/sdb` 4. That matches
+  the live count, so the rule does not fire. The alert's `device` label was
+  not captured, so which side held the stale letter is probable rather than
+  proven.
 - **The wiki is in the repository, and its database has a backup**
   ([#251](https://github.com/Gerrrt/HomeLab/issues/251),
   [ADR-0065](adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)).

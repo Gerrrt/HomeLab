@@ -354,9 +354,9 @@ Televisions and consoles. Internet only.
   Hicks, and both exist.** `Allow 4533 to smaug`, Hicks →
   `10.0.40.30:4533`, for Navidrome's Subsonic apps
   ([#141](https://github.com/Gerrrt/HomeLab/issues/141)), was created on
-  2026-09-22 ahead of the service and verified in position from `morpheus`;
-  until Navidrome is deployed it matches nothing, because nothing listens
-  there. `Allow 13378 to smaug`, Hicks → `10.0.40.30:13378`, for
+  2026-09-22 ahead of the service and verified in position from `morpheus`,
+  and a Hicks workstation and phone reached Navidrome through it on
+  2026-09-30. `Allow 13378 to smaug`, Hicks → `10.0.40.30:13378`, for
   Audiobookshelf
   ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)),
   was created by §6.5 and reached from a Hicks workstation on 2026-09-29.

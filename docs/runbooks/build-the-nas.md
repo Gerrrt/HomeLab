@@ -1361,12 +1361,13 @@ service that was not there yet. Step 8 is where that stopped being allowed.
 ### §6.6 — Add Navidrome
 
 [#141](https://github.com/Gerrrt/HomeLab/issues/141). Navidrome is in
-`compose.yaml` from the day it merged, and on this host only step 1 has been
-done. It waited on the same gate as §6.5, the mirror being whole
+`compose.yaml` from the day it merged, and **every step below has been done
+on this host** — see the Done block at the end. It waited on the same gate as
+§6.5, the mirror being whole
 ([#558](https://github.com/Gerrrt/HomeLab/issues/558)), which opened on
-2026-09-29. It is carried in
-`scripts/backup-nas.sh` the same way: `navidrome-data` is **pending**, skipped
-by name while its directory is absent from the snapshot, until step 8.
+2026-09-29. Until this section ran, `scripts/backup-nas.sh` carried
+`navidrome-data` as **pending** and skipped it by name while its directory was
+absent from the snapshot. Step 8 is where that stopped being allowed.
 
 1. **The 4533 pass.** Create `Allow 4533 to smaug` on Hicks exactly as the
    §0.5 table gives it, and read its position from `morpheus` with the
@@ -1415,6 +1416,48 @@ by name while its directory is absent from the snapshot, until step 8.
 > **0 packets**. What a pass with no listener cannot prove — that Hicks
 > reaches it — is step 5. Steps 2–8 waited on #558, and the mirror has been
 > whole since 2026-09-29.
+>
+> **Done 2026-09-30, and the service had run before this section said so.**
+> `navidrome user list` showed an admin, `gerrrt`, created
+> **2026-09-23 22:41 UTC** from the web form. It was the operator's. So
+> `navidrome/data` existed before any step here recorded it, and the
+> `pending` row pulled it into every NAS set from `20260926T034052Z` on,
+> because a pending row whose directory is present is pulled like a required
+> one. §6.5's Done note had already seen 4533 answering. The lesson for the
+> next service: a bare `docker compose up -d` starts everything in the file
+> whose directories exist, so name the service while a sibling section is
+> still open.
+>
+> **Steps 2–4:** the directories, then a re-fetch and
+> `docker compose up -d navidrome`, recreated the container on the pinned
+> **0.64.2** digest, and it read `healthy` within a minute. A second admin,
+> `admin`, was made from the shell as step 4 says, then deleted, which leaves
+> `gerrrt` as the only admin. A `POST /auth/createAdmin` with no body answers
+> **422**, not 403: the body is parsed before the has-an-admin check. So that
+> probe proves nothing, and `navidrome user list` is the check.
+>
+> **Step 5:** `curl http://10.0.40.30:4533/ping` from a Hicks workstation
+> printed `.`. The monitoring host's `nc` read *correct: blocked*. A Subsonic
+> app on a Hicks phone logged in as `gerrrt` and played a track. The library
+> held no music, so the track was a generated two-minute 440 Hz tone at
+> `music/HomeLab/Deploy Check/`, written by the pinned Jellyfin image's
+> `ffmpeg` in a throwaway container. It picked up `erebor/media`'s inherited
+> ACL as `rwxrwxr-x`, which is readable by 65534. Delete it when real music
+> lands.
+>
+> **Step 6:** against `auto-2026-09-30_03-00`, not a manual snapshot, since the
+> directory predated it. `frodo`'s tar printed `readable`. The set
+> **`20260930T131627Z`** holds `jellyfin-config`, `audiobookshelf-state` and
+> `navidrome-data` (4 entries, `./navidrome.db present`; no `./artwork`
+> yet). It was copied to `atropos` with every hash matching, and
+> `make verify-backups` passed all seven sets there.
+>
+> **Step 7:** the `igc0.40` tripwire, `@205`, read **0 packets** over 251,482
+> evaluations.
+>
+> **Step 8** is this commit: `navidrome-data` is `required` in
+> `NAS_ARCHIVES`. The TrueNAS middleware showed `erebor` ONLINE with 0 errors
+> and no active alerts after the `up`.
 
 ### §6.7 — Turn version collection on
 
