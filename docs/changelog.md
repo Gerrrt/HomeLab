@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **Hicks' pass to `oracle` is narrowed to `80/tcp`**
+  ([#251](https://github.com/Gerrrt/HomeLab/issues/251)). It admitted 443
+  too, to a port the old wiki container published and nothing answered on;
+  `stacks/wiki` publishes 80 alone. Changed in pfSense's UI and exported
+  with `make backup-firewall` the same day. The empty anonymous volume the
+  old container left is removed, after a set taken from `wiki-db` passed
+  `--prove`.
+
 - **The wiki is cut over to `stacks/wiki`**
   ([#251](https://github.com/Gerrrt/HomeLab/issues/251)). A first set was
   taken from the old container and proven by a restore (pages=108 users=4).
