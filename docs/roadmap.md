@@ -76,6 +76,10 @@ Closes when it is empty.
 - **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put `oracle`'s wiki
   into the repository and back up its database.** Reopened 2026-09-26: #252
   closed it by accident. ADR-0015 names it as the tracker for that gap.
+  Authored 2026-09-30: [`stacks/wiki`](../stacks/wiki) and the nightly dump
+  of [ADR-0065](adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md).
+  What remains is the cutover on `oracle`, in the stack's README, and the
+  first set proven with `make backup-wiki ARGS=--prove`.
 - **[#672](https://github.com/Gerrrt/HomeLab/issues/672) Fail a PR whose
   close keywords sit in prose.** Eight issues have been closed by a keyword
   inside a sentence saying the issue stays open; three of them sat closed with

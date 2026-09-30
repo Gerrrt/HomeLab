@@ -1,0 +1,54 @@
+# Nightly pull of the wiki's database off oracle, as a pg_dump (#251, ADR-0065).
+#
+# WHY IT IS ITS OWN UNIT. homelab-backup-nas.service's reasons, one host over:
+# it stops nothing and touches no daemon on this host; it asks oracle's
+# Postgres for a dump over ssh and encrypts what arrives. It needs the
+# operator key, which oracle's `atropos` accepts, and the age identity,
+# because it verifies what it writes by decrypting it. No docker group here —
+# the `docker exec` runs on oracle, as `atropos`, who is in that host's.
+#
+# See homelab-backup-volumes.service for why each directive below is set.
+[Unit]
+Description=HomeLab: pull a dump of the wiki's database off oracle
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=SOPS_AGE_KEY_FILE=/home/robo/.config/sops/age/keys.txt
+# WIKI_KEEP= and WIKI_SSH_TARGET= are host facts, not repository facts. The
+# leading - means an absent file is not an error.
+EnvironmentFile=-/etc/default/homelab-timers
+# The `backups` lock, shared with the other backups and the nightly verify,
+# which reads backups/wiki/ too: this run's prune must not remove a set that
+# is mid-read.
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job backup-wiki --lock backups --lock-wait 900 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab backup-wiki
+# Nothing is down while this runs, so the ceiling only bounds a hung ssh
+# session. The dump took seconds at 18 MB of database.
+TimeoutStartSec=600
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+# Nothing this job runs is a container on this host, so PrivateTmp is safe
+# here for the reason homelab-backup-nas.service gives. --prove does start one,
+# and it is run by hand, not by this unit.
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-backup-wiki
+
+# No [Install] section, on purpose — the timer is what enables this.
