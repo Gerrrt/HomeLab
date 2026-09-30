@@ -428,6 +428,21 @@ groups:
         # falls back to `> 0` and pages. A baseline cannot hide growth, because
         # it is a ceiling and growth is above it.
         #
+        # THE JOIN IS ON `slot`, NOT `device` (#745, ADR-0066). `slot` is the
+        # drive's /dev/disk/by-path name, the port it is cabled to; `device` is
+        # the letter this boot handed out. Keyed on the letter, smaug's boot
+        # SSD paged on its recorded four twice on 2026-09-29/30, because the
+        # letter moved on a reboot and the row named the old one. A port moves
+        # only when a cable does.
+        #
+        # A SERIES WITH NO `slot` USES ITS `device`. A collector installed
+        # before #745 — oracle's is a copy installed once — emits no slot, and
+        # `{slot=""}` selects exactly those series; label_replace gives them
+        # their device as the slot, and their row names the device. That
+        # keeps the rule right on every host whatever order the collectors are
+        # updated in, and it is written out twice below because the default of
+        # zero has to see the same keys the comparison does.
+        #
         # `group_left()` on the join, or `instance` and `job` are silently
         # dropped from the alert — measured in backup.rules.yaml, not assumed.
         #
@@ -436,12 +451,18 @@ groups:
         # the day one does, it gets a baseline of its own kind, not a silence.
         expr: >-
           (
-            homelab_smart_reallocated_sectors
-              > on(host, device) group_left() homelab_smart_reallocated_sectors_baseline
+            (
+              label_replace(homelab_smart_reallocated_sectors{slot=""}, "slot", "$1", "device", "(.+)")
+              or homelab_smart_reallocated_sectors{slot!=""}
+            )
+              > on(host, slot) group_left() homelab_smart_reallocated_sectors_baseline
           )
           or (
-            homelab_smart_reallocated_sectors
-              unless on(host, device) homelab_smart_reallocated_sectors_baseline
+            (
+              label_replace(homelab_smart_reallocated_sectors{slot=""}, "slot", "$1", "device", "(.+)")
+              or homelab_smart_reallocated_sectors{slot!=""}
+            )
+              unless on(host, slot) homelab_smart_reallocated_sectors_baseline
           ) > 0
           or homelab_smart_pending_sectors > 0
           or homelab_smart_uncorrectable_sectors > 0
@@ -823,6 +844,14 @@ groups:
         # effectively, because no label carries the count. The static fact and
         # the trend need different alertnames or the trend cannot survive
         # whatever quiets the fact. That happened on 2026-09-07 (#351).
+        #
+        # THE SUBTRACTION MATCHES ON EVERY LABEL, `slot` INCLUDED (#745). Before
+        # the collector emitted `slot`, a series was its host and its letter,
+        # and a letter can move on reboot: smaug's boot SSD, with 4, landing on
+        # the letter an Exos with 0 held a week earlier would have read as
+        # growth of 4. With `slot` in the label set, a moved letter is a new
+        # series with no week-old point, so it says nothing for seven days
+        # rather than something wrong.
         #
         # SUBTRACTION, NOT increase(). These are gauges, and increase() assumes
         # counter semantics — it extrapolates and handles resets, neither of
