@@ -28,7 +28,7 @@ them, and say why they are bind mounts and not volumes.
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | jellyfin | `jellyfin/jellyfin` | 8096 (http), on the segment | The media server the televisions reach directly, with Quick Sync hardware transcoding on the E3-1225 v6's HD P630 ([#138], [ADR-0016]) |
-| audiobookshelf | `ghcr.io/advplyr/audiobookshelf` | 13378 (http), to Hicks through the 13378 pass | Audiobooks, with listening progress that syncs between a person's devices ([#140], [ADR-0050]). **Authored, not yet deployed** — [`build-the-nas.md`] §6.5 |
+| audiobookshelf | `ghcr.io/advplyr/audiobookshelf` | 13378 (http), to Hicks through the 13378 pass | Audiobooks, with listening progress that syncs between a person's devices ([#140], [ADR-0050]). **Deployed 2026-09-29** — [`build-the-nas.md`] §6.5 |
 | navidrome | `deluan/navidrome` | 4533 (http), to Hicks through the 4533 pass | The music server, over the Subsonic API, for the apps on the phones ([#141]). **Authored, not yet deployed** — [`build-the-nas.md`] §6.6 |
 | node-exporter | `prom/node-exporter` | 9100 (http), to `10.0.99.20` only | How this host is monitored at all — Prometheus scrapes it, because nothing on this segment may push ([#256], [ADR-0016]); it also serves the SMART textfile a root cron job on the host writes ([#483], [ADR-0047]) |
 
@@ -80,10 +80,10 @@ every television would have to trust, and a second thing to be down.
 | --- | --- |
 | Televisions on CasaBonita | Natively, same broadcast domain — the firewall never sees the packet |
 | A Hicks workstation | Two of the rules in [`build-the-nas.md`] §0.5 — `50 → 10.0.40.30:443` and `50 → 10.0.40.30:8096`, one per port |
-| A Hicks phone, on `13378` | `50 → 10.0.40.30:13378`, `Allow 13378 to smaug` — the fifth by [ADR-0050]'s count and the seventh to exist — **specified, and created only when [`build-the-nas.md`] §6.5 deploys Audiobookshelf** ([ADR-0050]) |
+| A Hicks phone, on `13378` | `50 → 10.0.40.30:13378`, `Allow 13378 to smaug` — the fifth by [ADR-0050]'s count and the seventh to exist — **created by [`build-the-nas.md`] §6.5, and reached from a Hicks workstation on 2026-09-29** ([ADR-0050]) |
 | Prometheus, on `9100` | A third — `10.0.99.20 → 10.0.40.30:9100` |
 | Prometheus, on `22` | The fourth rule — `10.0.99.20 → 10.0.40.30:22`, inert until [`build-the-nas.md`] §6.2 switches SSH on for the backup pull, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
-| A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists; 445 is the sixth, and 13378 will be the seventh (§6.6) |
+| A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists; 445 is the sixth, and 13378 the seventh (§6.6) |
 | A Hicks workstation, on `445` | `50 → 10.0.40.30:445`, `Allow SMB to smaug`, to mount the `media` share as `samwise` — **created 2026-09-23** by [`build-the-nas.md`] §5's *Workstations* steps, and mounted from a Hicks workstation ([ADR-0051]) |
 | Everything else on the estate | Not at all — default deny |
 
@@ -159,7 +159,7 @@ volume layout rather than in a policy document:
 | Volume / mount | What it holds | Backed up |
 | --- | --- | --- |
 | `${JELLYFIN_CONFIG_PATH}` → `/config` | database, users, **watch history, resume positions**, metadata | **yes** — `scripts/backup-nas.sh`, weekly, from a ZFS snapshot of `erebor/apps` |
-| `${AUDIOBOOKSHELF_STATE_PATH}/config` → `/config`, `…/metadata` → `/metadata` | the database — users, libraries, **every listener's position in every book** — and covers, per-item metadata, logs | **yes** — the same pull, the same snapshot, archive `audiobookshelf-state` ([ADR-0050]); `pending` in the script until §6.5 runs, and skipped by name while its directory is absent |
+| `${AUDIOBOOKSHELF_STATE_PATH}/config` → `/config`, `…/metadata` → `/metadata` | the database — users, libraries, **every listener's position in every book** — and covers, per-item metadata, logs | **yes** — the same pull, the same snapshot, archive `audiobookshelf-state` ([ADR-0050]); `required` since §6.5 ran on 2026-09-29, so a missing directory fails the pull by name |
 | `jellyfin-cache` | transcode scratch, image caches | no — regenerable |
 | `${NAVIDROME_DATA_PATH}` → `/data` | Navidrome's database — **users, playlists, favourites, play counts** — and extracted artwork | **yes** — the same pull, the same snapshot, its own archive in the set, `pending` until deployed |
 | `/cache` (tmpfs) | Navidrome's transcodes and resized artwork | no — regenerable, and gone on restart |

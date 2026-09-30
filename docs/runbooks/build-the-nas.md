@@ -225,8 +225,8 @@ The first four were created on 2026-09-16. Navidrome's `4533` was created on
 2026-09-22 as step 1 of §6.6, ahead of the service — its position is provable
 without a listener, and its reach is §6.6 step 5. Audiobookshelf's `13378`
 ([ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md),
-which calls it the fifth; it will be the seventh to exist) is created as step 1
-of §6.5. `Allow SMB to smaug` on `445`, for workstations mounting the share
+which calls it the fifth; it is the seventh to exist) was created as step 1
+of §6.5, which was done by 2026-09-29. `Allow SMB to smaug` on `445`, for workstations mounting the share
 ([ADR-0051](../adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)),
 was created on 2026-09-23 in §5, after the user it serves.
 
@@ -1244,17 +1244,17 @@ reopens it.
 
 [#140](https://github.com/Gerrrt/HomeLab/issues/140),
 [ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md).
-The service is in `compose.yaml` from the day it merged, and **nothing here
-has been done on this host.** The roadmap held it until the mirror was whole
+The service is in `compose.yaml` from the day it merged, and **every step
+below has been done on this host** — see the Done block at the end. The roadmap held it until the mirror was whole
 ([#558](https://github.com/Gerrrt/HomeLab/issues/558)): its state lands on
 `erebor/apps` like Jellyfin's, and a pool of one disk is not the place to
 start accumulating a new thing worth backing up. **The gate opened
 2026-09-29**, when the resilver and the scrub completed.
 
-Until this section runs, `scripts/backup-nas.sh` carries
-`audiobookshelf-state` as **pending** and skips it by name when its directory
-is absent from the snapshot, so the weekly Jellyfin pull is not broken by a
-service that is not there yet. Step 8 is where that stops being allowed.
+Until this section ran, `scripts/backup-nas.sh` carried
+`audiobookshelf-state` as **pending** and skipped it by name when its directory
+was absent from the snapshot, so the weekly Jellyfin pull was not broken by a
+service that was not there yet. Step 8 is where that stopped being allowed.
 
 1. **Create the fifth rule** in §0.5's table, in the pfSense UI: Hicks (50),
    `tcp`, `vlan50 net` → `10.0.40.30` port `13378`, description exactly
@@ -1330,8 +1330,33 @@ service that is not there yet. Step 8 is where that stops being allowed.
    still **zero**. The app talks to the server; nothing on the server talks
    out to anything but the internet it already had.
 
-> **Not yet done.** The date, the set stamp from step 7 and the two readings
-> from steps 6 and 9 go here, in the commit that flips step 8.
+> **Done 2026-09-29.** `docker compose up -d` ran before that morning's
+> 03:00 snapshot, so `erebor/apps@auto-2026-09-29_03-00` was the first to hold
+> `audiobookshelf/`, and step 7 ran against it the same day rather than the
+> day after.
+>
+> **The pass is live.** A Hicks workstation (`10.0.50.90`) read
+> `http://10.0.40.30:13378/status` as `serverVersion` **2.36.1**, the pinned
+> tag, with `isInit` **true** — so the rule answers, the container is the one
+> this file pins, and `root` existed before any phone was pointed at it.
+>
+> **Steps 4 and 5:** a *Books* library on `/audiobooks`, automatic backups
+> off, no podcast library.
+>
+> **Step 6, the reason #140 was opened, read true:** a second device signed
+> in as the same user resumed where the first had stopped.
+>
+> **Step 7:** `frodo`'s tar read the `audiobookshelf` directory out of
+> `auto-2026-09-29_03-00` and printed `readable`. The set written by
+> `make backup-nas` listed **both** `jellyfin-config` and
+> `audiobookshelf-state`, and `make verify-backups` passed it. The set's
+> stamp was not recorded here.
+>
+> **Step 9:** the `igc0.40` tripwire read **zero** from `morpheus`.
+>
+> **Step 8** is this commit: `audiobookshelf-state` is `required` in
+> `NAS_ARCHIVES`. The TrueNAS middleware showed `erebor` ONLINE with 0 errors
+> and no active alerts after the pull.
 
 ### §6.6 — Add Navidrome
 

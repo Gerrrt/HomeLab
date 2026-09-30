@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **Audiobookshelf is deployed on `smaug`**
+  ([#140](https://github.com/Gerrrt/HomeLab/issues/140), closing;
+  [ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md);
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5).
+  - **Brought up before the 03:00 snapshot**, so
+    `erebor/apps@auto-2026-09-29_03-00` was the first to hold
+    `audiobookshelf/` and the backup check ran the same day.
+  - **The 13378 pass is live**, the seventh to smaug. A Hicks workstation
+    read `/status` as `2.36.1`, the pinned tag, with `root` already created.
+  - **Progress follows the listener:** a second device, signed in as the
+    same user, resumed where the first stopped. That is the property the
+    issue was opened for.
+  - **Backed up and required.** `frodo` read the directory out of the
+    snapshot, the set listed both `jellyfin-config` and
+    `audiobookshelf-state`, and `verify-backups` passed. The archive is now
+    `required` in `backup-nas.sh`. The set stamp was not recorded.
+  - **The `igc0.40` tripwire still reads zero.**
+  - **Navidrome answers on 4533 too**, brought up by the same `up`. §6.6
+    still records it as not deployed, and its admin step is the one to check
+    ([#141](https://github.com/Gerrrt/HomeLab/issues/141)).
+
 - **`erebor` is a whole mirror again, and the MegaRAID is out**
   ([#558](https://github.com/Gerrrt/HomeLab/issues/558) and
   [#571](https://github.com/Gerrrt/HomeLab/issues/571), both closing;

@@ -178,15 +178,10 @@ Closes when a workstation can mount the share. Its other condition, the
 faulted Exos replaced and the mirror resilvered, is met and is in
 [`changelog.md`](changelog.md).
 
-- **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf** is
-  authored — the service, a fifth Hicks pass it needs and the #140 text said
-  it did not, and its archive in the NAS pull, `pending` until deployed
-  ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
-  What is left is [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 on
-  `smaug`, and nothing gates it.
-  [#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome is authored
-  the same way — its archive `pending` beside Audiobookshelf's — and its
-  4533 pass already exists; what is left is the rest of §6.6.
+- **[#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome** is
+  authored, its archive in the NAS pull `pending` until deployed, and its
+  4533 pass already exists; what is left is the rest of
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.6.
 
 ## Saruman: the domain, then the SOC
 

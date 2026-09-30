@@ -189,7 +189,7 @@ OUT_DIR="${REPO_ROOT}/backups/nas"
 # service is not deployed.
 NAS_ARCHIVES=(
   "jellyfin-config|jellyfin/config|jellyfin|/config|required"
-  "audiobookshelf-state|audiobookshelf|audiobookshelf|/config,/metadata|pending"
+  "audiobookshelf-state|audiobookshelf|audiobookshelf|/config,/metadata|required"
   "navidrome-data|navidrome/data|navidrome|/data|pending"
 )
 VOLUMES=()
