@@ -34,6 +34,7 @@ docstring gives: it is a record, not a claim about now.
     the system `PATH`, it worked. The runbook now says to use it.
   - The original file is kept on the host as
     `/etc/network/interfaces.bak-437-20260930`.
+
 - **`fenrir` is created on `Saruman`**, VMID 190, stopped and not yet
   installed ([`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md)
   §2, as written). `net0` is on `vmbr0` and `net1` on `vmbr1`, both
@@ -41,6 +42,15 @@ docstring gives: it is a record, not a claim about now.
   The ISO is `ubuntu-26.04.1-live-server-amd64.iso`, the one on the host,
   which is what the other Linux guests run. The runbook named 24.04, and now
   names 26.04.1.
+
+- **The offline medium carries the wiki's database too**
+  ([#251](https://github.com/Gerrrt/HomeLab/issues/251),
+  [ADR-0065](adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)).
+  `backup-offsite.sh` gains a fourth kind: the newest `backups/wiki/` set
+  travels into `backups/wiki/` on the medium. It is held to the same
+  recipients check as the NAS set, so a set one key cannot open is not
+  copied. A visit without a wiki set records no proof, the way a missing
+  NAS set already did. It leaves the house on the medium's next visit.
 
 - **#437's mirror is `tc`, not Open vSwitch, and the repository half is
   authored** ([#437](https://github.com/Gerrrt/HomeLab/issues/437), still open;

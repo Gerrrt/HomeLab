@@ -318,8 +318,9 @@ groups:
             docs/runbooks/back-up-the-ca-key.md.
 
       - alert: OffsiteCopyStale
-        # The estate's three backup sets — the firewall export, the volume sets
-        # and the NAS set — are off-host on oracle and offsite on the medium
+        # The estate's backup sets — the firewall export, the volume sets, the
+        # NAS set and, since #251, the wiki's database — are off-host (on
+        # oracle, or off oracle for the wiki's) and offsite on the medium
         # that holds the second age recipient (ADR-0048). That medium visits
         # this host every ninety days to prove its key, and backup-offsite.sh
         # runs against it on the same visit: it re-verifies what the medium

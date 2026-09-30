@@ -65,11 +65,12 @@ services:
   # ---------------------------------------------------------------------------
   # Wiki.js
   # ---------------------------------------------------------------------------
-  # The version that was running, pinned: 2.5.314, the digest of the image the
-  # old container was created from. The `2` tag it was pulled by had already
-  # moved on to another digest by 2026-09-30, which is the whole argument for
-  # pinning. An upgrade is a Dependabot bump reviewed here, not a pull on the
-  # host.
+  # Pinned by tag and digest; the image line is the only place the version is
+  # written, because Dependabot rewrites that line and nothing else. The first
+  # pin, on 2026-09-30, was the digest the hand-run container had been created
+  # from — the `2` tag it was pulled by had already moved on, which is the
+  # whole argument for pinning. An upgrade is a Dependabot bump reviewed here,
+  # then README.md's fetch on the host; never a pull there.
   #
   # UPGRADE_COMPANION is NOT set. The old container had it, and beside it ran
   # requarks' update companion with the Docker socket mounted — a container
@@ -77,7 +78,8 @@ services:
   # compose file. It is removed, not carried over: it would undo every pin
   # below on the day it worked.
   #
-  # MEASURED 2026-09-30 on the pinned image:
+  # MEASURED 2026-09-30, on the image pinned that day. Re-check the ones a
+  # bump could move — the uid, the paths it writes, wget — when one lands:
   #   1. It runs as `node`, uid 1000 — the same number as the operator's
   #      account on oracle, which is why the secret below can be 0400 and
   #      owned by that account rather than world-readable.
@@ -134,8 +136,10 @@ services:
   # ---------------------------------------------------------------------------
   # Postgres
   # ---------------------------------------------------------------------------
-  # 17.6, the version that was running, pinned to the digest it was created
-  # from. A major upgrade is a dump and a restore, and it is a separate change.
+  # Pinned by tag and digest, the version on the image line alone, as above;
+  # the first pin was the digest the hand-run container was created from.
+  # Dependabot is told to ignore majors here: a major upgrade is a dump and a
+  # restore, not a bump, and README.md § Upgrading has it.
   #
   # The cluster is the EXISTING one, in the volume the old container named
   # `pgdata` — adopted below as external, never created by this file. PGDATA is
@@ -149,9 +153,10 @@ services:
   # time it is needed, and WIKI_DB_BOOTSTRAP_PASSWORD carries it for that one
   # `up`; README.md § Restore has the procedure.
   #
-  # MEASURED 2026-09-30: uid 999; 50 MiB resident; pg_hba trusts the local
-  # socket and wants scram over the network, which is how the app connects and
-  # what backup-wiki.sh's `docker exec … pg_dump` relies on.
+  # MEASURED 2026-09-30, on the image pinned that day: uid 999; 50 MiB
+  # resident; pg_hba trusts the local socket and wants scram over the network,
+  # which is how the app connects and what backup-wiki.sh's `docker exec …
+  # pg_dump` relies on.
   db:
     <<: *service-defaults
     image: postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f

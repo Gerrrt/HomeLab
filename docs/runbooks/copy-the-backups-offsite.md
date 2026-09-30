@@ -1,7 +1,7 @@
 # Runbook: Copy the backup sets offsite
 
-**Target:** the newest firewall export, volume set and NAS set under
-`backups/` on the monitoring host (10.0.99.20)
+**Target:** the newest firewall export, volume set, NAS set and wiki set
+under `backups/` on the monitoring host (10.0.99.20)
 **Time:** ten minutes every ninety days, on the visit that proves the second
 age recipient; a few minutes longer the first time
 **You will need:** the offline medium that holds the second age recipient's
@@ -61,7 +61,9 @@ In order, and each step stops the run if it fails:
    beside it. This is the proof that *last* visit's bytes survived ninety
    days on the medium, and it is why the copy is not the first step.
 2. **Copy the newest complete set of each kind the medium lacks** — the volume
-   set for the stack, the NAS set, the firewall export — into a `.part` name,
+   set for the stack, the NAS set, the wiki's database set (since
+   [#251](https://github.com/Gerrrt/HomeLab/issues/251)), the firewall
+   export — into a `.part` name,
    MANIFEST last, then renamed. Room is measured first; the script refuses
    rather than fills.
 3. **Hash the new copy** against the MANIFEST after a sync, and compare the
@@ -152,13 +154,18 @@ cp -r /path/to/the/medium/backups/nas/<STAMP> backups/nas/
 ```
 
 ```bash
+cp -r /path/to/the/medium/backups/wiki/<STAMP> backups/wiki/
+```
+
+```bash
 cp /path/to/the/medium/backups/firewall/config-<STAMP>.sops.yaml backups/firewall/
 ```
 
 Then [`restore-the-stack.md`](restore-the-stack.md) (`make restore
-ARGS="--from <STAMP>"`), [`restore-the-firewall.md`](restore-the-firewall.md)
-and [`build-the-nas.md`](build-the-nas.md) §6 as written. None of it decrypts
-without the age key, which is on the same medium — that is the point of this
+ARGS="--from <STAMP>"`), [`restore-the-firewall.md`](restore-the-firewall.md),
+[`build-the-nas.md`](build-the-nas.md) §6 and
+[`stacks/wiki/README.md`](../../stacks/wiki/README.md) § Restore as written.
+None of it decrypts without the age key, which is on the same medium — that is the point of this
 medium, and the cost of it.
 
 ## If something goes wrong
