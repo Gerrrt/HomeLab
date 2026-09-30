@@ -78,14 +78,6 @@ Closes when it is empty.
   redeployed carrying them, then `make up` on the monitoring host. The issue
   stays open until `deploy-agent.sh` has shown fresh data from all three agents
   and the refusal probes are green.
-- **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put `oracle`'s wiki
-  into the repository and back up its database.** Reopened 2026-09-26: #252
-  closed it by accident. ADR-0015 names it as the tracker for that gap.
-  Authored 2026-09-30: [`stacks/wiki`](../stacks/wiki) and the nightly dump
-  of [ADR-0065](adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md).
-  Cut over on `oracle` the same day, after a first set was proven with
-  `make backup-wiki ARGS=--prove`. The empty anonymous volume is removed once
-  a set from the new stack proves too; that closes it.
 - **[#672](https://github.com/Gerrrt/HomeLab/issues/672) Fail a PR whose
   close keywords sit in prose.** Eight issues have been closed by a keyword
   inside a sentence saying the issue stays open; three of them sat closed with
