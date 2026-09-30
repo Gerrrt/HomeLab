@@ -225,8 +225,8 @@ The first four were created on 2026-09-16. Navidrome's `4533` was created on
 2026-09-22 as step 1 of §6.6, ahead of the service — its position is provable
 without a listener, and its reach is §6.6 step 5. Audiobookshelf's `13378`
 ([ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md),
-which calls it the fifth; it will be the seventh to exist) is created as step 1
-of §6.5. `Allow SMB to smaug` on `445`, for workstations mounting the share
+which calls it the fifth; it is the seventh to exist) was created as step 1
+of §6.5, which was done by 2026-09-29. `Allow SMB to smaug` on `445`, for workstations mounting the share
 ([ADR-0051](../adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)),
 was created on 2026-09-23 in §5, after the user it serves.
 
@@ -359,6 +359,17 @@ anything in this runbook.
 > in [`hardware.md`](../hardware.md)'s `smaug` entry, and the consequence —
 > a controller between ZFS and its disks, and what that means for the swap —
 > is in the disk runbook's step 4 and open list.
+>
+> **Re-cabled 2026-09-29, and now on the chipset.** At the disk swap
+> ([ADR-0052](../adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)),
+> both trays went onto the chipset on two new plain SATA cables, the
+> MegaRAID came out, and the pool imported there. The links read `ata1` and
+> `ata2` at 6.0 Gbps for the Exos, `ata6` for the boot SSD, and `ata5` for
+> the optical drive, which went back in the same day. `ata3` and `ata4` are
+> free. Board connector labels were not read, so this names ports the way
+> the kernel does. The instruction below still names `SATA2` and `SATA3`.
+> That is kept as the record of what was believed. For a rebuild, cable any
+> free chipset port and confirm the port with `dmesg`.
 
 Power down, unplug, hold the power button five seconds, ground yourself.
 
@@ -1151,9 +1162,13 @@ day's numbers forever; `SmartStateStale` in `host.rules.yaml` exists for
 exactly that.
 
 **4. The baseline row, only if step 1 disagreed with it.** The row in
-`scripts/render-smart-baselines.sh` reads `smaug /dev/sdc 4`. If the S3520
-printed as another letter, change the row — the letter only, never the
-count — merge it, and on the monitoring host:
+`scripts/render-smart-baselines.sh` read `smaug /dev/sdc 4` when this
+section ran. Since [#745](https://github.com/Gerrrt/HomeLab/issues/745) it
+is keyed on the drive's port, not its letter
+([ADR-0066](../adr/0066-key-smart-series-on-the-port-not-the-letter.md)), and
+reads `smaug pci-0000:00:17.0-ata-6 4`: compare the `slot=` on the S3520's
+lines, not the letter. If it differs, change the row — the slot only, never
+the count — merge it, and on the monitoring host:
 
 ```bash
 sudo make smart-state
@@ -1233,16 +1248,17 @@ reopens it.
 
 [#140](https://github.com/Gerrrt/HomeLab/issues/140),
 [ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md).
-The service is in `compose.yaml` from the day it merged, and **nothing here
-has been done on this host.** The roadmap holds it until the mirror is whole
+The service is in `compose.yaml` from the day it merged, and **every step
+below has been done on this host** — see the Done block at the end. The roadmap held it until the mirror was whole
 ([#558](https://github.com/Gerrrt/HomeLab/issues/558)): its state lands on
 `erebor/apps` like Jellyfin's, and a pool of one disk is not the place to
-start accumulating a new thing worth backing up.
+start accumulating a new thing worth backing up. **The gate opened
+2026-09-29**, when the resilver and the scrub completed.
 
-Until this section runs, `scripts/backup-nas.sh` carries
-`audiobookshelf-state` as **pending** and skips it by name when its directory
-is absent from the snapshot, so the weekly Jellyfin pull is not broken by a
-service that is not there yet. Step 8 is where that stops being allowed.
+Until this section ran, `scripts/backup-nas.sh` carried
+`audiobookshelf-state` as **pending** and skipped it by name when its directory
+was absent from the snapshot, so the weekly Jellyfin pull was not broken by a
+service that was not there yet. Step 8 is where that stopped being allowed.
 
 1. **Create the fifth rule** in §0.5's table, in the pfSense UI: Hicks (50),
    `tcp`, `vlan50 net` → `10.0.40.30` port `13378`, description exactly
@@ -1318,17 +1334,44 @@ service that is not there yet. Step 8 is where that stops being allowed.
    still **zero**. The app talks to the server; nothing on the server talks
    out to anything but the internet it already had.
 
-> **Not yet done.** The date, the set stamp from step 7 and the two readings
-> from steps 6 and 9 go here, in the commit that flips step 8.
+> **Done 2026-09-29.** `docker compose up -d` ran before that morning's
+> 03:00 snapshot, so `erebor/apps@auto-2026-09-29_03-00` was the first to hold
+> `audiobookshelf/`, and step 7 ran against it the same day rather than the
+> day after.
+>
+> **The pass is live.** A Hicks workstation (`10.0.50.90`) read
+> `http://10.0.40.30:13378/status` as `serverVersion` **2.36.1**, the pinned
+> tag, with `isInit` **true** — so the rule answers, the container is the one
+> this file pins, and `root` existed before any phone was pointed at it.
+>
+> **Steps 4 and 5:** a *Books* library on `/audiobooks`, automatic backups
+> off, no podcast library.
+>
+> **Step 6, the reason #140 was opened, read true:** a second device signed
+> in as the same user resumed where the first had stopped.
+>
+> **Step 7:** `frodo`'s tar read the `audiobookshelf` directory out of
+> `auto-2026-09-29_03-00` and printed `readable`. The set written by
+> `make backup-nas` listed **both** `jellyfin-config` and
+> `audiobookshelf-state`, and `make verify-backups` passed it. The set's
+> stamp was not recorded here.
+>
+> **Step 9:** the `igc0.40` tripwire read **zero** from `morpheus`.
+>
+> **Step 8** is this commit: `audiobookshelf-state` is `required` in
+> `NAS_ARCHIVES`. The TrueNAS middleware showed `erebor` ONLINE with 0 errors
+> and no active alerts after the pull.
 
 ### §6.6 — Add Navidrome
 
 [#141](https://github.com/Gerrrt/HomeLab/issues/141). Navidrome is in
-`compose.yaml` from the day it merged, and on this host only step 1 has been
-done. It waits on the same gate as §6.5, the mirror being whole
-([#558](https://github.com/Gerrrt/HomeLab/issues/558)), and it is carried in
-`scripts/backup-nas.sh` the same way: `navidrome-data` is **pending**, skipped
-by name while its directory is absent from the snapshot, until step 8.
+`compose.yaml` from the day it merged, and **every step below has been done
+on this host** — see the Done block at the end. It waited on the same gate as
+§6.5, the mirror being whole
+([#558](https://github.com/Gerrrt/HomeLab/issues/558)), which opened on
+2026-09-29. Until this section ran, `scripts/backup-nas.sh` carried
+`navidrome-data` as **pending** and skipped it by name while its directory was
+absent from the snapshot. Step 8 is where that stopped being allowed.
 
 1. **The 4533 pass.** Create `Allow 4533 to smaug` on Hicks exactly as the
    §0.5 table gives it, and read its position from `morpheus` with the
@@ -1375,7 +1418,50 @@ by name while its directory is absent from the snapshot, until step 8.
 > `https`, `8096`, `4533` and the block, in that order, on `igc0.50`; the
 > monitoring host was refused on `4533`; the `igc0.40` tripwire read
 > **0 packets**. What a pass with no listener cannot prove — that Hicks
-> reaches it — is step 5. Steps 2–8 wait on #558.
+> reaches it — is step 5. Steps 2–8 waited on #558, and the mirror has been
+> whole since 2026-09-29.
+>
+> **Done 2026-09-30, and the service had run before this section said so.**
+> `navidrome user list` showed an admin, `gerrrt`, created
+> **2026-09-23 22:41 UTC** from the web form. It was the operator's. So
+> `navidrome/data` existed before any step here recorded it, and the
+> `pending` row pulled it into every NAS set from `20260926T034052Z` on,
+> because a pending row whose directory is present is pulled like a required
+> one. §6.5's Done note had already seen 4533 answering. The lesson for the
+> next service: a bare `docker compose up -d` starts everything in the file
+> whose directories exist, so name the service while a sibling section is
+> still open.
+>
+> **Steps 2–4:** the directories, then a re-fetch and
+> `docker compose up -d navidrome`, recreated the container on the pinned
+> **0.64.2** digest, and it read `healthy` within a minute. A second admin,
+> `admin`, was made from the shell as step 4 says, then deleted, which leaves
+> `gerrrt` as the only admin. A `POST /auth/createAdmin` with no body answers
+> **422**, not 403: the body is parsed before the has-an-admin check. So that
+> probe proves nothing, and `navidrome user list` is the check.
+>
+> **Step 5:** `curl http://10.0.40.30:4533/ping` from a Hicks workstation
+> printed `.`. The monitoring host's `nc` read *correct: blocked*. A Subsonic
+> app on a Hicks phone logged in as `gerrrt` and played a track. The library
+> held no music, so the track was a generated two-minute 440 Hz tone at
+> `music/HomeLab/Deploy Check/`, written by the pinned Jellyfin image's
+> `ffmpeg` in a throwaway container. It picked up `erebor/media`'s inherited
+> ACL as `rwxrwxr-x`, which is readable by 65534. Delete it when real music
+> lands.
+>
+> **Step 6:** against `auto-2026-09-30_03-00`, not a manual snapshot, since the
+> directory predated it. `frodo`'s tar printed `readable`. The set
+> **`20260930T131627Z`** holds `jellyfin-config`, `audiobookshelf-state` and
+> `navidrome-data` (4 entries, `./navidrome.db present`; no `./artwork`
+> yet). It was copied to `atropos` with every hash matching, and
+> `make verify-backups` passed all seven sets there.
+>
+> **Step 7:** the `igc0.40` tripwire, `@205`, read **0 packets** over 251,482
+> evaluations.
+>
+> **Step 8** is this commit: `navidrome-data` is `required` in
+> `NAS_ARCHIVES`. The TrueNAS middleware showed `erebor` ONLINE with 0 errors
+> and no active alerts after the `up`.
 
 ### §6.7 — Turn version collection on
 
@@ -1485,6 +1571,14 @@ day's file carries the new version, and `check-versions` fails until
 > tray can be touched. The return was opened on 2026-09-20 and the seller's
 > choice is what the swap now waits on.
 > [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries the swap.
+>
+> **2026-09-29: the `zpool status erebor` line is true again.** `ZVTLQEZ7`
+> replaced `ZVTBSDL3` on the chipset's ports, with the MegaRAID out. The
+> resilver ran 1.99 GiB in 23 s, and the scrub repaired 0 B with 0 errors.
+> `up{job="node",instance="smaug"}` reads 1, and no alert or silence is
+> left for the host.
+> [`replace-the-nas-disk.md`](replace-the-nas-disk.md) steps 5 and 6 have
+> the readings.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
@@ -1516,13 +1610,13 @@ day's file carries the new version, and `check-versions` fails until
 
 ## §8 — What this leaves open
 
-- **A faulted disk, one day in.** `ZVTBSDL3` FAULTED on 2026-09-19 and the
-  pool is a mirror of one until it is replaced;
-  [`replace-the-nas-disk.md`](replace-the-nas-disk.md) is the procedure and
-  [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries it. Its step
-  2, the copy off this host, ran on 2026-09-20 (§6.2), and its step 3 opened
-  the return the same day; what is left is the seller's choice, the wipe
-  and the ship, and the swap when a drive arrives.
+- **No spare.** `ZVTBSDL3` FAULTED on 2026-09-19. The mirror was one disk
+  until `ZVTLQEZ7` resilvered in on 2026-09-29
+  ([`replace-the-nas-disk.md`](replace-the-nas-disk.md),
+  [#558](https://github.com/Gerrrt/HomeLab/issues/558)). The next fault
+  takes the same ten days unless a drive is already on the shelf. Two bays
+  is all the chassis gives, so a spare would be a cold one. That is the
+  question the disk runbook's open list leaves unasked.
 - **[#255](https://github.com/Gerrrt/HomeLab/issues/255)**, the residual saying
   this host ships no logs, which is true the day it exists.
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s

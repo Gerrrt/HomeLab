@@ -283,13 +283,13 @@ services:
       # PrometheusSizeRetentionActive in containers.rules.yaml says so.
       #
       # What it does NOT do is win a race against a flood through the
-      # remote-write receiver enabled below, which anything that can route here
-      # may push to (ADR-0012, #182). The budget counts the WAL and the m-mapped
-      # head chunks but only ever evicts persistent blocks, and a flood lands in
-      # the WAL: at a few MB/s the head alone passes 12 GiB long before any
-      # block does, at which point every block is deleted and the WAL keeps
-      # growing regardless. Bounding that is authentication's job, not this
-      # flag's.
+      # remote-write receiver enabled below. The budget counts the WAL and the
+      # m-mapped head chunks but only ever evicts persistent blocks, and a
+      # flood lands in the WAL: at a few MB/s the head alone passes 12 GiB long
+      # before any block does, at which point every block is deleted and the
+      # WAL keeps growing regardless. Bounding that is authentication's job,
+      # not this flag's, and since #182 it is done: only a holder of an agent
+      # token can reach the receiver from off this host (`caddy` below).
       #
       # Both retention flags are marked [DEPRECATED] by this version in favour
       # of a storage.tsdb.retention block in prometheus.yaml. They still work,
@@ -308,12 +308,15 @@ services:
       - ./prometheus/targets:/etc/prometheus/targets:ro
       - prometheus-data:/prometheus
     ports:
-      # Published, and unauthenticated with it: anything that can reach this
+      # Loopback only. Prometheus authenticates nothing: whatever reaches this
       # port can read every metric and inject more through the remote-write
-      # receiver. It stays published because `oracle` remote-writes here — that
-      # is a real client, not a hypothetical one (#70). Recorded as an accepted
-      # residual in SECURITY.md rather than left implicit.
-      - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
+      # receiver. The off-host clients (the agents on oracle, trinity and
+      # Saruman, and Homepage and Home Assistant on trinity) reach it through
+      # `caddy` below, which holds the host's address on the same port number
+      # and wants a token first (#182, ADR-0067). Loopback stays open for the
+      # host's own timers and for the runbooks' `curl localhost:9090`. A local
+      # user on this host is already past anything a token could stop.
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
       interval: 30s
@@ -420,10 +423,11 @@ services:
       - ./loki/rules:/etc/loki/rules/fake:ro
       - loki-data:/loki
     ports:
-      # Published for the same reason as Prometheus above, and with the same
-      # residual: auth_enabled is false, so the push and delete APIs are open to
-      # whatever can reach the port. `oracle`'s Alloy pushes here (#70).
-      - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
+      # Loopback only, for Prometheus's reason above. auth_enabled is false,
+      # so the push and delete APIs are open to whatever reaches this port.
+      # The agents push through `caddy` below, which serves the push endpoint
+      # to an agent token and the delete API to nobody (#182).
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
 
   # No healthcheck on loki, deliberately.
   #
@@ -445,6 +449,82 @@ services:
   # entry in ABSENT_BINARIES in scripts/check_compose_health.py, which execs
   # both inside this pinned image on every CI run. If either ever turns up, the
   # paragraph above is out of date and loki can have a healthcheck (#79).
+
+  # ---------------------------------------------------------------------------
+  # The ingest proxy: a token before Prometheus or Loki is served off-host
+  # (#182, ADR-0067).
+  # ---------------------------------------------------------------------------
+  # Prometheus and Loki are on loopback above. This holds the host's own
+  # address on the same two port numbers, so an agent's URL does not change,
+  # only the header it sends. The Caddyfile beside this file is the policy:
+  # which token may reach which path, with everything else refused.
+  #
+  # INGEST_BIND_ADDR, not BIND_ADDR, and it must be a specific address. Docker
+  # cannot publish 0.0.0.0:9090 while prometheus holds 127.0.0.1:9090 (the
+  # wildcard bind covers loopback), so this one cannot be a wildcard.
+  # .env.example says so where the value is set.
+  #
+  # The service is named `caddy` because scripts/check_caddyfile.sh validates
+  # stacks/<stack>/Caddyfile against `image-for.sh caddy` in that stack. It is
+  # the same pinned image as stacks/sensitive's, and Dependabot moves both.
+  #
+  # Non-root, unlike the sensitive tier's Caddy, because nothing here needs a
+  # certificate store. `auto_https off` and `admin off` mean nothing is
+  # written to /data or /config. They are tmpfs so the image's paths exist,
+  # and `docker diff` after a boot and a full request matrix showed nothing
+  # written anywhere. NET_BIND_SERVICE stays in the bounding set for a
+  # measured reason, not to bind a low port (9090, 3100 and 2020 are not
+  # low): the pinned binary carries it as a file capability, and with it
+  # dropped the kernel refuses to exec /usr/bin/caddy at all ("operation not
+  # permitted"). With no-new-privileges the file capability is not granted
+  # either, so CapEff stays 0.
+  #
+  # 64m: 11.5 MiB and 9 tasks after serving that matrix, on the pinned image
+  # with fake upstreams. A ceiling for a leak, not a size.
+  #
+  # The tokens are in the environment, so `docker inspect` can read them. That
+  # is the same exposure class as GRAFANA_ADMIN_PASSWORD, and the Caddyfile's
+  # `{$VAR}` form needs no rendered file.
+  caddy:
+    <<: *service-defaults
+    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
+    container_name: ingest-proxy
+    user: "65534:65534"
+    mem_limit: 64m
+    memswap_limit: 64m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /data:size=1m,uid=65534,gid=65534
+      - /config:size=1m,uid=65534,gid=65534
+      - /tmp:size=1m
+    environment:
+      INGEST_TOKEN_ORACLE: ${INGEST_TOKEN_ORACLE:?set in secrets/observability.sops.yaml}
+      INGEST_TOKEN_TRINITY: ${INGEST_TOKEN_TRINITY:?set in secrets/observability.sops.yaml}
+      INGEST_TOKEN_SARUMAN: ${INGEST_TOKEN_SARUMAN:?set in secrets/observability.sops.yaml}
+      INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/observability.sops.yaml}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "${INGEST_BIND_ADDR:-10.0.99.20}:${PROMETHEUS_PORT:-9090}:9090"
+      - "${INGEST_BIND_ADDR:-10.0.99.20}:${LOKI_PORT:-3100}:3100"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_started
+    healthcheck:
+      # Caddy's own endpoint on a port that is never published. It answers
+      # without an upstream, so this says the proxy is up and nothing more.
+      # busybox wget, as in the sensitive tier's Caddy; --probe proves it.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2020/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # SNMP polling proxy for pfSense, the MokerLink switch, the APC UPS and iLO.
@@ -1053,7 +1133,7 @@ services:
   # ---------------------------------------------------------------------------
   # Headless renderer for dashboard screenshots. NOT part of the running stack:
   # it sits behind the `capture` profile, so `make up` neither starts it nor
-  # pulls it, and `docker compose ps` shows eight services as before.
+  # pulls it, and `docker compose ps` shows nine services as before.
   #
   # It exists because the monitoring host has no browser and Grafana has no
   # built-in PNG export — screenshots for the README were the one artefact this
@@ -1116,7 +1196,7 @@ services:
   # ---------------------------------------------------------------------------
   # tar and gzip for scripts/backup-volumes.sh. NOT part of the running stack:
   # it sits behind the `backup` profile, so `make up` neither starts it nor
-  # pulls it, and `docker compose ps` shows eight services as before.
+  # pulls it, and `docker compose ps` shows nine services as before.
   #
   # This service is never actually started. It exists so that the image the
   # backup script runs is pinned in the one place this repository pins images.
@@ -1152,7 +1232,7 @@ services:
   # ---------------------------------------------------------------------------
   # gitleaks for the secret-scan CI job. NOT part of the running stack: it sits
   # behind the `scan` profile, so `make up` neither starts it nor pulls it, and
-  # `docker compose ps` shows eight services as before.
+  # `docker compose ps` shows nine services as before.
   #
   # Here for the same reason `archiver` above is. This one was a version pinned
   # in ci.yml's env: block — directly underneath the comment saying image
@@ -1174,7 +1254,7 @@ services:
   # ---------------------------------------------------------------------------
   # actionlint and editorconfig-checker for scripts/lint.sh. NOT part of the
   # running stack: both sit behind the `lint` profile, so `make up` neither
-  # starts nor pulls them, and `docker compose ps` shows eight services as before.
+  # starts nor pulls them, and `docker compose ps` shows nine services as before.
   #
   # Here for the same reason `archiver` and `gitleaks` above are. These two were
   # GitHub Actions — raven-actions/actionlint and

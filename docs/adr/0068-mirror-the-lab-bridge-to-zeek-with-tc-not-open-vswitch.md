@@ -1,4 +1,4 @@
-# ADR-0064: Mirror the lab bridge to Zeek with tc, not Open vSwitch
+# ADR-0068: Mirror the lab bridge to Zeek with tc, not Open vSwitch
 
 **Status:** Accepted · 2026-09
 

@@ -21,7 +21,7 @@ docstring gives: it is a record, not a claim about now.
 
 - **#437's mirror is `tc`, not Open vSwitch, and the repository half is
   authored** ([#437](https://github.com/Gerrrt/HomeLab/issues/437), still open;
-  [ADR-0064](adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
+  [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
   - **The issue's premise was wrong.** It said port mirroring needs Open
     vSwitch. Read on `Saruman`: `vmbr0` is a Linux bridge on `eno1` with nine
     guest taps, `tc` is installed, and OVS is not. A `clsact` qdisc with a
@@ -53,7 +53,261 @@ docstring gives: it is a record, not a claim about now.
     package baked into a derived image, which is a follow-up rather than part
     of this change.
 
+- **The ingest ports want a token**
+  ([#182](https://github.com/Gerrrt/HomeLab/issues/182),
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+  Authored, not yet deployed.
+  - **The proxy.** Prometheus and Loki move to `127.0.0.1`. A Caddy service
+    holds `10.0.99.20:9090` and `:3100` in their place. It serves a push to
+    one bearer token per agent (`oracle`, `trinity`, `Saruman`) and a query to
+    one reader token (Homepage, Home Assistant, the deploy script). It serves
+    the admin, lifecycle and delete APIs to nobody.
+  - **Measured on the pinned image** with stand-in upstreams, across 26
+    requests. Agent tokens pushed and could not read. The reader read and
+    could not push. No token, a wrong token, a `Bearer` with no token and a
+    lowercase `bearer` were all refused. So were admin, `/-/quit`,
+    `/-/reload`, the UI, Loki's delete and the compactor, for every token.
+    The access log wrote the header as `REDACTED`.
+  - **Two findings from that boot.** First, `cap_drop: [ALL]` alone makes the
+    kernel refuse to exec Caddy, which carries `cap_net_bind_service` as a
+    file capability, so `NET_BIND_SERVICE` stays in the bounding set. Second,
+    Alloy with `INGEST_TOKEN` unset sends no Authorization header at all.
+    That was read off a listener, and it is why the in-stack, lab and SOC
+    agents needed no change.
+  - **Proof the control is on.** `IngestAuthNotEnforced` pages if the
+    published address answers a token-less query, or Loki's delete, with
+    anything but the proxy's 401.
+  - **Proof data is arriving.** `deploy-agent.sh` now requires samples and a
+    log line newer than the deploy, and exits non-zero without them, since a
+    refused agent stays listed for minutes and looks healthy from its side.
+
+- **The sensitive tier's expiry rules are a pair, in hours**
+  ([#426](https://github.com/Gerrrt/HomeLab/issues/426)). #718 had already
+  shipped the tier-CA blackbox module, kept `renewal: acme` targets out of the
+  30- and 7-day rules and added `TlsAcmeRenewalStalled` (critical, under 36h).
+  What the issue still asked for was the warning half and its inhibit.
+  `TlsAcmeRenewalLate` warns under 48h, about eight hours after Caddy should
+  have renewed at ~56h. Alertmanager inhibits it under the critical rule by
+  `name`, the same shape as the days pair, so a stalled renewal pages once.
+
+- **Hicks' pass to `oracle` is narrowed to `80/tcp`**
+  ([#251](https://github.com/Gerrrt/HomeLab/issues/251)). It admitted 443
+  too, to a port the old wiki container published and nothing answered on;
+  `stacks/wiki` publishes 80 alone. Changed in pfSense's UI and exported
+  with `make backup-firewall` the same day. The empty anonymous volume the
+  old container left is removed, after a set taken from `wiki-db` passed
+  `--prove`.
+
+- **The wiki is cut over to `stacks/wiki`**
+  ([#251](https://github.com/Gerrrt/HomeLab/issues/251)). A first set was
+  taken from the old container and proven by a restore (pages=108 users=4).
+  The secret went to `0400`, and the hand-run `wiki` and `db` were replaced
+  by the compose stack, which adopted `pgdata`: about a minute of downtime.
+  The update companion, the dead node-exporter and `wikinet` are gone. The
+  timer's primed run before the cutover was refused, correctly, but it left
+  an empty `backups/wiki/` that failed `verify-backups`;
+  [#757](https://github.com/Gerrrt/HomeLab/pull/757) takes the lock after
+  the preflight so a refused run leaves nothing. The record is in
+  `stacks/wiki/README.md`.
+
+- **SMART series are keyed on the port a drive is cabled to, not its letter**
+  ([#745](https://github.com/Gerrrt/HomeLab/issues/745),
+  [ADR-0066](adr/0066-key-smart-series-on-the-port-not-the-letter.md)).
+  - **The collector adds `slot`** to every per-device series. It is the
+    drive's `/dev/disk/by-path` name, and the device label where there is
+    none.
+  - **The baseline is keyed on it.** `smaug`'s row is
+    `pci-0000:00:17.0-ata-6`, the S3520's port. `SmartDriveBadSectors` joins
+    `on(host, slot)`, and a series from an older collector uses its `device`
+    as the slot, so `oracle`'s row still names `/dev/sda`.
+  - **A second bug went with it.** `SmartDriveBadSectorsGrowing` matched a
+    series to itself a week back by letter, so a drive with 4 sectors landing
+    on a letter that had held 0 would have read as growth. It had not fired
+    yet.
+
+- **Navidrome is deployed on `smaug`**
+  ([#141](https://github.com/Gerrrt/HomeLab/issues/141), closing;
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.6).
+  - **It had run since 2026-09-23.** Its admin, `gerrrt`, was made from the
+    web form that evening. The `pending` row pulled `navidrome-data` into
+    every NAS set from `20260926T034052Z` on. The Done block records it and
+    names the cause: a bare `up -d` starts every service whose directories
+    exist.
+  - **The 4533 pass is proven from Hicks**, eight days after it was made.
+    `/ping` answered a workstation, and a Subsonic app on a phone played a
+    track: a generated test tone, because the library holds no music yet.
+    The monitoring host is still refused.
+  - **One admin.** A second one made from the shell was deleted.
+    `POST /auth/createAdmin` with no body answers 422, not 403, so
+    `navidrome user list` is the check.
+  - **Backed up and required.** The set `20260930T131627Z` holds all three
+    media archives and verified on `atropos`. `navidrome-data` is now
+    `required` in `backup-nas.sh`.
+  - **The `igc0.40` tripwire still reads zero.**
+- **`SmartDriveBadSectors` fired for `smaug` on the boot SSD's recorded
+  four**, the letter-drift [#745](https://github.com/Gerrrt/HomeLab/issues/745)
+  describes. The TrueNAS middleware placed the S3520 on `sdb` and the Exos
+  on `sda` and `sdc`, with `erebor` ONLINE and no errors. Rerunning the
+  collector by hand wrote `sdb` 4 and both Exos 0. On the monitoring host,
+  `make smart-state` rendered the baseline as `/dev/sdb` 4. That matches
+  the live count, so the rule does not fire. The alert's `device` label was
+  not captured, so which side held the stale letter is probable rather than
+  proven.
+- **The wiki is in the repository, and its database has a backup**
+  ([#251](https://github.com/Gerrrt/HomeLab/issues/251),
+  [ADR-0065](adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)).
+  Reading `oracle` first changed the size of the problem:
+  - The anonymous volume ADR-0015 named was **empty**. `/wiki/data/content`
+    has held nothing since the image was built.
+  - Everything the wiki knows beyond its pages is in an 18 MB Postgres:
+    108 pages, 780 revisions and 4 users.
+  - The running images were Wiki.js 2.5.314 and Postgres 17.6, pulled by
+    the `2` and `17` tags. Both tags have since moved to other digests.
+
+  `stacks/wiki` pins exactly those digests, hardened. It was rehearsed on
+  `oracle` against a scratch restore of the live database: the bootstrap
+  of an empty cluster, the restore, a read-only boot and a page render. The
+  update companion, which held the Docker socket and recreated the wiki from
+  a floating tag, is not carried over. `scripts/backup-wiki.sh` pulls a
+  `pg_dump` to `prometheus` nightly, the first dump in the repository. The
+  cutover on `oracle` is next, recorded in the stack's README.
+
+- **`backup-library`'s first timed run failed, and the unit is fixed**
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132),
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+  The timer was installed at 02:25 UTC, and the primed run exited 2 because
+  tar could not `stat` `./thumbs/.immich`: "Function not implemented". The
+  cause was `RestrictSUIDSGID=`, copied from `backup-sensitive`'s unit. Its
+  seccomp filter returns ENOSYS to the host tar's `stat` of a plain-file
+  operand, while directory operands pass. It was confirmed by
+  `systemd-run` with each property alone. `backup-sensitive` never met it
+  because its tar runs in a container. With the property removed, the script
+  wrote a set under the rest of the unit's sandbox. The incomplete set the
+  failed run left had no `MANIFEST`, and it was removed by hand.
+- **`WAN_DHCP6` is monitored at an address that answers.**
+  `GatewayMonitorUnreliable` on `morpheus` stopped at the cause, not at a
+  silence. It had fired since 2026-09-07.
+  - **The cause.** `dpinger` pinged Comcast's link-local gateway, which
+    never answers ICMPv6 echo, so pfSense called a working uplink down.
+  - **The fix.** In pfSense, the gateway's Monitor IP was set to
+    `2606:4700:4700::1111`, the same anycast address
+    `collect-gateway-state.sh` probes v6 with.
+  - **The reading.** `make gateway-state` read
+    `homelab_gateway_status{gateway="WAN_DHCP6"} 1`, a delay of 0.0144 s,
+    and `homelab_gateway_forwarding{family="inet6"} 1`.
+  - **The docs.** `security.md` now describes the monitor as fixed.
+
 ## 2026-09-29
+
+- **Audiobookshelf is deployed on `smaug`**
+  ([#140](https://github.com/Gerrrt/HomeLab/issues/140), closing;
+  [ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md);
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5).
+  - **Brought up before the 03:00 snapshot**, so
+    `erebor/apps@auto-2026-09-29_03-00` was the first to hold
+    `audiobookshelf/` and the backup check ran the same day.
+  - **The 13378 pass is live**, the seventh to smaug. A Hicks workstation
+    read `/status` as `2.36.1`, the pinned tag, with `root` already created.
+  - **Progress follows the listener:** a second device, signed in as the
+    same user, resumed where the first stopped. That is the property the
+    issue was opened for.
+  - **Backed up and required.** `frodo` read the directory out of the
+    snapshot, the set listed both `jellyfin-config` and
+    `audiobookshelf-state`, and `verify-backups` passed. The archive is now
+    `required` in `backup-nas.sh`. The set stamp was not recorded.
+  - **The `igc0.40` tripwire still reads zero.**
+  - **Navidrome answers on 4533 too**, brought up by the same `up`. §6.6
+    still records it as not deployed, and its admin step is the one to check
+    ([#141](https://github.com/Gerrrt/HomeLab/issues/141)).
+
+- **Immich's library has a copy off its disk: nightly to `oracle`, off-host
+  and not off-estate**
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132),
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+  This corrects "the USB disk is the only copy of the originals" in the
+  rehearsal entry below, and closes nothing in
+  [#455](https://github.com/Gerrrt/HomeLab/issues/455).
+  - **What was built.** `scripts/backup-library.sh` (`make backup-library`,
+    timer `homelab-backup-library`, 05:15) writes one age archive of
+    `upload/`, `library/`, `profile/` and Immich's own dumps. It sources
+    `backup-volumes.sh` for `verify()` and the copy to `oracle`, as
+    `backup-nas.sh` does, and stops nothing. Two sets are kept on each side.
+    A `df` preflight refuses a set that would leave oracle's root LV with less
+    than 15 GiB, and that refusal is ADR-0064's expiry.
+  - **First run.** Set `20260929T232136Z`: 615 originals, 1.5 GB. It was
+    written in 68 s and copied and hash-checked on `oracle` in about three
+    minutes. `ARGS=--prove` streamed it against the live database and read
+    `ok=615 bad=0`.
+  - **Restored from `oracle`.** The set was pulled back, checked against its
+    `MANIFEST` sha256 and unpacked into a tmpfs. Its own 02:00 dump restored
+    into a scratch `immich-db` before the server started, and v3.2.4 came up
+    initialised and onboarded with `ok=615 bad=0`. Thumbnails and transcodes
+    regenerated from *Jobs* with *All*, not *Missing*.
+  - **Found on the way.** A schema-drift warning in the first minute was the
+    geodata import mid-flight, and `schema-check` then read clean. 121 of the
+    615 assets are in Immich's trash, which the thumbnail job skips.
+  - **Not yet:** the timer is not installed (`make install-timers
+    PROFILE=sensitive`). Every set is encrypted to `trinity`'s key alone.
+    ADR-0023's copy is still #455's.
+- **`smaug` has 32 GB**
+  ([#599](https://github.com/Gerrrt/HomeLab/issues/599), closing).
+  - **The fit.** The three Samsung `M391A1G43EB1-CPB` went into the empty
+    slots in a shutdown of their own, after the disk swap's scrub (below).
+  - **What it read.** POST reported 32768 MB at 2133 MHz. `dmidecode`
+    shows four matched modules, *Single-bit ECC*, all configured at 2133
+    MT/s. EDAC reads 0 corrected and 0 uncorrected. The exporter reports
+    33,379,954,688 bytes. The pool stayed healthy throughout.
+  - **Two findings from the same boot, each with an issue of its own.**
+    - **The drive letters moved again with no disk changed**
+      ([#745](https://github.com/Gerrrt/HomeLab/issues/745)). The boot SSD
+      went from `sdc` to `sdb` and `ZVTBS4NL` from `sdb` to `sdc`. So on
+      the chipset a `/dev/sdX` is not a stable name, and the SMART baseline
+      row keyed on one goes stale at a reboot. The row moved to `/dev/sdb`
+      in the same PR, before the next daily collector run could page on
+      it. This also supports, without proving, the reading given below for
+      the afternoon's `SmartDriveBadSectors`.
+    - **A clean shutdown counts as unsafe on the S3520**
+      ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). Its counter went
+      522 → 523 across one *System → Shut Down*. So
+      `SmartDriveUnsafeShutdownsGrowing`'s premise, that a clean stop does
+      not move it, is false for `smaug`'s boot disk. The rule would page on
+      every planned reboot, including the clean UPS halt ADR-0049 built.
+  - **The Compute table reads 32 GB.** The new disk's extended self-test
+    (about 28 hours) starts on the final hardware, after this.
+
+- **`erebor` is a whole mirror again, and the MegaRAID is out**
+  ([#558](https://github.com/Gerrrt/HomeLab/issues/558) and
+  [#571](https://github.com/Gerrrt/HomeLab/issues/571), both closing;
+  [ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md);
+  [`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md) steps 5
+  and 6).
+  - **The replacement is `ZVTLQEZ7`**, the refurbished Exos X20 bought on
+    2026-09-24 after the return came back as a refund. It runs firmware
+    `SN06`. Seagate's lookup says *contact the place of purchase*, so the
+    warranty is eBay's. FARM read **0 power-on, spindle and head-flight
+    hours**, with 0 on every error count across all 20 heads, before the
+    drive was used.
+  - **The chipset move first.** `ZVTBS4NL` went onto a chipset port on a
+    new SATA cable, and the card came out with its breakout. The pool
+    imported `DEGRADED` exactly as it had been on the card, so the fallback
+    was not needed. The Exos are on `ata1` and `ata2` at 6.0 Gbps.
+  - **Resilver and scrub.** The Replace (the UI button is *Manage VDEVs*,
+    not the *Manage Devices* the runbook said) resilvered 1.99 GiB in 23 s,
+    finishing at 13:52 PDT. The scrub repaired 0 B with 0 errors at 13:56.
+    The pool holds 1.91 GiB, which is why both took seconds.
+  - **Step 6 read true.** The exporter reports the pool online. No silence
+    is left. The five NAS backup sets are complete on the monitoring host
+    and on `oracle`, and the timer is installed.
+  - **One alert the runbook did not predict.** `SmartDriveBadSectors`
+    fired for `/dev/sdb` about 30 minutes after the boot, while the live
+    `sdb` read 0 on every count. The textfile the exporter served had been
+    written by the 08:30 cron under the pre-swap letters. Rewriting it by
+    hand cleared the alert, and step 5 now says to do that at every swap.
+    Which series in the old file tripped the rule was not captured, so that
+    part is probable rather than proven.
+  - **The optical drive went back in** on `ata5`, for burning discs.
+  - **Still to read:** the new disk's extended self-test, about 28 hours,
+    whose result goes in `hardware.md`.
 
 - **Actual is deployed on `trinity`**
   ([#142](https://github.com/Gerrrt/HomeLab/issues/142), closed;

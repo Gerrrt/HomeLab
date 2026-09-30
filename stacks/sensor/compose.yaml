@@ -6,7 +6,7 @@
 #              `Saruman`, VMID 190. NOT BUILT YET. Authored ahead of the guest
 #              the way stacks/soc was ahead of odin. The build, and the reboot
 #              proof that closes #437, is docs/runbooks/build-the-sensor-guest.md.
-# Decided by:  docs/adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md
+# Decided by:  docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md
 #              — why a `tc` mirror on the Linux bridge rather than Open vSwitch,
 #              why a guest of its own, and why the check that the mirror is up
 #              lives on the hypervisor and not here.
@@ -22,7 +22,7 @@
 # other guest and carries this stack's own traffic to alexander. `net1` sits
 # alone on the port-less `vmbr1` and receives nothing but the copies the
 # hypervisor's `tc` mirror sends it: the ingress of every vmbr0 port, which is
-# every frame on the lab bridge exactly once (ADR-0064). That includes the
+# every frame on the lab bridge exactly once (ADR-0068). That includes the
 # domain's east-west traffic — LLMNR, NBT-NS, SMB, Kerberos, LDAP, ARP — which
 # crosses no router and which Suricata on morpheus therefore never sees
 # (ADR-0006, ADR-0014).

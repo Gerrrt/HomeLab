@@ -17,7 +17,7 @@ and it takes the whole lab down while it runs.
 built 2026-09-25. A sensor on a segment with one guest has nothing to say.
 
 This builds what
-[ADR-0064](../adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)
+[ADR-0068](../adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)
 decided for [#437](https://github.com/Gerrrt/HomeLab/issues/437): Zeek on its
 own guest, fed by a `tc` mirror of every port of `vmbr0`. The domain's
 east-west traffic crosses no router, so Suricata on `morpheus` never sees it,
@@ -36,11 +36,11 @@ drifts.
 | Name | `fenrir` | Continues the segment's summons |
 | Address | `10.0.30.90/24` | A static below `.100`, the next free decade after `golem`'s planned `.80` |
 | VMID | `190` | The last octet is legible from `qm list`. `scripts/zeek-mirror.sh` and the collector default to it: the capture tap is `tap190i1` |
-| NICs | **Two.** `net0` on `vmbr0` and `net1` alone on `vmbr1` | `net0` is the guest's own traffic, including its log shipping to `alexander`. `net1` receives only the mirror's copies and reaches nothing (ADR-0064) |
+| NICs | **Two.** `net0` on `vmbr0` and `net1` alone on `vmbr1` | `net0` is the guest's own traffic, including its log shipping to `alexander`. `net1` receives only the mirror's copies and reaches nothing (ADR-0068) |
 | Firewall | `firewall=0` on both | As on every guest here: the isolation is the bridge (`build-the-playground.md` §4). A Proxmox firewall bridge on `net1` would also put an `fwbr` between the tap and the mirror |
 | vCPU / RAM | 4 / 8 GiB | Zeek is one process per interface, and the lab's traffic is a trickle beside what one core handles. Most of the RAM is page cache for the logs. It is a bound, and gets re-derived after a fortnight |
 | Disk | **Two: 32 GB OS, 64 GB data**, both on `large_data` | The data disk at `/srv/sensor-data` holds the current logs and fourteen days of hourly archive. The lab's Loki keeps 360 h of what Alloy ships; the archive is the local copy for the days after that |
-| Mirror | `tc`, not Open vSwitch | ADR-0064 |
+| Mirror | `tc`, not Open vSwitch | ADR-0068 |
 
 ## 1. The capture bridge, on `Saruman`
 
@@ -53,7 +53,7 @@ iface vmbr1 inet manual
     bridge-ports none
     bridge-stp off
     bridge-fd 0
-#   Zeek capture only (#437, ADR-0064). No port, no address, no VLANs.
+#   Zeek capture only (#437, ADR-0068). No port, no address, no VLANs.
 ```
 
 Then apply it and check that nothing else moved:

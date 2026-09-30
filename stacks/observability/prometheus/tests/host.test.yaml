@@ -898,6 +898,7 @@ tests:
           - exp_labels:
               host: oracle
               device: /dev/sda
+              slot: /dev/sda
               component: host
               severity: warning
               category: hardware
@@ -916,14 +917,14 @@ tests:
   # oracle's real shape, then a change: 32 recorded and 32 measured, then 40.
   # The baseline is rendered on the monitoring host, so it carries
   # instance="prometheus" while the drive carries instance="oracle" — the join
-  # is on(host, device) and must not care. The alert must keep the DRIVE's
+  # is on(host, slot) and must not care. The alert must keep the DRIVE's
   # instance, which is what `group_left()` is for; without it the label is
   # silently dropped (backup.rules.yaml measured this).
   - interval: 1m
     input_series:
       - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda",instance="oracle",job="oracle-metrics"}'
         values: "32x30 40x90"
-      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",device="/dev/sda",instance="prometheus",job="prometheus-metrics"}'
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",slot="/dev/sda",instance="prometheus",job="prometheus-metrics"}'
         values: "32x120"
     alert_rule_test:
       # 32 against a baseline of 32 is not above it.
@@ -936,6 +937,7 @@ tests:
           - exp_labels:
               host: oracle
               device: /dev/sda
+              slot: /dev/sda
               instance: oracle
               job: oracle-metrics
               component: host
@@ -965,7 +967,7 @@ tests:
         values: "0x120"
       - series: 'homelab_smart_uncorrectable_sectors{host="oracle",device="/dev/sda",instance="oracle"}'
         values: "0x120"
-      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",device="/dev/sda",instance="prometheus"}'
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",slot="/dev/sda",instance="prometheus"}'
         values: "32x120"
     alert_rule_test:
       - eval_time: 90m
@@ -979,7 +981,7 @@ tests:
     input_series:
       - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda"}'
         values: "32x120"
-      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",device="/dev/sda"}'
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",slot="/dev/sda"}'
         values: "32x120"
       - series: 'homelab_smart_pending_sectors{host="oracle",device="/dev/sda"}'
         values: "0x30 1x90"
@@ -1006,17 +1008,18 @@ tests:
 
   # --- SmartDriveBadSectors: smaug, whose series arrive by scrape, at and above
   # its recorded baseline. Every other host's SMART series come from Alloy and
-  # carry host + device; smaug's are a textfile under a scraped node_exporter
-  # (ADR-0047), so they also carry the target's instance, job, role and vlan,
-  # while the baseline row rendered on the monitoring host carries
-  # instance="prometheus". The join is on(host, device) and must not care, and
-  # the alert must keep the DRIVE's labels. 4 is the S3520's real, static count
-  # (hardware.md, render-smart-baselines.sh): quiet at 4, firing at 5.
+  # carry host + device + slot; smaug's are a textfile under a scraped
+  # node_exporter (ADR-0047), so they also carry the target's instance, job,
+  # role and vlan, while the baseline row rendered on the monitoring host
+  # carries instance="prometheus". The join is on(host, slot) and must not
+  # care, and the alert must keep the DRIVE's labels. 4 is the S3520's real,
+  # static count (hardware.md, render-smart-baselines.sh): quiet at 4, firing
+  # at 5.
   - interval: 1m
     input_series:
-      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",instance="smaug",job="node",role="nas",vlan="40"}'
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
         values: "4x30 5x90"
-      - series: 'homelab_smart_reallocated_sectors_baseline{host="smaug",device="/dev/sdc",instance="prometheus",job="prometheus-metrics"}'
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="smaug",slot="pci-0000:00:17.0-ata-6",instance="prometheus",job="prometheus-metrics"}'
         values: "4x120"
     alert_rule_test:
       - eval_time: 25m
@@ -1028,6 +1031,7 @@ tests:
           - exp_labels:
               host: smaug
               device: /dev/sdc
+              slot: pci-0000:00:17.0-ata-6
               instance: smaug
               job: node
               role: nas
@@ -1045,6 +1049,82 @@ tests:
                 assessment passes, record it there and this goes quiet; if it is
                 rising, SmartDriveBadSectorsGrowing will say so and the answer is
                 a disk. Check backups first.
+
+  # --- SmartDriveBadSectors: QUIET when the letter moves and the port does not
+  # The page #745 was filed for, and the one that fired again on 2026-09-30.
+  # smaug's boot SSD reads as sdc, then as sdb after a reboot that moved no
+  # disk; the old series goes stale and a new one starts. Keyed on the letter,
+  # the new series matched no row and paged on its recorded four. Keyed on the
+  # port, both match the one row and nothing fires, before or after.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug"}'
+        values: "4x60"
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug"}'
+        values: "_x60 4x120"
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="smaug",slot="pci-0000:00:17.0-ata-6",instance="prometheus"}'
+        values: "4x180"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: SmartDriveBadSectors
+        exp_alerts: []
+      - eval_time: 170m
+        alertname: SmartDriveBadSectors
+        exp_alerts: []
+
+  # --- SmartDriveBadSectors: a row still naming a LETTER is loud, not silent -
+  # The failure mode ADR-0046 chose and ADR-0066 keeps. A row left keyed on
+  # the old letter, against a collector that now emits the port, matches
+  # nothing, so the drive falls back to `> 0` and pages on its four. The fix
+  # is the row, and the page is how anyone learns the row is wrong.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6"}'
+        values: "4x120"
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="smaug",slot="/dev/sdb"}'
+        values: "4x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: SmartDriveBadSectors
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdb
+              slot: pci-0000:00:17.0-ata-6
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdb has unreadable sectors"
+              description: >-
+                4 sector(s) or media error(s) the drive could not read
+                back — above the count recorded for this drive in
+                scripts/render-smart-baselines.sh, or on a drive with no count
+                recorded. Look at it: if the number is static and the drive's own
+                assessment passes, record it there and this goes quiet; if it is
+                rising, SmartDriveBadSectorsGrowing will say so and the answer is
+                a disk. Check backups first.
+
+  # --- SmartDriveBadSectorsGrowing: QUIET when a letter moves ----------------
+  # The half of #745 the issue did not name. The subtraction matches a series
+  # to itself a week earlier. Keyed on host + letter, smaug's S3520 (4) coming
+  # up as sdb, the letter an Exos (0) held a week before, read as growth of 4.
+  # With `slot` in the label set the two are different series, so the moved
+  # drive has no week-old point and says nothing, and the Exos, on its own
+  # port, says nothing either. 30m steps; the offset is 7d, so the eval is
+  # past 7d + for.
+  - interval: 30m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-2"}'
+        values: "0x335"
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6"}'
+        values: "_x336 4x4"
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-2"}'
+        values: "_x336 0x4"
+    alert_rule_test:
+      - eval_time: 170h
+        alertname: SmartDriveBadSectorsGrowing
+        exp_alerts: []
 
   # --- SmartDriveBadSectors: quiet on a clean drive -------------------------
   # All four inputs at zero, including the NVMe spelling, so the `or` chain is

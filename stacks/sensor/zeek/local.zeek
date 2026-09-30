@@ -1,4 +1,4 @@
-# Zeek's site policy for fenrir (#437, ADR-0064).
+# Zeek's site policy for fenrir (#437, ADR-0068).
 #
 # `local` on the command line loads Zeek's own site/local.zeek first — the
 # stock protocol analysers and their default logs — and this file after it.

@@ -1,4 +1,4 @@
-# Whether the Zeek mirror on the lab bridge is carrying packets (#437, ADR-0064).
+# Whether the Zeek mirror on the lab bridge is carrying packets (#437, ADR-0068).
 #
 # WHAT IT IS FOR. homelab_zeek_mirror_active is Zeek's absence detection,
 # inherited from #441: the lab's Loki has no ruler (ADR-0020), so "the sensor

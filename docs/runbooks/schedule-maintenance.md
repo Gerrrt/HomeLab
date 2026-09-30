@@ -81,7 +81,12 @@ It stops nothing on either side. Its retention is `NAS_KEEP`, beside
 `FW_KEEP` and for the same reason: every unit reads the one environment
 file, and `KEEP` is the volume sets'. `verify-backups` reads both
 directories, here and on `oracle`, so one nightly job proves both kinds of
-set. Deployment itself is now
+set. `backup-wiki` is the other pull, from `oracle` itself: it asks the
+wiki's Postgres for a `pg_dump` over ssh, encrypts it here and keeps it here,
+because the set leaving `oracle` is already the off-host copy
+([ADR-0065](../adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)).
+Its retention is `WIKI_KEEP`, fourteen, and `verify-backups` reads
+`backups/wiki/` too once the first set exists. Deployment itself is now
 one of these jobs rather than something a human remembers to do —
 [#99](https://github.com/Gerrrt/HomeLab/issues/99),
 [ADR-0021](../adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md), and
@@ -101,6 +106,7 @@ the host.
 | `converge` | `make converge` | hourly, :25 | 3 hours |
 | `backup-volumes` | `make backup` | Sundays 03:30 | 14 days |
 | `backup-nas` | `make backup-nas` | Saturdays 03:30 | 14 days |
+| `backup-wiki` | `make backup-wiki` | daily 04:45 | 2 days |
 | `verify-backups` | `make verify-backups` | daily 05:30 | 3 days |
 | `backup-firewall` | `make backup-firewall` | daily 04:30 | 3 days |
 | `snmp-verify` | `make snmp-verify` | Wednesdays 06:30 | 14 days |
@@ -162,7 +168,7 @@ it.
 
 **`zeek-mirror-state` watches the one row in that table that is not a
 collector.** `zeek-mirror` (#437,
-[ADR-0064](../adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md))
+[ADR-0068](../adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md))
 writes no `.prom`. Every minute it puts the `tc` mirror back on every port of
 `Saruman`'s lab bridge, because a reboot, a guest restart or a sensor restart
 each lose it. `zeek-mirror-state` reads the same kernel state without touching
@@ -539,29 +545,37 @@ systemctl list-timers 'homelab-*'
 
 ### On `trinity`: the sensitive profile
 
-`trinity` has one job of its own, in its own table and its own directory
+`trinity` has two jobs of its own, in their own table and their own directory
 (`SENSITIVE_JOBS`, `systemd/sensitive/`), because it is a second host with a
 checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 
 | Job | Command | When | Alerts if not seen in |
 | --- | --- | --- | --- |
 | `backup-sensitive` | `make backup` with `STACK=sensitive` | daily 04:30 | 2 days |
+| `backup-library` | `make backup-library` | daily 05:15 | 2 days |
 
 It runs daily, not weekly like the estate's backup, because it holds the
 password vault. Each run also copies the set to `oracle`, the same way the
 estate's backup does. Its units name no user and no path, because the build
 runbook writes the operator as `<you>`. The installer fills them in from
 whoever ran `sudo`, and refuses to install from anywhere but that user's
-`~/code/Gerrrt/HomeLab`. From that checkout on `trinity`:
+`~/code/Gerrrt/HomeLab`.
+
+`backup-library` is Immich's library, which no volume set can hold because it
+is a bind mount ([ADR-0064](../adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+It stops nothing, so its timer is `Persistent=true` and catches up a missed
+night at boot. It shares the `backups` lock with `backup-sensitive`, so an
+overrunning volume backup is waited for rather than raced. From that checkout
+on `trinity`:
 
 ```bash
 make install-timers PROFILE=sensitive
 ```
 
-That writes a `homelab-jobs.prom` on `trinity` that declares only
-`backup-sensitive`. The alert rules join on the job name alone, so a name may
-appear in only one table, and `--check` enforces that. The installer does not
-prime the job, because it stops the tier. `make check-timers` checks both
+That writes a `homelab-jobs.prom` on `trinity` that declares only these
+two. The alert rules join on the job name alone, so a name may appear in only
+one table, and `--check` enforces that. The installer primes `backup-library`,
+which stops nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
 profiles, and `make validate` on `trinity` fails until this timer is
 installed.
 
@@ -698,6 +712,7 @@ expected rather than a second fault.
 | `backup-volumes` exits 1 with *off-host copy FAILED* | The same three causes, or `oracle` ran out of room | The set was written and verified here and the stack is up. Repair the path, then `make backup ARGS=--copy-only` — it copies every set `oracle` lacks without stopping the stack, and the next weekly run would do the same |
 | `verify-backups` exits 1 naming a set on `oracle` as *missing* or *differs* | The copy of that set never landed, was removed, or its bytes no longer hash to the manifest | Every local set still decrypts, or the message would say so first. *Missing*: `make backup ARGS=--copy-only`. *Differs*: nothing removes it for you — look at it, `rm -rf` that one directory on `oracle`, then the same command. [`restore-the-stack.md`](restore-the-stack.md) §0 |
 | `backup-nas` exits 1 | The message says which: *cannot reach* means SSH is off on `smaug`, the `99 → 40:22` pass is out of position, or the key or host key is missing; *newest snapshot … is N hours old* means the periodic task on `smaug` has stopped; *tar could not read* means a media service wrote a file `frodo` cannot read | Nothing is stopped on either side and the last complete set is intact. [`build-the-nas.md`](build-the-nas.md) §6.2 is the setup this checks against, and names the fallback for the third case. A snapshot named in the *future* means `NAS_SNAPSHOT_TZ` is not `smaug`'s zone |
+| `backup-wiki` exits 1 | The message says which: *cannot reach* is `oracle` or the ssh path, the same three causes as `backup-firewall`'s; *not accepting connections* means `wiki-db` is not up on `oracle`; *pg_dump on oracle failed* carries Postgres's own message | Nothing is stopped on either side and the last complete set is intact. [`stacks/wiki/README.md`](../../stacks/wiki/README.md) is the stack; `docker compose ps` in `/opt/wiki` on `oracle` is the first look |
 | `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
 | `loki-coverage` exits 1 | A Loki alerting rule cannot see a host that is producing exactly the lines it hunts | Not an outage — nothing is broken, but an alert cannot fire for that host, which is how [#261](https://github.com/Gerrrt/HomeLab/issues/261) went unnoticed. The FAIL line names the rule, the host and the log type the lines are arriving under; the fix is usually an `or` branch on the rule for that host's stream. A `WARN` is the latent form — the rule cannot reach the host at all, but nothing there matches it today — and does not fail the job |
 | `firewall-claims` exits 1 | A segmentation claim in `docs/firewall-claims.yaml` no longer matches the running ruleset | Not an outage, and the firewall is not the thing that is wrong — a document is. The FAIL line names the interface, the segment and the direction: *now reaches X* means a block was removed or a VLAN was added, *no longer reaches X* means a block landed and the prose still describes the world before it. Re-derive with `scripts/check_firewall_claims.py --derive`, then move the prose that cites it — `docs/network.md` and `docs/security.md`. Never edit an ADR in place: [ADR-0001](../adr/0001-record-architecture-decisions.md) makes them immutable, so a stale one gets a marked amendment or a superseding ADR |

@@ -412,11 +412,15 @@ devices. It also means published ports do not route, so reach the services with
 has to be emptied above.
 
 `BIND_ADDR=127.0.0.1` in the export below is belt-and-braces on top of that. It
-covers the rehearsal Prometheus, Loki, Grafana and syslog receiver; Alertmanager
-is pinned to loopback in `compose.yaml` and ignores it (#70).
+covers the rehearsal Grafana and syslog receiver. Alertmanager, Prometheus and
+Loki are pinned to loopback in `compose.yaml` and ignore it (#70, #182).
+`INGEST_BIND_ADDR=127.0.0.2` is the ingest proxy's. It must not be
+`127.0.0.1`, where the rehearsal Prometheus and Loki already hold the same port
+numbers, and it must not be left at its `10.0.99.20` default, which would put
+a rehearsal proxy on the production address.
 
 ```bash
-export COMPOSE_PROJECT_NAME=rehearse BIND_ADDR=127.0.0.1 \
+export COMPOSE_PROJECT_NAME=rehearse BIND_ADDR=127.0.0.1 INGEST_BIND_ADDR=127.0.0.2 \
   PROMETHEUS_PORT=19090 ALERTMANAGER_PORT=19093 LOKI_PORT=13100 \
   GRAFANA_PORT=13000 ALLOY_PORT=12346 SYSLOG_PORT=11514 \
   ALLOY_HOSTNAME=rehearse-alloy

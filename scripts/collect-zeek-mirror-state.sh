@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Whether the Zeek mirror on the hypervisor's lab bridge is actually carrying
-# packets to the sensor (#437, ADR-0064).
+# packets to the sensor (#437, ADR-0068).
 #
 # THE GAP. Zeek on `fenrir` sees the domain's east-west traffic only because
 # scripts/zeek-mirror.sh puts a `tc` mirror on every port of `vmbr0`. That mirror
@@ -37,7 +37,7 @@
 # NO GUEST DATA (ADR-0028). Run state, host interfaces and host tc state: all of
 # it hypervisor state. Nothing here reads what Zeek logged, or whether Zeek is
 # running inside the guest — that is the one thing this cannot see, and
-# ADR-0064 says so.
+# ADR-0068 says so.
 #
 # Usage: scripts/collect-zeek-mirror-state.sh [--print]
 #        scripts/collect-zeek-mirror-state.sh --self-test

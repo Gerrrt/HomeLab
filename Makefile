@@ -781,8 +781,33 @@ backup-nas: ## Pull the media tier's state off smaug from its newest ZFS snapsho
 	@# ARGS=--copy-only mean here what they mean above.
 	./scripts/backup-nas.sh $(ARGS)
 
+.PHONY: backup-wiki
+backup-wiki: ## Pull a pg_dump of the wiki's database off oracle, encrypt and verify
+	@# The wiki's Postgres, which nothing backed up before #251. Pulled for
+	@# backup-nas's reason: oracle holds no age identity (ADR-0015), so this
+	@# host asks it for a dump over ssh and encrypts what arrives. A dump and
+	@# not a stopped volume, the first in the repository (ADR-0065): nothing on
+	@# oracle stops, and a set restores into a newer Postgres. Sets land in
+	@# backups/wiki/ and stay here — the set leaving oracle IS the off-host
+	@# copy. WIKI_KEEP and not KEEP, for the reason backup-firewall gives for
+	@# FW_KEEP. ARGS=--prove restores the newest set into a scratch Postgres.
+	./scripts/backup-wiki.sh $(ARGS)
+
+.PHONY: backup-library
+backup-library: ## On trinity: archive Immich's library off its USB disk, encrypt, verify, copy to oracle
+	@# The photographs, which no volume set can hold: they are a bind mount
+	@# on trinity's USB disk, and `make backup` archives named volumes. Nothing
+	@# is stopped — originals are written once, and Immich's own 02:00 dump
+	@# rides in the same archive — so this runs nightly beside the volume
+	@# sets rather than inside them. LIB_KEEP and not KEEP, for the reason
+	@# backup-firewall gives for FW_KEEP; two, because every set is the whole
+	@# library and oracle's root volume is the limit. ARGS=--prove hashes
+	@# every original in the newest set against immich-db's checksums.
+	@# Off-host, NOT off-estate: ADR-0064 is the interim, #455 the answer.
+	./scripts/backup-library.sh $(ARGS)
+
 .PHONY: verify-backups
-verify-backups: ## Re-verify every retained set of both kinds: the volume sets and the NAS set
+verify-backups: ## Re-verify every retained set of every kind: the volume, NAS and wiki sets
 	@# What homelab-verify-backups.timer runs nightly. Two directories, one
 	@# job: backups/volumes/ is verified against the stack's derived volume
 	@# list and backups/nas/ each set against its own MANIFEST, and a media set in the volume
@@ -790,9 +815,13 @@ verify-backups: ## Re-verify every retained set of both kinds: the volume sets a
 	@# one target walks both rather than a second unit doing the second half.
 	@# Both halves run even when the first fails, so one morning's journal
 	@# says which sets are bad rather than stopping at the first directory.
+	@# backups/wiki/ (#251) is walked once it exists: before the first
+	@# backup-wiki run there is nothing to verify, and that run not happening
+	@# is ScheduledJobNeverRan's to report, not this job's.
 	@rc=0; \
 	STACK=$(STACK) ./scripts/backup-volumes.sh --verify-only --all || rc=1; \
 	./scripts/backup-nas.sh --verify-only --all || rc=1; \
+	if [ -d backups/wiki ]; then ./scripts/backup-wiki.sh --verify-only --all || rc=1; fi; \
 	exit $$rc
 
 .PHONY: backup-offsite

@@ -1,4 +1,4 @@
-# Mirror every port of the lab bridge to the Zeek sensor (#437, ADR-0064).
+# Mirror every port of the lab bridge to the Zeek sensor (#437, ADR-0068).
 #
 # WHAT IT IS FOR. The mirror is `tc` state on vmbr0's ports and on nothing that
 # persists: a reboot loses it, a guest restart loses it for that guest's tap,

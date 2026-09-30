@@ -4,7 +4,7 @@ Zeek on a mirror of `Saruman`'s lab bridge, and the Alloy that carries its logs
 to the lab's Loki. It runs on `fenrir` (`10.0.30.90`, ImaginationLAN / VLAN 30),
 a guest on `Saruman`. **The guest is not built yet.** The build is
 [`build-the-sensor-guest.md`], and this directory is the stack it deploys.
-[ADR-0064] is the decision: why the mirror is `tc` and not Open vSwitch, why a
+[ADR-0068] is the decision: why the mirror is `tc` and not Open vSwitch, why a
 guest of its own, and what the hypervisor's gauge does and does not prove.
 
 ```bash
@@ -50,6 +50,6 @@ In the lab's Grafana, against its Loki:
 {job="zeek", log_type="kerberos"} | json | request_type = "TGS"
 ```
 
-[ADR-0064]: ../../docs/adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md
+[ADR-0068]: ../../docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md
 [`build-the-sensor-guest.md`]: ../../docs/runbooks/build-the-sensor-guest.md
 [`docs/security.md`]: ../../docs/security.md

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Mirror every port of the hypervisor's lab bridge to the Zeek sensor, and keep
-# it mirrored (#437, ADR-0064).
+# it mirrored (#437, ADR-0068).
 #
 # WHY tc AND NOT OPEN VSWITCH. #437 was filed saying port mirroring needs OVS.
 # It does not: a Linux bridge port is a netdev, and a `clsact` qdisc with a
@@ -9,7 +9,7 @@
 # netdev. Converting `vmbr0` would have meant moving 10.0.30.110 — the
 # management plane ADR-0014's host firewall guards — onto an OVSIntPort, and
 # putting a bridge that speaks VLAN tags under the one segment built to hold an
-# attacker. ADR-0064 records the comparison.
+# attacker. ADR-0068 records the comparison.
 #
 # WHAT IS MIRRORED. The INGRESS of every bridge port except the sensor's own,
 # which is every frame exactly once — each one enters the bridge through one

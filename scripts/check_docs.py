@@ -833,6 +833,24 @@ def check_host_stack_table() -> list[str]:
 # ---------------------------------------------------------------------------
 # 4. Ports
 # ---------------------------------------------------------------------------
+BIND_VAR = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)")
+
+
+def normalise_bind(bind: str) -> str:
+    """A bind address as the ports table writes it.
+
+    Loopback is written literally. An address that comes from a variable is
+    written as that variable, `${BIND_ADDR}` or `${INGEST_BIND_ADDR}` (#182),
+    whatever default follows it in compose.yaml. Anything else is read as
+    `${BIND_ADDR}`, which is what every published port was before the ingest
+    proxy needed an address of its own.
+    """
+    if "127.0.0.1" in bind:
+        return "127.0.0.1"
+    m = BIND_VAR.search(bind)
+    return f"${{{m.group(1)}}}" if m else "${BIND_ADDR}"
+
+
 def published_ports(services: dict) -> dict[str, list[tuple[str, str]]]:
     """service -> [(bind, container port)] for anything bound to the host."""
     out: dict[str, list[tuple[str, str]]] = {}
@@ -841,9 +859,8 @@ def published_ports(services: dict) -> dict[str, list[tuple[str, str]]]:
             parts = str(spec).split(":")
             if len(parts) < 2:
                 continue  # "9116" — exposed to the compose network only
-            bind = parts[0]
+            bind = normalise_bind(parts[0])
             container = parts[-1]
-            bind = "127.0.0.1" if bind == "127.0.0.1" else "${BIND_ADDR}"
             out.setdefault(name, []).append((bind, container))
     return out
 
@@ -880,7 +897,7 @@ def check_ports() -> list[str]:
                 )
             continue
 
-        want_bind = "127.0.0.1" if "127.0.0.1" in bind else "${BIND_ADDR}"
+        want_bind = normalise_bind(bind)
         actual = published.get(service, [])
         match = [a for a in actual if a[1] == port]
         if not match:

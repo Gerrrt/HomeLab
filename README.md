@@ -69,7 +69,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 7 provisioned dashboards, 141 panels, and
-  123 alert rules — 105 metric-based in Prometheus, 18 log-based in Loki — sharing
+  125 alert rules — 107 metric-based in Prometheus, 18 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -98,7 +98,7 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 64 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 68 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 37
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
@@ -178,7 +178,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 | Firewall / routing | [pfSense on FreeBSD 16](docs/network.md) | VLANs, DHCP, default-deny |
 | Virtualisation | Proxmox VE | Lab hypervisor |
 | Storage | [TrueNAS 25.10](docs/runbooks/build-the-nas.md) | `smaug`: 2× 18 TB ZFS mirror `erebor`, the SMB share, and the Docker the media stack runs under |
-| Media | [Jellyfin, Audiobookshelf, Navidrome](stacks/media) | Quick Sync transcoding on the NAS, audiobooks with synced progress and music over Subsonic (both authored, not yet deployed — [#140](https://github.com/Gerrrt/HomeLab/issues/140), [#141](https://github.com/Gerrrt/HomeLab/issues/141)); the one stack deployed from TrueNAS rather than by `make deploy` |
+| Media | [Jellyfin, Audiobookshelf, Navidrome](stacks/media) | Quick Sync transcoding on the NAS, audiobooks with synced progress and music over Subsonic ([#140](https://github.com/Gerrrt/HomeLab/issues/140), [#141](https://github.com/Gerrrt/HomeLab/issues/141)); the one stack deployed from TrueNAS rather than by `make deploy` |
 | Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | On `alexander`, a guest on `Saruman`, with its own Prometheus; only liveness crosses to the estate's, never telemetry |
 | Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention capped at 12 GiB, remote-write receiver |
 | Logs | [Loki](stacks/observability/loki) | Single-binary, filesystem storage |
@@ -193,9 +193,9 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 
 ```text
 .
-├── stacks/observability/     # the deployed stack — one compose file, eight services
+├── stacks/observability/     # the deployed stack — one compose file, nine services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 105 alert rules
+│   ├── prometheus/           # config, file_sd targets, 107 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 18 LogQL rules
 │   ├── alloy/                # the agent config directory, shipped to every host

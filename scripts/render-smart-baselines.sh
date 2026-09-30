@@ -18,7 +18,7 @@
 # the number, the day it was read, and the issue that read it. `make
 # smart-state` — the daily job on the monitoring host — renders it as
 #
-#     homelab_smart_reallocated_sectors_baseline{host, device}
+#     homelab_smart_reallocated_sectors_baseline{host, slot}
 #
 # and SmartDriveBadSectors compares the live count to it, so the rule means
 # "more than the number we wrote down". SmartDriveBadSectorsGrowing keeps
@@ -27,7 +27,7 @@
 # count is opt-in per drive and a new disk is covered with no edit.
 #
 # WHY IT FAILS LOUD. If this file is not rendered, or a row names the wrong
-# host or device, the join finds nothing and the drive falls back to `> 0`:
+# host or slot, the join finds nothing and the drive falls back to `> 0`:
 # oracle pages again with its 32, which is visible and one edit away from
 # right. The mistake that would matter — a baseline hiding growth — cannot
 # happen, because a baseline is a ceiling and growth is above it.
@@ -37,20 +37,31 @@
 # is a root cron job in TrueNAS's UI with no `make` to render a table (#483,
 # ADR-0047), and morpheus is read over SSH. One table rendered
 # on the monitoring host covers all of them, because the alert joins on
-# `on(host, device)` and does not care which instance scraped the baseline —
+# `on(host, slot)` and does not care which instance scraped the baseline —
 # the same shape homelab_job_max_age_seconds already has (install-timers.sh).
 # The series carries instance="prometheus" for that reason, as morpheus's own
 # SMART series do, and the collector says why.
 #
-# WHY host AND device, NOT model OR serial. The sectors metric carries only
-# host and device — model is on homelab_smart_healthy alone, and serials are
-# deliberately never emitted (collect-smart-state.sh, "NO SERIAL NUMBERS"). A
-# device letter can move on a host with several disks; when it does the row
-# stops matching, the drive pages at `> 0`, and the fix is this file. Loud,
-# and cheaper than teaching every SMART series a new label.
+# WHY host AND slot, NOT device, model OR serial (#745, ADR-0066). `slot` is
+# the drive's /dev/disk/by-path name — the port it is cabled to — which the
+# collector puts on every series. Until 2026-09-30 this table was keyed on the
+# device letter, and a letter is whatever the kernel handed out on this boot:
+# smaug's boot SSD was sdc, then sdb, on two boots on one day with nothing
+# moved, and each time the row stopped matching and the drive paged on its
+# recorded four. A port moves only when a cable does, and then paging is
+# right, because that is a hardware change. model is not unique (the Exos
+# pair), and serials are never emitted (collect-smart-state.sh, "NO SERIAL
+# NUMBERS").
 #
-# RECORDING A COUNT. Read it (`smartctl -a /dev/sdX` on the host, or the live
-# series), add the row with today's date and the issue that looked, then on the
+# A COLLECTOR THAT EMITS NO slot STILL MATCHES. A copy installed before #745 —
+# oracle's is installed once and not updated — emits `device` alone, and the
+# rule uses `device` as the slot for such a series. So a row for one of those
+# drives names the device label, as oracle's does below; when that host's
+# collector is reinstalled, `--print` shows the new slot and the row changes
+# to it in the same commit, or the drive pages at `> 0` — loud, as above.
+#
+# RECORDING A COUNT. Read it and its slot (`collect-smart-state.sh --print` on
+# the host, or the live series), add the row with today's date and the issue that looked, then on the
 # monitoring host `sudo make smart-state`. The rule goes quiet on the next
 # evaluation. Do not raise a row because the count went up — that is
 # SmartDriveBadSectorsGrowing's finding, and the answer to it is a disk.
@@ -61,19 +72,27 @@ set -euo pipefail
 TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
 PROM="${TEXTFILE_DIR}/smart-baselines.prom"
 
-# host      device    sectors  read-on     issue   note
+# host      slot      sectors  read-on     issue   note
 #
 # oracle    ST500LT012 laptop HDD, 5400 rpm, ~3100 power-on hours when read.
-#           Pending and uncorrectable both 0, overall assessment passing.
+#           Pending and uncorrectable both 0, overall assessment passing. Its
+#           collector predates #745 and emits no slot, so the row names the
+#           device label, which the rule falls back to; see above.
 # smaug     Intel DC S3520 boot disk (docs/hardware.md). Nothing pending or
 #           uncorrectable; normalised 099 against a threshold of 000. INERT
 #           until build-the-nas.md §6.4 runs the collector on smaug (#483,
 #           ADR-0047): the device label is whatever it emits, and /dev/sdc is
 #           node_disk_info's name for the one non-rotational disk there on
 #           2026-09-20. §6.4 step 1 confirms it and step 4 corrects this row.
+#           Moved to /dev/sdb on 2026-09-29 (#599). The pool went onto the
+#           chipset that day (ADR-0052), and after that the letters moved
+#           again on a boot that changed only the memory. So on smaug a
+#           letter is not stable across reboots, and since #745 the row names
+#           the port: the S3520 is on the chipset AHCI's ata6 (hardware.md).
+#           The count, 4, has not changed since 2026-09-16.
 BASELINES=(
   "oracle   /dev/sda   32   2026-09-07   351"
-  "smaug    /dev/sdc    4   2026-09-16   483"
+  "smaug    pci-0000:00:17.0-ata-6    4   2026-09-16   483"
 )
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -87,7 +106,7 @@ case "${1:-}" in
 esac
 
 row_host()    { awk '{print $1}' <<<"$1"; }
-row_device()  { awk '{print $2}' <<<"$1"; }
+row_slot()    { awk '{print $2}' <<<"$1"; }
 row_sectors() { awk '{print $3}' <<<"$1"; }
 row_readon()  { awk '{print $4}' <<<"$1"; }
 row_issue()   { awk '{print $5}' <<<"$1"; }
@@ -95,19 +114,19 @@ row_issue()   { awk '{print $5}' <<<"$1"; }
 emit() {
   printf '# HELP homelab_smart_reallocated_sectors_baseline Reallocated sectors already read and recorded for this drive; SmartDriveBadSectors fires above it. See scripts/render-smart-baselines.sh.\n'
   printf '# TYPE homelab_smart_reallocated_sectors_baseline gauge\n'
-  local row host device sectors
+  local row host slot sectors
   for row in "${BASELINES[@]}"; do
     host="$(row_host "${row}")"
-    device="$(row_device "${row}")"
+    slot="$(row_slot "${row}")"
     sectors="$(row_sectors "${row}")"
     [[ "${sectors}" =~ ^[0-9]+$ ]] \
-      || die "baseline for ${host} ${device} is not a whole number: ${sectors@Q}"
+      || die "baseline for ${host} ${slot} is not a whole number: ${sectors@Q}"
     [[ "$(row_readon "${row}")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] \
-      || die "baseline for ${host} ${device} has no read-on date; a count with no date is not a record"
+      || die "baseline for ${host} ${slot} has no read-on date; a count with no date is not a record"
     [[ "$(row_issue "${row}")" =~ ^[0-9]+$ ]] \
-      || die "baseline for ${host} ${device} names no issue; a count nobody looked at is not a baseline"
-    printf 'homelab_smart_reallocated_sectors_baseline{host="%s",device="%s"} %s\n' \
-      "${host}" "${device}" "${sectors}"
+      || die "baseline for ${host} ${slot} names no issue; a count nobody looked at is not a baseline"
+    printf 'homelab_smart_reallocated_sectors_baseline{host="%s",slot="%s"} %s\n' \
+      "${host}" "${slot}" "${sectors}"
   done
 }
 

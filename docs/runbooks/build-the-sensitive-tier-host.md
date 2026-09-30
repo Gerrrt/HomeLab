@@ -603,16 +603,31 @@ cat /var/lib/node_exporter/textfile_collector/backup-sensitive.prom
 ```
 
 `homelab_job_last_exit_code` must be `0`, and `ARGS=--list` must show the new
-set on both sides. Converging the host is
+set on both sides.
+
+The same install adds `backup-library`, Immich's library copied to `oracle`
+nightly at 05:15
+([ADR-0064](../adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+It stops nothing, so the installer primes it. Read `backup-library.prom` the
+same way, and prove the set against the database:
+
+```bash
+make backup-library ARGS=--prove
+``` Converging the host is
 [#533](https://github.com/Gerrrt/HomeLab/issues/533), after this.
 
 ## 13. Before the first real photo, document or vault item
 
-The stack is up and holds nothing. These five are the gate on the data, not
-on the containers, and each is written in a document that already exists:
+These five are the gate on the data, not on the containers, and each is
+written in a document that already exists. The gate was passed with most of it
+open: Immich's first real photographs arrived on 2026-09-28, and the stack
+README's warning records it. Item 1 is done, and item 3 has an interim
+stand-in, ADR-0064's copy to `oracle`, which does not close it.
 
 1. **The Immich restore rehearsal.** Upstream's database-before-first-start
-   order, on test photos, as the stack README's Immich section describes.
+   order, as the stack README's Immich section describes. Done on 2026-09-28
+   against the real library, and on 2026-09-29 from a library set off
+   `oracle` ([`restore-the-sensitive-tier.md` § Restore Immich](restore-the-sensitive-tier.md#restore-immich)).
 2. **The second recipient on the `sensitive` rule**
    ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)).
    Run `make secrets-add-recipient STACK=sensitive PUBKEY=age1…`, then one

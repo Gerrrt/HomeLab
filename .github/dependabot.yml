@@ -97,6 +97,24 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "media"]
 
+  # stacks/wiki (#251): Wiki.js and its Postgres on oracle, deployed by hand
+  # from main the way stacks/media is, so a bump merged here reaches the host
+  # only when README.md's fetch is run there. Postgres is held to 17 by
+  # ignoring majors: a major is a dump and a restore (ADR-0065), never a
+  # digest bump.
+  - package-ecosystem: docker-compose
+    directory: /stacks/wiki
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

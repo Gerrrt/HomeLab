@@ -14,12 +14,16 @@
 # separately (cpqHePowerMeterCurrReading, 117 W that day). It is a subset of
 # this, so adding both would double-count.
 #
-# Prometheus is plain HTTP on 9090 inside Winterfell, which is what the
-# estate's own scrapes use. The query carries no credential and returns one
-# number.
+# Prometheus is plain HTTP on 9090 inside Winterfell. Since #182 that port is
+# the estate's ingest proxy, which serves a query only to the reader token
+# (ADR-0067). The header comes from the environment, with `!env_var`, and
+# compose.yaml's guard fills it from secrets/sensitive.sops.yaml. The query
+# returns one number.
 
 rest:
   - resource: http://10.0.99.20:9090/api/v1/query
+    headers:
+      Authorization: !env_var HA_PROMETHEUS_AUTHORIZATION
     params:
       query: >-
         max(upsOutputPercentLoad{device="mjolnir"}) / 100

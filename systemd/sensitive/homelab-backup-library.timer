@@ -1,0 +1,18 @@
+[Unit]
+Description=HomeLab: nightly copy of Immich's library to oracle
+Documentation=file://@DEPLOY_ROOT@/docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
+
+[Timer]
+Unit=homelab-backup-library.service
+# After Immich's own dump (02:00) so the set carries a finished one, and after
+# the tier's volume backup (04:30) so the two do not share oracle's link.
+OnCalendar=*-*-* 05:15:00
+RandomizedDelaySec=0
+# True, unlike backup-sensitive's: this stops nothing, so a replay at boot
+# costs nothing but I/O, and a missed night of the only other copy of the
+# photographs is worth catching up.
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

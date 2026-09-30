@@ -19,7 +19,7 @@ What this network is actually built to survive:
 | An attacker on the lab segment reaching the hypervisor's management plane | **Closed at the host, and watched.** `Saruman`'s Proxmox firewall admits `8006` and `22` from Hicks and `8006` from the deployment host only ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)). It was found disabled and turned on on 2026-09-20 ([#566](https://github.com/Gerrrt/HomeLab/issues/566)); since [#576](https://github.com/Gerrrt/HomeLab/issues/576) `homelab_pve_firewall_enabled` is read every five minutes and `PveFirewallDisabled` pages after ten, so a `pve-firewall stop` left in place is noticed rather than found. `PveFirewallPolicyAccept` does the same for `policy_in` left at `ACCEPT`, which reads as enabled and admits the whole segment |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 123 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 125 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below. **What the UPS cannot answer is what happens when the cut outlasts the pack: as of 2026-09-20 nothing shuts down on its signal, and everything on the PDU — `morpheus`, `Saruman`, `neo` and `smaug`, which is in the media room on a long cord from that PDU — stops uncleanly when the pack empties, about 47 minutes in at 21 % load by the card's own unmeasured estimate.** [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides that the firewall's NUT server halts `Saruman` and `smaug` first and itself last, and [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) is the build, the forced-shutdown proof and the one mains pull that measures the pack; until those are done the decision is a configuration nobody has tested ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -160,7 +160,7 @@ state crossing under
 is `tc` on `Saruman`'s existing Linux bridge, not Open vSwitch, and the gauge
 reads 1 only while every port of the bridge mirrors to the sensor and packets
 arrive
-([ADR-0064](adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md));
+([ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md));
 `ZeekMirrorInactive` pages when it does not. It proves the mirror, not the Zeek
 process inside the guest, and says so.
 
@@ -220,16 +220,19 @@ route that does not work, which is the failure a half-configured v6 stack
 usually causes. The estate is addressed in RFC1918 IPv4 by decision, and this
 paragraph is that decision.
 
-**The `WAN_DHCP6` gateway has reported 100% loss for days and the link is
-fine.** `dpinger` monitors the ISP gateway's link-local address, which does not
-answer ICMPv6 echo; traffic traverses that same gateway to Comcast's Seattle
-router, and its NDP entry is live. The "outage" is a property of the monitor
-target. `make gateway-state` now collects both the reported status and whether
-each family actually leaves the building, and `GatewayMonitorUnreliable` fires
-on precisely that disagreement — so this is visible instead of being something
-somebody had to go and ask the firewall about. **Fixing it is a firewall change**
-(point the gateway's Monitor IP at an address that answers, or set it to
-not-monitored) and belongs on the Lemmiwinks side.
+**The `WAN_DHCP6` gateway's monitor answers, since 2026-09-30.** From
+2026-09-07 it reported 100% loss while the link was fine. `dpinger` was
+monitoring the ISP gateway's link-local address, which does not answer
+ICMPv6 echo, while traffic went through that same gateway. `make
+gateway-state` collects both the status pfSense reports and whether each
+family actually reaches the internet, and `GatewayMonitorUnreliable` fired
+on that disagreement for three weeks.
+
+The fix was a firewall change. The gateway's Monitor IP now points at
+`2606:4700:4700::1111`, the address the collector's own v6 probe uses. The
+next collection read status 1, 14 ms, and forwarding 1. The monitor now
+measures the uplink, so a real v6 outage shows as `GatewayDown` and not as
+the same alert that fired for a working link.
 
 **IPv6 is where the segmentation pattern is not finished**, and both halves of the gap are
 worth naming because the documents recorded only one of them for a while. The
@@ -294,20 +297,23 @@ read-only user, reachable from `10.0.99.20` alone by the rule that already
 existed. The residual it leaves, accepted, is one more service on the NAS
 with one more key that reads it — a key that lives on the host already
 holding the estate's age identity, and reads a directory that includes
-Jellyfin's users' password hashes — and, once Audiobookshelf is deployed,
-its users' hashes too, in the same pull
-([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
-**Two more are for the phones on Hicks, and one of them exists.** The
+Jellyfin's users' password hashes — and, since Audiobookshelf was deployed
+on 2026-09-29, its users' hashes too, in the same pull
+([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)),
+and since Navidrome's on 2026-09-30, the hashes in its `navidrome.db`
+([#141](https://github.com/Gerrrt/HomeLab/issues/141)).
+**Two more are for the phones on Hicks, and both exist.** The
 issues that proposed Audiobookshelf and Navidrome each said no new rule
 would be needed; the Hicks passes are per port, so each needs one.
 `Allow 4533 to smaug`, for Navidrome
 ([#141](https://github.com/Gerrrt/HomeLab/issues/141)), was created on
 2026-09-22 ahead of the service, and what could be proved without a listener
 was: its position above the block, read from `morpheus`, and the monitoring
-host still refused on `4533`. That Hicks reaches it is proved at the deploy
-([`build-the-nas.md`](runbooks/build-the-nas.md) §6.6). `vlan50 net →
-10.0.40.30:13378`, for Audiobookshelf, is specified and not created — ADR-0050
-calls it the fifth; it will be the seventh. Neither adds a residual `8096` did
+host still refused on `4533`. That Hicks reaches it was proved at the deploy
+on 2026-09-30 ([`build-the-nas.md`](runbooks/build-the-nas.md) §6.6). `vlan50 net →
+10.0.40.30:13378`, for Audiobookshelf, was created by §6.5 and a Hicks
+workstation reached it on 2026-09-29 — ADR-0050 calls it the fifth; it is the
+seventh. Neither adds a residual `8096` did
 not already have: each first admin is made before a phone is pointed at it,
 and the libraries behind both are mounted read-only.
 **One more is for workstations, and it writes.** `vlan50 net →
@@ -411,23 +417,37 @@ is already hearing from — so a host that has never shipped a line is absent
 from the question rather than failing it. The firewall and the tripwire are the
 control. This paragraph is the record that there is nothing else.
 
-Segmentation is doing more work here than it should have to. Prometheus and Loki
-publish unauthenticated ingest ports for `oracle`'s agent to use, so anything
-that can route to `10.0.99.20:9090` or `10.0.99.20:3100` can write to the metric
-and log stores without a credential — which is exactly the failure ADR-0002
-predicted when it recorded that "a compromised workstation reaches Winterfell".
-That is an accepted residual, recorded in [`SECURITY.md`](../SECURITY.md), not a
-solved problem.
+Segmentation used to do more work here than it should have had to. Prometheus
+and Loki published unauthenticated ingest ports for the agents to use, so
+anything that could route to `10.0.99.20:9090` or `10.0.99.20:3100` could read
+and write the metric and log stores, and delete logs, without a credential.
+That is exactly the failure ADR-0002 predicted when it recorded that "a
+compromised workstation reaches Winterfell". The firewall narrowed who
+"anything" was: since 2026-09-02 Hicks reaches `10.0.99.20` on `3000` only,
+and `10.0.30.110` on ImaginationLAN has one explicit pass for `Saruman`'s
+agent. But a control that depends on one un-reviewed rule ordering is not
+authentication.
 
-**What has changed is who "anything" is.** A workstation on Hicks was in that
-set for as long as the catch-all was the only rule in the way; since 2026-09-02
-it reaches `10.0.99.20` on `3000` only and *Block access to Winterfell* drops
-the ingest ports. What remains in the set is a host already on Winterfell, and
-`10.0.30.110` on ImaginationLAN, which has an explicit pass to both ports for
-`Saruman`'s Alloy agent. The residual narrowed by a firewall change nobody
-recorded; [#182](https://github.com/Gerrrt/HomeLab/issues/182) still owns
-closing it properly, because a control that depends on one un-reviewed rule
-ordering is not authentication.
+**Since [#182](https://github.com/Gerrrt/HomeLab/issues/182) it is
+authenticated** ([ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+Prometheus and Loki are on `127.0.0.1`. The host's address on both ports is an
+ingest proxy with an allowlist:
+
+- an agent token, one per host, may push and do nothing else;
+- the reader token may query and do nothing else;
+- the admin API, the lifecycle endpoints and Loki's delete API are refused to
+  every token.
+
+Reaching the port now grants nothing. The firewall still narrows who can try,
+and the two layers are independent: a bad rule ordering no longer hands over
+the stores, and a stolen token still has to come from a segment that can
+route. The blackbox probes in `targets/blackbox.yaml` ask the published
+address for a query and a delete with no token, and `IngestAuthNotEnforced`
+pages if either is ever answered by anything but the proxy's 401.
+
+What remains is deliberate, and `SECURITY.md` records it. The tokens are plain
+HTTP on VLAN 99, which a Hicks workstation can route to but not sniff. Loopback
+is unauthenticated, for a local user who already holds the SOPS key.
 
 What has been taken off the firewall's shoulders is Alertmanager. It had no
 off-host client, so it now binds to `127.0.0.1` and reaching VLAN 99 no longer
@@ -523,7 +543,7 @@ assumption consistent with what they are.
   brought up with `docker compose` rather than `make up`, and sets in
   `.env.example` the two values `render-config.sh` would otherwise write
   ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
-  [ADR-0064](adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
+  [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
   What would retire it is the same as for media: a service there taking a
   credential from outside. Then it gets a rule of its own above the
   catch-all, with `fenrir`'s key, before the file exists.
@@ -781,9 +801,14 @@ this closes on.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence
   is how monitoring gets switched off — quietly, since the record lives in the
   system being switched off. Nothing off-host used the port; silences are
-  reached through Grafana. Prometheus and Loki are *not* in this list: they stay
-  published for `oracle`'s agent and remain an accepted residual. See
-  [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md).
+  reached through Grafana.
+- Prometheus and Loki bind to `127.0.0.1` only, since #182. Their off-host
+  clients (three agents, Homepage and Home Assistant) reach them through the
+  ingest proxy on `10.0.99.20`, which wants a token and serves each token one
+  role. See [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)
+  for which ports are published and
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)
+  for what a client must prove.
 - The Alloy debug UI binds to `127.0.0.1` only.
 - **The Docker socket is no longer mounted into Alloy** (#193). It was, marked
   `:ro`, which was worth less than it looked: read-only applies to the socket

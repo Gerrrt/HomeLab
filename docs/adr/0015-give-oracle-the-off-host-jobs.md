@@ -180,6 +180,15 @@ spends a page establishing that the wiki is the tier the household reads.
   history and configuration, and the time to rebuild it. Deciding the role is
   what makes that a tracked gap instead of an unowned one:
   [#251](https://github.com/Gerrrt/HomeLab/issues/251).
+
+  > **Update · 2026-09-30.** The gap is written down. The containers are
+  > [`stacks/wiki`](../../stacks/wiki), deployed by hand from `main` because
+  > this host holds no key to render secrets with, which is this record's
+  > condition, kept. The database is pulled to `prometheus` nightly as a
+  > `pg_dump` and encrypted there, so `oracle` gained no key
+  > ([ADR-0065](0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)).
+  > The secret is `0400`. The anonymous volume turned out to be empty, and
+  > nothing on it was ever at risk.
 - **`oracle` becomes load-bearing, which it was already, undeclared.** The
   middle of ADR-0011's three documentation tiers now has an owner written down,
   and the machine holding the backups is also the machine serving the
