@@ -1,0 +1,19 @@
+[Unit]
+Description=HomeLab: nightly pull of the wiki's database off oracle
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-backup-wiki.service
+# Nightly, because a dump costs the wiki nothing: pg_dump reads a snapshot and
+# stops no one. 04:45 sits after the firewall export (04:30) and before the
+# nightly verify (05:30), which re-reads this set on the same morning; on a
+# Sunday the volume backup may still hold the `backups` lock, and the 900 s
+# wait covers that.
+OnCalendar=*-*-* 04:45:00
+# Jitter and a replayed missed run are both fine: nothing is stopped.
+RandomizedDelaySec=300
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
