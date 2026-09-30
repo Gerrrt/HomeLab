@@ -17,6 +17,33 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-30
+
+- **`backup-library`'s first timed run failed, and the unit is fixed**
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132),
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+  The timer was installed at 02:25 UTC, and the primed run exited 2 because
+  tar could not `stat` `./thumbs/.immich`: "Function not implemented". The
+  cause was `RestrictSUIDSGID=`, copied from `backup-sensitive`'s unit. Its
+  seccomp filter returns ENOSYS to the host tar's `stat` of a plain-file
+  operand, while directory operands pass. It was confirmed by
+  `systemd-run` with each property alone. `backup-sensitive` never met it
+  because its tar runs in a container. With the property removed, the script
+  wrote a set under the rest of the unit's sandbox. The incomplete set the
+  failed run left had no `MANIFEST`, and it was removed by hand.
+- **`WAN_DHCP6` is monitored at an address that answers.**
+  `GatewayMonitorUnreliable` on `morpheus` stopped at the cause, not at a
+  silence. It had fired since 2026-09-07.
+  - **The cause.** `dpinger` pinged Comcast's link-local gateway, which
+    never answers ICMPv6 echo, so pfSense called a working uplink down.
+  - **The fix.** In pfSense, the gateway's Monitor IP was set to
+    `2606:4700:4700::1111`, the same anycast address
+    `collect-gateway-state.sh` probes v6 with.
+  - **The reading.** `make gateway-state` read
+    `homelab_gateway_status{gateway="WAN_DHCP6"} 1`, a delay of 0.0144 s,
+    and `homelab_gateway_forwarding{family="inet6"} 1`.
+  - **The docs.** `security.md` now describes the monitor as fixed.
+
 ## 2026-09-29
 
 - **Audiobookshelf is deployed on `smaug`**
@@ -39,6 +66,61 @@ docstring gives: it is a record, not a claim about now.
   - **Navidrome answers on 4533 too**, brought up by the same `up`. §6.6
     still records it as not deployed, and its admin step is the one to check
     ([#141](https://github.com/Gerrrt/HomeLab/issues/141)).
+
+- **Immich's library has a copy off its disk: nightly to `oracle`, off-host
+  and not off-estate**
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132),
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+  This corrects "the USB disk is the only copy of the originals" in the
+  rehearsal entry below, and closes nothing in
+  [#455](https://github.com/Gerrrt/HomeLab/issues/455).
+  - **What was built.** `scripts/backup-library.sh` (`make backup-library`,
+    timer `homelab-backup-library`, 05:15) writes one age archive of
+    `upload/`, `library/`, `profile/` and Immich's own dumps. It sources
+    `backup-volumes.sh` for `verify()` and the copy to `oracle`, as
+    `backup-nas.sh` does, and stops nothing. Two sets are kept on each side.
+    A `df` preflight refuses a set that would leave oracle's root LV with less
+    than 15 GiB, and that refusal is ADR-0064's expiry.
+  - **First run.** Set `20260929T232136Z`: 615 originals, 1.5 GB. It was
+    written in 68 s and copied and hash-checked on `oracle` in about three
+    minutes. `ARGS=--prove` streamed it against the live database and read
+    `ok=615 bad=0`.
+  - **Restored from `oracle`.** The set was pulled back, checked against its
+    `MANIFEST` sha256 and unpacked into a tmpfs. Its own 02:00 dump restored
+    into a scratch `immich-db` before the server started, and v3.2.4 came up
+    initialised and onboarded with `ok=615 bad=0`. Thumbnails and transcodes
+    regenerated from *Jobs* with *All*, not *Missing*.
+  - **Found on the way.** A schema-drift warning in the first minute was the
+    geodata import mid-flight, and `schema-check` then read clean. 121 of the
+    615 assets are in Immich's trash, which the thumbnail job skips.
+  - **Not yet:** the timer is not installed (`make install-timers
+    PROFILE=sensitive`). Every set is encrypted to `trinity`'s key alone.
+    ADR-0023's copy is still #455's.
+- **`smaug` has 32 GB**
+  ([#599](https://github.com/Gerrrt/HomeLab/issues/599), closing).
+  - **The fit.** The three Samsung `M391A1G43EB1-CPB` went into the empty
+    slots in a shutdown of their own, after the disk swap's scrub (below).
+  - **What it read.** POST reported 32768 MB at 2133 MHz. `dmidecode`
+    shows four matched modules, *Single-bit ECC*, all configured at 2133
+    MT/s. EDAC reads 0 corrected and 0 uncorrected. The exporter reports
+    33,379,954,688 bytes. The pool stayed healthy throughout.
+  - **Two findings from the same boot, each with an issue of its own.**
+    - **The drive letters moved again with no disk changed**
+      ([#745](https://github.com/Gerrrt/HomeLab/issues/745)). The boot SSD
+      went from `sdc` to `sdb` and `ZVTBS4NL` from `sdb` to `sdc`. So on
+      the chipset a `/dev/sdX` is not a stable name, and the SMART baseline
+      row keyed on one goes stale at a reboot. The row moved to `/dev/sdb`
+      in the same PR, before the next daily collector run could page on
+      it. This also supports, without proving, the reading given below for
+      the afternoon's `SmartDriveBadSectors`.
+    - **A clean shutdown counts as unsafe on the S3520**
+      ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). Its counter went
+      522 → 523 across one *System → Shut Down*. So
+      `SmartDriveUnsafeShutdownsGrowing`'s premise, that a clean stop does
+      not move it, is false for `smaug`'s boot disk. The rule would page on
+      every planned reboot, including the clean UPS halt ADR-0049 built.
+  - **The Compute table reads 32 GB.** The new disk's extended self-test
+    (about 28 hours) starts on the final hardware, after this.
 
 - **`erebor` is a whole mirror again, and the MegaRAID is out**
   ([#558](https://github.com/Gerrrt/HomeLab/issues/558) and

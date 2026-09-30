@@ -1,0 +1,56 @@
+# Nightly copy of Immich's library to oracle, on trinity (#132, ADR-0064).
+#
+# The same shape as homelab-backup-sensitive.service, and that unit (and the
+# estate's homelab-backup-volumes.service behind it) explains every directive
+# below; this one states only what differs.
+#
+# It stops nothing. The library is a bind mount no volume set can hold, its
+# originals are written once, and Immich's own 02:00 database dump rides in
+# the same archive (scripts/backup-library.sh, WHY NOTHING IS STOPPED). So
+# the tier stays up, and the run is ordinary work at idle I/O priority.
+#
+# It shares the `backups` lock with backup-sensitive, so a volume backup still
+# running at 05:15 is waited for rather than raced — the two copies to oracle
+# never share its link. The copy off the ESTATE is not this unit's: that is
+# #455, and until it exists this is off-host only.
+[Unit]
+Description=HomeLab: archive Immich's library and copy it to oracle
+Documentation=file://@DEPLOY_ROOT@/docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@RUN_USER@
+Group=@RUN_GROUP@
+WorkingDirectory=@DEPLOY_ROOT@
+Environment=SOPS_AGE_KEY_FILE=@RUN_HOME@/.config/sops/age/keys.txt
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=@DEPLOY_ROOT@/scripts/run-scheduled.sh --job backup-library --lock backups --lock-wait 900 -- /usr/bin/make -C @DEPLOY_ROOT@ backup-library
+# An hour, not half of one: the whole library is read, encrypted and sent
+# every night, and it grows. At oracle's 100 Mb/s a 20 GB set is about half
+# an hour on the wire. A run that needs longer is the moment ADR-0064 names
+# for #455 to have landed.
+TimeoutStartSec=3600
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=false
+NoNewPrivileges=true
+# No RestrictSUIDSGID=, unlike the unit this one copies. Its seccomp filter
+# made the host's tar fail `stat` on a plain-file operand with ENOSYS —
+# "./thumbs/.immich: Cannot stat: Function not implemented" — and failed the
+# first timed run on 2026-09-30, while the same command passed interactively.
+# Directory operands were unaffected. backup-sensitive never met it because
+# its tar runs in a container. The job runs as the operator with
+# NoNewPrivileges, so there is no set-id bit for the filter to guard.
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-backup-library
+
+# No [Install] section: the timer enables this.

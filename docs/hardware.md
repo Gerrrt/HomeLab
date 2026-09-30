@@ -68,7 +68,7 @@ quietly swapped.
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
 | `trinity` | HP ProDesk 600 G4 DM | i5-8500T | 32 GB | 512 GB NVMe SSD (LUKS2, TPM unlock) + 2 TB USB HDD (LUKS2, photos) | Ubuntu Server 26.04 LTS |
-| `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
+| `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 32 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
 SNMP devices at a 60-second interval, seven Alloy agents, and 30 days of metric
@@ -305,7 +305,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   replacement of all four modules and not an addition, so the board's ceiling
   is reachable only by discarding what is in it. 32 GB is the number ADR-0040's
   workload was sized against, and the second half of the ceiling was never
-  costed. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
+  costed. **Fitted 2026-09-29: 32 GB in all four slots**, trained at 2133 and
+  ECC, with the reading in the memory entry below. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
   other address here. BIOS **`S06KT81L` dated 2024-02-05**, boot block `1.81`, flashed
   2026-09-16 while the box was still empty. It shipped on `S06KT03R` dated
   2017-05-22 with boot block `1.03` — a firmware predating the Spectre and
@@ -621,6 +622,24 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   it — worth knowing before reading a slow self-test as a sick disk. TrueNAS's
   scheduled tests take it from here; they run the tests, and ADR-0047
   publishes the attributes.
+  **A clean shutdown counts as unsafe on this drive. Read 2026-09-29**
+  ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). The
+  counter read 522 at 13,508 hours, just before the memory install. The
+  machine was stopped by *System → Shut Down* in the TrueNAS UI, and after
+  the boot the counter read **523** on both attributes. That shutdown was
+  clean, and still added one. So the +3 between 2026-09-21 (519) and that
+  morning were the planned shutdowns of 2026-09-22 and 2026-09-29, not power
+  events. The same likely explains most of the 509 its previous owner left.
+  `SmartDriveUnsafeShutdownsGrowing` assumes the opposite: its comment says
+  a clean shutdown on the UPS's signal does not move the counter. On this
+  drive, then, it cannot tell a planned reboot from a power cut. It did not
+  fire on 2026-09-29 only because the drive's letter moved between the two
+  readings (`sdc` to `sdb`), so its 1-day comparison had nothing to match.
+  **Its letter is not stable.** On the chipset the boot SSD read `sdc` after
+  the disk swap and `sdb` after the memory install, a boot with no disk
+  changed. The baseline row moved to `/dev/sdb` the same day and will go
+  stale again until [#745](https://github.com/Gerrrt/HomeLab/issues/745)
+  keys it on something stable.
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, delivered
   2026-09-11, fitted 2026-09-18 in bays 3 and 4 of the ProLiant, and **since
@@ -860,7 +879,24 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   what the arrival has to check is what no listing can answer: that three
   strangers and the incumbent train together at 2133 and that the board posts
   with every slot filled. Until then the Compute table reads 8 GB, because
-  memory in a box in transit is not memory in the machine. Ordered the day
+  memory in a box in transit is not memory in the machine.
+  **Arrived and fitted 2026-09-29, and the board takes all four.**
+  - **The fit.** It was a shutdown of its own after the disk swap's scrub,
+    so that a module that would not train could not be confused with the
+    pool. The three new modules went into the empty slots and the
+    incumbent was not reseated.
+  - **POST.** The board read **32768 MB at 2133 MHz**.
+  - **`dmidecode` in TrueNAS.** *Single-bit ECC*, and four 8 GB
+    `M391A1G43EB1-CPB`, one each in ChannelA DIMM 0 and 1 and ChannelB
+    DIMM 0 and 1, all configured at 2133 MT/s. The incumbent's label reads
+    `-CPBQ` and its SPD reports the same part number as the three.
+  - **The rest.** EDAC `mc0` reads 0 corrected and 0 uncorrected errors, and
+    `zpool status -x` reads all pools healthy. `free -g` gives 31 GiB, and
+    `node_memory_MemTotal_bytes` reads 33,379,954,688 from the monitoring
+    host.
+  - **No MemTest86 pass is recorded.** ECC with EDAC watching is the running
+    check instead.
+  - **The Compute table now reads 32 GB.** Ordered the day
   after the label was photographed, which is what settled the part number —
   `PC4-2133P-EE1-11` off the installed module, `EE` being ECC unbuffered, and
   this listing naming `PC4-17000P-E` for the same thing.
