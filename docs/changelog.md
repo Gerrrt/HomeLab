@@ -27,6 +27,18 @@ docstring gives: it is a record, not a claim about now.
   old container left is removed, after a set taken from `wiki-db` passed
   `--prove`.
 
+- **The wiki is cut over to `stacks/wiki`**
+  ([#251](https://github.com/Gerrrt/HomeLab/issues/251)). A first set was
+  taken from the old container and proven by a restore (pages=108 users=4).
+  The secret went to `0400`, and the hand-run `wiki` and `db` were replaced
+  by the compose stack, which adopted `pgdata`: about a minute of downtime.
+  The update companion, the dead node-exporter and `wikinet` are gone. The
+  timer's primed run before the cutover was refused, correctly, but it left
+  an empty `backups/wiki/` that failed `verify-backups`;
+  [#757](https://github.com/Gerrrt/HomeLab/pull/757) takes the lock after
+  the preflight so a refused run leaves nothing. The record is in
+  `stacks/wiki/README.md`.
+
 - **SMART series are keyed on the port a drive is cabled to, not its letter**
   ([#745](https://github.com/Gerrrt/HomeLab/issues/745),
   [ADR-0066](adr/0066-key-smart-series-on-the-port-not-the-letter.md)).
