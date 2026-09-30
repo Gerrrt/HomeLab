@@ -214,16 +214,19 @@ route that does not work, which is the failure a half-configured v6 stack
 usually causes. The estate is addressed in RFC1918 IPv4 by decision, and this
 paragraph is that decision.
 
-**The `WAN_DHCP6` gateway has reported 100% loss for days and the link is
-fine.** `dpinger` monitors the ISP gateway's link-local address, which does not
-answer ICMPv6 echo; traffic traverses that same gateway to Comcast's Seattle
-router, and its NDP entry is live. The "outage" is a property of the monitor
-target. `make gateway-state` now collects both the reported status and whether
-each family actually leaves the building, and `GatewayMonitorUnreliable` fires
-on precisely that disagreement — so this is visible instead of being something
-somebody had to go and ask the firewall about. **Fixing it is a firewall change**
-(point the gateway's Monitor IP at an address that answers, or set it to
-not-monitored) and belongs on the Lemmiwinks side.
+**The `WAN_DHCP6` gateway's monitor answers, since 2026-09-30.** From
+2026-09-07 it reported 100% loss while the link was fine. `dpinger` was
+monitoring the ISP gateway's link-local address, which does not answer
+ICMPv6 echo, while traffic went through that same gateway. `make
+gateway-state` collects both the status pfSense reports and whether each
+family actually reaches the internet, and `GatewayMonitorUnreliable` fired
+on that disagreement for three weeks.
+
+The fix was a firewall change. The gateway's Monitor IP now points at
+`2606:4700:4700::1111`, the address the collector's own v6 probe uses. The
+next collection read status 1, 14 ms, and forwarding 1. The monitor now
+measures the uplink, so a real v6 outage shows as `GatewayDown` and not as
+the same alert that fired for a working link.
 
 **IPv6 is where the segmentation pattern is not finished**, and both halves of the gap are
 worth naming because the documents recorded only one of them for a while. The

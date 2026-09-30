@@ -17,6 +17,21 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-30
+
+- **`WAN_DHCP6` is monitored at an address that answers.**
+  `GatewayMonitorUnreliable` on `morpheus` stopped at the cause, not at a
+  silence. It had fired since 2026-09-07.
+  - **The cause.** `dpinger` pinged Comcast's link-local gateway, which
+    never answers ICMPv6 echo, so pfSense called a working uplink down.
+  - **The fix.** In pfSense, the gateway's Monitor IP was set to
+    `2606:4700:4700::1111`, the same anycast address
+    `collect-gateway-state.sh` probes v6 with.
+  - **The reading.** `make gateway-state` read
+    `homelab_gateway_status{gateway="WAN_DHCP6"} 1`, a delay of 0.0144 s,
+    and `homelab_gateway_forwarding{family="inet6"} 1`.
+  - **The docs.** `security.md` now describes the monitor as fixed.
+
 ## 2026-09-29
 
 - **Immich's library has a copy off its disk: nightly to `oracle`, off-host
