@@ -182,6 +182,11 @@ SHIM
   }
   sets() { find "${T}/out" -mindepth 1 -maxdepth 1 -type d -name '2*' 2>/dev/null | sort; }
 
+  FAKE=down run
+  check "a database that is not up is refused" 1 "is not accepting connections"
+  assert "and a refused first run leaves no backups directory for verify-backups to trip on" \
+    '[[ ! -e ${T}/out ]]'
+
   run
   check "a set is written from the dump, with nothing stopped" 0 "nothing on oracle stopped"
   first="$(sets | tail -1)"
@@ -431,8 +436,6 @@ need flock
 need numfmt
 need sha256sum
 
-take_lock
-
 if ((UNSAFE)) && [[ -n ${WIKI_RECIPIENTS:-} ]]; then
   IFS=, read -r -a AGE_RECIPIENTS <<<"${WIKI_RECIPIENTS}"
 else
@@ -464,6 +467,12 @@ IFS='|' read -r pages users <<<"${counts}"
 [[ ${pages} =~ ^[0-9]+$ && ${users} =~ ^[0-9]+$ ]] || die "the count on ${WIKI_SSH_TARGET} returned '${counts}', not two numbers"
 ((pages > 0 && users > 0)) \
   || die "${WIKI_DB_CONTAINER} holds pages=${pages} users=${users} — that is not the wiki, or it has been emptied; refusing to write a set that would prune a good one"
+
+# After the preflight, because take_lock creates OUT_DIR. A refused run must
+# leave nothing behind: `make verify-backups` walks backups/wiki/ once it
+# exists, and an empty one fails it with "no complete sets" — which is what
+# the first primed run did on 2026-09-30, before the stack was cut over.
+take_lock
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 SET_DIR="${OUT_DIR}/${STAMP}"
