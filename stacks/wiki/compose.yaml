@@ -154,7 +154,7 @@ services:
   # what backup-wiki.sh's `docker exec … pg_dump` relies on.
   db:
     <<: *service-defaults
-    image: postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929
+    image: postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
     container_name: wiki-db
     user: "999:999"
     mem_limit: 256m
