@@ -80,6 +80,11 @@ in the file on the host that Wiki.js already read it from, now mode `0400`.
 - **Not yet on the offline medium.** `backup-offsite.sh` ([ADR-0048]) carries
   the volume, NAS and firewall sets. Adding the wiki's is its own change, and
   until then a fire takes this set with the rest.
+
+  > **Update · 2026-09-30.** That change is made: `backup-offsite.sh` carries
+  > the newest wiki set as a fourth kind, into `backups/wiki/` on the medium,
+  > and a visit without one is not a proof. It reaches the house's outside on
+  > the medium's next ninety-day visit, not before.
 - **Each set holds the git target's deploy key**, because the database holds
   it. The set is ciphertext to the estate's recipients, and the key is a
   deploy key on one repository, rotated from the wiki's admin page and
