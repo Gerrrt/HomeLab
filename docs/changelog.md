@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **The offline medium carries the wiki's database too**
+  ([#251](https://github.com/Gerrrt/HomeLab/issues/251),
+  [ADR-0065](adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)).
+  `backup-offsite.sh` gains a fourth kind: the newest `backups/wiki/` set
+  travels into `backups/wiki/` on the medium. It is held to the same
+  recipients check as the NAS set, so a set one key cannot open is not
+  copied. A visit without a wiki set records no proof, the way a missing
+  NAS set already did. It leaves the house on the medium's next visit.
+
 - **#437's mirror is `tc`, not Open vSwitch, and the repository half is
   authored** ([#437](https://github.com/Gerrrt/HomeLab/issues/437), still open;
   [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
