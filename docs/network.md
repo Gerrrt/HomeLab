@@ -248,7 +248,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   | `10.0.99.1` — `morpheus` | `443/tcp` admin UI, `53/tcp+udp` resolver, `123/udp` NTP |
   | `10.0.99.10` — `mjolnir` | `80,443/tcp` UPS card |
   | `10.0.99.20` — `prometheus` | `3000/tcp` Grafana |
-  | `10.0.99.30` — `oracle` | `80,443/tcp` the wiki |
+  | `10.0.99.30` — `oracle` | `80/tcp` the wiki (443 until 2026-09-30, when nothing had listened on it; [#251](https://github.com/Gerrrt/HomeLab/issues/251)) |
   | `10.0.99.40` — `trinity` | `443/tcp` the sensitive tier, since 2026-09-28 |
 
   **The source is the segment, not named hosts.** Every one of those passes is
