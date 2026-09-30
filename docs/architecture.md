@@ -208,9 +208,11 @@ re-shard of everything. Reasoning in
 
 | Service | Port | Bound to | Notes |
 | --- | --- | --- | --- |
-| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human, and the only service that terminates TLS or authenticates — `https://`, on a lab-CA certificate a browser will warn about until you trust `certificates/ca.pem` |
-| Prometheus | 9090 | `${BIND_ADDR}` | Remote-write receiver — `oracle`'s agent pushes here. Unauthenticated; see [`security.md`](security.md) |
-| Loki | 3100 | `${BIND_ADDR}` | Push endpoint — `oracle`'s agent pushes here. Unauthenticated; see [`security.md`](security.md) |
+| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human, and the only service that terminates TLS — `https://`, on a lab-CA certificate a browser will warn about until you trust `certificates/ca.pem` |
+| Caddy (ingest proxy) | 9090 | `${INGEST_BIND_ADDR}` | Where the agents on `oracle`, `trinity` and `Saruman` remote-write, and where Homepage and Home Assistant query. A bearer token per client, and a path allowlist per role; see [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md) |
+| Caddy (ingest proxy) | 3100 | `${INGEST_BIND_ADDR}` | Where the same agents push logs. Loki's delete API is refused to every token |
+| Prometheus | 9090 | `127.0.0.1` | Unauthenticated, so loopback only; off-host clients come through the ingest proxy |
+| Loki | 3100 | `127.0.0.1` | Unauthenticated, so loopback only; off-host clients come through the ingest proxy |
 | Alertmanager | 9093 | `127.0.0.1` | Nothing off-host uses it; silences are reached through Grafana |
 | Alloy | 12345 | `127.0.0.1` | Debug UI, deliberately not exposed |
 | Alloy syslog | 1514/udp | `${BIND_ADDR}` | Network syslog receiver — pfSense pushes here |
@@ -221,23 +223,31 @@ re-shard of everything. Reasoning in
 A port is published only when something off this host uses it
 ([ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)). Grafana
 is opened in a browser from Hicks, the syslog receiver takes pushes from
-`morpheus`, and Prometheus and Loki take metrics and logs from `oracle`'s Alloy
-agent. Alertmanager has no such client, so it binds to `127.0.0.1`; silences are
-reached through Grafana, which proxies it over the compose network behind a
-login.
+`morpheus`, and the ingest proxy takes metrics and logs from the Alloy agents
+on `oracle`, `trinity` and `Saruman`. Alertmanager has no such client, so it
+binds to `127.0.0.1`; silences are reached through Grafana, which proxies it
+over the compose network behind a login.
 
-`BIND_ADDR` governs the four that are published. It defaults to `0.0.0.0` and is
-set in `stacks/observability/.env.example` — `.env` is regenerated from that
-file on every `make up`, so the committed value is the deployed one. Setting it
-to the host's VLAN 99 address would confine them to the management segment,
-which today changes nothing: the host has one interface and it is already on
-VLAN 99.
+A published port must also say what a client has to prove before it is served
+([ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+Grafana wants a login. The ingest proxy wants a bearer token: one per agent,
+which can push and do nothing else, and one reader token, which can query and
+do nothing else. Neither role reaches Prometheus's admin API or Loki's delete
+API. Prometheus and Loki themselves authenticate nothing, so they are published
+on `127.0.0.1` only. That keeps the host's own timers and the runbooks'
+`curl localhost:9090` working, and a local user on this host is past anything
+a token could stop anyway.
 
-Prometheus and Loki are published and unauthenticated, which is a real residual
-rather than a solved problem — anything that can reach them can read every
-metric and log line, inject metrics, and delete log ranges. Default-deny between
-VLANs is the only control on that, and it is recorded as such in
-[`SECURITY.md`](../SECURITY.md).
+`BIND_ADDR` governs Grafana and the syslog receiver. It defaults to `0.0.0.0`
+and is set in `stacks/observability/.env.example` — `.env` is regenerated from
+that file on every `make up`, so the committed value is the deployed one.
+Setting it to the host's VLAN 99 address would confine them to the management
+segment, which today changes nothing: the host has one interface and it is
+already on VLAN 99.
+
+`INGEST_BIND_ADDR` is the proxy's, and it is `10.0.99.20`, never a wildcard.
+Docker cannot publish `0.0.0.0:9090` while Prometheus holds `127.0.0.1:9090`,
+because a wildcard bind covers loopback.
 
 ## Reference diagrams
 

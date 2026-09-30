@@ -43,8 +43,11 @@ groups:
       # The lab-CA module verifies the chain and the name, and a leaf that has
       # expired or lost its IP SAN fails the probe outright — there is no
       # separate TLS alert, and the description says where to look.
+      #
+      # `via="refusal"` is excluded: those probes succeed on a 401, and
+      # IngestAuthNotEnforced below owns them.
       - alert: EndpointUnreachable
-        expr: probe_success{job="blackbox"} == 0
+        expr: probe_success{job="blackbox", via!="refusal"} == 0
         for: 5m
         labels:
           component: blackbox
@@ -80,6 +83,37 @@ groups:
             the documentation and on the printed card does not work while the
             service behind it is fine. Check Unbound on morpheus and the host
             override for this name.
+
+      # The ingest proxy's allowlist, tested from outside (#182, ADR-0067).
+      # The `via: refusal` probes ask 10.0.99.20:9090 and :3100 for something
+      # no token-less client may have, and succeed only on the proxy's own
+      # 401. A failure WITH an HTTP status means something answered and it was
+      # not that refusal: Prometheus or Loki served the request directly, or
+      # the Caddyfile lost a line. That is the whole of #182 undone, so it is
+      # critical and security, not availability.
+      #
+      # A failure with NO status (connection refused, timeout) is excluded by
+      # the `probe_http_status_code > 0` join. That is the proxy being down,
+      # which the `address` health probes of the same ports already page on
+      # as EndpointUnreachable. It is not a claim about authentication.
+      - alert: IngestAuthNotEnforced
+        expr: >-
+          probe_success{job="blackbox", via="refusal"} == 0
+          and on (instance) probe_http_status_code{job="blackbox", via="refusal"} > 0
+        for: 5m
+        labels:
+          component: blackbox
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $labels.name }} at {{ $labels.instance }} did not refuse a request with no token"
+          description: >-
+            The ingest proxy should answer this with 401 and its
+            `realm="homelab-ingest"` challenge. Something else answered.
+            Check what holds the port: `docker ps` for a service published on
+            it directly, and `docker compose logs caddy` for the proxy.
+            Until it is fixed, anything that can route to 10.0.99.20 may read,
+            write or delete without a credential.
 
       # Certificate expiry, read off the handshake by every https module —
       # verified or not, blackbox reports the earliest expiry in the chain the

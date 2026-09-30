@@ -71,8 +71,13 @@ Closes when it is empty.
   → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
   Prometheus and Loki ingest ports.** Reopened 2026-09-26: #319 closed it by
-  accident. Nothing authenticates `9090` or `3100`, and `SECURITY.md` names
-  this issue as the work that closes the residual.
+  accident. Authored 2026-09-30:
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)'s
+  ingest proxy, a token per agent and a reader token. Not yet deployed. The
+  order is the tokens into both SOPS files, the three agents and `trinity`
+  redeployed carrying them, then `make up` on the monitoring host. The issue
+  stays open until `deploy-agent.sh` has shown fresh data from all three agents
+  and the refusal probes are green.
 - **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put `oracle`'s wiki
   into the repository and back up its database.** Reopened 2026-09-26: #252
   closed it by accident. ADR-0015 names it as the tracker for that gap.

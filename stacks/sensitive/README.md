@@ -501,7 +501,8 @@ is kept:
   Paperless-ngx (the token of a view-only `homepage` user) are read from their
   own APIs. Prometheus, the UPS (charge, runtime, load), the firewall (pf
   states), the iLO (watts) and the NAS (pool free) are read from Prometheus,
-  which has no credential ([#182]) and shares a /24 with `trinity`. That is how
+  which shares a /24 with `trinity` and wants the estate's read-only reader
+  token ([#182]), a token that can query and nothing else. That is how
   tiles on VLANs `trinity` cannot reach show numbers with no new rule:
   Prometheus already scrapes them, and each query is one a Grafana dashboard
   already runs. Numbers only, never up/down. Home Assistant, AdGuard, Vaultwarden and Grafana are links,

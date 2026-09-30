@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **The ingest ports want a token**
+  ([#182](https://github.com/Gerrrt/HomeLab/issues/182),
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+  Authored, not yet deployed.
+  - **The proxy.** Prometheus and Loki move to `127.0.0.1`. A Caddy service
+    holds `10.0.99.20:9090` and `:3100` in their place. It serves a push to
+    one bearer token per agent (`oracle`, `trinity`, `Saruman`) and a query to
+    one reader token (Homepage, Home Assistant, the deploy script). It serves
+    the admin, lifecycle and delete APIs to nobody.
+  - **Measured on the pinned image** with stand-in upstreams, across 26
+    requests. Agent tokens pushed and could not read. The reader read and
+    could not push. No token, a wrong token, a `Bearer` with no token and a
+    lowercase `bearer` were all refused. So were admin, `/-/quit`,
+    `/-/reload`, the UI, Loki's delete and the compactor, for every token.
+    The access log wrote the header as `REDACTED`.
+  - **Two findings from that boot.** First, `cap_drop: [ALL]` alone makes the
+    kernel refuse to exec Caddy, which carries `cap_net_bind_service` as a
+    file capability, so `NET_BIND_SERVICE` stays in the bounding set. Second,
+    Alloy with `INGEST_TOKEN` unset sends no Authorization header at all.
+    That was read off a listener, and it is why the in-stack, lab and SOC
+    agents needed no change.
+  - **Proof the control is on.** `IngestAuthNotEnforced` pages if the
+    published address answers a token-less query, or Loki's delete, with
+    anything but the proxy's 401.
+  - **Proof data is arriving.** `deploy-agent.sh` now requires samples and a
+    log line newer than the deploy, and exits non-zero without them, since a
+    refused agent stays listed for minutes and looks healthy from its side.
+
 - **The sensitive tier's expiry rules are a pair, in hours**
   ([#426](https://github.com/Gerrrt/HomeLab/issues/426)). #718 had already
   shipped the tier-CA blackbox module, kept `renewal: acme` targets out of the

@@ -275,12 +275,14 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   bulk restructure with no measurement behind either, and nothing here has read
   a model off either device. Treat both rows as unconfirmed until someone does.
 - **Prometheus' and Loki's ingest ports are not on the list above.** `9090` and
-  `3100` are published without authentication
-  ([#182](https://github.com/Gerrrt/HomeLab/issues/182)) and were reachable from
-  this segment for as long as the catch-all was the only rule between them;
-  *Block access to Winterfell* now drops them. Narrower, not gone:
-  `10.0.30.110` still has an explicit pass to both ports for `Saruman`'s Alloy
-  agent, and nothing stops a host already on Winterfell.
+  `3100` were reachable from this segment for as long as the catch-all was the
+  only rule between them; *Block access to Winterfell* now drops them. They are
+  also authenticated since [#182](https://github.com/Gerrrt/HomeLab/issues/182):
+  an ingest proxy holds both, and serves a push only to an agent token and a
+  query only to the reader token. So the firewall is no longer the only thing
+  between a Hicks workstation and the metric and log stores.
+  `10.0.30.110` keeps its explicit pass for `Saruman`'s Alloy agent, which now
+  presents `Saruman`'s own token.
 - **ImaginationLAN is reached entire**, on every protocol and port, by
   decision: [ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)
   keeps it open until the lab build produces the list of what a workstation
@@ -486,7 +488,9 @@ Where things get broken on purpose.
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
   into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
-  only; guests get no such rule (ADR-0007, as amended by #88).
+  only; guests get no such rule (ADR-0007, as amended by #88). Past the rule,
+  the ingest proxy wants `Saruman`'s agent token (#182), so the pass lets the
+  host try and the token is what gets it served.
 - **`Saruman` is the one fixed address that sits inside a DHCP pool.** Every
   other static in the estate lives below `.100`; this one is at `.110`, and the
   ImaginationLAN pool runs `.100–.200`. Until 2026-08-30 there was no

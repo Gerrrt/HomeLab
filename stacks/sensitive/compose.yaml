@@ -344,18 +344,24 @@ services:
   # application key, the Ring refresh token and everything else a config flow
   # produces is written by Home Assistant into /config/.storage/ — in the
   # volume, on trinity's disk, in the volume archive. So the rule holds for
-  # what this file can hold, which today is nothing — there is no `${VAR:?}`
-  # guard because there is no secret this service takes from outside — and
-  # the deviation is written down rather than papered over: the tier's most
-  # numerous credentials live in an application store, protected by #404's
-  # disk-encryption decision and by the volume backup, not by SOPS. ADR-0035
-  # records that. Two rules follow from it. A long-lived access token minted
-  # in the UI for another service to use is that service's secret and goes in
-  # ITS SOPS file — none exists yet, and #98's would-be consumer was declined
-  # by ADR-0019. And the first YAML-configured integration that needs a
-  # credential is the day /config/secrets.yaml gets rendered from SOPS the way
-  # alertmanager's URL files are; not before, because a rendered file with
-  # nothing to hold is a mount nothing reads.
+  # what this file can hold, and the deviation is written down rather than
+  # papered over: the tier's most numerous credentials live in an application
+  # store, protected by #404's disk-encryption decision and by the volume
+  # backup, not by SOPS. ADR-0035 records that. A long-lived access token
+  # minted in the UI for another service to use is that service's secret and
+  # goes in ITS SOPS file. None exists yet, and ADR-0019 declined #98's
+  # would-be consumer.
+  #
+  # What this file does hold is one credential: HA_PROMETHEUS_AUTHORIZATION,
+  # the estate's Prometheus reader token for the rack-power sensor in
+  # packages/homelab_rack.yaml (#182). It is the first YAML-configured
+  # integration here that needs one. It arrives as an environment variable,
+  # read with `!env_var`, rather than in a /config/secrets.yaml rendered from
+  # SOPS, which is what this comment used to plan. The environment is how
+  # Homepage and AdGuard beside it take theirs, it needs no rendered file or
+  # mount, and `!env_var` is Home Assistant's own YAML tag for it. If a
+  # second credential ever arrives, the secrets.yaml plan becomes worth its
+  # mount.
   home-assistant:
     <<: *service-defaults
     image: ghcr.io/home-assistant/home-assistant:2026.9.4@sha256:3e6710a7ab2a61311d9d899b719f6c3657791c63e8f4942cec4ebc42401d6b76
@@ -379,6 +385,7 @@ services:
       - /run:size=16m,exec
     environment:
       S6_READ_ONLY_ROOT: "1"
+      HA_PROMETHEUS_AUTHORIZATION: ${HA_PROMETHEUS_AUTHORIZATION:?set in secrets/sensitive.sops.yaml}
     volumes:
       - home-assistant-config:/config
       # The config is the repository's; the volume is the application's. A
@@ -1445,7 +1452,7 @@ services:
   # logs/ directory under the tmpfs. `docker diff` after serving the page and
   # every widget showed nothing written but those mount points; CapEff 0.
   #
-  # The widget credentials are two SOPS values handed in as HOMEPAGE_VAR_*,
+  # The widget credentials are three SOPS values handed in as HOMEPAGE_VAR_*,
   # the prefix Homepage substitutes into services.yaml as {{HOMEPAGE_VAR_…}},
   # and each is scoped read-only at the service that issued it
   # (secrets/sensitive.example.yaml has the steps). The widgets call the
@@ -1454,7 +1461,8 @@ services:
   # mounts, so Node trusts step-ca's leaves. Measured the same day: with
   # placeholder tokens Immich and Paperless each answered 401 through Caddy —
   # name, TLS and Host all good — and Prometheus answered from 10.0.99.20:9090,
-  # the /24 this host shares with it.
+  # the /24 this host shares with it. Since #182 that port is the estate's
+  # ingest proxy, and the Prometheus widgets send the reader token.
   #
   # HOMEPAGE_ALLOWED_HOSTS is the Host check on Homepage's API; any other Host
   # gets a 400. Loopback on 3000 is always admitted, which is what the
@@ -1483,6 +1491,9 @@ services:
       NODE_EXTRA_CA_CERTS: /etc/homepage/tier-ca.pem
       HOMEPAGE_VAR_IMMICH_API_KEY: ${HOMEPAGE_IMMICH_API_KEY:?set in secrets/sensitive.sops.yaml}
       HOMEPAGE_VAR_PAPERLESS_TOKEN: ${HOMEPAGE_PAPERLESS_TOKEN:?set in secrets/sensitive.sops.yaml}
+      # The estate's Prometheus reader token (#182). services.yaml sends it
+      # from the five widgets that read 10.0.99.20:9090.
+      HOMEPAGE_VAR_PROMETHEUS_TOKEN: ${HOMEPAGE_PROMETHEUS_TOKEN:?set in secrets/sensitive.sops.yaml}
     volumes:
       - ./homepage/settings.yaml:/app/config/settings.yaml:ro
       - ./homepage/services.yaml:/app/config/services.yaml:ro
