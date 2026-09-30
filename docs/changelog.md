@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **`vmbr1` exists on `Saruman`**, the first host step of #437's build
+  ([`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md) §1).
+  - **Applied with `ifup vmbr1`, not `ifreload -a`,** so `vmbr0` was never
+    re-applied. `ifquery --check -a` passed before and after. `vmbr0` kept
+    `10.0.30.110/24` and all nine guest taps, and Proxmox lists `vmbr1` as a
+    bridge with no ports.
+  - **It got an IPv6 link-local address on creation.** That would have made
+    the hypervisor reachable from the capture network. `ipv6-addrgen off` was
+    added to the stanza and removed the address the same minute. The runbook
+    now includes that option.
+  - **ifupdown2 crashed under the session's `PATH`**, with
+    `No module named 'systemd'`, because mise's Python came first. Run with
+    the system `PATH`, it worked. The runbook now says to use it.
+  - The original file is kept on the host as
+    `/etc/network/interfaces.bak-437-20260930`.
+
+- **`fenrir` is created on `Saruman`**, VMID 190, stopped and not yet
+  installed ([`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md)
+  §2, as written). `net0` is on `vmbr0` and `net1` on `vmbr1`, both
+  `firewall=0`. The disks are 32 and 64 GiB on `large_data`, and `onboot` is 1.
+  The ISO is `ubuntu-26.04.1-live-server-amd64.iso`, the one on the host,
+  which is what the other Linux guests run. The runbook named 24.04, and now
+  names 26.04.1.
+
 - **The offline medium carries the wiki's database too**
   ([#251](https://github.com/Gerrrt/HomeLab/issues/251),
   [ADR-0065](adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)).

@@ -45,7 +45,26 @@ drifts.
 ## 1. The capture bridge, on `Saruman`
 
 This adds a bridge. It does **not** touch `vmbr0` or the address the host is
-reached on. Append to `/etc/network/interfaces`:
+reached on. Done on 2026-09-30, as written here.
+
+**Use the system `PATH` for every ifupdown2 command.** `ifquery`, `ifup` and
+`ifreload` are Python, and in a shell whose `PATH` puts another Python first
+(mise, pyenv) they crash with `No module named 'systemd'` before doing
+anything:
+
+```bash
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+```
+
+First, confirm the running network matches the file, so that nothing but the
+new stanza is about to be applied:
+
+```bash
+ifquery --check -a
+cp -p /etc/network/interfaces /etc/network/interfaces.bak-437
+```
+
+Every line must read `[pass]`. Then append to `/etc/network/interfaces`:
 
 ```text
 auto vmbr1
@@ -53,24 +72,37 @@ iface vmbr1 inet manual
     bridge-ports none
     bridge-stp off
     bridge-fd 0
+    ipv6-addrgen off
 #   Zeek capture only (#437, ADR-0068). No port, no address, no VLANs.
 ```
 
-Then apply it and check that nothing else moved:
+**`ipv6-addrgen off` is not optional.** Without it the kernel gives `vmbr1` an
+IPv6 link-local address the moment it comes up, and the hypervisor is then
+reachable from the capture network. That breaks the "reaches nothing" the
+ADR relies on. It happened on the first build and was removed the same
+minute.
+
+Then bring up **that bridge alone**, and check that nothing else moved:
 
 ```bash
-ifreload -a
-ip -br addr show vmbr0 vmbr1
+ifup vmbr1
+ip -br addr show vmbr0
+ip -br addr show vmbr1
+cat /proc/sys/net/ipv6/conf/vmbr1/addr_gen_mode
 ls /sys/class/net/vmbr1/brif
+ifquery --check -a
 ```
 
-`vmbr0` must still show `10.0.30.110/24`, and `vmbr1` must show no address.
-`brif` stays empty until §2's VM starts.
+- `vmbr0` must still show `10.0.30.110/24`.
+- `vmbr1` must show **no address at all**, not even an `fe80::`.
+- `addr_gen_mode` must read `1`.
+- `brif` stays empty until §2's VM starts.
+- `ifquery --check` must pass for both bridges.
 
-`ifreload -a` re-reads the whole file. If `vmbr0`'s stanza has been edited by
-hand since the last reload, that edit applies now too. Read
-`/etc/network/interfaces` before running it, and have the KVM to hand the
-first time.
+`ifup vmbr1` rather than `ifreload -a`, because `ifreload` re-applies the whole
+file. If `vmbr0`'s stanza has been edited by hand since the last reload, that
+edit would apply too, on the interface the host is reached through. `ifup`
+touches the named interface only.
 
 ## 2. Create the VM
 
@@ -90,7 +122,7 @@ qm create 190 \
   --net1 virtio,bridge=vmbr1,firewall=0 \
   --agent enabled=1 \
   --onboot 1 \
-  --ide2 local:iso/ubuntu-24.04-live-server-amd64.iso,media=cdrom \
+  --ide2 local:iso/ubuntu-26.04.1-live-server-amd64.iso,media=cdrom \
   --boot order='scsi0;ide2'
 ```
 
@@ -288,7 +320,8 @@ that has already gone.
    every `pref 437` filter and says how many. Then delete the four units from
    `/etc/systemd/system`, the two scripts from `/usr/local/bin`, and
    `zeek-mirror-state.prom` from the textfile directory.
-3. `qm destroy 190`, then remove the `vmbr1` stanza and run `ifreload -a`.
+3. `qm destroy 190`, then run `ifdown vmbr1` with §1's `PATH` and remove the
+   `vmbr1` stanza. `ifdown` touches that bridge alone, as `ifup` did.
 4. Remove the two rules and their tests from `host.rules.yaml`, the rows from
    `install-agent-collectors.sh`, and the stack. Then let
    `scripts/check_docs.py` say which sentences are left.
