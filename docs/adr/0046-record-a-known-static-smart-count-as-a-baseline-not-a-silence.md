@@ -73,7 +73,11 @@ wanted again, the table is where the answer belongs.
   pages. A baseline cannot hide growth, because it is a ceiling and growth is
   above it. The mistake that a silence made possible — quieting a value it
   never read — is not available.
-- **The key is `host` and `device`, and a device letter can move.** The
+- **The key is `host` and `device`, and a device letter can move.**
+  *Superseded by
+  [ADR-0066](0066-key-smart-series-on-the-port-not-the-letter.md): on
+  `smaug` the letter moved on two boots in one day, and the key is now the
+  drive's port, `slot`.* The
   sectors metric carries no `model`, and serials are never emitted by
   decision. On a host with several disks a reboot can rename one; the row
   stops matching, the drive pages, and the fix is one edit. That is accepted

@@ -422,10 +422,13 @@ line.
 
 **Then rewrite the SMART textfile by hand**, with the command line in
 [`build-the-nas.md`](build-the-nas.md) §6.4 step 2, and do not wait for the
-daily cron. The file the exporter serves was written under the old drive
-letters. Once the letters move, a baseline row can match nothing and the
-rule falls back to `> 0`, which is the loud failure it was designed to
-have.
+daily cron. The file the exporter serves was written before the swap, and
+still describes the old disk. Until
+[ADR-0066](../adr/0066-key-smart-series-on-the-port-not-the-letter.md) the
+baseline was keyed on the drive letter, and a moved letter made the row match
+nothing and page, which is what happened on 2026-09-29 (the note below). It is
+keyed on the port now, so a reboot no longer does that, but a new disk on the
+same port still inherits the old one's readings until the file is rewritten.
 
 > **Done 2026-09-29.** The drive, the seller's refund and the cables were
 > all in hand.
@@ -485,12 +488,13 @@ have.
   readings, the outcome of the return and which wipe path step 4 took;
   [`build-the-nas.md`](build-the-nas.md) §7's `zpool status` line is true
   again
-- The SMART baseline row still names the boot SSD. All three disks are on
-  the chipset now, so the letters may have moved: re-run
+- The SMART baseline row still names the boot SSD. It is keyed on the
+  port, not the letter
+  ([ADR-0066](../adr/0066-key-smart-series-on-the-port-not-the-letter.md)),
+  so only a moved cable changes it: re-run
   `collect-smart-state.sh --print --host smaug` as
-  [`build-the-nas.md`](build-the-nas.md) §6.7 says, check which
-  `/dev/sdX` carries `model="INTEL SSDSC2BB240G7"`, and correct the row if
-  it is no longer `sdc` (ADR-0047's consequences say why it matters)
+  [`build-the-nas.md`](build-the-nas.md) §6.4 says, and check that the line
+  carrying `model="INTEL SSDSC2BB240G7"` has the `slot=` the row names
 - `lspci -nn` has no `1000:005f`, and [`hardware.md`](../hardware.md)
   describes the path from bay to ZFS as the chipset AHCI, or as the card
   if ADR-0052's fallback applied
