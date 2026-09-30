@@ -71,9 +71,14 @@ PROM="${TEXTFILE_DIR}/smart-baselines.prom"
 #           ADR-0047): the device label is whatever it emits, and /dev/sdc is
 #           node_disk_info's name for the one non-rotational disk there on
 #           2026-09-20. §6.4 step 1 confirms it and step 4 corrects this row.
+#           Moved to /dev/sdb on 2026-09-29 (#599). The pool went onto the
+#           chipset that day (ADR-0052), and after that the letters moved
+#           again on a boot that changed only the memory. So on smaug a
+#           letter is not stable across reboots, and this row will go stale
+#           again until #745. The count, 4, has not changed since 2026-09-16.
 BASELINES=(
   "oracle   /dev/sda   32   2026-09-07   351"
-  "smaug    /dev/sdc    4   2026-09-16   483"
+  "smaug    /dev/sdb    4   2026-09-16   483"
 )
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }

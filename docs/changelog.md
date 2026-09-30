@@ -48,6 +48,32 @@ docstring gives: it is a record, not a claim about now.
   - **Not yet:** the timer is not installed (`make install-timers
     PROFILE=sensitive`). Every set is encrypted to `trinity`'s key alone.
     ADR-0023's copy is still #455's.
+- **`smaug` has 32 GB**
+  ([#599](https://github.com/Gerrrt/HomeLab/issues/599), closing).
+  - **The fit.** The three Samsung `M391A1G43EB1-CPB` went into the empty
+    slots in a shutdown of their own, after the disk swap's scrub (below).
+  - **What it read.** POST reported 32768 MB at 2133 MHz. `dmidecode`
+    shows four matched modules, *Single-bit ECC*, all configured at 2133
+    MT/s. EDAC reads 0 corrected and 0 uncorrected. The exporter reports
+    33,379,954,688 bytes. The pool stayed healthy throughout.
+  - **Two findings from the same boot, each with an issue of its own.**
+    - **The drive letters moved again with no disk changed**
+      ([#745](https://github.com/Gerrrt/HomeLab/issues/745)). The boot SSD
+      went from `sdc` to `sdb` and `ZVTBS4NL` from `sdb` to `sdc`. So on
+      the chipset a `/dev/sdX` is not a stable name, and the SMART baseline
+      row keyed on one goes stale at a reboot. The row moved to `/dev/sdb`
+      in the same PR, before the next daily collector run could page on
+      it. This also supports, without proving, the reading given below for
+      the afternoon's `SmartDriveBadSectors`.
+    - **A clean shutdown counts as unsafe on the S3520**
+      ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). Its counter went
+      522 → 523 across one *System → Shut Down*. So
+      `SmartDriveUnsafeShutdownsGrowing`'s premise, that a clean stop does
+      not move it, is false for `smaug`'s boot disk. The rule would page on
+      every planned reboot, including the clean UPS halt ADR-0049 built.
+  - **The Compute table reads 32 GB.** The new disk's extended self-test
+    (about 28 hours) starts on the final hardware, after this.
+
 - **`erebor` is a whole mirror again, and the MegaRAID is out**
   ([#558](https://github.com/Gerrrt/HomeLab/issues/558) and
   [#571](https://github.com/Gerrrt/HomeLab/issues/571), both closing;
