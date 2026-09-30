@@ -128,8 +128,8 @@ outside any compose file, which would undo every pin here the day it worked.
 
 ## The cutover
 
-**Not yet run.** The containers this file replaces were created by hand, and
-the plan for them is below. The record of the run replaces this paragraph.
+**Run on 2026-09-30.** The wiki was down for about a minute, from 13:54:32
+to 13:55:36 UTC.
 
 - **The old containers.** `wiki` ran from the `2` tag with `UPGRADE_COMPANION=1`,
   its content directory on an anonymous volume, and 80 and 443 published.
@@ -138,13 +138,40 @@ the plan for them is below. The record of the run replaces this paragraph.
   were `wiki-update-companion`, exited, and `node_exporter`, from
   `prom/node-exporter` at `latest`, exited ten months earlier and
   superseded by the Alloy agent.
-- **The plan.** Take a first set with `make backup-wiki` on `prometheus`
-  (the job's `WIKI_DB_CONTAINER=db` names the old container). Then
-  `chmod 0400` the secret, stop and remove `wiki` and `db` without `-v`, and
-  `docker compose up -d` from `/opt/wiki`, adopting `pgdata`. Then remove
-  the two dead containers and `wikinet`. Once a set taken from the new
-  stack has passed `--prove`, remove the anonymous volume, which held
-  nothing.
+- **First, a set.** On `prometheus`, `make backup-wiki WIKI_DB_CONTAINER=db`
+  wrote `20260930T133451Z` from the old container: 5.1 MB, 34 entries,
+  `toc.dat` present. `ARGS=--prove` restored it into a scratch 17.6 and
+  counted pages=108 users=4. The primed timer run before it had been
+  refused, correctly, because `wiki-db` did not exist yet. It left an empty
+  `backups/wiki/` that failed `verify-backups`, which
+  [#757](https://github.com/Gerrrt/HomeLab/pull/757) fixed.
+- **Then the host.**
+  - `/etc/wiki/.db-secret` went from `0664` to `0400`, owned by `1000:1000`
+    as before.
+  - The two files were fetched into `/opt/wiki`, created by `sudo install`
+    and owned by `atropos`.
+  - `wiki` and `db` were stopped and removed without `-v`, and
+    `docker compose up -d --wait` brought up `wiki-db`, then `wiki-app` 8 s
+    later, both healthy. `pgdata` was adopted, not recreated.
+- **Checked.**
+  - `http://10.0.99.30/`, `http://lemmiwinks.matrix.elysium/` and a page
+    answered 200, and `wiki-db` counted 108 pages and 4 users.
+  - Git sync started, fetched, rebased and "pushed" nothing: the clone's
+    head was still `7a7176b`, level with `origin/main`.
+  - Neither container has an anonymous volume.
+- **Removed:** `wiki-update-companion`, `node_exporter` and `wikinet`, which
+  had nothing attached. `docker ps -a` on `oracle` now lists `wiki-app`,
+  `wiki-db` and `alloy`, and nothing else.
+- **Left for later:** the anonymous volume `eed420de7438…`, which is empty.
+  It is removed once the first set taken from `wiki-db` has passed
+  `--prove`:
+
+  ```bash
+  docker volume rm eed420de7438f95bf260883372cd69c0c89ed9e216a4d87e2499929e95665360
+  ```
+
+  The old containers' `docker inspect` was saved before they were removed,
+  in case a rollback ever needed them.
 
 [ADR-0011]: ../../docs/adr/0011-keep-the-wiki-internal.md
 [ADR-0015]: ../../docs/adr/0015-give-oracle-the-off-host-jobs.md
