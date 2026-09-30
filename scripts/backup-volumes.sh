@@ -433,6 +433,13 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # refuses to boot without; read off trinity's library on 2026-09-29, six of
 # them, each 13 bytes. ./library/.immich is the sentinel because the set is
 # read from the library's root, and no volume here has a ./library at all.
+#
+# wiki-db (#251) is the third ARCHIVE name, and the first that is not a
+# directory at all: scripts/backup-wiki.sh pulls `pg_dump -Ft` off oracle,
+# and a pg_dump tar is a flat listing with no ./ prefix. toc.dat is its table
+# of contents, present in every dump pg_restore can read; restore.sql is
+# written beside it by every pg_dump since 8.x. Read off a dump of the running
+# 17.6 on 2026-09-30. No volume archive here carries a top-level toc.dat.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -459,6 +466,7 @@ declare -A SENTINEL=(
   [linkding-data]="./secretkey.txt"
   [actual-data]="./server-files/account.sqlite"
   [immich-library]="./library/.immich"
+  [wiki-db]="toc.dat"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -504,6 +512,7 @@ declare -A COMPANIONS=(
   [linkding-data]="./db.sqlite3 ./db.sqlite3-wal"
   [actual-data]="./user-files ./.migrate"
   [immich-library]="./upload/.immich ./profile/.immich ./backups/.immich ./thumbs/.immich ./encoded-video/.immich"
+  [wiki-db]="restore.sql"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and

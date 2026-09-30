@@ -147,6 +147,7 @@ JOBS=(
   "converge          homelab-converge             10800  converge"
   "backup-volumes    homelab-backup-volumes     1209600  backup"
   "backup-nas        homelab-backup-nas         1209600  backup-nas"
+  "backup-wiki       homelab-backup-wiki         172800  backup-wiki"
   "verify-backups    homelab-verify-backups      259200  verify-backups"
   "backup-firewall   homelab-backup-firewall     259200  backup-firewall"
   "snmp-verify       homelab-snmp-verify        1209600  snmp-verify"

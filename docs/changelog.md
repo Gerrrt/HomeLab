@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **The wiki is in the repository, and its database has a backup**
+  ([#251](https://github.com/Gerrrt/HomeLab/issues/251),
+  [ADR-0065](adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)).
+  Reading `oracle` first changed the size of the problem:
+  - The anonymous volume ADR-0015 named was **empty**. `/wiki/data/content`
+    has held nothing since the image was built.
+  - Everything the wiki knows beyond its pages is in an 18 MB Postgres:
+    108 pages, 780 revisions and 4 users.
+  - The running images were Wiki.js 2.5.314 and Postgres 17.6, pulled by
+    the `2` and `17` tags. Both tags have since moved to other digests.
+
+  `stacks/wiki` pins exactly those digests, hardened. It was rehearsed on
+  `oracle` against a scratch restore of the live database: the bootstrap
+  of an empty cluster, the restore, a read-only boot and a page render. The
+  update companion, which held the Docker socket and recreated the wiki from
+  a floating tag, is not carried over. `scripts/backup-wiki.sh` pulls a
+  `pg_dump` to `prometheus` nightly, the first dump in the repository. The
+  cutover on `oracle` is next, recorded in the stack's README.
+
 - **`backup-library`'s first timed run failed, and the unit is fixed**
   ([#132](https://github.com/Gerrrt/HomeLab/issues/132),
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).

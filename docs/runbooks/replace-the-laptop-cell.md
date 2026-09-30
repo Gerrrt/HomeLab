@@ -347,7 +347,7 @@ measurement, and step 8's record says what it read afterwards.
 **Steps 4 and 6 are `oracle`'s own commands.** There is no `make backup` and
 no `make down` for this host — those are the stack's. Note the time, take any
 pending reboot for free as before, then `sudo systemctl poweroff` on
-`oracle`. On the way back, `docker ps` there shows `wiki`, `db` and `alloy`
+`oracle`. On the way back, `docker ps` there shows `wiki-app`, `wiki-db` and `alloy`
 up, and from the stack the target and alert checks in step 6 read as written;
 the hole query's `oracle-metrics` line is the one that matters, and `snmp` is
 a control that should show no hole at all.

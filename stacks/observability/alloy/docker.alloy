@@ -83,10 +83,12 @@ discovery.docker "dockerlogs" {
 //
 // NOT filtered on the compose project, which is the obvious-looking form and is
 // wrong here. `__meta_docker_container_label_com_docker_compose_project` is
-// empty for every container on `oracle` — `wiki`, `db` and the agent itself are
-// all plain `docker run` (see scripts/deploy-agent.sh) — so "drop what has no
-// project label" would silently stop collecting logs for the one service in
-// this estate that a person actually uses. Verified against
+// empty for the agent itself on every host — it is plain `docker run` (see
+// scripts/deploy-agent.sh) — and was empty for the wiki on `oracle` too until
+// #251 made it the compose project `wiki` in 2026-09. "Drop what has no
+// project label" would silently stop collecting the agents' own logs, and
+// until then would have dropped the one service in this estate that a person
+// actually uses. Verified against
 // container_last_seen across both hosts before writing this. An allow-list of
 // known-good names is the same trap one step further on: it fails closed on a
 // host nobody remembered to add.
