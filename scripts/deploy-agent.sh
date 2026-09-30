@@ -383,7 +383,20 @@ native)
     info "installing alloy ${VERSION} (${installed:-not installed}) from ${url}"
     curl -fsSL --retry 3 -o "${STAGE}/alloy.deb" "$url" \
       || die "download failed — check the release page for the asset name; nothing was changed"
-    DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -q "${STAGE}/alloy.deb" >/dev/null
+    # --force-confold: /etc/default/alloy is the package's conffile, and this
+    # script rewrites it below, so on an upgrade dpkg finds it modified and asks
+    # whether to keep it. There is no terminal on this side of ssh, so the
+    # question ends the install with "dpkg returned an error code (1)" and a
+    # half-configured package. Saruman's 1.19.2 -> 1.20.0 upgrade failed with
+    # exactly that line on 2026-09-30, with dpkg's reason thrown away. Keep
+    # ours; it is rewritten a few lines down anyway. apt's output is now kept,
+    # and shown on failure, so the next reason is not a guess.
+    if ! DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -q \
+         -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
+         "${STAGE}/alloy.deb" >"${STAGE}/apt.log" 2>&1; then
+      tail -20 "${STAGE}/apt.log" >&2
+      die "installing alloy ${VERSION} failed — dpkg's last lines are above"
+    fi
     pass "installed $(dpkg-query -W -f='alloy ${Version}' alloy)"
   fi
 
@@ -486,8 +499,13 @@ if ((VERIFY)); then
     fresh_promql="count by (job) (timestamp(${promql}) > ${ARRIVED_AFTER})"
     deadline=$((SECONDS + 180)); jobs=0; in_loki=0
     while ((SECONDS < deadline)); do
+      # `|| true`, and it matters: until the first fresh sample lands, grep
+      # matches nothing and exits 1, pipefail makes that the pipeline's
+      # status, and set -e ended the whole script here with no word said
+      # (oracle, 2026-09-30). No match is an answer (0 jobs), not an error.
       jobs="$(mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
-              | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ')"
+              | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ' || true)"
+      jobs="${jobs:-0}"
       if mon_curl -G "http://${MON}:3100/loki/api/v1/query_range" \
            --data-urlencode "query=${logql}" --data-urlencode "start=${ARRIVED_AFTER}000000000" \
            --data-urlencode "limit=1" --data-urlencode "direction=forward" 2>/dev/null \
