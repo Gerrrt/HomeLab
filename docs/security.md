@@ -291,10 +291,10 @@ read-only user, reachable from `10.0.99.20` alone by the rule that already
 existed. The residual it leaves, accepted, is one more service on the NAS
 with one more key that reads it — a key that lives on the host already
 holding the estate's age identity, and reads a directory that includes
-Jellyfin's users' password hashes — and, once Audiobookshelf is deployed,
-its users' hashes too, in the same pull
+Jellyfin's users' password hashes — and, since Audiobookshelf was deployed
+on 2026-09-29, its users' hashes too, in the same pull
 ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
-**Two more are for the phones on Hicks, and one of them exists.** The
+**Two more are for the phones on Hicks, and both exist.** The
 issues that proposed Audiobookshelf and Navidrome each said no new rule
 would be needed; the Hicks passes are per port, so each needs one.
 `Allow 4533 to smaug`, for Navidrome
@@ -303,8 +303,9 @@ would be needed; the Hicks passes are per port, so each needs one.
 was: its position above the block, read from `morpheus`, and the monitoring
 host still refused on `4533`. That Hicks reaches it is proved at the deploy
 ([`build-the-nas.md`](runbooks/build-the-nas.md) §6.6). `vlan50 net →
-10.0.40.30:13378`, for Audiobookshelf, is specified and not created — ADR-0050
-calls it the fifth; it will be the seventh. Neither adds a residual `8096` did
+10.0.40.30:13378`, for Audiobookshelf, was created by §6.5 and a Hicks
+workstation reached it on 2026-09-29 — ADR-0050 calls it the fifth; it is the
+seventh. Neither adds a residual `8096` did
 not already have: each first admin is made before a phone is pointed at it,
 and the libraries behind both are mounted read-only.
 **One more is for workstations, and it writes.** `vlan50 net →

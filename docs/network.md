@@ -351,7 +351,7 @@ Televisions and consoles. Internet only.
   to CasaBonita* on their interfaces. Everything else on every other segment is
   still refused, and the televisions need no rule at all because they share this
   broadcast domain with the server. **Two more are written for the phones on
-  Hicks, and one of them exists.** `Allow 4533 to smaug`, Hicks →
+  Hicks, and both exist.** `Allow 4533 to smaug`, Hicks →
   `10.0.40.30:4533`, for Navidrome's Subsonic apps
   ([#141](https://github.com/Gerrrt/HomeLab/issues/141)), was created on
   2026-09-22 ahead of the service and verified in position from `morpheus`;
@@ -359,8 +359,9 @@ Televisions and consoles. Internet only.
   there. `Allow 13378 to smaug`, Hicks → `10.0.40.30:13378`, for
   Audiobookshelf
   ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)),
-  is specified and not yet created. ADR-0050 calls it the fifth; 4533 and
-  445 were made first, so it will be the seventh.
+  was created by §6.5 and reached from a Hicks workstation on 2026-09-29.
+  ADR-0050 calls it the fifth; 4533 and 445 were made first, so it is the
+  seventh.
   [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 and §6.6 deploy the
   two services. **One more is for workstations, and it exists.** `Allow SMB to
   smaug`, Hicks → `10.0.40.30:445`, lets a Hicks workstation mount the `media`

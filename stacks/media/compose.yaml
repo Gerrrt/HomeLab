@@ -5,6 +5,7 @@
 #              of #413, running TrueNAS per ADR-0040. DEPLOYED 2026-09-19, from
 #              a copy of this directory's two files at /mnt/erebor/apps/stack,
 #              under TrueNAS's own Docker — docs/runbooks/build-the-nas.md §6.
+#              Audiobookshelf joined it 2026-09-29 (§6.5).
 #              Authored on 2026-09-16, before the pool existed, as
 #              stacks/sensitive was authored before trinity was built.
 # Deploy with:  NOT `make up STACK=media`. That target renders a secrets file
