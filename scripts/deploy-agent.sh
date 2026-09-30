@@ -57,6 +57,22 @@
 # never — it is the listener morpheus sends to, and it belongs on the
 # monitoring host alone. The header of alloy/config.alloy has the reasoning.
 #
+# The token
+# ---------
+# 9090 and 3100 on the monitoring host are its ingest proxy, which passes a
+# push through only with this host's agent token (#182, ADR-0067). The token is
+# INGEST_TOKEN_<HOST> in secrets/observability.sops.yaml, with <HOST> the
+# target's `hostname` upper-cased and every character that is not a letter or
+# digit mapped to `_`. It is decrypted here with the checkout's SOPS key. Where
+# that key is not present (the Mac, for Saruman), export INGEST_TOKEN yourself
+# from the password manager and it is used instead. It reaches the target on
+# ssh's stdin, never on a command line either side, and lands in a 0600
+# file (native) or the container's environment (docker).
+#
+# The arrival check below reads Prometheus and Loki through the same proxy and
+# needs the READER token: INGEST_TOKEN_READER, decrypted the same way, or
+# exported. Without one it is skipped, with a warning.
+#
 # What it does not do
 # -------------------
 # Firewall rules. A host outside VLAN 99 needs a pass to 10.0.99.20 on 9090
@@ -150,6 +166,38 @@ FILES=(config.alloy)
 pass "target ${HOST} · runtime ${RUNTIME} · alloy ${VERSION} · files ${FILES[*]}"
 
 # ---------------------------------------------------------------------------
+# The host's agent token, and the reader token for the arrival check
+# ---------------------------------------------------------------------------
+TOKEN_KEY="INGEST_TOKEN_$(printf '%s' "$HOST" | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z0-9' '_')"
+# An exported INGEST_TOKEN / INGEST_TOKEN_READER wins. Otherwise decrypt, if
+# this checkout can. load_secrets sets shell variables without exporting them,
+# and exits if sops cannot decrypt, so it runs in a subshell and only the two
+# values come back out. Its stderr is left alone: it says why a decrypt
+# failed, and it never prints a value.
+if [[ -z "${INGEST_TOKEN:-}" || -z "${INGEST_TOKEN_READER:-}" ]]; then
+  if command -v sops >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/secrets/observability.sops.yaml" ]]; then
+    decrypted="$(
+      # shellcheck source=scripts/secrets-env.sh
+      source "${REPO_ROOT}/scripts/secrets-env.sh" || exit 0
+      load_secrets observability >/dev/null || exit 0
+      printf '%s\n%s\n' "${!TOKEN_KEY:-}" "${INGEST_TOKEN_READER:-}"
+    )" || true
+    { read -r dec_agent; read -r dec_reader; } <<< "${decrypted}" || true
+    INGEST_TOKEN="${INGEST_TOKEN:-${dec_agent:-}}"
+    INGEST_TOKEN_READER="${INGEST_TOKEN_READER:-${dec_reader:-}}"
+    unset decrypted dec_agent dec_reader
+  fi
+fi
+[[ -n "${INGEST_TOKEN:-}" ]] \
+  || die "no agent token for ${HOST}: add ${TOKEN_KEY} to secrets/observability.sops.yaml and a line for it to stacks/observability/Caddyfile, or export INGEST_TOKEN (docs/runbooks/add-monitored-device.md)"
+# The token is written into a shell assignment and an EnvironmentFile on the
+# far side. Refusing anything but a plain token character set keeps both
+# quoting-safe, and every generator the repository names produces this.
+[[ "${INGEST_TOKEN}" =~ ^[A-Za-z0-9._~+/=-]{32,}$ ]] \
+  || die "${TOKEN_KEY} is shorter than 32 characters or contains a character other than letters, digits and ._~+/=-"
+pass "agent token ${TOKEN_KEY} loaded (${#INGEST_TOKEN} characters)"
+
+# ---------------------------------------------------------------------------
 # Stage the config on the host and prove it arrived intact
 # ---------------------------------------------------------------------------
 STAGE="$("${SSH[@]}" 'mktemp -d /tmp/alloy-deploy.XXXXXX')"
@@ -178,9 +226,16 @@ pass "staged ${FILES[*]} in ${STAGE}"
 # this heredoc as shell and requires every `docker run`/`docker pull` in it to
 # name $IMAGE, which it traces to image-for.sh above. Rename it and the check
 # fails, which is the check working.
+#
+# The token is the exception, and it travels differently: as the first line of
+# the script itself, on ssh's stdin. The prefix above becomes the remote
+# shell's command line, which any user on the target can read in `ps` while
+# the deploy runs. stdin is not visible that way. The character set was
+# checked above, so the single quotes cannot be broken out of.
 # shellcheck disable=SC2029
-"${SSH[@]}" "IMAGE='${IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' bash -s" <<'REMOTE'
+{ printf "INGEST_TOKEN='%s'\n" "${INGEST_TOKEN}"; cat <<'REMOTE'
 set -euo pipefail
+export INGEST_TOKEN
 info() { printf '\033[0;34m→\033[0m %s\n' "$*" >&2; }
 pass() { printf '\033[0;32m✓\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[0;31m✗\033[0m %s\n' "$*" >&2; exit 1; }
@@ -291,6 +346,7 @@ docker)
     -e ALLOY_HOSTNAME="$HOSTNAME_LABEL" \
     -e LOKI_URL \
     -e PROMETHEUS_REMOTE_WRITE_URL \
+    -e INGEST_TOKEN \
     -v alloy-config:/etc/alloy:ro \
     -v alloy-data:/var/lib/alloy/data \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
@@ -342,6 +398,11 @@ native)
   # what config.alloy reads from the environment. CONFIG_FILE is the DIRECTORY.
   # The debug UI stays on loopback, as it does everywhere else (ADR-0012).
   # ALLOY_ROOTFS=/ because there is no bind mount; the process reads the host.
+  #
+  # It holds this host's ingest token now, so it is 0600 root before a byte is
+  # written. A file tee truncates keeps the mode it had, and the package's
+  # own copy of this file is 0644. systemd reads an EnvironmentFile as root.
+  $SUDO install -m 0600 -o root -g root /dev/null /etc/default/alloy
   $SUDO tee /etc/default/alloy >/dev/null <<DEFAULTS
 ## Written by scripts/deploy-agent.sh from the HomeLab repository. Edits here
 ## are overwritten on the next deploy; change the repository instead.
@@ -351,6 +412,7 @@ RESTART_ON_UPGRADE=true
 ALLOY_HOSTNAME="${HOSTNAME_LABEL}"
 LOKI_URL="${LOKI_URL}"
 PROMETHEUS_REMOTE_WRITE_URL="${PROMETHEUS_REMOTE_WRITE_URL}"
+INGEST_TOKEN="${INGEST_TOKEN}"
 ALLOY_ROOTFS="/"
 DEFAULTS
 
@@ -376,42 +438,87 @@ DEFAULTS
   ;;
 esac
 REMOTE
+} | "${SSH[@]}" "IMAGE='${IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' bash -s"
 
 # ---------------------------------------------------------------------------
 # Did it arrive? Asked of the monitoring host, not the agent.
 # ---------------------------------------------------------------------------
+# "The host is listed" is not the question. Prometheus keeps a series for five
+# minutes after its last sample and Loki lists a host label for as long as it
+# holds a line from it, so an agent whose every push is being refused (a
+# wrong token, a missing Caddyfile line) passes that check. Alloy retries and
+# buffers quietly (#182), so the agent side looks healthy too. The question
+# is whether data written by the agent that just started has arrived:
+#
+#   - a sample from every expected job, timestamped after the new agent
+#     passed its checks above (the old one was gone by then);
+#   - a Loki line for this host, timestamped after the same moment;
+#   - no rise in the agent's own loki_write_dropped_entries_total, which is
+#     where a refused log push is counted. A refused metric push cannot be
+#     counted this way, because the counter would travel on the refused path.
+#     The first check is what catches that.
+#
+# Timestamps are the agent host's clock. A skew of more than the three-minute
+# wait makes this fail, which is a fault worth hearing about anyway.
+ARRIVED_AFTER="$(date +%s)"
 promql="up{instance=\"${HOST}\"}"
 logql="{host=\"${HOST}\"}"
 expected=2
 [[ "$RUNTIME" == docker ]] && expected=3   # + integrations/cadvisor
 
+# curl with the reader token, read from stdin as a config line so it is never
+# on a command line.
+mon_curl() {
+  printf 'header = "Authorization: Bearer %s"\n' "${INGEST_TOKEN_READER}" \
+    | curl -K - -fsS --max-time 10 "$@"
+}
+
+arrival_failed=0
 if ((VERIFY)); then
-  if curl -fsS --max-time 5 "http://${MON}:9090/-/ready" >/dev/null 2>&1; then
-    info "waiting for ${HOST} to appear in Prometheus and Loki at ${MON} (up to 3 min)"
+  if [[ -z "${INGEST_TOKEN_READER:-}" ]]; then
+    warn "no reader token (INGEST_TOKEN_READER) — skipping the arrival check; run it by hand with the queries below"
+  elif ! curl -fsS --max-time 5 "http://${MON}:9090/-/ready" >/dev/null 2>&1; then
+    warn "${MON}:9090 is not reachable from here; skipping the arrival check"
+  elif ! mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
+    warn "${MON}:9090 refused the reader token — is INGEST_TOKEN_READER the one in secrets/observability.sops.yaml? Skipping the arrival check"
+  else
+    info "waiting for data newer than the deploy from ${HOST} in Prometheus and Loki at ${MON} (up to 3 min)"
+    fresh_promql="count by (job) (timestamp(${promql}) > ${ARRIVED_AFTER})"
     deadline=$((SECONDS + 180)); jobs=0; in_loki=0
     while ((SECONDS < deadline)); do
-      jobs="$(curl -fsS --max-time 10 "http://${MON}:9090/api/v1/query" --data-urlencode "query=${promql}" 2>/dev/null \
+      jobs="$(mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
               | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ')"
-      if curl -fsS --max-time 10 "http://${MON}:3100/loki/api/v1/label/host/values" 2>/dev/null | grep -q "\"${HOST}\""; then
+      if mon_curl -G "http://${MON}:3100/loki/api/v1/query_range" \
+           --data-urlencode "query=${logql}" --data-urlencode "start=${ARRIVED_AFTER}000000000" \
+           --data-urlencode "limit=1" --data-urlencode "direction=forward" 2>/dev/null \
+           | grep -q '"values":\[\['; then
         in_loki=1
       fi
       ((jobs >= expected && in_loki)) && break
       sleep 10
     done
     if ((jobs >= expected)); then
-      pass "Prometheus has ${jobs} job(s) for instance=\"${HOST}\""
+      pass "Prometheus has samples newer than the deploy from ${jobs} job(s) for instance=\"${HOST}\""
     else
-      warn "Prometheus has ${jobs} job(s) for instance=\"${HOST}\" (expected ${expected}) — if this host is on another VLAN, is the pass to ${MON}:9090 in place?"
+      warn "Prometheus has samples newer than the deploy from ${jobs} job(s) for instance=\"${HOST}\" (expected ${expected}). A refused token looks exactly like this: check the agent's log for 401, then ${TOKEN_KEY} in the SOPS file and its line in stacks/observability/Caddyfile. On another VLAN, check the pass to ${MON}:9090."
+      arrival_failed=1
     fi
     if ((in_loki)); then
-      pass "Loki has host=\"${HOST}\""
+      pass "Loki has a line newer than the deploy for host=\"${HOST}\""
     else
-      warn "Loki does not list host=\"${HOST}\" yet — is the pass to ${MON}:3100 in place?"
+      warn "Loki has no line newer than the deploy for host=\"${HOST}\". Same suspects as above, on ${MON}:3100."
+      arrival_failed=1
     fi
-  else
-    warn "${MON}:9090 is not reachable from here; skipping the arrival check"
+    dropped="$(mon_curl "http://${MON}:9090/api/v1/query" \
+                 --data-urlencode "query=sum(increase(loki_write_dropped_entries_total{job=\"${HOST}-alloy\"}[5m]))" 2>/dev/null \
+               | grep -o '"value":\[[^]]*\]' | grep -o '"[0-9.e+-]*"\]' | tr -d '"]' || true)"
+    if [[ -n "${dropped}" ]] && awk -v d="${dropped}" 'BEGIN { exit !(d > 0) }'; then
+      warn "the agent has dropped ~${dropped} log entries in the last 5 min — see LogEntriesDropped; a 401 from the proxy is counted here"
+      arrival_failed=1
+    fi
   fi
 fi
 
 printf '\n\033[0;32mdeployed\033[0m — alloy %s on %s (%s)\n' "$VERSION" "$HOST" "$RUNTIME" >&2
 printf 'Check by hand:\n  PromQL  %s\n  LogQL   %s\n' "$promql" "$logql" >&2
+((arrival_failed == 0)) || die "the agent is running but its data is not arriving — see the warnings above"

@@ -102,7 +102,7 @@ modules:
         insecure_skip_verify: true
 
   # An endpoint served over plain HTTP. The wiki, the switch's web UI, and the
-  # Prometheus and Loki ports the agents push to — none of these offer TLS, and
+  # ingest proxy's health paths on 9090 and 3100 — none of these offer TLS, and
   # a probe that pretended otherwise would measure the wrong thing. Named
   # `plain` rather than `insecure` because nothing here is choosing to weaken
   # anything: the endpoint simply does not offer TLS. (The switch does not
@@ -117,6 +117,27 @@ modules:
       follow_redirects: true
       preferred_ip_protocol: ip4
       ip_protocol_fallback: false
+
+  # A request that must be REFUSED, and by the ingest proxy in particular
+  # (#182, ADR-0067). Success is a 401 carrying the proxy's own challenge. A
+  # 200 means Prometheus or Loki answered with no token, which is the control
+  # gone: someone republished the service directly, or the Caddyfile lost its
+  # allowlist. A 401 without the realm means something else is on the port.
+  # IngestAuthNotEnforced reads it. EndpointUnreachable deliberately does not,
+  # because "not reachable" is the wrong sentence for a door that opened.
+  http_401_ingest_refused:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: [401]
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      method: GET
+      follow_redirects: false
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      fail_if_header_not_matches:
+        - header: WWW-Authenticate
+          regexp: 'realm="homelab-ingest"'
 
   # Does anything hold the port open at all.
   #

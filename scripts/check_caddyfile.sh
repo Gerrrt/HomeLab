@@ -86,6 +86,14 @@ for stack in "${STACKS[@]}"; do
   chmod 644 "${work}"/*.pem
   chmod 755 "${work}"
 
+  # The stack's validation environment, the same throwaway values
+  # `docker compose config` is checked with. A Caddyfile can read the
+  # environment (`{$VAR}`), and the observability one builds its token map
+  # from it (#182). Unset, every token would be empty and the map would hold
+  # four identical keys, which Caddy refuses. Seeded, they are distinct, so this
+  # proves the map provisions with the values it will really be given.
+  "${REPO_ROOT}/scripts/seed-validation-env.sh" "${work}/env" "${stack}"
+
   # cp rather than a bind of the tracked file: the container reads as root and
   # writes nothing, but a bind mount of a file inside the checkout is one
   # `caddy fmt --overwrite` away from an edit nobody asked for.
@@ -96,6 +104,7 @@ for stack in "${STACKS[@]}"; do
   # the image token on the same statement as `docker run` to trace it back to
   # image-for.sh above.
   run=(docker run --rm --network none \
+    --env-file "${work}/env" \
     -v "${work}/Caddyfile:/etc/caddy/Caddyfile:ro" \
     -v "${work}/ca.pem:/etc/caddy/tls/ca.pem:ro" \
     "${image}")

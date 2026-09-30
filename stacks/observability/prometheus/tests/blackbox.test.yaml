@@ -625,3 +625,83 @@ tests:
                 TlsAcmeRenewalStalled pages at 36. Read Caddy's log for the renewal
                 error (`docker logs sensitive-caddy 2>&1 | grep -i renew`), then
                 check step-ca is healthy — docs/runbooks/build-the-tier-ca.md.
+
+  # --- The ingest proxy stopped refusing (#182) -----------------------------
+  # Prometheus answered a token-less query with a 200: republished directly,
+  # or the Caddyfile lost its allowlist. IngestAuthNotEnforced fires. The same
+  # probe failing must NOT also raise EndpointUnreachable, whose sentence
+  # ("not reachable") would be wrong about a door that opened.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="http://10.0.99.20:9090/api/v1/query?query=up",
+                 name="prometheus", role="metrics", host="prometheus", via="refusal"}'
+        values: "0+0x10"
+      - series: 'probe_http_status_code{job="blackbox", instance="http://10.0.99.20:9090/api/v1/query?query=up",
+                 name="prometheus", role="metrics", host="prometheus", via="refusal"}'
+        values: "200+0x10"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: IngestAuthNotEnforced
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: IngestAuthNotEnforced
+        exp_alerts:
+          - exp_labels:
+              alertname: IngestAuthNotEnforced
+              job: blackbox
+              instance: "http://10.0.99.20:9090/api/v1/query?query=up"
+              name: prometheus
+              role: metrics
+              host: prometheus
+              via: refusal
+              component: blackbox
+              severity: critical
+              category: security
+            exp_annotations:
+              summary: >-
+                prometheus at http://10.0.99.20:9090/api/v1/query?query=up did
+                not refuse a request with no token
+              description: >-
+                The ingest proxy should answer this with 401 and its
+                `realm="homelab-ingest"` challenge. Something else answered.
+                Check what holds the port: `docker ps` for a service published on
+                it directly, and `docker compose logs caddy` for the proxy.
+                Until it is fixed, anything that can route to 10.0.99.20 may read,
+                write or delete without a credential.
+      - eval_time: 6m
+        alertname: EndpointUnreachable
+        exp_alerts: []
+
+  # --- The proxy is down, not open ------------------------------------------
+  # Connection refused: no HTTP status at all. That is an outage, which the
+  # `address` health probe of the same port pages on. It says nothing about
+  # authentication, so IngestAuthNotEnforced stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="http://10.0.99.20:3100/loki/api/v1/delete",
+                 name="loki", role="logs", host="prometheus", via="refusal"}'
+        values: "0+0x10"
+      - series: 'probe_http_status_code{job="blackbox", instance="http://10.0.99.20:3100/loki/api/v1/delete",
+                 name="loki", role="logs", host="prometheus", via="refusal"}'
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: IngestAuthNotEnforced
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: EndpointUnreachable
+        exp_alerts: []
+
+  # --- Refused, as it should be -----------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="http://10.0.99.20:3100/loki/api/v1/delete",
+                 name="loki", role="logs", host="prometheus", via="refusal"}'
+        values: "1+0x10"
+      - series: 'probe_http_status_code{job="blackbox", instance="http://10.0.99.20:3100/loki/api/v1/delete",
+                 name="loki", role="logs", host="prometheus", via="refusal"}'
+        values: "401+0x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: IngestAuthNotEnforced
+        exp_alerts: []

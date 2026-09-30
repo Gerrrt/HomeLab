@@ -8,12 +8,42 @@ answered rather than whether it can be reached.
 
 ## A Linux host
 
-Nothing on the monitoring host changes. Alloy pushes; Prometheus does not need
-to be told the host exists.
+Alloy pushes, so Prometheus does not need to be told the host exists. The
+monitoring host does need to be told to *accept* it: its ingest proxy serves a
+push only to a token it knows (#182,
+[ADR-0067](../adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+
+### First, the host's token
+
+Three edits, then `make up` on the monitoring host. `<HOST>` is the host's
+`hostname` upper-cased, with anything that is not a letter or digit written
+as `_`. That is the name `deploy-agent.sh` looks the token up by.
+
+1. A key in `secrets/observability.sops.yaml`, from `make secrets-edit`:
+   `INGEST_TOKEN_<HOST>: <value>`. Make the value with
+   `make gen-secret ARGS="--length 48"`. `render-config.sh` refuses one under
+   32 characters, or one that equals another token.
+2. A line in the `map` in `stacks/observability/Caddyfile`:
+   `"Bearer {$INGEST_TOKEN_<HOST>}" <host> agent`.
+3. A guard in the `caddy` service's `environment:` in
+   `stacks/observability/compose.yaml`:
+   `INGEST_TOKEN_<HOST>: ${INGEST_TOKEN_<HOST>:?set in secrets/observability.sops.yaml}`,
+   and the same name in `COMPOSE_VARS` in `scripts/render-config.sh` and in
+   `scripts/seed-validation-env.sh`, with a throwaway value there.
+
+`make up` recreates the proxy with the new line. Until it has, the agent's
+pushes are refused with a 401, and the deploy below says so. An Alloy agent
+retries a refused push without complaint, so a missing token otherwise looks
+like a healthy agent that ships nothing. Revoking a host is the same three
+edits in reverse.
+
+### Then deploy
 
 One command, from any checkout of this repository that can ssh to the host —
 the monitoring host for anything on VLAN 99, your workstation for anything
-else:
+else. From a checkout without the SOPS key, export `INGEST_TOKEN` (this
+host's) and `INGEST_TOKEN_READER` (for the arrival check) from the password
+manager first, and the script uses them instead of decrypting:
 
 ```bash
 ./scripts/deploy-agent.sh <user>@<host>
@@ -30,8 +60,11 @@ What it does, in order: reads the image and version out of `compose.yaml` via
 config to the host and checks the copy byte for byte; installs or recreates
 the agent with the hardening `compose.yaml` applies to the monitoring host's
 own; waits for the process to stay up for ten seconds and then for a full
-minute of its log with no `level=error`; and asks Prometheus and Loki whether
-the host has arrived. It picks the runtime from what the host has — a `docker`
+minute of its log with no `level=error`; and asks Prometheus and Loki, with
+the reader token, whether data from the agent it just started has arrived:
+samples and a log line timestamped after the deploy, not just the host's name
+in a label list, which a refused agent keeps for minutes. It exits non-zero
+when they have not. It picks the runtime from what the host has — a `docker`
 binary means the Docker runtime, otherwise the native package — and
 `--runtime docker|native` forces it.
 
@@ -111,8 +144,8 @@ depend on it — and node_exporter's one-time `udev` line at startup.
 
 ### Verify
 
-The script does this itself when it can reach the monitoring host; from
-anywhere else, within a minute or two:
+The script does this itself when it can reach the monitoring host and holds
+the reader token. From anywhere else, within a minute or two, in Grafana:
 
 ```promql
 up{instance="<hostname>"}
@@ -132,8 +165,9 @@ rather than a list.
 
 ### Firewall
 
-The host must reach `10.0.99.20` on 9090 and 3100. From VLAN 99 or 50 that is
-already true. From anywhere else it is a rule you have to add, and one worth
+The host must reach `10.0.99.20` on 9090 and 3100. From VLAN 99 that is
+already true. Hicks (50) reaches `10.0.99.20` on 3000 only, since 2026-09-02.
+From anywhere else it is a rule you have to add, and one worth
 thinking about before you do — `security.md` names "a lab VM escaping into the
 house" as a threat, and the control is that VLAN 30 is reachable only *from*
 trusted, never *to* it.
