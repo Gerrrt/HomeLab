@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **The sensitive tier's expiry rules are a pair, in hours**
+  ([#426](https://github.com/Gerrrt/HomeLab/issues/426)). #718 had already
+  shipped the tier-CA blackbox module, kept `renewal: acme` targets out of the
+  30- and 7-day rules and added `TlsAcmeRenewalStalled` (critical, under 36h).
+  What the issue still asked for was the warning half and its inhibit.
+  `TlsAcmeRenewalLate` warns under 48h, about eight hours after Caddy should
+  have renewed at ~56h. Alertmanager inhibits it under the critical rule by
+  `name`, the same shape as the days pair, so a stalled renewal pages once.
+
 - **Hicks' pass to `oracle` is narrowed to `80/tcp`**
   ([#251](https://github.com/Gerrrt/HomeLab/issues/251)). It admitted 443
   too, to a port the old wiki container published and nothing answered on;

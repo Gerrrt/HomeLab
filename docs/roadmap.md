@@ -134,9 +134,8 @@ has been rehearsed on it.
   [#129](https://github.com/Gerrrt/HomeLab/issues/129) Caddy and
   [#130](https://github.com/Gerrrt/HomeLab/issues/130) step-ca first, because
   everything else sits behind the one and is issued by the other
-  ([ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md);
-  [#426](https://github.com/Gerrrt/HomeLab/issues/426)'s expiry rule lands with
-  it — → [runbook](runbooks/build-the-tier-ca.md)); then
+  ([ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
+  — → [runbook](runbooks/build-the-tier-ca.md)); then
   [#135](https://github.com/Gerrrt/HomeLab/issues/135) AdGuard Home, serving
   since 2026-09-28 with `morpheus` forwarding to it alone
   ([ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md),
