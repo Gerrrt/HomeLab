@@ -526,29 +526,37 @@ systemctl list-timers 'homelab-*'
 
 ### On `trinity`: the sensitive profile
 
-`trinity` has one job of its own, in its own table and its own directory
+`trinity` has two jobs of its own, in their own table and their own directory
 (`SENSITIVE_JOBS`, `systemd/sensitive/`), because it is a second host with a
 checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 
 | Job | Command | When | Alerts if not seen in |
 | --- | --- | --- | --- |
 | `backup-sensitive` | `make backup` with `STACK=sensitive` | daily 04:30 | 2 days |
+| `backup-library` | `make backup-library` | daily 05:15 | 2 days |
 
 It runs daily, not weekly like the estate's backup, because it holds the
 password vault. Each run also copies the set to `oracle`, the same way the
 estate's backup does. Its units name no user and no path, because the build
 runbook writes the operator as `<you>`. The installer fills them in from
 whoever ran `sudo`, and refuses to install from anywhere but that user's
-`~/code/Gerrrt/HomeLab`. From that checkout on `trinity`:
+`~/code/Gerrrt/HomeLab`.
+
+`backup-library` is Immich's library, which no volume set can hold because it
+is a bind mount ([ADR-0064](../adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+It stops nothing, so its timer is `Persistent=true` and catches up a missed
+night at boot. It shares the `backups` lock with `backup-sensitive`, so an
+overrunning volume backup is waited for rather than raced. From that checkout
+on `trinity`:
 
 ```bash
 make install-timers PROFILE=sensitive
 ```
 
-That writes a `homelab-jobs.prom` on `trinity` that declares only
-`backup-sensitive`. The alert rules join on the job name alone, so a name may
-appear in only one table, and `--check` enforces that. The installer does not
-prime the job, because it stops the tier. `make check-timers` checks both
+That writes a `homelab-jobs.prom` on `trinity` that declares only these
+two. The alert rules join on the job name alone, so a name may appear in only
+one table, and `--check` enforces that. The installer primes `backup-library`,
+which stops nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
 profiles, and `make validate` on `trinity` fails until this timer is
 installed.
 

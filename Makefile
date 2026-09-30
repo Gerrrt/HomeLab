@@ -781,6 +781,19 @@ backup-nas: ## Pull the media tier's state off smaug from its newest ZFS snapsho
 	@# ARGS=--copy-only mean here what they mean above.
 	./scripts/backup-nas.sh $(ARGS)
 
+.PHONY: backup-library
+backup-library: ## On trinity: archive Immich's library off its USB disk, encrypt, verify, copy to oracle
+	@# The photographs, which no volume set can hold: they are a bind mount
+	@# on trinity's USB disk, and `make backup` archives named volumes. Nothing
+	@# is stopped — originals are written once, and Immich's own 02:00 dump
+	@# rides in the same archive — so this runs nightly beside the volume
+	@# sets rather than inside them. LIB_KEEP and not KEEP, for the reason
+	@# backup-firewall gives for FW_KEEP; two, because every set is the whole
+	@# library and oracle's root volume is the limit. ARGS=--prove hashes
+	@# every original in the newest set against immich-db's checksums.
+	@# Off-host, NOT off-estate: ADR-0064 is the interim, #455 the answer.
+	./scripts/backup-library.sh $(ARGS)
+
 .PHONY: verify-backups
 verify-backups: ## Re-verify every retained set of both kinds: the volume sets and the NAS set
 	@# What homelab-verify-backups.timer runs nightly. Two directories, one

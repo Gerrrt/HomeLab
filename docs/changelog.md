@@ -19,6 +19,35 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-29
 
+- **Immich's library has a copy off its disk: nightly to `oracle`, off-host
+  and not off-estate**
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132),
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+  This corrects "the USB disk is the only copy of the originals" in the
+  rehearsal entry below, and closes nothing in
+  [#455](https://github.com/Gerrrt/HomeLab/issues/455).
+  - **What was built.** `scripts/backup-library.sh` (`make backup-library`,
+    timer `homelab-backup-library`, 05:15) writes one age archive of
+    `upload/`, `library/`, `profile/` and Immich's own dumps. It sources
+    `backup-volumes.sh` for `verify()` and the copy to `oracle`, as
+    `backup-nas.sh` does, and stops nothing. Two sets are kept on each side.
+    A `df` preflight refuses a set that would leave oracle's root LV with less
+    than 15 GiB, and that refusal is ADR-0064's expiry.
+  - **First run.** Set `20260929T232136Z`: 615 originals, 1.5 GB. It was
+    written in 68 s and copied and hash-checked on `oracle` in about three
+    minutes. `ARGS=--prove` streamed it against the live database and read
+    `ok=615 bad=0`.
+  - **Restored from `oracle`.** The set was pulled back, checked against its
+    `MANIFEST` sha256 and unpacked into a tmpfs. Its own 02:00 dump restored
+    into a scratch `immich-db` before the server started, and v3.2.4 came up
+    initialised and onboarded with `ok=615 bad=0`. Thumbnails and transcodes
+    regenerated from *Jobs* with *All*, not *Missing*.
+  - **Found on the way.** A schema-drift warning in the first minute was the
+    geodata import mid-flight, and `schema-check` then read clean. 121 of the
+    615 assets are in Immich's trash, which the thumbnail job skips.
+  - **Not yet:** the timer is not installed (`make install-timers
+    PROFILE=sensitive`). Every set is encrypted to `trinity`'s key alone.
+    ADR-0023's copy is still #455's.
 - **`smaug` has 32 GB**
   ([#599](https://github.com/Gerrrt/HomeLab/issues/599), closing).
   - **The fit.** The three Samsung `M391A1G43EB1-CPB` went into the empty
