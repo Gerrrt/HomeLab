@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: Zeek mirror state
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-zeek-mirror-state.service
+# Every 5 minutes, which is also what "the counter moved" is measured over: the
+# domain is never silent for five minutes, and a sample that far apart cannot
+# be fooled by a lull. ZeekMirrorInactive waits ten, so one reading taken inside
+# the ensurer's one-minute gap after a guest restart does not page.
+OnCalendar=*:0/5
+RandomizedDelaySec=30
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

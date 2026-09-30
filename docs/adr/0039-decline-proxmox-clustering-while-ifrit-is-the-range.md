@@ -10,6 +10,14 @@
 > one address does — `10.0.30.70`, the deployment host, to `Saruman` alone.
 > The decision this ADR records is unchanged: neither hypervisor reaches the
 > other. The text below is left as written, per ADR-0001.
+>
+> **#437's mirror is not Open vSwitch, 2026-09.** The paragraph below that
+> corrects #443 calls it "an Open vSwitch mirror on `Saruman`'s own bridge".
+> [ADR-0064](0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)
+> builds it with `tc` on the existing Linux bridge instead, and `vmbr0` is not
+> converted. The argument here is unchanged: the mirror is on `Saruman`'s own
+> bridge, so what removes Zeek's view is moving the domain guests off it, not
+> a cluster.
 
 ## Context
 

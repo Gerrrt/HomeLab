@@ -17,6 +17,42 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-09-30
+
+- **#437's mirror is `tc`, not Open vSwitch, and the repository half is
+  authored** ([#437](https://github.com/Gerrrt/HomeLab/issues/437), still open;
+  [ADR-0064](adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
+  - **The issue's premise was wrong.** It said port mirroring needs Open
+    vSwitch. Read on `Saruman`: `vmbr0` is a Linux bridge on `eno1` with nine
+    guest taps, `tc` is installed, and OVS is not. A `clsact` qdisc with a
+    `matchall` `mirred` filter on each port's ingress mirrors every frame once.
+    `vmbr0` is not converted, and the management plane never moves.
+  - **Proved in a network namespace on `Saruman`, not on the bridge.** The
+    ensurer applied three ports, and was idempotent on the second run. The
+    collector read `active=1` with packets moving and `active=0` when the
+    counter was flat. Recreating the capture tap left every filter as
+    `Egress Mirror to device *`: `mirrored=0/3`, with no error anywhere. The
+    next ensurer run repaired all three, and removing the tap removed all
+    three filters. That failure is why the ensurer runs every minute and
+    matches the tap by name.
+  - **Authored:**
+    - `scripts/zeek-mirror.sh` and `scripts/collect-zeek-mirror-state.sh`, with
+      `--self-test` fixtures;
+    - their units under `systemd/agent/`, and two rows in
+      `install-agent-collectors.sh`;
+    - `ZeekMirrorInactive` and `ZeekMirrorStateStale`, with promtool tests;
+    - `stacks/sensor` (Zeek 9.0.0 and Alloy, logs to `alexander`, no secrets);
+    - [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md).
+  - **Not built.** `fenrir` does not exist yet, and nothing was applied to
+    `vmbr0`. Run from the checkout on `Saruman`, the collector's `--print`
+    reports that VM 190 does not exist and publishes nothing. That is
+    deliberate: a sensor never built is not a sensor that is down, and
+    installing the collector early must not page. #437 closes on the
+    runbook's §7 reboot proof, not on this.
+  - **JA3/JA4 are not in the stock Zeek image.** Fingerprints need a zkg
+    package baked into a derived image, which is a follow-up rather than part
+    of this change.
+
 ## 2026-09-29
 
 - **Actual is deployed on `trinity`**

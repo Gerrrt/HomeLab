@@ -155,10 +155,23 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
-`guest-state`, `thin-pool-state`, `pve-firewall-state` and `drift-check` — and checks each host's requirements **per
+`guest-state`, `thin-pool-state`, `pve-firewall-state`, `zeek-mirror-state` and `drift-check` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
 it.
+
+**`zeek-mirror-state` watches the one row in that table that is not a
+collector.** `zeek-mirror` (#437,
+[ADR-0064](../adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md))
+writes no `.prom`. Every minute it puts the `tc` mirror back on every port of
+`Saruman`'s lab bridge, because a reboot, a guest restart or a sensor restart
+each lose it. `zeek-mirror-state` reads the same kernel state without touching
+it, every five minutes, and publishes `homelab_zeek_mirror_active`: 1 only while
+the sensor runs, every port mirrors to its tap by name, and packets arrive.
+`ZeekMirrorInactive` pages on 0 after ten minutes. The two are separate so that
+disabling the first proves the second, which is
+[`build-the-sensor-guest.md`](build-the-sensor-guest.md) §7. Both require `qm`,
+so they install on the hypervisor and nowhere else.
 
 **`drift-check` is the collector that belongs to another repository.**
 `Gerrrt/Lemmiwinks/.claude/tools/drift-check` reads the wiki's machine-checkable

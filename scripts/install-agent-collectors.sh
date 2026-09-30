@@ -40,7 +40,8 @@
 #
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
 # (#360), smart-state (#351), pve-version (#311), guest-state (#257),
-# thin-pool-state (#538), pve-firewall-state (#576) and drift-check (#470).
+# thin-pool-state (#538), pve-firewall-state (#576), zeek-mirror-state (#437)
+# and drift-check (#470).
 # Adding one is a row plus a unit under systemd/agent/, not a new script: the
 # first version of this was install-agent-collectors.sh and hardcoded one job,
 # which lasted exactly as long as it took for the second collector to need
@@ -50,6 +51,15 @@
 # script, which exists on exactly the host that holds the wiki — oracle — and
 # nowhere else. That is the per-collector check doing its job: every other host
 # reports "cannot run this collector" and gets the rest.
+#
+# ONE ROW IS NOT A COLLECTOR. zeek-mirror (#437) builds the tc mirror that
+# zeek-mirror-state reports on, and writes no .prom — its .prom column is `-`.
+# It is in this table rather than a second installer because it ships the same
+# way, to the same host, as a script and a unit pair; what differs is where the
+# script lands (/usr/local/bin/homelab-zeek-mirror, not homelab-collect-*, since
+# it collects nothing) and what verifying it means (the service's last run
+# succeeded, not a file exists). Both zeek rows require qm, so they land on the
+# hypervisor and nowhere else even though tc is everywhere.
 #
 # NOT EVERY COLLECTOR SUITS EVERY HOST, and the check is per collector rather
 # than per host. patch-state needs apt; smart-state needs smartmontools. A host
@@ -85,6 +95,8 @@ COLLECTORS=(
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
   "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/sbin/lvs"
   "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
+  "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"
+  "zeek-mirror-state scripts/collect-zeek-mirror-state.sh zeek-mirror-state.prom /usr/sbin/qm"
   "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
 )
 
@@ -160,6 +172,17 @@ prom_for() {
   printf '%s' "${pattern/HOST/$hostname}"
 }
 
+# Where a row's script is installed. `-` in the .prom column marks the one row
+# that is not a collector (see the header).
+bin_for() {
+  local name="$1" prom_pattern="$2"
+  if [[ "$prom_pattern" == - ]]; then
+    printf '/usr/local/bin/homelab-%s' "$name"
+  else
+    printf '/usr/local/bin/homelab-collect-%s' "$name"
+  fi
+}
+
 verify_one() {
   local target="$1" name="$2" prom_pattern="$3" need="$4" remote_hostname="$5"
 
@@ -187,6 +210,20 @@ verify_one() {
        this installer overwrites it and daemon-reload picks it up." ;;
     *) fail "${target}/${name}: homelab-${name}.timer is ${state:-unknown}, not enabled" ;;
   esac
+
+  # A row that writes no .prom is verified by its last run instead. `success`
+  # is also what a unit that has not run yet reports, so the installer's own
+  # start just before this is what makes it mean something.
+  if [[ "$prom_pattern" == - ]]; then
+    local result
+    result="$(ssh_q "$target" "systemctl show -p Result --value homelab-${name}.service" | tr -d '\r')"
+    if [[ "$result" == success ]]; then
+      pass "${target}/${name}: last run succeeded"
+    else
+      fail "${target}/${name}: last run ${result:-unknown} — journalctl -u homelab-${name}"
+    fi
+    return
+  fi
 
   # The file, and its mode. A 0600 .prom is invisible to the collector and the
   # metric silently never appears — the failure run-scheduled.sh records having
@@ -304,9 +341,11 @@ for target in "${TARGETS[@]}"; do
   staged=()
   if ((! CHECK_ONLY)); then
     step "${target}: shipping collectors"
+    declare -A bin_of=()
     for row in "${COLLECTORS[@]}"; do
-      read -r name script _prom need <<<"$row"
+      read -r name script prom need <<<"$row"
       [[ -n "$ONLY" && "$ONLY" != "$name" ]] && continue
+      bin_of[$name]="$(bin_for "$name" "$prom")"
       install_one "$target" "$name" "$script" "$need" "$remote_home" && staged+=("$name")
     done
 
@@ -319,7 +358,7 @@ for target in "${TARGETS[@]}"; do
       # for a day.
       cmds=""
       for name in "${staged[@]}"; do
-        cmds+="install -m 0755 -o root -g root ${remote_home}/.homelab-${name}.sh /usr/local/bin/homelab-collect-${name} && "
+        cmds+="install -m 0755 -o root -g root ${remote_home}/.homelab-${name}.sh ${bin_of[$name]} && "
         cmds+="install -m 0644 -o root -g root ${remote_home}/.homelab-${name}.service ${REMOTE_UNITS}/homelab-${name}.service && "
         cmds+="install -m 0644 -o root -g root ${remote_home}/.homelab-${name}.timer ${REMOTE_UNITS}/homelab-${name}.timer && "
       done

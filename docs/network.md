@@ -482,6 +482,17 @@ Where things get broken on purpose.
   alias is pinned to `10.0.30.110` so that the four rules above are the only
   way in. Hicks reaches `8006`, `8007` and `22`; `phoenix` reaches `8006`;
   nothing else on this segment reaches the hypervisor at all.
+- `fenrir`, **not built yet**, is planned at `10.0.30.90` — the next free
+  decade — as the Zeek sensor of
+  [ADR-0064](adr/0064-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)
+  ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
+  [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md)). It has a
+  second NIC with no address, alone on a bridge `vmbr1` on `Saruman` that has
+  no physical port, no address and no VLAN awareness. That bridge carries only
+  the copies of `vmbr0`'s traffic the hypervisor's `tc` mirror sends it, so it
+  is not a second segment and needs no row in this document's tables. Every
+  path `fenrir` needs is intra-segment — its Alloy pushes to `alexander` — so
+  it adds no firewall rule.
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
   into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
