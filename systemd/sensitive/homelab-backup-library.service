@@ -40,7 +40,13 @@ ProtectHome=false
 ProtectSystem=false
 PrivateTmp=false
 NoNewPrivileges=true
-RestrictSUIDSGID=true
+# No RestrictSUIDSGID=, unlike the unit this one copies. Its seccomp filter
+# made the host's tar fail `stat` on a plain-file operand with ENOSYS —
+# "./thumbs/.immich: Cannot stat: Function not implemented" — and failed the
+# first timed run on 2026-09-30, while the same command passed interactively.
+# Directory operands were unaffected. backup-sensitive never met it because
+# its tar runs in a container. The job runs as the operator with
+# NoNewPrivileges, so there is no set-id bit for the filter to guard.
 LockPersonality=true
 RestrictRealtime=true
 StandardOutput=journal

@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **`backup-library`'s first timed run failed, and the unit is fixed**
+  ([#132](https://github.com/Gerrrt/HomeLab/issues/132),
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+  The timer was installed at 02:25 UTC, and the primed run exited 2 because
+  tar could not `stat` `./thumbs/.immich`: "Function not implemented". The
+  cause was `RestrictSUIDSGID=`, copied from `backup-sensitive`'s unit. Its
+  seccomp filter returns ENOSYS to the host tar's `stat` of a plain-file
+  operand, while directory operands pass. It was confirmed by
+  `systemd-run` with each property alone. `backup-sensitive` never met it
+  because its tar runs in a container. With the property removed, the script
+  wrote a set under the rest of the unit's sandbox. The incomplete set the
+  failed run left had no `MANIFEST`, and it was removed by hand.
 - **`WAN_DHCP6` is monitored at an address that answers.**
   `GatewayMonitorUnreliable` on `morpheus` stopped at the cause, not at a
   silence. It had fired since 2026-09-07.
