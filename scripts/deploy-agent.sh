@@ -499,8 +499,13 @@ if ((VERIFY)); then
     fresh_promql="count by (job) (timestamp(${promql}) > ${ARRIVED_AFTER})"
     deadline=$((SECONDS + 180)); jobs=0; in_loki=0
     while ((SECONDS < deadline)); do
+      # `|| true`, and it matters: until the first fresh sample lands, grep
+      # matches nothing and exits 1, pipefail makes that the pipeline's
+      # status, and set -e ended the whole script here with no word said
+      # (oracle, 2026-09-30). No match is an answer (0 jobs), not an error.
       jobs="$(mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
-              | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ')"
+              | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ' || true)"
+      jobs="${jobs:-0}"
       if mon_curl -G "http://${MON}:3100/loki/api/v1/query_range" \
            --data-urlencode "query=${logql}" --data-urlencode "start=${ARRIVED_AFTER}000000000" \
            --data-urlencode "limit=1" --data-urlencode "direction=forward" 2>/dev/null \
