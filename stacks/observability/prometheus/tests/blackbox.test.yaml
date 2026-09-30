@@ -294,11 +294,12 @@ tests:
 
   # --- Expiry: 3 days out, and one already expired -------------------------
   # Both tiers fire at Prometheus for the 3-day one; alertmanager.yaml's
-  # inhibit rule is what keeps the warning off the phone, and that is asserted
-  # by amtool in scripts/validate.sh rather than here. The expired one has a
-  # negative day count, which the summary prints as-is: a self-signed device
-  # keeps serving after expiry, so the metric keeps arriving and the number
-  # keeps falling. 262800 = 3 × 86400 + 3600; -165600 = 7200 - 2 × 86400.
+  # inhibit rule is what keeps the warning off the phone. Nothing tests that
+  # inhibit: promtool cannot see Alertmanager, and amtool's `config routes
+  # test` in scripts/validate.sh checks routing, not inhibition. The expired
+  # one has a negative day count, which the summary prints as-is: a
+  # self-signed device keeps serving after expiry, so the metric keeps
+  # arriving and the number keeps falling. 262800 = 3 × 86400 + 3600; -165600 = 7200 - 2 × 86400.
   - interval: 1m
     input_series:
       - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://10.0.99.1/",
