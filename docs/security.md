@@ -293,7 +293,9 @@ with one more key that reads it — a key that lives on the host already
 holding the estate's age identity, and reads a directory that includes
 Jellyfin's users' password hashes — and, since Audiobookshelf was deployed
 on 2026-09-29, its users' hashes too, in the same pull
-([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
+([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)),
+and since Navidrome's on 2026-09-30, the hashes in its `navidrome.db`
+([#141](https://github.com/Gerrrt/HomeLab/issues/141)).
 **Two more are for the phones on Hicks, and both exist.** The
 issues that proposed Audiobookshelf and Navidrome each said no new rule
 would be needed; the Hicks passes are per port, so each needs one.
@@ -301,8 +303,8 @@ would be needed; the Hicks passes are per port, so each needs one.
 ([#141](https://github.com/Gerrrt/HomeLab/issues/141)), was created on
 2026-09-22 ahead of the service, and what could be proved without a listener
 was: its position above the block, read from `morpheus`, and the monitoring
-host still refused on `4533`. That Hicks reaches it is proved at the deploy
-([`build-the-nas.md`](runbooks/build-the-nas.md) §6.6). `vlan50 net →
+host still refused on `4533`. That Hicks reaches it was proved at the deploy
+on 2026-09-30 ([`build-the-nas.md`](runbooks/build-the-nas.md) §6.6). `vlan50 net →
 10.0.40.30:13378`, for Audiobookshelf, was created by §6.5 and a Hicks
 workstation reached it on 2026-09-29 — ADR-0050 calls it the fifth; it is the
 seventh. Neither adds a residual `8096` did

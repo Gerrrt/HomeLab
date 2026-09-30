@@ -182,11 +182,6 @@ Closes when a workstation can mount the share. Its other condition, the
 faulted Exos replaced and the mirror resilvered, is met and is in
 [`changelog.md`](changelog.md).
 
-- **[#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome** is
-  authored, its archive in the NAS pull `pending` until deployed, and its
-  4533 pass already exists; what is left is the rest of
-  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.6.
-
 ## Saruman: the domain, then the SOC
 
 Closes when Wazuh and Velociraptor report the six agents in.

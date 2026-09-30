@@ -190,7 +190,7 @@ OUT_DIR="${REPO_ROOT}/backups/nas"
 NAS_ARCHIVES=(
   "jellyfin-config|jellyfin/config|jellyfin|/config|required"
   "audiobookshelf-state|audiobookshelf|audiobookshelf|/config,/metadata|required"
-  "navidrome-data|navidrome/data|navidrome|/data|pending"
+  "navidrome-data|navidrome/data|navidrome|/data|required"
 )
 VOLUMES=()
 declare -A NAS_SUBPATH=() NAS_SERVICE=() NAS_MOUNT=() NAS_STATE=()
