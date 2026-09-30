@@ -122,7 +122,7 @@ qm create 190 \
   --net1 virtio,bridge=vmbr1,firewall=0 \
   --agent enabled=1 \
   --onboot 1 \
-  --ide2 local:iso/ubuntu-24.04-live-server-amd64.iso,media=cdrom \
+  --ide2 local:iso/ubuntu-26.04.1-live-server-amd64.iso,media=cdrom \
   --boot order='scsi0;ide2'
 ```
 

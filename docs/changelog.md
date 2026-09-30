@@ -34,6 +34,13 @@ docstring gives: it is a record, not a claim about now.
     the system `PATH`, it worked. The runbook now says to use it.
   - The original file is kept on the host as
     `/etc/network/interfaces.bak-437-20260930`.
+- **`fenrir` is created on `Saruman`**, VMID 190, stopped and not yet
+  installed ([`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md)
+  §2, as written). `net0` is on `vmbr0` and `net1` on `vmbr1`, both
+  `firewall=0`. The disks are 32 and 64 GiB on `large_data`, and `onboot` is 1.
+  The ISO is `ubuntu-26.04.1-live-server-amd64.iso`, the one on the host,
+  which is what the other Linux guests run. The runbook named 24.04, and now
+  names 26.04.1.
 
 - **#437's mirror is `tc`, not Open vSwitch, and the repository half is
   authored** ([#437](https://github.com/Gerrrt/HomeLab/issues/437), still open;
