@@ -118,11 +118,11 @@ if [[ "${1:-}" == "--self-test" ]]; then
   }
 
   # tc's own output, captured from iproute2 6.15 on Saruman's kernel.
-  good="filter protocol all matchall chain 0
-filter protocol all matchall chain 0 handle 0x1
-  not_in_hw
-	action order 1: mirred (Egress Mirror to device tap190i1) pipe
-	index 1 ref 1 bind 1"
+  good=$'filter protocol all matchall chain 0\n'
+  good+=$'filter protocol all matchall chain 0 handle 0x1\n'
+  good+=$'  not_in_hw\n'
+  good+=$'\taction order 1: mirred (Egress Mirror to device tap190i1) pipe\n'
+  good+=$'\tindex 1 ref 1 bind 1'
   # The sensor restarted: its tap was destroyed and recreated with a new
   # ifindex, and the filter kept the old one. tc prints `*` and mirrors nothing.
   dangling="${good/tap190i1/*}"
