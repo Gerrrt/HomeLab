@@ -90,11 +90,11 @@ if [[ "${1:-}" == "--self-test" ]]; then
       fail=1
     fi
   }
-  good="filter protocol all matchall chain 0
-filter protocol all matchall chain 0 handle 0x1
-  not_in_hw
-	action order 1: mirred (Egress Mirror to device tap190i1) pipe
-	index 1 ref 1 bind 1"
+  good=$'filter protocol all matchall chain 0\n'
+  good+=$'filter protocol all matchall chain 0 handle 0x1\n'
+  good+=$'  not_in_hw\n'
+  good+=$'\taction order 1: mirred (Egress Mirror to device tap190i1) pipe\n'
+  good+=$'\tindex 1 ref 1 bind 1'
   dangling="${good/tap190i1/*}"
 
   check "a port already mirrored is left alone" "" "$(plan_port tap150i0 ingress "$good")"
