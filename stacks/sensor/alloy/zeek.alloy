@@ -35,7 +35,7 @@ loki.process "zeek" {
 	}
 
 	stage.labels {
-		values = { log_type = "" }
+		values = {log_type = ""}
 	}
 
 	stage.label_drop {
