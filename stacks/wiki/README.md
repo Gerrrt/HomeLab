@@ -162,13 +162,9 @@ to 13:55:36 UTC.
 - **Removed:** `wiki-update-companion`, `node_exporter` and `wikinet`, which
   had nothing attached. `docker ps -a` on `oracle` now lists `wiki-app`,
   `wiki-db` and `alloy`, and nothing else.
-- **Left for later:** the anonymous volume `eed420de7438…`, which is empty.
-  It is removed once the first set taken from `wiki-db` has passed
-  `--prove`:
-
-  ```bash
-  docker volume rm eed420de7438f95bf260883372cd69c0c89ed9e216a4d87e2499929e95665360
-  ```
+- **Removed later the same day:** the old container's anonymous volume
+  `eed420de7438…`, which was empty, once the first set taken from `wiki-db`
+  had passed `--prove`. That was the last step of [#251].
 
   The old containers' `docker inspect` was saved before they were removed,
   in case a rollback ever needed them.
