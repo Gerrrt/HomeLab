@@ -637,9 +637,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   readings (`sdc` to `sdb`), so its 1-day comparison had nothing to match.
   **Its letter is not stable.** On the chipset the boot SSD read `sdc` after
   the disk swap and `sdb` after the memory install, a boot with no disk
-  changed. The baseline row moved to `/dev/sdb` the same day and will go
-  stale again until [#745](https://github.com/Gerrrt/HomeLab/issues/745)
-  keys it on something stable.
+  changed. The baseline row moved to `/dev/sdb` the same day, and since
+  [#745](https://github.com/Gerrrt/HomeLab/issues/745) it is keyed on the
+  drive's port, `pci-0000:00:17.0-ata-6`, which a reboot does not move
+  ([ADR-0066](adr/0066-key-smart-series-on-the-port-not-the-letter.md)).
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, delivered
   2026-09-11, fitted 2026-09-18 in bays 3 and 4 of the ProLiant, and **since

@@ -1162,9 +1162,13 @@ day's numbers forever; `SmartStateStale` in `host.rules.yaml` exists for
 exactly that.
 
 **4. The baseline row, only if step 1 disagreed with it.** The row in
-`scripts/render-smart-baselines.sh` reads `smaug /dev/sdc 4`. If the S3520
-printed as another letter, change the row — the letter only, never the
-count — merge it, and on the monitoring host:
+`scripts/render-smart-baselines.sh` read `smaug /dev/sdc 4` when this
+section ran. Since [#745](https://github.com/Gerrrt/HomeLab/issues/745) it
+is keyed on the drive's port, not its letter
+([ADR-0066](../adr/0066-key-smart-series-on-the-port-not-the-letter.md)), and
+reads `smaug pci-0000:00:17.0-ata-6 4`: compare the `slot=` on the S3520's
+lines, not the letter. If it differs, change the row — the slot only, never
+the count — merge it, and on the monitoring host:
 
 ```bash
 sudo make smart-state

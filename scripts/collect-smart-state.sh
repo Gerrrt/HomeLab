@@ -98,6 +98,20 @@
 # `model` is enough to act on. docs/security.md's rule about what is published
 # is the same instinct.
 #
+# `slot` IS THE KEY; `device` IS ONLY THE NAME (#745, ADR-0066). Every
+# per-device series also carries `slot`, the drive's name under
+# /dev/disk/by-path — the port it is cabled to, e.g. pci-0000:00:17.0-ata-6.
+# A letter is whatever the kernel handed out on this boot: on smaug the boot
+# SSD was sdc, then sdb, on two boots on one day with no disk moved, and the
+# baseline keyed on the letter paged on the drive's recorded four. A port does
+# not move unless the cable does, and it identifies a place, not a drive,
+# so it is no serial by the back door. It rides every series, not just the
+# reallocated one, because SmartDriveBadSectorsGrowing subtracts a series from
+# itself a week earlier: keyed on the letter, a drive with 4 moving onto the
+# letter a drive with 0 used to hold reads as growth. Where there is no
+# by-path name — the SSH mode, or a host without udev — `slot` is the device
+# label itself, which is no worse than before.
+#
 # Usage: scripts/collect-smart-state.sh [--print]
 #        scripts/collect-smart-state.sh --ssh USER@HOST --host NAME
 #                                       --device TYPE:/dev/NODE [...]
@@ -204,6 +218,30 @@ discover_local() {
   done
 }
 
+# The by-path name of a local block device, e.g. sdc -> pci-0000:00:17.0-ata-6.
+# Empty when there is none, and the renderer then uses the device label.
+#
+# udev can give one disk more than one name here: systemd 253 added the
+# `ata-N.0` spelling beside the older `ata-N`, and a host can carry both. The
+# SHORTEST wins, then the first in sort order, so the choice is the same on
+# every run whatever order the directory lists in. A partition's link names
+# sdc1, not sdc, so it never matches. BY_PATH_DIR is overridable for the
+# self-test.
+BY_PATH_DIR="${BY_PATH_DIR:-/dev/disk/by-path}"
+by_path_of() {
+  local name="$1" link base best=""
+  for link in "${BY_PATH_DIR}"/*; do
+    [[ -L "$link" ]] || continue
+    [[ "$(basename "$(readlink "$link")")" == "$name" ]] || continue
+    base="$(basename "$link")"
+    if [[ -z "$best" || ${#base} -lt ${#best} \
+          || ( ${#base} -eq ${#best} && "$base" < "$best" ) ]]; then
+      best="$base"
+    fi
+  done
+  printf '%s' "$best"
+}
+
 emit() {
   # THE JSON GOES THROUGH A FILE AND NOT argv, and that is not a style
   # preference. Measured on smaug 2026-09-21 (#483): TrueNAS's console shell
@@ -284,9 +322,13 @@ for d in docs:
             continue
         node = d["homelab_label"]
     seen += 1
+    # The port, where the shell found one; the device label where it did not.
+    # See the header, and ADR-0066.
+    slot = d.get("homelab_slot") or node
     # model, not serial. See the header.
-    base = {"host": host, "device": node, "model": (d.get("model_name") or "unknown").strip()}
-    plain = {"host": host, "device": node}
+    base = {"host": host, "device": node, "slot": slot,
+            "model": (d.get("model_name") or "unknown").strip()}
+    plain = {"host": host, "device": node, "slot": slot}
 
     status = d.get("smart_status") or {}
     if "passed" in status:
@@ -463,11 +505,11 @@ if ((SELF_TEST)); then
   payload='[{"device":{"name":"/dev/sdc"},"model_name":"INTEL SSDSC2BB240G7","smart_status":{"passed":true},"temperature":{"current":24},"power_on_time":{"hours":13301},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":99,"raw":{"value":4}},{"id":174,"name":"Unsafe_Shutdown_Count","value":100,"raw":{"value":519}},{"id":192,"name":"Unsafe_Shutdown_Count","value":100,"raw":{"value":519}},{"id":197,"name":"Current_Pending_Sector","value":100,"raw":{"value":0}},{"id":233,"name":"Media_Wearout_Indicator","value":88,"raw":{"value":0}}]}}]'
   out="$(emit)"
   check "S3520: Unsafe_Shutdown_Count 174 and 192 render ONCE" \
-    1 '^homelab_smart_unsafe_shutdowns_total\{host="fixture",device="/dev/sdc"\} 519$'
+    1 '^homelab_smart_unsafe_shutdowns_total\{host="fixture",device="/dev/sdc",slot="/dev/sdc"\} 519$'
   check "S3520: wearout reads the normalised column, not the raw one" \
-    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sdc"\} 12$'
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sdc",slot="/dev/sdc"\} 12$'
   check "S3520: its four reallocated sectors" \
-    1 '^homelab_smart_reallocated_sectors\{host="fixture",device="/dev/sdc"\} 4$'
+    1 '^homelab_smart_reallocated_sectors\{host="fixture",device="/dev/sdc",slot="/dev/sdc"\} 4$'
   check "S3520: one device seen" 1 '^homelab_smart_devices\{host="fixture"\} 1$'
 
   # 2. smaug's faulted Exos, the same evening. Overall assessment still PASSED,
@@ -475,9 +517,9 @@ if ((SELF_TEST)); then
   payload='[{"device":{"name":"/dev/sdb"},"model_name":"ST18000NM003D-3DL103","smart_status":{"passed":true},"power_on_time":{"hours":54},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":100,"raw":{"value":0}},{"id":197,"name":"Current_Pending_Sector","value":96,"raw":{"value":850}},{"id":198,"name":"Offline_Uncorrectable","value":96,"raw":{"value":850}}]}}]'
   out="$(emit)"
   check "faulted Exos: 850 pending" \
-    1 '^homelab_smart_pending_sectors\{host="fixture",device="/dev/sdb"\} 850$'
+    1 '^homelab_smart_pending_sectors\{host="fixture",device="/dev/sdb",slot="/dev/sdb"\} 850$'
   check "faulted Exos: 850 uncorrectable" \
-    1 '^homelab_smart_uncorrectable_sectors\{host="fixture",device="/dev/sdb"\} 850$'
+    1 '^homelab_smart_uncorrectable_sectors\{host="fixture",device="/dev/sdb",slot="/dev/sdb"\} 850$'
   check "faulted Exos: the drive still calls itself healthy" \
     1 '^homelab_smart_healthy\{.*device="/dev/sdb".*\} 1$'
 
@@ -486,15 +528,15 @@ if ((SELF_TEST)); then
   payload='[{"device":{"name":"/dev/sdd"},"model_name":"TWO SPELLINGS","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":231,"name":"SSD_Life_Left","value":97,"raw":{"value":97}},{"id":233,"name":"Media_Wearout_Indicator","value":90,"raw":{"value":0}}]}}]'
   out="$(emit)"
   check "two wear spellings render ONE series" \
-    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sdd"\}'
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sdd",slot="/dev/sdd"\}'
 
   # 4. morpheus's NVMe, the other vocabulary entirely.
   payload='[{"device":{"name":"/dev/nvme0"},"model_name":"NVME DRIVE","smart_status":{"passed":true},"temperature":{"current":62},"nvme_smart_health_information_log":{"percentage_used":3,"available_spare":100,"available_spare_threshold":10,"media_errors":0,"unsafe_shutdowns":41,"critical_warning":0}}]'
   out="$(emit)"
   check "NVMe: media errors, which ATA never reports" \
-    1 '^homelab_smart_media_errors_total\{host="fixture",device="/dev/nvme0"\} 0$'
+    1 '^homelab_smart_media_errors_total\{host="fixture",device="/dev/nvme0",slot="/dev/nvme0"\} 0$'
   check "NVMe: percentage_used is used DIRECTLY, not inverted" \
-    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/nvme0"\} 3$'
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/nvme0",slot="/dev/nvme0"\} 3$'
   check "NVMe: the spare threshold the drive sets for itself" \
     1 '^homelab_smart_available_spare_threshold_percent\{.*\} 10$'
 
@@ -504,7 +546,7 @@ if ((SELF_TEST)); then
   out="$(emit)"
   check "two drives: both counted" 1 '^homelab_smart_devices\{host="fixture"\} 2$'
   check "two drives: both reallocated series, distinct" \
-    2 '^homelab_smart_reallocated_sectors\{host="fixture",device="/dev/sd(a|c)"\} [04]$'
+    2 '^homelab_smart_reallocated_sectors\{host="fixture",device="/dev/sd(a|c)",slot="/dev/sd(a|c)"\} [04]$'
 
   # 6a. Saruman through its P440ar (#529). Four readings through one logical
   #     drive: the two SM863a SSDs, a SAS spindle the iLO already watches, and
@@ -517,9 +559,9 @@ if ((SELF_TEST)); then
   check "Smart Array: each SSD is its own series" \
     2 '^homelab_smart_healthy\{host="fixture",device="/dev/sda:cciss,[23]",'
   check "Smart Array: Wear_Leveling_Count reads the normalised column" \
-    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,2"\} 6$'
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,2",slot="/dev/sda:cciss,2"\} 6$'
   check "Smart Array: the second SSD's wear is its own" \
-    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,3"\} 4$'
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda:cciss,3",slot="/dev/sda:cciss,3"\} 4$'
   check "Smart Array: the spindle and the empty index are not counted" \
     1 '^homelab_smart_devices\{host="fixture"\} 2$'
   check "Smart Array: nothing for the spindle, which the iLO watches" \
@@ -544,6 +586,35 @@ if ((SELF_TEST)); then
   check "discovery: its second logical drive is not probed again" 0 'sdb'
   check "discovery: an ordinary disk is read as itself" 1 '^auto:/dev/sdc$'
   check "discovery: a loop device is not a disk" 0 'loop0'
+
+  # 6c. The port survives the letter (#745). smaug's boot SSD read as sdc and
+  #     then as sdb on two boots on 2026-09-29, with no disk moved. With the
+  #     shell's slot tag, both readings render the SAME slot, so the baseline
+  #     row and the week-ago comparison still find the drive.
+  for letter in sdc sdb; do
+    payload='[{"homelab_slot":"pci-0000:00:17.0-ata-6","device":{"name":"/dev/'"${letter}"'"},"model_name":"INTEL SSDSC2BB240G7","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":99,"raw":{"value":4}}]}}]'
+    out="$(emit)"
+    check "a letter move keeps the slot: S3520 as ${letter}" \
+      1 '^homelab_smart_reallocated_sectors\{host="fixture",device="/dev/'"${letter}"'",slot="pci-0000:00:17\.0-ata-6"\} 4$'
+  done
+  check "the slot rides the model-labelled series too" \
+    1 '^homelab_smart_healthy\{host="fixture",device="/dev/sdb",slot="pci-0000:00:17\.0-ata-6",model="INTEL SSDSC2BB240G7"\} 1$'
+
+  # 6d. by_path_of, against a made-up /dev/disk/by-path. sdc has both of the
+  #     spellings systemd 253 can leave side by side, and a partition; sda has
+  #     no by-path name at all, as on a host without udev.
+  fake_dev="$(mktemp -d)"
+  mkdir -p "${fake_dev}/by-path"
+  ln -s ../../sdc "${fake_dev}/by-path/pci-0000:00:17.0-ata-6.0"
+  ln -s ../../sdc "${fake_dev}/by-path/pci-0000:00:17.0-ata-6"
+  ln -s ../../sdc1 "${fake_dev}/by-path/pci-0000:00:17.0-ata-6-part1"
+  ln -s ../../sdb "${fake_dev}/by-path/pci-0000:00:17.0-ata-2"
+  out="$(BY_PATH_DIR="${fake_dev}/by-path" by_path_of sdc)"
+  check "by-path: the shorter of two spellings, not the partition" \
+    1 '^pci-0000:00:17\.0-ata-6$'
+  out="$(BY_PATH_DIR="${fake_dev}/by-path" by_path_of sda)"
+  check "by-path: nothing for a disk with no by-path name" 0 '.'
+  rm -rf "${fake_dev}"
 
   # 6. smartctl answering with no device in the JSON. The exit has to carry
   #    smartctl's own reason, which is usually a permission problem rather than
@@ -599,6 +670,17 @@ for spec in "${DEVICES[@]}"; do
   if [[ "$devtype" == cciss,* ]]; then
     [[ "$out" == \{* ]] || continue
     out="{\"homelab_label\":\"${node}:${devtype}\",${out#\{}"
+  fi
+  # And its port, found locally, the same way. Behind a Smart Array the port
+  # is the logical drive's plus the controller index, which is the bay's own
+  # number and does not move either. Over SSH there is no local by-path to ask,
+  # so no tag, and the renderer falls back to the device label.
+  if [[ -z "$SSH_TARGET" && "$out" == \{* ]]; then
+    slot="$(by_path_of "${node##*/}")"
+    if [[ -n "$slot" ]]; then
+      [[ "$devtype" == cciss,* ]] && slot="${slot}:${devtype}"
+      out="{\"homelab_slot\":\"${slot}\",${out#\{}"
+    fi
   fi
   ((first)) || payload+=","
   payload+="$out"
