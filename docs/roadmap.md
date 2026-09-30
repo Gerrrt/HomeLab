@@ -218,10 +218,13 @@ Closes when Wazuh and Velociraptor report the six agents in.
   encrypted to one key that lives only on `alexander`; a second recipient or
   a proved off-box copy, run on that guest.
 - **[#437](https://github.com/Gerrrt/HomeLab/issues/437) Zeek on a mirror
-  port.** Not gated on the switch: the mirror is an Open vSwitch mirror on
-  `Saruman`'s own bridge, and ADR-0006 keeps the switch's mirroring disabled
-  (ADR-0039). The domain it watches exists as of 2026-09-25, so what is left
-  is the bridge decision and then the build.
+  port.** Not gated on the switch: the mirror is on `Saruman`'s own bridge,
+  and ADR-0006 keeps the switch's mirroring disabled (ADR-0039). The bridge
+  decision is made: a `tc` mirror on the existing Linux bridge, not Open
+  vSwitch ([ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
+  The sensor guest `fenrir`, `stacks/sensor`, the mirror's timer and the
+  `homelab_zeek_mirror_active` gauge with its alert are authored; what is left
+  is the build and the reboot proof. → [runbook](runbooks/build-the-sensor-guest.md)
 - **[#485](https://github.com/Gerrrt/HomeLab/issues/485) PBS.**
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
   trigger has fired — `smaug` answers, `erebor` is online — and its sync job

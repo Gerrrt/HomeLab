@@ -1,0 +1,46 @@
+// =============================================================================
+// Zeek's logs, from fenrir to the lab's Loki on alexander (#437).
+//
+// One stream per log type — conn, dns, ssl, x509, smb_files, kerberos and the
+// rest — labelled `log_type`, which is a closed set of a few dozen names and
+// so a safe label. Everything else in a line stays in the line: Zeek writes
+// JSON (zeek/local.zeek), and `| json` in a query reads any field of it.
+//
+// Only the CURRENT files are tailed. Zeek rotates hourly into archive/, and
+// tailing that too would ship every line twice.
+//
+// This file lives in stacks/sensor/alloy/ and NOT beside config.alloy in
+// stacks/observability/alloy/: the estate's Alloy mounts that whole directory,
+// and this would load on VLAN 99 tailing a path that does not exist there.
+// =============================================================================
+
+local.file_match "zeek" {
+	path_targets = [{
+		"__path__" = "/zeek/logs/*.log",
+		"job"      = "zeek",
+	}]
+}
+
+loki.source.file "zeek" {
+	targets    = local.file_match.zeek.targets
+	forward_to = [loki.process.zeek.receiver]
+}
+
+loki.process "zeek" {
+	// /zeek/logs/conn.log -> log_type="conn". The filename label is dropped
+	// after: it is the same fact with a path around it.
+	stage.regex {
+		source     = "filename"
+		expression = "/(?P<log_type>[a-z0-9_]+)\\.log$"
+	}
+
+	stage.labels {
+		values = { log_type = "" }
+	}
+
+	stage.label_drop {
+		values = ["filename"]
+	}
+
+	forward_to = [loki.write.grafana_loki.receiver]
+}

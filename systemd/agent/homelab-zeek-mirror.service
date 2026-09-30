@@ -1,0 +1,37 @@
+# Mirror every port of the lab bridge to the Zeek sensor (#437, ADR-0068).
+#
+# WHAT IT IS FOR. The mirror is `tc` state on vmbr0's ports and on nothing that
+# persists: a reboot loses it, a guest restart loses it for that guest's tap,
+# and a sensor restart leaves every filter aimed at an interface that no longer
+# exists. scripts/zeek-mirror.sh puts it back, and changes nothing on a port
+# that is already right.
+#
+# IT IS NOT WHAT SAYS THE MIRROR IS UP. homelab-zeek-mirror-state reads the same
+# state independently. Disabling THIS timer and rebooting is #437's proof that
+# the gauge is not decorative.
+#
+# HARDENING. Root, because it writes qdiscs and filters on host interfaces —
+# CAP_NET_ADMIN and nothing else, bounded here. No mount namespace, for the same
+# reason as the other agent units: nothing in this estate's hypervisor units
+# builds one.
+[Unit]
+Description=HomeLab: mirror the lab bridge to the Zeek sensor
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/build-the-sensor-guest.md
+ConditionPathIsDirectory=/sys/class/net/vmbr0/brif
+ConditionPathExists=/usr/sbin/tc
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-zeek-mirror
+TimeoutStartSec=60
+Restart=no
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-zeek-mirror

@@ -829,6 +829,64 @@ groups:
             `journalctl -u homelab-pve-firewall-state`; an unreadable status
             writes nothing on purpose, so the journal says why.
 
+      # --- The Zeek mirror on the lab bridge (#437, ADR-0068) ---------------
+      #
+      # Zeek's absence detection, inherited from #441. The lab's Loki, where
+      # Zeek's logs land, has no ruler (ADR-0020), so the question is asked on
+      # the hypervisor instead, as guest state under ADR-0028:
+      # scripts/collect-zeek-mirror-state.sh. It proves the mirror delivers
+      # packets to the sensor; it cannot see whether Zeek inside the guest is
+      # reading them, and ADR-0068 says so.
+
+      - alert: ZeekMirrorInactive
+        # The sensor is stopped, a bridge port lost its mirror, or the tap has
+        # stopped receiving — any one of which leaves the domain's east-west
+        # traffic unwatched with no other signal anywhere.
+        #
+        # WARNING AFTER TEN MINUTES. The ensurer repairs a port within a minute
+        # of a guest restart, and one collector sample can land in that minute;
+        # two cannot. Warning rather than critical because nothing is exposed
+        # by it — something is unobserved — and a sensor switched off between
+        # sessions reads the same, which the description says.
+        expr: homelab_zeek_mirror_active == 0
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}'s Zeek mirror is not delivering packets"
+          description: >-
+            homelab_zeek_mirror_active has read 0 for ten minutes, so Zeek on
+            `fenrir` is not seeing the lab bridge. Check the parts:
+            homelab_zeek_mirror_sensor_running (is VM 190 up),
+            homelab_zeek_mirror_ports_mirrored against
+            homelab_zeek_mirror_ports_expected (is homelab-zeek-mirror.timer
+            running — `journalctl -u homelab-zeek-mirror`), and
+            homelab_zeek_mirror_sensor_tx_packets_total (is anything arriving).
+            If the sensor was powered off on purpose this is expected.
+            build-the-sensor-guest.md has the checks.
+
+      - alert: ZeekMirrorStateStale
+        # The collector stopped, which is not the mirror being fine.
+        # Twenty-five minutes of mtime past a five-minute timer is five missed
+        # runs; a reboot of this host is shorter than that.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*zeek-mirror-state\\.prom"} > 25 * 60
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its Zeek mirror state recently"
+          description: >-
+            The file is {{ $value | humanizeDuration }} old, so
+            ZeekMirrorInactive is reading an old answer and cannot fire. Check
+            homelab-zeek-mirror-state.timer on the host and
+            `journalctl -u homelab-zeek-mirror-state`; an unreadable sensor
+            status writes nothing on purpose, so the journal says why.
+
       - alert: SmartDriveBadSectorsGrowing
         # The signal SmartDriveBadSectors cannot give you, and the one worth
         # acting on.

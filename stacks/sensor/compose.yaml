@@ -1,0 +1,170 @@
+---
+# The sensor stack: Zeek on a mirror of the lab bridge, and the Alloy that
+# carries its logs to the lab's Loki (#437).
+#
+# Deployed on: fenrir (10.0.30.90, VLAN 30 / ImaginationLAN) — a guest on
+#              `Saruman`, VMID 190. NOT BUILT YET. Authored ahead of the guest
+#              the way stacks/soc was ahead of odin. The build, and the reboot
+#              proof that closes #437, is docs/runbooks/build-the-sensor-guest.md.
+# Decided by:  docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md
+#              — why a `tc` mirror on the Linux bridge rather than Open vSwitch,
+#              why a guest of its own, and why the check that the mirror is up
+#              lives on the hypervisor and not here.
+# Deploy with: NOT `make up STACK=sensor`. That target renders a secrets file,
+#              and this stack has none — no service here takes a credential.
+#              On fenrir, from the repository root:
+#                cp stacks/sensor/.env.example stacks/sensor/.env
+#                docker compose -f stacks/sensor/compose.yaml up -d
+#              stacks/media is the other stack deployed this way, for a
+#              different reason (#528); README.md has the procedure.
+#
+# WHAT THIS SEES AND WHY. `fenrir` has two NICs. `net0` is on vmbr0 like every
+# other guest and carries this stack's own traffic to alexander. `net1` sits
+# alone on the port-less `vmbr1` and receives nothing but the copies the
+# hypervisor's `tc` mirror sends it: the ingress of every vmbr0 port, which is
+# every frame on the lab bridge exactly once (ADR-0068). That includes the
+# domain's east-west traffic — LLMNR, NBT-NS, SMB, Kerberos, LDAP, ARP — which
+# crosses no router and which Suricata on morpheus therefore never sees
+# (ADR-0006, ADR-0014).
+#
+# WHAT SAYS IT STOPPED. Not anything here. The lab's Loki has no ruler
+# (ADR-0020), so "Zeek went quiet" cannot be alerted where its logs land (#441).
+# homelab_zeek_mirror_active on the hypervisor is the check, and it proves the
+# mirror delivers packets to this guest — not that Zeek is reading them. A
+# crashed Zeek in a running guest shows as `restart: unless-stopped` doing its
+# job, or as the zeek log streams going flat in the lab's Grafana.
+#
+# ---------------------------------------------------------------------------
+# On the comments in this file
+# ---------------------------------------------------------------------------
+# The settings shared with stacks/observability and stacks/soc — `init: true`,
+# `pids_limit`, the logging driver — are argued in those files and not here.
+# What is written out is where this stack differs.
+
+name: sensor
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Zeek — a protocol logger, not a second Suricata. conn, dns, http, ssl,
+  # x509, files, smb, kerberos, ntlm, dce_rpc, ldap: what happened, not whether
+  # it matched a signature.
+  #
+  # DIFFERENCE: host networking and two capabilities, the only service in the
+  # repository with either. It captures from a NIC of the guest, which a
+  # container network cannot reach; NET_RAW opens the packet socket and
+  # NET_ADMIN puts the interface in promiscuous mode. Everything else is
+  # dropped. The interface has no address and sits on a bridge with nothing
+  # else on it, so host networking reaches nothing it would not already.
+  #
+  # -C because the mirror copies frames before the NIC would have filled in
+  # offloaded checksums; without it Zeek discards them as corrupt. The BPF
+  # filter drops this guest's own traffic, half of which the mirror sees
+  # (alexander's replies to it enter vmbr0 on alexander's tap).
+  # ---------------------------------------------------------------------------
+  zeek:
+    image: zeek/zeek:9.0.0@sha256:70733f4e540ba1608e37e00c6a93d009f79734262c9ec2ba09d90aa9abc16de5
+    container_name: sensor-zeek
+    restart: unless-stopped
+    logging: *default-logging
+    init: true
+    pids_limit: 256
+    network_mode: host
+    cap_drop: [ALL]
+    cap_add: [NET_RAW, NET_ADMIN]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    # A bound, not a measurement: re-derive from container_memory_rss in the
+    # lab's Prometheus after a fortnight, as stacks/soc says of its own.
+    mem_limit: 4096m
+    memswap_limit: 4096m
+    working_dir: /zeek/logs
+    command:
+      - zeek
+      - -C
+      - -i
+      - "${ZEEK_INTERFACE:-ens19}"
+      - -f
+      - "not host ${SENSOR_ADDR:-10.0.30.90}"
+      - local
+      - /zeek/site/local.zeek
+    volumes:
+      - ./zeek/local.zeek:/zeek/site/local.zeek:ro
+      - zeek-logs:/zeek/logs
+
+  # ---------------------------------------------------------------------------
+  # Alloy — this guest's collector, and the thing that ships Zeek's logs.
+  #
+  # config.alloy and docker.alloy are mounted from stacks/observability/alloy/
+  # unchanged, as stacks/soc does and for its reason. zeek.alloy is this
+  # stack's own and lives HERE: the estate's Alloy mounts that whole directory,
+  # and a copy there would tail a /zeek that does not exist on VLAN 99.
+  #
+  # DIFFERENCE from stacks/soc: no `make render`, so the two values it writes
+  # are defaulted here instead. LOG_READ_GID is 4, `adm` on Ubuntu, which owns
+  # /var/log/syslog; ALLOY_HOSTNAME comes from .env.example, since this stack
+  # has exactly one host.
+  # ---------------------------------------------------------------------------
+  alloy:
+    image: grafana/alloy:v1.20.0@sha256:f111cce835516c5f99166342be7038496b52ced16667be5a11e19258a3e4cd30
+    container_name: sensor-alloy
+    restart: unless-stopped
+    logging: *default-logging
+    init: true
+    pids_limit: 1024
+    networks: [sensor]
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    group_add:
+      - "${LOG_READ_GID:-4}"
+      - "473"
+    cgroup: host
+    environment:
+      # alexander, the lab's own stores. Nothing here points at 10.0.99.20,
+      # and nothing may (ADR-0007).
+      LOKI_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_LOKI_PORT:-3100}/loki/api/v1/push
+      PROMETHEUS_REMOTE_WRITE_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_PROMETHEUS_PORT:-9090}/api/v1/write
+      ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-fenrir}
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy
+    volumes:
+      - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
+      - ./alloy/zeek.alloy:/etc/alloy/zeek.alloy:ro
+      - zeek-logs:/zeek/logs:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+      - /:/rootfs:ro
+    ports:
+      - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+
+networks:
+  sensor:
+    driver: bridge
+
+volumes:
+  # Zeek's logs live on fenrir's second disk, not the OS volume, the way
+  # odin's indexer does (#439): a mirror of a busy segment writes steadily, and
+  # a separate filesystem is somewhere for that arithmetic to be wrong safely.
+  # build-the-sensor-guest.md makes the empty mountpoint immutable, so with the
+  # disk unmounted `up` fails instead of filling the OS disk.
+  zeek-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SENSOR_DATA_DIR:-/srv/sensor-data}/zeek
+  alloy-data:

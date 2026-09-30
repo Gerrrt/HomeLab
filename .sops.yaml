@@ -104,6 +104,11 @@ creation_rules:
   # for it ABOVE the catch-all first, or the file lands on the estate's key —
   # the inversion the lab rule's comment describes. docs/security.md § Secrets
   # records the exception.
+  #
+  # There is NO sensor rule either (#437). stacks/sensor takes no credential at
+  # all, so `fenrir` renders nothing and holds no age key. The same warning
+  # applies: a rule for it goes ABOVE the catch-all before
+  # secrets/sensor.sops.yaml is ever created.
 
   - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
     age: >-

@@ -1567,6 +1567,82 @@ tests:
         alertname: PveFirewallStateStale
         exp_alerts: []
 
+  # --- ZeekMirrorInactive: fires when the mirror stays down ----------------
+  # #437's reboot proof as a fixture: active, then 0 from 10m (the ensurer
+  # disabled and the host rebooted), still 0 at 25m.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zeek_mirror_active{host="Saruman"}'
+        values: "1x10 0x30"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: ZeekMirrorInactive
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Saruman's Zeek mirror is not delivering packets"
+              description: >-
+                homelab_zeek_mirror_active has read 0 for ten minutes, so Zeek
+                on `fenrir` is not seeing the lab bridge. Check the parts:
+                homelab_zeek_mirror_sensor_running (is VM 190 up),
+                homelab_zeek_mirror_ports_mirrored against
+                homelab_zeek_mirror_ports_expected (is homelab-zeek-mirror.timer
+                running — `journalctl -u homelab-zeek-mirror`), and
+                homelab_zeek_mirror_sensor_tx_packets_total (is anything
+                arriving). If the sensor was powered off on purpose this is
+                expected. build-the-sensor-guest.md has the checks.
+
+  # --- ZeekMirrorInactive: quiet for one sample inside a repair -------------
+  # A guest restarted, the collector read its tap before the ensurer's next
+  # minute, and the one after that read it repaired.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zeek_mirror_active{host="Saruman"}'
+        values: "1x10 0x5 1x30"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ZeekMirrorInactive
+        exp_alerts: []
+
+  # --- ZeekMirrorStateStale: fires when the file stops being rewritten ------
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="zeek-mirror-state.prom"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: ZeekMirrorStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              file: zeek-mirror-state.prom
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Saruman has not rewritten its Zeek mirror state recently"
+              description: >-
+                The file is 45m 0s old, so ZeekMirrorInactive is reading an old
+                answer and cannot fire. Check homelab-zeek-mirror-state.timer on
+                the host and `journalctl -u homelab-zeek-mirror-state`; an
+                unreadable sensor status writes nothing on purpose, so the
+                journal says why.
+
+  # --- ZeekMirrorStateStale: quiet while the timer keeps rewriting it -------
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="zeek-mirror-state.prom"}'
+        values: "0+300x20"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ZeekMirrorStateStale
+        exp_alerts: []
+
   # --- SmartDriveBadSectorsGrowing: fires when the count rises --------------
   # interval 5m because Prometheus's lookback is 5m; a coarser fixture leaves
   # evaluations with no sample in range and `for` never completes.
