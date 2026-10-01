@@ -1,4 +1,4 @@
-# ADR-0073: Build the lab templates with Packer from phoenix
+# ADR-0074: Build the lab templates with Packer from phoenix
 
 **Status:** Accepted · 2026-10
 
@@ -57,12 +57,12 @@ port only for the length of that build.
 
 **2. Templates get fixed VMIDs in the 900s, and a rebuild replaces in place.**
 
-| VMID | Template | Built |
+| VMID | Template | Node |
 | ---- | -------- | ----- |
-| 901 | `tpl-ubuntu-2604` | on `Saruman` |
-| 902 | `tpl-kali` | not yet: its consumer, [#421](https://github.com/Gerrrt/HomeLab/issues/421)'s attack VM, lives on `ifrit`, which is not bought, and a template belongs to one node |
-| 911 | `tpl-win11-pro` | on `Saruman` |
-| 912 | `tpl-ws2025-eval` | on `Saruman` |
+| 901 | `tpl-ubuntu-2604` | `Saruman` |
+| 902 | `tpl-kali` | `ifrit`, not `Saruman`: its consumer, [#421](https://github.com/Gerrrt/HomeLab/issues/421)'s attack VM, lives on `ifrit`, which is not bought, and a template belongs to one node |
+| 911 | `tpl-win11-pro` | `Saruman` |
+| 912 | `tpl-ws2025-eval` | `Saruman` |
 
 Guests keep the "VMID is the last octet" rule. The 900s hold no address, which
 is the point. `packer build -force` destroys and recreates the template at the

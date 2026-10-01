@@ -152,7 +152,7 @@ runner_for() {
       # The entrypoint IS packer. --user so that `fmt` on a workstation could
       # never leave a root-owned file behind, although -check writes nothing.
       # Neither call below needs a plugin or a Proxmox: `fmt` is pure syntax,
-      # and `validate -syntax-only` stops before plugins are loaded (ADR-0073).
+      # and `validate -syntax-only` stops before plugins are loaded (ADR-0074).
       if have_docker; then
         img="$(./scripts/image-for.sh packer)"
         RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "${REPO_ROOT}:/repo" -w /repo "${img}")
@@ -208,7 +208,7 @@ run_linter markdownlint-cli2
 run_linter shellcheck scripts/*.sh
 # No arguments: actionlint finds the workflows from the repository root.
 run_linter actionlint
-# packer/ (ADR-0073). Two calls, one tool: fmt is the layout, validate is
+# packer/ (ADR-0074). Two calls, one tool: fmt is the layout, validate is
 # whether the HCL means anything. A real build is proved on phoenix, not here.
 run_linter packer fmt -check -diff -recursive packer/
 run_linter packer validate -syntax-only packer/

@@ -26,7 +26,7 @@ has an answer that is a command (§8), and #445's OpenTofu has templates to
 clone.
 
 This builds what
-[ADR-0073](../adr/0073-build-the-lab-templates-with-packer-from-phoenix.md)
+[ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
 decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 [`packer/`](../../packer/README.md).
 
@@ -84,6 +84,33 @@ pveum acl modify /storage/large_data --users phoenix@pve --roles PhoenixBuilder
 pveum role modify PhoenixBuilder --append 1 --privs "VM.GuestAgent.Audit"
 pveum acl list | grep phoenix
 ```
+
+**Then make `phoenix` verify the API's certificate.** Packer and
+`scripts/packer-smoke.sh` both check TLS, because the token travels in a header,
+and a guest on VLAN 30 answering for `10.0.30.110` would collect it otherwise.
+The attack VM shares that segment. Saruman's API certificate is signed by the
+cluster's own CA. Print it on `Saruman`:
+
+```bash
+cat /etc/pve/pve-root-ca.pem
+```
+
+On `phoenix`, paste it into the trust store and prove it with no `-k`:
+
+```bash
+sudo tee /usr/local/share/ca-certificates/saruman-pve-root-ca.crt >/dev/null   # paste, then Ctrl-D
+sudo update-ca-certificates
+set -a; . ~/.config/proxmox/phoenix.env; set +a
+curl -fsS -H "Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}" \
+  "${PROXMOX_URL}/version"
+```
+
+A version, not `SSL certificate problem`. If the error is that the name does not
+match, the certificate does not list `10.0.30.110`. Check with
+`openssl x509 -in /etc/pve/local/pve-ssl.pem -noout -ext subjectAltName` on
+`Saruman`. `pvecm updatecerts --force` regenerates it with the node's
+addresses. The CA is public: copying it carries no secret. Only the key beside
+it in `/etc/pve` is secret.
 
 That is ADR-0043's rule applied: **privileges are added to the role, and the
 role is never granted at `/`**. If a build fails with
@@ -163,13 +190,30 @@ not from a second disc.
 1. Admit the guest to that port on `phoenix` for the length of the build. If
    `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
    and delete the rule afterwards.
-2. Grant `PhoenixBuilder` on `ifrit`'s storage and bridge, as §2 did on
+2. Grant `PhoenixBuilder` on `ifrit`'s storage and bridge, and trust
+   `ifrit`'s CA on `phoenix`, as §2 did for `Saruman`. Unless `ifrit` joins
+   `Saruman` in a cluster, it is its own API. Point `PROXMOX_URL` at it for
+   this build, and admit `phoenix` to its 8006 the way ADR-0043 did on
    `Saruman`.
-3. Set `kali_iso_file` to the ISO actually on `ifrit`, then build:
+3. Build, naming the ISO actually on `ifrit` and **its** storage.
+   `disk_storage` defaults to `large_data`, which is `Saruman`'s pool, and
+   the disk creation fails without the override:
 
    ```bash
-   packer build -only='kali.*' -var kali_iso_file=local:iso/<the iso> packer/
+   packer build -only='kali.*' \
+     -var kali_iso_file=local:iso/<the iso> \
+     -var disk_storage=<ifrit's guest storage> \
+     packer/
    ```
+
+4. Prove it on `ifrit`, as §6 does on `Saruman`:
+
+   ```bash
+   PROXMOX_NODE=ifrit scripts/packer-smoke.sh 902
+   ```
+
+   Then run §8's second `-force` build and smoke test, which is #790's
+   acceptance.
 
 ## 6. Prove each template
 
@@ -184,8 +228,9 @@ Each run makes a full clone at VMID 999. For Linux, it gives the clone user
 the agent to report an address. It then checks the hostname and SSHes in.
 Finally it destroys the clone.
 
-A Windows clone runs specialize and OOBE first. Allow ten minutes before the
-agent answers. Its hostname is sysprep's random one, because the real name
+A Windows clone runs specialize and OOBE first. Its guest agent is disabled in
+the template, and `SetupComplete.cmd` starts it as its last step, so the
+agent's first answer means first-boot setup has finished. Allow ten minutes. Its hostname is sysprep's random one, because the real name
 belongs to #448.
 
 ## 7. The SID check — what generalising was for

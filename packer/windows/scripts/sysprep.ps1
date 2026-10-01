@@ -1,5 +1,5 @@
 # The last thing a Windows build does: generalise, so every clone takes a new
-# machine SID at first boot (ADR-0073 part 3).
+# machine SID at first boot (ADR-0074 part 3).
 #
 # /quit, not /shutdown: the Proxmox builder shuts the guest down through the
 # agent once this returns, then converts it. Nothing may boot this disk again
@@ -11,6 +11,14 @@ $ErrorActionPreference = 'Stop'
 # Drop the build's autologon so nothing logs in on the generalised image.
 Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' `
   -Name AutoAdminLogon, DefaultPassword -ErrorAction SilentlyContinue
+
+# The guest agent must not start on a clone until its first Setup has finished,
+# or an address from the agent would say "ready" while OOBE is still running.
+# Disabled, not stopped: the builder shuts THIS boot down through the agent.
+# SetupComplete.cmd turns it back on as its last act, so on a clone the
+# agent's first answer means Setup is done (scripts/packer-smoke.sh relies on
+# exactly that).
+Set-Service -Name QEMU-GA -StartupType Disabled
 
 $sysprep = Join-Path $env:WINDIR 'System32\Sysprep\sysprep.exe'
 $answer = Join-Path $env:WINDIR 'Panther\unattend-oobe.xml'

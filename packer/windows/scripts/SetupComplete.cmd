@@ -4,7 +4,7 @@ rem
 rem Closes what bootstrap.ps1 opened for the build: the HTTP Basic WinRM
 rem listener, its firewall rule, and the service. A clone starts with no remote
 rem management at all; how #448 reaches it is #448's decision, made on purpose,
-rem not one inherited from a build shortcut (ADR-0073).
+rem not one inherited from a build shortcut (ADR-0074).
 rem
 rem CRLF line endings are not required here; cmd.exe reads LF files.
 
@@ -13,3 +13,9 @@ powershell -NoProfile -Command "Remove-NetFirewallRule -Name 'packer-winrm-http'
 sc.exe config WinRM start= disabled
 sc.exe stop WinRM
 del /q "%WINDIR%\Panther\unattend-oobe.xml"
+
+rem Last: the guest agent, which sysprep.ps1 disabled so that it could not
+rem answer before this script had run. Its first answer is the readiness
+rem signal scripts/packer-smoke.sh waits for.
+sc.exe config QEMU-GA start= auto
+sc.exe start QEMU-GA

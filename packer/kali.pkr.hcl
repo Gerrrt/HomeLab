@@ -1,6 +1,6 @@
 # tpl-kali, VMID 902: the base for #421's attack VM.
 #
-# WRITTEN, NOT BUILT (ADR-0073 part 2, #790). The attack VM lives on ifrit, which is
+# WRITTEN, NOT BUILT (ADR-0074 part 2, #790). The attack VM lives on ifrit, which is
 # not bought, and a template belongs to the node it was built on. CI proves
 # this file parses; the first build on ifrit proves the preseed.
 #
@@ -20,7 +20,7 @@ source "proxmox-iso" "kali" {
   vm_id                = 902
   vm_name              = "tpl-kali"
   template_name        = "tpl-kali"
-  template_description = "Kali Linux, built by packer/kali.pkr.hcl on ${timestamp()}. Full clones only (ADR-0073)."
+  template_description = "Kali Linux, built by packer/kali.pkr.hcl on ${timestamp()}. Full clones only (ADR-0074)."
   tags                 = "template;linux"
 
   os              = "l26"

@@ -15,7 +15,9 @@
 #            drive: the agent reports an address, get-host-name returns the name
 #            given here, and phoenix's key opens an SSH session that prints it.
 #   Windows  the generalised image finishes OOBE unattended and the guest agent
-#            comes up with an address. Its name is sysprep's random one; the
+#            comes up with an address. The agent is disabled in the template
+#            and started by SetupComplete.cmd as its last act, so an address
+#            from it means first-boot Setup has finished, not merely begun. Its name is sysprep's random one; the
 #            real name is #448's. The SID check needs two clones and a console,
 #            so --keep leaves this one running for it (build-the-lab-templates.md
 #            §7).
@@ -62,11 +64,15 @@ NODE="${PROXMOX_NODE:-Saruman}"
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/id_ed25519}"
 AUTH="Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}"
 
-# -k for the same reason packer/variables.pkr.hcl skips verification: Saruman's
-# API presents its own self-signed certificate, and the token is the control.
+# Verified TLS, as packer/variables.pkr.hcl does: the token rides in a header,
+# and a guest on VLAN 30 that answered for Saruman would otherwise collect it.
+# The cluster CA is in phoenix's trust store (build-the-lab-templates.md §2);
+# PROXMOX_CA_FILE points at a copy instead, for a host where it is not.
+CURL_TLS=()
+[[ -n "${PROXMOX_CA_FILE:-}" ]] && CURL_TLS=(--cacert "${PROXMOX_CA_FILE}")
 api() {
   local method="$1" path="$2"; shift 2
-  curl -fsSk -X "${method}" -H "${AUTH}" "$@" "${PROXMOX_URL}${path}"
+  curl -fsS "${CURL_TLS[@]}" -X "${method}" -H "${AUTH}" "$@" "${PROXMOX_URL}${path}"
 }
 
 wait_task() {
@@ -99,7 +105,7 @@ if api GET "/nodes/${NODE}/qemu/${CLONE}/status/current" >/dev/null 2>&1; then
   die "VMID ${CLONE} already exists; pick another with --vmid"
 fi
 
-# Full clone, always: ADR-0073 rebuilds templates in place, and a linked clone
+# Full clone, always: ADR-0074 rebuilds templates in place, and a linked clone
 # would pin the old one.
 info "full clone ${TEMPLATE} -> ${CLONE} (${NAME})"
 upid="$(api POST "/nodes/${NODE}/qemu/${TEMPLATE}/clone" \
@@ -122,8 +128,9 @@ fi
 info "starting"
 wait_task "$(api POST "/nodes/${NODE}/qemu/${CLONE}/status/start" | jq -r '.data')"
 
-# Windows runs specialize and OOBE first, with a reboot between them, so this
-# waits a good while before calling it a failure.
+# Windows runs specialize and OOBE first, with a reboot between them, and its
+# agent only starts once SetupComplete.cmd has run, so this waits a good while
+# before calling it a failure.
 info "waiting for the guest agent to report an address"
 addr=""
 for _ in $(seq 1 120); do

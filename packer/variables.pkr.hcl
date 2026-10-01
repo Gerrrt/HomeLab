@@ -1,7 +1,7 @@
 # Inputs shared by every source in this directory.
 #
 # The credential comes from ~/.config/proxmox/phoenix.env on phoenix, sourced
-# with `set -a` before a build (ADR-0073 part 4). The defaults below read that
+# with `set -a` before a build (ADR-0074 part 4). The defaults below read that
 # file's own variable names, so the file written by build-the-jumpbox.md §4
 # needs no second spelling of the same token. Nothing secret has a literal
 # default here, and nothing here is ever a secret in git.
@@ -25,12 +25,14 @@ variable "proxmox_token_secret" {
   default     = env("PROXMOX_TOKEN_SECRET")
 }
 
-# Saruman's API presents the hypervisor's self-signed certificate. phoenix
-# reaches it by address on VLAN 30, admitted by one firewall rule (ADR-0043
-# part 3); the token, not the certificate, is the control on that path.
+# Verified. Saruman's API certificate is signed by the cluster's own CA
+# (/etc/pve/pve-root-ca.pem), which build-the-lab-templates.md §2 installs in
+# phoenix's trust store. Skipping verification would hand the token to any
+# guest on VLAN 30 that answered for 10.0.30.110, and the attack VM shares
+# that segment. Set true only to debug, never to build.
 variable "proxmox_insecure_skip_tls_verify" {
   type    = bool
-  default = true
+  default = false
 }
 
 variable "node" {
@@ -75,16 +77,25 @@ variable "ssh_private_key_file" {
 # The local Administrator password inside a Windows build, and the one a clone
 # boots with until whatever converges it rotates it (#448). From phoenix.env as
 # PKR_VAR_build_password. Empty by default so that a build without it fails at
-# validation, not twenty minutes into Windows Setup. It is pasted into two
-# answer files verbatim, so the five characters XML would need escaped are
-# refused rather than escaped.
+# validation, not twenty minutes into Windows Setup. All four character
+# classes are required: Windows asks for three of the four, and requiring all
+# of them here means Setup can never be the first thing to refuse it. It is
+# pasted into two answer files verbatim, so the five characters XML would need
+# escaped are refused rather than escaped.
 variable "build_password" {
   type      = string
   sensitive = true
   default   = ""
   validation {
-    condition     = length(var.build_password) >= 14 && length(regexall("[<>&\"']", var.build_password)) == 0
-    error_message = "Set PKR_VAR_build_password in phoenix.env: 14+ characters, Windows' complexity rules, none of < > & \" '."
+    condition = (
+      length(var.build_password) >= 14
+      && can(regex("[A-Z]", var.build_password))
+      && can(regex("[a-z]", var.build_password))
+      && can(regex("[0-9]", var.build_password))
+      && can(regex("[^A-Za-z0-9]", var.build_password))
+      && length(regexall("[<>&\"']", var.build_password)) == 0
+    )
+    error_message = "Set PKR_VAR_build_password in phoenix.env: 14+ characters, with an upper-case letter, a lower-case letter, a digit and a symbol, and none of < > & \" '."
   }
 }
 
@@ -93,7 +104,7 @@ variable "ubuntu_iso_file" {
   default = "local:iso/ubuntu-26.04.1-live-server-amd64.iso"
 }
 
-# A placeholder name: Kali is written and not yet built (ADR-0073 part 2), and
+# A placeholder name: Kali is written and not yet built (ADR-0074 part 2), and
 # the first build on ifrit sets this to the ISO it actually has.
 variable "kali_iso_file" {
   type    = string

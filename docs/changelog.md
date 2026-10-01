@@ -21,7 +21,7 @@ docstring gives: it is a record, not a claim about now.
 
 - **The lab's VM templates are written for Packer, and not yet built**
   ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
-  [ADR-0073](adr/0073-build-the-lab-templates-with-packer-from-phoenix.md)).
+  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)).
   - **What.** A new top-level `packer/` holds four sources. Three are for
     `Saruman`: Ubuntu 26.04 (901), Windows 11 Pro (911) and Server 2025
     evaluation (912). The fourth, Kali (902), is for `ifrit`, which has not been

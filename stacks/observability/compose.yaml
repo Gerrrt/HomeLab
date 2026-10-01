@@ -1285,7 +1285,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # packer for scripts/lint.sh: `fmt -check` and `validate -syntax-only` over
-  # packer/ (ADR-0073). Behind the `lint` profile like the two above, and for
+  # packer/ (ADR-0074). Behind the `lint` profile like the two above, and for
   # the same reason. The real builds run from the binary installed on phoenix
   # (build-the-lab-templates.md §1). This image only proves the tree parses,
   # which needs no plugin and no Proxmox.

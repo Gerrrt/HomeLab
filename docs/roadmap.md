@@ -235,7 +235,7 @@ Closes on BloodHound running where nothing attacks it.
 
 - **A chain, in this order:**
   [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer (written,
-  [ADR-0073](adr/0073-build-the-lab-templates-with-packer-from-phoenix.md);
+  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md);
   first build pending, → [runbook](runbooks/build-the-lab-templates.md); Kali's
   template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
   [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu →

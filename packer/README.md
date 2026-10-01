@@ -1,15 +1,15 @@
 # packer
 
 The lab's VM templates, built from `phoenix` through `Saruman`'s API
-([ADR-0073]). How to run them is [`build-the-lab-templates.md`][runbook]; this
+([ADR-0074]). How to run them is [`build-the-lab-templates.md`][runbook]; this
 page is the map.
 
-| VMID | Template | Source | Installer driven by | Built |
+| VMID | Template | Source | Installer driven by | Node, and status |
 | --- | --- | --- | --- | --- |
-| 901 | `tpl-ubuntu-2604` | `ubuntu.pkr.hcl` | autoinstall, `cidata` disc | on `Saruman` |
-| 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | not yet: waits for `ifrit` ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
-| 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | on `Saruman` |
-| 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | on `Saruman` |
+| 901 | `tpl-ubuntu-2604` | `ubuntu.pkr.hcl` | autoinstall, `cidata` disc | `Saruman`, first build pending |
+| 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | `ifrit`, waits for the host ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
+| 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, first build pending |
+| 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, first build pending |
 
 ```bash
 set -a; . ~/.config/proxmox/phoenix.env; set +a
@@ -53,6 +53,6 @@ scripts/packer-smoke.sh 912
   Proxmox. A change here is only finished once the runbook's §6 smoke test has
   passed against a real build.
 
-[ADR-0073]: ../docs/adr/0073-build-the-lab-templates-with-packer-from-phoenix.md
+[ADR-0074]: ../docs/adr/0074-build-the-lab-templates-with-packer-from-phoenix.md
 [runbook]: ../docs/runbooks/build-the-lab-templates.md
 [#448]: https://github.com/Gerrrt/HomeLab/issues/448

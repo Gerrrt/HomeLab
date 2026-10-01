@@ -7,7 +7,7 @@
   What this deliberately does NOT touch: LLMNR, NetBIOS over TCP/IP, IPv6 and
   WPAD stay at Windows' defaults, because the lab domain exists to have them
   (ADR-0029). Nothing domain-shaped is here either: no address, no DNS, no
-  join. Those belong to the guest, not the image (ADR-0073 part 6).
+  join. Those belong to the guest, not the image (ADR-0074 part 6).
 -->
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
   <settings pass="windowsPE">
