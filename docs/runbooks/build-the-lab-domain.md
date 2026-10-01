@@ -417,6 +417,16 @@ tracked file would be one that drifts from the machines with nothing to notice.
 
 ## 7. `windows_exporter`, and the licence clock
 
+> [!TIP]
+> **When the clock runs out, the rebuild does not start from §1.**
+> `tpl-ws2025-eval` (VMID 912) is a generalised Server 2025 image, built by
+> [`build-the-lab-templates.md`](build-the-lab-templates.md). A full clone of
+> it replaces §1 and the install half of §2, and every clone gets its own SID.
+> Rebuild the template first (that runbook's §8). Whether a clone of an older
+> template gets a full 180 days depends on the rearms that template has already
+> spent. A fresh install has not spent any, so the rebuild settles it. Read
+> `slmgr /dlv` on the clone and record it below, as before.
+
 Install `windows_exporter` on all six. The collector list matters:
 
 ```text
