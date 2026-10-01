@@ -51,6 +51,9 @@
 #   check_compose_health.py   ghcr.io cannot be asked to rate-limit on demand, and
 #                             the retry that spent all three of its pauses on
 #                             2026-09-21 runs nowhere but CI (#602)
+#   check_close_keywords.py   the phrases that closed issues by accident are
+#                             history; a live PR shows only the one in front of
+#                             it, so each phrase is kept as a fixture (#672)
 #
 # The list above is prose. What runs is DISCOVERED, because a hand-kept list is a
 # second copy of one fact and this repository has already paid for that: when
