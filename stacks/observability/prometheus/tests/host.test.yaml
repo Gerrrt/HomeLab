@@ -1111,16 +1111,21 @@ tests:
   # up as sdb, the letter an Exos (0) held a week before, read as growth of 4.
   # With `slot` in the label set the two are different series, so the moved
   # drive has no week-old point and says nothing, and the Exos, on its own
-  # port, says nothing either. 30m steps; the offset is 7d, so the eval is
-  # past 7d + for.
-  - interval: 30m
+  # port, says nothing either. The offset is 7d, so the eval is past 7d + for.
+  #
+  # 5m steps across the whole week, not 30m. At 30m each series is absent for
+  # most of every step (the lookback is 5m), `for: 1h` restarts each time, and
+  # this case passed against the rule keyed on host + letter, which is the
+  # regression it exists to catch: `- ignoring(slot)` survived it. At 5m that
+  # mutant fires, so the test can fail.
+  - interval: 5m
     input_series:
       - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-2"}'
-        values: "0x335"
+        values: "0x2015"
       - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6"}'
-        values: "_x336 4x4"
+        values: "_x2016 4x24"
       - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-2"}'
-        values: "_x336 0x4"
+        values: "_x2016 0x24"
     alert_rule_test:
       - eval_time: 170h
         alertname: SmartDriveBadSectorsGrowing
@@ -1423,17 +1428,220 @@ tests:
                 `lvs` writes nothing on purpose, so the journal says why.
 
   # --- ThinPoolStateStale: quiet while the timer keeps rewriting it --------
-  # Rewritten every ten minutes. guest-state.prom beside it is old and must not
+  # Rewritten on every sample. guest-state.prom beside it is old and must not
   # match — the regex is the whole scope of the rule.
-  - interval: 10m
+  #
+  # Sampled every 5m, not every 10m like the timer. At 10m each series is
+  # absent for half of every step (the lookback is 5m), `for` restarts each
+  # time, and a regex loosened to `.*state\.prom` survived this test still
+  # pending. At 5m the near miss fires, so the test can fail.
+  - interval: 5m
     input_series:
       - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="thin-pool-state.prom"}'
-        values: "0+600x20"
+        values: "0+300x40"
       - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-state.prom"}'
-        values: "0x20"
+        values: "0x40"
     alert_rule_test:
       - eval_time: 3h
         alertname: ThinPoolStateStale
+        exp_alerts: []
+
+  # --- GuestDiskCritical: fires on odin's root as it was on 2026-10-01 -----
+  # The numbers from the changelog: a 30 GB root with 622 MB free, 2.07%. The
+  # data disk beside it at 40% used must not join it, and the labels must say
+  # which guest and which mountpoint, because the estate cannot look itself.
+  #
+  # Mutations this catches: `< 0.10` to `< 0.01` (odin is above 1%); dividing
+  # by used instead of size; dropping `for` (the quiet case below fires).
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "30000000000x10"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "29378000000x10"
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/srv/soc-data",fstype="ext4"}'
+        values: "95000000000x10"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/srv/soc-data",fstype="ext4"}'
+        values: "38000000000x10"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: GuestDiskCritical
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: odin
+              vmid: "160"
+              mountpoint: /
+              fstype: ext4
+              component: host
+              severity: critical
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: guest odin:/ below 10% free"
+              description: >-
+                / on odin (VMID 160) has 2.073% free. On a Docker host,
+                `docker system df` first: superseded images are what filled
+                odin. The estate cannot reach the guest; ssh to it from the
+                lab, or `qm guest exec 160 -- df -h` on Saruman.
+
+  # --- GuestDiskCritical: quiet just above the line, and inside `for` ------
+  # alexander at 10.5% free has not crossed; odin at its 2026-10-01 numbers
+  # has, but only for ten minutes of the fifteen.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="alexander",vmid="140",mountpoint="/",fstype="ext4"}'
+        values: "64000000000x12"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="alexander",vmid="140",mountpoint="/",fstype="ext4"}'
+        values: "57280000000x12"
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "30000000000x12"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "20000000000x1 29378000000x10"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: GuestDiskCritical
+        exp_alerts: []
+
+  # --- GuestDiskWillFillIn24h: fires on odin filling from 8 GB free --------
+  # The shape #775's lab test uses: 22 GB used of 30, gaining 50 MB every
+  # five minutes (600 MB/h). At 7h it is 26.2 GB used, 12.7% free, and the
+  # six-hour line reaches 30 GB well inside a day; the alert has held its hour.
+  #
+  # Mutations this catches: `>=` to `<=`; the guard at 0.03 instead of 0.30.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "30000000000x90"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "22000000000+50000000x90"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: GuestDiskWillFillIn24h
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: odin
+              vmid: "160"
+              mountpoint: /
+              fstype: ext4
+              component: host
+              severity: critical
+              category: capacity
+            exp_annotations:
+              summary: "Saruman: guest odin:/ fills within 24h"
+              description: >-
+                / on odin (VMID 160) is below 30% free and, extrapolating the
+                last 6 hours, full within a day. On a Docker host, `docker
+                system df` first: superseded images are what filled odin.
+
+  # --- GuestDiskWillFillIn24h: quiet when stable, and when roomy ----------
+  # alexander with 20 GB free and not moving: no trend. A 100 GB disk taking
+  # 6 GB/h from 10% used predicts full within a day and is still over half
+  # empty — one large write, not a disk running out. The 30% guard is what
+  # keeps it quiet.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="alexander",vmid="140",mountpoint="/",fstype="ext4"}'
+        values: "64000000000x90"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="alexander",vmid="140",mountpoint="/",fstype="ext4"}'
+        values: "44000000000x90"
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="fenrir",vmid="190",mountpoint="/srv/sensor-data",fstype="ext4"}'
+        values: "100000000000x90"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="fenrir",vmid="190",mountpoint="/srv/sensor-data",fstype="ext4"}'
+        values: "10000000000+500000000x90"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: GuestDiskWillFillIn24h
+        exp_alerts: []
+
+  # --- GuestDiskStateStale: fires when the file stops being rewritten -----
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-disk-state.prom"}'
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: GuestDiskStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              file: guest-disk-state.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman has not rewritten its guests' disk state in an hour"
+              description: >-
+                The file is 1h 20m 0s old, so GuestDiskCritical and
+                GuestDiskWillFillIn24h are reading old numbers. Check
+                homelab-guest-disk-state.timer on the host and its last run in
+                the journal (`journalctl -u homelab-guest-disk-state`); a failed
+                `qm list` writes nothing on purpose, so the journal says why.
+
+  # --- GuestDiskStateStale: quiet while rewritten; guest-state.prom is not it
+  # The regex has to tell guest-disk-state.prom from guest-state.prom, which
+  # sits beside it and is the obvious near miss.
+  #
+  # Sampled every 5m, not every 10m like the timer. At 10m each series is
+  # absent for half of every interval (the lookback is 5m), `for` restarts
+  # each time, and a regex loosened to `.*guest.*state` survived this test
+  # still pending. At 5m the near miss fires, so the test can fail.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-disk-state.prom"}'
+        values: "0+300x40"
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-state.prom"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: GuestDiskStateStale
+        exp_alerts: []
+
+  # --- GuestAgentSilent: fires when an agent that answered stops ----------
+  # odin's agent answers for an hour, then hangs. At 125m it has been silent
+  # for 65 minutes, past the hour's `for`.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_agent_up{host="Saruman",guest="odin",vmid="160"}'
+        values: "1x11 0x30"
+    alert_rule_test:
+      - eval_time: 125m
+        alertname: GuestAgentSilent
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: odin
+              vmid: "160"
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman: guest odin's agent has not answered for an hour"
+              description: >-
+                The guest is running, and `qm guest cmd 160 get-fsinfo` on
+                Saruman has failed or timed out for an hour, so this guest's
+                disks cannot page. `systemctl status qemu-guest-agent` inside
+                the guest; if it has hung, restarting it is safe.
+
+  # --- GuestAgentSilent: quiet for a guest with no agent, and for a blip --
+  # A Windows domain machine has never answered; that is not news, and must
+  # not alert forever. odin's agent hanging for half an hour under load and
+  # coming back is the case the hour exists for.
+  #
+  # Mutation this catches: dropping the `and on ... max_over_time` clause.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_agent_up{host="Saruman",guest="dc01",vmid="200"}'
+        values: "0x40"
+      - series: 'homelab_guest_agent_up{host="Saruman",guest="odin",vmid="160"}'
+        values: "1x11 0x6 1x22"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: GuestAgentSilent
+        exp_alerts: []
+      - eval_time: 100m
+        alertname: GuestAgentSilent
         exp_alerts: []
 
   # --- PveFirewallDisabled: fires when a stop is left in place --------------
