@@ -94,9 +94,10 @@ docstring gives: it is a record, not a claim about now.
   [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
   `erebor/iso` was created through the TrueNAS API: lz4, atime off, a 500 GiB
   quota, POSIX ACLs, and no snapshot task, because ISOs are replaceable. It
-  is exported over NFSv4 to `10.0.30.110` alone, with root mapped to
-  `pippin`, through `Allow NFS from Saruman to smaug` on `2049`. The user,
-  the share, the pass and `Saruman`'s mount are not done.
+  will be exported over NFSv4 to `10.0.30.110` alone, with root mapped to
+  `pippin`, through `Allow NFS from Saruman to smaug` on `2049`. None of
+  that exists yet: the user, the share, the pass and `Saruman`'s mount are
+  not done.
   [`build-the-nas.md`](runbooks/build-the-nas.md) §5b is the procedure. The
   NFS service on `smaug` was not running on this date, and neither was
   `golem`'s share. Proxmox's NFS storage type checks the portmapper on `111`

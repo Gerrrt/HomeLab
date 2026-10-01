@@ -15,8 +15,9 @@ constraint in every sizing decision
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
 makes, and the reason the lab domain's endpoints run per session rather than
 all the time. An ISO is read once, sequentially, per build, so network latency
-costs nothing. Putting the ISOs on `smaug` takes that load off the mirror, and
-it makes a template buildable from any host once there is a second one.
+costs nothing. Putting the ISOs on `smaug` takes that load off the mirror.
+It also puts them where a second host could reach them, though this ADR
+grants that host nothing (see Consequences).
 
 **Live VM disks stay on local storage.** Random I/O over the network would
 undo what [#418](https://github.com/Gerrrt/HomeLab/issues/418)'s SSDs are for.
@@ -132,5 +133,15 @@ service on `smaug` is not running.
   Until Packer reads from it, the ISOs already on `Saruman`'s `local` storage
   are the only ones in use, and they move here when #440's first build is
   written against `smaug-iso`.
+- **The export and the pass name an address, and `Saruman`'s address is due
+  to change.** [`build-the-playground.md`](../runbooks/build-the-playground.md)
+  §3 moves it from `10.0.30.110` to `10.0.30.20`. When that happens, the
+  share's authorized host and this pass's source move with it, in the same
+  sitting as its Alloy pass. That step now lists both. Until then,
+  `10.0.30.110` is correct.
+- **Only `Saruman` can use the store.** The export and the pass both admit
+  one address. A second host, such as `ifrit` at `10.0.30.30`, would need its
+  own address added to the share's authorized hosts and its own pass on
+  `igc0.30`. That is a decision for when the host exists, not one made here.
 - **ADR-0016 is not superseded.** It gains a pointer here, as it did for
   ADR-0050 and ADR-0051, and its table is not edited.

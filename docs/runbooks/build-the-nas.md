@@ -777,7 +777,7 @@ there. Have the TrueNAS UI and console shell, the pfSense UI, a shell on
    rule's position as `pfctl` printed it, the upload's owner, and the
    refusal. Then move the rule from *specified* to *created* in this file's
    §0.5 table, `network.md`, `security.md` and `stacks/media/README.md`, in
-   one commit, and close #446.
+   one commit. That commit is what finishes #446.
 
 ## §6 — The stack, and the scrape
 
