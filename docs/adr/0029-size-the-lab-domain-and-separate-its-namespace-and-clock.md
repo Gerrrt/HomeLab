@@ -29,6 +29,21 @@
 > it builds. The 8 GiB test region flatters the mirror against a whole-disk
 > working set; nothing here re-plans on the HDD number. The text here is
 > left as written, per ADR-0001.
+>
+> **Licensing the domain controllers later would mean a migration, not just
+> buying keys.** Added 2026-10-01. Microsoft's
+> [conversion guide](https://learn.microsoft.com/en-us/windows-server/get-started/upgrade-conversion-options)
+> says an evaluation member server converts to retail in place with
+> `DISM /Set-Edition` and a key, but *"you can't convert an Active Directory
+> domain controller from an evaluation to a retail version"*. A licensed DC
+> has to be built beside it, the FSMO roles moved to it, and AD DS removed
+> from the evaluation one. `bahamut` and `leviathan` were promoted on
+> evaluation media. So the 180-day rebuild below is a commitment for the
+> two DCs, and deciding later to keep the domain permanently costs a
+> migration for each, not a key. The other two servers can still be
+> converted in place, if `DISM /online /Get-TargetEditions` lists the
+> edition. This came from an issue drafted on 2026-09-13 and never filed.
+> #440's templates are what keep the rebuild cheap.
 
 ## Context
 
