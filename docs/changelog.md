@@ -116,7 +116,30 @@ docstring gives: it is a record, not a claim about now.
     from their device, without the operator, is condition two and still
     #455's. The carry to the drive and its deadline alert are the next change.
     ADR-0064 stays the stand-in until that proof is run.
-
+- **The ISO store is built, and `Saruman` mounts it**
+  ([#446](https://github.com/Gerrrt/HomeLab/issues/446),
+  [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+  It follows the earlier entry below, *The ISO store is decided*, which had
+  only the dataset.
+  - **On `smaug`.** `pippin` (uid `3003`, gid `3002`) owns
+    `/mnt/erebor/iso`. The NFS share admits `10.0.30.110` alone and maps
+    root to `pippin`. Record size reads `1M`.
+  - **The pass.** `Allow NFS from Saruman to smaug`,
+    `10.0.30.110 → 10.0.40.30:2049`, printed directly above `igc0.30`'s
+    *Block access to CasaBonita* in `pfctl -sr -vv` on `morpheus`. That
+    block is now named in `network.md`'s ImaginationLAN notes, as
+    `build-the-backup-guest.md` §4 asked.
+  - **On `Saruman`.** An `fstab` mount at `/mnt/smaug-iso` shows `500G`,
+    which is the quota. The `dir` storage `smaug-iso` is active. A web-UI
+    upload of `virtio-win-0.1.302.iso` landed owned by `3003:3002`, not
+    root, in about 330 MiB on disk under lz4.
+  - **The scope.** `alexander` and the monitoring host are both refused on
+    `2049`, and the `igc0.40` tripwire reads **0 packets** after 260,980 evaluations.
+  - **Found on the way.** An `alloy` upgrade on `Saruman` had been left
+    half-configured, and the step's `apt install` finished it. dpkg asked
+    about `/etc/default/alloy`. Keeping the installed file (`N`) was right,
+    because it is `scripts/deploy-agent.sh`'s and holds the push endpoints.
+    Alloy was `active` afterwards.
 - **A PR whose close keywords sit in prose now fails
   ([#672](https://github.com/Gerrrt/HomeLab/issues/672)).**
   - **The gap.** GitHub closes an issue for a close keyword anywhere in a PR

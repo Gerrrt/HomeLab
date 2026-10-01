@@ -371,14 +371,17 @@ Televisions and consoles. Internet only.
   `bilbo` ([ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md),
   [#523](https://github.com/Gerrrt/HomeLab/issues/523)). It was created on
   2026-09-23 by `build-the-nas.md` §5, and a Hicks workstation has mounted the
-  share through it. Six exist today. **One more is specified from
-  ImaginationLAN, and it does not exist.** `Allow NFS from Saruman to smaug`,
+  share through it. With 4533 and 13378, seven exist from Hicks and
+  Winterfell. **One more is from ImaginationLAN, and it exists, which makes
+  eight.** `Allow NFS from Saruman to smaug`,
   `10.0.30.110 → 10.0.40.30:2049`, lets the hypervisor mount `erebor/iso` as
   its ISO store for Packer
   ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),
-  [#446](https://github.com/Gerrrt/HomeLab/issues/446)). `build-the-nas.md`
-  §5b creates it, above the same `igc0.30` block as `golem`'s `2049` pass
-  (ADR-0053).
+  [#446](https://github.com/Gerrrt/HomeLab/issues/446)). It was created on
+  2026-10-01 by `build-the-nas.md` §5b, directly above `igc0.30`'s *Block
+  access to CasaBonita*. `Saruman` has mounted the share through it, and
+  `alexander` is refused. `golem`'s `2049` pass (ADR-0053) goes above the
+  same block when it is built.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
@@ -424,6 +427,14 @@ Where things get broken on purpose.
 ### Notes
 
 - Reachable from Hicks only; outbound internet permitted.
+- **The block that stops it reaching CasaBonita is *Block access to
+  CasaBonita*** on `igc0.30`, one of a run of per-segment blocks (Degens,
+  Skids, CasaBonita, Hicks, Winterfell, the untagged LAN) that sit above the
+  #223 tripwire and *Allow internet*. A pass from this segment to `smaug`
+  goes directly above it. `Allow NFS from Saruman to smaug` does, since
+  2026-10-01 ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+  [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md) §4
+  asked for this block to be named here.
 - `shiva` and `Saruman` are the same physical box: `shiva` is the iLO BMC on its
   dedicated port, `Saruman` is the Proxmox install. They are separate addresses
   and separate names, and conflating them is a mistake this document previously
