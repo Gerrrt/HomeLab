@@ -267,8 +267,10 @@ Gated on the domain, on a household observation, or on something to publish.
 
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Buy `ifrit` and build
   the range.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. It is the last purchase on the
-  estate's list, not the next.
+  uninstrumented estate teaches nothing. Both are met — the domain built
+  2026-09-25, #266 and #267 closed 2026-09-27 — so nothing gates the purchase;
+  a shortlist is on the issue. It is still the last purchase on the estate's
+  list.
   → [runbook](runbooks/build-the-playground.md)
 - **[#447](https://github.com/Gerrrt/HomeLab/issues/447) A cloud relay** —
   only if there is ever something to publish; the day it exists it replaces
@@ -342,9 +344,9 @@ to go:
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
 ([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
-[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain,
-which is built, and on the SOC, which is not; it is the last purchase on this
-list, not the next. 32 GB is a
+[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain
+and the SOC, and both are built (#266 and #267 closed 2026-09-27), so nothing
+gates it now; it is still the last purchase on this list. 32 GB is a
 spec the candidate machines do not meet as shipped — the SFF boxes in that
 class ship with 16 GB in two slots — so a SO-DIMM kit is part of that purchase
 and not a later contingency. The model, the CPU and the disk are chosen at the
