@@ -42,6 +42,10 @@ TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
 PROM="${TEXTFILE_DIR}/guest-disk-state.prom"
 HOSTNAME_LABEL="$(hostname)"
 AGENT_TIMEOUT="${AGENT_TIMEOUT:-15}"
+# The most of one guest's answer that is kept. A real one is a few KB: odin's,
+# with three filesystems, is under 2 KB. A guest that says more is not
+# describing its disks, and is treated as an agent that did not answer.
+MAX_BYTES="${MAX_BYTES:-1048576}"
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
@@ -77,11 +81,12 @@ parse_running_vms() {
 # stdout was saved to. The answers go through files and not argv for the reason
 # collect-smart-state.sh gives, and so that no guest's bytes are ever a shell word.
 render() {
-  HOST_LABEL="$HOSTNAME_LABEL" python3 - "$1" <<'PY'
+  HOST_LABEL="$HOSTNAME_LABEL" MAX_BYTES="$MAX_BYTES" python3 - "$1" <<'PY'
 import json, os, re, sys
 
 host = os.environ["HOST_LABEL"]
 MAX_FS = 32
+MAX_BYTES = int(os.environ["MAX_BYTES"])
 # Filesystems that are not a disk the hypervisor allocated, or that are
 # read-only by construction. Compared in lower case, because the Windows agent
 # answers in capitals.
@@ -124,11 +129,15 @@ with open(sys.argv[1], encoding="utf-8") as fh:
         guest = clean(name, 64)
         base = f'host="{host}",guest="{guest}",vmid="{vmid}"'
         doc = None
+        # One render covers every guest, so nothing one guest sends may raise
+        # out of here. Too big is refused before it is read, and RecursionError
+        # is what json raises for a valid answer nested thousands deep.
         if rc == "0":
             try:
-                with open(path, encoding="utf-8", errors="replace") as out:
-                    doc = json.load(out)
-            except (OSError, ValueError):
+                if os.path.getsize(path) <= MAX_BYTES:
+                    with open(path, encoding="utf-8", errors="replace") as out:
+                        doc = json.load(out)
+            except (OSError, ValueError, RecursionError):
                 doc = None
         if not isinstance(doc, list):
             agent_up.append(f"homelab_guest_agent_up{{{base}}} 0")
@@ -247,6 +256,9 @@ if [[ "${1:-}" == "--self-test" ]]; then
   ]'
   # An agent that answers, with nothing to report.
   guest 180 empty 0 '[]'
+  # Valid JSON, nested past python's recursion limit: json.load raises
+  # RecursionError, which must cost this guest and not the whole run.
+  guest 181 deep 0 "$(printf '%0.s[' $(seq 1 100000))$(printf '%0.s]' $(seq 1 100000))"
 
   out="$(render "${WORK_DIR}/manifest")"
 
@@ -279,7 +291,16 @@ if [[ "${1:-}" == "--self-test" ]]; then
   has "a Windows System Reserved partition is kept" \
     'homelab_guest_filesystem_size_bytes{host="Saruman",guest="bahamut",vmid="150",mountpoint="System_Reserved",fstype="NTFS"} 827322368'
   has "an empty answer is still an answer" 'homelab_guest_agent_up{host="Saruman",guest="empty",vmid="180"} 1'
-  has "every guest asked is counted" 'homelab_guest_disk_guests_queried{host="Saruman"} 7'
+  has "every guest asked is counted" 'homelab_guest_disk_guests_queried{host="Saruman"} 8'
+  has "an answer nested past the recursion limit is agent down" 'homelab_guest_agent_up{host="Saruman",guest="deep",vmid="181"} 0'
+
+  # An answer over the cap is refused whole, even though it is valid JSON and
+  # the guest would otherwise report a disk.
+  : > "${WORK_DIR}/manifest"
+  guest 160 odin 0 '[{"name":"sda2","mountpoint":"/","type":"ext4","used-bytes":1,"total-bytes":10}]'
+  out="$(MAX_BYTES=50 render "${WORK_DIR}/manifest")"
+  has "an answer over the byte cap is agent down" 'homelab_guest_agent_up{host="Saruman",guest="odin",vmid="160"} 0'
+  lacks "and reports no disk" 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="odin"'
 
   : > "${WORK_DIR}/manifest"
   out="$(render "${WORK_DIR}/manifest")"
@@ -318,9 +339,13 @@ n=0
 while read -r vmid name; do
   [[ -n "$vmid" ]] || continue
   n=$((n + 1))
-  timeout -k 5 "${AGENT_TIMEOUT}" qm guest cmd "$vmid" get-fsinfo \
-    > "${WORK_DIR}/out.$n" 2>/dev/null
-  rc=$?
+  # Capped as it is written, so a guest cannot fill the hypervisor's /tmp: one
+  # byte past the cap is kept so render() can tell a truncated answer from a
+  # full one, and refuses it. qm itself still reads the whole reply; this bounds
+  # what reaches disk and the parser.
+  timeout -k 5 "${AGENT_TIMEOUT}" qm guest cmd "$vmid" get-fsinfo 2>/dev/null \
+    | head -c "$((MAX_BYTES + 1))" > "${WORK_DIR}/out.$n"
+  rc=${PIPESTATUS[0]}
   printf '%s\t%s\t%s\t%s\n' "$vmid" "$name" "$rc" "${WORK_DIR}/out.$n" >> "${WORK_DIR}/manifest"
 done < <(printf '%s\n' "$qm_raw" | parse_running_vms)
 
