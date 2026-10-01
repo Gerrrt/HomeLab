@@ -337,10 +337,12 @@ user, typed on workstations and never stored on a television, so the
 televisions' `bilbo` and the workstations' credential are revoked apart. The
 same pass puts an SMB login prompt in front of everything on Hicks, the
 corporate laptop included, as `443` already puts the TrueNAS one.
-**One more is specified from ImaginationLAN, and it is not created.**
+**One more is from ImaginationLAN, and it exists.**
 `10.0.30.110 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, lets the
 hypervisor mount `erebor/iso`, the ISO store Packer builds templates from
 ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+It was created on 2026-10-01. `Saruman` mounts the share through it, and
+`alexander`, on the same segment, is refused.
 Its residual is the one NFS with `sec=sys` always carries: the export trusts
 an address. Anything on VLAN 30 that took `Saruman`'s address could replace
 an installer, and every template built from it afterwards would carry the

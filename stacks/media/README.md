@@ -85,7 +85,7 @@ every television would have to trust, and a second thing to be down.
 | Prometheus, on `22` | The fourth rule — `10.0.99.20 → 10.0.40.30:22`, inert until [`build-the-nas.md`] §6.2 switches SSH on for the backup pull, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
 | A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists; 445 is the sixth, and 13378 the seventh (§6.6) |
 | A Hicks workstation, on `445` | `50 → 10.0.40.30:445`, `Allow SMB to smaug`, to mount the `media` share as `samwise` — **created 2026-09-23** by [`build-the-nas.md`] §5's *Workstations* steps, and mounted from a Hicks workstation ([ADR-0051]) |
-| `Saruman`, on `2049` | `10.0.30.110 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, to mount `erebor/iso` as the ISO store. Not the media stack's, and listed because it is a way into this host. **Specified, not created**: [`build-the-nas.md`] §5b ([ADR-0072]) |
+| `Saruman`, on `2049` | `10.0.30.110 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, to mount `erebor/iso` as the ISO store. Not the media stack's, and listed because it is a way into this host. **Created 2026-10-01** by [`build-the-nas.md`] §5b, and mounted by `Saruman` ([ADR-0072]) |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and

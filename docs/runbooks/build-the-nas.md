@@ -231,8 +231,8 @@ of §6.5, which was done by 2026-09-29. `Allow SMB to smaug` on `445`, for works
 was created on 2026-09-23 in §5, after the user it serves. `Allow NFS from
 Saruman to smaug` on `2049`, for the ISO store
 ([ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)),
-is **specified, not created**, and §5b creates it. It is the first row here
-on ImaginationLAN. `golem`'s `2049` pass is ImaginationLAN's other one, and
+was created on 2026-10-01 in §5b, after the share it serves. It is the
+first row here on ImaginationLAN. `golem`'s `2049` pass is ImaginationLAN's other one, and
 [`build-the-backup-guest.md`](build-the-backup-guest.md) §4 keeps it.
 
 | On interface | Protocol / source → destination | Description | Position |
@@ -244,7 +244,7 @@ on ImaginationLAN. `golem`'s `2049` pass is ImaginationLAN's other one, and
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `22` | `Allow SSH to smaug` | **above** *Block access to CasaBonita* |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `13378` | `Allow 13378 to smaug` | **above** *Block access to CasaBonita* — §6.5 |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `445` | `Allow SMB to smaug` | **above** *Block access to CasaBonita* — §5 |
-| ImaginationLAN (30) | `tcp` `10.0.30.110` → `10.0.40.30` port `2049` | `Allow NFS from Saruman to smaug` | **above** the first `igc0.30` block covering `10.0.40.0/24` — §5b, *specified* |
+| ImaginationLAN (30) | `tcp` `10.0.30.110` → `10.0.40.30` port `2049` | `Allow NFS from Saruman to smaug` | **above** *Block access to CasaBonita* on `igc0.30` — §5b |
 
 **Four, where [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 wrote three.** The Hicks pass is one rule per port rather than one rule
@@ -669,11 +669,36 @@ which builds the same shape for `golem`. Where a step is the same, this points
 there. Have the TrueNAS UI and console shell, the pfSense UI, a shell on
 `morpheus`, and a root shell on `Saruman` ready.
 
-> **Step 1 done 2026-10-01**, through the TrueNAS API rather than the UI:
-> `erebor/iso`, lz4, atime off, dedup off, POSIX ACLs, a 500 GiB quota, no
-> snapshot task. Record size was left at the default because the API call
-> does not take it, so step 1's `zfs set` is still to run. Steps 2–8 are
-> not done, and the rule below is *specified*, not created.
+> **Done 2026-10-01.** The dataset was created through the TrueNAS API
+> rather than the UI: `erebor/iso`, lz4, atime off, dedup off, POSIX ACLs,
+> a 500 GiB quota, no snapshot task. Record size reads `1M`.
+> `pippin` is uid `3003`, gid `3002`. The share admits `10.0.30.110` alone,
+> with maproot `pippin`/`pippin`.
+>
+> `Allow NFS from Saruman to smaug` was read from `morpheus` with
+> `pfctl -sr -vv`. On `igc0.30` it printed directly above *Block access to
+> CasaBonita*, after the DHCP passes, `Saruman`'s two Alloy passes to
+> `10.0.99.20`, the three pfSense management blocks, and the Degens and
+> Skids blocks. `golem`'s pass does not exist yet, so this is the only `2049`
+> pass on that interface.
+>
+> On `Saruman`, `df` showed `10.0.40.30:/mnt/erebor/iso` at `500G`, the quota
+> and not the pool. `pvesm status` showed `smaug-iso` as an active `dir`
+> storage of 524,288,000 KiB. An upload through the web UI,
+> `virtio-win-0.1.302.iso` (877,373,440 bytes), landed in
+> `/mnt/erebor/iso/template/iso/` owned by `3003:3002`, which is `pippin`,
+> not root. lz4 holds it in about 330 MiB on disk. It is the VirtIO driver
+> disc #440's Windows builds will need, so it stays.
+>
+> `alexander`, on VLAN 30 and not `Saruman`, is refused on `2049`: the
+> connection timed out, which is the block dropping it. So is the
+> monitoring host. The `igc0.40` tripwire reads **0 packets** after 260,980 evaluations.
+>
+> One thing found on the way: the `apt install` in step 6 also finished an
+> `alloy` upgrade that an earlier run had left half-configured, and dpkg
+> asked about `/etc/default/alloy`. Keep the installed version (`N`). That
+> file is `scripts/deploy-agent.sh`'s, and the package's version would
+> blank `Saruman`'s push endpoints.
 
 | | |
 | --- | --- |
