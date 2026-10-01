@@ -375,8 +375,13 @@ One thing this does **not** do, stated rather than implied. It is
 scheduled: `homelab-backup-sensitive` runs it nightly on `trinity` and copies
 each set to `oracle` ([#404] step 9). But **nothing here is the off-estate copy**
 [ADR-0023] requires before the first real document — encrypted, keyed to a
-second holder, with visible freshness. That is the precondition on the data
-arriving, not on the container starting, and it is still open.
+second holder, with visible freshness. That copy is now built: `make
+household-copy` runs the exporter above, archives `export/` into a standard
+set encrypted to [`household.recipients`](household.recipients) as well, and
+carries it to the household drive ([ADR-0073],
+[`carry-the-household-copy.md`](../../docs/runbooks/carry-the-household-copy.md)).
+It refuses a copy of record until there is a household holder, so the
+precondition on the data arriving is still open.
 
 ## Vaultwarden
 
@@ -930,7 +935,8 @@ unit and its installer are in
 [`schedule-maintenance.md`](../../docs/runbooks/schedule-maintenance.md#on-trinity-the-sensitive-profile).
 What this does **not** give is a copy off the estate. `oracle` is in the same
 room and on the same power, and [ADR-0023] requires that copy before Immich or
-Paperless-ngx hold a real file. It is step 10's.
+Paperless-ngx hold a real file. It is step 10's, and [ADR-0073]'s:
+built, and waiting on a holder.
 And the volumes are not the photographs: the library is a bind mount, and
 no volume set contains it. Its own sets are the next section's.
 
@@ -958,7 +964,7 @@ two rows, still does not exist.
 
 | What | Where | Protected by |
 | --- | --- | --- |
-| The originals | `IMMICH_UPLOAD_LOCATION` — the USB disk | **Off-host, interim:** `make backup-library`, nightly at 05:15 ([ADR-0064]). One encrypted archive of `upload/`, `library/`, `profile/` and `backups/`, two sets kept on `trinity`'s SSD and two on `oracle`, and `ARGS=--prove` hashes each original against `immich-db`. Each set is encrypted to the sensitive rule's recipients and to [`household.recipients`](household.recipients) ([ADR-0073]). **Off-estate: not built.** That is the copy [ADR-0023] requires. Its drive, a WD Elements 5 TB under [#455], arrived on 2026-09-29, and its key is decided. Its holder is not |
+| The originals | `IMMICH_UPLOAD_LOCATION` — the USB disk | **Off-host, interim:** `make backup-library`, nightly at 05:15 ([ADR-0064]). One encrypted archive of `upload/`, `library/`, `profile/` and `backups/`, two sets kept on `trinity`'s SSD and two on `oracle`, and `ARGS=--prove` hashes each original against `immich-db`. Each set is encrypted to the sensitive rule's recipients and to [`household.recipients`](household.recipients) ([ADR-0073]). **Off-estate: built, waiting on a holder.** `make household-copy` carries the newest set to the household drive, a WD Elements 5 TB under [#455], every ninety days ([ADR-0073], [`carry-the-household-copy.md`](../../docs/runbooks/carry-the-household-copy.md)). It refuses a copy of record until [`household.recipients`](household.recipients) has a household key |
 | Thumbnails and transcodes | The same disk, `thumbs/` and `encoded-video/` | Nothing, on purpose. They are derived from the originals, and a restore regenerates them from Immich's *Jobs* page. Only their `.immich` markers are archived, because the server will not start without them |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | It sits on the same disk on purpose, so a copy of the disk is also a copy of the metadata. It rides in every library set, three hours old at most, so each set is a restore unit on its own |
 | The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `oracle` by the same run. Immich's dump on the USB disk is the second route to the same metadata |

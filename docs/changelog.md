@@ -19,6 +19,49 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **[#455](https://github.com/Gerrrt/HomeLab/issues/455): the household's
+  copy is built, and waits on its holder**
+  ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)).
+  - **The carry.** `make household-copy DEST=…` runs on `trinity`:
+    - re-verifies the drive;
+    - refuses a library set that some household key cannot open, by name;
+    - exports Paperless-ngx and archives it into a standard set encrypted to
+      the tier and the household;
+    - copies both sets and hashes each copy;
+    - leaves the age binaries (v1.3.2, pinned by hash) and the holder's page
+      as `HOW-TO-OPEN.txt`.
+  - **The deadline.** Each copy of record records `household-copy`. With no
+    household key in the recipients file it refuses before the wrapper, and
+    `ARGS=--rehearse` writes the same copy without recording it.
+  - **The holder's proof.** Each copy of record leaves a twelve-digit code in
+    `PROOF/`, encrypted to the household key only. Trinity keeps only the
+    code's sha256. `make household-proof CODE=…` records `household-proof`
+    when the holder reads the code back. A misheard digit fails before
+    anything is recorded.
+  - **The alert.** `HouseholdCopyStale` fires at ninety days for the copy and
+    a year for the proof. Both are rows in the sensitive profile, and both
+    are excluded from `ScheduledJobStale`. Until there is a holder,
+    `ScheduledJobNeverRan` reports them, which is the honest state.
+  - **Shared, not copied.** `backup-offsite.sh`'s medium refusals and its
+    copy, hash and retention moved to `scripts/medium.sh`, which both scripts
+    source. The offsite self-test passed its 50 fixtures unedited after the
+    move.
+  - **Proved end to end with real age**, in a scratch tree with keys made for
+    the purpose. The drive's own `age-v1.3.2-linux-amd64` followed the
+    holder's page exactly:
+    - `PROOF` opened with the household key, and with neither the technical
+      second's nor `trinity`'s;
+    - the documents and a photograph came back byte-identical;
+    - the technical second opened the library as the fallback;
+    - the code proved, and a wrong one did not.
+
+    The exporter's layout was read off the running 3.2.1: `manifest.json`
+    and `metadata.json`, written as the operator into `export/`.
+  - **Not yet done.** The WD Elements has not been formatted or rehearsed on.
+    That needs `sudo` and the drive at `trinity`
+    ([`carry-the-household-copy.md`](runbooks/carry-the-household-copy.md)
+    §1–2). A holder, and their proof, are still #455's.
+
 - **The lab's VM templates are written for Packer, and not yet built**
   ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
   [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)).

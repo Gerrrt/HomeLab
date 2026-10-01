@@ -580,6 +580,8 @@ checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 | --- | --- | --- | --- |
 | `backup-sensitive` | `make backup` with `STACK=sensitive` | daily 04:30 | 2 days |
 | `backup-library` | `make backup-library` | daily 05:15 | 2 days |
+| `household-copy` | **you**, `make household-copy DEST=…` | no timer | 90 days |
+| `household-proof` | **you** and the holder, `make household-proof CODE=…` | no timer | 1 year |
 
 It runs daily, not weekly like the estate's backup, because it holds the
 password vault. Each run also copies the set to `oracle`, the same way the
@@ -600,7 +602,10 @@ make install-timers PROFILE=sensitive
 ```
 
 That writes a `homelab-jobs.prom` on `trinity` that declares only these
-two. The alert rules join on the job name alone, so a name may appear in only
+four. The last two are the household's copy
+([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md),
+[`carry-the-household-copy.md`](carry-the-household-copy.md)). They have no
+timer, and `HouseholdCopyStale` reads them. The alert rules join on the job name alone, so a name may appear in only
 one table, and `--check` enforces that. The installer primes `backup-library`,
 which stops nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
 profiles, and `make validate` on `trinity` fails until this timer is
@@ -726,7 +731,7 @@ expected rather than a second fault.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key, and for `offsite-copy` until the first visit makes the copy. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key, for `offsite-copy` until the first visit makes the copy, and on `trinity` for `household-copy` and `household-proof` until there is a household holder and the holder has opened it. For anything else, `systemctl start homelab-<job>.service` and read the journal |
 | `OffsiteCopyStale` | Ninety days since the newest sets were last copied to the second recipient's medium and proved there | Mount it and run `make backup-offsite DEST=…` — [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md). `--list`, `--verify-only` and `--prune` do not clear it, on purpose |
 | `CaKeyBackupUnproven` | No offline copy of `certificates/ca-key.pem` has been proved in ninety days — or ever, or not since the CA was re-minted, which the fingerprint label tells apart | Mount the medium and `make certs-verify-backup KEY=…` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)). After a re-mint, copy the new key there first; the old copy is refused |
 | `SecretsKeyRecipientsUnrecorded` | The ninety-day deadline is declared and no recipient has a proof series, so `SecretsKeyBackupUnproven` cannot fire however stale the proof is | `systemctl start homelab-recipient-state.service`. If that unit does not exist the timers predate [#400](https://github.com/Gerrrt/HomeLab/issues/400): `make install-timers` adds it and primes it. On a host with one recipient the first write inherits the old `verify-key-backup` proof rather than starting from never |

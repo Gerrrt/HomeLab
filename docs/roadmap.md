@@ -165,7 +165,10 @@ has been rehearsed on it.
   [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
   second recipient as a fallback. The keys are kept in
   `stacks/sensitive/household.recipients` and not in a sops rule. The drive
-  holds age archives on exFAT. **What is left is a person**: choosing the
+  holds age archives on exFAT. **The copy is built**: `make household-copy`
+  carries it, `HouseholdCopyStale` watches it, and the holder's page is
+  [`open-the-household-copy.md`](runbooks/open-the-household-copy.md).
+  **What is left is a person**: choosing the
   holder, and the holder opening the copy once **from their own device,
   without the operator present**. Both were meant to come before the tier
   held real data, and they did not.

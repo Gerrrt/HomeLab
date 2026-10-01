@@ -78,10 +78,11 @@ groups:
         # verify-ca-key-backup for the same reason — CaKeyBackupUnproven —
         # and offsite-copy for OffsiteCopyStale. All three are human runs
         # against a mounted medium: "check the journal" would be wrong advice
-        # for any of them.
+        # for any of them. household-copy and household-proof are the same
+        # shape, and HouseholdCopyStale reads them (ADR-0073).
         expr: |
           (time() - homelab_job_last_success_timestamp_seconds{
-              homelab_job!~"verify-key-backup|verify-ca-key-backup|offsite-copy"})
+              homelab_job!~"verify-key-backup|verify-ca-key-backup|offsite-copy|household-copy|household-proof"})
             > on(homelab_job) group_left() homelab_job_max_age_seconds
         for: 30m
         labels:
@@ -359,3 +360,44 @@ groups:
             and run `make backup-offsite DEST=<path>`; it re-verifies what is
             there, copies the newest of each kind and proves the copy:
             docs/runbooks/copy-the-backups-offsite.md.
+
+      - alert: HouseholdCopyStale
+        # The household's photographs and documents, off the estate on the
+        # drive the household holder keeps at their own address (ADR-0023,
+        # ADR-0073). Two deadlines, both human, both read here:
+        #
+        #   household-copy   ninety days. A visit to the drive: make
+        #                    household-copy re-verifies what it holds, carries
+        #                    the newest library set and a fresh Paperless
+        #                    export, and proves the copy. The nightly copy to
+        #                    oracle (ADR-0064) covers the disk between visits,
+        #                    but not the house.
+        #   household-proof  a year. The holder opened the copy on their own
+        #                    device, without the operator, and read back the
+        #                    code only their key opens. ADR-0023's second
+        #                    condition, on ADR-0011's annual drill.
+        #
+        # Not OffsiteCopyStale: a different medium, another host, and a
+        # different reader, so "mount the second recipient's medium" would be
+        # wrong advice. The shape is that rule's: one series per job, the
+        # threshold from install-timers.sh's sensitive rows, joined with
+        # group_left() so `instance` survives. ScheduledJobNeverRan covers the
+        # cold start, and it fires until there is a holder, which is the
+        # honest state: the copy of record refuses to run without one.
+        expr: |
+          (time() - homelab_job_last_success_timestamp_seconds{homelab_job=~"household-copy|household-proof"})
+            > on(homelab_job) group_left() homelab_job_max_age_seconds
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.homelab_job }} last succeeded {{ $value | humanizeDuration }} ago"
+          description: >-
+            The household's off-estate copy is out of date ({{ $labels.homelab_job }}).
+            For household-copy, bring the drive back to trinity and run `make
+            household-copy DEST=<path>`: docs/runbooks/carry-the-household-copy.md.
+            For household-proof, the holder opens PROOF/ on their own device and
+            reads you the code, then `make household-proof CODE=<code>`:
+            docs/runbooks/open-the-household-copy.md.
