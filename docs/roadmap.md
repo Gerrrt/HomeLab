@@ -186,7 +186,8 @@ faulted Exos replaced and the mirror resilvered, is met and is in
 
 ## Saruman: the domain, then the SOC
 
-Closes when Wazuh and Velociraptor report the six agents in.
+Closes when it is empty. The SOC its name ends on is done: Wazuh and
+Velociraptor reported the six agents in on 2026-09-27.
 
 - **[#414](https://github.com/Gerrrt/HomeLab/issues/414) Build the lab
   domain.** First: it is what the SOC, the range and the automation all point
@@ -196,20 +197,6 @@ Closes when Wazuh and Velociraptor report the six agents in.
   six joined and scraped. Open for §6 (the authentication generator), §10 and
   §11.
   → [runbook](runbooks/build-the-lab-domain.md)
-- **[#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh and
-  [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor.** After
-  #414: one decision
-  ([ADR-0030](adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md)),
-  `stacks/soc/` authored ahead of the guest, and an agentless Wazuh has
-  nothing to report.
-  [#439](https://github.com/Gerrrt/HomeLab/issues/439)'s removal procedure
-  landed ahead of Velociraptor, as the runbook's §13 (#657);
-  [#438](https://github.com/Gerrrt/HomeLab/issues/438)'s disposable stack
-  is authored: `stacks/scratch/`, on a `diabolos` that is built per
-  investigation and destroyed
-  ([ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md),
-  [runbook](runbooks/run-a-scratch-investigation.md)); its first build is
-  its first investigation. → [runbook](runbooks/build-the-soc-guest.md)
 - **[#671](https://github.com/Gerrrt/HomeLab/issues/671) A second way into
   the lab's secrets.** `secrets/lab.sops.yaml` is in git since #667, and
   encrypted to one key that lives only on `alexander`; a second recipient or
@@ -267,8 +254,10 @@ Gated on the domain, on a household observation, or on something to publish.
 
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Buy `ifrit` and build
   the range.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. It is the last purchase on the
-  estate's list, not the next.
+  uninstrumented estate teaches nothing. Both are met — the domain built
+  2026-09-25, #266 and #267 closed 2026-09-27 — so nothing gates the purchase;
+  a shortlist is on the issue. It is still the last purchase on the estate's
+  list.
   → [runbook](runbooks/build-the-playground.md)
 - **[#447](https://github.com/Gerrrt/HomeLab/issues/447) A cloud relay** —
   only if there is ever something to publish; the day it exists it replaces
@@ -342,9 +331,9 @@ to go:
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
 ([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
-[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain,
-which is built, and on the SOC, which is not; it is the last purchase on this
-list, not the next. 32 GB is a
+[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain
+and the SOC, and both are built (#266 and #267 closed 2026-09-27), so nothing
+gates it now; it is still the last purchase on this list. 32 GB is a
 spec the candidate machines do not meet as shipped — the SFF boxes in that
 class ship with 16 GB in two slots — so a SO-DIMM kit is part of that purchase
 and not a later contingency. The model, the CPU and the disk are chosen at the
