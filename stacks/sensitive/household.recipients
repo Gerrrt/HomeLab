@@ -6,7 +6,7 @@
 # encrypt. This file opens nothing in secrets/, and scripts/check_sops_rules.py
 # fails if a household key ever appears in .sops.yaml.
 #
-# The comment directly above each key gives its role, and there are two:
+# The comment directly above each key gives its role, and there are three:
 #
 #   household         the person who holds the drive at the other address and
 #                     opens it from their own device (ADR-0023). Generated ON
@@ -14,6 +14,12 @@
 #   technical-second  ADR-0024's second recipient, the fallback if the
 #                     household key is lost. The same key as the catch-all
 #                     rule's second recipient in .sops.yaml.
+#   household-and-technical-second
+#                     one person who is both: their single key, written once.
+#                     It stays in the catch-all rule, as the technical second.
+#
+# A fallback is required: a file with a household key and no technical-second
+# (or combined) key is refused.
 #
 # There is no household key yet: the holder is not chosen (#455). Until there
 # is, no copy on the drive is recorded as the household's, because a copy that

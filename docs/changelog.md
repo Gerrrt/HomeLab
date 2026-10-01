@@ -32,9 +32,11 @@ docstring gives: it is a record, not a claim about now.
   - **Where the keys live.** In `stacks/sensitive/household.recipients`, with
     a role per key, and not in the sensitive sops rule. That rule would also
     open the tier's passwords. `scripts/household-recipients.sh` reads the
-    file and refuses anything malformed. `check_sops_rules.py` now fails if a
-    household key appears in any rule, or if the technical second there is not
-    the catch-all's key.
+    file. It refuses a malformed line, a wrong Bech32 checksum, and a file with
+    no fallback key. One person in both roles is written once as
+    `household-and-technical-second`. `check_sops_rules.py` now fails if a
+    household key appears in any rule, or if a fallback key there is not the
+    catch-all's.
   - **What changes on `trinity`.** `backup-library.sh` encrypts each Immich
     set to the sensitive rule's recipients plus that file's. Today that adds
     the technical second, so the first set made after this reaches `trinity`

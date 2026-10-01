@@ -162,8 +162,10 @@ fi
 SHIM
   chmod +x "${T}/bin/age"
   : > "${T}/identity"
-  HH="age1$(printf 'q%.0s' {1..58})"
-  printf '# role: household\n%s\n' "${HH}" > "${T}/household"
+  # Real recipients, public halves only: the household holder and the fallback.
+  HH=age1mt2p3n6xqzevjyqq7qpxhwc3zk6wlc3qace6rj5qfhhkzhl3gyqsq5r349
+  HS=age1vfe5xddxdzh5ggqmhhte0l78s2ktvmuzyjrfpjsemuez5q9z8u2q9cdlwz
+  printf '# role: household\n%s\n# role: technical-second\n%s\n' "${HH}" "${HS}" > "${T}/household"
 
   # A library the shape trinity's is: markers in every folder, originals in
   # both trees, a dump, and derived files that must NOT travel.
@@ -212,7 +214,7 @@ SHIM
   assert "the MANIFEST says what was read and which dump rides with it" \
     'grep -qx "mode	live" "${first}/MANIFEST" && grep -q "^db_dump	immich-db-backup-20260929T020000" "${first}/MANIFEST" && grep -qx "files	2" "${first}/MANIFEST"'
   assert "the set is encrypted to the household's keys as well as the tier's (ADR-0073)" \
-    'grep -qx "recipient	age1fixture,${HH}" "${first}/MANIFEST"'
+    'grep -qx "recipient	age1fixture,${HH},${HS}" "${first}/MANIFEST"'
   # shellcheck disable=SC2034  # read by the assert() strings below
   listing="$(tar -tzf "${first}/immich-library.tar.gz.age")"
   assert "the originals, the profile and the dump travel" \
@@ -229,7 +231,7 @@ SHIM
   assert "and the refusal wrote no set" \
     '[[ $(find "${T}/out" -mindepth 1 -maxdepth 1 -type d -name "2*" | wc -l) -eq 1 ]]'
 
-  printf 'age1%s\n' "$(printf 'q%.0s' {1..58})" > "${T}/household.bad"
+  printf '%s\n' "${HH}" > "${T}/household.bad"
   HH_FOR_TEST="${T}/household.bad" run --local-only
   check "a household file that does not parse fails the run, not the encryption" 1 "cannot read the household's recipients"
 

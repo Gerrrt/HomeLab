@@ -64,14 +64,20 @@ STACK=sensitive` with the holder's key, and that would also give the holder
 token. The holder needs none of it, and ADR-0048 already ruled that one key
 doing two jobs means one leak takes both.
 
-- **The file.** Each key carries a role comment, `household` or
-  `technical-second`. The file is valid input to `age -R` as it stands.
-  `scripts/household-recipients.sh` reads it and refuses a key with no role, a
-  role with no key, an unknown role and a duplicate.
+- **The file.** Each key carries a role comment: `household`,
+  `technical-second`, or `household-and-technical-second` when one person is
+  both, which is the collapse to one recipient above. The file is valid input
+  to `age -R` as it stands. `scripts/household-recipients.sh` reads it and
+  refuses:
+  - a key with no role, a role with no key, an unknown role and a duplicate;
+  - a key whose Bech32 checksum is wrong, so one mistyped character is
+    caught before an archive starts;
+  - a file with no fallback, that is, no technical-second or combined key.
 - **The check.** `scripts/check_sops_rules.py` fails if a `household` key
-  appears in any creation rule. It also fails if the `technical-second` key is
-  not one the catch-all rule carries, because only that rule's keys are proved
-  by ADR-0024's ninety-day proof.
+  appears in any creation rule. It also fails if a `technical-second` or
+  combined key is not one the catch-all rule carries, because only that rule's
+  keys are proved by ADR-0024's ninety-day proof. A combined key is the
+  technical second, so it belongs in that rule.
 
 **Sets are encrypted once, at the source.** `backup-library.sh` encrypts each
 Immich set to the sensitive rule's recipients plus this file's, and the

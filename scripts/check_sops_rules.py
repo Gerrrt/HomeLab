@@ -47,7 +47,10 @@ What this asserts
    with the holder's key from collapsing that, so this fails on it: a
    `household` key in any rule is an error. And the `technical-second` key there
    must be the one the catch-all rule actually carries, so the file cannot
-   advertise a fallback that ADR-0024's proof never touches.
+   advertise a fallback that ADR-0024's proof never touches. A key in the
+   combined role, `household-and-technical-second` (one person in both, which
+   ADR-0073 allows), IS the technical second: it is held to the catch-all like
+   one, and is not a plain household key.
 
 The paths are derived, not listed: the stacks come from scripts/stacks.sh, the
 one definition of what a stack is, and the firewall backup path is the shape
@@ -101,7 +104,7 @@ def check_household(rules: list[dict], matched_by: dict[str, str]) -> list[str]:
     )
     for line in listed.stdout.splitlines():
         role, key = line.split(" ", 1)
-        if role == "household":
+        if role == "household":  # the combined role is the technical second, below
             for rule in rules:
                 if key in rule_keys(rule):
                     problems.append(
@@ -110,9 +113,10 @@ def check_household(rules: list[dict], matched_by: dict[str, str]) -> list[str]:
                         f"secrets, which is what ADR-0073 keeps it out of. Take it "
                         f"out of {POLICY.name} and run `sops updatekeys`"
                     )
-        elif role == "technical-second" and key not in catch_all_keys:
+        elif role in ("technical-second", "household-and-technical-second") \
+                and key not in catch_all_keys:
             problems.append(
-                f"technical-second key {key} in stacks/sensitive/household.recipients "
+                f"{role} key {key} in stacks/sensitive/household.recipients "
                 f"is not a recipient of the catch-all rule — ADR-0024's proof covers "
                 f"that rule's keys, so this one is a fallback nothing has proved"
             )
