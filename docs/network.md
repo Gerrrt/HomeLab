@@ -421,10 +421,10 @@ Where things get broken on purpose.
   dedicated port, `Saruman` is the Proxmox install. They are separate addresses
   and separate names, and conflating them is a mistake this document previously
   made.
-- `Saruman` runs three guests: `alexander`, built 2026-09-05
-  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), `phoenix`, built
-  2026-09-20 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and `odin`,
-  built 2026-09-27, described below. `alexander` runs
+- `Saruman` runs every row in the table above whose device is "KVM guest on
+  `Saruman`". The table is the count, so this note does not repeat it. Several
+  of them are described below. `alexander`, built 2026-09-05
+  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), runs
   [`stacks/lab`](../stacks/lab) — the lab's own Prometheus, Loki, Grafana and
   Alloy. **It is a guest and not the hypervisor for a reason**: a compose stack
   is Docker, and Docker would rewrite the iptables of the box whose own
