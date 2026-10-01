@@ -21,6 +21,12 @@ name: Close keywords
 #
 # The list of issues the merge will close goes to the job summary whether the
 # check passes or fails, so it is one click from the PR before merge.
+#
+# The one thing these triggers cannot see: an issue linked in the PR's sidebar.
+# Linking emits no pull_request event, so a link added after the last run
+# leaves this check green and stale. Nothing here is refreshed by it, and
+# without a merge queue nothing runs at merge time, so the gap is stated
+# rather than closed: re-run this job before merging if the sidebar changed.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]

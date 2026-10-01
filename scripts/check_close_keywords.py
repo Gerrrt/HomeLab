@@ -46,7 +46,10 @@ carries them. The issues the merge will close are written to the job summary
 whether the check passes or not, so the list is visible before merge.
 
 What it does not do. A sidebar link with no keyword is reported in the
-summary, not failed: it is deliberate by construction. Code spans and fences
+summary, not failed: it is deliberate by construction. A sidebar link added
+AFTER the last run is not seen at all — linking emits no pull_request event,
+so nothing re-runs this — and that gap is stated, not closed: re-run the job
+before merging if the sidebar changed. Code spans and fences
 are NOT exempt — a quoted keyword in a commit body has closed an issue here
 before — so prose ABOUT the matcher names the issue without the `#`.
 
@@ -89,11 +92,16 @@ NEGATION = re.compile(
     r"\b(?:not|nothing|none|never|cannot)\b|n't\b|\b(?:stays?|remains?|kept|keeps?)\s+open\b",
     re.IGNORECASE,
 )
-# A line that opens a block: list item, heading, blockquote, table row, fence.
-BLOCK_START = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|#{1,6}\s|>|\||```|~~~)")
+# A line that opens a block: list item, heading, table row, fence. A
+# blockquote opens one only on its first line; `>` on the next is a
+# continuation, or a wrapped quote would hide a mid-sentence keyword.
+BLOCK_START = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|#{1,6}\s|\||```|~~~)")
+QUOTE = re.compile(r"^\s*>")
 # A line that a following line cannot continue: heading, table row, fence.
 BLOCK_WHOLE = re.compile(r"^\s*(?:#{1,6}\s|\||```|~~~)")
-SENTENCE_END = re.compile(r"[.!?;][\"')\]*_`]*\s+|\|")
+# Not `;`: it joins clauses, and "This is not done; closes #5 later." is one
+# sentence with a negation in it.
+SENTENCE_END = re.compile(r"[.!?][\"')\]*_`]*\s+|\|")
 ABBREVIATIONS = ("e.g", "i.e", "etc", "vs", "cf")
 # What may precede the keyword in its sentence and still leave it first: list
 # and quote markers, emphasis, a checkbox, and other keyword clauses.
@@ -113,6 +121,15 @@ def ref_of(m: re.Match) -> str:
     return f"{repo}#{num}"
 
 
+def node_ref(node: dict) -> str:
+    """A closingIssuesReferences node in ref_of's shape, so a cross-repository
+    close is not mistaken for this repository's issue of the same number."""
+    repo = node["repository"]["nameWithOwner"]
+    if repo.lower() == repo_name().lower():
+        return f"#{node['number']}"
+    return f"{repo}#{node['number']}"
+
+
 def ref_key(ref: str) -> tuple[str, int]:
     """Sort this repository's issues first, numerically: #9 before #10."""
     repo, _, num = ref.rpartition("#")
@@ -125,7 +142,8 @@ def boundaries(text: str) -> list[int]:
     offset = 0
     prev = ""
     for line in text.splitlines(keepends=True):
-        if offset and (not prev.strip() or BLOCK_START.match(line) or BLOCK_WHOLE.match(prev)):
+        if offset and (not prev.strip() or BLOCK_START.match(line) or BLOCK_WHOLE.match(prev)
+                       or (QUOTE.match(line) and not QUOTE.match(prev))):
             starts.add(offset)
         prev = line
         offset += len(line)
@@ -175,7 +193,10 @@ query($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       title
       body
-      closingIssuesReferences(first: 50) { nodes { number title } }
+      closingIssuesReferences(first: 100) {
+        pageInfo { hasNextPage }
+        nodes { number title repository { nameWithOwner } }
+      }
       commits(first: 100) {
         pageInfo { hasNextPage }
         nodes { commit { oid message } }
@@ -193,16 +214,18 @@ def fetch(number: int) -> dict:
          "-F", f"name={name}", "-F", f"number={number}"],
         check=True, capture_output=True, text=True).stdout
     pr = json.loads(out)["data"]["repository"]["pullRequest"]
-    if pr["commits"]["pageInfo"]["hasNextPage"]:
-        # The loud direction: a commit this did not read is one it cannot vouch for.
-        raise SystemExit(f"PR #{number} has more than 100 commits; this reads only the first page")
+    # The loud direction: a commit or a closing issue this did not read is one
+    # it cannot vouch for.
+    for field in ("commits", "closingIssuesReferences"):
+        if pr[field]["pageInfo"]["hasNextPage"]:
+            raise SystemExit(f"PR #{number}: more than 100 {field}; this reads only the first page")
     return pr
 
 
 def check_pr(pr: dict) -> tuple[list[str], list[str]]:
     """(findings, summary lines) for one pull request as GraphQL returned it."""
     body = pr.get("body") or ""
-    closing = {f"#{i['number']}": i["title"] for i in pr["closingIssuesReferences"]["nodes"]}
+    closing = {node_ref(i): i["title"] for i in pr["closingIssuesReferences"]["nodes"]}
     body_refs = refs_of(body)
     findings = lint(pr["title"], "title")
     findings += lint(body, "body", closing=set(closing))
@@ -258,6 +281,11 @@ def report(findings: list[str], summary: list[str] | None) -> int:
 
 
 # ---------------------------------------------------------------------------
+
+def _issue(number: int, title: str, repo: str | None = None) -> dict:
+    """A closingIssuesReferences node as GraphQL returns it."""
+    return {"number": number, "title": title, "repository": {"nameWithOwner": repo or repo_name()}}
+
 
 def self_test() -> int:
     failed = 0
@@ -321,6 +349,10 @@ def self_test() -> int:
     check("a chained close passes", False, fails("Closes #1, closes #2 and fixes #3."))
     check("a close after a trailer-style blank line passes", False,
           fails("feat: a thing\n\nCloses #7.\n\nCo-Authored-By: someone"))
+    check("a wrapped blockquote is one sentence", True,
+          fails("> This is not done and\n> closes #5."))
+    check("a blockquote that is a close passes", False, fails("Intro.\n\n> Closes #5."))
+    check("a semicolon does not end a sentence", True, fails("This is not done; closes #5 later."))
     check("e.g. is not a sentence end", True, fails("A keyword, e.g. closes #5, in prose."))
     check("no keyword at all passes", False, fails("Refs #92. This PR resolves none of them."))
     # 22. A commit that closes what the PR body only Refs: merge or rebase lands it.
@@ -330,10 +362,18 @@ def self_test() -> int:
           any("named with Refs" in f for f in check_pr(pr)[0]))
     check("the summary lists the commit's close", ["| #5 |  | commit aaaaaaa |"], check_pr(pr)[1])
     pr = {"title": "feat: x (#9)", "body": "Closes #9.",
-          "closingIssuesReferences": {"nodes": [{"number": 9, "title": "A thing"}, {"number": 4, "title": "B"}]},
+          "closingIssuesReferences": {"nodes": [_issue(9, "A thing"), _issue(4, "B")]},
           "commits": {"nodes": []}}
     check("a clean PR has no findings, and a hand link is reported", ([], [
         "| #4 | B | linked by hand, no keyword in the body |", "| #9 | A thing | PR body |"]), check_pr(pr))
+
+    # A cross-repository close keeps its repository: it neither shows as this
+    # repository's #3 nor conflicts with a local Refs #3.
+    pr = {"title": "x", "body": "Fixes other/repo#3.\n\nRefs #3.",
+          "closingIssuesReferences": {"nodes": [_issue(3, "Theirs", "other/repo")]},
+          "commits": {"nodes": []}}
+    check("a cross-repository close is not this repository's issue", ([], [
+        "| other/repo#3 | Theirs | PR body |"]), check_pr(pr))
 
     # That the caller calls this — the shape scripts/self-tests.sh asserts of
     # ci.yml. Deleting the workflow, or its --pr step, fails here rather than
