@@ -460,6 +460,10 @@ STACK="${STACK:-observability}"
 VOL_OFFHOST="atropos@10.0.99.30:backups/volumes/${STACK}"
 # shellcheck source=scripts/backup-volumes.sh
 source "${REPO_ROOT}/scripts/backup-volumes.sh"
+# The refusals and the set's copy, proof and retention, which the household's
+# carry shares (ADR-0073).
+# shellcheck source=scripts/medium.sh
+source "${REPO_ROOT}/scripts/medium.sh"
 
 SOURCE_ROOT="${OFFSITE_SOURCE:-${REPO_ROOT}/backups}"
 OFFSITE_KEEP="${OFFSITE_KEEP:-1}"
@@ -506,119 +510,15 @@ need df
 Mount the medium first. The path is a directory on it, not a device."
 DEST_ABS="$(cd "${DEST}" && pwd -P)"
 
-# 1. Not inside this repository. This tree is published; backups/ is
-#    gitignored by path, which protects nothing under another name.
-if [[ "${DEST_ABS}" == "${REPO_ROOT}" || "${DEST_ABS}" == "${REPO_ROOT}/"* ]]; then
-  die "the destination is inside this repository:
-  ${DEST_ABS}
-
-This tree is published. A copy of the estate's backups belongs on a medium
-that leaves the house, not in a working tree of a public repository."
-fi
-
-# 2. Is the destination a medium, or is it this host wearing one's costume?
-#
-# Three refusals and a warning, ordered so each one gives the diagnosis that
-# fits it rather than whichever fires first alphabetically.
-#
-# The history is worth the lines. This shipped with only the device-number
-# check below, on the reasoning that a medium is never the filesystem the sets
-# live on. True, and far weaker than it reads: /dev/shm is a different
-# filesystem too, and it is RAM on the host being insured. On 2026-09-21, an
-# hour after this script merged, `make backup-offsite DEST=/dev/shm` ran to a
-# green line — 1.7 GB into tmpfs on a host with 216 MB free, gone on the next
-# reboot, and a recorded success buying ninety days of silence from
-# OffsiteCopyStale for a copy that existed nowhere. A backup that cannot
-# survive a power cut is not a backup, so these are refusals, not warnings.
-#
-# The self-test sets OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS to reach the copy
-# fixtures — a real stand-in medium needs a loop mount, which needs root,
-# which CI does not have — and asserts each refusal below with it unset.
-if [[ -n ${OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS:-} ]]; then
-  warn "OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS is set — the medium checks are OFF."
-  warn "This run will accept RAM, /tmp or this host's own disk as the destination,"
-  warn "and record a success for it. That is the self-test's setting, not yours."
-else
-  # 2a. Not an in-memory or synthetic filesystem, wherever it is mounted.
-  dest_fstype="$(stat -f -c %T "${DEST_ABS}" 2>/dev/null || true)"
-  case "${dest_fstype}" in
-    tmpfs | ramfs | devtmpfs | overlay | overlayfs | squashfs | proc | sysfs | devpts | configfs | debugfs | tracefs | cgroup*)
-      die "the destination is a ${dest_fstype} filesystem, which is not a medium:
-  ${DEST_ABS}
-
-tmpfs and ramfs live in this host's RAM. A copy there disappears on the next
-reboot, and this run would record a success that silences OffsiteCopyStale for
-ninety days on a copy that no longer exists — which is worse than no copy,
-because it is read with confidence. Mount the medium and point DEST at it:
-docs/runbooks/copy-the-backups-offsite.md"
-      ;;
-  esac
-
-  # 2b. Not one of the trees this host clears or recreates, whatever is
-  #     mounted there — a separate /tmp partition passes 2a and 2c both.
-  case "${DEST_ABS}" in
-    /dev | /dev/* | /proc | /proc/* | /sys | /sys/* | /run | /run/* | /tmp | /tmp/*)
-      die "the destination is under /${DEST_ABS#/}, which this host clears or recreates:
-  ${DEST_ABS}
-
-Whatever filesystem is mounted there, it is not a medium that leaves the
-house. Mount the medium and point DEST at it:
-docs/runbooks/copy-the-backups-offsite.md"
-      ;;
-  esac
-
-  # 2c. Not the filesystem the sets already live on. Device number, not path,
-  #     so a bind mount or a symlink into the root filesystem is caught too;
-  #     compared against both the sets' filesystem and /, since a laptop with
-  #     one partition has those be the same and a medium never is.
-  fs_of() { stat -c %d "$1" 2>/dev/null; }
-  src_probe="${SOURCE_ROOT}"
-  while [[ ! -e ${src_probe} && ${src_probe} != / ]]; do src_probe="$(dirname "${src_probe}")"; done
-  dest_fs="$(fs_of "${DEST_ABS}")"
-  if [[ -n ${dest_fs} ]] && { [[ ${dest_fs} == "$(fs_of "${src_probe}")" ]] || [[ ${dest_fs} == "$(fs_of /)" ]]; }; then
-    die "the destination is on the same filesystem as the sets it would copy:
-  ${DEST_ABS}
-
-A copy on this host's own disk is off-host to nowhere. Point this at the
-mounted medium — the one the second age recipient lives on (ADR-0048):
-docs/runbooks/copy-the-backups-offsite.md"
-  fi
-
-  # 2d. Does it look removable? A warning, not a verdict: a second internal
-  #     disk and a network mount are both legitimate for someone who has
-  #     decided so, and neither reports as removable. What no check here can
-  #     establish is the property the ADR actually requires — that the medium
-  #     leaves the house — so this says what it sees and stops.
-  if command -v findmnt >/dev/null 2>&1; then
-    dest_src="$(findmnt -no SOURCE --target "${DEST_ABS}" 2>/dev/null || true)"
-    if [[ ${dest_src} == /dev/* ]]; then
-      dest_base="$(basename "${dest_src}")"
-      while [[ -n ${dest_base} && ! -e /sys/block/${dest_base} && ${dest_base} =~ [0-9]$ ]]; do
-        dest_base="${dest_base%[0-9]}"
-      done
-      if [[ -r /sys/block/${dest_base}/removable ]] \
-         && [[ "$(cat "/sys/block/${dest_base}/removable")" == 0 ]]; then
-        warn "${dest_src} does not report as removable media."
-        warn "That is fine for a disk you unplug and carry; it is not fine for a second"
-        warn "drive that stays in this house. Only you can tell the two apart."
-      fi
-    fi
-  fi
-fi
-
-# 3. Advice, not a verdict, as verify-key-backup.sh gives it. The script cannot
-#    see whether a working tree has a remote or what a folder syncs to.
-if dest_repo="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "${DEST_ABS}" rev-parse --show-toplevel 2>/dev/null)"; then
-  warn "the destination is inside a git working tree:  ${dest_repo}"
-  warn "if that repository has a remote, one 'git add .' publishes the estate's backups."
-fi
-for pattern in Dropbox OneDrive 'Google Drive' Nextcloud ownCloud Syncthing iCloud 'Mobile Documents'; do
-  shopt -s nocasematch
-  if [[ "${DEST_ABS}" == *"${pattern}"* ]]; then
-    warn "the path contains '${pattern}' — if that folder syncs to a third party, the sets are now wherever that service keeps them."
-  fi
-  shopt -u nocasematch
-done
+# 1-3. Not inside this repository, not RAM, not a tree this host clears, not
+# the sets' own filesystem; then advice. scripts/medium.sh carries each
+# refusal and the 2026-09-21 /dev/shm run that made them refusals. The
+# self-test sets OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS to reach the copy fixtures —
+# a real stand-in medium needs a loop mount, which needs root, which CI does
+# not have — and asserts each refusal with it unset.
+medium_refuse "${DEST_ABS}" "${SOURCE_ROOT}" "$([[ -n ${OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS:-} ]] && echo 1 || echo 0)" \
+  OffsiteCopyStale docs/runbooks/copy-the-backups-offsite.md \
+  "the one the second age recipient lives on (ADR-0048)"
 
 # ---------------------------------------------------------------------------
 # The four kinds
@@ -632,14 +532,7 @@ NAS_DST="${DEST_ABS}/backups/nas"
 WIKI_DST="${DEST_ABS}/backups/wiki"
 FW_DST="${DEST_ABS}/backups/firewall"
 
-# Complete sets under a directory, newest first — complete_sets() from the
-# library reads OUT_DIR, and there are four directories here. A `.part` is
-# not a set even with a MANIFEST in it: copy_set writes the MANIFEST before
-# the rename, so a copy that died between the two left exactly that, and
-# counting it here made verify_medium refuse its name and wedge every later
-# visit until someone deleted it by hand (#613).
-sets_in()      { find "$1" -mindepth 2 -maxdepth 2 -name MANIFEST -not -path '*.part/MANIFEST' -printf '%h\n' 2>/dev/null | sort -r; }
-all_dirs_in()  { find "$1" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -r; }
+# sets_in and all_dirs_in are scripts/medium.sh's.
 exports_in()   { find "$1" -mindepth 1 -maxdepth 1 -type f -name 'config-*.sops.yaml' -printf '%f\n' 2>/dev/null | sort -r; }
 is_export()    { [[ $1 =~ ^config-[0-9]{8}T[0-9]{6}Z\.sops\.yaml$ ]]; }
 
@@ -680,11 +573,6 @@ current_recipients() {  # <stack>
 set_recipients()    { manifest_field "$1" recipient | tr ',' '\n'; }
 export_recipients() { grep -oE 'recipient: age1[a-z0-9]+' "$1" 2>/dev/null | cut -d' ' -f2 || true; }
 
-# The keys in <want> that <have> does not include, one per line. Empty means
-# every key that must open the thing can.
-cannot_open() {  # <have, newline-separated> <want, newline-separated>
-  comm -13 <(grep -v '^$' <<<"$1" | sort -u) <(grep -v '^$' <<<"$2" | sort -u)
-}
 
 # One sentence naming why a set or export is unfit to travel, or nothing when
 # every current recipient opens it. WANT_VOL, WANT_EST and WANT_WIKI are read
@@ -707,35 +595,9 @@ unfit() {  # <volumes|nas|wiki|firewall> <set dir or export file>
 }
 
 # ---------------------------------------------------------------------------
-# Proof: every archive of a set hashes to its MANIFEST; an export to its sidecar
+# Proof: an export hashes to its sidecar. A set's proof, verify_set_dir, is
+# scripts/medium.sh's.
 # ---------------------------------------------------------------------------
-# The MANIFEST column was computed on bytes verify() had just decrypted, and
-# the far-side check on oracle compares against the same column — so the
-# medium is held to exactly the standard oracle is. Named with the repair on
-# failure; nothing is deleted here.
-verify_set_dir() {  # <set dir on the medium>
-  local d="$1" stamp vol want got failed=0
-  stamp="$(basename "${d}")"
-  is_stamp "${stamp}" || { red "refusing to check a set with an unexpected name: ${stamp}"; return 1; }
-  local -a vols=()
-  mapfile -t vols < <(manifest_volumes "${d}")
-  ((${#vols[@]})) || { red "${d}: the MANIFEST lists no volumes"; return 1; }
-  for vol in "${vols[@]}"; do
-    want="$(manifest_sha "${d}" "${vol}")"
-    [[ -n ${want} ]] || { red "${d}: no sha256 for ${vol} in the MANIFEST"; failed=1; continue; }
-    if [[ ! -f ${d}/${vol}.tar.gz.age ]]; then
-      red "${d}/${vol}.tar.gz.age is missing although the MANIFEST lists it"
-      failed=1; continue
-    fi
-    got="$(sha256sum -- "${d}/${vol}.tar.gz.age" | cut -d' ' -f1)"
-    if [[ ${got} != "${want}" ]]; then
-      red "${d}/${vol}.tar.gz.age differs from its MANIFEST entry (sha256 ${got:0:12}… on the medium, ${want:0:12}… recorded)"
-      failed=1
-    fi
-  done
-  return "${failed}"
-}
-
 verify_export_file() {  # <export on the medium>
   local f="$1" want got
   [[ -f ${f}.sha256 ]] || { red "${f} has no .sha256 beside it — not written by this script, or half-copied"; return 1; }
@@ -794,35 +656,9 @@ verify_medium() {
 }
 
 # ---------------------------------------------------------------------------
-# Copy: into a .part name, MANIFEST last, then renamed — a copy that dies
-# leaves something INCOMPLETE by the same rule as everywhere else here, never a
-# plausible-looking set that is short.
+# Copy. A set's, copy_set, is scripts/medium.sh's: into a .part name, MANIFEST
+# last, then renamed. An export's is the same shape with a sidecar.
 # ---------------------------------------------------------------------------
-copy_set() {  # <local set dir> <destination kind dir>
-  local src="$1" dstdir="$2" stamp part vol
-  stamp="$(basename "${src}")"
-  is_stamp "${stamp}" || { red "refusing to copy a set with an unexpected name: ${stamp}"; return 1; }
-  part="${dstdir}/${stamp}.part"
-  local -a vols=()
-  mapfile -t vols < <(manifest_volumes "${src}")
-  ((${#vols[@]})) || { red "${stamp}: the MANIFEST lists no volumes — not copying it"; return 1; }
-  # A .part of this exact stamp is this script's own leftover from a copy that
-  # died; nothing else writes that name.
-  rm -rf -- "${part}"
-  mkdir -p -- "${part}"
-  for vol in "${vols[@]}"; do
-    [[ -f ${src}/${vol}.tar.gz.age ]] || { red "${stamp}: ${vol}.tar.gz.age is missing here although the MANIFEST lists it"; return 1; }
-    cp -- "${src}/${vol}.tar.gz.age" "${part}/${vol}.tar.gz.age"
-  done
-  cp -- "${src}/MANIFEST" "${part}/MANIFEST"
-  sync -f "${part}" 2>/dev/null || sync
-  mv -- "${part}" "${dstdir}/${stamp}"
-  verify_set_dir "${dstdir}/${stamp}" || { red "${stamp}: the copy on the medium does not hash to its MANIFEST"; return 1; }
-  cmp -s -- "${src}/MANIFEST" "${dstdir}/${stamp}/MANIFEST" \
-    || { red "${stamp}: MANIFEST on the medium differs from the local one"; return 1; }
-  green "copied ${stamp} to ${dstdir} — every archive hashes to its MANIFEST entry"
-}
-
 copy_export() {  # <local export file>
   local src="$1" name sha
   name="$(basename "${src}")"
@@ -846,28 +682,7 @@ copy_export() {  # <local export file>
 # Retention on the medium: OFFSITE_KEEP per kind, newest never, only names
 # this script writes, strays counted and never touched.
 # ---------------------------------------------------------------------------
-prune_kind() {  # <kind dir on the medium>
-  local dir="$1" n name
-  [[ -d ${dir} ]] || return 0
-  local -a keep=() strays=()
-  mapfile -t keep < <(sets_in "${dir}")
-  while read -r name; do
-    [[ -n ${name} ]] || continue
-    is_stamp "${name}" || { strays+=("${name}"); continue; }
-  done < <(all_dirs_in "${dir}")
-  if ((${#strays[@]})); then
-    warn "${#strays[@]} name(s) in ${dir} this script did not write and will not touch: ${strays[*]}"
-  fi
-  if ((${#keep[@]} > OFFSITE_KEEP)); then
-    for n in "${keep[@]:OFFSITE_KEEP}"; do
-      if [[ -z ${n} || ${n} != "${dir}/"[0-9]* || ! -f ${n}/MANIFEST ]]; then
-        red "refusing to prune ${n}"; continue
-      fi
-      info "pruning $(basename "${n}") from ${dir}"
-      rm -rf -- "${n}"
-    done
-  fi
-}
+prune_kind() { prune_sets "$1" "${OFFSITE_KEEP}"; }  # <kind dir on the medium>
 
 prune_exports() {
   local -a names=()
@@ -897,17 +712,8 @@ prune_exports() {
 # under the `backups` lock — the copy path because the Makefile wraps it in
 # run-scheduled.sh --lock backups, --prune because it takes that lock itself.
 sweep_parts() {
-  local dir x base
-  for dir in "${VOL_DST}" "${NAS_DST}" "${WIKI_DST}"; do
-    [[ -d ${dir} ]] || continue
-    while read -r x; do
-      [[ -n ${x} ]] || continue
-      base="${x%.part}"
-      is_stamp "${base}" || continue
-      info "removing ${x} from ${dir} — a copy that did not finish"
-      rm -rf -- "${dir:?}/${x}"
-    done < <(find "${dir}" -mindepth 1 -maxdepth 1 -type d -name '*.part' -printf '%f\n' 2>/dev/null)
-  done
+  local x base
+  sweep_set_parts "${VOL_DST}" "${NAS_DST}" "${WIKI_DST}"
   [[ -d ${FW_DST} ]] || return 0
   while read -r x; do
     [[ -n ${x} ]] || continue

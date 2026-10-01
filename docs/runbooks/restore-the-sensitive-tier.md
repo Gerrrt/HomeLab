@@ -539,7 +539,11 @@ key alone, so it proves a restore on a host that has that key. Losing
 copy (`make secrets-verify-backup STACK=sensitive`). Everything the
 2026-09-28 rehearsal left open about phones, Caddy, machine learning and
 cross-version restores is still open. And this is not off the estate. That is
-still [#455](https://github.com/Gerrrt/HomeLab/issues/455).
+still [#455](https://github.com/Gerrrt/HomeLab/issues/455). Its copy is built
+([`carry-the-household-copy.md`](carry-the-household-copy.md)) and is waiting
+on a holder. A restore from the household drive copies its set directories back
+into `backups/immich-library/` and `backups/paperless-documents/`, and then
+follows this page.
 
 ---
 

@@ -337,6 +337,80 @@ tests:
         alertname: ScheduledJobStale
         exp_alerts: []
 
+  # --- HouseholdCopyStale: two human jobs, read by one rule -----------------
+  #
+  # household-copy is over its 1h threshold at t=2h30m and household-proof is
+  # not (a day). Only the first fires, it keeps `instance`, and neither
+  # surfaces as ScheduledJobStale.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="household-copy", instance="trinity"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="household-copy", instance="trinity"}'
+        values: "3600+0x180"
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="household-proof", instance="trinity"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="household-proof", instance="trinity"}'
+        values: "86400+0x180"
+    alert_rule_test:
+      - eval_time: 1h30m
+        alertname: HouseholdCopyStale
+        exp_alerts: []
+      - eval_time: 2h30m
+        alertname: HouseholdCopyStale
+        exp_alerts:
+          - exp_labels:
+              alertname: HouseholdCopyStale
+              homelab_job: household-copy
+              instance: trinity
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "household-copy last succeeded 2h 30m 0s ago"
+              description: >-
+                The household's off-estate copy is out of date (household-copy).
+                For household-copy, bring the drive back to trinity and run `make
+                household-copy DEST=<path>`: docs/runbooks/carry-the-household-copy.md.
+                For household-proof, the holder opens PROOF/ on their own device and
+                reads you the code, then `make household-proof CODE=<code>`:
+                docs/runbooks/open-the-household-copy.md.
+      - eval_time: 2h30m
+        alertname: ScheduledJobStale
+        exp_alerts: []
+
+  # The proof past its own threshold fires as household-proof, by the same
+  # join; the year is install-timers.sh's, scaled to an hour here.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="household-proof", instance="trinity"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="household-proof", instance="trinity"}'
+        values: "3600+0x180"
+    alert_rule_test:
+      - eval_time: 2h30m
+        alertname: HouseholdCopyStale
+        exp_alerts:
+          - exp_labels:
+              alertname: HouseholdCopyStale
+              homelab_job: household-proof
+              instance: trinity
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "household-proof last succeeded 2h 30m 0s ago"
+              description: >-
+                The household's off-estate copy is out of date (household-proof).
+                For household-copy, bring the drive back to trinity and run `make
+                household-copy DEST=<path>`: docs/runbooks/carry-the-household-copy.md.
+                For household-proof, the holder opens PROOF/ on their own device and
+                reads you the code, then `make household-proof CODE=<code>`:
+                docs/runbooks/open-the-household-copy.md.
+      - eval_time: 2h30m
+        alertname: ScheduledJobStale
+        exp_alerts: []
+
   # --- ScheduledJobFailed: fires on non-zero, silent on zero ---------------
   - interval: 1m
     input_series:

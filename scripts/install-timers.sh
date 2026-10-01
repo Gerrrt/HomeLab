@@ -173,7 +173,11 @@ JOBS=(
 # sensitive tier's volumes, which also copies each set to oracle (#535), and
 # the nightly copy of Immich's library, which no volume set can hold
 # (ADR-0064). Two days each, twice the daily period, for the same reason as
-# every row above. The job name is
+# every row above. And two deadlines with no timer, for the household's copy
+# (ADR-0073): household-copy, ninety days like offsite-copy, because a drive at
+# the holder's address is visited, not scheduled; and household-proof, a year,
+# because the holder's own proof rides ADR-0011's annual drill. Both are read
+# by HouseholdCopyStale, not ScheduledJobStale. The job name is
 # what keeps the alert joins one-to-one across hosts, so it must not reuse a
 # name from JOBS — check 8 below asserts that.
 #
@@ -185,6 +189,8 @@ SENSITIVE_PLACEHOLDER="@DEPLOY_ROOT@"
 SENSITIVE_JOBS=(
   "backup-sensitive  homelab-backup-sensitive    172800  backup"
   "backup-library    homelab-backup-library      172800  backup-library"
+  "household-copy    -                          7776000  household-copy"
+  "household-proof   -                         31536000  household-proof"
 )
 
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }

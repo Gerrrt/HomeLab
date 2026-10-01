@@ -861,6 +861,50 @@ backup-offsite: ## Copy the newest set of each kind to the offline medium and pr
 			-- ./scripts/backup-offsite.sh "$(DEST)"; \
 	fi
 
+.PHONY: household-copy
+household-copy: ## On trinity: carry the household's photographs and documents to the holder's drive (DEST=/path/to/the/drive)
+	@# ADR-0073: the copy ADR-0023 requires, on the drive the household holder
+	@# keeps at their own address. backup-offsite's shape for the same reason:
+	@# a deadline and no timer, recorded as household-copy only for a copy of
+	@# record, with HouseholdCopyStale at ninety days. Two guards before the
+	@# wrapper, so that neither a forgotten DEST nor a recipients file with no
+	@# household key is recorded as a FAILED copy: the first is a typo and the
+	@# second is a decision nobody has taken yet. ARGS=--rehearse writes the
+	@# same copy without a holder and records nothing; --list, --verify-only and
+	@# --prune look at or tidy the drive without resetting the deadline.
+	@[[ -n "$(DEST)" ]] || { \
+		printf '\033[0;31merror:\033[0m DEST is required\n' >&2; \
+		printf 'Mount the drive, then:  make household-copy DEST=/path/to/the/drive\n' >&2; \
+		printf 'See docs/runbooks/carry-the-household-copy.md\n' >&2; \
+		exit 2; \
+	}
+	@if [[ -n "$(ARGS)" ]]; then \
+		./scripts/carry-household-copy.sh "$(DEST)" $(ARGS); \
+	else \
+		./scripts/household-recipients.sh --has-holder || { \
+			printf '\033[0;31merror:\033[0m stacks/sensitive/household.recipients has no household key yet\n' >&2; \
+			printf 'The copy of record needs the holder (ADR-0073). Rehearse instead:  make household-copy DEST=$(DEST) ARGS=--rehearse\n' >&2; \
+			exit 2; \
+		}; \
+		./scripts/run-scheduled.sh --job household-copy --lock backups \
+			-- ./scripts/carry-household-copy.sh "$(DEST)"; \
+	fi
+
+.PHONY: household-proof
+household-proof: ## On trinity: record the holder's own proof, from the code they read out (CODE=1234-5678-9012)
+	@# ADR-0023's second condition, made checkable: the holder opened
+	@# PROOF/proof.txt.age on their own device, with their own key and without
+	@# the operator, and read the code back. Checked unwrapped first, so a
+	@# misheard digit is a retry and not a FAILED household-proof; recorded
+	@# only on a match. Due yearly, beside ADR-0011's drill.
+	@[[ -n "$(CODE)" ]] || { \
+		printf '\033[0;31merror:\033[0m CODE is required: the twelve digits the holder read from PROOF/proof.txt.age\n' >&2; \
+		printf 'See docs/runbooks/open-the-household-copy.md\n' >&2; \
+		exit 2; \
+	}
+	@./scripts/carry-household-copy.sh --check-code "$(CODE)"
+	@./scripts/run-scheduled.sh --job household-proof -- ./scripts/carry-household-copy.sh --prove-code "$(CODE)"
+
 .PHONY: restore
 restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>")
 	@# Deliberately a separate script from `backup`. One script that both writes
