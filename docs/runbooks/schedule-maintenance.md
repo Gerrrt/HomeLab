@@ -161,7 +161,7 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
-`guest-state`, `thin-pool-state`, `guest-disk-state`, `pve-firewall-state`, `zeek-mirror-state` and `drift-check`, plus the two
+`guest-state`, `thin-pool-state`, `guest-disk-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state` and `drift-check`, plus the two
 rows that collect nothing, `zeek-mirror` and `prune-images` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
@@ -281,6 +281,20 @@ rather than waiting to be found
 when its command fails, and each has a `…StateStale` rule on the file's mtime
 rather than on presence, for `SmartStateStale`'s reason: the `.prom` is
 re-served on every scrape, so only its age says the timer stopped.
+
+**`iso-store-state` runs daily, not every ten minutes, and only where the ISO
+store is mounted.** It hashes every file on `smaug-iso` against the list in
+the script itself and reports each as `match`, `mismatch`, `missing` or
+`unlisted` ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
+[ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+Reading about 15 GB is why it is daily. Its requirement in the installer's
+table is the directory `/mnt/smaug-iso`, not a binary, so it lands on the one
+host that mounts the store. `IsoChecksumMismatch` is critical,
+`IsoStoreUnexpected` and `IsoStoreNotMounted` are warnings, and
+`IsoStoreStateStale` waits two days. **The list travels inside the script**,
+because an agent host has no checkout: changing an ISO means editing the
+list and re-running the installer with `ARGS='--only iso-store-state'`
+([`build-the-lab-templates.md`](build-the-lab-templates.md) §2b).
 
 **It needs root on the target, which is not the same as needing `sudo`.** The
 estate has both shapes and the installer picks per host, from the login user's

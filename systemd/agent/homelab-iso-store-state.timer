@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: daily ISO store checksum verification
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/build-the-lab-templates.md
+
+[Timer]
+Unit=homelab-iso-store-state.service
+# Daily, early morning, outside the nightly snapshot at 03:00 on smaug and the
+# weekly backup pulls. It reads every ISO in full, so once a day is the cost
+# worth paying; a build is a rare event, and a replaced ISO is caught within a
+# day of the change. IsoStoreStateStale waits two days, twice the period.
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=15m
+Persistent=true
+AccuracySec=5m
+
+[Install]
+WantedBy=timers.target

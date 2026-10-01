@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-133 rules in total: 115 metric-based in `prometheus/rules/`, and 18 log-based in
+137 rules in total: 119 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -450,7 +450,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-115 rules across eleven files in `prometheus/rules/`:
+119 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -473,7 +473,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is ninety-five rules of 115 so far — all ten
+against the broken rule too. Coverage is ninety-nine rules of 119 so far — all ten
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
@@ -567,6 +567,16 @@ read by `scripts/collect-thin-pool-state.sh` from `lvs` every ten minutes:
 — critical, not a warning, because a pool that fills turns every guest on it
 read-only at once — on the same six-hour extrapolation, once the pool is half
 used ([#538](https://github.com/Gerrrt/HomeLab/issues/538)).
+
+**The ISO store is checked on `Saruman`, daily.** Packer builds the lab's
+templates from installers on `smaug-iso`, an NFS export that trusts an
+address (ADR-0072). `scripts/collect-iso-store-state.sh` hashes every file on
+it against a list kept in the script and writes `homelab_iso_state` per file
+and `homelab_iso_store_mounted`. `IsoChecksumMismatch` is critical: a listed
+installer whose hash changed. `IsoStoreUnexpected` warns on a file the list
+does not name or a listed one that is gone, `IsoStoreNotMounted` on the share
+being absent, and `IsoStoreStateStale` after two missed days
+([#440](https://github.com/Gerrrt/HomeLab/issues/440)).
 
 **Disk alerts on `Saruman`'s guests are read through the hypervisor.** The lab
 guests push to the lab's Prometheus, not here (ADR-0007), so `node_filesystem_*`

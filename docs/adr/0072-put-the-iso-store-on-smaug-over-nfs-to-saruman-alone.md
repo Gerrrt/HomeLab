@@ -5,6 +5,19 @@
 on ImaginationLAN rather than Hicks or Winterfell; decides
 [#446](https://github.com/Gerrrt/HomeLab/issues/446)
 
+> [!NOTE]
+> **The checksum control is daily, not per build.** Added 2026-10-01. The
+> consequence below says #440 must verify each ISO "before it builds from
+> it". `phoenix`, which runs Packer, cannot: it reaches `Saruman` on `8006`
+> alone and has no route to `2049`, and the Proxmox API has no call that
+> hashes a stored file. So `Saruman` hashes every file on the store once a
+> day against the list in `scripts/collect-iso-store-state.sh`, and
+> `IsoChecksumMismatch` pages on a change
+> ([`build-the-lab-templates.md`](../runbooks/build-the-lab-templates.md)
+> §2b). `phoenix` holds read-only `PVEAuditor` on the store, so it cannot
+> write to it either. What this costs is up to a day between a replacement
+> and the page. The text below is left as written, per ADR-0001.
+
 ## Context
 
 Packer ([#440](https://github.com/Gerrrt/HomeLab/issues/440)) builds templates

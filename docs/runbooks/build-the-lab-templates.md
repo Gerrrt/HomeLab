@@ -11,11 +11,13 @@ minutes of waiting for each Windows one.
 **You will need:**
 
 - a shell on `phoenix` as the user that owns `~/.config/proxmox/phoenix.env`;
-- a root shell on `Saruman`, for §2 only;
-- the installer ISOs already on `local:iso/`, the ones
-  [`build-the-lab-domain.md`](build-the-lab-domain.md) §1 used:
-  `windows-11.iso`, `windows-server-2025-eval.iso`, `virtio-win.iso`, and the
-  Ubuntu 26.04 live-server ISO.
+- a root shell on `Saruman`, for §2 and §2b only;
+- the installer ISOs that [`build-the-lab-domain.md`](build-the-lab-domain.md)
+  §1 uploaded to `local:iso/`, which §2b copies onto `smaug-iso` and lists:
+  `windows-11.iso`, `windows-server-2025-eval.iso`, the VirtIO disc, and the
+  Ubuntu 26.04 live-server ISO;
+- a machine that can SSH to `Saruman` as root, for §2b's install of the daily
+  checksum run. `phoenix` cannot.
 
 **Before this:** `phoenix`, built by
 [`build-the-jumpbox.md`](build-the-jumpbox.md), with the token from its §4
@@ -125,6 +127,88 @@ Found on the first build (fill in):
 | --- | --- | --- |
 | `Datastore.AllocateSpace` (role) | `/storage/large_data` | every disk, EFI disk and TPM state |
 | `VM.GuestAgent.Audit` | `/vms` | Packer's address lookup, `scripts/packer-smoke.sh` |
+| `Datastore.Audit` (`PVEAuditor`, read-only) | `/storage/smaug-iso` | attaching the installers from the ISO store, §2b step 5 |
+
+## 2b. The installers, on `smaug-iso`, on `Saruman`
+
+`packer/variables.pkr.hcl` names the installers on `smaug-iso`, the ISO store
+[ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)
+put on `erebor/iso`, and not on `local`. Kali is the exception: it builds on
+`ifrit`, which the store does not admit. The store's export trusts an
+address, and Packer does not check an ISO it is handed from storage, so every
+file on it is hashed once a day against the list in
+[`scripts/collect-iso-store-state.sh`](../../scripts/collect-iso-store-state.sh),
+and `IsoChecksumMismatch` pages if one changes. A build from the store is only
+as trustworthy as that list, so the list is written here, once, with care.
+
+1. **Copy them onto the share**, as root on `Saruman`. They were uploaded to
+   `local` for `build-the-lab-domain.md` §1, and the copies there stay until a
+   build from the store has worked:
+
+   ```bash
+   cd /var/lib/vz/template/iso && cp -n ubuntu-26.04.1-live-server-amd64.iso windows-11.iso windows-server-2025-eval.iso /mnt/smaug-iso/template/iso/
+   ```
+
+   The VirtIO disc is already there as `virtio-win-0.1.302.iso`, from
+   `build-the-nas.md` §5b's test upload. If `local` holds a `virtio-win.iso`,
+   compare the two with `sha256sum`. If they differ, the domain was built with
+   another driver version, and that is worth knowing before the templates
+   change it.
+
+2. **Hash them, and check each hash against its publisher.** On `Saruman`:
+
+   ```bash
+   cd /mnt/smaug-iso/template/iso && sha256sum -- *.iso
+   ```
+
+   | ISO | Check against |
+   | --- | --- |
+   | `ubuntu-26.04.1-live-server-amd64.iso` | `SHA256SUMS` beside it on `releases.ubuntu.com`, signed by Ubuntu's CD image key |
+   | `virtio-win-0.1.302.iso` | The `.sha256` beside it on `fedorapeople.org` |
+   | `windows-11.iso` | The SHA-256 table on Microsoft's Windows 11 download page, for the language and edition downloaded |
+   | `windows-server-2025-eval.iso` | Microsoft publishes none for the evaluation media. Compare it with the copy on `local`, and record that it is trusted from its download, not from a published hash |
+
+   **A hash that matches no publisher does not go in the list.** Download the
+   ISO again instead.
+
+3. **Write the list** into `EXPECTED` in
+   `scripts/collect-iso-store-state.sh`, `sha256sum`'s own format, one line
+   per ISO. Its self-test refuses a malformed line, and CI runs it. Commit it.
+
+4. **Install the check**, from a machine that can SSH to `Saruman` as root.
+   `phoenix` cannot:
+
+   ```bash
+   make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only iso-store-state'
+   ```
+
+   The installer starts one run straight away. That run reads every ISO, so
+   it takes minutes, and the `.prom` appears when it finishes. Then:
+
+   ```bash
+   cat /var/lib/node_exporter/textfile_collector/iso-store-state.prom
+   ```
+
+   `homelab_iso_store_mounted` must be `1`, and every ISO must say
+   `state="match"`. Any `unlisted` file is one step 3 missed.
+
+5. **Let `phoenix` read the store, and nothing more.** Attaching an ISO needs
+   `Datastore.Audit` on its storage. `PVEAuditor` carries that and no write
+   privilege, so the only way onto the store stays root on `Saruman`:
+
+   ```bash
+   pveum acl modify /storage/smaug-iso --users phoenix@pve --roles PVEAuditor && pveum acl list | grep smaug-iso
+   ```
+
+6. **After the first build from the store works (§4),** remove the three
+   copies from `local`. Two copies of an installer are two things to keep
+   identical, and only one of them is checked.
+
+**Changing an ISO later** is all six steps for that file, in the same
+order: copy, hash, check against the publisher, list, reinstall, build. Until
+the list changes, the new file is `unlisted` and `IsoStoreUnexpected` says
+so. A deliberately replaced ISO with the list not yet updated looks exactly
+like a tampered one, and that is intended.
 
 ## 3. The build password, on `phoenix`
 
@@ -287,4 +371,6 @@ On the day of the first successful build:
 In the Proxmox UI, or from `phoenix`, destroy VMIDs 901, 911 and 912. No guest
 depends on a template once cloned, because every clone is full. Then remove
 the `large_data` ACL and `VM.GuestAgent.Audit` from §2 if nothing else uses
-them, and `PKR_VAR_build_password` from `phoenix.env`.
+them, the `smaug-iso` ACL from §2b, and `PKR_VAR_build_password` from
+`phoenix.env`. The ISOs and their daily check stay: the store is ADR-0072's,
+not this runbook's.

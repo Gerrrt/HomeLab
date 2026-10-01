@@ -823,6 +823,93 @@ groups:
             journal (`journalctl -u homelab-thin-pool-state`); a failed `lvs`
             writes nothing on purpose, so the journal says why.
 
+      # --- The ISO store, verified on the host that mounts it (#440) ---------
+      #
+      # ADR-0072's residual: the NFS export trusts an address, so anything on
+      # VLAN 30 that took Saruman's could replace an installer, and every
+      # template built from it afterwards would carry the change. Packer does
+      # not check an ISO it is handed from storage. So Saruman hashes every
+      # file on smaug-iso once a day against the list in
+      # scripts/collect-iso-store-state.sh, and these read the result.
+
+      - alert: IsoChecksumMismatch
+        # CRITICAL, and the one this block exists for. A listed ISO whose hash
+        # changed is either a replaced installer or a list that was not updated
+        # when one was deliberately swapped, and only the first is safe to
+        # find out about later. No `for`: the reading is a day old already.
+        expr: homelab_iso_state{state="mismatch"} == 1
+        labels:
+          component: host
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.file }} on the ISO store does not match its checksum"
+          description: >-
+            Do not build a template from smaug-iso until this is explained.
+            Compare `sha256sum /mnt/smaug-iso/template/iso/{{ $labels.file }}`
+            on the host with the vendor's published hash. If the ISO was
+            replaced on purpose, update the list in
+            scripts/collect-iso-store-state.sh and reinstall the collector.
+            If it was not, any template built from it since the last good
+            reading is suspect (build-the-lab-templates.md).
+
+      - alert: IsoStoreUnexpected
+        # A file the list does not name, or a named file that is gone. Neither
+        # is the attack this block is for, but an unlisted ISO is one nothing
+        # has vouched for, and a missing one is a build that will fail.
+        expr: homelab_iso_state{state=~"missing|unlisted"} == 1
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.file }} on the ISO store is {{ $labels.state }}"
+          description: >-
+            unlisted: on the share but not in the list in
+            scripts/collect-iso-store-state.sh. Add its sha256sum to the list,
+            checked against the vendor's hash, or delete it. missing: listed
+            but not on the share, so a build that names it will fail. Put it
+            back, or take it off the list.
+
+      - alert: IsoStoreNotMounted
+        # The share is not mounted where the collector looked, so nothing was
+        # verified and a build from smaug-iso would fail. Proxmox's
+        # is_mountpoint keeps uploads off the root disk in the meantime.
+        expr: homelab_iso_store_mounted == 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }}: the ISO store is not mounted at {{ $labels.mountpoint }}"
+          description: >-
+            `mount {{ $labels.mountpoint }}` on the host. If it hangs, check
+            that NFS is running on smaug and that `Allow NFS from Saruman to
+            smaug` is still above Block access to CasaBonita on igc0.30
+            (build-the-nas.md §5b).
+
+      - alert: IsoStoreStateStale
+        # Daily timer, so two days is two missed runs. A timestamp rather than
+        # presence, for ThinPoolStateStale's reason: the .prom is re-served on
+        # every scrape, so a stale "match" looks exactly like a fresh one.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*iso-store-state\\.prom"} > 2 * 86400
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not verified the ISO store in two days"
+          description: >-
+            The file is {{ $value | humanizeDuration }} old, so
+            IsoChecksumMismatch is reading an old result. Check
+            homelab-iso-store-state.timer on the host and
+            `journalctl -u homelab-iso-store-state`; a failed hash writes
+            nothing on purpose, so the journal says why.
+
       # --- Guest filesystems, read through the hypervisor (#778, ADR-0070) ----
       #
       # odin's root reached 98% on 2026-10-01 and nothing paged: the lab

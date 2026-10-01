@@ -1,8 +1,8 @@
 # tpl-win11-pro (911) and tpl-ws2025-eval (912): the bases for ADR-0029's six.
 #
 # Three discs per build, inside q35's two IDE slots plus one SATA:
-#   ide2   the installer                  (already on local:iso/)
-#   ide0   virtio-win                     (already on local:iso/) — Windows
+#   ide2   the installer                  (on smaug-iso:iso/, checked daily)
+#   ide0   virtio-win                     (on smaug-iso:iso/, checked daily) — Windows
 #          ships no driver for virtio-scsi or virtio-net, and the guest agent
 #          that tells Packer the address comes from this disc too
 #   sata0  the answer disc, generated     (Autounattend.xml, bootstrap.ps1)
