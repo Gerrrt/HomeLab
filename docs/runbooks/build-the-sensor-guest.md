@@ -162,8 +162,16 @@ sudo chmod 600 /etc/netplan/60-capture.yaml && sudo netplan apply
 ip -br addr show ens19   # UP, and no address
 ```
 
-If the name is not `ens19`, change it in the file above and in
-`stacks/sensor/.env`.
+If the name is not `ens19`, it changes in **every** place this section
+names it:
+
+- the netplan file above;
+- `capture-offloads.service` below: its `BindsTo=`, `After=` and `ExecStart=`
+  lines, and the `ethtool -k` check after it;
+- `ZEEK_INTERFACE` in `stacks/sensor/.env`.
+
+Missing the unit is the quiet failure. It fails to start, GRO stays on, Zeek
+still runs, and host-bound flows show gaps again (#782).
 
 **Turn off receive offloads on the capture NIC, and keep them off.** With GRO
 on, the guest kernel holds a flow's data segments to merge them, but hands a
