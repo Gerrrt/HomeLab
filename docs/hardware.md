@@ -912,27 +912,27 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [`copy-the-backups-offsite.md`](runbooks/copy-the-backups-offsite.md)) and
   this drive is not that medium. 5 TB against a 2 TB source — Immich's
   originals on `trinity`'s USB disk, plus Paperless's documents — so the
-  capacity question does not come back. **What it cost is not written down
-  here**, which is this entry's one gap and the thing to close when the
-  receipt is to hand; the roadmap's rule is that a purchase is recorded when
-  the money is spent, and the date and the part are what that rule is for.
-  **Delayed in transit.** Amazon moved the delivery estimate on 2026-09-22 and
-  refunded the delivery fee. It had still not arrived on 2026-09-26, and that
-  day the delay went to Amazon customer service. What they answer, and the
-  day it lands, go here.
+  capacity question does not come back. **$236.70**, against the ~$150 #455
+  estimated when it was filed.
+  **Delayed in transit, then arrived 2026-09-29.** Amazon moved the delivery
+  estimate on 2026-09-22 and refunded the delivery fee. On 2026-09-26 the
+  delay went to Amazon customer service. It landed on 2026-09-29.
   **It has no vendor encryption and that is why it qualifies**: ADR-0023
   requires a key that is not the one only the operator holds, and a drive
   password is a single-holder secret behind a vendor utility, which is the
   failure that ADR exists to prevent moved one shelf further away. The
-  encryption is the estate's own, over a filesystem the other person's machine
-  can read — the pairing, and whose key it is, are
-  [#455](https://github.com/Gerrrt/HomeLab/issues/455)'s two open conditions,
-  neither of which a drive satisfies. Three things the fit checks rather than
-  assumes: it ships formatted for Windows and wants reformatting for that
-  pairing; its cable is USB 3.0 Micro-B at the drive end, so **the cable
-  travels with the drive** or the drive is a brick at the other address; and a
-  5 TB 2.5" drive of this class is shingled, which is fine for an archive
-  written in one pass and not fine as a live target.
+  encryption is the estate's own. Whose key it is and which filesystem were
+  settled on 2026-10-01 by
+  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md):
+  age archives on **exFAT**, which any holder's computer reads, encrypted to
+  the household holder with the technical second as a fallback. The proof
+  from the other person's device is still
+  [#455](https://github.com/Gerrrt/HomeLab/issues/455)'s. Three things the fit
+  checks rather than assumes: it ships formatted for Windows and is
+  reformatted exFAT before its first copy; its cable is USB 3.0 Micro-B at the
+  drive end, so **the cable travels with the drive** or the drive is a brick
+  at the other address; and a 5 TB 2.5" drive of this class is shingled, which
+  is fine for an archive written in one pass and not fine as a live target.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]

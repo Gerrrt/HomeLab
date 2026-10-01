@@ -27,7 +27,8 @@
 #
 # This copy is OFF-HOST and NOT OFF-ESTATE. oracle is on the same shelf, in
 # the same room, on the same power, and every set here is encrypted to the
-# recipients of secrets/sensitive.sops.yaml — today trinity's key alone. It
+# recipients of secrets/sensitive.sops.yaml — today trinity's key alone — and,
+# since ADR-0073, to stacks/sensitive/household.recipients as well. It
 # protects against the USB disk failing, and against trinity failing only if
 # trinity's key has a proven copy (`make secrets-verify-backup STACK=sensitive`).
 # It does NOT satisfy ADR-0023's Durable row, and ADR-0064 says so: that needs
@@ -116,8 +117,9 @@
 #   LIB_DB_CONTAINER        default sensitive-immich-db   where --prove reads the asset table
 #   SOPS_AGE_KEY_FILE       default ~/.config/sops/age/keys.txt
 #   LIB_UNSAFE_SELF_TEST    the self-test's, and nobody else's: it lifts the
-#                           mountpoint check and lets LIB_OUT_DIR, LIB_RECIPIENTS
-#                           and LIB_PROVE_ROWS stand in for the host
+#                           mountpoint check and lets LIB_OUT_DIR, LIB_RECIPIENTS,
+#                           LIB_HOUSEHOLD_RECIPIENTS_FILE and LIB_PROVE_ROWS stand
+#                           in for the host
 
 # shellcheck disable=SC2016
 # ^ the self-test hands assert() test expressions as single-quoted strings, on purpose.
@@ -160,6 +162,10 @@ fi
 SHIM
   chmod +x "${T}/bin/age"
   : > "${T}/identity"
+  # Real recipients, public halves only: the household holder and the fallback.
+  HH=age1mt2p3n6xqzevjyqq7qpxhwc3zk6wlc3qace6rj5qfhhkzhl3gyqsq5r349
+  HS=age1vfe5xddxdzh5ggqmhhte0l78s2ktvmuzyjrfpjsemuez5q9z8u2q9cdlwz
+  printf '# role: household\n%s\n# role: technical-second\n%s\n' "${HH}" "${HS}" > "${T}/household"
 
   # A library the shape trinity's is: markers in every folder, originals in
   # both trees, a dump, and derived files that must NOT travel.
@@ -180,7 +186,8 @@ SHIM
     set +e
     OUT="$(PATH="${T}/bin:${PATH}" LIB_UNSAFE_SELF_TEST="${UNSAFE-1}" \
            LIB_SOURCE="${SRC_FOR_TEST:-${T}/lib}" LIB_OUT_DIR="${T}/out" LIB_KEEP=2 \
-           LIB_RECIPIENTS=age1fixture LIB_PROVE_ROWS="${ROWS_FOR_TEST:-${T}/rows}" \
+           LIB_RECIPIENTS=age1fixture LIB_HOUSEHOLD_RECIPIENTS_FILE="${HH_FOR_TEST:-${T}/household}" \
+           LIB_PROVE_ROWS="${ROWS_FOR_TEST:-${T}/rows}" \
            SOPS_AGE_KEY_FILE="${T}/identity" "${BASH_SOURCE[0]}" "$@" 2>&1)"
     RC=$?
     set -e
@@ -206,6 +213,8 @@ SHIM
     '[[ -f ${first}/MANIFEST && -f ${first}/immich-library.tar.gz.age && ! -e ${first}/immich-library.tar.gz.age.part ]]'
   assert "the MANIFEST says what was read and which dump rides with it" \
     'grep -qx "mode	live" "${first}/MANIFEST" && grep -q "^db_dump	immich-db-backup-20260929T020000" "${first}/MANIFEST" && grep -qx "files	2" "${first}/MANIFEST"'
+  assert "the set is encrypted to the household's keys as well as the tier's (ADR-0073)" \
+    'grep -qx "recipient	age1fixture,${HH},${HS}" "${first}/MANIFEST"'
   # shellcheck disable=SC2034  # read by the assert() strings below
   listing="$(tar -tzf "${first}/immich-library.tar.gz.age")"
   assert "the originals, the profile and the dump travel" \
@@ -221,6 +230,10 @@ SHIM
   check "a source without the library's marker is refused" 1 "no .immich marker"
   assert "and the refusal wrote no set" \
     '[[ $(find "${T}/out" -mindepth 1 -maxdepth 1 -type d -name "2*" | wc -l) -eq 1 ]]'
+
+  printf '%s\n' "${HH}" > "${T}/household.bad"
+  HH_FOR_TEST="${T}/household.bad" run --local-only
+  check "a household file that does not parse fails the run, not the encryption" 1 "cannot read the household's recipients"
 
   UNSAFE="" run --local-only
   check "a source that is not a mountpoint is refused outside the self-test" 1 "not a mountpoint"
@@ -552,6 +565,19 @@ else
   mapfile -t AGE_RECIPIENTS < <("${REPO_ROOT}/scripts/key-recipients.sh" --list --stack sensitive)
 fi
 ((${#AGE_RECIPIENTS[@]})) || die "no age recipients from secrets/sensitive.sops.yaml — nothing to encrypt to"
+# And the household's (ADR-0073): the keys that open the copy on the household
+# drive, which are deliberately not in the sops rule. Encrypted to here, once,
+# so the drive carries these bytes unchanged and nothing re-encrypts the
+# library with trinity's key in hand. A file that does not parse fails the run:
+# a set made without them is one the drive will refuse as unfit.
+HOUSEHOLD_FILE="${REPO_ROOT}/stacks/sensitive/household.recipients"
+((UNSAFE)) && [[ -n ${LIB_HOUSEHOLD_RECIPIENTS_FILE:-} ]] && HOUSEHOLD_FILE="${LIB_HOUSEHOLD_RECIPIENTS_FILE}"
+household="$("${REPO_ROOT}/scripts/household-recipients.sh" --file "${HOUSEHOLD_FILE}" --list)" \
+  || die "cannot read the household's recipients from ${HOUSEHOLD_FILE} — fix it before the next set (ADR-0073)"
+while IFS= read -r r; do
+  [[ " ${AGE_RECIPIENTS[*]} " == *" ${r} "* ]] || AGE_RECIPIENTS+=("${r}")
+done <<<"${household}"
+unset household
 AGE_ARGS=()
 for r in "${AGE_RECIPIENTS[@]}"; do AGE_ARGS+=(--recipient "${r}"); done
 AGE_RECIPIENT="$(IFS=,; printf '%s' "${AGE_RECIPIENTS[*]}")"

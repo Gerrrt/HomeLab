@@ -5,6 +5,16 @@ closes [#455](https://github.com/Gerrrt/HomeLab/issues/455). It does **not**
 satisfy [ADR-0023](0023-keep-the-household-recovery-path-outside-the-estate.md),
 and it amends nothing in it.
 
+> [!NOTE]
+> **The sets open with the household's keys too, 2026-10-01.**
+> [ADR-0073](0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
+> encrypts every library set to `stacks/sensitive/household.recipients` as
+> well as to the sensitive rule, so these sets are the ones the household drive
+> carries. "Encrypted to `trinity`'s key alone" below no longer describes a new
+> set. This record is superseded as the stand-in on the first
+> `household-proof`, not before. Its nightly copy to `oracle` continues after
+> that.
+
 ## Context
 
 ADR-0023 classes Immich as **Durable**: it may be down, it may not be lost,

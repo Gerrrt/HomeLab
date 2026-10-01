@@ -19,6 +19,35 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **[#455](https://github.com/Gerrrt/HomeLab/issues/455): whose key opens the
+  household's copy is decided, and the drive is here**
+  ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)).
+  - **The drive.** The WD Elements arrived on 2026-09-29. It cost $236.70,
+    against the ~$150 the issue estimated. Both are in `hardware.md`, which
+    closes that entry's one gap.
+  - **The key.** The copy is encrypted to the household holder's key, with
+    ADR-0024's technical second as a fallback. If they turn out to be one
+    person, it is one recipient. The technical second's key alone is rejected,
+    because then the household could recover only through a technician.
+  - **Where the keys live.** In `stacks/sensitive/household.recipients`, with
+    a role per key, and not in the sensitive sops rule. That rule would also
+    open the tier's passwords. `scripts/household-recipients.sh` reads the
+    file. It refuses a malformed line, a wrong Bech32 checksum, and a file with
+    no fallback key. One person in both roles is written once as
+    `household-and-technical-second`. `check_sops_rules.py` now fails if a
+    household key appears in any rule, or if a fallback key there is not the
+    catch-all's.
+  - **What changes on `trinity`.** `backup-library.sh` encrypts each Immich
+    set to the sensitive rule's recipients plus that file's. Today that adds
+    the technical second, so the first set made after this reaches `trinity`
+    is the first that `trinity`'s key does not hold alone. `oracle`'s copies
+    open with the same keys.
+  - **What is still open.** The holder is not chosen. The drive is exFAT with
+    age archives because nobody knows what device that person uses. The proof
+    from their device, without the operator, is condition two and still
+    #455's. The carry to the drive and its deadline alert are the next change.
+    ADR-0064 stays the stand-in until that proof is run.
+
 - **A PR whose close keywords sit in prose now fails
   ([#672](https://github.com/Gerrrt/HomeLab/issues/672)).**
   - **The gap.** GitHub closes an issue for a close keyword anywhere in a PR

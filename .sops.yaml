@@ -79,6 +79,11 @@ creation_rules:
   # Grafana admin password. `make secrets-init STACK=sensitive`, run ON
   # trinity, fills the placeholder in; the technical second's recipient
   # (ADR-0024, #294) joins this rule the day the tier holds real data.
+  #
+  # The household holder's key never goes here (ADR-0073): it would open the
+  # tier's passwords as well as the household's copy. It goes in
+  # stacks/sensitive/household.recipients, and scripts/check_sops_rules.py
+  # fails if it ever appears in any rule.
   - path_regex: secrets/sensitive(\..+)?\.sops\.ya?ml$
     age: >-
       age1cpdxl6p4synccrwaaeh308n4g8rww9tv9znv32laprnk3kdpm95satjtsw
