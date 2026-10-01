@@ -14,7 +14,7 @@
 # it. The self-check at the bottom asserts the callers really do call it,
 # because one definition only helps for as long as nothing routes around it.
 #
-# actionlint and editorconfig-checker run from images pinned in
+# actionlint, editorconfig-checker and packer run from images pinned in
 # stacks/observability/compose.yaml behind the `lint` profile, for the same
 # reason `archiver` and `gitleaks` are there: an image this repository runs must
 # be one Dependabot bumps and `make pin-digests` can re-digest (#65). yamllint,
@@ -48,6 +48,7 @@
 #   - markdownlint-cli2 globs `**/*.md`, which DOES match dot directories, so
 #     its exclusions live in .markdownlint-cli2.yaml
 #   - shellcheck is handed scripts/*.sh below — one literal glob, cannot wander
+#   - packer is handed packer/ — one directory, cannot wander
 #   - actionlint reads only <repo root>/.github/workflows. Verified with
 #     -verbose: it lints 2 files with a worktree present, not 4
 #   - editorconfig-checker is handed a `git ls-files` list built below, so it
@@ -147,6 +148,16 @@ runner_for() {
         RUNNER=(docker run --rm -v "${REPO_ROOT}:/check" -w /check "${img}" editorconfig-checker)
         return 0
       fi ;;
+    packer)
+      # The entrypoint IS packer. --user so that `fmt` on a workstation could
+      # never leave a root-owned file behind, although -check writes nothing.
+      # Neither call below needs a plugin or a Proxmox: `fmt` is pure syntax,
+      # and `validate -syntax-only` stops before plugins are loaded (ADR-0074).
+      if have_docker; then
+        img="$(./scripts/image-for.sh packer)"
+        RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "${REPO_ROOT}:/repo" -w /repo "${img}")
+        return 0
+      fi ;;
   esac
   return 1
 }
@@ -197,6 +208,10 @@ run_linter markdownlint-cli2
 run_linter shellcheck scripts/*.sh
 # No arguments: actionlint finds the workflows from the repository root.
 run_linter actionlint
+# packer/ (ADR-0074). Two calls, one tool: fmt is the layout, validate is
+# whether the HCL means anything. A real build is proved on phoenix, not here.
+run_linter packer fmt -check -diff -recursive packer/
+run_linter packer validate -syntax-only packer/
 # The file list is built here rather than left to the checker, which is the one
 # linter in this list that decides for itself what to look at.
 #

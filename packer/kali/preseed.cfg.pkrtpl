@@ -1,0 +1,60 @@
+# Rendered by packer/kali.pkr.hcl with templatefile() and served once over
+# Packer's HTTP server. Debian preseed for the Kali installer.
+#
+# The `packer` user lives for the length of the build: key-only, password
+# disabled, deleted by the build's last provisioner. A clone's user comes from
+# the Proxmox cloud-init drive.
+
+d-i debian-installer/locale string en_US.UTF-8
+d-i keyboard-configuration/xkb-keymap select us
+d-i time/zone string Etc/UTC
+d-i clock-setup/utc boolean true
+d-i clock-setup/ntp boolean true
+
+d-i netcfg/choose_interface select auto
+d-i netcfg/get_hostname string tpl-kali
+d-i netcfg/get_domain string
+d-i hw-detect/load_firmware boolean false
+
+d-i mirror/country string manual
+d-i mirror/http/hostname string http.kali.org
+d-i mirror/http/directory string /kali
+d-i mirror/http/proxy string
+d-i mirror/suite string kali-rolling
+d-i mirror/codename string kali-rolling
+
+d-i passwd/root-login boolean false
+d-i passwd/user-fullname string packer
+d-i passwd/username string packer
+d-i passwd/user-password-crypted password !
+d-i user-setup/allow-password-weak boolean false
+
+d-i partman-auto/method string regular
+d-i partman-auto/choose_recipe select atomic
+d-i partman-efi/non_efi_system boolean true
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman/confirm_nooverwrite boolean true
+
+d-i apt-setup/use_mirror boolean true
+d-i apt-setup/non-free-firmware boolean true
+tasksel tasksel/first multiselect standard
+d-i pkgsel/include string openssh-server sudo qemu-guest-agent cloud-init kali-linux-default
+d-i pkgsel/upgrade select full-upgrade
+popularity-contest popularity-contest/participate boolean false
+
+d-i grub-installer/only_debian boolean true
+d-i grub-installer/bootdev string default
+
+d-i preseed/late_command string \
+  in-target mkdir -p /home/packer/.ssh; \
+  echo '${ssh_public_key}' > /target/home/packer/.ssh/authorized_keys; \
+  in-target chown -R packer:packer /home/packer/.ssh; \
+  in-target chmod 700 /home/packer/.ssh; \
+  in-target chmod 600 /home/packer/.ssh/authorized_keys; \
+  echo 'packer ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/90-packer; \
+  chmod 0440 /target/etc/sudoers.d/90-packer; \
+  in-target systemctl enable ssh qemu-guest-agent
+
+d-i finish-install/reboot_in_progress note

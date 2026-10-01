@@ -19,6 +19,32 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **The lab's VM templates are written for Packer, and not yet built**
+  ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
+  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)).
+  - **What.** A new top-level `packer/` holds four sources. Three are for
+    `Saruman`: Ubuntu 26.04 (901), Windows 11 Pro (911) and Server 2025
+    evaluation (912). The fourth, Kali (902), is for `ifrit`, which has not been
+    bought, and is [#790](https://github.com/Gerrrt/HomeLab/issues/790). `scripts/packer-smoke.sh` clones a template, waits for the guest
+    agent's address, checks the name, and destroys the clone, through the API
+    alone. The runbook is
+    [`build-the-lab-templates.md`](runbooks/build-the-lab-templates.md).
+  - **How it changes.** Each Windows build ends in `sysprep /generalize`, so
+    every clone gets its own machine SID. The issue proposed rebuilding and
+    renaming the template, which would not have done that. Templates are
+    rebuilt in place with `packer build -force`, so guests are full clones
+    only. The token and the build password stay in `phoenix.env`. That
+    settles the encrypted-in-repo question ADR-0043 left open: there isn't
+    one, because `phoenix` has no age key.
+  - **Proved so far.** `scripts/lint.sh` now runs `packer fmt -check` and
+    `packer validate -syntax-only` from a pinned `hashicorp/packer:1.16.1`.
+    A full `packer validate` with the pinned plugin, v1.2.4, also passed on a
+    workstation. The rendered Autounattend and OOBE files parse as XML and the
+    autoinstall seed parses as YAML. Nothing has been built on `Saruman` yet.
+  - **Still open, so #440 stays open.** Its acceptance is a build on
+    `phoenix`, a clone that comes up, and a second build that is just as
+    usable. That is the runbook's §6–§8, and the `PhoenixBuilder` privileges
+    it turns up go in its §2.
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455): whose key opens the
   household's copy is decided, and the drive is here**
   ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)).
