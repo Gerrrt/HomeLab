@@ -204,7 +204,11 @@ Closes when Wazuh and Velociraptor report the six agents in.
   [#439](https://github.com/Gerrrt/HomeLab/issues/439)'s removal procedure
   landed ahead of Velociraptor, as the runbook's §13 (#657);
   [#438](https://github.com/Gerrrt/HomeLab/issues/438)'s disposable stack
-  follows `odin`. → [runbook](runbooks/build-the-soc-guest.md)
+  is authored: `stacks/scratch/`, on a `diabolos` that is built per
+  investigation and destroyed
+  ([ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md),
+  [runbook](runbooks/run-a-scratch-investigation.md)); its first build is
+  its first investigation. → [runbook](runbooks/build-the-soc-guest.md)
 - **[#671](https://github.com/Gerrrt/HomeLab/issues/671) A second way into
   the lab's secrets.** `secrets/lab.sops.yaml` is in git since #667, and
   encrypted to one key that lives only on `alexander`; a second recipient or

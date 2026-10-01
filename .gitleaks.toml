@@ -79,7 +79,7 @@ regexes = [
   # ${PLACEHOLDER} substitution targets are not secrets.
   '''\$\{[A-Z_]+\}''',
   '''change-me[a-z-]*''',
-  '''REPLACE_WITH_YOUR_AGE_PUBLIC_KEY''',
+  '''REPLACE_WITH_[A-Z]+_AGE_PUBLIC_KEY''',
   '''example\.invalid''',
   '''validation-only''',
   # age *public* keys are safe to commit; only the secret key matters.

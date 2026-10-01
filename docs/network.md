@@ -445,6 +445,17 @@ Where things get broken on purpose.
   addresses are DHCP reservations, read from `morpheus`'s `config.xml` on
   2026-09-26, and not statics. They run per session, so an absence from the
   segment is normal.
+- `10.0.30.61` and VMID 161 are reserved for `diabolos`, the disposable
+  investigation guest of
+  [ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)
+  ([#438](https://github.com/Gerrrt/HomeLab/issues/438)). It is not in the table
+  above because most of the time it does not exist: it is built for one
+  investigation and destroyed at the end of it
+  ([`run-a-scratch-investigation.md`](runbooks/run-a-scratch-investigation.md)).
+  `.61` breaks the decade spacing on purpose, since every `.x0` from `.10` to
+  `.90` is taken or reserved, and sits in `odin`'s decade because it runs
+  `odin`'s stack. While it exists it is a static below the DHCP pool, like
+  `odin`, and it gets no firewall rule the segment does not already have.
 - `odin` is at `10.0.30.60` — a static below `.100`, continuing the decade
   spacing — for [`stacks/soc`](../stacks/soc): Wazuh and Velociraptor, the
   security half of ADR-0007, placed there by

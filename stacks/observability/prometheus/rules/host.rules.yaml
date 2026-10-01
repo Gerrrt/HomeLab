@@ -609,7 +609,15 @@ groups:
         # The alternative — a table of which guests are expected to be up —
         # was rejected: it is a second copy of a fact that changes whenever a
         # VM is created, and this repository has enough of those.
-        expr: homelab_guest_running == 0
+        #
+        # EXCEPT A DISPOSABLE GUEST (ADR-0071). For a guest tagged `disposable`
+        # on the hypervisor, stopped is the expected state between sessions and
+        # destroyed is the goal, so this rule saying "stopped" is noise in
+        # exactly the direction #438 warns about. DisposableGuestOutlived
+        # watches those guests instead, running or not.
+        expr: >-
+          homelab_guest_running == 0
+          unless on (host, vmid) homelab_guest_disposable == 1
         for: 1h
         labels:
           component: host
@@ -623,6 +631,48 @@ groups:
             estate cannot tell the difference, and says so rather than implying
             it can. If it was not, the guest is down and anything inside it,
             including the lab stack on `alexander`, is down with it.
+
+      - alert: DisposableGuestOutlived
+        # The inverted liveness check #438 asked for: for a guest the hypervisor
+        # marks `disposable`, STILL EXISTING is the thing that gets noticed. A
+        # throwaway investigation store that stays up for four months is `odin`
+        # with worse retention and nobody watching it.
+        #
+        # AGE, NOT UPTIME, and running or stopped alike. A stopped disposable
+        # guest still holds a detonation's output on the segment that exists to
+        # hold attackers; only `qm destroy` ends it. And age is read from the
+        # guest's own config (`meta: ctime=`), so it survives a Prometheus
+        # restart and a retention window that a `for: 14d` would not.
+        #
+        # NOT A TABLE. Which guests are disposable is the tag on the guest,
+        # set by `qm create --tags disposable` where the guest is made, and read
+        # by scripts/collect-guest-state.sh on the hypervisor — the run-state
+        # class of fact ADR-0028 lets cross. Nothing here names diabolos, and a
+        # second throwaway guest is covered the day it is tagged. This is also
+        # the shape ADR-0017 found no rule for, for ifrit: "on when it should
+        # be off" becomes expressible once the guest says it should be off.
+        #
+        # A FORTNIGHT (ADR-0071): a detonation is an afternoon and "a single
+        # question over a weekend" is three days; two weeks is the point past
+        # which it is no longer an investigation but an unmanaged SIEM. Warning,
+        # because the answer is a teardown, not a 3am page.
+        expr: >-
+          (time() - homelab_guest_created_timestamp_seconds) > 14 * 86400
+          and on (host, vmid) homelab_guest_disposable == 1
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: disposable guest {{ $labels.guest }} is {{ $value | humanizeDuration }} old"
+          description: >-
+            This guest is tagged `disposable` on the hypervisor and has existed
+            for more than a fortnight. Either the investigation is over and the
+            guest should be gone — export what the case needs, then `qm destroy
+            {{ $labels.vmid }} --purge`, per
+            docs/runbooks/run-a-scratch-investigation.md — or it is no longer
+            disposable, and the tag is the thing to remove, deliberately.
 
       - alert: GuestStateStopped
         # The collector itself stopped reporting. Without this, a hypervisor

@@ -19,6 +19,31 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **`stacks/scratch` authored, a disposable copy of the SOC stack**
+  ([#438](https://github.com/Gerrrt/HomeLab/issues/438),
+  [ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)).
+  It is for detonations and one-off questions, so that their noise never spends
+  `odin`'s shard budget or enters its record.
+  - **Where it runs.** On `diabolos` (`10.0.30.61`, VMID 161), a guest built per
+    investigation and destroyed with `qm destroy --purge`
+    ([`run-a-scratch-investigation.md`](runbooks/run-a-scratch-investigation.md)).
+    The stack is authored and CI-validated ahead of the guest, as `stacks/soc`
+    and `stacks/sensor` were.
+  - **What it runs.** soc's four services on soc's digests, with soc's
+    configuration mounted rather than copied.
+  - **What it leaves out.** No ISM policy, Alloy, scrape or backup.
+  - **Lifecycle.** `scripts/collect-guest-state.sh` now also reads each guest's
+    `qm config` and reports `homelab_guest_disposable`, from the Proxmox tag,
+    and `homelab_guest_created_timestamp_seconds`, from `meta: ctime`.
+    - A new estate rule, `DisposableGuestOutlived`, fires when a guest tagged
+      `disposable` is more than a fortnight old, running or stopped.
+    - `HypervisorGuestStopped` no longer fires for such a guest.
+    - Run read-only on `Saruman` the same day, the collector reported all ten
+      guests with a creation time and none disposable, in 14.5 s.
+  - **Secrets.** The guest gets its own `.sops.yaml` rule above the catch-all,
+    with a placeholder that stays in git. Its encrypted secrets file is
+    gitignored and never committed.
+
 - **JA4+ is vendored into `stacks/sensor`, and not yet deployed**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
