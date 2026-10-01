@@ -19,6 +19,29 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **A PR whose close keywords sit in prose now fails
+  ([#672](https://github.com/Gerrrt/HomeLab/issues/672)).**
+  - **The gap.** GitHub closes an issue for a close keyword anywhere in a PR
+    body or a commit that lands on main. Eight issues were closed by prose
+    that said they stayed open, and three sat closed with the work undone
+    until the 2026-09-26 pass. A ninth, #776, was named by #780 on 2026-09-30
+    as "Refs" and as closing in the same body. Checking
+    `closingIssuesReferences` by hand had not been enough.
+  - **Now.** `scripts/check_close_keywords.py` runs on every PR from its own
+    workflow, `close-keywords.yml`, which re-runs when the body is edited. It
+    reads the title, body, commits and `closingIssuesReferences` over GraphQL
+    and fails when a close keyword is not the first word of its sentence,
+    when its sentence says not, nothing or stays open, or when an issue the
+    merge will close is also named with `Refs`. The issues the merge will
+    close go to the job summary either way. An intended close is written
+    `Closes #N.` as a sentence of its own.
+  - **Proved against the record.** Run read-only on the PRs that did it: #319,
+    #252, #382, #521, #545, #652, #664, #758 and #780 all fail; #781 and #743
+    pass and list what they closed. Each phrase is also a fixture in the
+    script's `--self-test`.
+  - **Drafts.** `--text FILE` (or `-` for stdin) lints a PR body or commit
+    message before it is pushed.
+
 - **Convergence reported "converged" over rules it had never deployed.**
   - **The finding.** After #781 merged, the deployment checkout on
     `prometheus` was already at the merge, but Prometheus was serving the

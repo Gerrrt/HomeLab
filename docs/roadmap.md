@@ -78,10 +78,6 @@ Closes when it is empty.
   redeployed carrying them, then `make up` on the monitoring host. The issue
   stays open until `deploy-agent.sh` has shown fresh data from all three agents
   and the refusal probes are green.
-- **[#672](https://github.com/Gerrrt/HomeLab/issues/672) Fail a PR whose
-  close keywords sit in prose.** Eight issues have been closed by a keyword
-  inside a sentence saying the issue stays open; three of them sat closed with
-  the work undone until the 2026-09-26 pass found them.
 
 The rest of the milestone has no order between its issues.
 
