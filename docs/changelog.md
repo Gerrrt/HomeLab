@@ -66,6 +66,67 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-09-30
 
+- **Zeek on `fenrir` is built, and the gauge is proved by a reboot**
+  ([#437](https://github.com/Gerrrt/HomeLab/issues/437), closed;
+  [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md),
+  [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md)). Times
+  are Pacific.
+  - **§3 and §4, the guest.** Ubuntu 26.04.1 went on the 32 GB disk, and the
+    64 GB data disk is mounted at `/srv/sensor-data` with an immutable empty
+    mountpoint underneath.
+    - The installer had set the capture NIC `ens19` to accept router
+      advertisements, and it had an `fe80::` address. `60-capture.yaml` takes
+      both away. A reboot proved the mount and the NIC.
+    - The SSH that answered during the install was the installer's, with its
+      own host key. Before trusting the installed system's key, `Saruman`
+      confirmed that `10.0.30.90` is `fenrir`'s MAC, learned on `tap190i0`.
+    - Docker comes from Docker's repository, its key checked against the
+      published fingerprint. `local.zeek` parsed on the pinned `zeek/zeek:9.0.0`
+      image (`zeek -a`), the first time it had been parsed at all.
+    - `stacks/sensor` came up. The lab's Loki on `alexander` has 20 Zeek log
+      types from it.
+  - **§5, the mirror.** The mirror job's first run applied all 11 targets:
+    `eno1`, nine guest taps and `vmbr0`'s own egress. The gauge read 1, with 11
+    of 11 ports mirrored and 3,116 packets.
+    - The installer was run from the checkout on `Saruman`, so it SSHed to
+      `root@10.0.30.110` from `10.0.30.110`. That fired the critical
+      `SshLoginFromUnexpectedSubnet` (18:32 login, resolved by 18:45). It was
+      not a breach. The runbook now says to run the installer from Hicks.
+  - **§6, the checks.**
+    - **East-west traffic.** `net view \\titan` from `carbuncle` showed up as
+      a Kerberos TGS from `carbuncle` to `leviathan` for `cifs/titan`, the AP
+      exchange at `titan`, an `IPC$` mapping, and `srvsvc` `NetrShareEnum`.
+      None of that crosses a router.
+    - **TLS.** Server names were logged.
+    - **Loki.** `| json` queries return fields.
+    - **VLAN 99.** `fenrir`'s Alloy points only at `alexander`.
+    - **The stop test took two tries.** The first was invalid: `fenrir` was
+      started again at 18:45:00, 38 seconds before the gauge's first run after
+      the stop, so it never read 0. The alert reported then was the SSH one
+      above. The second worked:
+      - stopped at 18:49:38;
+      - the mirror job removed all 11 filters 19 seconds later;
+      - the gauge read 0 from 18:50:18;
+      - `ZeekMirrorInactive` fired at about 19:02;
+      - started at 19:07:12, filters back at 19:08:17, gauge 1 at 19:10:06,
+        and the alert resolved.
+  - **§7, the reboot proof.** `homelab-zeek-mirror.timer` was disabled at
+    19:11:31 and `Saruman` rebooted. It was up at 19:15:46.
+    - The gauge read 0 on all eleven runs from 19:20 to 20:05. The guests were
+      up, `fenrir`'s tap was up, 0 of 9 ports were mirrored, and the packet
+      count stayed flat at 2.
+    - `ZeekMirrorInactive` fired, confirmed on the estate's side.
+    - The timer was re-enabled at 20:10:26. Its first run covered the 9 ports
+      present. The next, at 20:11:27, added `carbuncle`'s and `siren`'s, which
+      had just been started. The gauge read 1 at 20:11:31 (11 of 11, 21,461
+      packets).
+    - The issue's test was that a unit that silently stopped must not leave a
+      healthy-looking metric behind. It did not.
+  - **Cleaned up.** The temporary passwordless `sudo` for `atreus` on `fenrir`
+    is removed. `carbuncle` and `siren` are `onboot=0` by design, so they came
+    back only when started by hand.
+  - **Still open:** JA4 fingerprints, which need a derived Zeek image.
+
 - **`vmbr1` exists on `Saruman`**, the first host step of #437's build
   ([`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md) §1).
   - **Applied with `ifup vmbr1`, not `ifreload -a`,** so `vmbr0` was never

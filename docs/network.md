@@ -408,6 +408,7 @@ Where things get broken on purpose.
 | odin | `10.0.30.60` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Security tooling (SOC) |
 | carbuncle | `10.0.30.54` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
+| fenrir | `10.0.30.90` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Zeek sensor |
 
 ### Notes
 
@@ -485,8 +486,8 @@ Where things get broken on purpose.
   alias is pinned to `10.0.30.110` so that the four rules above are the only
   way in. Hicks reaches `8006`, `8007` and `22`; `phoenix` reaches `8006`;
   nothing else on this segment reaches the hypervisor at all.
-- `fenrir`, **not built yet**, is planned at `10.0.30.90` — the next free
-  decade — as the Zeek sensor of
+- `fenrir` is at `10.0.30.90`, the next free decade, built 2026-09-30 as the
+  Zeek sensor of
   [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)
   ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
   [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md)). It has a
