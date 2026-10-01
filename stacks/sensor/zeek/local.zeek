@@ -29,9 +29,18 @@ redef Site::local_nets += { 10.0.30.0/24 };
 # limit gives up. SNI, and the certificate subjects and issuers, are in ssl.log
 # and x509.log with no help. This adds whether each chain validates against
 # the Mozilla roots Zeek ships: a self-signed or unverifiable certificate on a
-# lab host's outbound TLS is the shape of a C2 channel. JA4 fingerprints are
-# not in the stock image — a follow-up, not a gap this file pretends to fill.
+# lab host's outbound TLS is the shape of a C2 channel.
 @load protocols/ssl/validate-certs
+
+# JA4+ fingerprints (ADR-0069, #776): FoxIO's scripts package, vendored at a
+# commit into ./ja4 by scripts/vendor-ja4.sh and mounted read-only beside this
+# file. It adds ja4 and ja4s to ssl.log, ja4h to http.log, ja4l, ja4ls,
+# ja4l_delta, ja4ls_delta, ja4t and ja4ts to conn.log, and writes ja4ssh.log and
+# ja4d.log. Which methods run is
+# set by `@if` in the vendored config.zeek at load time, so a redef here cannot
+# change it: everything but JA4X, upstream's default. JA4 is BSD; the rest is
+# the FoxIO License 1.1, which ./ja4/NOTICE spells out.
+@load ./ja4
 
 # Kerberos tickets per request, so a Kerberoast — many TGS requests for
 # service tickets from one client — is a query rather than a hunch.

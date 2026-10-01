@@ -98,6 +98,10 @@ services:
       - /zeek/site/local.zeek
     volumes:
       - ./zeek/local.zeek:/zeek/site/local.zeek:ro
+      # FoxIO's ja4-zeek-scripts, vendored at a commit by scripts/vendor-ja4.sh
+      # (ADR-0069). Read-only beside local.zeek, which loads it. Not MIT:
+      # zeek/ja4/NOTICE says what licenses it.
+      - ./zeek/ja4:/zeek/site/ja4:ro
       - zeek-logs:/zeek/logs
 
   # ---------------------------------------------------------------------------

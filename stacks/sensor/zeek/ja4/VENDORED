@@ -1,0 +1,5 @@
+# Vendored by scripts/vendor-ja4.sh. Do not edit the files beside this one by
+# hand: re-vendor instead, so the diff is upstream's (ADR-0069).
+upstream: https://github.com/FoxIO-LLC/ja4-zeek-scripts
+commit: 8bf9feca52790ae8c926c6a8d79a3547ac19541a
+vendored: 2026-10-01
