@@ -14,8 +14,9 @@ minutes of waiting for each Windows one.
 - a root shell on `Saruman`, for §2 and §2b only;
 - the installer ISOs that [`build-the-lab-domain.md`](build-the-lab-domain.md)
   §1 uploaded to `local:iso/`, which §2b copies onto `smaug-iso` and lists:
-  `windows-11.iso`, `windows-server-2025-eval.iso`, the VirtIO disc, and the
-  Ubuntu 26.04 live-server ISO;
+  `windows-server-2025-eval.iso`, the VirtIO disc, and the Ubuntu 26.04
+  live-server ISO. Windows 11 is downloaded again as 26H2, because the
+  March ISO's hash is no longer published;
 - a machine that can SSH to `Saruman` as root, for §2b's install of the daily
   checksum run. `phoenix` cannot.
 
@@ -146,8 +147,23 @@ as trustworthy as that list, so the list is written here, once, with care.
    build from the store has worked:
 
    ```bash
-   cd /var/lib/vz/template/iso && cp -n ubuntu-26.04.1-live-server-amd64.iso windows-11.iso windows-server-2025-eval.iso /mnt/smaug-iso/template/iso/
+   cd /var/lib/vz/template/iso && cp -n ubuntu-26.04.1-live-server-amd64.iso windows-server-2025-eval.iso /mnt/smaug-iso/template/iso/
    ```
+
+   **Windows 11 is not copied, it is downloaded again.** The `windows-11.iso`
+   on `local` is from March 2026, an earlier release whose hash Microsoft no
+   longer publishes, so nothing outside this estate can vouch for it. Take
+   the current English 64-bit ISO from Microsoft's Windows 11 download page
+   in a browser. Upload it through the Proxmox UI to **`smaug-iso`**, then
+   rename it on `Saruman` to the name the list and Packer use:
+
+   ```bash
+   cd /mnt/smaug-iso/template/iso && mv -n Win11_*English_x64*.iso windows-11-26h2.iso && sha256sum windows-11-26h2.iso
+   ```
+
+   The templates then carry a newer Windows than `carbuncle` and `siren`,
+   which were built from the March ISO. That is expected, and it resolves
+   when #448 rebuilds them from the templates.
 
    The VirtIO disc is already there as `virtio-win-0.1.302.iso`, from
    `build-the-nas.md` §5b's test upload. If `local` holds a `virtio-win.iso`,
@@ -165,7 +181,7 @@ as trustworthy as that list, so the list is written here, once, with care.
    | --- | --- |
    | `ubuntu-26.04.1-live-server-amd64.iso` | `SHA256SUMS` beside it on `releases.ubuntu.com`, signed by Ubuntu's CD image key |
    | `virtio-win-0.1.302.iso` | The `.sha256` beside it on `fedorapeople.org` |
-   | `windows-11.iso` | The SHA-256 table on Microsoft's Windows 11 download page, for the language and edition downloaded |
+   | `windows-11-26h2.iso` | The SHA-256 table on Microsoft's Windows 11 download page, English 64-bit. The list carries Microsoft's value itself, so a download that differs reads `mismatch` |
    | `windows-server-2025-eval.iso` | Microsoft publishes none for the evaluation media. Compare it with the copy on `local`, and record that it is trusted from its download, not from a published hash |
 
    **A hash that matches no publisher does not go in the list.** Download the
@@ -200,9 +216,11 @@ as trustworthy as that list, so the list is written here, once, with care.
    pveum acl modify /storage/smaug-iso --users phoenix@pve --roles PVEAuditor && pveum acl list | grep smaug-iso
    ```
 
-6. **After the first build from the store works (§4),** remove the three
-   copies from `local`. Two copies of an installer are two things to keep
-   identical, and only one of them is checked.
+6. **After the first build from the store works (§4),** remove the
+   installers from `local`, the March `windows-11.iso` included. Two copies
+   of an installer are two things to keep identical, and only one of them is
+   checked. If an earlier copy put `windows-11.iso` on the share too, delete
+   it there now: it is not on the list, so it reads `unlisted`.
 
 **Changing an ISO later** is all six steps for that file, in the same
 order: copy, hash, check against the publisher, list, reinstall, build. Until

@@ -46,6 +46,22 @@ set -uo pipefail
 # AGENT=root@10.0.30.110 ARGS='--only iso-store-state'`, because the host has
 # no checkout of this repository.
 EXPECTED="$(cat <<'LIST'
+# Ubuntu 26.04.1 live server. releases.ubuntu.com SHA256SUMS, with a good
+# signature from Ubuntu's CD image key 8439 38DF 228D 22F7 B374 2BC0 D94A A3F0
+# EFE2 1092. Matches Saruman's copy, 2026-10-01.
+cc8a95cde20f6ced61a322420de00f10cc3c90ced545daa46cb9c1a117f1d927  ubuntu-26.04.1-live-server-amd64.iso
+# VirtIO 0.1.302. Fedora publishes no ISO hash, so the ISO was downloaded from
+# fedorapeople.org over HTTPS on another host and hashed there: identical to
+# Saruman's copy and to the virtio-win.iso the domain was built with.
+303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d  virtio-win-0.1.302.iso
+# Windows 11 26H2, English 64-bit. Microsoft's own hash, from the table on
+# microsoft.com/software-download/windows11, read 2026-10-01. Listed from the
+# publisher rather than from a download, so the file placed must be this one.
+bd4307df32bc8af33b39ccecb1174aeb345386630f89a2b86c7a4e36b55ea650  windows-11-26h2.iso
+# Windows Server 2025 evaluation. Microsoft publishes no hash for evaluation
+# media, so this is trusted from its download (build-the-lab-domain.md §1),
+# not from a publisher. Matches Saruman's local copy, 2026-10-01.
+7b052573ba7894c9924e3e87ba732ccd354d18cb75a883efa9b900ea125bfd51  windows-server-2025-eval.iso
 LIST
 )"
 

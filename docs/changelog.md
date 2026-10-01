@@ -41,9 +41,13 @@ docstring gives: it is a record, not a claim about now.
     answer disc carries the build password, and Kali stays `local` because
     `ifrit` cannot mount the store. `phoenix` gets `PVEAuditor` on
     `/storage/smaug-iso`: enough to attach an ISO, and nothing that writes.
-  - **The list.** It holds the installers' hashes from `Saruman`, each
-    checked against its publisher where one is published
-    (`build-the-lab-templates.md` §2b).
+  - **The list.** Ubuntu's hash matched its signed `SHA256SUMS`. VirtIO's
+    matched Fedora's ISO, downloaded and hashed on another host, because
+    Fedora publishes no ISO hash. Server 2025 evaluation is trusted from its
+    download, because Microsoft publishes none for evaluation media. The
+    March `windows-11.iso` matched nothing Microsoft still publishes, so
+    the list carries Microsoft's own hash for 26H2 English 64-bit, and the
+    ISO is to be downloaded again as `windows-11-26h2.iso`.
 - **The household drive is formatted and rehearsed
   ([#455](https://github.com/Gerrrt/HomeLab/issues/455)).** This closes the
   gap the entry below names. The holder is still not chosen.

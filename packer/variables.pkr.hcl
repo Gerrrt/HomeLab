@@ -130,7 +130,7 @@ variable "kali_node" {
 
 variable "win11_iso_file" {
   type    = string
-  default = "smaug-iso:iso/windows-11.iso"
+  default = "smaug-iso:iso/windows-11-26h2.iso"
 }
 
 variable "ws2025_iso_file" {
