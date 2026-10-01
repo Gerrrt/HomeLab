@@ -94,13 +94,27 @@ the drive plugged in (on Windows it will be a letter such as `E:`):
 C:\age\age\age.exe -d -i "%USERPROFILE%\household-key.txt" E:\PROOF\proof.txt.age
 ```
 
-**Mac:** the drive is under `/Volumes/HOUSEHOLD`:
+**Mac or Linux:** first say where the drive is, once per window. On a Mac it
+is `/Volumes/HOUSEHOLD`. On Linux it is usually `/media/<your user
+name>/HOUSEHOLD`; `ls /media/$USER` shows it.
+
+On a Mac:
 
 ```bash
-~/age/age -d -i ~/household-key.txt /Volumes/HOUSEHOLD/PROOF/proof.txt.age
+D=/Volumes/HOUSEHOLD
 ```
 
-**Linux:** the same, with the drive's path (often `/media/<you>/HOUSEHOLD`).
+On Linux:
+
+```bash
+D=/media/$USER/HOUSEHOLD
+```
+
+Then:
+
+```bash
+~/age/age -d -i ~/household-key.txt "$D/PROOF/proof.txt.age"
+```
 
 It prints a twelve-digit code. **Phone the person who set this up and read it
 to them.** That is the whole proof, and it counts only if you did it yourself.
@@ -122,11 +136,11 @@ C:\age\age\age.exe -d -i "%USERPROFILE%\household-key.txt" -o C:\Restored\docume
 tar -xzf C:\Restored\documents.tar.gz -C C:\Restored
 ```
 
-**Mac or Linux:**
+**Mac or Linux**, with `D` set as in step 2:
 
 ```bash
 mkdir -p ~/Restored
-~/age/age -d -i ~/household-key.txt /Volumes/HOUSEHOLD/household/paperless-documents/*/paperless-documents.tar.gz.age | tar -xzf - -C ~/Restored
+~/age/age -d -i ~/household-key.txt "$D"/household/paperless-documents/*/paperless-documents.tar.gz.age | tar -xzf - -C ~/Restored
 ```
 
 Open `Restored` and open one document. They are the original files, with
@@ -148,11 +162,11 @@ C:\age\age\age.exe -d -i "%USERPROFILE%\household-key.txt" -o C:\Restored\photos
 tar -xzf C:\Restored\photos.tar.gz -C C:\Restored\photos
 ```
 
-**Mac or Linux:**
+**Mac or Linux**, with `D` set as in step 2:
 
 ```bash
 mkdir -p ~/Restored/photos
-~/age/age -d -i ~/household-key.txt /Volumes/HOUSEHOLD/household/immich-library/*/immich-library.tar.gz.age | tar -xzf - -C ~/Restored/photos
+~/age/age -d -i ~/household-key.txt "$D"/household/immich-library/*/immich-library.tar.gz.age | tar -xzf - -C ~/Restored/photos
 ```
 
 The photographs are under `photos/library` and `photos/upload`, in folders by

@@ -130,7 +130,7 @@ SHIM
   KT=age1zkk7g3ufhfs5e78mkn80q3wawj8497y4d9lcffvjndw6fjepy4mq0ccxds   # trinity
   KR=age1x9dgekxhr2y9sxsfvth4dmm3l0pv2l2hdhc7w7dkf3gpflvlmarq3z5qe5   # a rehearsal's throwaway
   # The recipients of the newest age call the shim saw, one per line.
-  # shellcheck disable=SC2329  # called from assert()'s eval strings
+  # shellcheck disable=SC2317,SC2329  # called from assert()'s eval strings
   last_call() { awk '/^--$/ { n = 0; delete k; next } { k[++n] = $0 } END { for (i = 1; i <= n; i++) print k[i] }' "${T}/recipients.log"; }
   printf '# role: household\n%s\n# role: technical-second\n%s\n' "${KH}" "${KS}" > "${T}/both"
   printf '# role: technical-second\n%s\n' "${KS}" > "${T}/second"
@@ -243,6 +243,9 @@ SHIM
   assert "nothing was deleted" '[[ -f ${lib} ]]'
   rm -rf "${M}/household/immich-library/20260930T051500Z"
 
+  mv "${R}/backups/household/tools/age-v0-windows-amd64.zip" "${T}/tool.bak"
+  run "${M}" --rehearse;             check "a rehearsal without a pinned tool is refused too" 1 "is not in"
+  mv "${T}/tool.bak" "${R}/backups/household/tools/age-v0-windows-amd64.zip"
   printf 'not-age\n' > "${R}/backups/household/tools/age-v0-windows-amd64.zip"
   run "${M}";                        check "a tool that is not the pinned build is refused" 1 "does not match"
   printf 'age-for-windows\n' > "${R}/backups/household/tools/age-v0-windows-amd64.zip"
@@ -475,10 +478,10 @@ mapfile -t tools < <(pinned_tools)
 ((${#tools[@]})) || die "no pinned tools in ${TOOLS_SHA}"
 for line in "${tools[@]}"; do
   read -r want name <<<"${line}"
-  if [[ ! -f ${TOOLS_SRC}/${name} ]]; then
-    [[ ${MODE} == rehearse ]] && { warn "${name} is not in ${TOOLS_SRC} — the rehearsal goes without it"; continue; }
-    die "${name} is not in ${TOOLS_SRC} — download it once: docs/runbooks/carry-the-household-copy.md §1"
-  fi
+  # A rehearsal too: it is the same copy, and the binaries are what the
+  # holder's side of a rehearsal opens it with.
+  [[ -f ${TOOLS_SRC}/${name} ]] \
+    || die "${name} is not in ${TOOLS_SRC} — download it once: docs/runbooks/carry-the-household-copy.md §1"
   [[ $(sha256sum -- "${TOOLS_SRC}/${name}" | cut -d' ' -f1) == "${want}" ]] \
     || die "${TOOLS_SRC}/${name} does not match its pinned sha256 — not the build stacks/sensitive/household-age.sha256 names; delete it and download it again"
 done

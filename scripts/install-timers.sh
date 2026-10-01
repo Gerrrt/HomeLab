@@ -497,6 +497,9 @@ if [[ "${MODE}" == check ]]; then
     missing=()
     for row in "${SENSITIVE_JOBS[@]}"; do
       unit="$(job_unit "${row}")"
+      # household-copy and household-proof are human jobs, "-" as on the
+      # estate's side: no timer to be enabled (ADR-0073).
+      [[ "${unit}" == "-" ]] && continue
       state="$(systemctl is-enabled "${unit}.timer" 2>/dev/null || true)"
       case "${state}" in
         enabled | enabled-runtime | static | indirect | generated) ;;
