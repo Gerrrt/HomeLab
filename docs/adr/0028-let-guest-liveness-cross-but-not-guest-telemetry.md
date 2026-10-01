@@ -2,6 +2,17 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> The table in the Decision is widened by
+> [ADR-0070](0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md),
+> 2026-10 ([#778](https://github.com/Gerrrt/HomeLab/issues/778)): a guest's
+> filesystem capacity (size and bytes used per filesystem, and whether its agent
+> answered) now crosses, read on `Saruman` with `qm guest cmd <vmid> get-fsinfo`.
+> That number is produced inside the guest, so it is the one exception to "any
+> metric produced inside it", and it is treated as hostile input. Run state is
+> unchanged, as is everything else in the right-hand column. The text here is
+> left as written, per ADR-0001.
+
 ## Context
 
 [ADR-0007](0007-defensive-estate-and-offensive-range.md) keeps the lab's

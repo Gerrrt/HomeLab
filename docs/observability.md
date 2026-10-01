@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-125 rules in total: 107 metric-based in `prometheus/rules/`, and 18 log-based in
+129 rules in total: 111 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -450,7 +450,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-107 rules across eleven files in `prometheus/rules/`:
+111 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -473,7 +473,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is eighty-seven rules of 107 so far — all ten
+against the broken rule too. Coverage is ninety-one rules of 111 so far — all ten
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
@@ -482,7 +482,7 @@ in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ScrapeTargetDisappeared`,
 `SuricataStopped`, the two gateway rules from
 [#353](https://github.com/Gerrrt/HomeLab/issues/353), the two dynamic DNS rules from
-[#604](https://github.com/Gerrrt/HomeLab/issues/604), and all thirty-three in
+[#604](https://github.com/Gerrrt/HomeLab/issues/604), and all forty-one in
 `host.rules.yaml` —
 `HostDiskWillFillIn24h` from [#189](https://github.com/Gerrrt/HomeLab/issues/189),
 six more from [#320](https://github.com/Gerrrt/HomeLab/issues/320), the four
@@ -498,7 +498,8 @@ the cell-temperature and runtime rules from
 [#532](https://github.com/Gerrrt/HomeLab/issues/532), `SmartStateStale`
 from [#483](https://github.com/Gerrrt/HomeLab/issues/483), the three thin-pool rules from
 [#538](https://github.com/Gerrrt/HomeLab/issues/538), the three firewall rules from
-[#576](https://github.com/Gerrrt/HomeLab/issues/576), the two Zeek mirror rules from
+[#576](https://github.com/Gerrrt/HomeLab/issues/576), the four guest-disk rules from
+[#778](https://github.com/Gerrrt/HomeLab/issues/778), the two Zeek mirror rules from
 [#437](https://github.com/Gerrrt/HomeLab/issues/437), and the two silence rules from
 [#575](https://github.com/Gerrrt/HomeLab/issues/575).
 The other 20 are still validated for syntax only, which is exactly the
@@ -566,6 +567,21 @@ read by `scripts/collect-thin-pool-state.sh` from `lvs` every ten minutes:
 — critical, not a warning, because a pool that fills turns every guest on it
 read-only at once — on the same six-hour extrapolation, once the pool is half
 used ([#538](https://github.com/Gerrrt/HomeLab/issues/538)).
+
+**Disk alerts on `Saruman`'s guests are read through the hypervisor.** The lab
+guests push to the lab's Prometheus, not here (ADR-0007), so `node_filesystem_*`
+never arrives for them. `scripts/collect-guest-disk-state.sh` asks each running
+VM's qemu-guest-agent for `get-fsinfo` every ten minutes and writes
+`homelab_guest_filesystem_size_bytes` and `_used_bytes` per guest and mountpoint.
+`GuestDiskCritical` (below 10% free for 15 minutes) and `GuestDiskWillFillIn24h`
+(the six-hour extrapolation, under 30% free) are both **critical**: a lab guest
+is not somewhere anyone looks, and `odin`'s root reached 98% on 2026-10-01 with
+nothing to say so ([#778](https://github.com/Gerrrt/HomeLab/issues/778)).
+[ADR-0070](../adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md)
+records why this crosses when ADR-0028 kept guest metrics in the lab, and why
+the agent's answer is treated as hostile input. `GuestAgentSilent` warns when a
+guest's agent stops answering, and `GuestDiskStateStale` when the collector
+stops writing.
 
 ### Routing
 

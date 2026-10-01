@@ -161,7 +161,7 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
-`guest-state`, `thin-pool-state`, `pve-firewall-state`, `zeek-mirror-state` and `drift-check`, plus the two
+`guest-state`, `thin-pool-state`, `guest-disk-state`, `pve-firewall-state`, `zeek-mirror-state` and `drift-check`, plus the two
 rows that collect nothing, `zeek-mirror` and `prune-images` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
@@ -189,9 +189,22 @@ it installs on `oracle`, `trinity`, `alexander` and `odin`, and `Saruman`
 reports it as one it cannot run. Like `zeek-mirror` it writes no `.prom`. An
 agent host has no `homelab_job_*` metrics, so a failed run shows only in
 `journalctl -u homelab-prune-images`. What would show it is the disk: on the
-two lab guests, the lab Prometheus's `HostDiskWillFillIn24h` and
-`HostDiskCritical`, which are visible in the lab's Grafana and page nobody
-(ADR-0020).
+two lab guests, the estate's `GuestDiskWillFillIn24h` and `GuestDiskCritical`,
+which page (below).
+
+**`guest-disk-state` is how a lab guest's disk reaches a phone.** The lab
+Prometheus has its own `HostDiskWillFillIn24h` and `HostDiskCritical` for
+`alexander` and `odin`, and they page nobody (ADR-0020). So every ten minutes,
+on `Saruman`, `scripts/collect-guest-disk-state.sh` asks each running VM's guest
+agent for `get-fsinfo` and writes each filesystem's size and used bytes. The
+estate's `GuestDiskCritical` (below 10% free) and `GuestDiskWillFillIn24h` are
+both critical
+([ADR-0070](../adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md),
+[#778](https://github.com/Gerrrt/HomeLab/issues/778)). A guest needs a running
+`qemu-guest-agent` to be covered. `GuestAgentSilent` warns when one that
+answered stops, and `GuestDiskStateStale` warns when the collector does. It
+requires `qm`, so it installs on the hypervisor only:
+`make install-agent-collectors AGENT=root@Saruman ARGS='--only guest-disk-state'`.
 
 **`drift-check` is the collector that belongs to another repository.**
 `Gerrrt/Lemmiwinks/.claude/tools/drift-check` reads the wiki's machine-checkable

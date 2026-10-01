@@ -56,6 +56,34 @@ docstring gives: it is a record, not a claim about now.
     nine packets `ens19` had sent despite being set never to speak. They reach
     nothing, because `vmbr1` has no other port and no address.
 
+- **A lab guest's disk now pages ([#778](https://github.com/Gerrrt/HomeLab/issues/778)).**
+  This follows on from "odin's root disk was at 98%" below.
+  - **The gap.** The lab rules that entry added show in the lab's Grafana and
+    page nobody (ADR-0020), so a filling SOC disk was still noticed only by
+    someone already looking.
+  - **The decision.**
+    [ADR-0070](adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md)
+    lets a guest's filesystem capacity cross. `Saruman` reads it through each
+    guest's agent with `qm guest cmd <vmid> get-fsinfo`, so no network path is
+    added. It amends ADR-0028's table and narrows ADR-0007, with a note on
+    each. The agent's answer is treated as hostile input.
+  - **Now.**
+    - `scripts/collect-guest-disk-state.sh` runs every ten minutes on
+      `Saruman`.
+    - The estate's `GuestDiskCritical` (below 10% free) and
+      `GuestDiskWillFillIn24h` are both critical, so they reach a phone.
+    - `GuestAgentSilent` and `GuestDiskStateStale` warn when the reading
+      itself stops.
+    - The promtool tests use odin's numbers from that morning: 622 MB free of
+      30 GB.
+  - **Installed on `Saruman` and run once, before the rules deployed.** That run
+    read all ten running VMs, and nine agents answered. `phoenix` has no agent,
+    so it stays quiet. The run also caught a defect: each Windows guest's two
+    ISO drives (`CDFS` and `UDF`) report 0% free, and the collector would have
+    turned them into twelve critical pages. The fstype filter now skips both,
+    case-insensitively, and the self-test carries `bahamut`'s real answer.
+    Install with `make install-agent-collectors AGENT=root@10.0.30.110
+    ARGS='--only guest-disk-state'`, because the Mac cannot resolve `Saruman`.
 - **The lab domain's six guests are documented as built.** `docs/architecture.md`
   still called `bahamut`, `leviathan`, `titan` and `ramuh` **not built yet**,
   and `carbuncle` and `siren` **built, not joined**. In fact the domain was
