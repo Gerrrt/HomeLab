@@ -132,6 +132,48 @@ tests:
                 log --show-signature -1` distinguishes them.
                 docs/runbooks/converge-the-host.md.
 
+  # --- DeployUnapplied: stuck, healthy, and cleared by the next run --------
+  #
+  # prometheus stays unapplied, which is make up failing or a report-only host.
+  # oracle never is. trinity is the case the two hours exist for: a hand pull
+  # at 0m that the next converge deploys at 50m, which must page nobody.
+  #
+  # Mutations this catches: dropping `for` (prometheus fires at 1h50m, and
+  # trinity fires at all), and a rule that fires on the series existing rather
+  # than its value (oracle fires).
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_unapplied{instance="prometheus"}'
+        values: "1+0x300"
+      - series: 'homelab_deploy_unapplied{instance="oracle"}'
+        values: "0+0x300"
+      - series: 'homelab_deploy_unapplied{instance="trinity"}'
+        values: "1+0x50 0+0x250"
+    alert_rule_test:
+      - eval_time: 1h50m
+        alertname: DeployUnapplied
+        exp_alerts: []
+
+      - eval_time: 2h5m
+        alertname: DeployUnapplied
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployUnapplied
+              instance: prometheus
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The deployment checkout has moved past what is running"
+              description: >-
+                HEAD is not the revision `make up` last applied, so the stack is
+                serving older config than the checkout holds. Either `make up`
+                is failing — `journalctl -u homelab-converge.service -n 50` says
+                why — or the host is report-only and something moved the
+                checkout by hand. `make up` from /home/robo/code/Gerrrt/HomeLab
+                deploys it; prefer `make converge` to a bare `git pull` there.
+                docs/runbooks/converge-the-host.md.
+
   # --- DeployApplyDisabled: report-only, and applying --------------------
   #
   # The paired silent case is the one that matters: a host that IS applying must

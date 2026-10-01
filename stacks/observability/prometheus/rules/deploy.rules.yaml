@@ -133,6 +133,38 @@ groups:
             request. `git -C /home/robo/code/Gerrrt/HomeLab log --show-signature -1`
             distinguishes them. docs/runbooks/converge-the-host.md.
 
+      - alert: DeployUnapplied
+        # The checkout's HEAD is not the revision `make up` last applied, so the
+        # running stack is something other than what HEAD says.
+        #
+        # THE GAP EVERY RULE ABOVE HAD. They all read HEAD. On 2026-10-01 the
+        # checkout reached #781's merge by a `git pull` by hand, no `make up`
+        # ran, and converge recorded "converged", behind=0, hourly, while
+        # Prometheus served the pre-merge rules. Nothing fired; it was found by
+        # reading the Rules page.
+        #
+        # TWO HOURS, because in apply mode converge now deploys an unapplied
+        # checkout on its next run — a single hand pull clears within the hour
+        # without a human. Still true after two runs means converge cannot fix
+        # it: `make up` is failing (ScheduledJobFailed will agree), or the host
+        # is report-only (DeployApplyDisabled will agree).
+        expr: homelab_deploy_unapplied == 1
+        for: 2h
+        labels:
+          component: deploy
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The deployment checkout has moved past what is running"
+          description: >-
+            HEAD is not the revision `make up` last applied, so the stack is
+            serving older config than the checkout holds. Either `make up` is
+            failing — `journalctl -u homelab-converge.service -n 50` says why —
+            or the host is report-only and something moved the checkout by hand.
+            `make up` from /home/robo/code/Gerrrt/HomeLab deploys it; prefer
+            `make converge` to a bare `git pull` there.
+            docs/runbooks/converge-the-host.md.
+
       - alert: DeployApplyDisabled
         # The host is deliberately not deploying.
         #

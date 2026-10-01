@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **Convergence reported "converged" over rules it had never deployed.**
+  - **The finding.** After #781 merged, the deployment checkout on
+    `prometheus` was already at the merge, but Prometheus was serving the
+    pre-merge rules: none of #781's four `Guest*` rules were loaded. The timer's
+    last run predated the merge, so the checkout had been moved some other way,
+    most likely a `git pull` by hand. `make converge` then found HEAD equal to
+    `main`, printed `converged`, recorded `behind=0`, and ran no `make up`. It
+    would have done the same every hour.
+  - **Why nothing fired.** Every deploy alert reads HEAD, and HEAD was right.
+    Found by reading the Rules page. Fixed by hand with `make reload`.
+  - **A second case, same cause.** A `make up` that failed after a
+    fast-forward left HEAD at `main`, so the next hourly run reported
+    `converged` and never retried it.
+  - **Now.** `make up` ends by recording the revision it applied
+    (`scripts/record-applied.sh`). `converge.sh` deploys any checkout whose
+    HEAD differs from that record, so a hand pull or a failed deploy clears on
+    the next run. `homelab_deploy_unapplied` and `DeployUnapplied` (two hours,
+    warning) cover the cases it cannot fix: report-only mode, and `make up`
+    failing every time. The first run after this ships has no record and
+    redeploys once.
 - **JA4+ is vendored into `stacks/sensor`, and not yet deployed**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
@@ -84,6 +104,7 @@ docstring gives: it is a record, not a claim about now.
     about five seconds until netplan's config takes over. That accounts for the
     nine packets `ens19` had sent despite being set never to speak. They reach
     nothing, because `vmbr1` has no other port and no address.
+||||||| parent of 8a541bc (fix(converge): a checkout moved without `make up` no longer reads as deployed)
 
 - **A lab guest's disk now pages ([#778](https://github.com/Gerrrt/HomeLab/issues/778)).**
   This follows on from "odin's root disk was at 98%" below.

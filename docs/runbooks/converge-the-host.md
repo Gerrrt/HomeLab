@@ -70,7 +70,10 @@ make converge ARGS=--dry-run
 ```
 
 A converged host prints `converged — <revision> is main` and nothing else. A
-host that is behind lists the commits it would apply and stops.
+host that is behind lists the commits it would apply and stops. A host whose
+checkout is at `main` but was never deployed from it says
+`the checkout is at <revision>, but make up last applied <other>` and stops;
+without `--dry-run` it runs `make up`.
 
 ### Start in report-only mode
 
@@ -150,18 +153,33 @@ fast-forward.
 
 ## What it records
 
-Six gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
+Seven gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
 written on every exit path including the refusals, so a run that declined to
 move still reports what the host is on.
 
 | Metric | Question it answers |
 | --- | --- |
-| `homelab_deploy_revision_info{revision}` | What is deployed |
+| `homelab_deploy_revision_info{revision}` | What the checkout is on, which is what is deployed while `unapplied` is 0 |
 | `homelab_deploy_commit_timestamp_seconds` | How old the running configuration is |
 | `homelab_deploy_behind_commits` | How far behind `main`; `-1` means the fetch failed |
 | `homelab_deploy_tree_dirty` | Whether someone edited a file on the host |
 | `homelab_deploy_verified` | Whether the deployed revision has a valid signature |
 | `homelab_deploy_apply_enabled` | Whether this host applies what it fetches, or is in report-only mode |
+| `homelab_deploy_unapplied` | Whether the checkout has moved past what `make up` last applied |
+
+**Where the checkout is and what is running are two facts, and the first
+version recorded only one.** On 2026-10-01 the checkout reached #781's merge by
+a `git pull` by hand, and no `make up` ran. Convergence compared HEAD with
+`main`, found them equal and reported `converged` every hour while Prometheus
+served the pre-merge rules; every alert here read HEAD, so none fired. `make up`
+now ends by recording the revision it applied (`scripts/record-applied.sh`, a
+file inside the checkout's `.git`), and convergence deploys any checkout whose
+HEAD differs from it. A hand pull therefore clears on the next run in apply
+mode, and `DeployUnapplied` fires if it is still true after two. The first run
+after this shipped has no record and redeploys once, which is expected.
+
+Still, on this host, **`make converge`, not `git pull`**. It is the same fetch,
+verified, and it deploys what it moves to.
 
 The quickest read of "what is this host running" is the journal, which Alloy
 already ships to Loki:
@@ -266,6 +284,8 @@ copy — so converging there would report success and change nothing. Run it fro
 | `DeployDrifted` | A file was edited on the monitoring host | §"The tree is dirty". The edit is still there — this alert exists because it used to not be |
 | `DeployBehind` **with** `DeployApplyDisabled` | Report-only mode — the host is fetching and recording but not applying | Working as intended. §Letting it act when you want it to deploy |
 | `DeployBehind` **without** `DeployApplyDisabled` | Convergence is genuinely refusing | `journalctl -u homelab-converge.service -n 50` names the refusal; every case is in §When it refuses |
+| `DeployUnapplied` **with** `ScheduledJobFailed` | The checkout moved and `make up` is failing on it every hour | `journalctl -u homelab-converge.service -n 50`; the failure is `make up`'s own, so [`deploy-stack.md`](deploy-stack.md) §Troubleshooting |
+| `DeployUnapplied` **with** `DeployApplyDisabled` | Report-only, and something moved the checkout by hand | `make up` from the checkout, or let it act |
 | `DeployApplyDisabled` you did not expect | Somebody set `HOMELAB_CONVERGE_APPLY=0` and it was forgotten | That is what this alert is for. `grep CONVERGE /etc/default/homelab-timers` |
 | A merged change is on disk but the stack does not have it | Report-only mode applies nothing, and Prometheus re-reads rule files only on reload | `make reload`, or `make up` if compose or a rendered file changed. Expected in this mode — §Start in report-only mode |
 | Prometheus has fewer alerting rules than the repository | The same thing: a rule file landed and nothing reloaded | `make reload`. Loki polls its rule directory and updates on its own, so Loki being current is not evidence that Prometheus is |
