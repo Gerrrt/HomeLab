@@ -406,6 +406,10 @@ Where things get broken on purpose.
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
 | odin | `10.0.30.60` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Security tooling (SOC) |
+| bahamut | `10.0.30.50` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller (PDC) |
+| leviathan | `10.0.30.51` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller |
+| titan | `10.0.30.52` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab file server |
+| ramuh | `10.0.30.53` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab application server |
 | carbuncle | `10.0.30.54` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | fenrir | `10.0.30.90` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Zeek sensor |
@@ -433,9 +437,11 @@ Where things get broken on purpose.
   nothing outside the lab can tell it apart from a lab nobody is using
   ([#257](https://github.com/Gerrrt/HomeLab/issues/257)).
 - `carbuncle` and `siren` are [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)'s
-  two endpoints. They are built and activated, reported 2026-09-26, and not yet
-  joined, because the domain they join is not built
-  ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md)). Their
+  two endpoints. They were built and activated, reported 2026-09-26, and are
+  joined to `ad.matrix.elysium`, which `bahamut`, `leviathan`, `titan` and
+  `ramuh` were built by hand on 2026-09-24 and 2026-09-25 to serve
+  ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md),
+  [#414](https://github.com/Gerrrt/HomeLab/issues/414)). Their
   addresses are DHCP reservations, read from `morpheus`'s `config.xml` on
   2026-09-26, and not statics. They run per session, so an absence from the
   segment is normal.
