@@ -371,8 +371,9 @@ Televisions and consoles. Internet only.
   `bilbo` ([ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md),
   [#523](https://github.com/Gerrrt/HomeLab/issues/523)). It was created on
   2026-09-23 by `build-the-nas.md` §5, and a Hicks workstation has mounted the
-  share through it. Six exist today. **One more is from ImaginationLAN, and
-  it exists.** `Allow NFS from Saruman to smaug`,
+  share through it. With 4533 and 13378, seven exist from Hicks and
+  Winterfell. **One more is from ImaginationLAN, and it exists, which makes
+  eight.** `Allow NFS from Saruman to smaug`,
   `10.0.30.110 → 10.0.40.30:2049`, lets the hypervisor mount `erebor/iso` as
   its ISO store for Packer
   ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),

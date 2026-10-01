@@ -19,7 +19,6 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
-<<<<<<< Updated upstream
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455): whose key opens the
   household's copy is decided, and the drive is here**
   ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)).
@@ -48,9 +47,6 @@ docstring gives: it is a record, not a claim about now.
     from their device, without the operator, is condition two and still
     #455's. The carry to the drive and its deadline alert are the next change.
     ADR-0064 stays the stand-in until that proof is run.
-
-||||||| Stash base
-=======
 - **The ISO store is built, and `Saruman` mounts it**
   ([#446](https://github.com/Gerrrt/HomeLab/issues/446),
   [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
@@ -75,7 +71,6 @@ docstring gives: it is a record, not a claim about now.
     about `/etc/default/alloy`. Keeping the installed file (`N`) was right,
     because it is `scripts/deploy-agent.sh`'s and holds the push endpoints.
     Alloy was `active` afterwards.
->>>>>>> Stashed changes
 - **A PR whose close keywords sit in prose now fails
   ([#672](https://github.com/Gerrrt/HomeLab/issues/672)).**
   - **The gap.** GitHub closes an issue for a close keyword anywhere in a PR

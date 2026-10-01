@@ -89,8 +89,9 @@ every television would have to trust, and a second thing to be down.
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and
-here there are four: every screen in the house, one workstation, the phones,
-and the monitoring host. The phones are the first consumers of a service on
+here there are five: every screen in the house, one workstation, the phones,
+the monitoring host, and `Saruman`, which mounts the ISO store and is the
+only consumer from ImaginationLAN ([ADR-0072]). The phones are the first consumers of a service on
 this host that are across a segment boundary rather than on it — Jellyfin's
 case for publishing to the segment was that its clients live there, and
 Audiobookshelf's and Navidrome's do not.
@@ -103,6 +104,12 @@ answers without a login. For 9100 it is a residual — an unauthenticated read
 of this host's filesystems, uptime and load, by the televisions — and
 `docs/security.md` records it rather than the firewall rule being mistaken
 for a boundary it is not.
+
+The NFS export on `2049` is not one of those three media ports, and it
+differs in kind. A device on CasaBonita can open the port, but the export
+itself admits `10.0.30.110` alone, so the share answers only `Saruman`. The
+host scope is enforced twice, by the firewall rule and by the export, and
+only the export applies on the segment.
 
 ## Why this host is scraped, and runs no agent
 
