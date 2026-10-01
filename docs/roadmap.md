@@ -168,6 +168,7 @@ has been rehearsed on it.
   holds age archives on exFAT. **The copy is built**: `make household-copy`
   carries it, `HouseholdCopyStale` watches it, and the holder's page is
   [`open-the-household-copy.md`](runbooks/open-the-household-copy.md).
+  The drive was formatted and rehearsed on 2026-10-01.
   **What is left is a person**: choosing the
   holder, and the holder opening the copy once **from their own device,
   without the operator present**. Both were meant to come before the tier
