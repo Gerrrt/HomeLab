@@ -19,6 +19,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **JA4+ is vendored into `stacks/sensor`, and not yet deployed**
+  ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
+  [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
+  - **What.** FoxIO's `ja4-zeek-scripts` at
+    `8bf9feca52790ae8c926c6a8d79a3547ac19541a`, in `stacks/sensor/zeek/ja4/`.
+    Its btest suite and traces are left out. `LICENSE`, `LICENSE-JA4` and a
+    NOTICE of our own say what covers what. The directory is mounted read-only
+    and `@load`ed from `local.zeek`. No image is built.
+  - **How it changes.** `scripts/vendor-ja4.sh <sha>` replaces the tree at a
+    full SHA, keeping NOTICE and rewriting VENDORED. `--check` re-fetches that
+    commit and diffs byte for byte. It passed.
+  - **One EditorConfig exclusion.** Upstream has trailing spaces and missing
+    final newlines in 15 files, and editing them would make every re-vendor's
+    diff partly ours. With the exclusion, `editorconfig-checker` v4.0.2 (the
+    pinned version) passes the tree. Without it, the same files fail with 80
+    errors.
+  - **Proved on `fenrir`, offline.** On the pinned `zeek/zeek:9.0.0`,
+    `zeek -a` parsed `local.zeek` with the package loaded. A replay of a TLS
+    session captured from Saruman to Cloudflare wrote `ja4`
+    `t13d3013h1_1d37bd780c83_8537cf56674e` and `ja4s` to `ssl.log`, and
+    `ja4t`, `ja4ts`, `ja4l` and `ja4ls` to `conn.log`.
+  - **Not yet live.** The stack deploys from `main`. Until this merges, the
+    sensor keeps building the "before" half of ADR-0069's measurement on the
+    corrected baseline: 0.0% `percent_lost` since the GRO fix (#782), not the
+    8.1% first recorded. After deployment, the "after" half is
+    `capture_loss.log` and `stats.log` for a week.
+
 - **The lab domain's six guests are documented as built.** `docs/architecture.md`
   still called `bahamut`, `leviathan`, `titan` and `ramuh` **not built yet**,
   and `carbuncle` and `siren` **built, not joined**. In fact the domain was

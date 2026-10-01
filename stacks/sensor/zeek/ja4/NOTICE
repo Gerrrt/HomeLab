@@ -1,0 +1,20 @@
+This directory is third-party code, vendored unmodified from
+https://github.com/FoxIO-LLC/ja4-zeek-scripts at the commit named in VENDORED,
+by scripts/vendor-ja4.sh (ADR-0069, #776).
+
+This repository's MIT licence does NOT extend to this directory.
+
+  - JA4 (TLS client fingerprinting: ja4/) is licensed under the BSD 3-Clause
+    licence. See LICENSE-JA4.
+
+  - Every other JA4+ method here (JA4S, JA4H, JA4L, JA4LS, JA4SSH, JA4T, JA4TS,
+    JA4D, JA4X and any added later) is licensed under the FoxIO License 1.1.
+    See LICENSE. FoxIO's FAQ is the authoritative list of which methods that
+    covers: https://github.com/FoxIO-LLC/ja4/blob/main/License%20FAQ.md
+
+The FoxIO License 1.1 permits internal, personal and academic use, which is
+how this repository uses it. It does not permit monetisation. Anyone reusing
+this repository, or this directory, to provide something that earns money needs
+an OEM licence from FoxIO.
+
+JA4+ methods and their detection logic are patent pending (per FoxIO).

@@ -144,8 +144,10 @@ decision to aggregate is what keeps the rule quiet. The runbook's test alert is
 still the only proof that it detects.
 
 **A limit none of the three names, and no rule here closes: Suricata is not a
-protocol logger, and the lab is out of reach.** SNI, JA3 and certificate metadata — the
-ground the plaintext limit gives up — are Zeek's, and east-west traffic between
+protocol logger, and the lab is out of reach.** SNI, TLS fingerprints and certificate metadata — the
+ground the plaintext limit gives up — are Zeek's (JA4+ since
+[#776](https://github.com/Gerrrt/HomeLab/issues/776), by
+[ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)), and east-west traffic between
 the lab's domain guests crosses no router, so `morpheus` never sees a packet of
 it ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
 [ADR-0006](adr/0006-detect-at-the-chokepoint.md)). When that sensor is built its
