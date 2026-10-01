@@ -115,6 +115,22 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies"]
 
+  # stacks/sensor (#437): Zeek and Alloy on fenrir. It shipped without an
+  # entry, so for its first day its two digests were pinned and bumped by
+  # nothing, the rot the first entry warns about. ADR-0069 found the gap,
+  # because its whole argument leans on this stack's image being kept current.
+  # Deployed by hand with `docker compose` on fenrir, like media and wiki, so
+  # a merged bump reaches the host when the stack is pulled there.
+  - package-ecosystem: docker-compose
+    directory: /stacks/sensor
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "soc"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
