@@ -187,7 +187,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 | Alerting | [Alertmanager](stacks/observability/alertmanager) | Severity routing, inhibition |
 | Visualisation | [Grafana](stacks/observability/grafana) | 7 provisioned dashboards |
 | Secrets | [SOPS + age](secrets) | Encrypted in-repo |
-| CI | [GitHub Actions](.github/workflows/ci.yml) | Lint, config validation, secret scanning, digest pinning |
+| CI | [GitHub Actions](.github/workflows/ci.yml) | Lint, config validation, secret scanning, digest pinning, [close keywords in prose](.github/workflows/close-keywords.yml) |
 
 ## Repository layout
 
