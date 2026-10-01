@@ -4,10 +4,8 @@
 exists only for the length of one investigation
 **Time:** about an hour to build and five minutes to destroy. The investigation
 in between is yours.
-**You will need:**
-- a shell on `Saruman`;
-- an Ubuntu Server ISO;
-- a browser on Hicks.
+**You will need:** a shell on `Saruman`, an Ubuntu Server ISO and a browser
+on Hicks
 
 **Before this:** nothing. `stacks/scratch` does not depend on `odin` being up.
 
