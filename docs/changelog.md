@@ -17,6 +17,33 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-01
+
+- **`check_mounted_config.py` could not fail, and Alertmanager had been running
+  a stale config for two days.**
+  - **The cause.** The check read each container's copy of a single-file mount
+    with `docker cp`. For a bind mount, `docker cp` re-resolves the mount's
+    source path on the host, so it reads the file git just wrote, not the
+    inode the container is pinned to. Measured on a scratch container after a
+    rename: `docker exec cat` said `old`, `docker cp` said `new`. Every
+    comparison was the new file against itself.
+  - **How it showed up.** On 2026-09-30 it reported `blackbox.yaml` as
+    matching while the blackbox exporter ran without the module #182 had just
+    added.
+  - **The fix.** The check now reads through the container's own mount
+    namespace: `/proc/1/root/<path>`, from a helper that shares its PID
+    namespace, with `SYS_PTRACE` and `DAC_READ_SEARCH`. A `--self-test`
+    reproduces the rename. It passes with the new reader, and fails three of
+    its five cases with the old one.
+  - **What it found at once.** Alertmanager had been running the config from
+    before #716, #719 and #761 since it was last recreated on 2026-09-28. The
+    one functional difference was #761's inhibit (`TlsAcmeRenewalStalled`
+    over `TlsAcmeRenewalLate`), so a stalled ACME renewal would have paged
+    twice. Recreated, and verified with the new reader.
+  - **The other hosts.** trinity's sensitive stack has 12 single-file mounts,
+    and all 12 match. `oracle`'s wiki has none. The lab and SOC hosts were not
+    reachable from here and are unchecked.
+
 ## 2026-09-30
 
 - **`vmbr1` exists on `Saruman`**, the first host step of #437's build

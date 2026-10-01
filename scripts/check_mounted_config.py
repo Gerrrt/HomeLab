@@ -38,10 +38,29 @@ says.
 CONTENT, NOT INODE. Comparing inodes would detect this particular mechanism and
 is what #355 first proposed. Comparing the bytes is strictly better: it is the
 question actually worth asking, it catches divergence from any cause, and it
-works on containers with no shell. `loki` is exactly that — its image is
-distroless and holds only /usr/bin/loki, so `docker exec ... stat` is impossible
-and /proc/<pid>/root is permission-denied for the operator. `docker cp` needs
-neither.
+works on containers with no shell.
+
+READ THROUGH THE CONTAINER'S MOUNT NAMESPACE, NOT `docker cp`. This used
+`docker cp`, and that made the check unable to fail. For a path that is a bind
+mount, the daemon resolves it to the mount's SOURCE on the host and opens it
+afresh, so it reads the file git just wrote, not the inode the container is
+pinned to. The check then compared the new file with itself. Measured on
+2026-10-01 with a file replaced by rename under a running container: `docker
+exec cat` said `old`, `docker cp` said `new`. It was found on 2026-09-30, when
+this reported blackbox.yaml as matching while the blackbox exporter ran without
+the module #182 had just added.
+
+What reads the pinned inode is the container's own view: /proc/1/root/<path>,
+opened from a helper that shares its PID namespace. It is not `docker exec cat`,
+because `loki` is distroless and holds only /usr/bin/loki. The helper needs
+CAP_SYS_PTRACE: the kernel allows /proc/<pid>/root only to the same uid or to
+that capability, and the services run as their own uids. That is one capability
+on a throwaway container with no network, which reads a file and exits, plus
+DAC_READ_SEARCH, because root with every capability dropped cannot read a 0640
+file it does not own, and Grafana's TLS key is one (`docker cp` read as the
+daemon, so it never met this). DAC_READ_SEARCH lets it read, never write. The
+helper is the pinned Alloy image, found through scripts/image-for.sh, because it
+has `cat` and is already on every host that runs a stack.
 
 WHAT IT DOES NOT COVER, deliberately: files this repository renders rather than
 commits. alertmanager/.rendered is a DIRECTORY mount, so a replaced file inside
@@ -51,11 +70,17 @@ covers that side from inside the container instead.
 
 Usage: scripts/check_mounted_config.py [--fix] [STACK]
        --fix force-recreates the services whose config has gone stale.
+       scripts/check_mounted_config.py --self-test
+       --self-test proves the reader sees a stale mount as stale, on a
+       throwaway container: the case `docker cp` passed for a year.
 """
 from __future__ import annotations
 
 import argparse
+import functools
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -117,20 +142,140 @@ def single_file_mounts(stack: str) -> list[tuple[str, str, pathlib.Path | None, 
     return found
 
 
-def container_copy(container: str, target: str) -> bytes | None:
-    """What the container has at that path, or None if it cannot be read.
+@functools.cache
+def helper_image() -> str:
+    """The pinned image the reader runs, from compose.yaml via image-for.sh.
 
-    `docker cp` rather than `docker exec cat`, because loki's image is
-    distroless and has no shell at all.
+    Never a literal: check_compose_health.py's rule holds here too, and nothing
+    in this file names an image itself.
     """
-    with tempfile.NamedTemporaryFile() as tmp:
-        result = subprocess.run(
-            ["docker", "cp", f"{container}:{target}", tmp.name],
+    result = subprocess.run(
+        [str(REPO / "scripts" / "image-for.sh"), "alloy"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        sys.exit(f"could not resolve the helper image: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def container_copy(container: str, target: str) -> bytes | None:
+    """What the container's processes see at that path, or None if unreadable.
+
+    Through /proc/1/root in the container's PID namespace, which resolves the
+    path in ITS mount namespace and so reads the inode the bind mount is pinned
+    to. `docker cp` does not: see READ THROUGH THE CONTAINER'S MOUNT NAMESPACE
+    in the module docstring.
+    """
+    result = subprocess.run(
+        ["docker", "run", "--rm",
+         "--pid", f"container:{container}",
+         "--cap-drop", "ALL", "--cap-add", "SYS_PTRACE",
+         "--cap-add", "DAC_READ_SEARCH",
+         "--network", "none",
+         "--label", "homelab.logs=off",
+         "--entrypoint", "cat",
+         helper_image(), f"/proc/1/root{target}"],
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def self_test() -> int:
+    """The failure this file exists for, reproduced, against container_copy.
+
+    A throwaway container gets a single-file bind mount. The file is then
+    replaced the way git replaces it: written to a temporary name and renamed
+    over the original. The container's processes still see the old bytes, so
+    container_copy must return them, and a check comparing that with the host
+    must fail. Then the file is rewritten IN PLACE, keeping its inode, which a
+    container does see, so container_copy must return the new bytes.
+
+    The first case is the one `docker cp` passed: it returned the new bytes,
+    so a check built on it could never fail. The container runs as a non-root
+    uid with every capability dropped, as loki does, so the reader's
+    capabilities are tested against the hardest target the stacks have.
+    """
+    if subprocess.run(["docker", "info"], capture_output=True).returncode != 0:
+        print(f"{YELLOW}  SKIP{RESET} --self-test needs a docker daemon")
+        return 0
+
+    failures = 0
+
+    def check(name: str, ok: bool) -> None:
+        nonlocal failures
+        print(f"{GREEN if ok else RED}  {'PASS' if ok else 'FAIL'}{RESET} {name}")
+        failures += not ok
+
+    work = pathlib.Path(tempfile.mkdtemp(prefix="mounted-config-selftest."))
+    container = f"mounted-config-selftest-{os.getpid()}"
+    config = work / "config.yml"
+    config.write_bytes(b"old\n")
+    try:
+        started = subprocess.run(
+            ["docker", "run", "-d", "--rm", "--name", container,
+             "--user", "10001:10001", "--cap-drop", "ALL", "--read-only",
+             "--security-opt", "no-new-privileges:true",
+             "--network", "none", "--label", "homelab.logs=off",
+             "-v", f"{config}:/etc/selftest/config.yml:ro",
+             "--entrypoint", "sleep", helper_image(), "300"],
             capture_output=True, text=True,
         )
-        if result.returncode != 0:
-            return None
-        return pathlib.Path(tmp.name).read_bytes()
+        if started.returncode != 0:
+            print(f"{RED}  FAIL{RESET} could not start the fixture container: "
+                  f"{started.stderr.strip()}")
+            return 1
+
+        check("reads the mounted file before any change",
+              container_copy(container, "/etc/selftest/config.yml") == b"old\n")
+
+        replacement = work / "config.yml.tmp"
+        replacement.write_bytes(b"new\n")
+        replacement.replace(config)  # rename over the target, as git does
+        inside = container_copy(container, "/etc/selftest/config.yml")
+        check("after a rename, reads the old inode the container is pinned to",
+              inside == b"old\n")
+        check("after a rename, so the comparison with the host FAILS",
+              inside is not None and inside != config.read_bytes())
+
+        with config.open("r+b") as f:  # same inode, as render-config.sh writes
+            f.truncate(0)
+            f.write(b"in place\n")
+        # The container's inode is still the pre-rename one, so an in-place
+        # write to the NEW file must not show through. That is the point.
+        check("an in-place write to the new file does not reach the old inode",
+              container_copy(container, "/etc/selftest/config.yml") == b"old\n")
+    finally:
+        subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+        shutil.rmtree(work, ignore_errors=True)
+
+    # And the in-place case the right way round: a fresh container on a file
+    # that is then rewritten in place sees the change, so a stack whose files
+    # are written that way is not reported stale for nothing.
+    work = pathlib.Path(tempfile.mkdtemp(prefix="mounted-config-selftest."))
+    config = work / "config.yml"
+    config.write_bytes(b"before\n")
+    try:
+        subprocess.run(
+            ["docker", "run", "-d", "--rm", "--name", container,
+             "--user", "10001:10001", "--cap-drop", "ALL", "--read-only",
+             "--network", "none", "--label", "homelab.logs=off",
+             "-v", f"{config}:/etc/selftest/config.yml:ro",
+             "--entrypoint", "sleep", helper_image(), "300"],
+            capture_output=True, check=True,
+        )
+        with config.open("r+b") as f:
+            f.truncate(0)
+            f.write(b"after\n")
+        inside = container_copy(container, "/etc/selftest/config.yml")
+        check("an in-place write to the mounted inode is seen, and matches",
+              inside == b"after\n" == config.read_bytes())
+    finally:
+        subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+        shutil.rmtree(work, ignore_errors=True)
+
+    return 1 if failures else 0
 
 
 def main() -> int:
@@ -140,7 +285,14 @@ def main() -> int:
         "--fix", action="store_true",
         help="force-recreate the services whose mounted config has gone stale",
     )
+    # One line, on purpose: scripts/self-tests.sh discovers suites by grepping
+    # for `add_argument("--self-test"`, and a call split across lines is not
+    # found and silently never runs.
+    ap.add_argument("--self-test", action="store_true",
+                    help="prove the reader sees a stale mount as stale")
     args = ap.parse_args()
+    if args.self_test:
+        return self_test()
 
     mounts = single_file_mounts(args.stack)
     if not mounts:
