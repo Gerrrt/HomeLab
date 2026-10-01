@@ -228,7 +228,12 @@ without a listener, and its reach is §6.6 step 5. Audiobookshelf's `13378`
 which calls it the fifth; it is the seventh to exist) was created as step 1
 of §6.5, which was done by 2026-09-29. `Allow SMB to smaug` on `445`, for workstations mounting the share
 ([ADR-0051](../adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)),
-was created on 2026-09-23 in §5, after the user it serves.
+was created on 2026-09-23 in §5, after the user it serves. `Allow NFS from
+Saruman to smaug` on `2049`, for the ISO store
+([ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)),
+is **specified, not created**, and §5b creates it. It is the first row here
+on ImaginationLAN. `golem`'s `2049` pass is ImaginationLAN's other one, and
+[`build-the-backup-guest.md`](build-the-backup-guest.md) §4 keeps it.
 
 | On interface | Protocol / source → destination | Description | Position |
 | --- | --- | --- | --- |
@@ -239,6 +244,7 @@ was created on 2026-09-23 in §5, after the user it serves.
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `22` | `Allow SSH to smaug` | **above** *Block access to CasaBonita* |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `13378` | `Allow 13378 to smaug` | **above** *Block access to CasaBonita* — §6.5 |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `445` | `Allow SMB to smaug` | **above** *Block access to CasaBonita* — §5 |
+| ImaginationLAN (30) | `tcp` `10.0.30.110` → `10.0.40.30` port `2049` | `Allow NFS from Saruman to smaug` | **above** the first `igc0.30` block covering `10.0.40.0/24` — §5b, *specified* |
 
 **Four, where [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 wrote three.** The Hicks pass is one rule per port rather than one rule
@@ -651,6 +657,127 @@ Have a Hicks workstation and a shell on `morpheus` ready.
    rule's position as `pfctl` printed it, and the mount. Then update the pass
    counts in `network.md`, `security.md` and `stacks/media/README.md` from
    *specified* to *created*, in one commit, the way `4533` was.
+
+## §5b — The ISO store, for `Saruman`
+
+[ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),
+[#446](https://github.com/Gerrrt/HomeLab/issues/446). An NFSv4 export of
+`erebor/iso` to the hypervisor alone, for the installer ISOs that Packer
+([#440](https://github.com/Gerrrt/HomeLab/issues/440)) builds templates from.
+This follows [`build-the-backup-guest.md`](build-the-backup-guest.md) §3–§5,
+which builds the same shape for `golem`. Where a step is the same, this points
+there. Have the TrueNAS UI and console shell, the pfSense UI, a shell on
+`morpheus`, and a root shell on `Saruman` ready.
+
+> **Step 1 done 2026-10-01**, through the TrueNAS API rather than the UI:
+> `erebor/iso`, lz4, atime off, dedup off, POSIX ACLs, a 500 GiB quota, no
+> snapshot task. Record size was left at the default because the API call
+> does not take it, so step 1's `zfs set` is still to run. Steps 2–8 are
+> not done, and the rule below is *specified*, not created.
+
+| | |
+| --- | --- |
+| Dataset | `erebor/iso`: not snapshotted, not backed up, 500 GiB quota |
+| Export | NFSv4, to `10.0.30.110` alone, maproot `pippin` |
+| Rule | ImaginationLAN (30): `10.0.30.110 → 10.0.40.30:2049/tcp`, `Allow NFS from Saruman to smaug` |
+| On `Saruman` | `fstab` mount at `/mnt/smaug-iso`, Proxmox `dir` storage `smaug-iso`, content `iso`, `is_mountpoint` |
+
+1. **The dataset.** It exists (above). Finish it from the console shell, and
+   confirm the rest:
+
+   ```bash
+   zfs set recordsize=1M erebor/iso && zfs get -H -o property,value recordsize,atime,compression,quota erebor/iso
+   ```
+
+   `1M`, `off`, `lz4`, `500G`. **Do not add it to a snapshot task**, and do
+   not let §4.1's task become recursive: ISOs are replaceable, and holding
+   deleted ones in snapshots would make the quota lie.
+
+2. **The user.** **Credentials → Users → Add**: `pippin`, with SMB, TrueNAS
+   access, shell, SSH and sudo all **off**, and *Create Home Directory*
+   clear. It owns one directory and logs in nowhere. Then, on the console:
+
+   ```bash
+   chown pippin:pippin /mnt/erebor/iso && chmod 755 /mnt/erebor/iso && ls -ld /mnt/erebor/iso
+   ```
+
+3. **The service.** If `golem`'s share does not exist yet, this is the step
+   that turns NFS on. **System → Services → NFS → Edit**: **Enable NFSv4**
+   on, NFSv3 ownership model for NFSv4 off. Save, then start it and set it to
+   start automatically. If `golem`'s share already exists, the service is
+   already in this state. Read it and change nothing.
+
+4. **The share.** **Shares → Unix (NFS) Shares → Add**:
+
+   | | |
+   | --- | --- |
+   | Path | `/mnt/erebor/iso` |
+   | Description | `ISO store for Saruman (ADR-0072)` |
+   | Authorized hosts | `10.0.30.110` |
+   | Maproot User / Group | `pippin` / `pippin` |
+   | Mapall | empty |
+
+   **Maproot to `pippin`, not to `root` and not to `nobody`**, for the reason
+   `build-the-backup-guest.md` §3 gives for `backup`. Proxmox uploads as root,
+   and a squash to `nobody` refuses the write.
+
+5. **The rule**, in the pfSense UI on **ImaginationLAN (30)**: pass, `tcp`,
+   source `10.0.30.110`, destination `10.0.40.30` port `2049`, description
+   exactly **`Allow NFS from Saruman to smaug`**. Place it **directly above**
+   the first block on that interface whose destination covers
+   `10.0.40.0/24`. `build-the-backup-guest.md` §4 finds that block and names
+   it in `network.md`. If `golem`'s pass exists, put this one beside it.
+   Then read the order from `morpheus`, not the UI:
+
+   ```bash
+   pfctl -sr -vv | grep -E 'on igc0\.30 '
+   ```
+
+   `Allow NFS from Saruman to smaug` must print before that block. Read the
+   order, not the `@` numbers (§0.6).
+
+6. **The mount, on `Saruman`.** The mountpoint gets `golem`'s guard: it is
+   made immutable while empty, so an unmounted share leaves nothing for
+   Proxmox to write into:
+
+   ```bash
+   apt install -y nfs-common && mkdir -p /mnt/smaug-iso && chattr +i /mnt/smaug-iso
+   ```
+
+   ```bash
+   echo "10.0.40.30:/mnt/erebor/iso /mnt/smaug-iso nfs4 rw,hard,noatime,_netdev,nofail 0 0" >> /etc/fstab && systemctl daemon-reload && mount /mnt/smaug-iso && df -h /mnt/smaug-iso
+   ```
+
+   `df` must show `10.0.40.30:/mnt/erebor/iso` at `500G`, the quota and not
+   the pool's free space. Then the storage, as `dir` and not `nfs`. The
+   reason is ADR-0072's decision 5: Proxmox's NFS type checks the portmapper
+   on `111` first, and this rule does not open it.
+
+   ```bash
+   pvesm add dir smaug-iso --path /mnt/smaug-iso --content iso --is_mountpoint yes && pvesm status --storage smaug-iso
+   ```
+
+   `active`. Proxmox creates `template/iso/` under the mount on first use.
+   Upload one small ISO through the web UI to `smaug-iso`. On `smaug`'s
+   console, `ls -ln /mnt/erebor/iso/template/iso/` must show it owned by
+   `pippin`'s uid, not by `0`.
+
+7. **The scope.** From `alexander`, which is on VLAN 30 and is not `Saruman`,
+   the port must be refused. That proves the rule is scoped to one address,
+   not to the segment:
+
+   ```bash
+   nc -z -w 3 10.0.40.30 2049 && echo "2049 OPEN - wrong" || echo "2049 refused - correct"
+   ```
+
+   From the monitoring host, the same command must also print *refused*. Then
+   check that the `igc0.40` tripwire's packet count is still zero (§0.6).
+
+8. **Record it here**, in a note at the top of this section: the date, the
+   rule's position as `pfctl` printed it, the upload's owner, and the
+   refusal. Then move the rule from *specified* to *created* in this file's
+   §0.5 table, `network.md`, `security.md` and `stacks/media/README.md`, in
+   one commit, and close #446.
 
 ## §6 — The stack, and the scrape
 

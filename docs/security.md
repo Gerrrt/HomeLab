@@ -330,6 +330,17 @@ user, typed on workstations and never stored on a television, so the
 televisions' `bilbo` and the workstations' credential are revoked apart. The
 same pass puts an SMB login prompt in front of everything on Hicks, the
 corporate laptop included, as `443` already puts the TrueNAS one.
+**One more is specified from ImaginationLAN, and it is not created.**
+`10.0.30.110 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, lets the
+hypervisor mount `erebor/iso`, the ISO store Packer builds templates from
+([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+Its residual is the one NFS with `sec=sys` always carries: the export trusts
+an address. Anything on VLAN 30 that took `Saruman`'s address could replace
+an installer, and every template built from it afterwards would carry the
+change. The control is not the rule. It is the checksum #440 verifies
+against the repository before each build. Root on `Saruman` maps to
+`pippin`, which owns that one directory, so the hypervisor is not root on
+the NAS.
 [`network.md`](network.md) holds the current list. **Skids has one, since
 2026-09-28:** `10.0.99.40 → 10.0.20.20:80,443/tcp` — Home Assistant to the Hue
 bridge, the one device on that segment with a local API — above the block that
