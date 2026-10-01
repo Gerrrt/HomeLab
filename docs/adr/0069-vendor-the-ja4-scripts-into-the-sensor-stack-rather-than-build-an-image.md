@@ -45,8 +45,9 @@ container start, or a third-party image. Reading FoxIO's repositories on
 [License FAQ](https://github.com/FoxIO-LLC/ja4/blob/main/License%20FAQ.md):
 
 - JA4, the TLS client fingerprint, is BSD 3-Clause.
-- Everything else in JA4+ (JA4S, JA4H, JA4L, JA4SSH, JA4T, JA4D and JA4X) is
-  under the FoxIO License 1.1. It is permissive for internal, academic and
+- Everything else in JA4+ is under the FoxIO License 1.1. The FAQ names JA4S,
+  JA4L, JA4LS, JA4H, JA4X, JA4SSH, JA4T, JA4TS, JA4TScan, JA4Scan, JA4D, JA4D6
+  "and all future additions", so the list is open-ended by design. It is permissive for internal, academic and
   personal use, and not for monetisation. It allows combination with
   permissive-licensed code provided the FoxIO licence is included and noted.
 - This repository is public, MIT-licensed, and earns nothing.
@@ -61,15 +62,18 @@ container start, or a third-party image. Reading FoxIO's repositories on
   the upstream URL. The package's `LICENSE`, `LICENSE-JA4` and `zkg.meta` come
   with it.
   - A `NOTICE` at the top of that directory says which parts are BSD (JA4) and
-    which are under the FoxIO License 1.1 (all other JA4+). That is the
+    which are under the FoxIO License 1.1 (every other JA4+ method, named by
+    reference to FoxIO's FAQ rather than copied, since that list grows). That is the
     inclusion and notice the licence asks of a permissive-licensed repository.
   - The repository's own MIT licence does not extend to that directory, and the
     NOTICE says so.
 - **How it reaches Zeek.** `compose.yaml` bind-mounts `./zeek/ja4` read-only
   beside `local.zeek`, and `local.zeek` loads it. The `zeek/zeek` image, its
   digest and every check above are untouched.
-- **Which methods run.** FoxIO's defaults: everything but JA4X, which upstream
-  marks as awaiting Zeek support. They are switched by `@if` at load time in
+- **Which methods run.** FoxIO's defaults: everything `config.zeek` enables,
+  which is all but JA4X. Upstream marks JA4X as awaiting Zeek support. JA4D6 is
+  listed but awaits Zeek's DHCPv6 support, so it produces nothing yet. JA4LS
+  and JA4TS come with JA4L and JA4T. They are switched by `@if` at load time in
   the package's own `config.zeek`, so they cannot be changed with a `redef` in
   `local.zeek`. A change to the set is an edit to the vendored `config.zeek`,
   and goes in the same PR as the NOTICE entry for it.
@@ -80,10 +84,15 @@ container start, or a third-party image. Reading FoxIO's repositories on
   every pinned-by-hand thing here carries.
 - **How it is proved.** A JA4 appears in `ssl.log` for a guest's outbound TLS,
   and `{job="zeek", log_type="ssl"} | json | ja4 != ""` returns lines in the
-  lab's Loki. `capture_loss.log` and `stats.log`'s `pkts_dropped` are compared
-  across the week before and the week after. Scripts are slower than the
+  lab's Loki. `capture_loss.log`'s `percent_lost` and `stats.log`'s
+  `pkts_dropped` are compared across the week before and the week after. Scripts are slower than the
   plugin, and the lab's traffic is a trickle; that comparison is how the
   trickle stays an assumption checked rather than one made.
+  - **The baseline is not zero.** On 2026-10-01, before any JA4, the sensor
+    already read 8.1% `percent_lost` (1,624 gaps in 19,940 acks) with
+    `pkts_dropped` at 0. So segments are missing upstream of Zeek, not being
+    dropped by it. What reopens this decision is a rise over that baseline,
+    not the baseline itself. The baseline needs its own explanation.
 
 **Also, in the same change:** `stacks/sensor` gets its Dependabot entry. #437's
 stack was added without one, so its `zeek/zeek` and `grafana/alloy` digests
@@ -122,9 +131,19 @@ one image this decision leans on is the one that was not being kept current.
   says so. A reuse of this repository that monetises the sensor would need
   FoxIO's OEM licence. The NOTICE is where that reader finds out.
 - **Upstream fixes arrive only when someone re-vendors.** Nothing alerts on a
-  new upstream release. That is acceptable for a fingerprinting script and
-  would not be for a parser of untrusted input. These scripts run inside Zeek's
-  own analysers and add hashing; they parse nothing themselves.
+  new upstream release.
+  - **What the scripts do.** They do not parse packets; Zeek's analysers do. But
+    every value they read and hash comes from the wire and is attacker-controlled:
+    a ClientHello's extensions, an HTTP request's headers, TCP options, DHCP
+    options.
+  - **What a bug costs.** A defect in them is a script error or a crash. A crash
+    takes the sensor down and Docker restarts it. A script error is an empty
+    field.
+  - **What would catch it.** `homelab_zeek_mirror_active` would not, since it
+    proves the mirror and not Zeek (ADR-0068). A flat stream of Zeek logs in
+    the lab's Grafana would.
+  - **Why that is acceptable.** For a sensor in a lab, it is. A security fix
+    upstream is the case where re-vendoring is urgent rather than routine.
 - **Fields land in existing logs** (`ssl.log`, `http.log`, `conn.log`), plus
   `ja4ssh.log` and `ja4d.log`. The Alloy pipeline ships every `*.log` already,
   so the two new streams need no change there.
