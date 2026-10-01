@@ -107,6 +107,11 @@ up: render ## Render config and start the stack
 	@port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
 	printf '\n\033[0;32mup\033[0m — Grafana: https://localhost:%s\n' "$${port:-3000}"
 	@printf '   (self-signed by the lab CA — trust certificates/ca.pem, see docs/runbooks/generate-certificates.md)\n'
+	@# Last, so it is only reached when every check above passed: the revision
+	@# this deploy applied. converge.sh compares HEAD with it, because HEAD alone
+	@# says where the checkout is, not what is running — on 2026-10-01 a
+	@# checkout moved by hand read as "converged" for hours over stale rules.
+	@./scripts/record-applied.sh $(STACK)
 
 .PHONY: down
 down: ## Stop the stack (volumes are preserved)
