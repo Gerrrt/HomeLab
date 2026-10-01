@@ -1,0 +1,36 @@
+#cloud-config
+# Rendered by packer/ubuntu.pkr.hcl with templatefile(). Autoinstall for the
+# Ubuntu Server live installer, read from the `cidata` disc.
+#
+# The `packer` user exists for the length of the build: key-only, never a
+# password, and deleted by the build's last provisioner. A clone's user comes
+# from the Proxmox cloud-init drive instead.
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  timezone: Etc/UTC
+  storage:
+    layout:
+      name: direct
+  ssh:
+    install-server: true
+    allow-pw: false
+  packages:
+    - qemu-guest-agent
+    - cloud-init
+  updates: security
+  shutdown: reboot
+  user-data:
+    hostname: tpl-ubuntu-2604
+    users:
+      - name: packer
+        lock_passwd: true
+        shell: /bin/bash
+        ssh_authorized_keys:
+          - ${ssh_public_key}
+  late-commands:
+    - echo 'packer ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/90-packer
+    - chmod 0440 /target/etc/sudoers.d/90-packer
+    - curtin in-target -- systemctl enable qemu-guest-agent
