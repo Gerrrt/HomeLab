@@ -92,6 +92,20 @@ classify() {
   ' | sort -k2
 }
 
+# The files in a directory, NUL-separated, into a file, sorted. Returns
+# non-zero if `find` or `sort` failed, and the caller then writes nothing.
+# A listing is captured whole and checked BEFORE anything is hashed: a
+# directory read that fails partway over NFS can still have printed some
+# names, and hashing those would turn the rest into false `missing` states
+# over the last good result. In a process substitution the failure would
+# never reach this shell at all, which is how the first version had it.
+enumerate_into() {
+  local dir="$1" out="$2" raw="${2}.raw"
+  find "$dir" -maxdepth 1 -type f -print0 > "$raw" || { rm -f "$raw"; return 1; }
+  sort -z "$raw" > "$out" || { rm -f "$raw"; return 1; }
+  rm -f "$raw"
+}
+
 # Every non-blank, non-comment line of EXPECTED must be a 64-hex hash, two
 # spaces, and a name with no slash. A malformed line would otherwise be a file
 # that can never match, which reads as tampering.
@@ -163,6 +177,21 @@ ${H2}  also-ok.iso" >/dev/null; then
   else
     printf '\033[0;32m  PASS\033[0m %s\n' "a malformed line is refused"
   fi
+  # Enumeration: a directory that cannot be read must fail, not list nothing.
+  tdir="$(mktemp -d)"
+  printf x > "${tdir}/b.iso"; printf y > "${tdir}/a.iso"
+  if enumerate_into "$tdir" "${tdir}.list" \
+     && [[ "$(tr '\0' ';' < "${tdir}.list")" == "${tdir}/a.iso;${tdir}/b.iso;" ]]; then
+    printf '\033[0;32m  PASS\033[0m %s\n' "a readable directory lists every file, sorted"
+  else
+    printf '\033[0;31m  FAIL\033[0m %s\n' "a readable directory lists every file, sorted"; fail=1
+  fi
+  if enumerate_into "${tdir}/does-not-exist" "${tdir}.list2" 2>/dev/null; then
+    printf '\033[0;31m  FAIL\033[0m %s\n' "a failed listing is a failure, not an empty share"; fail=1
+  else
+    printf '\033[0;32m  PASS\033[0m %s\n' "a failed listing is a failure, not an empty share"
+  fi
+  rm -rf "$tdir" "${tdir}.list" "${tdir}.list2"
   # The list this script ships with, which is what CI is really guarding.
   if bad="$(validate_expected "$EXPECTED")"; then
     printf '\033[0;32m  PASS\033[0m %s\n' "the embedded EXPECTED list is well-formed"
@@ -192,12 +221,16 @@ if ((mounted)); then
   [[ -d "${ISO_DIR}" ]] || die "${MOUNT_POINT} is mounted but has no ${ISO_DIR#"${MOUNT_POINT}"/}"
   # Hash first, then classify, so a read error is a failure and not a
   # "missing". Nothing is written on failure, and IsoStoreStateStale says so.
+  listing="$(mktemp)"
+  trap 'rm -f "${listing}"' EXIT
+  enumerate_into "${ISO_DIR}" "${listing}" \
+    || die "could not list ${ISO_DIR} — not writing a result that would read as missing"
   observed=""
   while IFS= read -r -d '' f; do
     line="$(ionice -c3 nice -n 19 sha256sum -- "$f")" \
       || die "could not hash ${f} — not writing a result that would read as missing"
     observed+="O ${line%% *}  ${f##*/}"$'\n'
-  done < <(find "${ISO_DIR}" -maxdepth 1 -type f -print0 | sort -z)
+  done < "${listing}"
   states="$( { printf '%s\n' "$EXPECTED" | grep -E '^[0-9A-Fa-f]{64}  ' | sed 's/^/E /'
                printf '%s' "$observed"; } | classify)"
 fi

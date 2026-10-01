@@ -846,12 +846,14 @@ groups:
           summary: "{{ $labels.host }}: {{ $labels.file }} on the ISO store does not match its checksum"
           description: >-
             Do not build a template from smaug-iso until this is explained.
-            Compare `sha256sum /mnt/smaug-iso/template/iso/{{ $labels.file }}`
-            on the host with the vendor's published hash. If the ISO was
-            replaced on purpose, update the list in
-            scripts/collect-iso-store-state.sh and reinstall the collector.
-            If it was not, any template built from it since the last good
-            reading is suspect (build-the-lab-templates.md).
+            The expected hash is the file's line in the list in
+            scripts/collect-iso-store-state.sh, and the comment above that
+            line names what it was checked against. Re-check
+            `sha256sum /mnt/smaug-iso/template/iso/{{ $labels.file }}` on the
+            host against the same source. If the ISO was replaced on purpose,
+            update the list and reinstall the collector. If it was not, any
+            template built from it since the last good reading is suspect
+            (build-the-lab-templates.md §2b).
 
       - alert: IsoStoreUnexpected
         # A file the list does not name, or a named file that is gone. Neither
@@ -867,10 +869,10 @@ groups:
           summary: "{{ $labels.host }}: {{ $labels.file }} on the ISO store is {{ $labels.state }}"
           description: >-
             unlisted: on the share but not in the list in
-            scripts/collect-iso-store-state.sh. Add its sha256sum to the list,
-            checked against the vendor's hash, or delete it. missing: listed
-            but not on the share, so a build that names it will fail. Put it
-            back, or take it off the list.
+            scripts/collect-iso-store-state.sh. Check its sha256sum against
+            its source as build-the-lab-templates.md §2b describes, then list
+            it, or delete it. missing: listed but not on the share, so a build
+            that names it will fail. Put it back, or take it off the list.
 
       - alert: IsoStoreNotMounted
         # The share is not mounted where the collector looked, so nothing was

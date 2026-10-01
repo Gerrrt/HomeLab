@@ -180,12 +180,15 @@ as trustworthy as that list, so the list is written here, once, with care.
    | ISO | Check against |
    | --- | --- |
    | `ubuntu-26.04.1-live-server-amd64.iso` | `SHA256SUMS` beside it on `releases.ubuntu.com`, signed by Ubuntu's CD image key |
-   | `virtio-win-0.1.302.iso` | The `.sha256` beside it on `fedorapeople.org` |
+   | `virtio-win-0.1.302.iso` | Fedora publishes no ISO hash, only MD5s of its RPMs. Download the same ISO from `fedorapeople.org` over HTTPS **on another host**, hash it there, and compare. That vouches for the copy through a second network path |
    | `windows-11-26h2.iso` | The SHA-256 table on Microsoft's Windows 11 download page, English 64-bit. The list carries Microsoft's value itself, so a download that differs reads `mismatch` |
    | `windows-server-2025-eval.iso` | Microsoft publishes none for the evaluation media. Compare it with the copy on `local`, and record that it is trusted from its download, not from a published hash |
 
-   **A hash that matches no publisher does not go in the list.** Download the
-   ISO again instead.
+   **A hash that disagrees with its source does not go in the list.**
+   Download the ISO again instead. Each line's comment in the list names
+   what it was checked against, so the next reader knows how much to trust
+   it. Where nothing outside this estate can vouch for a file, as with the
+   evaluation media, the comment says that too.
 
 3. **Write the list** into `EXPECTED` in
    `scripts/collect-iso-store-state.sh`, `sha256sum`'s own format, one line
@@ -223,10 +226,15 @@ as trustworthy as that list, so the list is written here, once, with care.
    it there now: it is not on the list, so it reads `unlisted`.
 
 **Changing an ISO later** is all six steps for that file, in the same
-order: copy, hash, check against the publisher, list, reinstall, build. Until
-the list changes, the new file is `unlisted` and `IsoStoreUnexpected` says
-so. A deliberately replaced ISO with the list not yet updated looks exactly
-like a tampered one, and that is intended.
+order: copy, hash, check it against its source, list, reinstall, build. What
+the daily check says before the list is updated depends on the file's name:
+
+- **A new name**, such as a new version, reads `unlisted`, and the name it
+  replaces reads `missing`. Both are `IsoStoreUnexpected`, a warning.
+- **The same name, overwritten**, reads `mismatch`, and `IsoChecksumMismatch`
+  pages, critical. A deliberate replacement under the old name looks
+  exactly like a tampered one, and that is intended. Put new versions under
+  new names, as the four here are, and this case is only ever tampering.
 
 ## 3. The build password, on `phoenix`
 

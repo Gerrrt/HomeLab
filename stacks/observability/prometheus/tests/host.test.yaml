@@ -1585,12 +1585,14 @@ tests:
               summary: "Saruman: windows-11.iso on the ISO store does not match its checksum"
               description: >-
                 Do not build a template from smaug-iso until this is explained.
-                Compare `sha256sum /mnt/smaug-iso/template/iso/windows-11.iso`
-                on the host with the vendor's published hash. If the ISO was
-                replaced on purpose, update the list in
-                scripts/collect-iso-store-state.sh and reinstall the collector.
-                If it was not, any template built from it since the last good
-                reading is suspect (build-the-lab-templates.md).
+                The expected hash is the file's line in the list in
+                scripts/collect-iso-store-state.sh, and the comment above that
+                line names what it was checked against. Re-check
+                `sha256sum /mnt/smaug-iso/template/iso/windows-11.iso` on the
+                host against the same source. If the ISO was replaced on
+                purpose, update the list and reinstall the collector. If it was
+                not, any template built from it since the last good reading is
+                suspect (build-the-lab-templates.md §2b).
 
   # --- IsoChecksumMismatch: quiet for missing and unlisted ------------------
   # Those are IsoStoreUnexpected's. A selector loosened to state!="match"
@@ -1630,10 +1632,11 @@ tests:
               summary: "Saruman: stray.iso on the ISO store is unlisted"
               description: >-
                 unlisted: on the share but not in the list in
-                scripts/collect-iso-store-state.sh. Add its sha256sum to the
-                list, checked against the vendor's hash, or delete it. missing:
-                listed but not on the share, so a build that names it will
-                fail. Put it back, or take it off the list.
+                scripts/collect-iso-store-state.sh. Check its sha256sum against
+                its source as build-the-lab-templates.md §2b describes, then
+                list it, or delete it. missing: listed but not on the share, so
+                a build that names it will fail. Put it back, or take it off the
+                list.
           - exp_labels:
               host: Saruman
               file: ubuntu.iso
@@ -1645,10 +1648,11 @@ tests:
               summary: "Saruman: ubuntu.iso on the ISO store is missing"
               description: >-
                 unlisted: on the share but not in the list in
-                scripts/collect-iso-store-state.sh. Add its sha256sum to the
-                list, checked against the vendor's hash, or delete it. missing:
-                listed but not on the share, so a build that names it will
-                fail. Put it back, or take it off the list.
+                scripts/collect-iso-store-state.sh. Check its sha256sum against
+                its source as build-the-lab-templates.md §2b describes, then
+                list it, or delete it. missing: listed but not on the share, so
+                a build that names it will fail. Put it back, or take it off the
+                list.
 
   # --- IsoStoreNotMounted: fires after an hour unmounted --------------------
   - interval: 5m
