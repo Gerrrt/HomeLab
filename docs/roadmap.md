@@ -243,8 +243,13 @@ Closes on BloodHound running where nothing attacks it.
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
   → [runbook](runbooks/build-the-jumpbox.md)).
 - **[#446](https://github.com/Gerrrt/HomeLab/issues/446) The ISO store on
-  `smaug`** wants the fifth inbound rule ADR-0016 did not write down, and is
-  otherwise independent of the chain.
+  `smaug`** is decided in
+  [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md):
+  `erebor/iso` over NFSv4 to `Saruman` alone, through one `2049` pass on
+  ImaginationLAN. The dataset exists. The user, the share, the pass and the
+  mount are [`build-the-nas.md`](runbooks/build-the-nas.md) §5b, by hand.
+  #440 consumes it, and has to verify each ISO's checksum before building
+  from it.
 
 ## last
 

@@ -89,6 +89,20 @@ docstring gives: it is a record, not a claim about now.
     warning) cover the cases it cannot fix: report-only mode, and `make up`
     failing every time. The first run after this ships has no record and
     redeploys once.
+- **The ISO store is decided, and its dataset exists**
+  ([#446](https://github.com/Gerrrt/HomeLab/issues/446),
+  [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+  `erebor/iso` was created through the TrueNAS API: lz4, atime off, a 500 GiB
+  quota, POSIX ACLs, and no snapshot task, because ISOs are replaceable. It
+  will be exported over NFSv4 to `10.0.30.110` alone, with root mapped to
+  `pippin`, through `Allow NFS from Saruman to smaug` on `2049`. None of
+  that exists yet: the user, the share, the pass and `Saruman`'s mount are
+  not done.
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §5b is the procedure. The
+  NFS service on `smaug` was not running on this date, and neither was
+  `golem`'s share. Proxmox's NFS storage type checks the portmapper on `111`
+  before it probes `2049`, so `Saruman` mounts the share from `fstab` and
+  adds it as a `dir` storage instead.
 
 - **JA4+ is vendored into `stacks/sensor`, and not yet deployed**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
