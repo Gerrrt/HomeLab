@@ -39,9 +39,14 @@ docstring gives: it is a record, not a claim about now.
       itself stops.
     - The promtool tests use odin's numbers from that morning: 622 MB free of
       30 GB.
-  - **Not yet.** The collector is installed by hand from the Mac
-    (`make install-agent-collectors AGENT=root@Saruman ARGS='--only
-    guest-disk-state'`). Until it is, nothing has changed on `Saruman`.
+  - **Installed on `Saruman` and run once, before the rules deployed.** That run
+    read all ten running VMs, and nine agents answered. `phoenix` has no agent,
+    so it stays quiet. The run also caught a defect: each Windows guest's two
+    ISO drives (`CDFS` and `UDF`) report 0% free, and the collector would have
+    turned them into twelve critical pages. The fstype filter now skips both,
+    case-insensitively, and the self-test carries `bahamut`'s real answer.
+    Install with `make install-agent-collectors AGENT=root@10.0.30.110
+    ARGS='--only guest-disk-state'`, because the Mac cannot resolve `Saruman`.
 - **The lab domain's six guests are documented as built.** `docs/architecture.md`
   still called `bahamut`, `leviathan`, `titan` and `ramuh` **not built yet**,
   and `carbuncle` and `siren` **built, not joined**. In fact the domain was

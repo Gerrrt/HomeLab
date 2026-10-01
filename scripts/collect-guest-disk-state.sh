@@ -83,10 +83,16 @@ import json, os, re, sys
 host = os.environ["HOST_LABEL"]
 MAX_FS = 32
 # Filesystems that are not a disk the hypervisor allocated, or that are
-# read-only by construction. The agent mostly leaves these out already; this is
-# for the agent that does not.
+# read-only by construction. Compared in lower case, because the Windows agent
+# answers in capitals.
+#
+# OPTICAL MEDIA ARE ALWAYS FULL. The first real run on Saruman (2026-10-01)
+# found every Windows guest reporting its D: (CDFS, the install ISO) and E:
+# (UDF, the virtio drivers ISO) with used equal to size, 0% free. The list had
+# `udf` and compared case-sensitively, and had no `cdfs`, so all twelve drives
+# would have paged GuestDiskCritical the moment the rules deployed.
 SKIP_FSTYPES = {"tmpfs", "devtmpfs", "ramfs", "overlay", "squashfs", "iso9660",
-                "udf", "nsfs", "autofs", "proc", "sysfs", "cgroup", "cgroup2"}
+                "udf", "cdfs", "nsfs", "autofs", "proc", "sysfs", "cgroup", "cgroup2"}
 LABEL_OK = re.compile(r"[^A-Za-z0-9/._:@+-]")
 
 
@@ -134,7 +140,7 @@ with open(sys.argv[1], encoding="utf-8") as fh:
             if not isinstance(entry, dict):
                 continue
             fstype = clean(entry.get("type", ""), 32)
-            if not fstype or fstype in SKIP_FSTYPES:
+            if not fstype or fstype.lower() in SKIP_FSTYPES:
                 continue
             total, usedb = count(entry.get("total-bytes")), count(entry.get("used-bytes"))
             if total is None or usedb is None or total == 0 or usedb > total:
@@ -231,6 +237,14 @@ if [[ "${1:-}" == "--self-test" ]]; then
   guest 666 mallory 0 "${hostile}]"
   # Windows: a drive letter, and an agent that reports NTFS.
   guest 171 'win dc' 0 '[{"name":"\\\\?\\Volume{1}","mountpoint":"C:\\","type":"NTFS","used-bytes":20000000000,"total-bytes":63000000000}]'
+  # bahamut as Saruman read it on 2026-10-01: both ISOs report 0% free, in
+  # capitals, and must not become series; System Reserved keeps its space as _.
+  guest 150 bahamut 0 '[
+    {"name":"\\\\?\\Volume{a}","mountpoint":"C:\\","type":"NTFS","used-bytes":19907608576,"total-bytes":63367540736},
+    {"name":"\\\\?\\Volume{b}","mountpoint":"D:\\","type":"CDFS","used-bytes":877373440,"total-bytes":877373440},
+    {"name":"\\\\?\\Volume{c}","mountpoint":"E:\\","type":"UDF","used-bytes":8152356864,"total-bytes":8152356864},
+    {"name":"\\\\?\\Volume{d}","mountpoint":"System Reserved","type":"NTFS","used-bytes":672849920,"total-bytes":827322368}
+  ]'
   # An agent that answers, with nothing to report.
   guest 180 empty 0 '[]'
 
@@ -260,8 +274,12 @@ if [[ "${1:-}" == "--self-test" ]]; then
   if [[ "$got" == 32 ]]; then pass "a guest gets at most 32 filesystems"; else flunk "a guest gets at most 32 filesystems" "       got $got"; fi
   has "a Windows drive letter, without a backslash" \
     'homelab_guest_filesystem_size_bytes{host="Saruman",guest="win_dc",vmid="171",mountpoint="C:/",fstype="NTFS"} 63000000000'
+  lacks "a Windows install ISO (CDFS) is not a disk" 'fstype="CDFS"'
+  lacks "a Windows drivers ISO (UDF, in capitals) is not a disk" 'fstype="UDF"'
+  has "a Windows System Reserved partition is kept" \
+    'homelab_guest_filesystem_size_bytes{host="Saruman",guest="bahamut",vmid="150",mountpoint="System_Reserved",fstype="NTFS"} 827322368'
   has "an empty answer is still an answer" 'homelab_guest_agent_up{host="Saruman",guest="empty",vmid="180"} 1'
-  has "every guest asked is counted" 'homelab_guest_disk_guests_queried{host="Saruman"} 6'
+  has "every guest asked is counted" 'homelab_guest_disk_guests_queried{host="Saruman"} 7'
 
   : > "${WORK_DIR}/manifest"
   out="$(render "${WORK_DIR}/manifest")"
