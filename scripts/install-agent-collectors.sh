@@ -135,10 +135,16 @@ This needs sudo ON THE TARGET and will prompt for a password."
 # Everything the table names must exist before a single host is touched. A
 # half-installed agent is worse than an uninstalled one.
 selected=0
+# Whether any selected row writes a .prom. Only those need the textfile
+# directory, so a run of `--only prune-images` (no .prom) must not demand it:
+# odin's Alloy is stacks/soc's container, not deploy-agent.sh's, so the
+# directory does not exist there and the run failed on it (2026-10-01).
+NEEDS_TEXTFILE=0
 for row in "${COLLECTORS[@]}"; do
-  read -r name script _prom _need <<<"$row"
+  read -r name script prom _need <<<"$row"
   [[ -n "$ONLY" && "$ONLY" != "$name" ]] && continue
   selected=1
+  [[ "$prom" != - ]] && NEEDS_TEXTFILE=1
   [[ -f "${REPO}/${script}" ]] || die "no collector at ${REPO}/${script}"
   for unit in "homelab-${name}.service" "homelab-${name}.timer"; do
     [[ -f "${UNIT_DIR}/${unit}" ]] || die "no ${unit} under ${UNIT_DIR}"
@@ -337,12 +343,16 @@ for target in "${TARGETS[@]}"; do
     continue
   fi
 
-  if ! ssh_q "$target" "test -d ${TEXTFILE_DIR}"; then
-    fail "${target}: no ${TEXTFILE_DIR} — deploy Alloy to this host first
+  if ((NEEDS_TEXTFILE)); then
+    if ! ssh_q "$target" "test -d ${TEXTFILE_DIR}"; then
+      fail "${target}: no ${TEXTFILE_DIR} — deploy Alloy to this host first
        (scripts/deploy-agent.sh), which is what creates it"
-    continue
+      continue
+    fi
+    pass "${target}: textfile directory present, hostname ${remote_hostname}"
+  else
+    pass "${target}: hostname ${remote_hostname}; no selected row writes a .prom, so no textfile directory needed"
   fi
-  pass "${target}: textfile directory present, hostname ${remote_hostname}"
 
   staged=()
   if ((! CHECK_ONLY)); then
