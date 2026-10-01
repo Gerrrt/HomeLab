@@ -238,16 +238,14 @@ Closes on BloodHound running where nothing attacks it.
   BloodHound, which closes the milestone. All of it runs from `phoenix`
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
   → [runbook](runbooks/build-the-jumpbox.md)).
-  **#440's templates read their ISOs from `local` today**
-  (`packer/variables.pkr.hcl`). `smaug-iso`, the ISO store
+  **#440's templates read their installers from `smaug-iso`**, the ISO store
   [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)
-  put on `erebor/iso` and §5b of
-  [`build-the-nas.md`](runbooks/build-the-nas.md) created on 2026-10-01,
-  exists and already holds the VirtIO disc. Moving the builds onto it means
-  changing `iso_storage` and the `*_iso_file` defaults. Before that, each ISO
-  needs a checksum verified against one in the repository. The export
-  trusts an address, and Packer does not check an ISO it is handed from
-  storage.
+  put on `erebor/iso`. Every file there is hashed daily on `Saruman` against
+  the list in `scripts/collect-iso-store-state.sh`, and `IsoChecksumMismatch`
+  pages if one changes, because the export trusts an address and Packer does
+  not check an ISO it is handed from storage. Copying the installers there,
+  listing their hashes and installing the check is
+  [`build-the-lab-templates.md`](runbooks/build-the-lab-templates.md) §2b.
 
 ## last
 

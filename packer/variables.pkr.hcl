@@ -48,8 +48,12 @@ variable "disk_storage" {
   default = "large_data"
 }
 
-# Where the installer ISOs already sit, and where the generated answer-file
-# discs are uploaded for the length of a build.
+# Where the generated answer-file discs are uploaded for the length of a
+# build. NOT smaug-iso, though the installers live there: the Windows answer
+# disc carries the build password in its XML, which has no business on the
+# NAS, and the daily checksum run would report every one as an unlisted file
+# (scripts/collect-iso-store-state.sh). The installers are named per variable
+# below.
 variable "iso_storage" {
   type    = string
   default = "local"
@@ -99,13 +103,20 @@ variable "build_password" {
   }
 }
 
+# The installers Saruman builds from are on smaug-iso, the ISO store
+# (ADR-0072), and each is checked daily against the list in
+# scripts/collect-iso-store-state.sh, because Packer does not check an ISO it
+# is handed from storage. A name here and a name in that list are the same
+# file, so change both together (build-the-lab-templates.md §1).
 variable "ubuntu_iso_file" {
   type    = string
-  default = "local:iso/ubuntu-26.04.1-live-server-amd64.iso"
+  default = "smaug-iso:iso/ubuntu-26.04.1-live-server-amd64.iso"
 }
 
 # A placeholder name: Kali is written and not yet built (ADR-0074 part 2), and
-# the first build on ifrit sets this to the ISO it actually has.
+# the first build on ifrit sets this to the ISO it actually has. It stays on
+# local: the ISO store's export and pass admit Saruman alone (ADR-0072), so
+# ifrit cannot mount it.
 variable "kali_iso_file" {
   type    = string
   default = "local:iso/kali-linux-installer-amd64.iso"
@@ -119,15 +130,15 @@ variable "kali_node" {
 
 variable "win11_iso_file" {
   type    = string
-  default = "local:iso/windows-11.iso"
+  default = "smaug-iso:iso/windows-11-26h2.iso"
 }
 
 variable "ws2025_iso_file" {
   type    = string
-  default = "local:iso/windows-server-2025-eval.iso"
+  default = "smaug-iso:iso/windows-server-2025-eval.iso"
 }
 
 variable "virtio_iso_file" {
   type    = string
-  default = "local:iso/virtio-win.iso"
+  default = "smaug-iso:iso/virtio-win-0.1.302.iso"
 }

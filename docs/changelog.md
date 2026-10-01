@@ -19,6 +19,35 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **The ISO store is checked daily, and Packer builds from it**
+  ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
+  [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+  - **Why daily on `Saruman`.** ADR-0072 asked for each ISO to be verified
+    before a build. `phoenix` runs Packer and cannot read the store: it
+    reaches `Saruman` on `8006` alone, and the Proxmox API cannot hash a
+    stored file. `Saruman` mounts the store, so it does the hashing.
+  - **What runs.** `scripts/collect-iso-store-state.sh`, installed by
+    `install-agent-collectors.sh` wherever `/mnt/smaug-iso` exists, hashes
+    every file against a list kept in the script and writes one
+    `homelab_iso_state` series per file: `match`, `mismatch`, `missing` or
+    `unlisted`. An unmounted share is not hashed, because its empty guard
+    directory would read as every ISO missing.
+  - **The rules.** `IsoChecksumMismatch` (critical), `IsoStoreUnexpected`,
+    `IsoStoreNotMounted` and `IsoStoreStateStale`, each with a firing and a
+    quiet promtool case. The first stale test sampled hourly and never
+    fired, because the lookback is 5m, so both stale cases sample every 5m.
+  - **Packer.** The Ubuntu, Windows 11, Server 2025 and VirtIO defaults name
+    `smaug-iso`. `iso_storage` stays `local`, because the generated Windows
+    answer disc carries the build password, and Kali stays `local` because
+    `ifrit` cannot mount the store. `phoenix` gets `PVEAuditor` on
+    `/storage/smaug-iso`: enough to attach an ISO, and nothing that writes.
+  - **The list.** Ubuntu's hash matched its signed `SHA256SUMS`. VirtIO's
+    matched Fedora's ISO, downloaded and hashed on another host, because
+    Fedora publishes no ISO hash. Server 2025 evaluation is trusted from its
+    download, because Microsoft publishes none for evaluation media. The
+    March `windows-11.iso` matched nothing Microsoft still publishes, so
+    the list carries Microsoft's own hash for 26H2 English 64-bit, and the
+    ISO is to be downloaded again as `windows-11-26h2.iso`.
 - **The household drive is formatted and rehearsed
   ([#455](https://github.com/Gerrrt/HomeLab/issues/455)).** This closes the
   gap the entry below names. The holder is still not chosen.
@@ -63,7 +92,6 @@ docstring gives: it is a record, not a claim about now.
     lost the last half of its gate, and `roadmap.md` and
     `build-the-playground.md` §0 say so. The SOC was the last of its
     gates to clear; `ifrit` stays the last purchase on the list.
-
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455): the household's
   copy is built, and waits on its holder**
   ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)).

@@ -1,0 +1,40 @@
+# Whether the ISOs on smaug-iso are the ones the repository lists (#440,
+# ADR-0072).
+#
+# CONDITIONED ON THE MOUNTPOINT, NOT ON PROXMOX. /mnt/smaug-iso exists on the
+# one host that mounts the ISO store (build-the-nas.md §5b step 6). A second
+# hypervisor without it would otherwise run this, find nothing mounted, and
+# page for a share it was never meant to have.
+#
+# HARDENING AS LIGHT AS homelab-thin-pool-state.service, for a cousin of its
+# reason: the files are read over NFS, and the directives that build a private
+# mount namespace are the ones most likely to hide the mount and report it
+# unmounted. A failure is still loud: the collector writes nothing and
+# IsoStoreStateStale fires.
+#
+# Root only for the textfile directory. The share maps root to pippin, and the
+# ISOs are world-readable.
+[Unit]
+Description=HomeLab: verify the ISO store against the repository's checksums
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/build-the-lab-templates.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathIsDirectory=/mnt/smaug-iso
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-iso-store-state
+# Hashing about 15 GB over NFS from a spinning mirror. An hour is generous on
+# purpose: a slow run is not a failure, and a timeout writes nothing.
+TimeoutStartSec=3600
+Restart=no
+Nice=19
+IOSchedulingClass=idle
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-iso-store-state

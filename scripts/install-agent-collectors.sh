@@ -41,8 +41,12 @@
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
 # (#360), smart-state (#351), pve-version (#311), guest-state (#257),
 # thin-pool-state (#538), guest-disk-state (#778), pve-firewall-state (#576),
-# zeek-mirror-state (#437) and drift-check (#470), plus two rows that collect
-# nothing (below).
+# iso-store-state (#440), zeek-mirror-state (#437) and drift-check (#470), plus
+# two rows that collect nothing (below).
+#
+# iso-store-state's requirement is a directory, not a binary: /mnt/smaug-iso,
+# the ISO store's mountpoint, which exists on the one host that mounts it
+# (build-the-nas.md §5b). Every other host reports it cannot run this one.
 # Adding one is a row plus a unit under systemd/agent/, not a new script: the
 # first version of this was install-agent-collectors.sh and hardcoded one job,
 # which lasted exactly as long as it took for the second collector to need
@@ -102,6 +106,7 @@ COLLECTORS=(
   "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/sbin/lvs"
   "guest-disk-state scripts/collect-guest-disk-state.sh guest-disk-state.prom /usr/sbin/qm"
   "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
+  "iso-store-state scripts/collect-iso-store-state.sh iso-store-state.prom /mnt/smaug-iso"
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"
   "zeek-mirror-state scripts/collect-zeek-mirror-state.sh zeek-mirror-state.prom /usr/sbin/qm"
   "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
