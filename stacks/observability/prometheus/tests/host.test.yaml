@@ -1258,6 +1258,121 @@ tests:
         alertname: HypervisorGuestStopped
         exp_alerts: []
 
+  # --- HypervisorGuestStopped: quiet for a stopped DISPOSABLE guest --------
+  # The same input as the firing case above, plus the tag. Stopped is what a
+  # throwaway guest between sessions is meant to be (ADR-0071).
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_running{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x30 0x120"
+      - series: 'homelab_guest_disposable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: HypervisorGuestStopped
+        exp_alerts: []
+
+  # --- DisposableGuestOutlived: fires for a fortnight-old disposable guest -
+  # The ctime is set in the past rather than the test run for a fortnight:
+  # promtool evaluates every rule in the file at every step, and fifteen days
+  # of steps made this file take minutes. -1292100 is fifteen days less 65
+  # minutes before t=0, so at the 65m evaluation the guest is exactly fifteen
+  # days old, and has been over the threshold (and so pending) since t=0.
+  # STOPPED throughout, on purpose: age, not uptime, is what is measured.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_created_timestamp_seconds{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "-1292100x20"
+      - series: 'homelab_guest_disposable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x20"
+      - series: 'homelab_guest_running{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: DisposableGuestOutlived
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: diabolos
+              vmid: "161"
+              type: qemu
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Saruman: disposable guest diabolos is 15d 0h 0m 0s old"
+              description: >-
+                This guest is tagged `disposable` on the hypervisor and has
+                existed for more than a fortnight. Either the investigation is
+                over and the guest should be gone — export what the case needs,
+                then `qm destroy 161 --purge`, per
+                docs/runbooks/run-a-scratch-investigation.md — or it is no
+                longer disposable, and the tag is the thing to remove,
+                deliberately.
+
+  # --- DisposableGuestOutlived: quiet inside the fortnight -----------------
+  # Thirteen days old at t=0 (-1123200), so just over thirteen at 65m.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_created_timestamp_seconds{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "-1123200x20"
+      - series: 'homelab_guest_disposable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: DisposableGuestOutlived
+        exp_alerts: []
+
+  # --- DisposableGuestOutlived: quiet for an old guest that is not tagged --
+  # alexander is older than a fortnight and meant to be. Without this case the
+  # `and on (...) homelab_guest_disposable == 1` could be deleted unnoticed.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_created_timestamp_seconds{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "-1292100x20"
+      - series: 'homelab_guest_disposable{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: DisposableGuestOutlived
+        exp_alerts: []
+
+  # --- GuestConfigUnreadable: fires an hour after a config read fails ------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_config_readable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x5 0x20"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: GuestConfigUnreadable
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: diabolos
+              vmid: "161"
+              type: qemu
+              component: host
+              severity: warning
+              category: monitoring
+            exp_annotations:
+              summary: "Saruman: cannot read guest diabolos's config"
+              description: >-
+                `qm config 161` (or `pct config`) has failed for an hour, so
+                whether this guest is tagged `disposable`, and how old it is,
+                are unknown — DisposableGuestOutlived cannot fire for it. Its
+                run state is still reported. Run the command on the hypervisor
+                and read its error.
+
+  # --- GuestConfigUnreadable: quiet for a failed read that recovers --------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_config_readable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x5 0x4 1x15"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: GuestConfigUnreadable
+        exp_alerts: []
+
   # --- GuestStateStopped: fires when the collector goes silent -------------
   # `_` is a genuine gap, not a zero: the shape of a collector that stopped
   # writing, as opposed to a hypervisor reporting zero guests.

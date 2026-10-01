@@ -27,6 +27,23 @@
 # open — ADR-0028 records that, and names the firewall pass a real heartbeat
 # would need.
 #
+# DISPOSABLE GUESTS (#438, ADR-0071). Two more hypervisor facts per guest, read
+# from `qm config` / `pct config`: whether it carries the Proxmox tag
+# `disposable`, and when it was created (`meta: ...,ctime=<epoch>`, which PVE
+# writes on create). Together they let the estate notice a throwaway guest that
+# has outlived its investigation — DisposableGuestOutlived — without a table
+# in this repository of which guests are meant to exist, the shape ADR-0028
+# rejected. The tag is set where the guest is made, so the mark and the thing
+# marked cannot drift apart. A guest whose config cannot be read loses these
+# two series and keeps its run state: they are additions, and the run-state
+# guarantees below do not depend on them.
+#
+# `qm config` and not /etc/pve/qemu-server/<vmid>.conf, although reading the
+# file would be faster: the file also carries every snapshot's section, each
+# with its own `meta:` and `tags:`, and `qm config` prints the current config
+# alone. The cost, measured on Saruman 2026-10-01: about 1.4 s of perl per
+# guest, 14.5 s for ten — well inside the unit's 120 s, every ten minutes.
+#
 # NO ROOT NEEDED for the reading; the unit runs as root because the textfile
 # directory on an agent host is root-owned, the same incidental reason as the
 # other agent collectors.
@@ -74,6 +91,29 @@ parse_guest_list() {
   '
 }
 
+# `qm config <vmid>` / `pct config <vmid>` print `key: value` lines:
+#
+#       meta: creation-qemu=9.2.0,ctime=1759300000
+#       name: diabolos
+#       tags: disposable;lab
+#
+# Prints "<disposable> <ctime>": 1 or 0, and the epoch or `-` when there is no
+# ctime (a guest created before PVE recorded one, or a container). PVE stores
+# tags `;`-separated, but accepts `,` and spaces on input, so all three split.
+parse_guest_config() {
+  awk '
+    $1 == "tags:" {
+      n = split(substr($0, index($0, ":") + 1), t, /[;, ]+/)
+      for (i = 1; i <= n; i++) if (t[i] == "disposable") disposable = 1
+    }
+    $1 == "meta:" {
+      n = split($2, m, ",")
+      for (i = 1; i <= n; i++) if (m[i] ~ /^ctime=[0-9]+$/) ctime = substr(m[i], 7)
+    }
+    END { printf "%d %s\n", disposable, (ctime == "" ? "-" : ctime) }
+  '
+}
+
 if [[ "${1:-}" == "--self-test" ]]; then
   fail=0
   check() {
@@ -106,6 +146,38 @@ if [[ "${1:-}" == "--self-test" ]]; then
   check "header alone yields nothing" qemu "" \
 "      VMID NAME                 STATUS     MEM(MB)    BOOTDISK(GB) PID"
   check "empty input yields nothing" qemu "" ""
+
+  check_config() {
+    local name="$1" expect="$2" got
+    got="$(printf '%s\n' "$3" | parse_guest_config)"
+    if [[ "$got" == "$expect" ]]; then
+      printf '\033[0;32m  PASS\033[0m %s\n' "$name"
+    else
+      printf '\033[0;31m  FAIL\033[0m %s\n       got      %s\n       expected %s\n' "$name" "$got" "$expect"
+      fail=1
+    fi
+  }
+  check_config "a disposable guest with a ctime" "1 1759300000" \
+"boot: order=scsi0
+meta: creation-qemu=9.2.0,ctime=1759300000
+name: diabolos
+tags: disposable"
+  check_config "the tag among others, any separator" "1 1759300000" \
+"meta: creation-qemu=9.2.0,ctime=1759300000
+tags: lab,soc;disposable other"
+  # A substring is not the tag: `not-disposable` must not count.
+  check_config "a tag that merely contains the word" "0 1759300000" \
+"meta: creation-qemu=9.2.0,ctime=1759300000
+tags: not-disposable"
+  check_config "no tags line" "0 1759300000" \
+"meta: creation-qemu=9.2.0,ctime=1759300000
+name: alexander"
+  check_config "no meta line — created before PVE recorded one" "1 -" \
+"name: diabolos
+tags: disposable"
+  check_config "a meta line without ctime" "0 -" \
+"meta: creation-qemu=9.2.0"
+  check_config "empty config" "0 -" ""
   exit $fail
 fi
 
@@ -151,6 +223,46 @@ $(printf '%s\n' "$pct_raw" | parse_guest_list lxc)"
 fi
 rows="$(printf '%s\n' "$rows" | grep -v '^$' || true)"
 
+# The two disposable-guest facts, per guest, keyed "<kind> <vmid>". A config
+# that cannot be read leaves no entry, and emit() then writes nothing extra for
+# that guest — never a 0, which would claim "not disposable" without knowing.
+#
+# BUT THAT ABSENCE MUST NOT BE SILENT. With the two series gone,
+# DisposableGuestOutlived has nothing to match, while the run state — and so
+# GuestStateStopped — stays green: the lifecycle check would vanish with every
+# indicator healthy, the exact shape the header of this file exists to refuse.
+# So every guest also gets homelab_guest_config_readable, 1 or 0, and
+# GuestConfigUnreadable reads it.
+declare -A guest_config=()
+if [[ -n "$rows" ]]; then
+  while read -r kind vmid _rest; do
+    [[ -n "$kind" ]] || continue
+    case "$kind" in qemu) cmd=qm ;; lxc) cmd=pct ;; *) continue ;; esac
+    if cfg="$("$cmd" config "$vmid" 2>/dev/null)"; then
+      guest_config["$kind $vmid"]="$(printf '%s\n' "$cfg" | parse_guest_config)"
+    fi
+  done <<<"$rows"
+fi
+
+emit_config_facts() {
+  local which="$1" metric="$2" kind vmid name _status facts value
+  [[ -n "$rows" ]] || return 0
+  while read -r kind vmid name _status; do
+    [[ -n "$kind" ]] || continue
+    facts="${guest_config["$kind $vmid"]:-}"
+    if [[ "$which" == readable ]]; then
+      printf '%s{host="%s",guest="%s",vmid="%s",type="%s"} %s\n' \
+        "$metric" "$HOSTNAME_LABEL" "$name" "$vmid" "$kind" "$([[ -n "$facts" ]] && echo 1 || echo 0)"
+      continue
+    fi
+    [[ -n "$facts" ]] || continue
+    if [[ "$which" == disposable ]]; then value="${facts%% *}"; else value="${facts#* }"; fi
+    [[ "$value" == "-" ]] && continue
+    printf '%s{host="%s",guest="%s",vmid="%s",type="%s"} %s\n' \
+      "$metric" "$HOSTNAME_LABEL" "$name" "$vmid" "$kind" "$value"
+  done <<<"$rows"
+}
+
 # Zero guests IS a legitimate answer — but only now that it can be told apart
 # from a failure, which is what the checks above buy. The marker is emitted
 # either way so absence means the collector stopped, not that the host is idle.
@@ -165,6 +277,18 @@ emit() {
         "$([[ "$status" == running ]] && echo 1 || echo 0)"
     done <<<"$rows"
   fi
+  # One loop per metric, not one per guest: the exposition format wants every
+  # sample of a metric contiguous under its own HELP and TYPE, and node_exporter
+  # rejects the whole file when they interleave.
+  printf '# HELP homelab_guest_disposable 1 when this guest carries the Proxmox tag disposable (ADR-0071).\n'
+  printf '# TYPE homelab_guest_disposable gauge\n'
+  emit_config_facts disposable homelab_guest_disposable
+  printf '# HELP homelab_guest_created_timestamp_seconds When this guest was created, from the ctime in its config.\n'
+  printf '# TYPE homelab_guest_created_timestamp_seconds gauge\n'
+  emit_config_facts ctime homelab_guest_created_timestamp_seconds
+  printf '# HELP homelab_guest_config_readable 1 when this guest'"'"'s config was read, so the two series above can be trusted.\n'
+  printf '# TYPE homelab_guest_config_readable gauge\n'
+  emit_config_facts readable homelab_guest_config_readable
   printf '# HELP homelab_guests_total Guests this hypervisor knows about, running or not.\n'
   printf '# TYPE homelab_guests_total gauge\n'
   printf 'homelab_guests_total{host="%s"} %s\n' \

@@ -14,6 +14,13 @@ Every stack under `stacks/` has an example here in the same shape, except
 `stacks/media`, which has none by decision:
 [`docs/security.md`](../docs/security.md) § Secrets says why.
 
+**One encrypted file is never committed: `scratch.sops.yaml`.** It is encrypted
+to the key of `diabolos`, a guest destroyed after every investigation
+([ADR-0071](../docs/adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)).
+Committing it would put ciphertext for a dead key in git, and a change to
+`.sops.yaml` with it, once per incident. `.gitignore` keeps it out, and the
+`scratch` rule's placeholder stays in git permanently.
+
 > What is committed is ciphertext: the values are encrypted to the age
 > recipients listed in [`.sops.yaml`](../.sops.yaml), and the key names are left
 > in plaintext on purpose, so the set of required credentials is discoverable
