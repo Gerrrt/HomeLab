@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **The lab domain's six guests are documented as built.** `docs/architecture.md`
+  still called `bahamut`, `leviathan`, `titan` and `ramuh` **not built yet**,
+  and `carbuncle` and `siren` **built, not joined**. In fact the domain was
+  built by hand on 2026-09-24 and 2026-09-25
+  ([#414](https://github.com/Gerrrt/HomeLab/issues/414)), and the lab
+  Prometheus has scraped all six since 2026-09-26.
+  - **Read from each guest on 2026-10-01**, by `qm guest exec` from `Saruman`.
+    All six report `PartOfDomain` true for `ad.matrix.elysium`:
+    - `bahamut` is the primary domain controller (role 5);
+    - `leviathan` is the backup domain controller (role 4);
+    - `titan` and `ramuh` are member servers (role 3), on Windows Server 2025
+      Standard Evaluation;
+    - `carbuncle` and `siren` are member workstations (role 1), on Windows 11
+      Pro.
+
+    `carbuncle` had already authenticated to `titan` as `CARBUNCLE$` over
+    Kerberos in #437's check the night before.
+  - **Changed.** The six architecture rows lose their markers and say when they
+    were built. The four servers get rows in `docs/network.md`'s VLAN 30 table,
+    and its note on the endpoints says they are joined. #414 itself stays open
+    for its §6, §10 and §11.
+  - Copilot's review of #774 surfaced it. It read the stale rows as "six still
+    planned".
+
 - **odin's root disk was at 98%, and nothing would have said so.**
   - **The finding.** Found by the login banner, read as 92.8% by `df`'s other
     formula. It was 28 GB used of a 30 GB OS disk, with 622 MB free. The data

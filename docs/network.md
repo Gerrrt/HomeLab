@@ -406,6 +406,10 @@ Where things get broken on purpose.
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
 | odin | `10.0.30.60` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Security tooling (SOC) |
+| bahamut | `10.0.30.50` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller (PDC) |
+| leviathan | `10.0.30.51` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller |
+| titan | `10.0.30.52` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab file server |
+| ramuh | `10.0.30.53` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab application server |
 | carbuncle | `10.0.30.54` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | fenrir | `10.0.30.90` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Zeek sensor |
@@ -417,10 +421,10 @@ Where things get broken on purpose.
   dedicated port, `Saruman` is the Proxmox install. They are separate addresses
   and separate names, and conflating them is a mistake this document previously
   made.
-- `Saruman` runs three guests: `alexander`, built 2026-09-05
-  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), `phoenix`, built
-  2026-09-20 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and `odin`,
-  built 2026-09-27, described below. `alexander` runs
+- `Saruman` runs every row in the table above whose device is "KVM guest on
+  `Saruman`". The table is the count, so this note does not repeat it. Several
+  of them are described below. `alexander`, built 2026-09-05
+  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), runs
   [`stacks/lab`](../stacks/lab) — the lab's own Prometheus, Loki, Grafana and
   Alloy. **It is a guest and not the hypervisor for a reason**: a compose stack
   is Docker, and Docker would rewrite the iptables of the box whose own
@@ -433,9 +437,11 @@ Where things get broken on purpose.
   nothing outside the lab can tell it apart from a lab nobody is using
   ([#257](https://github.com/Gerrrt/HomeLab/issues/257)).
 - `carbuncle` and `siren` are [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)'s
-  two endpoints. They are built and activated, reported 2026-09-26, and not yet
-  joined, because the domain they join is not built
-  ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md)). Their
+  two endpoints. They were built and activated, reported 2026-09-26, and are
+  joined to `ad.matrix.elysium`, which `bahamut`, `leviathan`, `titan` and
+  `ramuh` were built by hand on 2026-09-24 and 2026-09-25 to serve
+  ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md),
+  [#414](https://github.com/Gerrrt/HomeLab/issues/414)). Their
   addresses are DHCP reservations, read from `morpheus`'s `config.xml` on
   2026-09-26, and not statics. They run per session, so an absence from the
   segment is normal.
