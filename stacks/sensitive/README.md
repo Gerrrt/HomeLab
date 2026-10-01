@@ -951,12 +951,14 @@ two rows, still does not exist.
 > [ADR-0023]'s *Independent* test still open. For their first day the USB disk
 > was the only copy of the originals anywhere. Since 2026-09-29 a nightly set
 > goes to `oracle` ([ADR-0064]), so losing the disk no longer loses them. That
-> copy is in the same room, on the same power, under `trinity`'s key alone. It
-> does not satisfy [ADR-0023], and this warning stands until [#455] exists.
+> copy is in the same room and on the same power. Since 2026-10-01 it is
+> encrypted to [`household.recipients`](household.recipients) as well as to
+> `trinity`'s key ([ADR-0073]). It does not satisfy [ADR-0023], and this
+> warning stands until [#455] exists.
 
 | What | Where | Protected by |
 | --- | --- | --- |
-| The originals | `IMMICH_UPLOAD_LOCATION` — the USB disk | **Off-host, interim:** `make backup-library`, nightly at 05:15 ([ADR-0064]). One encrypted archive of `upload/`, `library/`, `profile/` and `backups/`, two sets kept on `trinity`'s SSD and two on `oracle`, and `ARGS=--prove` hashes each original against `immich-db`. **Off-estate: not built.** That is the copy [ADR-0023] requires, and its drive, a WD Elements 5 TB bought on 2026-09-22 under [#455], has not been delivered |
+| The originals | `IMMICH_UPLOAD_LOCATION` — the USB disk | **Off-host, interim:** `make backup-library`, nightly at 05:15 ([ADR-0064]). One encrypted archive of `upload/`, `library/`, `profile/` and `backups/`, two sets kept on `trinity`'s SSD and two on `oracle`, and `ARGS=--prove` hashes each original against `immich-db`. Each set is encrypted to the sensitive rule's recipients and to [`household.recipients`](household.recipients) ([ADR-0073]). **Off-estate: not built.** That is the copy [ADR-0023] requires. Its drive, a WD Elements 5 TB under [#455], arrived on 2026-09-29, and its key is decided. Its holder is not |
 | Thumbnails and transcodes | The same disk, `thumbs/` and `encoded-video/` | Nothing, on purpose. They are derived from the originals, and a restore regenerates them from Immich's *Jobs* page. Only their `.immich` markers are archived, because the server will not start without them |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | It sits on the same disk on purpose, so a copy of the disk is also a copy of the metadata. It rides in every library set, three hours old at most, so each set is a restore unit on its own |
 | The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `oracle` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
@@ -1062,6 +1064,7 @@ it matters:
 [ADR-0062]: ../../docs/adr/0062-add-actual-to-the-sensitive-tier.md
 [ADR-0063]: ../../docs/adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
 [ADR-0064]: ../../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
+[ADR-0073]: ../../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131

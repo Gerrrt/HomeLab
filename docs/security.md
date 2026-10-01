@@ -87,6 +87,13 @@ credential, photo or document — and none of them is built. **The copy leaving
 the house is a new residual**: it is the first household data to sit in someone
 else's building, reduced to an availability problem by encryption at rest with a
 key that never leaves here, and accepted on that basis.
+[ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
+decided on 2026-10-01 that "here" means the household. The copy goes on a
+drive the household holder keeps at their own address, and the holder's key
+stays with them, apart from the drive. **The residual this adds** is that one
+burglary at the holder's address could take the drive and the key together.
+Accepted, because the alternative is a key the holder has to ask this estate
+for, which is the failure ADR-0023 exists to prevent.
 
 **The estate's own backup sets leave the house too, and with a key.** Decided
 2026-09-20: the newest firewall export, volume set and NAS set are carried onto

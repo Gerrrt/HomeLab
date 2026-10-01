@@ -156,17 +156,19 @@ has been rehearsed on it.
   rehearsed already:
   → [runbook](runbooks/restore-the-sensitive-tier.md).
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
-  **The drive is bought** — 2026-09-22, in
-  [`hardware.md`](hardware.md) — so what is left is not a purchase. Two
-  conditions
-  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
-  attaches are open and a drive satisfies neither: the copy is encrypted with
-  a key that is **not** the one only the operator holds, and the path is
-  opened once **from the other person's device, without the operator
-  present**. Whether that key is
+  **The drive is here.** It was bought 2026-09-22 and arrived 2026-09-29
+  ([`hardware.md`](hardware.md)). **The key is decided**: on 2026-10-01
+  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
+  settled the first of
+  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)'s
+  two conditions. The copy is encrypted to the household holder's key, with
   [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
-  second recipient or a separate one is the decision this issue still owes.
-  It was meant to come before the tier held real data, and it did not.
+  second recipient as a fallback. The keys are kept in
+  `stacks/sensitive/household.recipients` and not in a sops rule. The drive
+  holds age archives on exFAT. **What is left is a person**: choosing the
+  holder, and the holder opening the copy once **from their own device,
+  without the operator present**. Both were meant to come before the tier
+  held real data, and they did not.
   [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)'s
   first trigger, the first real photo, fired on 2026-09-28. Until this lands,
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)'s
