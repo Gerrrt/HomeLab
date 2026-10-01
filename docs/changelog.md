@@ -38,6 +38,9 @@ docstring gives: it is a record, not a claim about now.
     - A new estate rule, `DisposableGuestOutlived`, fires when a guest tagged
       `disposable` is more than a fortnight old, running or stopped.
     - `HypervisorGuestStopped` no longer fires for such a guest.
+    - `GuestConfigUnreadable` fires when a guest's config has been unreadable
+      for an hour, from a per-guest `homelab_guest_config_readable`. Without it,
+      a failed read would silently blind the age rule.
     - Run read-only on `Saruman` the same day, the collector reported all ten
       guests with a creation time and none disposable, in 14.5 s.
   - **Secrets.** The guest gets its own `.sops.yaml` rule above the catch-all,

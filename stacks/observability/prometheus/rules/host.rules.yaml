@@ -674,6 +674,31 @@ groups:
             docs/runbooks/run-a-scratch-investigation.md — or it is no longer
             disposable, and the tag is the thing to remove, deliberately.
 
+      - alert: GuestConfigUnreadable
+        # DisposableGuestOutlived's own blind spot (#438). If `qm config` fails
+        # for a guest, the collector keeps that guest's run state and drops its
+        # tag and age, so the age rule silently has nothing to match while
+        # GuestStateStopped stays green. This says so. Every guest, not only
+        # disposable ones: an unreadable config cannot say whether the guest
+        # is disposable, which is the point.
+        #
+        # An hour, for HypervisorGuestStopped's reason: a guest mid-migration
+        # or mid-restore can fail a read or two without anything being wrong.
+        expr: homelab_guest_config_readable == 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "{{ $labels.host }}: cannot read guest {{ $labels.guest }}'s config"
+          description: >-
+            `qm config {{ $labels.vmid }}` (or `pct config`) has failed for an
+            hour, so whether this guest is tagged `disposable`, and how old it
+            is, are unknown — DisposableGuestOutlived cannot fire for it. Its
+            run state is still reported. Run the command on the hypervisor and
+            read its error.
+
       - alert: GuestStateStopped
         # The collector itself stopped reporting. Without this, a hypervisor
         # whose collector died looks exactly like one with no guests — and

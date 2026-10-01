@@ -226,6 +226,13 @@ rows="$(printf '%s\n' "$rows" | grep -v '^$' || true)"
 # The two disposable-guest facts, per guest, keyed "<kind> <vmid>". A config
 # that cannot be read leaves no entry, and emit() then writes nothing extra for
 # that guest — never a 0, which would claim "not disposable" without knowing.
+#
+# BUT THAT ABSENCE MUST NOT BE SILENT. With the two series gone,
+# DisposableGuestOutlived has nothing to match, while the run state — and so
+# GuestStateStopped — stays green: the lifecycle check would vanish with every
+# indicator healthy, the exact shape the header of this file exists to refuse.
+# So every guest also gets homelab_guest_config_readable, 1 or 0, and
+# GuestConfigUnreadable reads it.
 declare -A guest_config=()
 if [[ -n "$rows" ]]; then
   while read -r kind vmid _rest; do
@@ -243,6 +250,11 @@ emit_config_facts() {
   while read -r kind vmid name _status; do
     [[ -n "$kind" ]] || continue
     facts="${guest_config["$kind $vmid"]:-}"
+    if [[ "$which" == readable ]]; then
+      printf '%s{host="%s",guest="%s",vmid="%s",type="%s"} %s\n' \
+        "$metric" "$HOSTNAME_LABEL" "$name" "$vmid" "$kind" "$([[ -n "$facts" ]] && echo 1 || echo 0)"
+      continue
+    fi
     [[ -n "$facts" ]] || continue
     if [[ "$which" == disposable ]]; then value="${facts%% *}"; else value="${facts#* }"; fi
     [[ "$value" == "-" ]] && continue
@@ -274,6 +286,9 @@ emit() {
   printf '# HELP homelab_guest_created_timestamp_seconds When this guest was created, from the ctime in its config.\n'
   printf '# TYPE homelab_guest_created_timestamp_seconds gauge\n'
   emit_config_facts ctime homelab_guest_created_timestamp_seconds
+  printf '# HELP homelab_guest_config_readable 1 when this guest'"'"'s config was read, so the two series above can be trusted.\n'
+  printf '# TYPE homelab_guest_config_readable gauge\n'
+  emit_config_facts readable homelab_guest_config_readable
   printf '# HELP homelab_guests_total Guests this hypervisor knows about, running or not.\n'
   printf '# TYPE homelab_guests_total gauge\n'
   printf 'homelab_guests_total{host="%s"} %s\n' \

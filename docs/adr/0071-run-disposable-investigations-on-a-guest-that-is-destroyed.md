@@ -85,6 +85,10 @@ with its twin.
   guest is **more than a fortnight old, running or stopped**. A detonation takes
   an afternoon and a weekend question takes three days. Past two weeks the guest
   is no longer an investigation; it is an unmanaged SIEM.
+- **`GuestConfigUnreadable`** fires when `qm config` has failed for a guest
+  for an hour. Without it, a failed read would drop the guest's tag and age,
+  `DisposableGuestOutlived` would have nothing to match, and every indicator
+  would stay green.
 - `HypervisorGuestStopped` now ignores disposable guests. For a throwaway,
   stopped is the expected state between sessions and destroyed is the goal.
 

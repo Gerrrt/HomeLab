@@ -1337,6 +1337,42 @@ tests:
         alertname: DisposableGuestOutlived
         exp_alerts: []
 
+  # --- GuestConfigUnreadable: fires an hour after a config read fails ------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_config_readable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x5 0x20"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: GuestConfigUnreadable
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: diabolos
+              vmid: "161"
+              type: qemu
+              component: host
+              severity: warning
+              category: monitoring
+            exp_annotations:
+              summary: "Saruman: cannot read guest diabolos's config"
+              description: >-
+                `qm config 161` (or `pct config`) has failed for an hour, so
+                whether this guest is tagged `disposable`, and how old it is,
+                are unknown — DisposableGuestOutlived cannot fire for it. Its
+                run state is still reported. Run the command on the hypervisor
+                and read its error.
+
+  # --- GuestConfigUnreadable: quiet for a failed read that recovers --------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_config_readable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x5 0x4 1x15"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: GuestConfigUnreadable
+        exp_alerts: []
+
   # --- GuestStateStopped: fires when the collector goes silent -------------
   # `_` is a genuine gap, not a zero: the shape of a collector that stopped
   # writing, as opposed to a hypervisor reporting zero guests.
