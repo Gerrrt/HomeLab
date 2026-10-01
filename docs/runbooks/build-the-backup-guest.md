@@ -266,7 +266,7 @@ So copy it off now, in two forms. Into the lab's SOPS file, from `alexander`,
 which holds the lab's age key (ADR-0020):
 
 ```bash
-cd ~/HomeLab && make secrets-edit STACK=lab
+cd ~/code/Gerrrt/HomeLab && make secrets-edit STACK=lab
 ```
 
 Add a key `PBS_ENCRYPTION_KEY` whose value is the whole contents of

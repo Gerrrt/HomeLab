@@ -199,7 +199,7 @@ into the checkout it runs from, so rendering anywhere else produces a file no
 container here mounts.
 
 ```bash
-git clone https://github.com/Gerrrt/HomeLab.git ~/HomeLab
+git clone https://github.com/Gerrrt/HomeLab.git ~/code/Gerrrt/HomeLab
 ```
 
 You also need SOPS and age on this host for §4:
@@ -216,7 +216,7 @@ match the version to whatever the monitoring host runs (`sops --version` there).
 **On `alexander`, never on the monitoring host.**
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 make secrets-init STACK=lab
 make secrets-edit STACK=lab
 ```
@@ -248,7 +248,7 @@ ciphertext belongs in the repository, the private key never does.
 > placeholder values, and it was never committed.
 >
 > ```bash
-> cd ~/HomeLab
+> cd ~/code/Gerrrt/HomeLab
 > rm secrets/lab.sops.yaml
 > git checkout .sops.yaml
 > git pull
@@ -309,14 +309,14 @@ so a fresh clone on `alexander` does not have it and `scp` would fail into a
 directory that is not there:
 
 ```bash
-ssh garnet@10.0.30.40 'mkdir -p HomeLab/certificates && chmod 700 HomeLab/certificates'
+ssh garnet@10.0.30.40 'mkdir -p code/Gerrrt/HomeLab/certificates && chmod 700 code/Gerrrt/HomeLab/certificates'
 
 CERTS=/home/robo/code/Gerrrt/HomeLab/certificates
 scp -3 -p \
   robo@10.0.99.20:$CERTS/ca.pem \
   robo@10.0.99.20:$CERTS/grafana-lab.matrix.elysium.pem \
   robo@10.0.99.20:$CERTS/grafana-lab.matrix.elysium-key.pem \
-  garnet@10.0.30.40:HomeLab/certificates/
+  garnet@10.0.30.40:code/Gerrrt/HomeLab/certificates/
 ```
 
 `-3` routes the copy through the Mac without writing either file to its disk,
@@ -328,8 +328,8 @@ whole point of the care.
 umask would otherwise leave a private key world-readable:
 
 ```bash
-ls -l ~/HomeLab/certificates/
-chmod 640 ~/HomeLab/certificates/grafana-lab.matrix.elysium-key.pem
+ls -l ~/code/Gerrrt/HomeLab/certificates/
+chmod 640 ~/code/Gerrrt/HomeLab/certificates/grafana-lab.matrix.elysium-key.pem
 ```
 
 `0640` and owned by you is what the stack expects: Grafana runs as uid 472 and

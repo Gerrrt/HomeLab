@@ -322,7 +322,7 @@ ss -ltn '( sport = :9090 or sport = :3100 )'
 ```
 
 Both must show `10.0.30.40` or `0.0.0.0`. If either is missing, `alexander`'s
-checkout is behind: `cd ~/HomeLab && git pull && make up STACK=lab` and check
+checkout is behind: `cd ~/code/Gerrrt/HomeLab && git pull && make up STACK=lab` and check
 again. Read the comment above each block in `compose.yaml` once — it says what
 is listening on the segment that exists to hold attackers, and that is a thing
 to know rather than discover.
