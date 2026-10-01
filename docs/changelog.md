@@ -44,6 +44,25 @@ docstring gives: it is a record, not a claim about now.
     `REHEARSAL-NOT-THE-HOUSEHOLD-COPY.txt`. No holder key, no copy of record,
     no proof. The holder's half has not been rehearsed on a Windows or Mac
     machine yet, which would use `--proof-recipient` and a throwaway key.
+- **[#266](https://github.com/Gerrrt/HomeLab/issues/266) and
+  [#267](https://github.com/Gerrrt/HomeLab/issues/267): the SOC's roadmap
+  entry leaves, four days after the issues closed.** Both closed 2026-09-27,
+  and this file had no entry for it, so the record is here:
+  - **The build.** `odin` (VMID 160, `10.0.30.60`) was built from
+    `build-the-soc-guest.md` §1–§10 that day. Wazuh's indexer, manager and
+    dashboard came up healthy, with ADR-0030's four index settings applied.
+    Velociraptor's metrics are scraped by the lab's Prometheus (#682). The
+    bring-up fixes were #680, #681, #683 and #685.
+  - **The close.** §11 ran later that day, by GPO to the Domain
+    Controllers, Servers and Workstations OUs. `agent_control -l` showed six
+    Wazuh agents Active. Six Velociraptor clients enrolled. The indexer went
+    green once #685 zeroed the ISM config index's replica.
+  - **What moved.** The milestone's "closes when Wazuh and Velociraptor
+    report the six agents in" was met by this, so its line now reads "closes
+    when it is empty". [#421](https://github.com/Gerrrt/HomeLab/issues/421)
+    lost the last half of its gate, and `roadmap.md` and
+    `build-the-playground.md` §0 say so. The SOC was the last of its
+    gates to clear; `ifrit` stays the last purchase on the list.
 
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455): the household's
   copy is built, and waits on its holder**
