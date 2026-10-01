@@ -1,0 +1,31 @@
+# Weekly removal of Docker images no container uses, on an agent host.
+#
+# scripts/prune-images.sh says why: on 2026-10-01 odin's root was at 98%, 7.8 GB
+# of it superseded images that nothing on an agent host ever removed. Installed
+# by scripts/install-agent-collectors.sh, which skips a host without
+# /usr/bin/docker (Saruman runs Alloy natively and has no images to prune).
+#
+# Root, because the Docker socket is root's. Like zeek-mirror, it writes no
+# .prom, so the installer verifies it by the service's last result.
+[Unit]
+Description=HomeLab: remove Docker images no container uses
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+After=docker.service
+ConditionPathExists=/usr/bin/docker
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-prune-images
+TimeoutStartSec=1800
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-prune-images

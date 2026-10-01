@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **odin's root disk was at 98%, and nothing would have said so.**
+  - **The finding.** Found by the login banner, read as 92.8% by `df`'s other
+    formula. It was 28 GB used of a 30 GB OS disk, with 622 MB free. The data
+    disk at `/srv/soc-data` was mounted and 13% used, so the stores the design
+    puts there were where they belonged.
+  - **What filled it: superseded Docker images.** 15.75 GB, of which
+    7.787 GB were five images no container used: the previous digests of the
+    indexer, manager, dashboard, Alloy and the certs generator. Wazuh's own
+    on-disk alerts were 31 MB, not the cause.
+  - **Fixed by hand.** `docker image prune -a -f` brought `/` to 72%, with
+    7.9 GB free.
+  - **Why it was invisible.** The monitoring host has pruned weekly since
+    2026-09-29. No agent host did. And odin's disk was watched by nothing: the
+    estate cannot see a lab guest (ADR-0007), and the lab Prometheus had no
+    disk rule.
+  - **Now.** `prune-images` is a row in `install-agent-collectors.sh`, a
+    weekly timer on every Docker agent host. The lab has the estate's
+    `HostDiskWillFillIn24h` and `HostDiskCritical`, tested, which show in the
+    lab's Grafana and page nobody (ADR-0020).
+
 - **`check_mounted_config.py` could not fail, and Alertmanager had been running
   a stale config for two days.**
   - **The cause.** The check read each container's copy of a single-file mount

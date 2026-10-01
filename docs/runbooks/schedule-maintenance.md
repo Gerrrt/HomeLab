@@ -161,13 +161,14 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
-`guest-state`, `thin-pool-state`, `pve-firewall-state`, `zeek-mirror-state` and `drift-check` — and checks each host's requirements **per
+`guest-state`, `thin-pool-state`, `pve-firewall-state`, `zeek-mirror-state` and `drift-check`, plus the two
+rows that collect nothing, `zeek-mirror` and `prune-images` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
 it.
 
-**`zeek-mirror-state` watches the one row in that table that is not a
-collector.** `zeek-mirror` (#437,
+**`zeek-mirror-state` watches one of the two rows in that table that are not
+collectors.** `zeek-mirror` (#437,
 [ADR-0068](../adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md))
 writes no `.prom`. Every minute it puts the `tc` mirror back on every port of
 `Saruman`'s lab bridge, because a reboot, a guest restart or a sensor restart
@@ -178,6 +179,19 @@ the sensor runs, every port mirrors to its tap by name, and packets arrive.
 disabling the first proves the second, which is
 [`build-the-sensor-guest.md`](build-the-sensor-guest.md) §7. Both require `qm`,
 so they install on the hypervisor and nowhere else.
+
+**`prune-images` is the agent hosts' copy of the `prune-images` row above.** It
+runs `docker image prune -a` on Mondays at 04:00, as the monitoring host's does,
+from `systemd/agent/homelab-prune-images.timer`. Nothing removed superseded
+images on an agent host before it, and on 2026-10-01 `odin`'s 30 GB root was at
+98%, 7.8 GB of it images no container used. It requires `/usr/bin/docker`, so
+it installs on `oracle`, `trinity`, `alexander` and `odin`, and `Saruman`
+reports it as one it cannot run. Like `zeek-mirror` it writes no `.prom`. An
+agent host has no `homelab_job_*` metrics, so a failed run shows only in
+`journalctl -u homelab-prune-images`. What would show it is the disk: on the
+two lab guests, the lab Prometheus's `HostDiskWillFillIn24h` and
+`HostDiskCritical`, which are visible in the lab's Grafana and page nobody
+(ADR-0020).
 
 **`drift-check` is the collector that belongs to another repository.**
 `Gerrrt/Lemmiwinks/.claude/tools/drift-check` reads the wiki's machine-checkable

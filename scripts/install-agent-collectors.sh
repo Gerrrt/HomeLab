@@ -41,7 +41,7 @@
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
 # (#360), smart-state (#351), pve-version (#311), guest-state (#257),
 # thin-pool-state (#538), pve-firewall-state (#576), zeek-mirror-state (#437)
-# and drift-check (#470).
+# and drift-check (#470), plus two rows that collect nothing (below).
 # Adding one is a row plus a unit under systemd/agent/, not a new script: the
 # first version of this was install-agent-collectors.sh and hardcoded one job,
 # which lasted exactly as long as it took for the second collector to need
@@ -52,7 +52,7 @@
 # nowhere else. That is the per-collector check doing its job: every other host
 # reports "cannot run this collector" and gets the rest.
 #
-# ONE ROW IS NOT A COLLECTOR. zeek-mirror (#437) builds the tc mirror that
+# TWO ROWS ARE NOT COLLECTORS. zeek-mirror (#437) builds the tc mirror that
 # zeek-mirror-state reports on, and writes no .prom — its .prom column is `-`.
 # It is in this table rather than a second installer because it ships the same
 # way, to the same host, as a script and a unit pair; what differs is where the
@@ -60,6 +60,11 @@
 # it collects nothing) and what verifying it means (the service's last run
 # succeeded, not a file exists). Both zeek rows require qm, so they land on the
 # hypervisor and nowhere else even though tc is everywhere.
+#
+# prune-images is the other one. It removes Docker images no container uses,
+# weekly, because nothing did on an agent host and odin's root reached 98% on
+# superseded images (2026-10-01). It requires /usr/bin/docker, so it lands on
+# the Docker hosts and Saruman reports it as one it cannot run.
 #
 # NOT EVERY COLLECTOR SUITS EVERY HOST, and the check is per collector rather
 # than per host. patch-state needs apt; smart-state needs smartmontools. A host
@@ -98,6 +103,7 @@ COLLECTORS=(
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"
   "zeek-mirror-state scripts/collect-zeek-mirror-state.sh zeek-mirror-state.prom /usr/sbin/qm"
   "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
+  "prune-images scripts/prune-images.sh         -                      /usr/bin/docker"
 )
 
 GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'
@@ -172,7 +178,7 @@ prom_for() {
   printf '%s' "${pattern/HOST/$hostname}"
 }
 
-# Where a row's script is installed. `-` in the .prom column marks the one row
+# Where a row's script is installed. `-` in the .prom column marks a row
 # that is not a collector (see the header).
 bin_for() {
   local name="$1" prom_pattern="$2"

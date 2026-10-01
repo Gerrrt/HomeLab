@@ -45,11 +45,12 @@ compose.yaml               four services, one network, health-gated ordering
 prometheus/
   prometheus.yaml          four scrape jobs; no alerting block, no file_sd;
                            the domain's and odin's jobs land commented
-  rules/lab.rules.yaml     7 rules — four for this stack watching itself,
-                           three for the domain ADR-0029 sized
+  rules/lab.rules.yaml     9 rules — four for this stack watching itself,
+                           two for the guests' disks, three for the domain
+                           ADR-0029 sized
   rules/soc.rules.yaml     6 rules — the SOC's indexer on odin, whose health is
                            pushed here by stacks/soc's Alloy (ADR-0030)
-  tests/lab.test.yaml      promtool unit tests; all seven rules, firing + quiet
+  tests/lab.test.yaml      promtool unit tests; all nine rules, firing + quiet
   tests/soc.test.yaml      the same for the six
 loki/loki-config.yaml      single-binary, filesystem, 15-day retention, no ruler
 grafana/
