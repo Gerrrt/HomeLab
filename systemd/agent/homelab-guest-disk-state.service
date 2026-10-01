@@ -1,0 +1,37 @@
+# How full this hypervisor's guests' filesystems are (#778, ADR-0070).
+#
+# WHAT IT IS FOR. odin's root reached 98% on 2026-10-01 and nothing paged: the
+# lab Prometheus sees guest disks and has no Alertmanager (ADR-0020). This asks
+# each running VM's guest agent for get-fsinfo, on the hypervisor, and writes
+# the capacity to the textfile directory, so the estate's GuestDisk* rules can
+# page. ADR-0070 records why capacity may cross when ADR-0028 kept guest
+# telemetry in the lab.
+#
+# HARDENING IS homelab-guest-state.service's, for its reason: `qm` reads /etc/pve,
+# a pmxcfs FUSE mount, and any directive that makes a mount namespace can hide
+# it. See that unit's header; the same class is left out here.
+#
+# TimeoutStartSec is sized for the worst case rather than the usual one: every
+# guest is asked under a 15 s timeout (plus 5 s to kill), serially, and Saruman
+# runs ten. A run that hits it writes nothing, and GuestDiskStateStale says so.
+[Unit]
+Description=HomeLab: record how full this hypervisor's guests' filesystems are
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/qm
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-guest-disk-state
+TimeoutStartSec=300
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-guest-disk-state

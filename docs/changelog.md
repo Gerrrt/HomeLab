@@ -19,6 +19,29 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **A lab guest's disk now pages ([#778](https://github.com/Gerrrt/HomeLab/issues/778)).**
+  This follows on from "odin's root disk was at 98%" below.
+  - **The gap.** The lab rules that entry added show in the lab's Grafana and
+    page nobody (ADR-0020), so a filling SOC disk was still noticed only by
+    someone already looking.
+  - **The decision.**
+    [ADR-0070](adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md)
+    lets a guest's filesystem capacity cross. `Saruman` reads it through each
+    guest's agent with `qm guest cmd <vmid> get-fsinfo`, so no network path is
+    added. It amends ADR-0028's table and narrows ADR-0007, with a note on
+    each. The agent's answer is treated as hostile input.
+  - **Now.**
+    - `scripts/collect-guest-disk-state.sh` runs every ten minutes on
+      `Saruman`.
+    - The estate's `GuestDiskCritical` (below 10% free) and
+      `GuestDiskWillFillIn24h` are both critical, so they reach a phone.
+    - `GuestAgentSilent` and `GuestDiskStateStale` warn when the reading
+      itself stops.
+    - The promtool tests use odin's numbers from that morning: 622 MB free of
+      30 GB.
+  - **Not yet.** The collector is installed by hand from the Mac
+    (`make install-agent-collectors AGENT=root@Saruman ARGS='--only
+    guest-disk-state'`). Until it is, nothing has changed on `Saruman`.
 - **The lab domain's six guests are documented as built.** `docs/architecture.md`
   still called `bahamut`, `leviathan`, `titan` and `ramuh` **not built yet**,
   and `carbuncle` and `siren` **built, not joined**. In fact the domain was
@@ -42,6 +65,7 @@ docstring gives: it is a record, not a claim about now.
     for its §6, §10 and §11.
   - Copilot's review of #774 surfaced it. It read the stale rows as "six still
     planned".
+||||||| parent of c101757 (feat(agents): page when a lab guest's disk is filling, read through the hypervisor (#778))
 
 - **odin's root disk was at 98%, and nothing would have said so.**
   - **The finding.** Found by the login banner, read as 92.8% by `df`'s other

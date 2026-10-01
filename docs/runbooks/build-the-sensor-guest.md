@@ -166,7 +166,9 @@ If the name is not `ens19`, change it in the file above and in
 `stacks/sensor/.env`.
 
 Install `qemu-guest-agent` as `odin`'s §1 says. `qm guest exec 190 -- uptime`
-from `Saruman` is the check.
+from `Saruman` is the check. The agent is also what lets this guest's disks
+page (ADR-0070): `qm guest cmd 190 get-fsinfo` should list `/` and
+`/srv/sensor-data`.
 
 ## 4. Docker, the repository, and the stack
 

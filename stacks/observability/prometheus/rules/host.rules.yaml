@@ -748,6 +748,116 @@ groups:
             journal (`journalctl -u homelab-thin-pool-state`); a failed `lvs`
             writes nothing on purpose, so the journal says why.
 
+      # --- Guest filesystems, read through the hypervisor (#778, ADR-0070) ----
+      #
+      # odin's root reached 98% on 2026-10-01 and nothing paged: the lab
+      # Prometheus has HostDiskCritical for its guests and no Alertmanager
+      # (ADR-0020). ADR-0070 lets a guest's filesystem CAPACITY cross, read on
+      # `Saruman` with `qm guest cmd <vmid> get-fsinfo` by
+      # scripts/collect-guest-disk-state.sh, and these are what it buys.
+      #
+      # BOTH CAPACITY RULES ARE CRITICAL, where HostDiskWillFillIn24h is a
+      # warning. A host on VLAN 99 is one someone is looking at; a lab guest
+      # is not, and a full disk on odin blinds the SOC. The forecast is the
+      # one that gives time to act, so it is the one that has to reach a
+      # phone (#778).
+      #
+      # The numbers come from the guest's own agent, and a compromised guest
+      # can lie about its own disk. ADR-0070 accepts that: the worst it can do
+      # is page about itself, or hide its own fill.
+
+      - alert: GuestDiskCritical
+        # HostDiskCritical's line, on the guest's own view of its disk.
+        # total-bytes from the agent already excludes root-reserved blocks, so
+        # size - used is what `df` calls Avail.
+        expr: >-
+          (homelab_guest_filesystem_size_bytes - homelab_guest_filesystem_used_bytes)
+          / homelab_guest_filesystem_size_bytes < 0.10
+        for: 15m
+        labels:
+          component: host
+          severity: critical
+          category: capacity
+        annotations:
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }}:{{ $labels.mountpoint }} below 10% free"
+          description: >-
+            {{ $labels.mountpoint }} on {{ $labels.guest }} (VMID {{ $labels.vmid }})
+            has {{ $value | humanizePercentage }} free. On a Docker host,
+            `docker system df` first: superseded images are what filled odin.
+            The estate cannot reach the guest; ssh to it from the lab, or
+            `qm guest exec {{ $labels.vmid }} -- df -h` on {{ $labels.host }}.
+
+      - alert: GuestDiskWillFillIn24h
+        # HostDiskWillFillIn24h's shape: six hours extrapolated a day ahead,
+        # guarded by 30% free so a roomy disk taking one large write does not
+        # page. Written as used-against-size rather than predict_linear of a
+        # difference, which would need a subquery.
+        expr: >-
+          predict_linear(homelab_guest_filesystem_used_bytes[6h], 24 * 3600)
+          >= homelab_guest_filesystem_size_bytes
+          and
+          (homelab_guest_filesystem_size_bytes - homelab_guest_filesystem_used_bytes)
+          / homelab_guest_filesystem_size_bytes < 0.30
+        for: 1h
+        labels:
+          component: host
+          severity: critical
+          category: capacity
+        annotations:
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }}:{{ $labels.mountpoint }} fills within 24h"
+          description: >-
+            {{ $labels.mountpoint }} on {{ $labels.guest }} (VMID {{ $labels.vmid }})
+            is below 30% free and, extrapolating the last 6 hours, full within
+            a day. On a Docker host, `docker system df` first: superseded images
+            are what filled odin.
+
+      - alert: GuestDiskStateStale
+        # The collector stopped rewriting its file. A timestamp rather than
+        # presence, for ThinPoolStateStale's reason: the .prom persists and is
+        # re-served, so every guest disk would stay plausible after the timer
+        # died.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*guest-disk-state\\.prom"} > 3600
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its guests' disk state in an hour"
+          description: >-
+            The file is {{ $value | humanizeDuration }} old, so GuestDiskCritical
+            and GuestDiskWillFillIn24h are reading old numbers. Check
+            homelab-guest-disk-state.timer on the host and its last run in the
+            journal (`journalctl -u homelab-guest-disk-state`); a failed
+            `qm list` writes nothing on purpose, so the journal says why.
+
+      - alert: GuestAgentSilent
+        # A running guest whose agent answered within the last day and has not
+        # for an hour. Its disks have dropped out of the two rules above, so
+        # they cannot page — this is what says they cannot.
+        #
+        # ANSWERED WITHIN THE DAY, so a guest that never had an agent (the
+        # Windows domain machines, until someone installs one) stays quiet
+        # rather than alerting forever. odin's agent has hung under load; the
+        # hour is what keeps that from paging on every busy spell.
+        expr: >-
+          homelab_guest_agent_up == 0
+          and on (host, guest, vmid)
+          max_over_time(homelab_guest_agent_up[1d]) == 1
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }}'s agent has not answered for an hour"
+          description: >-
+            The guest is running, and `qm guest cmd {{ $labels.vmid }} get-fsinfo`
+            on {{ $labels.host }} has failed or timed out for an hour, so this
+            guest's disks cannot page. `systemctl status qemu-guest-agent` inside
+            the guest; if it has hung, restarting it is safe.
+
       # --- The hypervisor's own firewall (#576) ------------------------------
       #
       # #566 found `Saruman`'s Proxmox firewall disabled while ADR-0014 and
