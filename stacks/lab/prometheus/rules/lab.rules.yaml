@@ -6,7 +6,8 @@
 # keeping lab telemetry out of the estate, and this file does not pretend to
 # replace them. Four cover this stack's own working — the things that would make
 # every other signal here silently wrong. Two cover the disks of the guests that
-# push here, which nothing else can see. Three cover the domain ADR-0029 sized,
+# push here, in the detail only their own node_exporter has; the estate pages on
+# the same disks, read another way (ADR-0070). Three cover the domain ADR-0029 sized,
 # and they are here rather than in a stack of their own because this Prometheus
 # is the only thing on the segment that scrapes it.
 #
@@ -118,7 +119,7 @@ groups:
             Logs are being lost, not queued indefinitely.
 
       # The guests' own disks: `alexander`, and `odin`, whose Alloy pushes here
-      # (stacks/soc). The estate's host.rules.yaml cannot see either, because
+      # (stacks/soc). The estate's HostDisk* rules cannot see either, because
       # neither pushes to VLAN 99 (ADR-0007). So until 2026-10-01 nothing
       # watched them at all, and odin's 30 GB root reached 98% unnoticed:
       # 7.8 GB of it was superseded Docker images, which nothing on an agent
@@ -126,8 +127,11 @@ groups:
       #
       # Same names and same expressions as the estate's pair, per the header.
       # The forecast is the one that would have caught odin, filling slowly
-      # for weeks; the threshold is the backstop. Neither pages (ADR-0020). They
-      # are on the lab's /alerts and its Grafana, for whoever is looking.
+      # for weeks; the threshold is the backstop. Neither pages (ADR-0020).
+      # What pages is the estate's GuestDiskCritical and GuestDiskWillFillIn24h,
+      # on the same disks read by Saruman through each guest's agent
+      # (ADR-0070, #778). These stay as the lab's own view, with the detail
+      # only node_exporter inside the guest has.
       - alert: HostDiskWillFillIn24h
         expr: |
           predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}[6h], 24 * 3600) < 0

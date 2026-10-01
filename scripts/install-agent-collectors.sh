@@ -40,8 +40,9 @@
 #
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
 # (#360), smart-state (#351), pve-version (#311), guest-state (#257),
-# thin-pool-state (#538), pve-firewall-state (#576), zeek-mirror-state (#437)
-# and drift-check (#470), plus two rows that collect nothing (below).
+# thin-pool-state (#538), guest-disk-state (#778), pve-firewall-state (#576),
+# zeek-mirror-state (#437) and drift-check (#470), plus two rows that collect
+# nothing (below).
 # Adding one is a row plus a unit under systemd/agent/, not a new script: the
 # first version of this was install-agent-collectors.sh and hardcoded one job,
 # which lasted exactly as long as it took for the second collector to need
@@ -99,6 +100,7 @@ COLLECTORS=(
   "pve-version scripts/collect-pve-version.sh   pve-version.prom       /usr/bin/pveversion"
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
   "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/sbin/lvs"
+  "guest-disk-state scripts/collect-guest-disk-state.sh guest-disk-state.prom /usr/sbin/qm"
   "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"
   "zeek-mirror-state scripts/collect-zeek-mirror-state.sh zeek-mirror-state.prom /usr/sbin/qm"

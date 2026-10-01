@@ -102,6 +102,12 @@ sudo apt-get install -y qemu-guest-agent && sudo systemctl start qemu-guest-agen
 
 `qm guest exec 160 -- uptime` from `Saruman` is the check.
 
+The agent is also how this guest's disks page. `Saruman` asks it for
+`get-fsinfo` every ten minutes, and the estate's `GuestDiskCritical` and
+`GuestDiskWillFillIn24h` read the answer
+([ADR-0070](../adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md)).
+`qm guest cmd 160 get-fsinfo` should list `/` and `/srv/soc-data`.
+
 ## 2. Install Ubuntu Server
 
 As `alexander`'s §2, with these values. **Hostname `odin`** — every metric and
