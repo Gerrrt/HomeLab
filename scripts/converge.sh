@@ -241,16 +241,16 @@ record() {
 # HELP homelab_deploy_revision_info The commit the deployment checkout is on. Always 1; the revision is the label.
 # TYPE homelab_deploy_revision_info gauge
 homelab_deploy_revision_info{revision="${REVISION}"} 1
-# HELP homelab_deploy_commit_timestamp_seconds Committer time of the deployed revision. time() minus this is how old the running configuration is.
+# HELP homelab_deploy_commit_timestamp_seconds Committer time of the checkout's revision; how old the running configuration is while homelab_deploy_unapplied is 0.
 # TYPE homelab_deploy_commit_timestamp_seconds gauge
 homelab_deploy_commit_timestamp_seconds ${COMMIT_TS}
-# HELP homelab_deploy_behind_commits Commits the fetched branch is ahead of the deployed revision. 0 is converged; -1 means the fetch did not complete.
+# HELP homelab_deploy_behind_commits Commits the fetched branch is ahead of the checkout. 0 is at the tip; -1 means the fetch did not complete.
 # TYPE homelab_deploy_behind_commits gauge
 homelab_deploy_behind_commits ${BEHIND}
 # HELP homelab_deploy_tree_dirty 1 when the deployment checkout has uncommitted or untracked changes.
 # TYPE homelab_deploy_tree_dirty gauge
 homelab_deploy_tree_dirty ${DIRTY}
-# HELP homelab_deploy_verified 1 when the deployed revision carries a good signature from the pinned key.
+# HELP homelab_deploy_verified 1 when the checkout's revision carries a good signature from the pinned key; the deployed one's while homelab_deploy_unapplied is 0.
 # TYPE homelab_deploy_verified gauge
 homelab_deploy_verified ${VERIFIED}
 # HELP homelab_deploy_apply_enabled 1 when this host applies what it fetches. 0 is report-only, set by HOMELAB_CONVERGE_APPLY=0.

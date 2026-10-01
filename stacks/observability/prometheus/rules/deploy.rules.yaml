@@ -5,7 +5,7 @@
 # what got deployed, so `make up` on an uncommitted tree and `make up` on `main`
 # were indistinguishable; and nothing compared the host to the repository, so a
 # config edited in place stayed edited until a deploy silently overwrote it.
-# scripts/converge.sh now runs hourly and writes six gauges into the same
+# scripts/converge.sh now runs hourly and writes seven gauges into the same
 # textfile directory the maintenance jobs use.
 #
 # WHAT backup.rules.yaml ALREADY COVERS, AND IS NOT REPEATED HERE
@@ -19,7 +19,7 @@
 # correctly refuses to move — because the tree is dirty, or the tip did not
 # verify — exits non-zero and is fully described by ScheduledJobFailed, but the
 # interesting fact is WHICH refusal and how far behind the host now is. These
-# five rules read the record converge.sh writes rather than its exit code.
+# six rules read the record converge.sh writes rather than its exit code.
 #
 # WHY THERE IS NO ALERT ON THE REVISION ITSELF
 #

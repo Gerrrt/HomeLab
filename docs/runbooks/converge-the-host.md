@@ -160,10 +160,10 @@ move still reports what the host is on.
 | Metric | Question it answers |
 | --- | --- |
 | `homelab_deploy_revision_info{revision}` | What the checkout is on, which is what is deployed while `unapplied` is 0 |
-| `homelab_deploy_commit_timestamp_seconds` | How old the running configuration is |
-| `homelab_deploy_behind_commits` | How far behind `main`; `-1` means the fetch failed |
+| `homelab_deploy_commit_timestamp_seconds` | How old the checkout's revision is, which is the running configuration's age while `unapplied` is 0 |
+| `homelab_deploy_behind_commits` | How far the checkout is behind `main`; `-1` means the fetch failed |
 | `homelab_deploy_tree_dirty` | Whether someone edited a file on the host |
-| `homelab_deploy_verified` | Whether the deployed revision has a valid signature |
+| `homelab_deploy_verified` | Whether the checkout's revision has a valid signature, which is the deployed one's while `unapplied` is 0 |
 | `homelab_deploy_apply_enabled` | Whether this host applies what it fetches, or is in report-only mode |
 | `homelab_deploy_unapplied` | Whether the checkout has moved past what `make up` last applied |
 

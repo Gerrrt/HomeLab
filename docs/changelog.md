@@ -39,6 +39,7 @@ docstring gives: it is a record, not a claim about now.
     warning) cover the cases it cannot fix: report-only mode, and `make up`
     failing every time. The first run after this ships has no record and
     redeploys once.
+
 - **JA4+ is vendored into `stacks/sensor`, and not yet deployed**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
@@ -104,7 +105,6 @@ docstring gives: it is a record, not a claim about now.
     about five seconds until netplan's config takes over. That accounts for the
     nine packets `ens19` had sent despite being set never to speak. They reach
     nothing, because `vmbr1` has no other port and no address.
-||||||| parent of 8a541bc (fix(converge): a checkout moved without `make up` no longer reads as deployed)
 
 - **A lab guest's disk now pages ([#778](https://github.com/Gerrrt/HomeLab/issues/778)).**
   This follows on from "odin's root disk was at 98%" below.
