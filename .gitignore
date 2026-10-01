@@ -13,6 +13,9 @@ secrets/*
 !secrets/*.sops.yaml
 !secrets/*.example.yaml
 !secrets/README.md
+# The one encrypted file that is never committed: it is encrypted to the key of
+# a guest that is destroyed after each investigation (ADR-0071, .sops.yaml).
+secrets/scratch.sops.yaml
 *.pem
 *.key
 *.p12
@@ -36,6 +39,11 @@ stacks/soc/velociraptor/etc/*
 # ignored above; the directory is listed so nothing else lands in it either.
 stacks/soc/wazuh/certs/*
 !stacks/soc/wazuh/certs/.gitkeep
+# ---- stacks/scratch: the same two, generated on diabolos (ADR-0071) ----
+stacks/scratch/velociraptor/etc/*
+!stacks/scratch/velociraptor/etc/.gitkeep
+stacks/scratch/wazuh/certs/*
+!stacks/scratch/wazuh/certs/.gitkeep
 # Client installers repacked for GPO deployment are build artefacts.
 *.msi
 

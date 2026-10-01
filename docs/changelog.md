@@ -45,6 +45,91 @@ docstring gives: it is a record, not a claim about now.
     `phoenix`, a clone that comes up, and a second build that is just as
     usable. That is the runbook's §6–§8, and the `PhoenixBuilder` privileges
     it turns up go in its §2.
+- **A PR whose close keywords sit in prose now fails
+  ([#672](https://github.com/Gerrrt/HomeLab/issues/672)).**
+  - **The gap.** GitHub closes an issue for a close keyword anywhere in a PR
+    body or a commit that lands on main. Eight issues were closed by prose
+    that said they stayed open, and three sat closed with the work undone
+    until the 2026-09-26 pass. A ninth, #776, was named by #780 on 2026-09-30
+    as "Refs" and as closing in the same body. Checking
+    `closingIssuesReferences` by hand had not been enough.
+  - **Now.** `scripts/check_close_keywords.py` runs on every PR from its own
+    workflow, `close-keywords.yml`, which re-runs when the body is edited. It
+    reads the title, body, commits and `closingIssuesReferences` over GraphQL
+    and fails when a close keyword is not the first word of its sentence,
+    when its sentence says not, nothing or stays open, or when an issue the
+    merge will close is also named with `Refs`. The issues the merge will
+    close go to the job summary either way. An intended close is written
+    `Closes #N.` as a sentence of its own.
+  - **Proved against the record.** Run read-only on the PRs that did it: #319,
+    #252, #382, #521, #545, #652, #664, #758 and #780 all fail; #781 and #743
+    pass and list what they closed. Each phrase is also a fixture in the
+    script's `--self-test`.
+  - **Drafts.** `--text FILE` (or `-` for stdin) lints a PR body or commit
+    message before it is pushed.
+
+- **`stacks/scratch` authored, a disposable copy of the SOC stack**
+  ([#438](https://github.com/Gerrrt/HomeLab/issues/438),
+  [ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)).
+  It is for detonations and one-off questions, so that their noise never spends
+  `odin`'s shard budget or enters its record.
+  - **Where it runs.** On `diabolos` (`10.0.30.61`, VMID 161), a guest built per
+    investigation and destroyed with `qm destroy --purge`
+    ([`run-a-scratch-investigation.md`](runbooks/run-a-scratch-investigation.md)).
+    The stack is authored and CI-validated ahead of the guest, as `stacks/soc`
+    and `stacks/sensor` were.
+  - **What it runs.** soc's four services on soc's digests, with soc's
+    configuration mounted rather than copied.
+  - **What it leaves out.** No ISM policy, Alloy, scrape or backup.
+  - **Lifecycle.** `scripts/collect-guest-state.sh` now also reads each guest's
+    `qm config` and reports `homelab_guest_disposable`, from the Proxmox tag,
+    and `homelab_guest_created_timestamp_seconds`, from `meta: ctime`.
+    - A new estate rule, `DisposableGuestOutlived`, fires when a guest tagged
+      `disposable` is more than a fortnight old, running or stopped.
+    - `HypervisorGuestStopped` no longer fires for such a guest.
+    - `GuestConfigUnreadable` fires when a guest's config has been unreadable
+      for an hour, from a per-guest `homelab_guest_config_readable`. Without it,
+      a failed read would silently blind the age rule.
+    - Run read-only on `Saruman` the same day, the collector reported all ten
+      guests with a creation time and none disposable, in 14.5 s.
+  - **Secrets.** The guest gets its own `.sops.yaml` rule above the catch-all,
+    with a placeholder that stays in git. Its encrypted secrets file is
+    gitignored and never committed.
+- **Convergence reported "converged" over rules it had never deployed.**
+  - **The finding.** After #781 merged, the deployment checkout on
+    `prometheus` was already at the merge, but Prometheus was serving the
+    pre-merge rules: none of #781's four `Guest*` rules were loaded. The timer's
+    last run predated the merge, so the checkout had been moved some other way,
+    most likely a `git pull` by hand. `make converge` then found HEAD equal to
+    `main`, printed `converged`, recorded `behind=0`, and ran no `make up`. It
+    would have done the same every hour.
+  - **Why nothing fired.** Every deploy alert reads HEAD, and HEAD was right.
+    Found by reading the Rules page. Fixed by hand with `make reload`.
+  - **A second case, same cause.** A `make up` that failed after a
+    fast-forward left HEAD at `main`, so the next hourly run reported
+    `converged` and never retried it.
+  - **Now.** `make up` ends by recording the revision it applied
+    (`scripts/record-applied.sh`). `converge.sh` deploys any checkout whose
+    HEAD differs from that record, so a hand pull or a failed deploy clears on
+    the next run. `homelab_deploy_unapplied` and `DeployUnapplied` (two hours,
+    warning) cover the cases it cannot fix: report-only mode, and `make up`
+    failing every time. The first run after this ships has no record and
+    redeploys once.
+- **The ISO store is decided, and its dataset exists**
+  ([#446](https://github.com/Gerrrt/HomeLab/issues/446),
+  [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+  `erebor/iso` was created through the TrueNAS API: lz4, atime off, a 500 GiB
+  quota, POSIX ACLs, and no snapshot task, because ISOs are replaceable. It
+  will be exported over NFSv4 to `10.0.30.110` alone, with root mapped to
+  `pippin`, through `Allow NFS from Saruman to smaug` on `2049`. None of
+  that exists yet: the user, the share, the pass and `Saruman`'s mount are
+  not done.
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §5b is the procedure. The
+  NFS service on `smaug` was not running on this date, and neither was
+  `golem`'s share. Proxmox's NFS storage type checks the portmapper on `111`
+  before it probes `2049`, so `Saruman` mounts the share from `fstab` and
+  adds it as a `dir` storage instead.
+
 - **JA4+ is vendored into `stacks/sensor`, and not yet deployed**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).

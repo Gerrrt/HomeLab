@@ -94,6 +94,19 @@ creation_rules:
     age: >-
       age1yvxe2z99jadajjqp049e6dqeya9hp55uhv890s84exvtthvqy5pq9q2hum
 
+  # The disposable investigation guest (ADR-0071), for soc's reason: a guest
+  # that holds a detonation's output must not be able to open the estate's
+  # credentials, or odin's. THE PLACEHOLDER IS PERMANENT IN GIT. diabolos is
+  # destroyed at the end of every investigation, and its age key with it, so
+  # each incarnation runs `make secrets-init STACK=scratch` on itself and the
+  # public key is written into ITS OWN checkout only — never committed. The
+  # encrypted file it produces is gitignored for the same reason: committed, it
+  # would be ciphertext to a key that no longer exists, plus a commit to
+  # .sops.yaml per incident. secrets/README.md records the exception.
+  - path_regex: secrets/scratch(\..+)?\.sops\.ya?ml$
+    age: >-
+      REPLACE_WITH_SCRATCH_AGE_PUBLIC_KEY
+
   # There is NO media rule, and that is a decision rather than a gap (#528).
   # stacks/media renders no secrets: Jellyfin's admin is made by its own setup
   # wizard and lives in its database, and its host — smaug, TrueNAS — runs

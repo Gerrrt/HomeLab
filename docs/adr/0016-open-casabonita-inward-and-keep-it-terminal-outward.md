@@ -48,6 +48,12 @@
 > on laptops
 > ([ADR-0051](0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)).
 > Same kind of pass as the table below, and the table is not edited.
+>
+> **A rule for the ISO store, 2026-10-01.** `Saruman` mounts `erebor/iso`
+> over NFSv4 through `10.0.30.110 → 10.0.40.30:2049`, a pass from
+> ImaginationLAN of the shape ADR-0053 gives `golem`
+> ([ADR-0072](0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+> Same kind of pass, host- and port-scoped, and the table is not edited.
 
 ## Context
 

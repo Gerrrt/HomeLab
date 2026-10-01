@@ -37,8 +37,18 @@
 # deploy, not the deployment.
 #
 # The no-op path costs one fetch. When the checkout is already at the fetched
-# tip and the tree is clean, nothing is rendered, no container is touched and
-# docker is never called — which is what makes an hourly cadence reasonable.
+# tip, the tree is clean and `make up` last applied that same revision, nothing
+# is rendered, no container is touched and docker is never called — which is
+# what makes an hourly cadence reasonable.
+#
+# "AT THE TIP" IS NOT "DEPLOYED", and the first version treated it as though it
+# were. On 2026-10-01 the checkout reached #781's merge by a `git pull` by hand,
+# with no `make up`. This script then compared HEAD with `main`, found them
+# equal and recorded "converged", behind=0, hourly, while Prometheus served the
+# pre-merge rules — every deploy alert reads HEAD, so none could see it. `make
+# up` now ends by recording the revision it applied (scripts/record-applied.sh),
+# and HEAD is compared with that too: a checkout that moved without a deploy is
+# deployed on the next run, and homelab_deploy_unapplied says so until it is.
 #
 # WHY IT FETCHES A URL AND NOT `origin`
 #
@@ -116,6 +126,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # copy — so converging a second clone would report success while changing
 # nothing the stack can see.
 DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
+
+# What `make up` deploys here, named rather than left to the Makefile's default,
+# because the applied-revision record is per stack and must be the one read.
+DEPLOY_STACK="observability"
 
 # Read-only, credential-free, and not taken from the checkout's own config.
 CANONICAL_URL="https://github.com/Gerrrt/HomeLab.git"
@@ -210,6 +224,9 @@ COMMIT_TS=0
 BEHIND=-1
 DIRTY=0
 VERIFIED=0
+# 1 when HEAD is not the revision `make up` last applied. 0 until measured,
+# which happens right beside HEAD below, before anything can refuse.
+UNAPPLIED=0
 
 recorded=0
 record() {
@@ -224,29 +241,32 @@ record() {
 # HELP homelab_deploy_revision_info The commit the deployment checkout is on. Always 1; the revision is the label.
 # TYPE homelab_deploy_revision_info gauge
 homelab_deploy_revision_info{revision="${REVISION}"} 1
-# HELP homelab_deploy_commit_timestamp_seconds Committer time of the deployed revision. time() minus this is how old the running configuration is.
+# HELP homelab_deploy_commit_timestamp_seconds Committer time of the checkout's revision; how old the running configuration is while homelab_deploy_unapplied is 0.
 # TYPE homelab_deploy_commit_timestamp_seconds gauge
 homelab_deploy_commit_timestamp_seconds ${COMMIT_TS}
-# HELP homelab_deploy_behind_commits Commits the fetched branch is ahead of the deployed revision. 0 is converged; -1 means the fetch did not complete.
+# HELP homelab_deploy_behind_commits Commits the fetched branch is ahead of the checkout. 0 is at the tip; -1 means the fetch did not complete.
 # TYPE homelab_deploy_behind_commits gauge
 homelab_deploy_behind_commits ${BEHIND}
 # HELP homelab_deploy_tree_dirty 1 when the deployment checkout has uncommitted or untracked changes.
 # TYPE homelab_deploy_tree_dirty gauge
 homelab_deploy_tree_dirty ${DIRTY}
-# HELP homelab_deploy_verified 1 when the deployed revision carries a good signature from the pinned key.
+# HELP homelab_deploy_verified 1 when the checkout's revision carries a good signature from the pinned key; the deployed one's while homelab_deploy_unapplied is 0.
 # TYPE homelab_deploy_verified gauge
 homelab_deploy_verified ${VERIFIED}
 # HELP homelab_deploy_apply_enabled 1 when this host applies what it fetches. 0 is report-only, set by HOMELAB_CONVERGE_APPLY=0.
 # TYPE homelab_deploy_apply_enabled gauge
 homelab_deploy_apply_enabled ${APPLY_ENABLED}
+# HELP homelab_deploy_unapplied 1 when the checkout's HEAD is not the revision make up last applied: it moved without a deploy, or the deploy failed.
+# TYPE homelab_deploy_unapplied gauge
+homelab_deploy_unapplied ${UNAPPLIED}
 EOF
   chmod 0644 "${tmp}"
   mv -f "${tmp}" "${PROM}"
 
   # One structured line for the journal, which Alloy already ships to Loki with
   # a `unit` label — findable with LogQL without parsing anything above it.
-  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s\n' \
-    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}"
+  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s unapplied=%s\n' \
+    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}" "${UNAPPLIED}"
 }
 trap record EXIT
 
@@ -283,6 +303,13 @@ command -v git >/dev/null 2>&1 || die "git is not installed"
 # earlier guards were an oversight to fix.
 REVISION="$(git rev-parse --short=12 HEAD)"
 COMMIT_TS="$(git log -1 --format=%ct HEAD)"
+
+# What the last finished `make up` applied, beside where HEAD is. Empty when no
+# deploy has recorded one — the first run after this check shipped, or a fresh
+# clone — and that counts as unapplied: one redeploy of what is already running
+# is cheap, and assuming a deploy that may never have happened is the bug.
+APPLIED="$(./scripts/record-applied.sh --read "${DEPLOY_STACK}" 2>/dev/null || true)"
+[[ "${APPLIED}" == "$(git rev-parse HEAD)" ]] || UNAPPLIED=1
 
 # ---------------------------------------------------------------------------
 # Signature
@@ -409,9 +436,24 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${TARGET}" == "$(git rev-parse HEAD)" ]]; then
   BEHIND=0
-  green "converged — ${REVISION} is ${BRANCH}"
-  # Nothing rendered, no container touched, docker never called. This is the
-  # path an hourly cadence spends almost all of its time on.
+  if ((UNAPPLIED == 0)); then
+    green "converged — ${REVISION} is ${BRANCH}"
+    # Nothing rendered, no container touched, docker never called. This is the
+    # path an hourly cadence spends almost all of its time on.
+    exit 0
+  fi
+  # At the tip and never deployed from it — the 2026-10-01 shape. Not a
+  # fast-forward, so nothing to verify beyond what was verified above; just
+  # the deploy that the move skipped.
+  warn "the checkout is at ${REVISION}, but make up last applied ${APPLIED:-nothing on record}"
+  if ((DRY_RUN)); then
+    warn "dry run — not applying"
+    exit 0
+  fi
+  info "applying ${REVISION}"
+  make up STACK="${DEPLOY_STACK}"
+  UNAPPLIED=0
+  green "converged — ${REVISION} is ${BRANCH}, and now deployed"
   exit 0
 fi
 
@@ -442,6 +484,9 @@ REVISION="$(git rev-parse --short=12 HEAD)"
 COMMIT_TS="$(git log -1 --format=%ct HEAD)"
 BEHIND=0
 VERIFIED="${target_verified}"
+# Moved and not yet deployed. If `make up` fails below, set -e exits with this
+# still 1, and the record says the checkout is ahead of what is running.
+UNAPPLIED=1
 
 # `make up` and not a narrower command, on purpose. It renders the config,
 # recreates whatever compose says changed, and runs reload-config.sh for the
@@ -449,6 +494,7 @@ VERIFIED="${target_verified}"
 # already tells a human to type, so there is exactly one deployment path and it
 # is exercised both ways.
 info "applying ${REVISION}"
-make up
+make up STACK="${DEPLOY_STACK}"
+UNAPPLIED=0
 
 green "converged to ${REVISION}"

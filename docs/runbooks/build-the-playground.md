@@ -155,6 +155,15 @@ documents:
    the list rather than asserting one — see
    [`ship-firewall-logs.md`](ship-firewall-logs.md) for why that label means
    something different on relayed logs.
+   **If the ISO store exists** ([ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),
+   [`build-the-nas.md`](build-the-nas.md) §5b), it is a second rule and an
+   export, and both name `.110`:
+   - Edit `Allow NFS from Saruman to smaug` on ImaginationLAN to source
+     `10.0.30.20`. Its position does not change.
+   - On `smaug`, change the `erebor/iso` NFS share's authorized host to
+     `10.0.30.20`.
+   - On `Saruman`, `umount /mnt/smaug-iso && mount /mnt/smaug-iso`, then
+     `pvesm status --storage smaug-iso` must say `active`.
 4. Update the address where the documents carry it: `hardware.md`,
    `network.md`, `architecture.md`, `add-monitored-device.md`,
    `replace-the-smart-storage-battery.md`, and the ADRs that quote the rule —

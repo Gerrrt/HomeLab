@@ -19,7 +19,7 @@ What this network is actually built to survive:
 | An attacker on the lab segment reaching the hypervisor's management plane | **Closed at the host, and watched.** `Saruman`'s Proxmox firewall admits `8006` and `22` from Hicks and `8006` from the deployment host only ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)). It was found disabled and turned on on 2026-09-20 ([#566](https://github.com/Gerrrt/HomeLab/issues/566)); since [#576](https://github.com/Gerrrt/HomeLab/issues/576) `homelab_pve_firewall_enabled` is read every five minutes and `PveFirewallDisabled` pages after ten, so a `pve-firewall stop` left in place is noticed rather than found. `PveFirewallPolicyAccept` does the same for `policy_in` left at `ACCEPT`, which reads as enabled and admits the whole segment |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 129 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 132 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below. **What the UPS cannot answer is what happens when the cut outlasts the pack: as of 2026-09-20 nothing shuts down on its signal, and everything on the PDU — `morpheus`, `Saruman`, `neo` and `smaug`, which is in the media room on a long cord from that PDU — stops uncleanly when the pack empties, about 47 minutes in at 21 % load by the card's own unmeasured estimate.** [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides that the firewall's NUT server halts `Saruman` and `smaug` first and itself last, and [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) is the build, the forced-shutdown proof and the one mains pull that measures the pack; until those are done the decision is a configuration nobody has tested ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
@@ -330,6 +330,17 @@ user, typed on workstations and never stored on a television, so the
 televisions' `bilbo` and the workstations' credential are revoked apart. The
 same pass puts an SMB login prompt in front of everything on Hicks, the
 corporate laptop included, as `443` already puts the TrueNAS one.
+**One more is specified from ImaginationLAN, and it is not created.**
+`10.0.30.110 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, lets the
+hypervisor mount `erebor/iso`, the ISO store Packer builds templates from
+([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+Its residual is the one NFS with `sec=sys` always carries: the export trusts
+an address. Anything on VLAN 30 that took `Saruman`'s address could replace
+an installer, and every template built from it afterwards would carry the
+change. The control is not the rule. It is the checksum #440 verifies
+against the repository before each build. Root on `Saruman` maps to
+`pippin`, which owns that one directory, so the hypervisor is not root on
+the NAS.
 [`network.md`](network.md) holds the current list. **Skids has one, since
 2026-09-28:** `10.0.99.40 → 10.0.20.20:80,443/tcp` — Home Assistant to the Hue
 bridge, the one device on that segment with a local API — above the block that
@@ -549,6 +560,18 @@ assumption consistent with what they are.
   What would retire it is the same as for media: a service there taking a
   credential from outside. Then it gets a rule of its own above the
   catch-all, with `fenrir`'s key, before the file exists.
+- **The scratch stack's secrets exist only on its guest, and are never
+  committed.** `diabolos` is built for one investigation and destroyed at the
+  end of it ([#438](https://github.com/Gerrrt/HomeLab/issues/438),
+  [ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)).
+  It has its own `.sops.yaml` rule above the catch-all, so it can never open
+  the estate's credentials or `odin`'s. The rule's
+  `REPLACE_WITH_SCRATCH_AGE_PUBLIC_KEY` placeholder is permanent in git. Each
+  incarnation runs `make secrets-init STACK=scratch` on itself, which writes
+  its key into its own checkout and encrypts `secrets/scratch.sops.yaml`
+  there, and `.gitignore` keeps that file out of git. The key has no backup,
+  unlike every other key in ADR-0024, on purpose: the key, the secrets and the
+  data they protect are destroyed together by `qm destroy 161 --purge`.
 
 ### Known historical exposure
 
