@@ -162,8 +162,58 @@ sudo chmod 600 /etc/netplan/60-capture.yaml && sudo netplan apply
 ip -br addr show ens19   # UP, and no address
 ```
 
-If the name is not `ens19`, change it in the file above and in
-`stacks/sensor/.env`.
+If the name is not `ens19`, it changes in **every** place this section
+names it:
+
+- the netplan file above;
+- `capture-offloads.service` below: its `BindsTo=`, `After=` and `ExecStart=`
+  lines, and the `ethtool -k` check after it;
+- `ZEEK_INTERFACE` in `stacks/sensor/.env`.
+
+Missing the unit is the quiet failure. It fails to start, GRO stays on, Zeek
+still runs, and host-bound flows show gaps again (#782).
+
+**Turn off receive offloads on the capture NIC, and keep them off.** With GRO
+on, the guest kernel holds a flow's data segments to merge them, but hands a
+packet going the other way straight to Zeek. Saruman acknowledges data sent to
+it within microseconds, so its ACK reaches Zeek before the data. Zeek then logs
+a content gap on every busy flow to or from the hypervisor, even though nothing
+was dropped. The first build ran at about 8% `percent_lost` this way.
+
+```bash
+sudo tee /etc/systemd/system/capture-offloads.service >/dev/null <<'UNIT'
+# fenrir's capture NIC: no receive offloads (#437, ADR-0068).
+#
+# With GRO on, the kernel holds a flow's data segments to merge them but hands
+# a packet of the opposite direction straight to the tap. Saruman ACKs data
+# sent to it within microseconds, so its ACK overtook the held data and Zeek
+# logged "ACK above a hole": a content gap on every busy host-bound flow,
+# ~8% capture_loss, with nothing actually dropped. Zeek's own guidance is the
+# same: no offloads on a capture interface.
+[Unit]
+Description=Disable receive offloads on the Zeek capture NIC (ens19)
+BindsTo=sys-subsystem-net-devices-ens19.device
+After=sys-subsystem-net-devices-ens19.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/ethtool -K ens19 gro off rx-gro-hw off
+
+# multi-user.target, not the device: Ubuntu 26.04's dracut initramfs brings
+# ens19 up before switch-root, so its device unit is already active when the
+# real system starts and a device-level Wants= is never pulled in. That was
+# measured: the first version of this unit did not run on the first reboot.
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload && sudo systemctl enable --now capture-offloads.service
+ethtool -k ens19 | grep -E 'generic-receive|rx-gro-hw'   # both: off
+```
+
+It hangs off `multi-user.target`, not the device. Ubuntu 26.04's dracut
+initramfs brings `ens19` up before the real system starts, so a unit wanted by
+the device never fires. Reboot once and check `ethtool` again.
 
 Install `qemu-guest-agent` as `odin`'s §1 says. `qm guest exec 190 -- uptime`
 from `Saruman` is the check.

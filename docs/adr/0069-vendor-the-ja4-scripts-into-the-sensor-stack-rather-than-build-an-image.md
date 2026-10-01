@@ -2,6 +2,18 @@
 
 **Status:** Accepted · 2026-10
 
+> [!NOTE]
+> **The baseline below was an artefact, 2026-10-01.** The 8.1%
+> `percent_lost` this ADR records "before any JA4" was not segments missing
+> upstream of Zeek. Every packet reached the capture tap in order. GRO on
+> `fenrir`'s `ens19` then held data segments while Saruman's near-instant ACKs
+> overtook them, so Zeek saw ACKs above holes on host-bound flows only. With
+> GRO off (`capture-offloads.service`,
+> [`build-the-sensor-guest.md`](../runbooks/build-the-sensor-guest.md) §3), a
+> 10 MB download to Saruman went from 50–70 KB missed to 0, across a reboot.
+> The baseline for the measurement this ADR asks for is therefore about 0, and
+> any rise over it counts. The text below is left as written, per ADR-0001.
+
 ## Context
 
 [#437](https://github.com/Gerrrt/HomeLab/issues/437) asked Zeek on `fenrir` for

@@ -48,6 +48,42 @@ docstring gives: it is a record, not a claim about now.
     0.0% `percent_lost` since the GRO fix (#782), not the 8.1% first recorded.
     After deployment, the "after" half is `capture_loss.log` and `stats.log`
     for a week.
+- **`fenrir`'s 8% capture loss was GRO reordering, not loss, and is fixed**
+  ([#437](https://github.com/Gerrrt/HomeLab/issues/437) follow-up;
+  [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)
+  recorded it as a baseline).
+  - **Where the gaps were.** About 17 of 17.5 MB of `missed_bytes` were on
+    flows to Saruman itself: Hicks to `:8006`, and the replies to Saruman's own
+    outbound HTTPS. Every gap was in data travelling toward Saruman. Guest
+    flows had none: 3 gapped connections in 1,185 inbound to guests.
+  - **Nothing was dropped.**
+    - The mirred actions showed 0 dropped.
+    - `tap190i1` sent 576,935 packets and `ens19` received 577,007, with no
+      drops on either side.
+    - Zeek's `pkts_dropped` was 0.
+    - A capture on `tap190i1` during a 10 MB download to Saruman found every
+      segment present and in order. The same flow in Zeek had 69,504 bytes
+      missed.
+  - **The cause.** GRO on `ens19`, in the guest. It holds a flow's data to
+    merge it but passes the opposite direction straight through. Saruman ACKs
+    within microseconds, so its ACKs overtook the held data. Guests ACK through
+    a VM, too slowly to overtake, which is why only host-bound flows gapped.
+  - **The proof.** Measured on the same 10 MB download from the same server:
+    - Saruman with GRO on: 50,680 and 69,504 bytes missed, histories with `g`.
+    - `alexander` with GRO on: 0.
+    - Saruman with `ethtool -K ens19 gro off rx-gro-hw off`: 0, history
+      `ShADadtttFf`.
+    - After two reboots of `fenrir`: still 0.
+  - **Kept by `capture-offloads.service` on `fenrir`.** Its first version was
+    wanted by the `ens19` device and did not run on reboot. Ubuntu 26.04's
+    dracut initramfs brings `ens19` up before switch-root, so the device unit
+    is already active and its `Wants=` is never pulled in. It hangs off
+    `multi-user.target` now. The runbook's §3 carries the unit.
+  - **Also seen.** In that initramfs window, dracut's catch-all
+    `zzzz-dracut-default.network` gives `ens19` an IPv6 link-local address for
+    about five seconds until netplan's config takes over. That accounts for the
+    nine packets `ens19` had sent despite being set never to speak. They reach
+    nothing, because `vmbr1` has no other port and no address.
 
 - **The lab domain's six guests are documented as built.** `docs/architecture.md`
   still called `bahamut`, `leviathan`, `titan` and `ramuh` **not built yet**,
