@@ -40,6 +40,15 @@ What this asserts
 3. Which rule each path resolves to is printed, so the separation ADR-0020
    decided is visible in CI output rather than inferred from two regexes.
 
+4. **The household's recipients stay out of every rule** (ADR-0073). The keys
+   that open the household's copy live in stacks/sensitive/household.recipients,
+   not in a sops rule, because a key in the sensitive rule would also open the
+   tier's passwords. Nothing would stop a later `make secrets-add-recipient`
+   with the holder's key from collapsing that, so this fails on it: a
+   `household` key in any rule is an error. And the `technical-second` key there
+   must be the one the catch-all rule actually carries, so the file cannot
+   advertise a fallback that ADR-0024's proof never touches.
+
 The paths are derived, not listed: the stacks come from scripts/stacks.sh, the
 one definition of what a stack is, and the firewall backup path is the shape
 scripts/backup-firewall.sh actually writes. A hand-kept list here would be the
@@ -70,6 +79,44 @@ def stacks() -> list[str]:
         capture_output=True, text=True, check=True,
     )
     return listed.stdout.split()
+
+
+def rule_keys(rule: dict) -> set[str]:
+    return {k.strip() for k in str(rule.get("age") or "").split(",") if k.strip()}
+
+
+def check_household(rules: list[dict], matched_by: dict[str, str]) -> list[str]:
+    """ADR-0073: household keys in no rule; the technical second in the catch-all."""
+    listed = subprocess.run(
+        [str(REPO / "scripts/household-recipients.sh"), "--roles"],
+        capture_output=True, text=True,
+    )
+    if listed.returncode != 0:
+        return [f"stacks/sensitive/household.recipients: {listed.stderr.strip()}"]
+
+    problems: list[str] = []
+    catch_all = matched_by.get("secrets/observability.sops.yaml")
+    catch_all_keys = next(
+        (rule_keys(r) for r in rules if r.get("path_regex") == catch_all), set()
+    )
+    for line in listed.stdout.splitlines():
+        role, key = line.split(" ", 1)
+        if role == "household":
+            for rule in rules:
+                if key in rule_keys(rule):
+                    problems.append(
+                        f"household key {key} is a recipient of creation_rule "
+                        f"{rule.get('path_regex')!r} — it would open that rule's "
+                        f"secrets, which is what ADR-0073 keeps it out of. Take it "
+                        f"out of {POLICY.name} and run `sops updatekeys`"
+                    )
+        elif role == "technical-second" and key not in catch_all_keys:
+            problems.append(
+                f"technical-second key {key} in stacks/sensitive/household.recipients "
+                f"is not a recipient of the catch-all rule — ADR-0024's proof covers "
+                f"that rule's keys, so this one is a fallback nothing has proved"
+            )
+    return problems
 
 
 def main() -> int:
@@ -123,6 +170,8 @@ def main() -> int:
                 f"it silently uses the next one, so the recipient separation "
                 f"this rule was added for is not in effect (ADR-0020)"
             )
+
+    problems.extend(check_household(rules, matched_by))
 
     if problems:
         for problem in problems:

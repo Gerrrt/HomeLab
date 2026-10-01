@@ -2,6 +2,13 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> **The second recipient also opens the household's copy, 2026-10-01.**
+> [ADR-0073](0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
+> adds it to `stacks/sensitive/household.recipients` as the fallback behind
+> the household holder's own key. It is the same key, and the proof below
+> covers it. That file is not a sops rule.
+
 ## Context
 
 [#106](https://github.com/Gerrrt/HomeLab/issues/106) reopens a question

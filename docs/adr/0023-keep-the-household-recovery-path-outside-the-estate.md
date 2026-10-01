@@ -19,6 +19,16 @@
 > alone. Immich's row below is unmet until
 > [#455](https://github.com/Gerrrt/HomeLab/issues/455) exists. The table is
 > not edited.
+>
+> **Whose key opens the copy, 2026-10-01.**
+> [ADR-0073](0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
+> settles the encryption condition below. The copy is encrypted to the
+> household holder's key, with ADR-0024's technical second as a fallback. The
+> keys are kept in a recipients file and not in a sops rule, and they are
+> applied when each set is made. "The house" in this record is read as the
+> household: the holder keeps the key at their own address, apart from the
+> drive. The proof from the other person's device is still owed, and Immich's
+> and Paperless-ngx's rows stay unmet until it is run. The table is not edited.
 
 ## Context
 
