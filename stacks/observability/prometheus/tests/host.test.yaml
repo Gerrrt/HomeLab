@@ -1111,16 +1111,21 @@ tests:
   # up as sdb, the letter an Exos (0) held a week before, read as growth of 4.
   # With `slot` in the label set the two are different series, so the moved
   # drive has no week-old point and says nothing, and the Exos, on its own
-  # port, says nothing either. 30m steps; the offset is 7d, so the eval is
-  # past 7d + for.
-  - interval: 30m
+  # port, says nothing either. The offset is 7d, so the eval is past 7d + for.
+  #
+  # 5m steps across the whole week, not 30m. At 30m each series is absent for
+  # most of every step (the lookback is 5m), `for: 1h` restarts each time, and
+  # this case passed against the rule keyed on host + letter, which is the
+  # regression it exists to catch: `- ignoring(slot)` survived it. At 5m that
+  # mutant fires, so the test can fail.
+  - interval: 5m
     input_series:
       - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-2"}'
-        values: "0x335"
+        values: "0x2015"
       - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6"}'
-        values: "_x336 4x4"
+        values: "_x2016 4x24"
       - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-2"}'
-        values: "_x336 0x4"
+        values: "_x2016 0x24"
     alert_rule_test:
       - eval_time: 170h
         alertname: SmartDriveBadSectorsGrowing
@@ -1423,14 +1428,19 @@ tests:
                 `lvs` writes nothing on purpose, so the journal says why.
 
   # --- ThinPoolStateStale: quiet while the timer keeps rewriting it --------
-  # Rewritten every ten minutes. guest-state.prom beside it is old and must not
+  # Rewritten on every sample. guest-state.prom beside it is old and must not
   # match — the regex is the whole scope of the rule.
-  - interval: 10m
+  #
+  # Sampled every 5m, not every 10m like the timer. At 10m each series is
+  # absent for half of every step (the lookback is 5m), `for` restarts each
+  # time, and a regex loosened to `.*state\.prom` survived this test still
+  # pending. At 5m the near miss fires, so the test can fail.
+  - interval: 5m
     input_series:
       - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="thin-pool-state.prom"}'
-        values: "0+600x20"
+        values: "0+300x40"
       - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-state.prom"}'
-        values: "0x20"
+        values: "0x40"
     alert_rule_test:
       - eval_time: 3h
         alertname: ThinPoolStateStale
