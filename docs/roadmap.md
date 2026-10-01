@@ -234,7 +234,10 @@ Closes when Wazuh and Velociraptor report the six agents in.
 Closes on BloodHound running where nothing attacks it.
 
 - **A chain, in this order:**
-  [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer →
+  [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer (written,
+  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md);
+  first build pending, → [runbook](runbooks/build-the-lab-templates.md); Kali's
+  template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
   [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu →
   [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
   six guests from the pipeline →

@@ -62,7 +62,7 @@ quietly lost a healthcheck would show as a cleaner run rather than a thinner
 one.
 
 Services behind a compose profile are skipped. `renderer`, `archiver`,
-`gitleaks`, `actionlint` and `editorconfig-checker` are not part of a deploy —
+`gitleaks`, `actionlint`, `editorconfig-checker` and `packer` are not part of a deploy —
 `make up` neither starts nor pulls them — so their absence is correct rather
 than a fault.
 

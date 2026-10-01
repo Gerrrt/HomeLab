@@ -184,6 +184,14 @@ Five of those are worth knowing rather than copying:
   rotated, not kept. `pveum user token remove phoenix@pve builder` and the
   `token add` line again is the whole rotation.
 
+> [!NOTE]
+> **The role has grown since this section ran.** Packer's builds
+> ([#440](https://github.com/Gerrrt/HomeLab/issues/440)) added
+> `/storage/large_data` and `VM.GuestAgent.Audit`.
+> [`build-the-lab-templates.md`](build-the-lab-templates.md) §2 keeps the list
+> of what was added and why. A rebuilt `phoenix` needs this section and then
+> that one.
+
 **Then the door — which, on the day, had no wall.** ADR-0014 closes `8006`
 on `Saruman` to `10.0.50.0/24` and this guest is not on it. ADR-0043 admits
 one address, on this port and no other. The line is, in
@@ -228,8 +236,11 @@ That file is mode 600, on this host, and **not in the repository** — a
 stated deviation from #436's "credential into `secrets/`", and ADR-0043
 records why it is forced: `check_sops_rules.py` proves every `.sops.yaml`
 rule against the stack directories, so a `phoenix` rule fails CI until a
-`stacks/phoenix` exists. The toolchain issue that consumes the token defines
-the encrypted file; this runbook does not guess its shape. The SSH key is the
+`stacks/phoenix` exists. The toolchain issue that consumes the token was to
+define the encrypted file. It decided there is none:
+[ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
+part 4 keeps this file as the credential, because `phoenix` holds no age key
+to decrypt one with. The SSH key is the
 one the toolchain will inject into every guest it builds. It is generated
 here and goes nowhere else. The checkout holds **no age key**: `make render`
 fails here by design, and this host converges nothing — ADR-0021 owns what
