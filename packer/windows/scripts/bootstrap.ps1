@@ -6,7 +6,7 @@
 # Packer starts provisioning.
 #
 # WinRM here is HTTP with Basic auth, for the length of a build on VLAN 30.
-# SetupComplete.cmd removes it from every clone (ADR-0071).
+# SetupComplete.cmd removes it from every clone (ADR-0073).
 
 $ErrorActionPreference = 'Stop'
 

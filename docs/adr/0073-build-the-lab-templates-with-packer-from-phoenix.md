@@ -1,4 +1,4 @@
-# ADR-0071: Build the lab templates with Packer from phoenix
+# ADR-0073: Build the lab templates with Packer from phoenix
 
 **Status:** Accepted · 2026-10
 

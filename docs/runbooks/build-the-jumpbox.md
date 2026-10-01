@@ -238,7 +238,7 @@ records why it is forced: `check_sops_rules.py` proves every `.sops.yaml`
 rule against the stack directories, so a `phoenix` rule fails CI until a
 `stacks/phoenix` exists. The toolchain issue that consumes the token was to
 define the encrypted file. It decided there is none:
-[ADR-0071](../adr/0071-build-the-lab-templates-with-packer-from-phoenix.md)
+[ADR-0073](../adr/0073-build-the-lab-templates-with-packer-from-phoenix.md)
 part 4 keeps this file as the credential, because `phoenix` holds no age key
 to decrypt one with. The SSH key is the
 one the toolchain will inject into every guest it builds. It is generated

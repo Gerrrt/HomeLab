@@ -1,5 +1,5 @@
 # The last thing a Windows build does: generalise, so every clone takes a new
-# machine SID at first boot (ADR-0071 part 3).
+# machine SID at first boot (ADR-0073 part 3).
 #
 # /quit, not /shutdown: the Proxmox builder shuts the guest down through the
 # agent once this returns, then converts it. Nothing may boot this disk again

@@ -26,7 +26,7 @@ has an answer that is a command (§8), and #445's OpenTofu has templates to
 clone.
 
 This builds what
-[ADR-0071](../adr/0071-build-the-lab-templates-with-packer-from-phoenix.md)
+[ADR-0073](../adr/0073-build-the-lab-templates-with-packer-from-phoenix.md)
 decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 [`packer/`](../../packer/README.md).
 

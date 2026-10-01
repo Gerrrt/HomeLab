@@ -10,7 +10,7 @@
 #
 # The last provisioner runs sysprep /generalize, so every clone takes a new
 # machine SID at first boot. That, not rebuilding, is what lets a member join a
-# domain whose two DCs were cloned from the same template (ADR-0071 part 3).
+# domain whose two DCs were cloned from the same template (ADR-0073 part 3).
 
 locals {
   # Microsoft's published generic installation key for Windows 11 Pro. It
@@ -58,7 +58,7 @@ source "proxmox-iso" "win11-pro" {
   vm_id                = 911
   vm_name              = "tpl-win11-pro"
   template_name        = "tpl-win11-pro"
-  template_description = "Windows 11 Pro, sysprep-generalised, built by packer/windows.pkr.hcl on ${timestamp()}. Full clones only (ADR-0071)."
+  template_description = "Windows 11 Pro, sysprep-generalised, built by packer/windows.pkr.hcl on ${timestamp()}. Full clones only (ADR-0073)."
   tags                 = "template;windows"
 
   # build-the-lab-domain.md §1's shape, which is ADR-0029's.
@@ -144,7 +144,7 @@ source "proxmox-iso" "ws2025-eval" {
   vm_id                = 912
   vm_name              = "tpl-ws2025-eval"
   template_name        = "tpl-ws2025-eval"
-  template_description = "Windows Server 2025 Standard evaluation (Desktop Experience), sysprep-generalised, built by packer/windows.pkr.hcl on ${timestamp()}. Full clones only (ADR-0071)."
+  template_description = "Windows Server 2025 Standard evaluation (Desktop Experience), sysprep-generalised, built by packer/windows.pkr.hcl on ${timestamp()}. Full clones only (ADR-0073)."
   tags                 = "template;windows"
 
   os              = "win11"

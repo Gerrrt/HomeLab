@@ -1,5 +1,5 @@
 # tpl-ubuntu-2604, VMID 901: the base for alexander, odin, fenrir and whatever
-# Linux guest comes next (ADR-0071).
+# Linux guest comes next (ADR-0073).
 #
 # The installer is driven by autoinstall from a disc labelled `cidata`, which
 # cloud-init's NoCloud datasource finds by label. No Packer HTTP server, so
@@ -23,7 +23,7 @@ source "proxmox-iso" "ubuntu" {
   vm_id                = 901
   vm_name              = "tpl-ubuntu-2604"
   template_name        = "tpl-ubuntu-2604"
-  template_description = "Ubuntu Server 26.04, built by packer/ubuntu.pkr.hcl on ${timestamp()}. Full clones only (ADR-0071)."
+  template_description = "Ubuntu Server 26.04, built by packer/ubuntu.pkr.hcl on ${timestamp()}. Full clones only (ADR-0073)."
   tags                 = "template;linux"
 
   # The guest shape every Linux guest here already has (build-the-jumpbox.md

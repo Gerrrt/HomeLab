@@ -1,7 +1,7 @@
 # Inputs shared by every source in this directory.
 #
 # The credential comes from ~/.config/proxmox/phoenix.env on phoenix, sourced
-# with `set -a` before a build (ADR-0071 part 4). The defaults below read that
+# with `set -a` before a build (ADR-0073 part 4). The defaults below read that
 # file's own variable names, so the file written by build-the-jumpbox.md §4
 # needs no second spelling of the same token. Nothing secret has a literal
 # default here, and nothing here is ever a secret in git.
@@ -93,7 +93,7 @@ variable "ubuntu_iso_file" {
   default = "local:iso/ubuntu-26.04.1-live-server-amd64.iso"
 }
 
-# A placeholder name: Kali is written and not yet built (ADR-0071 part 2), and
+# A placeholder name: Kali is written and not yet built (ADR-0073 part 2), and
 # the first build on ifrit sets this to the ISO it actually has.
 variable "kali_iso_file" {
   type    = string

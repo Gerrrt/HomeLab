@@ -4,7 +4,7 @@ rem
 rem Closes what bootstrap.ps1 opened for the build: the HTTP Basic WinRM
 rem listener, its firewall rule, and the service. A clone starts with no remote
 rem management at all; how #448 reaches it is #448's decision, made on purpose,
-rem not one inherited from a build shortcut (ADR-0071).
+rem not one inherited from a build shortcut (ADR-0073).
 rem
 rem CRLF line endings are not required here; cmd.exe reads LF files.
 

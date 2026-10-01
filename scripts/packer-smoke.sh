@@ -99,7 +99,7 @@ if api GET "/nodes/${NODE}/qemu/${CLONE}/status/current" >/dev/null 2>&1; then
   die "VMID ${CLONE} already exists; pick another with --vmid"
 fi
 
-# Full clone, always: ADR-0071 rebuilds templates in place, and a linked clone
+# Full clone, always: ADR-0073 rebuilds templates in place, and a linked clone
 # would pin the old one.
 info "full clone ${TEMPLATE} -> ${CLONE} (${NAME})"
 upid="$(api POST "/nodes/${NODE}/qemu/${TEMPLATE}/clone" \

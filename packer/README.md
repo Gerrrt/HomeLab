@@ -1,7 +1,7 @@
 # packer
 
 The lab's VM templates, built from `phoenix` through `Saruman`'s API
-([ADR-0071]). How to run them is [`build-the-lab-templates.md`][runbook]; this
+([ADR-0073]). How to run them is [`build-the-lab-templates.md`][runbook]; this
 page is the map.
 
 | VMID | Template | Source | Installer driven by | Built |
@@ -53,6 +53,6 @@ scripts/packer-smoke.sh 912
   Proxmox. A change here is only finished once the runbook's §6 smoke test has
   passed against a real build.
 
-[ADR-0071]: ../docs/adr/0071-build-the-lab-templates-with-packer-from-phoenix.md
+[ADR-0073]: ../docs/adr/0073-build-the-lab-templates-with-packer-from-phoenix.md
 [runbook]: ../docs/runbooks/build-the-lab-templates.md
 [#448]: https://github.com/Gerrrt/HomeLab/issues/448
