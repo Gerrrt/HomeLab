@@ -38,7 +38,7 @@ by `local.zeek` ([ADR-0069], #776). No image is built. It adds these fields:
 | --- | --- | --- |
 | `ja4`, `ja4s` | `ssl.log` | TLS client hello and server hello |
 | `ja4h` | `http.log` | HTTP client |
-| `ja4t`, `ja4ts`, `ja4l`, `ja4ls` | `conn.log` | TCP client and server, and latency |
+| `ja4t`, `ja4ts`, `ja4l`, `ja4ls`, `ja4l_delta`, `ja4ls_delta` | `conn.log` | TCP client and server, latency, and latency deltas |
 | JA4SSH | `ja4ssh.log` | SSH sessions |
 | JA4D | `ja4d.log` | DHCP clients |
 

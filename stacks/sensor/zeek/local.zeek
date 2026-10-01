@@ -34,8 +34,9 @@ redef Site::local_nets += { 10.0.30.0/24 };
 
 # JA4+ fingerprints (ADR-0069, #776): FoxIO's scripts package, vendored at a
 # commit into ./ja4 by scripts/vendor-ja4.sh and mounted read-only beside this
-# file. It adds ja4 and ja4s to ssl.log, ja4h to http.log, ja4l, ja4ls, ja4t and
-# ja4ts to conn.log, and writes ja4ssh.log and ja4d.log. Which methods run is
+# file. It adds ja4 and ja4s to ssl.log, ja4h to http.log, ja4l, ja4ls,
+# ja4l_delta, ja4ls_delta, ja4t and ja4ts to conn.log, and writes ja4ssh.log and
+# ja4d.log. Which methods run is
 # set by `@if` in the vendored config.zeek at load time, so a redef here cannot
 # change it: everything but JA4X, upstream's default. JA4 is BSD; the rest is
 # the FoxIO License 1.1, which ./ja4/NOTICE spells out.

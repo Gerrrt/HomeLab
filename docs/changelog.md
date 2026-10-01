@@ -40,11 +40,14 @@ docstring gives: it is a record, not a claim about now.
     session captured from Saruman to Cloudflare wrote `ja4`
     `t13d3013h1_1d37bd780c83_8537cf56674e` and `ja4s` to `ssl.log`, and
     `ja4t`, `ja4ts`, `ja4l` and `ja4ls` to `conn.log`.
-  - **Not yet live.** The stack deploys from `main`. Until this merges, the
-    sensor keeps building the "before" half of ADR-0069's measurement on the
-    corrected baseline: 0.0% `percent_lost` since the GRO fix (#782), not the
-    8.1% first recorded. After deployment, the "after" half is
-    `capture_loss.log` and `stats.log` for a week.
+  - **Not yet live, so #776 stays open.** Its done-criteria are a JA4 from a
+    guest's outbound TLS on `fenrir` and a Loki query returning it. This
+    change is only an offline replay, so it refers to #776 rather than closing
+    it. The stack deploys from `main`. Until then, the sensor keeps building
+    the "before" half of ADR-0069's measurement on the corrected baseline:
+    0.0% `percent_lost` since the GRO fix (#782), not the 8.1% first recorded.
+    After deployment, the "after" half is `capture_loss.log` and `stats.log`
+    for a week.
 
 - **The lab domain's six guests are documented as built.** `docs/architecture.md`
   still called `bahamut`, `leviathan`, `titan` and `ramuh` **not built yet**,

@@ -60,6 +60,10 @@ fetch() {
 
 if [[ "${1:-}" == "--check" ]]; then
   [[ -f "${DEST}/VENDORED" ]] || die "nothing vendored at ${DEST}"
+  # NOTICE is ours and excluded from the diff below, so check it is there
+  # first. Without it, deleting the one statement the FoxIO License asks for
+  # would still read as a clean match.
+  [[ -s "${DEST}/NOTICE" ]] || die "${DEST}/NOTICE is missing or empty: the FoxIO License requires the notice"
   sha="$(awk '/^commit:/ {print $2}' "${DEST}/VENDORED")"
   [[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || die "VENDORED names no commit"
   fetch "${sha}"
@@ -76,8 +80,13 @@ sha="${1:-}"
 [[ "${sha}" =~ ^[0-9a-f]{40}$ ]] \
   || die "usage: scripts/vendor-ja4.sh <40-char commit sha> | --check — a tag or branch moves, a full SHA does not"
 
+# NOTICE first, before anything is fetched or replaced: a re-vendor with no
+# NOTICE would produce a tree that is out of licence, so it refuses instead.
+[[ -s "${DEST}/NOTICE" ]] \
+  || die "${DEST}/NOTICE is missing or empty. Write it before vendoring: the FoxIO License requires it"
+
 fetch "${sha}"
-[[ -f "${DEST}/NOTICE" ]] && cp "${DEST}/NOTICE" "${WORK}/tree/NOTICE"
+cp "${DEST}/NOTICE" "${WORK}/tree/NOTICE"
 cat > "${WORK}/tree/VENDORED" <<VENDORED
 # Vendored by scripts/vendor-ja4.sh. Do not edit the files beside this one by
 # hand: re-vendor instead, so the diff is upstream's (ADR-0069).
@@ -89,6 +98,5 @@ VENDORED
 rm -rf "${DEST}"
 mkdir -p "$(dirname "${DEST}")"
 cp -R "${WORK}/tree" "${DEST}"
-[[ -f "${DEST}/NOTICE" ]] || printf 'warning: %s/NOTICE is missing; the licence terms require one\n' "${DEST}" >&2
 printf 'vendored %s@%s into %s\n' "${UPSTREAM}" "${sha}" "${DEST#"${REPO}"/}"
 git -C "${REPO}" status --short -- "${DEST}" | head -20
