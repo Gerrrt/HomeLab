@@ -25,6 +25,9 @@
 #                             the PVE version (#311)
 #   collect-guest-state.sh    qm list, same unreachable host; a stopped guest has
 #                             no PID column and a guest name can contain a space
+#   record-applied.sh         what `make up` applied, kept apart from HEAD; the
+#                             incident it answers (2026-10-01) cannot be staged
+#                             on the deployment host without breaking it
 #   collect-guest-disk-state.sh  get-fsinfo from a guest agent, which is
 #                             hostile input (ADR-0070): a forged mountpoint, bad
 #                             sizes and a flood of filesystems can only be faked
