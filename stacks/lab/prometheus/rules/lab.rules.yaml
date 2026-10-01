@@ -1,11 +1,12 @@
 ---
 # The lab stack watching itself.
 #
-# Seven rules, and the number is still the point. The estate has 48; ADR-0007
+# Nine rules, and the number is still the point. The estate has 48; ADR-0007
 # names giving up "Loki, the dashboards and 40 alert rules" as the price of
 # keeping lab telemetry out of the estate, and this file does not pretend to
 # replace them. Four cover this stack's own working — the things that would make
-# every other signal here silently wrong. Three cover the domain ADR-0029 sized,
+# every other signal here silently wrong. Two cover the disks of the guests that
+# push here, which nothing else can see. Three cover the domain ADR-0029 sized,
 # and they are here rather than in a stack of their own because this Prometheus
 # is the only thing on the segment that scrapes it.
 #
@@ -115,6 +116,47 @@ groups:
           description: >-
             Either the lab's Alloy is down or the push endpoint is unreachable.
             Logs are being lost, not queued indefinitely.
+
+      # The guests' own disks: `alexander`, and `odin`, whose Alloy pushes here
+      # (stacks/soc). The estate's host.rules.yaml cannot see either, because
+      # neither pushes to VLAN 99 (ADR-0007). So until 2026-10-01 nothing
+      # watched them at all, and odin's 30 GB root reached 98% unnoticed:
+      # 7.8 GB of it was superseded Docker images, which nothing on an agent
+      # host removed (homelab-prune-images on the agents does now).
+      #
+      # Same names and same expressions as the estate's pair, per the header.
+      # The forecast is the one that would have caught odin, filling slowly
+      # for weeks; the threshold is the backstop. Neither pages (ADR-0020). They
+      # are on the lab's /alerts and its Grafana, for whoever is looking.
+      - alert: HostDiskWillFillIn24h
+        expr: |
+          predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}[6h], 24 * 3600) < 0
+          and on (instance, device)
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes < 0.30
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} fills within 24h"
+          description: >-
+            {{ $labels.mountpoint }} on {{ $labels.instance }} ({{ $labels.device }})
+            is below 30% free and, extrapolating the last 6 hours, reaches zero
+            within a day. On a Docker host, `docker system df` first: superseded
+            images are what filled odin.
+
+      - alert: HostDiskCritical
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.10
+        for: 15m
+        labels:
+          component: host
+          severity: critical
+          category: capacity
+        annotations:
+          summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} below 10% free"
 
       # -----------------------------------------------------------------------
       # The domain (ADR-0029). Scraped, never pushed — publishing a remote-write
