@@ -131,6 +131,25 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "soc"]
 
+  # stacks/scratch (#438, ADR-0071): the disposable copy of soc on diabolos,
+  # on the same images and digests. Its own entry because a separate
+  # directory is a separate PR, so a wazuh/* release arrives as one PR here and
+  # one in /stacks/soc. Merge them together: the two stacks share their mounted
+  # config, and a scratch store on a different Wazuh from odin's answers a
+  # different question.
+  - package-ecosystem: docker-compose
+    directory: /stacks/scratch
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "soc"]
+    groups:
+      wazuh:
+        patterns: ["wazuh/*"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

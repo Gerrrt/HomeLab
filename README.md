@@ -69,7 +69,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 7 provisioned dashboards, 141 panels, and
-  130 alert rules — 112 metric-based in Prometheus, 18 log-based in Loki — sharing
+  132 alert rules — 114 metric-based in Prometheus, 18 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -98,8 +98,8 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 70 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 37
+- **Documented decisions and runbooks.** 71 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 38
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
 
@@ -195,7 +195,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 .
 ├── stacks/observability/     # the deployed stack — one compose file, nine services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 112 alert rules
+│   ├── prometheus/           # config, file_sd targets, 114 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 18 LogQL rules
 │   ├── alloy/                # the agent config directory, shipped to every host
@@ -206,6 +206,8 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │                             #   VLAN 99. See its README and ADR-0020
 ├── stacks/soc/               # Wazuh and Velociraptor on odin, a second guest —
 │                             #   built 2026-09-27 (ADR-0030, #266, #267)
+├── stacks/scratch/           # a DISPOSABLE copy of soc on diabolos, built per
+│                             #   investigation and destroyed (ADR-0071, #438)
 ├── stacks/sensitive/         # the household's tier — Caddy, step-ca, Home
 │                             #   Assistant, AdGuard Home, Immich, Paperless-ngx,
 │                             #   Vaultwarden, Homepage, ntfy, Miniflux, Memos,
