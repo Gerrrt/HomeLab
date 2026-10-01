@@ -928,11 +928,17 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the household holder with the technical second as a fallback. The proof
   from the other person's device is still
   [#455](https://github.com/Gerrrt/HomeLab/issues/455)'s. Three things the fit
-  checks rather than assumes: it ships formatted for Windows and is
-  reformatted exFAT before its first copy; its cable is USB 3.0 Micro-B at the
-  drive end, so **the cable travels with the drive** or the drive is a brick
-  at the other address; and a 5 TB 2.5" drive of this class is shingled, which
-  is fine for an archive written in one pass and not fine as a live target.
+  checks rather than assumes: it ships formatted for Windows (NTFS,
+  `Elements`); its cable is USB 3.0 Micro-B at the drive end, so **the cable
+  travels with the drive** or the drive is a brick at the other address; and
+  a 5 TB 2.5" drive of this class is shingled, which is fine for an archive
+  written in one pass and not fine as a live target.
+  **Formatted and rehearsed on 2026-10-01**, on `trinity`. It reads as
+  `WDC WD50NDZW-11BCSS0`, serial `WD-WXD2D3684F6U`, 4.5 TiB. It now holds one
+  GPT partition, exFAT, labelled `HOUSEHOLD`. It does not report as removable
+  media, so the carry's warning about that is expected on every visit. The
+  first rehearsal wrote 1.7 GB. It holds a rehearsal, not the household's
+  copy, until there is a holder.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]

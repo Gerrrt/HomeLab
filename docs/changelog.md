@@ -19,6 +19,32 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **The household drive is formatted and rehearsed
+  ([#455](https://github.com/Gerrrt/HomeLab/issues/455)).** This closes the
+  gap the entry below names. The holder is still not chosen.
+  - **The drive.** The WD Elements, serial `WD-WXD2D3684F6U`, was wiped and
+    given one GPT partition, exFAT, labelled `HOUSEHOLD`, on `trinity`. It is
+    mounted as the operator with `umask=077`. It does not report as removable
+    media, so the carry's warning about that is expected.
+  - **The deadlines.** `make install-timers PROFILE=sensitive` declared four
+    job thresholds on `trinity`, `household-copy` and `household-proof` among
+    them. The library set it primed, `20261001T215156Z`, is encrypted to
+    `trinity`'s key and the technical second's. It is the first library set
+    whose key `trinity` does not hold alone.
+  - **The rehearsal.** `make household-copy DEST=/mnt/household
+    ARGS=--rehearse` exported Paperless, then copied that library set and a
+    Paperless set to the drive, along with the six pinned `age` binaries
+    (each `sha256sum -c` OK) and `HOW-TO-OPEN.txt`. `ARGS=--verify-only`
+    re-hashed both sets. Nothing was recorded.
+  - **Opened, not only hashed.** The drive's own `age-v1.3.2-linux-amd64`
+    decrypted the library set with `trinity`'s key, and it holds 615
+    originals, the count its MANIFEST records. The Paperless set opened too:
+    `manifest.json` and `metadata.json`, with no documents yet.
+  - **Still not done.** The drive is marked
+    `REHEARSAL-NOT-THE-HOUSEHOLD-COPY.txt`. No holder key, no copy of record,
+    no proof. The holder's half has not been rehearsed on a Windows or Mac
+    machine yet, which would use `--proof-recipient` and a throwaway key.
+
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455): the household's
   copy is built, and waits on its holder**
   ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)).
