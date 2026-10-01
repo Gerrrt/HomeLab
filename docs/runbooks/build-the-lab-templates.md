@@ -155,7 +155,7 @@ Administrator during the build, which `bootstrap.ps1` exists to prevent.
 
 ## 5. Kali, once `ifrit` exists
 
-Not on `Saruman`: the attack VM lives on `ifrit`, and a template belongs to one
+Tracked as [#790](https://github.com/Gerrrt/HomeLab/issues/790). Not on `Saruman`: the attack VM lives on `ifrit`, and a template belongs to one
 node. The preseed is served over Packer's HTTP server on port 8800 of
 `phoenix`, because Debian's installer reads one from a URL or its own medium,
 not from a second disc.

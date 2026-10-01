@@ -1,6 +1,6 @@
 # tpl-kali, VMID 902: the base for #421's attack VM.
 #
-# WRITTEN, NOT BUILT (ADR-0071 part 2). The attack VM lives on ifrit, which is
+# WRITTEN, NOT BUILT (ADR-0071 part 2, #790). The attack VM lives on ifrit, which is
 # not bought, and a template belongs to the node it was built on. CI proves
 # this file parses; the first build on ifrit proves the preseed.
 #

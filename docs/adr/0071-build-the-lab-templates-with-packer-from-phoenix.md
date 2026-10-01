@@ -125,8 +125,8 @@ leave LLMNR, NetBIOS, IPv6 and WPAD alone, per ADR-0029.
   `packer validate -syntax-only` run in `scripts/lint.sh` from an image pinned
   in `stacks/observability/compose.yaml`, like actionlint. A real build can only
   be proved on `phoenix`, and the runbook records the proof.
-- **Kali's source is checked but unproven** until `ifrit` exists. A follow-up
-  issue builds it there.
+- **Kali's source is checked but unproven** until `ifrit` exists. [#790](https://github.com/Gerrrt/HomeLab/issues/790)
+  builds it there.
 - **Full clones cost disk.** On `large_data` that means about 60–80 GiB per
   Windows guest, the same as the hand-built guests use today.
 - **The token's scope grows by one storage path**, and each later addition goes

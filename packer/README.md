@@ -7,7 +7,7 @@ page is the map.
 | VMID | Template | Source | Installer driven by | Built |
 | --- | --- | --- | --- | --- |
 | 901 | `tpl-ubuntu-2604` | `ubuntu.pkr.hcl` | autoinstall, `cidata` disc | on `Saruman` |
-| 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | not yet: waits for `ifrit` |
+| 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | not yet: waits for `ifrit` ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
 | 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | on `Saruman` |
 | 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | on `Saruman` |
 

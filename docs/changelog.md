@@ -25,7 +25,7 @@ docstring gives: it is a record, not a claim about now.
   - **What.** A new top-level `packer/` holds four sources. Three are for
     `Saruman`: Ubuntu 26.04 (901), Windows 11 Pro (911) and Server 2025
     evaluation (912). The fourth, Kali (902), is for `ifrit`, which has not been
-    bought. `scripts/packer-smoke.sh` clones a template, waits for the guest
+    bought, and is [#790](https://github.com/Gerrrt/HomeLab/issues/790). `scripts/packer-smoke.sh` clones a template, waits for the guest
     agent's address, checks the name, and destroys the clone, through the API
     alone. The runbook is
     [`build-the-lab-templates.md`](runbooks/build-the-lab-templates.md).
