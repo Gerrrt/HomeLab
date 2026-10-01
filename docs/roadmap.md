@@ -186,7 +186,8 @@ faulted Exos replaced and the mirror resilvered, is met and is in
 
 ## Saruman: the domain, then the SOC
 
-Closes when Wazuh and Velociraptor report the six agents in.
+Closes when it is empty. The SOC its name ends on is done: Wazuh and
+Velociraptor reported the six agents in on 2026-09-27.
 
 - **[#414](https://github.com/Gerrrt/HomeLab/issues/414) Build the lab
   domain.** First: it is what the SOC, the range and the automation all point
@@ -196,20 +197,6 @@ Closes when Wazuh and Velociraptor report the six agents in.
   six joined and scraped. Open for §6 (the authentication generator), §10 and
   §11.
   → [runbook](runbooks/build-the-lab-domain.md)
-- **[#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh and
-  [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor.** After
-  #414: one decision
-  ([ADR-0030](adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md)),
-  `stacks/soc/` authored ahead of the guest, and an agentless Wazuh has
-  nothing to report.
-  [#439](https://github.com/Gerrrt/HomeLab/issues/439)'s removal procedure
-  landed ahead of Velociraptor, as the runbook's §13 (#657);
-  [#438](https://github.com/Gerrrt/HomeLab/issues/438)'s disposable stack
-  is authored: `stacks/scratch/`, on a `diabolos` that is built per
-  investigation and destroyed
-  ([ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md),
-  [runbook](runbooks/run-a-scratch-investigation.md)); its first build is
-  its first investigation. → [runbook](runbooks/build-the-soc-guest.md)
 - **[#671](https://github.com/Gerrrt/HomeLab/issues/671) A second way into
   the lab's secrets.** `secrets/lab.sops.yaml` is in git since #667, and
   encrypted to one key that lives only on `alexander`; a second recipient or
