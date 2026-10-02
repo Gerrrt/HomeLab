@@ -1396,6 +1396,56 @@ reopens it.
 > The cron job is as the table says: daily 08:30, `root`, stdout hidden,
 > stderr not.
 
+**7. Count the clean stops, and read the counter at boot
+([#746](https://github.com/Gerrrt/HomeLab/issues/746)).** Added 2026-10-01,
+after this section's done block. The S3520 adds one to its unsafe-shutdown
+counter on *every* power-off: 522 before a clean *System → Shut Down* on
+2026-09-29, 523 after. Without this step `SmartDriveUnsafeShutdownsGrowing`
+pages after every planned reboot. Two init scripts fix it. The first has the
+host count its own clean stops, and the rule subtracts them. The second runs
+the collector at boot, so the drive's tick and the clean count land within
+minutes of each other instead of up to a day apart.
+
+From the console shell, as root, fetch the script next to the collector and
+prove it writes:
+
+```bash
+cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/mark-clean-shutdown.sh \
+  && chmod 0755 mark-clean-shutdown.sh
+/bin/bash /mnt/erebor/apps/stack/mark-clean-shutdown.sh --self-test
+```
+
+Do **not** run it for real by hand. Every run counts one clean stop, and an
+extra one forgives one real cut for a day.
+
+Then **System → Advanced Settings → Init/Shutdown Scripts → Add**, twice:
+
+| Field | SHUTDOWN script | POSTINIT script |
+| --- | --- | --- |
+| Description | `homelab clean-shutdown count (#746)` | `homelab smart-state at boot (#746, ADR-0047)` |
+| Type | Command | Command |
+| Command | `TEXTFILE_DIR=/mnt/erebor/apps/textfile /bin/bash /mnt/erebor/apps/stack/mark-clean-shutdown.sh --host smaug` | the step-2 command line, exactly, without the `ls` |
+| When | Shutdown | Post Init |
+| Timeout | `10` | `660` — the collector's own `timeout 600`, plus a minute |
+| Enabled | on | on |
+
+The SHUTDOWN script runs on every stop that goes through the init system: the
+UI's Shut Down and Restart, and the UPS service's halt on `LB`
+([ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)).
+A pulled plug, a crash or a cut that outlasts the pack never runs it, which
+is the whole point. Its file, `clean-shutdowns-smaug.prom`, is rewritten only
+on a stop. An old mtime is correct, and `SmartStateStale` does not watch it.
+
+**Prove it with one planned reboot.** Before, note
+`homelab_clean_shutdowns_total{host="smaug"}` (absent on the first run) and
+`homelab_smart_unsafe_shutdowns_total{host="smaug"}` for the S3520's `slot`.
+Reboot from the UI. After, the clean count is one higher, and within minutes
+of the boot the S3520's counter is one higher as well, without waiting for
+08:30. `ALERTS{alertname="SmartDriveUnsafeShutdownsGrowing",host="smaug"}`
+stays empty for the next day. The pulled-plug half is proved by the promtool
+test and, live, by `shut-down-on-the-ups.md` step 6.
+
 ### §6.5 — Add Audiobookshelf
 
 [#140](https://github.com/Gerrrt/HomeLab/issues/140),

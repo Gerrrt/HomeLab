@@ -47,6 +47,16 @@
 > Miniflux, Memos, Mealie and linkding
 > ([ADR-0062](0062-add-actual-to-the-sensitive-tier.md)). The table is not
 > edited.
+>
+> **Trigger 1 fired on 2026-09-28, and the deferral was re-accepted on
+> 2026-10-02.** Immich's first real photographs arrived on 2026-09-28, before
+> the decision this ADR asks for. That decision is
+> [ADR-0075](0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md):
+> no identity provider, with Immich named as the residual that matters. The
+> floor below is met. TOTP is enrolled on Vaultwarden, Paperless-ngx and Home
+> Assistant, and on Stirling-PDF, which joined the tier after this ADR. The factorless services are named in `security.md`, and the disk
+> encryption is ADR-0054's. "The tier is unbuilt" in the first note was true
+> when it was written. Triggers 2 and 3 keep their full force.
 
 ## Context
 
