@@ -153,15 +153,26 @@ ok "agent reports ${addr}"
 # a refusal while boot finishes is "not yet", and a guest that still admits
 # nobody after that is a failure. Only the last attempt's error is printed,
 # so a real refusal is still readable.
+#
+# BOUNDED BY THE CLOCK, NOT A COUNT. A dropped connection spends the full
+# ConnectTimeout before it fails, so eighteen tries with a sleep after each
+# could take six minutes. No attempt starts once fewer than ConnectTimeout
+# seconds remain, and none sleeps after the last, so the wait is three
+# minutes and at most one attempt's timeout more.
+SSH_WAIT_SECONDS=180
+SSH_CONNECT_TIMEOUT=10
 ssh_hostname() {
-  local user="$1" out err
+  local user="$1" out err deadline
   err="$(mktemp)"
-  for _ in $(seq 1 18); do
+  deadline=$((SECONDS + SSH_WAIT_SECONDS))
+  while :; do
     if out="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
-        -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10 \
+        -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+        -o ConnectTimeout="${SSH_CONNECT_TIMEOUT}" \
         "${user}@${addr}" hostname 2>"${err}" | tr -d '\r')" && [[ -n "${out}" ]]; then
       rm -f "${err}"; printf '%s' "${out}"; return 0
     fi
+    ((SECONDS + 10 + SSH_CONNECT_TIMEOUT <= deadline)) || break
     sleep 10
   done
   cat "${err}" >&2; rm -f "${err}"

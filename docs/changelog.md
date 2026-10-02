@@ -19,6 +19,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-02
 
+- **Template 901 is built twice, and the second build is usable**
+  ([#440](https://github.com/Gerrrt/HomeLab/issues/440)). This follows the
+  2026-10-01 entry *The lab's VM templates are written for Packer, and not
+  yet built*.
+  - **What blocked the first build, in order.** `Saruman` served a
+    hand-made 2025 certificate naming `10.0.0.208`, its address before it
+    moved, from `pveproxy-ssl.pem`. It was replaced with the node's own,
+    signed by the cluster CA. `phoenix` had never been given that CA, which
+    the name error had hidden. The token had no grant on `large_data`, and
+    could not delete its answer disc from `local`. That went into a role of
+    its own, `PhoenixIsoCleanup`, granted on `local` alone. The runbook's
+    password one-liner also hung in zsh.
+  - **The first build** reached the VM and then sat at GRUB's menu for its
+    whole 45-minute SSH timeout. With no boot order, OVMF tried the `cidata`
+    disc and the empty disk first, and GRUB came up after Packer had typed
+    its boot command. Typed by hand, the install ran unattended, and the
+    reboot came up on the installed disk. 25 minutes.
+  - **The second build** used `boot = "order=scsi0;ide2"` from
+    `packer/ubuntu.pkr.hcl` and ran unattended in 14m22s. That was
+    `packer build -force` over the first, which is #440's acceptance test of
+    building the same template twice.
+  - **The smoke test** passed every step up to SSH on both builds, then lost
+    a race with `pam_nologin`: "System is booting up". It now retries for
+    three minutes, bounded by the clock. Against a clone of the second
+    build: `template 901 is usable`.
+  - **Not yet built:** Server 2025 (912) and Windows 11 (911). They have the
+    same boot order, untested.
 - **[#533](https://github.com/Gerrrt/HomeLab/issues/533): `trinity` converges
   its own stack, authored to start report-only.** The tier holding the
   household's real data was the one tier deployed by hand: a `git pull` and
