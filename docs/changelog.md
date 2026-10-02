@@ -42,6 +42,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **`SmartDriveUnsafeShutdownsGrowing` subtracts the host's own clean stops**
+  ([#746](https://github.com/Gerrrt/HomeLab/issues/746), corrects the premise
+  of [#574](https://github.com/Gerrrt/HomeLab/issues/574) and
+  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)).
+  - **Why.** The S3520 counts a clean stop as unsafe: 522 before a clean
+    *System → Shut Down* on 2026-09-29, 523 after. The rule would have paged
+    after every planned reboot of `smaug`, the UPS halt included.
+  - **What runs.** `scripts/mark-clean-shutdown.sh`, a TrueNAS SHUTDOWN init
+    script, serves `homelab_clean_shutdowns_total{host}`. It runs on the UI's
+    Shut Down and Restart and on the UPS halt, and never on a cut. The
+    collector also runs as a POSTINIT script, so the drive's tick and the
+    clean count move at the same boot (`build-the-nas.md` §6.4 step 7).
+  - **The rule.** It takes the day's unsafe shutdowns per drive, minus the
+    day's clean stops per host. A host with no clean count reads exactly as
+    before. On install day, the missing day-old point counts as zero.
+  - **Tests.** Nine new promtool cases: a planned reboot is quiet; a pulled
+    plug fires; a reboot and a cut on one day fire once; the
+    ten-minute lag is quiet in both orders; a cut on install day fires; and
+    another host's clean stop does not forgive `smaug`'s, whether it is
+    joined by `host` or would wrongly be by `instance` (morpheus); and a
+    clean count that went backwards is clamped to zero, so a reset pages once
+    with the drive's real count. Eight mutations of the rule were run against
+    them.
+  - **Still to do on `smaug`.** Install the two init scripts and prove one
+    planned reboot. The live pulled-plug proof waits for
+    `shut-down-on-the-ups.md` steps 5–7.
+
 - **ADR-0007's umbrella closes: the domain and the SOC are built
   ([#101](https://github.com/Gerrrt/HomeLab/issues/101)).** The estate is
   not finished, because PBS is still to build. The umbrella's done-when

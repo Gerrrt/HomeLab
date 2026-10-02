@@ -635,6 +635,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   drive, then, it cannot tell a planned reboot from a power cut. It did not
   fire on 2026-09-29 only because the drive's letter moved between the two
   readings (`sdc` to `sdb`), so its 1-day comparison had nothing to match.
+  *Answered 2026-10-01:* `smaug` now records its clean stops itself
+  (`scripts/mark-clean-shutdown.sh`, a TrueNAS SHUTDOWN init script), and the
+  rule pages only on the unsafe shutdowns those do not account for.
   **Its letter is not stable.** On the chipset the boot SSD read `sdc` after
   the disk swap and `sdb` after the memory install, a boot with no disk
   changed. The baseline row moved to `/dev/sdb` the same day, and since

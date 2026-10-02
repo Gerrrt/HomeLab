@@ -75,6 +75,10 @@ the rule.
   because the letter moved between the two readings. The rule was already
   wrong for this drive, and the letter was hiding it. That belongs to
   [#574](https://github.com/Gerrrt/HomeLab/issues/574), not to this record.
+  *(2026-10-01: answered under
+  [#746](https://github.com/Gerrrt/HomeLab/issues/746). `smaug` counts its own
+  clean stops from a SHUTDOWN init script, and the rule subtracts them, so a
+  planned reboot nets to zero.)*
 - **Every per-device SMART series gains a label.** That starts a new series in
   Prometheus. Nothing in Grafana reads `homelab_smart_*`, and every rule
   keys on `host`, `device` or now `slot`, so nothing downstream breaks.
