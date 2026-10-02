@@ -150,7 +150,7 @@ updates:
       wazuh:
         patterns: ["wazuh/*"]
 
-  # ansible/ (ADR-0075): ansible-core in requirements.txt, ansible-lint in
+  # ansible/ (ADR-0076): ansible-core in requirements.txt, ansible-lint in
   # requirements-lint.txt, both exact. The collections in requirements.yml are
   # not an ecosystem Dependabot reads, and stay a deliberate edit like Packer's
   # plugin pin. Monthly: phoenix applies these by hand, so a weekly PR would

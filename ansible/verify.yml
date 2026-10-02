@@ -2,7 +2,7 @@
 # Read-only. Runbook §9's checks, and §0's "Do not harden this domain" list as
 # assertions: the shipped weaknesses are the exercises, so a guest on which one
 # of them has been tidied away FAILS here, by name. A hardening role added by
-# reflex would turn this red rather than pass quietly (ADR-0075 decision 4).
+# reflex would turn this red rather than pass quietly (ADR-0076 decision 4).
 #
 #   ansible-playbook verify.yml
 #

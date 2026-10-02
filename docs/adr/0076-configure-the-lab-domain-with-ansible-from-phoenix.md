@@ -1,4 +1,4 @@
-# ADR-0075: Configure the lab domain with Ansible from phoenix
+# ADR-0076: Configure the lab domain with Ansible from phoenix
 
 **Status:** Accepted · 2026-10 · amends decision 6 of
 [ADR-0074](0074-build-the-lab-templates-with-packer-from-phoenix.md) (the way

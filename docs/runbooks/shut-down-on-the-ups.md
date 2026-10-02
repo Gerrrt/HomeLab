@@ -941,8 +941,14 @@ seconds and the rule waits 30, so two minutes is the outside limit. Past that,
 the card is not reporting the transfer — plug back in and stop.
 
 **A real cut later ended with a host stopping uncleanly anyway.** The sequence
-outgrew the window. `SmartDriveUnsafeShutdownsGrowing` is what tells you,
-because a clean shutdown does not move that counter. Re-time with step 5 and
+outgrew the window. `SmartDriveUnsafeShutdownsGrowing` is what tells you.
+On `smaug` the S3520 counts a clean stop as well as a cut, so the rule
+subtracts the stops `smaug` recorded as clean
+(`homelab_clean_shutdowns_total`, written by its SHUTDOWN init script —
+[#746](https://github.com/Gerrrt/HomeLab/issues/746)). What is left is a stop
+that never ran the shutdown sequence. If the halt in step 6 *did* run and the
+rule fired anyway, check that the init script is still installed
+(`build-the-nas.md` §6.4) before you blame the timing. Re-time with step 5 and
 raise the threshold in 6.5. Packs weaken with age, so a margin that fitted at
 install stops fitting eventually.
 

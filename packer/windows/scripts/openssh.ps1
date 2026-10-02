@@ -1,6 +1,6 @@
 # The way back in. Runs during a Windows BUILD, over the build's WinRM, before
 # sysprep. A clone has no WinRM (SetupComplete.cmd closes it), so this is what
-# phoenix's Ansible reaches every guest through (ADR-0075 decision 2).
+# phoenix's Ansible reaches every guest through (ADR-0076 decision 2).
 #
 # What it leaves in the template: the OpenSSH server installed but DISABLED and
 # never started, password logins off, phoenix's public key as the only

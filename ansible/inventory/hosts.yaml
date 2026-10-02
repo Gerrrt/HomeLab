@@ -1,12 +1,12 @@
 ---
 # ADR-0029's six, and nothing else. This inventory is the lab domain's, not the
 # estate's: no host outside ad.matrix.elysium belongs here, and phoenix pushing
-# to one would be the push plane ADR-0043 refuses (ADR-0075 decision 1).
+# to one would be the push plane ADR-0043 refuses (ADR-0076 decision 1).
 #
 # Addresses are the final ones. The DCs set theirs statically (roles/base); the
 # four others hold DHCP reservations on morpheus. A rebuilt guest reaches its
 # address before Ansible first connects because #445 pins each MAC, and the
-# reservations are keyed by MAC (ADR-0075 decision 6).
+# reservations are keyed by MAC (ADR-0076 decision 6).
 #
 # `lab_role` is the `role` label stacks/lab/prometheus/prometheus.yaml's
 # `windows` job puts on each target, so `role="dc"` means the same thing in a

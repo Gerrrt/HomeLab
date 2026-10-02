@@ -242,7 +242,7 @@ The Windows builds log in as the built-in Administrator to provision, and a
 clone boots with the same password until
 [`ansible/`](../../ansible/README.md)'s `base` role rotates it. Nothing outside
 the console can use it in the meantime: a clone's only way in is OpenSSH,
-key-only, admitting `phoenix` alone ([ADR-0075](../adr/0075-configure-the-lab-domain-with-ansible-from-phoenix.md)).
+key-only, admitting `phoenix` alone ([ADR-0076](../adr/0076-configure-the-lab-domain-with-ansible-from-phoenix.md)).
 Add it to the file that already holds the token:
 
 ```bash
@@ -346,7 +346,7 @@ the template, and `SetupComplete.cmd` starts it as its last step, so the
 agent's first answer means first-boot setup has finished. Allow ten minutes.
 The script then SSHes in as `Administrator` with `phoenix`'s key, because that
 is how [`ansible/`](../../ansible/README.md) reaches every guest
-([ADR-0075](../adr/0075-configure-the-lab-domain-with-ansible-from-phoenix.md)).
+([ADR-0076](../adr/0076-configure-the-lab-domain-with-ansible-from-phoenix.md)).
 A Windows 11 build that fails this has usually failed to fetch the OpenSSH
 capability over the build's egress; `openssh.ps1` throws in that case. Its
 hostname is sysprep's random one, because `ansible/` sets the real name.

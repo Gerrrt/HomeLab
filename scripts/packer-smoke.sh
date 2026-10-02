@@ -19,7 +19,7 @@
 #            and started by SetupComplete.cmd as its last act, so an address
 #            from it means first-boot Setup has finished, not merely begun.
 #            Then phoenix's key opens an SSH session as Administrator, which is
-#            how ansible/ reaches every guest (ADR-0075). Its name is sysprep's
+#            how ansible/ reaches every guest (ADR-0076). Its name is sysprep's
 #            random one; the real name is set by ansible/. The SID check needs
 #            two clones and a console, so --keep leaves this one running for it
 #            (build-the-lab-templates.md §7).
@@ -156,7 +156,7 @@ if [[ "${ostype}" == l26 ]]; then
   ok "phoenix's key opens smoke@${addr}"
 else
   ok "hostname ${host} (sysprep's random name; the real one is ansible/'s)"
-  # The way ansible/ reaches every guest (ADR-0075): sshd, started by
+  # The way ansible/ reaches every guest (ADR-0076): sshd, started by
   # SetupComplete.cmd, admitting phoenix's key as Administrator. Windows names
   # are upper-case and the agent's need not be, so compare without case.
   got="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \

@@ -7,7 +7,7 @@
   real one (bahamut, carbuncle…) is set by ansible/'s base role (#448).
   The Administrator password is the build password until that role rotates
   it. It opens the console and nothing else: the clone's only remote way in is
-  OpenSSH, key-only (scripts/openssh.ps1, ADR-0075).
+  OpenSSH, key-only (scripts/openssh.ps1, ADR-0076).
 
   As in Autounattend.xml, LLMNR, NetBIOS, IPv6 and WPAD are left alone
   (ADR-0029).

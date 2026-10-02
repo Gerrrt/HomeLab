@@ -1,7 +1,7 @@
 # ansible
 
 This directory configures the lab domain's six guests from `phoenix`
-([ADR-0075]). The *why* is in [`build-the-lab-domain.md`][runbook] and
+([ADR-0076]). The *why* is in [`build-the-lab-domain.md`][runbook] and
 ADR-0029. This page covers what is here and how to run it.
 
 ```bash
@@ -79,6 +79,6 @@ deliberate weaknesses as further tags in this same playbook.
   `scripts/lint.sh` runs `ansible-lint`, which includes the syntax check. CI
   has no route to VLAN 30.
 
-[ADR-0075]: ../docs/adr/0075-configure-the-lab-domain-with-ansible-from-phoenix.md
+[ADR-0076]: ../docs/adr/0076-configure-the-lab-domain-with-ansible-from-phoenix.md
 [runbook]: ../docs/runbooks/build-the-lab-domain.md
 [run]: ../docs/runbooks/build-the-lab-domain.md#run-it-from-phoenix

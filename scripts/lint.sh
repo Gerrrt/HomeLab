@@ -233,7 +233,7 @@ run_linter actionlint
 # whether the HCL means anything. A real build is proved on phoenix, not here.
 run_linter packer fmt -check -diff -recursive packer/
 run_linter packer validate -syntax-only packer/
-# ansible/ (ADR-0075). Includes ansible-playbook's own syntax check, which needs
+# ansible/ (ADR-0076). Includes ansible-playbook's own syntax check, which needs
 # the pinned collections — hence --project-dir, which makes ansible-lint install
 # ansible/requirements.yml before it looks. Proved against the guests on
 # phoenix, not here: CI has no route to VLAN 30.

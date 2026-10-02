@@ -1219,17 +1219,56 @@ groups:
             Check backups first.
 
       - alert: SmartDriveUnsafeShutdownsGrowing
-        # The measure of a power cut nobody planned for (#574, ADR-0049).
+        # The measure of a power cut nobody planned for (#574, ADR-0049, #746).
         #
-        # A clean shutdown on the UPS's signal does not move a drive's
-        # unsafe-shutdown counter, and a cut shorter than the pack does not
-        # either, so any growth is a stop that the sequence ADR-0049 decides
-        # did not catch — or, before that sequence exists, a stop nothing
-        # tried to catch. smaug's boot disk arrived carrying 509 of them in 538
-        # power cycles from its previous owner, which is how a box with no
-        # UPS client looks from the disk's side. ADR-0047's cron job under
-        # the scrape carries the counter off smaug and named this rule as the
-        # decision left to #574; the series exists and reads 509.
+        # smaug's boot disk arrived carrying 509 unsafe shutdowns in 538 power
+        # cycles from its previous owner, which is how a box with no UPS client
+        # looks from the disk's side. ADR-0047's cron job under the scrape
+        # carries the counter off smaug and named this rule as the decision
+        # left to #574.
+        #
+        # A CLEAN STOP CAN MOVE THE COUNTER (#746). This rule was written on the
+        # premise that it does not. smaug's Intel DC S3520 disproved that on
+        # 2026-09-29: 522 before a clean System → Shut Down, 523 after. Read as
+        # it was, the rule paged after every planned reboot of smaug, the UPS
+        # halt ADR-0049 built included, and could not tell maintenance from a
+        # cut — the one distinction it exists to make.
+        #
+        # SO THE HOST COUNTS ITS OWN CLEAN STOPS, AND THEY ARE SUBTRACTED.
+        # scripts/mark-clean-shutdown.sh runs as smaug's SHUTDOWN init script,
+        # which every stop through the init system runs — the UI's Shut Down and
+        # Restart, and the UPS service's halt on LB — and a pulled plug, a crash
+        # or a cut that outlasts the pack never does. It serves
+        # homelab_clean_shutdowns_total{host}. The rule pages on the unsafe
+        # shutdowns of the day minus the clean stops of the day, per drive, so a
+        # planned reboot nets to zero and a cut does not. A fact the host writes
+        # on the way down, not a silence somebody has to remember (#572,
+        # ADR-0046).
+        #
+        # PER HOST, NOT PER DRIVE. The clean count belongs to the host, and
+        # whether each drive counts a clean stop is its firmware's business: on
+        # a day with one planned reboot and one cut, the S3520 reads +2 against
+        # +1 and pages; a drive that only counts the cut reads +1 against +1 and
+        # stays quiet. The host still pages, once, from the drive that sees
+        # every power-off. That is the trade for not keeping a table of which
+        # firmware does what.
+        #
+        # A HOST WITHOUT THE CLEAN COUNT IS READ AS BEFORE. The second branch
+        # is the old expression for every host that has no
+        # homelab_clean_shutdowns_total at all — every agent host today. And
+        # the install day, when the clean count has no day-old point yet, reads
+        # that point as zero rather than dropping the host out of both
+        # branches. A clean count that went BACKWARDS — the file lost and
+        # restarted at one — is clamped to zero, not subtracted as a negative:
+        # that day forgives nothing and pages with the drive's real count,
+        # rather than inflating it by the lost history.
+        #
+        # BOTH COUNTERS MOVE AT THE SAME BOOT. The collector runs as smaug's
+        # POSTINIT script as well as at 08:30 (build-the-nas.md §6.4). Read only
+        # at 08:30, a 07:00 reboot would show its clean stop at once and its
+        # unsafe one ninety minutes later, the two day-long windows would close
+        # ninety minutes apart, and the gap would page. At the same boot they
+        # are minutes apart, and `for: 1h` covers it.
         #
         # SUBTRACTION over a day, not a week: a cut is an event with a date,
         # and the day it happened is the thing worth knowing. The same gauge
@@ -1238,7 +1277,24 @@ groups:
         # comparison is exact. The metric has one name for both drive types
         # by design: NVMe's health log and ATA attribute 174 both land on it.
         expr: >-
-          (homelab_smart_unsafe_shutdowns_total - homelab_smart_unsafe_shutdowns_total offset 1d) > 0
+          (
+              (
+                  (homelab_smart_unsafe_shutdowns_total - homelab_smart_unsafe_shutdowns_total offset 1d)
+                - on (host) group_left ()
+                  clamp_min(
+                      homelab_clean_shutdowns_total
+                    - (homelab_clean_shutdowns_total offset 1d or homelab_clean_shutdowns_total * 0),
+                    0
+                  )
+              )
+            or
+              (
+                  (homelab_smart_unsafe_shutdowns_total - homelab_smart_unsafe_shutdowns_total offset 1d)
+                unless on (host)
+                  homelab_clean_shutdowns_total
+              )
+          )
+          > 0
         for: 1h
         labels:
           component: host
@@ -1249,13 +1305,14 @@ groups:
             {{ $labels.host }}: {{ $labels.device }} lost power uncleanly
             {{ $value }} time(s) in the last day
           description: >-
-            The drive's unsafe-shutdown counter moved, which means the host
-            stopped without telling the disk — a mains cut that outlasted the
-            UPS with nothing acting on its signal, a crash, or a plug. Find the
-            event: UpsOnBattery and InstanceDown around the same time say
-            which. If a UPS shutdown sequence exists for this host (ADR-0049),
-            it did not run, and runbooks/shut-down-on-the-ups.md says how to
-            check it.
+            The drive's unsafe-shutdown counter moved more times than the host
+            recorded a clean stop, which means it stopped without going through
+            its shutdown sequence — a mains cut that outlasted the UPS with
+            nothing acting on its signal, a crash, or a plug. Find the event:
+            UpsOnBattery and InstanceDown around the same time say which. If a
+            UPS shutdown sequence exists for this host (ADR-0049), it did not
+            run, and runbooks/shut-down-on-the-ups.md says how to check it.
+
       - alert: SmartStateStale
         # The SMART collector has stopped rewriting its file, on any host.
         #
