@@ -1784,7 +1784,7 @@ ls -l /mnt/erebor/apps/textfile
 ```
 
 A third file beside the other two: `zpool-state-smaug.prom`, `-rw-r--r--`,
-root. The one line it prints ends `not-online=0`.
+root. The one line it prints includes `not-online=0`.
 
 **3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
 
@@ -1793,7 +1793,7 @@ root. The one line it prints ends `not-online=0`.
 | Description | `homelab zpool-state (#744, ADR-0047)` | So the next person finds the issue from the job |
 | Command | the step-2 command line, exactly, without the `ls` | cron's `PATH` has no `/usr/sbin`, where `zpool` lives; `timeout 60` because a suspended pool can block `zpool status`, and a run that hangs must end and leave the file to go stale; `--host smaug` for the scrape's `instance` |
 | Run As User | `root` | Only because `/mnt/erebor/apps/textfile` is root-owned `0755`; `zpool status` itself needs nothing |
-| Schedule | custom, `*/5 * * * *` | The page is at most one run, one scrape and one minute of `for` behind the fault. `ZpoolVdevStateStale` fires at ten minutes, twice the period |
+| Schedule | custom, `*/5 * * * *` | The page is at most one run, one scrape and one minute of `for` behind the fault. `ZpoolVdevStateStale` fires once the file is ten minutes old, twice the period |
 | Hide Standard Output | **on** | Success is one line, 288 times a day |
 | Hide Standard Error | **off** | A failure is the thing worth seeing |
 | Enabled | on | |

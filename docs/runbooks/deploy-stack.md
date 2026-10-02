@@ -118,12 +118,12 @@ Then in the UI:
 
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
-2. **Prometheus → Status → Rules.** 123 rules loaded, none in error. The
-   page counts 117: the extra two are the recording rules,
+2. **Prometheus → Status → Rules.** Every rule loaded, none in error. The
+   page lists 125: the 123 alert rules this repository counts everywhere
+   else, plus the two recording rules,
    `homelab_suricata_expected_interface` and
-   `homelab_battery_runtime_seconds`. Everything counted in this repository
-   is alert rules, so the two numbers differ by the number of recording
-   rules and always have.
+   `homelab_battery_runtime_seconds`. The page's number is always the
+   alert-rule count plus the recording rules.
 3. **Grafana → Dashboards → HomeLab.** Seven dashboards, populated.
 4. **Grafana → Explore → Loki**, run `{host=~".+"}`. Logs should be arriving.
 5. Confirm level normalisation is working — this has been silently broken

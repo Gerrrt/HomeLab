@@ -594,7 +594,9 @@ groups:
           severity: critical
           category: hardware
         annotations:
-          summary: "{{ $labels.host }}: a leaf of zpool {{ $labels.pool }} is {{ $labels.state }} while the pool reads online"
+          summary: >-
+            {{ $labels.host }}: a leaf of zpool {{ $labels.pool }} is
+            {{ $labels.state }} while the pool reads online
           description: >-
             Leaf {{ $labels.vdev }} (guid {{ $labels.guid }}) of
             {{ $labels.pool }} reads {{ $labels.state }}{{ with $labels.aux }} ({{ . }}){{ end }},
@@ -632,7 +634,9 @@ groups:
           severity: warning
           category: hardware
         annotations:
-          summary: "{{ $labels.host }}: zpool {{ $labels.pool }} leaf {{ $labels.vdev }} has {{ $value }} {{ $labels.kind }} errors"
+          summary: >-
+            {{ $labels.host }}: zpool {{ $labels.pool }} leaf {{ $labels.vdev }}
+            has {{ $value }} {{ $labels.kind }} errors
           description: >-
             ZFS counted {{ $value }} {{ $labels.kind }} errors on leaf
             {{ $labels.vdev }} (guid {{ $labels.guid }}) of {{ $labels.pool }}
@@ -1468,9 +1472,12 @@ groups:
         # second, so a slow run is not a reason to be late. A failed read
         # writes nothing on purpose, so a `zpool status -j` that starts
         # failing ends up here, not as a file that looks healthy.
+        #
+        # NO `for`. The threshold is already the hold: an mtime is a fact, not
+        # a noisy sample, and a `for: 10m` on top would make "ten minutes"
+        # twenty in practice, the blind window this rule exists to bound.
         expr: >-
           time() - node_textfile_mtime_seconds{file=~".*zpool-state-.*\\.prom"} > 2 * 300
-        for: 10m
         labels:
           component: host
           severity: warning

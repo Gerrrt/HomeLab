@@ -2629,17 +2629,17 @@ tests:
         exp_alerts: []
 
   # --- ZpoolVdevStateStale: fires when the five-minute file stops ------------
-  # Written at t=0 and never again. It crosses ten minutes after 10m, is
-  # pending from the 15m evaluation, and has held `for: 10m` by 25m. At 30m it
-  # is thirty minutes old. Sampled every 5m, not hourly, because the series
-  # lookback is five minutes (IsoStoreStateStale's lesson). The 20m evaluation
-  # is what kills `for: 10m -> 0m`.
+  # Written at t=0 and never again. At 10m it is exactly ten minutes old, not
+  # past the line; at 15m it is past it and fires, with no `for` to wait out.
+  # Sampled every 5m, not hourly, because the series lookback is five minutes
+  # (IsoStoreStateStale's lesson). The 10m evaluation is what kills
+  # `> 2 * 300 -> > 2 * 30`, and a `for` added back would silence 15m.
   - interval: 5m
     input_series:
       - series: 'node_textfile_mtime_seconds{instance="smaug",job="node",role="nas",vlan="40",file="/textfile/zpool-state-smaug.prom"}'
         values: "0x12"
     alert_rule_test:
-      - eval_time: 30m
+      - eval_time: 15m
         alertname: ZpoolVdevStateStale
         exp_alerts:
           - exp_labels:
@@ -2654,7 +2654,7 @@ tests:
             exp_annotations:
               summary: "smaug has not rewritten /textfile/zpool-state-smaug.prom in ten minutes"
               description: >-
-                The ZFS leaf-state textfile is 30m 0s old, and node_exporter
+                The ZFS leaf-state textfile is 15m 0s old, and node_exporter
                 re-serves its last contents, so every homelab_zpool_vdev_*
                 series is present and stale. ZpoolVdevNotOnline cannot see a
                 faulted leaf on this host until the file is rewritten. The
@@ -2662,7 +2662,7 @@ tests:
                 Advanced Settings → Cron Jobs; build-the-nas.md §6.8). Check
                 the job still exists, then run its command at the console. A
                 failure there prints why.
-      - eval_time: 20m
+      - eval_time: 10m
         alertname: ZpoolVdevStateStale
         exp_alerts: []
 
@@ -3306,6 +3306,8 @@ tests:
   #                       drop the `unless`;  on(host, pool) -> on(host);
   #                       for: 1m -> 0m
   #   ZpoolVdevErrors     > 0 -> >= 0;  > 0 -> > 100;  for: 1m -> 0m
+  #   ZpoolVdevStateStale 2 * 300 -> 2 * 30;  2 * 300 -> 2 * 3000;
+  #                       add for: 10m;  widen the file regex
   # ==========================================================================
 
   # --- ZpoolVdevNotOnline: fires on 2026-09-19's reading --------------------
@@ -3321,7 +3323,8 @@ tests:
         values: "1x20"
       - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="52dfceb0-0c58-476b-be76-ec30184c3781",guid="5271037958598492964",state="online"}'
         values: "1x20"
-      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="faulted",aux="too many errors"}'
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",
+          vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="faulted",aux="too many errors"}'
         values: "1x20"
       - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="boot-pool",vdev="1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10",guid="777",state="online"}'
         values: "1x20"

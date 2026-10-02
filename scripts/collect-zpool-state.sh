@@ -322,7 +322,7 @@ HOST_LABEL=""
 while (($#)); do
   case "$1" in
     --print) PRINT_ONLY=1; shift ;;
-    --host)  HOST_LABEL="${2:-}"; shift 2 ;;
+    --host)  (($# >= 2)) || die "--host needs a NAME"; HOST_LABEL="$2"; shift 2 ;;
     -h|--help) sed -n '/^# Usage:/,/^set -/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//;/^set -/d'; exit 0 ;;
     *) die "unknown argument $1" ;;
   esac
