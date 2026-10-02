@@ -504,8 +504,10 @@ assumption consistent with what they are.
 
 - Credentials are encrypted with [SOPS](https://github.com/getsops/sops) + age
   and committed in encrypted form. See [`secrets/README.md`](../secrets/README.md).
-- The private key lives at `~/.config/sops/age/keys.txt` on the deployment host
-  and is never in the repository. That host's disk is not encrypted — see
+- The private key lives at `~/.config/sops/age/keys.txt` on `prometheus`, the
+  host that deploys the estate's stacks, and is never in the repository. (ADR-0043
+  calls `phoenix` "the deployment host" too. `phoenix` builds machines, holds no
+  age key, and is covered below.) That host's disk is not encrypted — see
   [below](#everything-above-sits-on-an-unencrypted-disk).
 - That key is the single point of failure for every encrypted secret here, so it
   is copied off the host and the copy is proven to decrypt with
@@ -519,8 +521,30 @@ assumption consistent with what they are.
   the editor cannot persist the plaintext in an undo file, swap file or backup
   that sops does not shred. See [`secrets/README.md`](../secrets/README.md).
 - CI runs `gitleaks` with rules specifically for SNMP communities, inline
-  Grafana passwords, PEM private keys and age secret keys, and separately
-  asserts that every `secrets/*.sops.yaml` is genuinely encrypted.
+  Grafana passwords, PEM private keys, age secret keys and unencrypted
+  OpenTofu state. It separately asserts that every `secrets/*.sops.yaml` is
+  genuinely encrypted, and that no state, plan or `.terraform/` is tracked.
+- **`phoenix` is a secret-bearing host, and holds no age key.** It has four
+  secrets, all mode 600 and owned by its operator:
+  - the Proxmox API token `phoenix@pve!builder`;
+  - the Windows build password, which is also a fresh clone's Administrator
+    password until #448 rotates it;
+  - `tofu/`'s state passphrase, all three in `~/.config/proxmox/phoenix.env`
+    ([ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
+    §4);
+  - the encrypted state itself, `tofu/state/lab.tfstate`
+    ([ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
+
+  The state is the one that would have been quiet. A Terraform state holds
+  every value a provider touched in cleartext, the cloud-init password of every
+  guest among them. OpenTofu encrypts it, `enforced = true` refuses a plaintext
+  write, and `scripts/check-tofu-state-encryption.sh` proves both, in CI against
+  a canary and on `phoenix` against the real file. The passphrase is escrowed in
+  `secrets/tofu.sops.yaml` to the estate's two recipients, so `phoenix` wrote
+  that copy and cannot read it. What protects all four on the host is file
+  permissions and the token's scope: `PhoenixBuilder` on named paths, never at
+  `/`. That scope is the sentence to argue with, because whoever holds the
+  token can create and destroy guests.
 - **The alert path's credentials are in SOPS on two hosts, and one of them
   crosses the CA boundary on purpose.** Since
   [#136](https://github.com/Gerrrt/HomeLab/issues/136) Alertmanager delivers to

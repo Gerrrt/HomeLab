@@ -27,8 +27,21 @@
 # filesystem scan skips it, and it holds bare literals with no keyword context
 # to match. Being untracked is the only control either has.
 #
+# tofu/'s state, plans and provider cache are on the list because a state file
+# holds every value a provider touched (ADR-0076). tofu/ encrypts state and
+# refuses to write it otherwise, so a committed one would be ciphertext. It is
+# listed anyway: a check that only holds while encryption.tf is right is not a
+# second check. `.terraform.lock.hcl` is meant to be tracked and is not matched,
+# because `\.terraform/` needs the slash.
+#
 # Usage:
-#   scripts/check-tracked-artefacts.sh     names every offender, exit 1 if any
+#   scripts/check-tracked-artefacts.sh               names every offender, exit 1 if any
+#   scripts/check-tracked-artefacts.sh --root <dir>  the same, against another checkout
+#   scripts/check-tracked-artefacts.sh --self-test   fixtures, in throwaway repositories
+#
+# --self-test exists because this check had never been seen to fail. Every
+# pattern below is force-added to a scratch repository and must be named; every
+# file that must stay committable is added beside them and must not be.
 #
 # `git ls-files` and not the filesystem: the question is what is TRACKED. A
 # rendered .env sitting in the working tree is correct and expected — that is
@@ -37,7 +50,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "${REPO_ROOT}"
+ROOT="${REPO_ROOT}"
 
 # Each entry is a fixed path fragment matched anywhere in a tracked path. The
 # leading (^|/) makes it a whole path segment, so `certificates/` matches
@@ -48,7 +61,95 @@ PATTERNS=(
   '\.purge-secrets\.txt'
   'certificates/'
   'backups/'
+  '[^/]*\.tfstate'
+  '[^/]*\.tfplan'
+  '\.terraform/'
 )
+
+# ---------------------------------------------------------------------------
+# --self-test
+# ---------------------------------------------------------------------------
+if [[ "${1:-}" == "--self-test" ]]; then
+  have() { command -v "$1" >/dev/null 2>&1; }
+  if ! have git; then
+    printf '\033[0;33m  SKIP\033[0m git not installed\n'
+    exit 0
+  fi
+  T="$(mktemp -d)"
+  trap 'rm -rf "${T}"' EXIT
+  fail=0
+  ok()  { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
+  bad() { printf '\033[0;31m  FAIL\033[0m %s\n' "$*"; fail=1; }
+
+  # Files that must stay committable. Every scratch repository carries them,
+  # so an over-broad pattern fails every fixture rather than none.
+  BENIGN=(
+    stacks/x/.env.example
+    tofu/.terraform.lock.hcl
+    tofu/versions.tf
+    docs/tfstate-notes.md
+    docs/runbooks/back-up-the-age-key.md
+  )
+  scratch() {  # <name> [<offender>] → a repository at ${T}/<name>, everything added -f
+    local dir="${T}/$1" f
+    git init -q "${dir}"
+    for f in "${BENIGN[@]}" ${2:+"$2"}; do
+      mkdir -p "${dir}/$(dirname "${f}")"
+      printf 'x\n' > "${dir}/${f}"
+    done
+    # -f: the question is what happens AFTER .gitignore has been walked past.
+    git -C "${dir}" add -f -A
+  }
+  run() {  # <dir> → OUT, RC
+    set +e
+    OUT="$("${BASH_SOURCE[0]}" --root "$1" 2>&1)"
+    RC=$?
+    set -e
+  }
+
+  scratch clean
+  run "${T}/clean"
+  if ((RC == 0)); then
+    ok "the committable files pass: ${BENIGN[*]}"
+  else
+    bad "a committable file was named as an artefact"
+    printf '%s\n' "${OUT}" | sed 's/^/       | /'
+  fi
+
+  OFFENDERS=(
+    stacks/observability/.env
+    stacks/other/.env
+    a/.rendered/alertmanager.yml
+    .purge-secrets.txt
+    nested/certificates/key.pem
+    backups/volumes/x.age
+    tofu/state/lab.tfstate
+    terraform.tfstate
+    a/b/terraform.tfstate.backup
+    tofu/terraform.tfstate.d/proof/terraform.tfstate
+    tofu/proof.tfplan
+    tofu/.terraform/providers/registry.opentofu.org/x
+    modules/y/.terraform/terraform.tfstate
+  )
+  i=0
+  for f in "${OFFENDERS[@]}"; do
+    i=$((i + 1))
+    scratch "o${i}" "${f}"
+    run "${T}/o${i}"
+    if ((RC == 1)) && [[ "${OUT}" == *"  ${f}"* ]]; then
+      ok "a tracked ${f} is named"
+    else
+      bad "a tracked ${f} passed (exit ${RC})"
+      printf '%s\n' "${OUT}" | sed 's/^/       | /'
+    fi
+  done
+  exit "${fail}"
+fi
+
+if [[ "${1:-}" == "--root" ]]; then
+  ROOT="${2:?--root needs a directory}"
+fi
+cd "${ROOT}"
 
 # .env.example is the documented template and is meant to be tracked. It is the
 # only exception, and it is spelled out rather than pattern-matched so that a
@@ -72,4 +173,4 @@ if ((fail)); then
   exit 1
 fi
 
-printf 'no rendered, decrypted, purge-secrets, certificate or backup files tracked\n'
+printf 'no rendered, decrypted, purge-secrets, certificate, backup or tofu state files tracked\n'
