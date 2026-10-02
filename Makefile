@@ -113,11 +113,11 @@ up: render ## Render config and start the stack
 	@# rather than a list of stack names, so a stack that gains or drops a
 	@# Grafana is right without this recipe changing.
 	@if grep -qE '^  grafana:' $(STACK_DIR)/compose.yaml; then \
-	  port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
-	  printf '\n\033[0;32mup\033[0m — Grafana: https://localhost:%s\n' "$${port:-3000}"; \
-	  printf '   (self-signed by the lab CA — trust certificates/ca.pem, see docs/runbooks/generate-certificates.md)\n'; \
+		port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
+		printf '\n\033[0;32mup\033[0m — Grafana: https://localhost:%s\n' "$${port:-3000}"; \
+		printf '   (self-signed by the lab CA — trust certificates/ca.pem, see docs/runbooks/generate-certificates.md)\n'; \
 	else \
-	  printf '\n\033[0;32mup\033[0m — %s\n' "$(STACK)"; \
+		printf '\n\033[0;32mup\033[0m — %s\n' "$(STACK)"; \
 	fi
 	@# Last, so it is only reached when every check above passed: the revision
 	@# this deploy applied. converge.sh compares HEAD with it, because HEAD alone
