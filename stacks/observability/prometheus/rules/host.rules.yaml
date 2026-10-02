@@ -1258,7 +1258,10 @@ groups:
         # homelab_clean_shutdowns_total at all — every agent host today. And
         # the install day, when the clean count has no day-old point yet, reads
         # that point as zero rather than dropping the host out of both
-        # branches.
+        # branches. A clean count that went BACKWARDS — the file lost and
+        # restarted at one — is clamped to zero, not subtracted as a negative:
+        # that day forgives nothing and pages with the drive's real count,
+        # rather than inflating it by the lost history.
         #
         # BOTH COUNTERS MOVE AT THE SAME BOOT. The collector runs as smaug's
         # POSTINIT script as well as at 08:30 (build-the-nas.md §6.4). Read only
@@ -1278,9 +1281,10 @@ groups:
               (
                   (homelab_smart_unsafe_shutdowns_total - homelab_smart_unsafe_shutdowns_total offset 1d)
                 - on (host) group_left ()
-                  (
+                  clamp_min(
                       homelab_clean_shutdowns_total
-                    - (homelab_clean_shutdowns_total offset 1d or homelab_clean_shutdowns_total * 0)
+                    - (homelab_clean_shutdowns_total offset 1d or homelab_clean_shutdowns_total * 0),
+                    0
                   )
               )
             or

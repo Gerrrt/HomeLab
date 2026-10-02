@@ -26,9 +26,11 @@
 #
 # THE COUNT LIVES IN THE FILE IT IS SERVED FROM. There is no other state: the
 # previous value is read back out of the .prom, so the file on the pool is the
-# whole of it. A missing or unreadable file starts again at one, which reads to
-# the rule as at most one forgiven unsafe shutdown — the failure leans quiet by
-# one, never loud.
+# whole of it. A missing or unreadable file starts again at one. If Prometheus
+# still holds the old count N in its day-long window, the clean delta reads
+# 1 - N, which is negative. The rule clamps that to zero, so a reset forgives
+# nothing that day: the reboot that reset it pages, with the drive's real
+# count. The failure leans LOUD, once, and never hides a cut.
 #
 # FAST, BECAUSE IT IS ON THE WAY DOWN. TrueNAS gives a SHUTDOWN script a timeout
 # (10s is what build-the-nas.md §6.4 sets) and the pool is still imported when
@@ -55,7 +57,9 @@ die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 while (($#)); do
   case "$1" in
-    --host) HOST_LABEL="${2:-}"; shift 2 ;;
+    --host)
+      [[ $# -ge 2 && -n "$2" ]] || die "--host needs a NAME"
+      HOST_LABEL="$2"; shift 2 ;;
     --self-test) SELF_TEST=1; shift ;;
     -h|--help) sed -n '2,/^set -uo/p' "$0" | sed '$d'; exit 0 ;;
     *) die "unknown argument: $1" ;;
@@ -90,8 +94,8 @@ mark() {
   count=$(( $(previous "$prom" "$host") + 1 ))
   tmp="${prom}.$$"
   render "$host" "$count" "$now" > "$tmp" || { rm -f "$tmp"; die "could not write ${tmp}"; }
-  chmod 0644 "$tmp"
-  mv -f "$tmp" "$prom"
+  chmod 0644 "$tmp" || { rm -f "$tmp"; die "could not chmod ${tmp}"; }
+  mv -f "$tmp" "$prom" || { rm -f "$tmp"; die "could not replace ${prom}"; }
   sync "$prom" 2>/dev/null || sync
 }
 
@@ -141,7 +145,26 @@ if ((SELF_TEST)); then
   check "another host's count is not read" \
     1 '^homelab_clean_shutdowns_total\{host="fixture"\} 1$'
 
-  # 5. No temp file left behind for the textfile collector to choke on.
+  # 5. `--host` with no NAME must fail, not spin: `shift 2` on one argument
+  #    fails without consuming it, and without `set -e` the loop never ends.
+  if timeout 5 bash "$0" --host >/dev/null 2>&1; then
+    printf '\033[0;31m  FAIL\033[0m --host with no NAME succeeded\n'; fail=1
+  elif (( $? == 124 )); then
+    printf '\033[0;31m  FAIL\033[0m --host with no NAME hung\n'; fail=1
+  else
+    printf '\033[0;32m  PASS\033[0m --host with no NAME fails fast\n'
+  fi
+
+  # 6. A replace that fails must fail the run, not report a count it never
+  #    wrote. `mv` is shadowed by a function that fails, in a subshell, since
+  #    root on the pool ignores the permissions a real refusal would need.
+  if ( mv() { return 1; }; mark "$dir" fixture 1790014400 ) 2>/dev/null; then
+    printf '\033[0;31m  FAIL\033[0m a failed replace reported success\n'; fail=1
+  else
+    printf '\033[0;32m  PASS\033[0m a failed replace fails the run\n'
+  fi
+
+  # 7. No temp file left behind for the textfile collector to choke on.
   if compgen -G "${file}.*" >/dev/null; then
     printf '\033[0;31m  FAIL\033[0m a temp file was left in the textfile directory\n'
     fail=1

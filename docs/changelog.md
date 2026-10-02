@@ -34,12 +34,14 @@ docstring gives: it is a record, not a claim about now.
   - **The rule.** It takes the day's unsafe shutdowns per drive, minus the
     day's clean stops per host. A host with no clean count reads exactly as
     before. On install day, the missing day-old point counts as zero.
-  - **Tests.** Eight new promtool cases: a planned reboot is quiet; a pulled
+  - **Tests.** Nine new promtool cases: a planned reboot is quiet; a pulled
     plug fires; a reboot and a cut on one day fire once; the
     ten-minute lag is quiet in both orders; a cut on install day fires; and
     another host's clean stop does not forgive `smaug`'s, whether it is
-    joined by `host` or would wrongly be by `instance` (morpheus). Seven
-    mutations of the rule were run against them.
+    joined by `host` or would wrongly be by `instance` (morpheus); and a
+    clean count that went backwards is clamped to zero, so a reset pages once
+    with the drive's real count. Eight mutations of the rule were run against
+    them.
   - **Still to do on `smaug`.** Install the two init scripts and prove one
     planned reboot. The live pulled-plug proof waits for
     `shut-down-on-the-ups.md` steps 5–7.

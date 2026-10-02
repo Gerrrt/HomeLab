@@ -2295,6 +2295,7 @@ tests:
   #   unless on (host) -> unless on (job)                      morpheus beside a clean host is quiet
   #   for: 1h -> 0m                                            the lag cases fire
   #   > 0 -> >= 0                                              planned reboot fires
+  #   drop clamp_min(..., 0)                                   a reset reads 5, not 1
   # ==========================================================================
 
   # --- planned reboot: QUIET. One clean stop, one tick on the S3520. ---------
@@ -2429,6 +2430,43 @@ tests:
         values: "_x200 1x500"
     alert_rule_test:
       - eval_time: 30h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdb
+              slot: pci-0000:00:17.0-ata-6
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdb lost power uncleanly 1 time(s) in the last day"
+              description: >-
+                The drive's unsafe-shutdown counter moved more times than the host
+                recorded a clean stop, which means it stopped without going through
+                its shutdown sequence — a mains cut that outlasted the UPS with
+                nothing acting on its signal, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. If a
+                UPS shutdown sequence exists for this host (ADR-0049), it did not
+                run, and runbooks/shut-down-on-the-ups.md says how to check it.
+
+  # --- the clean count went backwards: FIRES, with the drive's real count. -
+  # The .prom was lost and the next clean stop restarted it at one, while
+  # Prometheus still holds 5 a day back. Unclamped, the clean delta is -4 and
+  # the alert reads 1 - (-4) = 5. Clamped, the reset day forgives nothing and
+  # the reboot that reset it pages once, as 1. Loud, and honest about it.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "522x288 523x300"
+      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "5x288 1x300"
+    alert_rule_test:
+      - eval_time: 36h
         alertname: SmartDriveUnsafeShutdownsGrowing
         exp_alerts:
           - exp_labels:
