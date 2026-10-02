@@ -98,7 +98,9 @@ echo 'export PATH="$HOME/.venvs/ansible/bin:$PATH"' >> ~/.bashrc && . ~/.bashrc
 cd ~/HomeLab/ansible && ansible-galaxy collection install -r requirements.yml -p .collections
 ```
 
-Re-run the last two commands after a `git pull` that moves a pin. Then add the
+After a `git pull` that moves a pin, re-run the `pip install` line if
+`requirements.txt` changed, and the `ansible-galaxy` line if
+`requirements.yml` did. Then add the
 two secrets to the file that already holds the token and the build password
 (ADR-0075 decision 3). For a domain built by hand, `LAB_ADMIN_PASSWORD` is
 AD\Administrator's current password. For a rebuild, generate both:
@@ -121,6 +123,13 @@ ansible-playbook lab-domain.yml
 ansible-playbook lab-domain.yml          # again: must report changed=0
 ansible-playbook verify.yml
 ```
+
+**`--check` is only a full preview against a domain that already exists.** On
+a fresh rebuild, check mode cannot create the forest, so every later stage
+looks at a DNS server and a domain that are not there and fails. For a first
+build, preview one stage at a time and apply it before previewing the next:
+`--tags base`, then `forest`, then `replica`, `join`, `exporter` and
+`licence`.
 
 | Tag | This page | What it applies |
 | --- | --- | --- |

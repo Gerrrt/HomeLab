@@ -132,9 +132,12 @@ runner_for() {
       if have npx; then RUNNER=(npx --yes markdownlint-cli2); return 0; fi ;;
     ansible-lint)
       # The spec is read from the pin file rather than written here, so that
-      # file stays the only place the version appears.
+      # file stays the only place the version appears. requirements.txt goes in
+      # as a constraint, so the syntax check runs on the ansible-core phoenix
+      # runs, not on whichever one ansible-lint's own range would resolve to.
       if have pipx; then
-        RUNNER=(pipx run --spec "$(grep -E '^ansible-lint==' ansible/requirements-lint.txt)" ansible-lint)
+        RUNNER=(pipx run --pip-args="-c ${REPO_ROOT}/ansible/requirements.txt"
+                --spec "$(grep -E '^ansible-lint==' ansible/requirements-lint.txt)" ansible-lint)
         return 0
       fi ;;
     actionlint)

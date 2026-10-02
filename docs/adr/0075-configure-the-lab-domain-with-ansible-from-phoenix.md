@@ -138,6 +138,12 @@ step.
   idempotent against the hand-built six first: a second run reports nothing
   changed. #448 closes on `tofu destroy`, a rebuild, and `verify.yml` passing,
   because a first build only proves the playbooks ran once.
+- **"The same tiers" in #448's verification means ADR-0029's machine tiers.**
+  The DCs are Tier 0, the member servers Tier 1 and the endpoints Tier 2, and
+  `verify.yml` asserts each guest's actual domain role against its inventory
+  `lab_role`. The tier *accounts* and the GPO that keeps Tier 0 on the DCs
+  belong to #449. They are not part of #448's rebuild proof, and #449 adds
+  their own assertions when it adds them.
 - **Every guest listens on 22**, scoped to `phoenix` and key-only. That is a
   new exposure on the segment, and `security.md` records it as a residual: on
   a segment built to hold attackers, someone who owns `phoenix` owns the lab

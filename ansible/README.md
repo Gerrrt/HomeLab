@@ -7,7 +7,7 @@ ADR-0029. This page covers what is here and how to run it.
 ```bash
 cd ansible
 set -a; . ~/.config/proxmox/phoenix.env; set +a
-ansible-playbook lab-domain.yml --check --diff   # what would change
+ansible-playbook lab-domain.yml --check --diff   # what would change (existing domain only)
 ansible-playbook lab-domain.yml                  # apply
 ansible-playbook verify.yml                      # read-only proof
 ```
@@ -41,6 +41,8 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
   - `exporter`: `windows_exporter`, plus the 9182 rule admitting `alexander`.
   - `licence_clock`: the evaluation gauge, on the four servers.
   - `dns_forwarder`: shared by both DC roles.
+  - `domain_role`: whether a guest is a DC already, imported by `base` and
+    `dc_replica` in their own plays.
 - `requirements.txt`, `requirements-lint.txt` and `requirements.yml`: exact
   pins for `ansible-core`, `ansible-lint` and the three collections.
 

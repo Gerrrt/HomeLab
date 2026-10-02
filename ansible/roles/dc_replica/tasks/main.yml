@@ -3,11 +3,15 @@
 # because a workgroup server cannot find a domain it cannot resolve; it moves to
 # partner-then-loopback in roles/dc_resolvers once both DCs exist.
 
+- name: Know whether leviathan is a DC already
+  ansible.builtin.import_role:
+    name: domain_role
+
 - name: Resolve through bahamut, to find the domain
   ansible.windows.win_dns_client:
     adapter_names: "*"
     dns_servers: ["{{ lab_dc_addresses[0] }}"]
-  when: not base_is_dc
+  when: not domain_role_is_dc
 
 - name: Install AD DS
   ansible.windows.win_feature:
