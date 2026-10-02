@@ -41,8 +41,15 @@ scripts/packer-smoke.sh 912
 - `windows/scripts/SetupComplete.cmd`: runs once on each clone, closes
   that WinRM again, and starts `sshd`, which generates the clone's own host
   keys.
-- `windows/scripts/sysprep.ps1`: generalise and `/quit`. The builder then
-  shuts the guest down and converts it.
+- `windows/scripts/sysprep.ps1`: starts sysprep `/generalize /oobe
+  /shutdown` as a one-off scheduled task as SYSTEM, and returns once it is
+  running. Not over WinRM: generalising removes the network adapter, and
+  Windows then kills whatever the dead session started, sysprep included.
+  `SetupComplete.cmd` deletes the task on each clone.
+- `windows/scripts/wait-for-sysprep.sh`: runs on `phoenix` (`shell-local`)
+  and polls the API until the guest has powered itself off, which is sysprep
+  saying it finished. The builder then converts it. Its shutdown of an
+  already-stopped VM is a no-op that Proxmox ends `OK`.
 
 ## Rules this tree keeps
 
