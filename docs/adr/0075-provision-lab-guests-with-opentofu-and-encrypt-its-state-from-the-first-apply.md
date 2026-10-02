@@ -132,6 +132,9 @@ the guests' `pool` field, not declared beside them:
 `PhoenixBuilder` gains `Pool.Allocate` on `/pool/<name>` for each pool. It is
 granted on that path and never at `/`, which is ADR-0043's rule, and each grant
 is recorded in [`provision-lab-guests.md`](../runbooks/provision-lab-guests.md).
+It is not granted on `/pool` either. That would let the token create, empty
+and delete any pool, including ones this tree does not own, to save a
+re-grant.
 
 **7. The six domain guests are left alone.** Importing a domain controller into
 a tool whose next plan might replace it is the wrong first apply. The six stay
@@ -171,6 +174,12 @@ manages is a proof guest:
   - the encrypted state
 
   None of them is an age key. `docs/security.md` lists them.
+- **A destroyed pool takes its grant with it.** Proxmox's pool delete removes
+  the ACL on `/pool/<name>`. Recreating a pool that this tree destroyed
+  therefore needs root on `Saruman` to grant the path again first. For the
+  proof pool that is a line in the runbook, run before each proof. For a pool
+  that lives with long-lived guests, it happens only if the pool empties. That
+  cost is accepted, rather than widening the grant to `/pool`.
 - **CI runs tofu without Proxmox.** `scripts/lint.sh` runs `fmt -check`, and
   `validate` after `init -backend=false -lockfile=readonly`.
   `scripts/self-tests.sh` runs the encryption proof. Both use the image pinned

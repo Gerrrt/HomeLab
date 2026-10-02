@@ -93,12 +93,19 @@ pveum acl list | grep phoenix
 ```
 
 The ACL can name a pool that does not exist yet, which is the point: OpenTofu
-creates it. Each later pool gets its own `acl modify` line here and a row
-below:
+creates it. **Deleting a pool deletes its ACL too.** Proxmox's pool delete calls
+`delete_pool_acl`, which drops everything granted on `/pool/<name>`. So a grant
+outlives its pool only if the pool is never destroyed. A pool that is
+destroyed with its last guest, as `proof` is in §4, needs the `acl modify`
+line above run again, as root on `Saruman`, before the next apply that
+recreates it. Without that line, the pool create fails with
+`Permission check failed (/pool/proof, Pool.Allocate)`.
+
+Each later pool gets its own `acl modify` line here and a row below:
 
 | Path | Role | For |
 | --- | --- | --- |
-| `/pool/proof` | `PhoenixBuilder` | §4's proof guest. It exists only while the proof runs |
+| `/pool/proof` | `PhoenixBuilder` | §4's proof guest. It exists only while the proof runs, and §4's teardown deletes this grant with it. Re-run it before any later `-var proof=true` |
 
 If an apply fails with `Permission check failed (/…, Some.Privilege)`, add that
 privilege to the role and record it here. This is ADR-0043's rule again.
@@ -185,7 +192,10 @@ tofu -chdir=tofu apply -var proof=false
 api /pools | jq -r '.data[].poolid'
 ```
 
-`proof` is not in the list, and `qm list` on `Saruman` has no 998. If it is
+`proof` is not in the list, and `qm list` on `Saruman` has no 998. The
+`/pool/proof` grant is gone too, because Proxmox deletes a pool's ACL with the
+pool. `pveum acl list | grep phoenix` on `Saruman` no longer shows it. That is
+expected, and it means a later proof starts at §2 again. If it is
 left behind, `DisposableGuestOutlived` fires a fortnight later, because the
 guest is tagged `disposable`.
 

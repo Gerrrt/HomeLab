@@ -174,34 +174,55 @@ EOF
     fail "a different passphrase read the state — the key is not what protects it"
   fi
 
-  # --- enforced: an unencrypted method is refused ---------------------------
-  # Only the method is swapped. `enforced = true` is left as the real file has
-  # it, so deleting that line from encryption.tf is what turns this red.
-  F="${T}/enforced"
-  mkdir -p "${F}"
-  sed -e 's/^\([[:space:]]*\)encryption {$/&\n\1  method "unencrypted" "off" {}/' \
-      -e 's/method\.aes_gcm\.phoenix$/method.unencrypted.off/' \
-      "${REPO_ROOT}/tofu/encryption.tf" > "${F}/encryption.tf"
-  if ! grep -q 'method.unencrypted.off' "${F}/encryption.tf"; then
-    fail "could not swap the method in a copy of encryption.tf — its shape changed; update this test"
-  else
+  # --- enforced: an unencrypted method is refused, for state and plan alone --
+  # One fixture per block, each swapping only that block's method. Swapping
+  # both at once would stay green with either `enforced = true` deleted,
+  # because the other block would still refuse. `enforced` itself is left as
+  # the real file has it, so deleting that one line is what turns its fixture
+  # red.
+  swap_method() {  # <state|plan> <dst> → encryption.tf with that block's method unencrypted
+    awk -v blk="$1" '
+      /^[[:space:]]*encryption \{$/ {
+        print; match($0, /^[[:space:]]*/)
+        printf "%s  method \"unencrypted\" \"off\" {}\n", substr($0, 1, RLENGTH); next
+      }
+      $1 == blk && $2 == "{" { in_blk = 1 }
+      in_blk && /method\.aes_gcm\.phoenix$/ {
+        sub(/method\.aes_gcm\.phoenix$/, "method.unencrypted.off"); in_blk = 0
+      }
+      { print }
+    ' "${REPO_ROOT}/tofu/encryption.tf" > "$2"
+  }
+  for blk in state plan; do
+    F="${T}/enforced-${blk}"
+    mkdir -p "${F}"
+    swap_method "${blk}" "${F}/encryption.tf"
+    if [[ "$(grep -c 'method\.unencrypted\.off' "${F}/encryption.tf")" != 1 ]]; then
+      fail "could not swap only the ${blk} method in a copy of encryption.tf — its shape changed; update this test"
+      continue
+    fi
     canary_tf "${F}"
     PP="${PASSPHRASE}"
-    # OpenTofu 1.13 refuses at init, before any state exists. Apply is still
-    # tried if init lets it through, so a later release that moves the refusal
-    # is tested where it lands rather than passed on init's say-so.
+    # OpenTofu 1.13 refuses at init, before anything is written. If init lets
+    # it through, the artefact is written and inspected, so a later release
+    # that moves the refusal is tested where it lands, not passed on init's say-so.
     run "${F}" init -input=false
-    if ((RC == 0)); then
-      run "${F}" apply -input=false -auto-approve -var "canary=${CANARY}"
-    fi
     leaked=0
-    grep -qF "${CANARY}" "${F}/terraform.tfstate" 2>/dev/null && leaked=1
-    if ((RC != 0 && leaked == 0)) && [[ "${OUT}" == *enforced* ]]; then
-      pass "enforced = true refuses to write state through an unencrypted method"
-    else
-      fail "an unencrypted method wrote plaintext state — enforced = true is missing from tofu/encryption.tf"
+    if ((RC == 0)); then
+      if [[ "${blk}" == state ]]; then
+        run "${F}" apply -input=false -auto-approve -var "canary=${CANARY}"
+        grep -qF "${CANARY}" "${F}/terraform.tfstate" 2>/dev/null && leaked=1
+      else
+        run "${F}" plan -input=false -var "canary=${CANARY}" -out=p.tfplan
+        [[ "$(head -c 2 "${F}/p.tfplan" 2>/dev/null)" == PK ]] && leaked=1
+      fi
     fi
-  fi
+    if ((RC != 0 && leaked == 0)) && [[ "${OUT}" == *enforced* ]]; then
+      pass "enforced = true refuses an unencrypted ${blk} method"
+    else
+      fail "an unencrypted ${blk} method was accepted — enforced = true is missing from the ${blk} block of tofu/encryption.tf"
+    fi
+  done
 
   # --- the negative half: no encryption.tf ----------------------------------
   # The same canary with encryption left out. If the grep and the rule do not

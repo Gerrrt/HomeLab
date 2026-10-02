@@ -38,6 +38,10 @@ locals {
   # A pool exists exactly while it groups a guest: it is derived from the
   # guests, not listed beside them, so the last guest leaving a pool takes the
   # pool with it, and a new pool name in a guest creates it.
+  #
+  # Proxmox deletes a pool's ACL when it deletes the pool. phoenix's
+  # Pool.Allocate on /pool/<name> goes with it, and must be granted again on
+  # Saruman before that pool can be recreated (provision-lab-guests.md §2).
   pools = toset([for g in values(local.guests) : g.pool])
 }
 
