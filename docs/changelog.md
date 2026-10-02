@@ -28,6 +28,29 @@ docstring gives: it is a record, not a claim about now.
   say that, and say that there is no copy of record until a household holder
   exists. Immich's restore was rehearsed on 2026-09-28 and 2026-09-29, so
   #132's last gate is #455's holder and proof.
+- **[#404](https://github.com/Gerrrt/HomeLab/issues/404): ADR-0022's decision
+  is recorded, and the tracker caught up with the host.** ADR-0022's first
+  trigger fired on 2026-09-28 with Immich's first photographs.
+  [ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)
+  answers it four days late: the deferral is re-accepted, and no identity
+  provider is stood up.
+  - **The TOTP floor.** The operator reported TOTP enrolled on Vaultwarden
+    and Paperless-ngx on 2026-10-02, and neither enrolment had been recorded
+    until now. Home Assistant's owner (2026-09-28) and Stirling-PDF's admin
+    (2026-09-29) were already enrolled. That is all four services on the tier
+    that can carry a factor.
+  - **Triggers 2 and 3, read the same day.** The WireGuard path reaches the
+    lab only, and the tier's accounts belong to the same two people.
+    The only key for the off-estate copy is the technical second's, and it
+    is not a login. ADR-0073's household holder is not chosen yet (#455).
+  - **The tracker.** #404's body still had steps 0–8 unticked. The repo had
+    recorded each of them by 2026-09-28 (#674, #686–#700), and the issue now
+    says so. What keeps it open is §13 items 2, 3 and 5: the second age
+    recipient, the copy of record (#455), and ADR-0023's *Independent* proof.
+  - **Stale text corrected:** `hardware.md`'s "enters the Compute table when
+    #404 builds it", `.sops.yaml`'s "fills the placeholder in", the stack
+    README's Mealie row ("not yet deployed"), and `security.md`'s "it is
+    unbuilt".
 
 - **[#145](https://github.com/Gerrrt/HomeLab/issues/145): Memos registration
   is closed.** This corrects the 2026-09-29 entry's "Still open for Memos". The
