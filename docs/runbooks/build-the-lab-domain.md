@@ -521,7 +521,7 @@ fifteen minutes:
 
 ```powershell
 klist purge
-New-PSDrive -Name S -PSProvider FileSystem -Root \\titan\share -ErrorAction SilentlyContinue
+New-PSDrive -Name S -PSProvider FileSystem -Root \\titan\Public -ErrorAction SilentlyContinue
 Get-ChildItem S:\ -ErrorAction SilentlyContinue | Out-Null
 Remove-PSDrive S -ErrorAction SilentlyContinue
 ```
@@ -529,6 +529,51 @@ Remove-PSDrive S -ErrorAction SilentlyContinue
 That produces 4768, 4769 and 4624 on the DCs and 5140 on `titan`, continuously,
 for no disk and no measurable IOPS. It is what turns #266's baseline from empty
 into something a deviation can stand out against.
+
+**As built on 2026-10-02**, with three things this section did not say:
+
+- **The user is `AD\authgen`**, in the default `CN=Users` container and in no
+  group. It is the domain's only ordinary user until
+  [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s population arrives,
+  which waits on this domain, so this one was made by hand to break the wait.
+  Its password is kept nowhere: if it is lost, reset it and register the task
+  again. #449 folds it into its population rather than deleting it.
+- **`titan` logs no 5140 until a GPO asks it to.** Server 2025 ships
+  *Audit File Share* off. The `Lab - Audit File Share` GPO, linked to
+  `OU=Servers`, sets it to Success. That is observability, not hardening, and
+  §0's list is untouched. The GPO carries an `audit.csv` under
+  `Machine\Microsoft\Windows NT\Audit` in SYSVOL. **Check that file has two
+  lines.** A console paste fused the header and the row into one on the first
+  attempt, and the extension applied nothing while reporting success.
+- **Windows 11 does not grant the task's user *Log on as a batch job*.**
+  `Register-ScheduledTask` with `-Password` does not add the right, and the
+  task then fails every run with `0x80070569` (event 101/104 in the
+  TaskScheduler log). Grant it on each endpoint before registering:
+
+```powershell
+$sid = (New-Object System.Security.Principal.NTAccount('AD\authgen')).Translate([System.Security.Principal.SecurityIdentifier]).Value
+secedit /export /cfg $env:TEMP\r.inf /areas USER_RIGHTS
+(Get-Content $env:TEMP\r.inf) -replace '^(SeBatchLogonRight = .*)$', "`$1,*$sid" | Set-Content $env:TEMP\r2.inf -Encoding Unicode
+secedit /configure /db $env:TEMP\r.sdb /cfg $env:TEMP\r2.inf /areas USER_RIGHTS
+Remove-Item $env:TEMP\r.inf, $env:TEMP\r2.inf, $env:TEMP\r.sdb
+```
+
+Then the task, on `carbuncle` and `siren`:
+
+```powershell
+$cred   = Get-Credential -UserName 'AD\authgen' -Message 'authgen password'
+$body   = 'klist purge; New-PSDrive -Name S -PSProvider FileSystem -Root \\titan\Public -ErrorAction SilentlyContinue | Out-Null; Get-ChildItem S:\ -ErrorAction SilentlyContinue | Out-Null; Remove-PSDrive S -ErrorAction SilentlyContinue'
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -Command `"$body`""
+$trig   = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 15)
+$set    = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -StartWhenAvailable
+Register-ScheduledTask -TaskName 'Lab-AuthGenerator' -Description 'build-the-lab-domain.md section 6' `
+  -Action $action -Trigger $trig -Settings $set `
+  -User 'AD\authgen' -Password $cred.GetNetworkCredential().Password -RunLevel Limited
+```
+
+`Get-ScheduledTaskInfo Lab-AuthGenerator` should read `LastTaskResult 0`.
+On the DCs, 4769 names the account as `authgen@AD.MATRIX.ELYSIUM`, so match it
+with `-match`, not `-contains`.
 
 It lives here as a code block rather than as a script in the repository, for the
 same reason [`build-the-playground.md`](build-the-playground.md) carries its
@@ -747,9 +792,36 @@ than merely intended.
 
 ## 10. What a Hicks workstation now reaches on VLAN 30
 
-Six Windows hosts on RDP, two DCs answering LDAP and Kerberos, SMB on `titan`,
-and `9182` on all six — none of it newly permitted, all of it newly *present*,
-because the `50 → 30` rule already grants Hicks the whole segment.
+None of it is newly permitted, and all of it is newly *present*, because the
+`50 → 30` rule already passes Hicks TCP to the whole segment.
+
+**Observed on 2026-10-02** with `nmap -Pn -sT` from a Hicks laptop, against
+the ports a domain answers on plus RDP, WinRM and the exporter:
+
+| Host | Open from Hicks | Filtered |
+| --- | --- | --- |
+| `bahamut` `.50` | 53, 88, 135, 139, 389, 445, 464, 636, 3268, 5985 | 3389, 9182 |
+| `leviathan` `.51` | 53, 88, 135, 139, 389, 445, 464, 636, 3268, 5985 | 3389, 9182 |
+| `titan` `.52` | 135, 445, 5985 | everything else |
+| `ramuh` `.53` | 5985 | everything else, 445 included |
+| `carbuncle` `.54` | 135 | everything else |
+| `siren` `.55` | 135 | everything else |
+
+`morpheus` passes the TCP, so every *filtered* is a guest's own Windows
+Firewall. The prose this table replaces was wrong in three places:
+
+- **RDP is answered by none of the six**, not all six. It is off as Windows
+  ships it: `fDenyTSConnections` is `1` and the *Remote Desktop* firewall rules
+  are disabled. Read on `bahamut` and `carbuncle`.
+- **WinRM (`5985`) is open on the four servers**, as Server 2025 ships it,
+  and closed on the endpoints, as Windows 11 ships it. The old list did not
+  mention it.
+- **`ramuh` serves no SMB.** Only `titan` has shares, so only `titan` opens
+  `445`.
+
+`9182` is filtered from Hicks on all six, because §7's rule admits
+`alexander` alone, as intended. `22` was not scanned: ADR-0077 scopes it to
+`phoenix`.
 
 Recorded here because [#228](https://github.com/Gerrrt/HomeLab/issues/228)
 cannot narrow that rule without a list of what is actually behind it, and
@@ -777,7 +849,11 @@ if you forget:
   residual.
 - **The rearm count from §7, as a number.** ADR-0029 deliberately wrote none,
   because the published sources disagree; this is the commit where the real one
-  goes.
+  goes. **Read on 2026-10-01: 1**, on all four servers, for both *Remaining
+  Windows rearm count* and *Remaining SKU rearm count*. The time-based
+  expiration read 173 days on the DCs and 174 on the members, which lands
+  around 2027-03-23. One rearm is one more 180-day period, not a way to skip
+  the rebuild.
 
 `make check-docs` walks you through the first two.
 

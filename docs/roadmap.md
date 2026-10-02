@@ -35,9 +35,9 @@ What an entry here may contain:
    on the box closes 2026-10-08, and the rehearsal is the step that ends it.
 3. [**NAS**](https://github.com/Gerrrt/HomeLab/milestone/4) and
    [**Saruman: the domain, then the SOC**](https://github.com/Gerrrt/HomeLab/milestone/3)
-   — side by side, with no order between them. The domain goes first on
-   `Saruman`, because everything else on that host points at it; the NAS's
-   first issue, the one-disk mirror, is done.
+   — side by side, with no order between them. The domain, which everything
+   else on `Saruman` points at, is built and closed; the NAS's first issue,
+   the one-disk mirror, is done.
 4. [**automation**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
    pipeline that populates the domain; it runs from `phoenix`, which exists.
 5. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
@@ -190,17 +190,12 @@ faulted Exos replaced and the mirror resilvered, is met and is in
 
 ## Saruman: the domain, then the SOC
 
-Closes when it is empty. The SOC its name ends on is done: Wazuh and
-Velociraptor reported the six agents in on 2026-09-27.
+Closes when it is empty. Both things its name names are done. The domain was
+built by hand on 2026-09-24 and 25, and
+[#414](https://github.com/Gerrrt/HomeLab/issues/414) closed on 2026-10-02 with
+its authentication generator running and §10 read from Hicks. The SOC followed:
+Wazuh and Velociraptor reported the six agents in on 2026-09-27.
 
-- **[#414](https://github.com/Gerrrt/HomeLab/issues/414) Build the lab
-  domain.** First: it is what the SOC, the range and the automation all point
-  at. Sized by
-  [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md),
-  six guests on `large_data`. **Built by hand 2026-09-24 to 2026-09-25**: all
-  six joined and scraped. Open for §6 (the authentication generator), §10 and
-  §11.
-  → [runbook](runbooks/build-the-lab-domain.md)
 - **[#671](https://github.com/Gerrrt/HomeLab/issues/671) A second way into
   the lab's secrets.** `secrets/lab.sops.yaml` is in git since #667, and
   encrypted to one key that lives only on `alexander`; a second recipient or
