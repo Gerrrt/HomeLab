@@ -14,7 +14,10 @@ A third file lives beside them since [ADR-0047]: `scripts/collect-smart-state.sh
 fetched the same way and run by TrueNAS's cron — a change to it reaches
 `smaug` only by the same re-fetch. A fourth, `scripts/collect-truenas-version.sh`,
 is the same shape for the product version `check-versions` compares
-([#616], [`build-the-nas.md`] §6.7).
+([#616], [`build-the-nas.md`] §6.7). A fifth, `scripts/collect-zpool-state.sh`,
+writes every ZFS leaf's state every five minutes, so a faulted disk under a pool
+that still reads `ONLINE` pages
+([#744](https://github.com/Gerrrt/HomeLab/issues/744), [`build-the-nas.md`] §6.8).
 
 ```bash
 cd /mnt/erebor/apps/stack && docker compose up -d
