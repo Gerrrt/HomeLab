@@ -86,9 +86,19 @@ source "proxmox-iso" "ubuntu" {
   cloud_init_storage_pool = var.disk_storage
   cloud_init_disk_type    = "ide"
 
+  # The system disk first, then the installer, and nothing else. Without an
+  # explicit order OVMF tried the cidata disc and the empty disk before the
+  # installer, failing on each ("failed to load Boot0002/Boot0003"), and GRUB
+  # came up after the boot command below had already been typed into nothing:
+  # the first build sat at GRUB's menu for its whole 45-minute SSH timeout
+  # (2026-10-02). With the disk first, the empty disk fails at once and the
+  # installer is next; after the installer's reboot the disk holds the
+  # installed system and boots, rather than the installer again.
+  boot = "order=scsi0;ide2"
+
   # GRUB on OVMF: drop to the GRUB prompt and boot the live kernel with
   # `autoinstall`, which skips the "really wipe the disk?" confirmation.
-  boot_wait = "10s"
+  boot_wait = "15s"
   boot_command = [
     "c<wait3s>",
     "linux /casper/vmlinuz --- autoinstall<enter><wait3s>",

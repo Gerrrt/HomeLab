@@ -229,7 +229,7 @@ PROXMOX_TOKEN_ID=phoenix@pve!builder
 PROXMOX_TOKEN_SECRET=<paste the secret>
 EOT
 ssh-keygen -t ed25519 -C phoenix -f ~/.ssh/id_ed25519
-git clone https://github.com/Gerrrt/HomeLab.git ~/HomeLab
+git clone https://github.com/Gerrrt/HomeLab.git ~/code/Gerrrt/HomeLab
 ```
 
 That file is mode 600, on this host, and **not in the repository** — a
@@ -279,7 +279,7 @@ guest by days so the agent has somewhere to push on first boot.
 What is left is applying it where the stack runs, **on `alexander`**:
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 git pull
 make up STACK=lab
 ss -ltn '( sport = :9090 or sport = :3100 )'

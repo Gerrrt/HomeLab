@@ -127,6 +127,11 @@ source "proxmox-iso" "win11-pro" {
   }
 
   # OVMF shows "Press any key to boot from CD or DVD" for a few seconds.
+  # The system disk, then the installer: the VirtIO and answer discs are not
+  # bootable, and OVMF trying them first is what made the Ubuntu build miss
+  # its boot prompt (packer/ubuntu.pkr.hcl). "Press any key to boot from CD"
+  # lasts about five seconds, so the margin here is thinner than Ubuntu's.
+  boot         = "order=scsi0;ide2"
   boot_wait    = "3s"
   boot_command = ["<spacebar><wait1s><spacebar><wait1s><spacebar>"]
 
@@ -213,6 +218,11 @@ source "proxmox-iso" "ws2025-eval" {
     unmount          = true
   }
 
+  # The system disk, then the installer: the VirtIO and answer discs are not
+  # bootable, and OVMF trying them first is what made the Ubuntu build miss
+  # its boot prompt (packer/ubuntu.pkr.hcl). "Press any key to boot from CD"
+  # lasts about five seconds, so the margin here is thinner than Ubuntu's.
+  boot         = "order=scsi0;ide2"
   boot_wait    = "3s"
   boot_command = ["<spacebar><wait1s><spacebar><wait1s><spacebar>"]
 
