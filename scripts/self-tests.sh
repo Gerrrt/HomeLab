@@ -35,6 +35,9 @@
 #   collect-smart-state.sh    the collector that shipped WITHOUT fixtures and then
 #                             produced a real defect (#483); two fixtures are what
 #                             was read off smaug at the console on 2026-09-21
+#   mark-clean-shutdown.sh    runs only on the way down, as smaug's SHUTDOWN init
+#                             script; a real run counts a clean stop that did not
+#                             happen and forgives a cut for a day (#746)
 #   verify-ca-key-backup.sh   the real run needs a private key on a mounted medium
 #                             and can never happen in CI (#496)
 #   backup-offsite.sh         the real run needs the second recipient's medium

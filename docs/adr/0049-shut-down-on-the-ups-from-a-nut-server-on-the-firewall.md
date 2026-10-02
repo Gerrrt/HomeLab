@@ -270,6 +270,25 @@ counter as the decision #574 would take. This is that rule:
 over a day, stays quiet on the 509 the drive arrived with, and clears a day
 after the event, so the counter is watched rather than remembered.
 
+> **Correction · 2026-10-01.** The premise above is wrong for the drive it was
+> written about. It is kept rather than rewritten because ADR-0001 makes
+> accepted ADRs immutable.
+>
+> The S3520 counts a clean stop as unsafe. On 2026-09-29 it read 522 before a
+> clean *System → Shut Down* and 523 after
+> ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). A clean `LB`
+> shutdown therefore *does* move it, and the rule as written would page on
+> every planned reboot of `smaug` and on the halt this ADR builds.
+>
+> The counter is still the measure, read differently. `smaug` now counts its
+> own clean stops: `scripts/mark-clean-shutdown.sh` runs as a TrueNAS SHUTDOWN
+> init script, which the UI's Shut Down and Restart and the UPS service's
+> halt all run, and a cut never does. It serves
+> `homelab_clean_shutdowns_total`, and the rule pages on a day's unsafe
+> shutdowns minus that day's clean stops. "Any growth is a stop nobody
+> planned" becomes "any growth the host did not record as clean". The
+> collector also runs at boot, so both numbers move at the same boot.
+
 ## Consequences
 
 - **Two pass/block pairs join the ruleset**, on `igc0.30` and `igc0.40`, and
@@ -308,7 +327,10 @@ after the event, so the counter is watched rather than remembered.
 - **`smaug` is a subscriber on a segment with no logs**, so a shutdown that
   fails on the NAS is visible only as `InstanceDown` and a counter that moved.
   That is ADR-0016's residual arriving one more time, and the counter is the
-  answer to it.
+  answer to it. *(2026-10-01: the counter net of the host's recorded clean
+  stops, since the S3520 counts those too — see the correction under
+  "`smaug` keeps the counter" and
+  [#746](https://github.com/Gerrrt/HomeLab/issues/746).)*
 - **The runtime is still the card's estimate until the pull.** Every document
   that quotes 47 minutes is quoting a card that has never been drained, and
   says so.
