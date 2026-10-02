@@ -182,7 +182,8 @@ runner_for() {
     tofu)
       # Same shape as packer: the entrypoint IS tofu, and --user so that the
       # provider cache `init` writes under tofu/.terraform/ (gitignored) is not
-      # root-owned on a workstation.
+      # root-owned on a workstation. That cache outlives the run, so the linters
+      # that walk the tree exclude it (.markdownlint-cli2.yaml, .yamllint.yaml).
       if have_docker; then
         img="$(./scripts/image-for.sh tofu)"
         RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TF_IN_AUTOMATION=1 -v "${REPO_ROOT}:/repo" -w /repo "${img}")

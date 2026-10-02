@@ -21,6 +21,10 @@ ignore: |
   # for itself in scripts/lint.sh.
   ansible/.collections/
   ansible/.ansible/
+  # tofu's provider cache, written by scripts/lint.sh's `init` and gitignored.
+  # It holds no YAML today; it is excluded beside .markdownlint-cli2.yaml's
+  # entry for it so a provider that ships some cannot turn a local run red.
+  tofu/.terraform/
   # Other Claude Code sessions' git worktrees. Each one is a whole second
   # checkout, so without this yamllint lints another branch's copy of every
   # file here — including the ciphertext the entries above exist to exempt.
