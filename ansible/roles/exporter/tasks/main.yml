@@ -1,0 +1,51 @@
+---
+# windows_exporter on all six, and the one firewall rule that lets alexander
+# scrape it (runbook §7). Scraped, never published: ADR-0029.
+
+- name: Make the textfile directory
+  ansible.windows.win_file:
+    path: "{{ windows_exporter_textfile_dir }}"
+    state: directory
+
+- name: Fetch the pinned MSI
+  ansible.windows.win_get_url:
+    url: "{{ exporter_release }}/v{{ windows_exporter_version }}/{{ exporter_msi }}"
+    dest: "C:\\ProgramData\\lab\\{{ exporter_msi }}"
+    checksum: "{{ windows_exporter_sha256 }}"
+    checksum_algorithm: sha256
+    force: false
+
+# REMOVE=FirewallException: the MSI's own rule admits any remote address. The
+# rule below admits one, and two rules on one port is a /24 sweep finding the
+# wider of them.
+- name: Install windows_exporter
+  ansible.windows.win_package:
+    path: "C:\\ProgramData\\lab\\{{ exporter_msi }}"
+    arguments: >-
+      ENABLED_COLLECTORS={{ windows_exporter_collectors }}
+      LISTEN_PORT=9182
+      TEXTFILE_DIRS="{{ windows_exporter_textfile_dir }}"
+      REMOVE=FirewallException
+    state: present
+
+- name: Keep the service running
+  ansible.windows.win_service:
+    name: windows_exporter
+    start_mode: auto
+    state: started
+
+# "That is the difference between an endpoint found by a /24 sweep and one you
+# have to go looking for" (§7). Domain profile only, which is why this role
+# runs after the join. The name is the one the hand-built six were given, so
+# the module adopts their rule rather than adding a second.
+- name: Admit alexander, and only alexander, to 9182
+  community.windows.win_firewall_rule:
+    name: windows_exporter from alexander
+    direction: in
+    protocol: tcp
+    localport: "9182"
+    remoteip: "{{ windows_exporter_scraper }}"
+    action: allow
+    profiles: [domain]
+    state: present
+    enabled: true

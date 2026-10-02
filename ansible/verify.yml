@@ -1,0 +1,101 @@
+---
+# Read-only. Runbook §9's checks, and §0's "Do not harden this domain" list as
+# assertions: the shipped weaknesses are the exercises, so a guest on which one
+# of them has been tidied away FAILS here, by name. A hardening role added by
+# reflex would turn this red rather than pass quietly (ADR-0075 decision 4).
+#
+#   ansible-playbook verify.yml
+#
+# Each host answers with a map of check -> true/false, and the assert names
+# every false one. Nothing is changed, so it is safe to run at any time and is
+# the second half of the rebuild proof #448 closes on.
+
+- name: Verify the lab domain, and that nothing has been hardened
+  hosts: lab_domain
+  gather_facts: false
+  tasks:
+    - name: Ask each guest
+      ansible.windows.win_powershell:
+        parameters:
+          Domain: "{{ lab_domain }}"
+          Name: "{{ inventory_hostname }}"
+          IsDc: "{{ inventory_hostname in groups['dcs'] }}"
+          IsPrimary: "{{ inventory_hostname in groups['dc_primary'] }}"
+          IsTitan: "{{ inventory_hostname == 'titan' }}"
+          Gateway: "{{ lab_gateway }}"
+          Scraper: "{{ windows_exporter_scraper }}"
+        script: |
+          param([string]$Domain, [string]$Name, [string]$IsDc, [string]$IsPrimary,
+                [string]$IsTitan, [string]$Gateway, [string]$Scraper)
+          $Ansible.Changed = $false
+          $isDc = [bool]::Parse($IsDc)
+          $r = [ordered]@{}
+          $cs = Get-CimInstance Win32_ComputerSystem
+          $if = Get-NetIPConfiguration | Where-Object IPv4DefaultGateway | Select-Object -First 1
+
+          # --- what was built -------------------------------------------------
+          $r['named as ADR-0029 names it'] = ($env:COMPUTERNAME -eq $Name.ToUpper())
+          $r["a member of $Domain"] = ($cs.Domain -eq $Domain)
+          if (-not $isDc) {
+            $r['secure channel to a DC'] = [bool](Test-ComputerSecureChannel -ErrorAction SilentlyContinue)
+          }
+          $svc = Get-Service windows_exporter -ErrorAction SilentlyContinue
+          $r['windows_exporter running'] = ($svc.Status -eq 'Running')
+          $r['9182 listening'] = [bool](Get-NetTCPConnection -LocalPort 9182 -State Listen `
+            -ErrorAction SilentlyContinue)
+          $open = Get-NetFirewallPortFilter -Protocol TCP |
+            Where-Object LocalPort -eq '9182' | Get-NetFirewallRule |
+            Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and $_.Action -eq 'Allow' } |
+            Get-NetFirewallAddressFilter
+          # A rule made through the COM API reads back as 10.0.30.40/255.255.255.255.
+          $sources = @($open | ForEach-Object { $_.RemoteAddress }) -replace '/(255\.255\.255\.255|32)$', ''
+          $r["9182 admits $Scraper and nothing else"] = ($sources.Count -gt 0 -and -not ($sources -ne $Scraper))
+
+          # --- §0: the shipped weaknesses are still shipped -------------------
+          $llmnr = (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' `
+            -ErrorAction SilentlyContinue).EnableMulticast
+          $r['LLMNR not turned off'] = ($llmnr -ne 0)
+          $nbt = Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces' |
+            ForEach-Object { (Get-ItemProperty $_.PSPath).NetbiosOptions }
+          $r['NetBIOS over TCP/IP not disabled'] = -not ($nbt -contains 2)
+          $v6 = Get-NetAdapterBinding -InterfaceAlias $if.InterfaceAlias -ComponentID ms_tcpip6
+          $dc6 = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters' `
+            -ErrorAction SilentlyContinue).DisabledComponents
+          $r['IPv6 bound and not disabled'] = ($v6.Enabled -and (-not $dc6 -or $dc6 -eq 0))
+          $r['WPAD auto-detect service not disabled'] = ((Get-Service WinHttpAutoProxySvc).StartType -ne 'Disabled')
+
+          if ($isDc) {
+            $bl = Get-DnsServerGlobalQueryBlockList
+            $r['GlobalQueryBlockList on, and still blocks wpad'] = ($bl.Enable -and ($bl.List -contains 'wpad'))
+            $r['no wpad record'] = -not (Get-DnsServerResourceRecord -ZoneName $Domain -Name wpad `
+              -ErrorAction SilentlyContinue)
+            # --- §3/§4: inward-only DNS, and the clock ----------------------
+            $f = Get-DnsServerForwarder
+            $r["forwards to $Gateway only"] = ((@($f.IPAddress.IPAddressToString) -join ',') -eq $Gateway)
+            $r['no root hints'] = -not (Get-DnsServerRootHint)
+            $src = (w32tm /query /source | Out-String).Trim()
+            if ([bool]::Parse($IsPrimary)) {
+              $r["clock from $Gateway"] = ($src -like "$Gateway*")
+            } else {
+              $r['clock from the domain hierarchy'] = ($src -notmatch 'Local CMOS Clock|Free-running')
+            }
+            $r['replication clean'] = -not (dcdiag /test:Replications /q | Out-String).Trim()
+          }
+
+          if ([bool]::Parse($IsTitan)) {
+            # Still a relay target (§5); a servicing update moving this default
+            # is exactly the change this is here to catch.
+            $r['titan does not require SMB signing'] = -not (Get-SmbServerConfiguration).RequireSecuritySignature
+          }
+          $r
+      register: verify_answer
+      check_mode: false
+
+    - name: Every check holds
+      ansible.builtin.assert:
+        that: verify_failed | length == 0
+        fail_msg: "{{ inventory_hostname }} fails: {{ verify_failed | join('; ') }}"
+        success_msg: "{{ inventory_hostname }}: {{ verify_checks | length }} checks hold"
+      vars:
+        verify_checks: "{{ verify_answer.output[0] }}"
+        verify_failed: "{{ verify_checks | dict2items | rejectattr('value') | map(attribute='key') | list }}"

@@ -1,0 +1,101 @@
+---
+# The guest itself: name, address, resolver, clock zone, and the build
+# password rotated away. Runbook §2. IPv4 only — nothing here reads or writes an
+# IPv6 setting, because the reflex this role must not have is the one §0 names.
+
+# DomainRole 4 and 5 are backup and primary domain controller. Several tasks
+# below mean something different on a DC (no local SAM, its own resolver), and
+# a hand-built domain is already past promotion when this first runs.
+- name: Read whether this guest is already a domain controller
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      (Get-CimInstance Win32_ComputerSystem).DomainRole -ge 4
+  register: base_domain_role
+  check_mode: false
+  tags: [always]
+
+- name: Record it
+  ansible.builtin.set_fact:
+    base_is_dc: "{{ base_domain_role.output[0] | bool }}"
+  tags: [always]
+
+- name: Name the guest as ADR-0029 names it
+  ansible.windows.win_hostname:
+    name: "{{ inventory_hostname }}"
+  register: base_hostname
+
+- name: Reboot into the new name
+  ansible.windows.win_reboot:
+  when: base_hostname.reboot_required
+
+# The DCs only: "a domain controller that boots without an address has nothing
+# to register into" (§2). A rebuilt DC first comes up on its reservation, at
+# this same address, so dropping DHCP for a static drops the session for a
+# moment and nothing more. Async plus wait_for_connection rides that out.
+- name: Give the DCs their address statically
+  ansible.windows.win_powershell:
+    script: |
+      param([string]$Address, [int]$Prefix, [string]$Gateway)
+      $if = Get-NetIPConfiguration | Where-Object IPv4DefaultGateway | Select-Object -First 1
+      $ip = Get-NetIPInterface -InterfaceIndex $if.InterfaceIndex -AddressFamily IPv4
+      if ($ip.Dhcp -eq 'Disabled' -and @($if.IPv4Address.IPAddress) -contains $Address) {
+        $Ansible.Changed = $false
+        return
+      }
+      if ($Ansible.CheckMode) { return }
+      Set-NetIPInterface -InterfaceIndex $if.InterfaceIndex -AddressFamily IPv4 -Dhcp Disabled
+      Get-NetIPAddress -InterfaceIndex $if.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Remove-NetIPAddress -Confirm:$false
+      Remove-NetRoute -InterfaceIndex $if.InterfaceIndex -AddressFamily IPv4 -Confirm:$false `
+        -ErrorAction SilentlyContinue
+      New-NetIPAddress -InterfaceIndex $if.InterfaceIndex -IPAddress $Address -PrefixLength $Prefix `
+        -DefaultGateway $Gateway | Out-Null
+    parameters:
+      Address: "{{ ansible_host }}"
+      Prefix: "{{ lab_prefix_length }}"
+      Gateway: "{{ lab_gateway }}"
+  when: inventory_hostname in groups['dcs']
+  async: 60
+  poll: 0
+  register: base_static
+
+- name: Wait for the DC to answer at its static address
+  ansible.builtin.wait_for_connection:
+    delay: 5
+    timeout: 120
+  # Not a handler: handlers run at the end of the play, and everything after
+  # this in the play needs the session back first.
+  when: base_static is changed  # noqa: no-handler
+
+# Every guest that is not a DC resolves through the two DCs and nothing else —
+# the one documented exception to ADR-0010. The DCs' own resolvers are set by
+# roles/dc_resolvers, after both exist.
+- name: Point members and endpoints at the two DCs
+  ansible.windows.win_dns_client:
+    adapter_names: "*"
+    dns_servers: "{{ lab_dc_addresses }}"
+  when: inventory_hostname not in groups['dcs']
+
+- name: Keep the clock zone UTC, as the template set it
+  ansible.windows.win_timezone:
+    timezone: UTC
+
+# The template's build password stays valid until this runs (ADR-0074). A DC
+# has no local SAM to rotate; its Administrator is the domain's, and that one
+# was set from this same variable when the forest was made.
+- name: Rotate the local Administrator away from the build password
+  ansible.windows.win_user:
+    name: Administrator
+    password: "{{ lab_admin_password }}"
+    update_password: always
+    password_never_expires: true
+  when: not base_is_dc
+  no_log: true
+
+# Where the roles after this one put what they download and place, so that
+# everything Ansible owns on a guest is in one directory.
+- name: Make the pipeline's own directory
+  ansible.windows.win_file:
+    path: C:\ProgramData\lab
+    state: directory

@@ -231,7 +231,10 @@ Closes on BloodHound running where nothing attacks it.
   template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
   [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu →
   [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
-  six guests from the pipeline →
+  six guests from the pipeline (written,
+  [ADR-0075](adr/0075-configure-the-lab-domain-with-ansible-from-phoenix.md),
+  → [`ansible/`](../ansible/README.md); closes on a `tofu destroy` and rebuild,
+  so it waits for #445) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
   weaknesses and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
   and Pktmon → [#451](https://github.com/Gerrrt/HomeLab/issues/451)

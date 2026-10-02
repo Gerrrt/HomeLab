@@ -20,6 +20,11 @@ Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Wi
 # exactly that).
 Set-Service -Name QEMU-GA -StartupType Disabled
 
+# sshd was never started in the build (openssh.ps1), so there should be no host
+# keys. If there are, every clone would present the same ones; delete them so
+# each clone's first sshd start generates its own.
+Remove-Item -Path (Join-Path $env:ProgramData 'ssh\ssh_host_*') -Force -ErrorAction SilentlyContinue
+
 $sysprep = Join-Path $env:WINDIR 'System32\Sysprep\sysprep.exe'
 $answer = Join-Path $env:WINDIR 'Panther\unattend-oobe.xml'
 $p = Start-Process -FilePath $sysprep -Wait -PassThru -ArgumentList `

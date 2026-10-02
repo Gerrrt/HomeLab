@@ -1,0 +1,12 @@
+---
+# Collections, exact. A bump is a deliberate edit, like requirements.txt —
+# microsoft.ad's promotion modules are the ones that reboot domain controllers,
+# and a minor version that changed their reboot handling is not a change to
+# take unread.
+collections:
+  - name: ansible.windows
+    version: "3.8.0"
+  - name: community.windows
+    version: "3.3.0"
+  - name: microsoft.ad
+    version: "1.12.1"

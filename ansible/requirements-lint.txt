@@ -1,0 +1,4 @@
+# What scripts/lint.sh runs over this tree, when ansible-lint is not already on
+# PATH: `pipx run --spec` reads the pin from here. Kept apart from
+# requirements.txt because phoenix applies playbooks and does not lint them.
+ansible-lint==26.9.0

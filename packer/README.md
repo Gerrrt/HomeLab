@@ -34,8 +34,13 @@ scripts/packer-smoke.sh 912
 - `windows/scripts/bootstrap.ps1`: runs at the build's one autologon. It
   installs the guest tools first, because Packer finds the address through
   the agent, and opens WinRM second.
-- `windows/scripts/SetupComplete.cmd`: runs once on each clone and closes
-  that WinRM again.
+- `windows/scripts/openssh.ps1`: installs the OpenSSH server, disabled and
+  key-only, with `phoenix`'s key and a firewall rule admitting `phoenix`
+  alone. It is how [`ansible/`](../ansible/README.md) reaches a clone
+  ([ADR-0075]).
+- `windows/scripts/SetupComplete.cmd`: runs once on each clone, closes
+  that WinRM again, and starts `sshd`, which generates the clone's own host
+  keys.
 - `windows/scripts/sysprep.ps1`: generalise and `/quit`. The builder then
   shuts the guest down and converts it.
 
@@ -44,7 +49,10 @@ scripts/packer-smoke.sh 912
 - **Full clones only.** `-force` rebuilds a template at the same VMID, which a
   linked clone would block.
 - **A template is an OS, not a guest.** No address, no name, no domain join,
-  no licence gauge. Those are [#448]'s, and ADR-0029 says what they are.
+  no licence gauge. Those are [`ansible/`](../ansible/README.md)'s ([#448]),
+  and ADR-0029 says what they are. The one exception is the way in: `sshd`
+  and `phoenix`'s key are in the image, because a clone with no way in cannot
+  be configured by anything.
 - **LLMNR, NetBIOS, IPv6 and WPAD are left alone** in every answer file. The
   lab domain exists to have them (ADR-0029).
 - **CI proves it parses, `phoenix` proves it builds.** `scripts/lint.sh` runs
@@ -54,5 +62,6 @@ scripts/packer-smoke.sh 912
   passed against a real build.
 
 [ADR-0074]: ../docs/adr/0074-build-the-lab-templates-with-packer-from-phoenix.md
+[ADR-0075]: ../docs/adr/0075-configure-the-lab-domain-with-ansible-from-phoenix.md
 [runbook]: ../docs/runbooks/build-the-lab-templates.md
 [#448]: https://github.com/Gerrrt/HomeLab/issues/448

@@ -73,13 +73,20 @@ variable "ssh_public_key_file" {
   default = "~/.ssh/id_ed25519.pub"
 }
 
+# The one address the clones' OpenSSH rule admits (packer/windows/scripts/
+# openssh.ps1). phoenix's, from ADR-0043.
+variable "phoenix_address" {
+  type    = string
+  default = "10.0.30.70"
+}
+
 variable "ssh_private_key_file" {
   type    = string
   default = "~/.ssh/id_ed25519"
 }
 
 # The local Administrator password inside a Windows build, and the one a clone
-# boots with until whatever converges it rotates it (#448). From phoenix.env as
+# boots with until ansible/'s base role rotates it (#448). From phoenix.env as
 # PKR_VAR_build_password. Empty by default so that a build without it fails at
 # validation, not twenty minutes into Windows Setup. All four character
 # classes are required: Windows asks for three of the four, and requiring all

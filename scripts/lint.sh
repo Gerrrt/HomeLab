@@ -22,6 +22,13 @@
 # used those exact runners for as long as this job has existed, and they need no
 # install to be reachable.
 #
+# ansible-lint joins the pipx side, and not by preference. The only images of it
+# on Docker Hub are third-party rebuilds without upstream's version numbers, and
+# scripts/pin-digests.sh resolves Docker Hub alone, so the upstream ghcr.io image
+# could not be digest-pinned here. Its version is pinned instead in
+# ansible/requirements-lint.txt, which Dependabot's pip entry for /ansible bumps
+# — the same "one place, and the bot edits it" rule, kept by a different file.
+#
 # Usage:
 #   scripts/lint.sh                       every linter; an unreachable one SKIPs
 #   scripts/lint.sh --require-all         an unreachable linter FAILs (CI)
@@ -49,6 +56,9 @@
 #     its exclusions live in .markdownlint-cli2.yaml
 #   - shellcheck is handed scripts/*.sh below — one literal glob, cannot wander
 #   - packer is handed packer/ — one directory, cannot wander
+#   - ansible-lint is handed ansible/ and told it is the project directory, so
+#     it reads ansible/requirements.yml and installs the collections into
+#     ansible/.ansible/ (gitignored, and excluded from yamllint above)
 #   - actionlint reads only <repo root>/.github/workflows. Verified with
 #     -verbose: it lints 2 files with a worktree present, not 4
 #   - editorconfig-checker is handed a `git ls-files` list built below, so it
@@ -120,6 +130,13 @@ runner_for() {
       if have pipx; then RUNNER=(pipx run yamllint); return 0; fi ;;
     markdownlint-cli2)
       if have npx; then RUNNER=(npx --yes markdownlint-cli2); return 0; fi ;;
+    ansible-lint)
+      # The spec is read from the pin file rather than written here, so that
+      # file stays the only place the version appears.
+      if have pipx; then
+        RUNNER=(pipx run --spec "$(grep -E '^ansible-lint==' ansible/requirements-lint.txt)" ansible-lint)
+        return 0
+      fi ;;
     actionlint)
       # No --user: this image's entrypoint IS actionlint and it already drops to
       # USER guest. It locates .github/workflows by walking up to the .git
@@ -169,6 +186,7 @@ hint_for() {
     yamllint)          printf 'pip install yamllint, or install pipx' ;;
     markdownlint-cli2) printf 'npm i -g markdownlint-cli2, or install npx' ;;
     shellcheck)        printf 'apt install shellcheck' ;;
+    ansible-lint)      printf 'pip install -r ansible/requirements-lint.txt, or install pipx' ;;
     *)                 printf 'needs a docker daemon, or the binary on PATH' ;;
   esac
 }
@@ -212,6 +230,11 @@ run_linter actionlint
 # whether the HCL means anything. A real build is proved on phoenix, not here.
 run_linter packer fmt -check -diff -recursive packer/
 run_linter packer validate -syntax-only packer/
+# ansible/ (ADR-0075). Includes ansible-playbook's own syntax check, which needs
+# the pinned collections — hence --project-dir, which makes ansible-lint install
+# ansible/requirements.yml before it looks. Proved against the guests on
+# phoenix, not here: CI has no route to VLAN 30.
+run_linter ansible-lint --project-dir ansible ansible/
 # The file list is built here rather than left to the checker, which is the one
 # linter in this list that decides for itself what to look at.
 #
