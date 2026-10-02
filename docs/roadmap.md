@@ -237,7 +237,11 @@ Closes on BloodHound running where nothing attacks it.
   state encrypted and its guards in CI; the first apply and its two proofs wait
   for #440's first build, → [runbook](runbooks/provision-lab-guests.md)) →
   [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
-  six guests from the pipeline →
+  six guests from the pipeline (written,
+  [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
+  → [`ansible/`](../ansible/README.md); closes on a `tofu destroy` and rebuild,
+  so it waits for the six to be declared in `tofu/` with pinned MACs, and for
+  #440's first build) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
   weaknesses and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
   and Pktmon → [#451](https://github.com/Gerrrt/HomeLab/issues/451)

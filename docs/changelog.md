@@ -89,6 +89,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **The lab domain's configuration is written as Ansible, and the templates
+  carry the way in**
+  ([#448](https://github.com/Gerrrt/HomeLab/issues/448),
+  [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)).
+  - **What.** `ansible/` applies `build-the-lab-domain.md` §2–§4 and §7 from
+    `phoenix`: names, the DCs' static addresses, resolvers, the forest, the
+    forwarder with no root hints, the clock (asserted before anything joins),
+    the second DC, the joins, `windows_exporter` and the licence gauge. There
+    is one tag per stage. `verify.yml` is the runbook's §9, and it asserts
+    by name that each "Do not harden this domain" item is still shipped. The
+    tiers, users and weaknesses are left for #449.
+  - **The way in.** #448 assumed #440's Autounattend enables OpenSSH, and it
+    does not: a clone had no remote access at all. `openssh.ps1` now installs
+    `sshd` in both Windows templates, disabled, key-only, with `phoenix`'s
+    key and a rule admitting `10.0.30.70` alone. `SetupComplete.cmd` starts
+    it on each clone, which generates the clone's own host keys, and
+    `packer-smoke.sh` proves it by SSHing in.
+  - **Lint.** `scripts/lint.sh` runs `ansible-lint`, including the syntax
+    check, from the version pinned in `ansible/requirements-lint.txt`.
+    Dependabot's new pip entry for `/ansible` bumps it and `ansible-core`.
+  - **Proved so far.** Only that it parses and lints: `ansible-lint` passes
+    the `production` profile, and both playbooks pass `--syntax-check`.
+    Nothing has run against a guest yet. Next is the runbook's one-time
+    `sshd` step on the hand-built six, a run, and a second run that must
+    report `changed=0`. #448 closes once the six are declared in `tofu/`, on
+    `tofu destroy`, a rebuild, and `verify.yml` passing.
+
 - **OpenTofu is written, and its state is encrypted before anything has been
   applied**
   ([#445](https://github.com/Gerrrt/HomeLab/issues/445),

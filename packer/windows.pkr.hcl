@@ -43,6 +43,10 @@ locals {
     }
   }
 
+  # phoenix's key, installed as the clones' only administrators' key by
+  # openssh.ps1 (ADR-0077). Public; read at build time, never copied in here.
+  phoenix_pubkey = trimspace(file(pathexpand(var.ssh_public_key_file)))
+
   unattend_oobe = templatefile("${abspath(path.root)}/windows/unattend-oobe.xml.pkrtpl", {
     build_password = var.build_password
   })
@@ -238,6 +242,16 @@ build {
   provisioner "file" {
     source      = "${abspath(path.root)}/windows/scripts/SetupComplete.cmd"
     destination = "C:/Windows/Setup/Scripts/SetupComplete.cmd"
+  }
+
+  # OpenSSH for the clones, keyed to phoenix: the transport #448's Ansible uses
+  # once SetupComplete.cmd has closed WinRM (ADR-0077 decision 2).
+  provisioner "powershell" {
+    script = "${abspath(path.root)}/windows/scripts/openssh.ps1"
+    environment_vars = [
+      "PHOENIX_PUBKEY=${local.phoenix_pubkey}",
+      "PHOENIX_ADDRESS=${var.phoenix_address}",
+    ]
   }
 
   # Last. /quit rather than /shutdown: the builder shuts the guest down through

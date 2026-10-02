@@ -19,6 +19,9 @@ globs:
 ignores:
   - node_modules/**
   - .venv/**
+  # Installed Ansible collections, for the reason given in .yamllint.yaml.
+  - ansible/.collections/**
+  - ansible/.ansible/**
   # Other Claude Code sessions' git worktrees, for the reason spelled out in
   # .yamllint.yaml. `**/*.md` matches dot directories here, so a second
   # checkout doubles the file count — measured at 114 files against 57 tracked.

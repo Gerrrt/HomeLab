@@ -239,8 +239,11 @@ the daily check says before the list is updated depends on the file's name:
 ## 3. The build password, on `phoenix`
 
 The Windows builds log in as the built-in Administrator to provision, and a
-clone boots with the same password until #448 rotates it. Add it to the file
-that already holds the token:
+clone boots with the same password until
+[`ansible/`](../../ansible/README.md)'s `base` role rotates it. Nothing outside
+the console can use it in the meantime: a clone's only way in is OpenSSH,
+key-only, admitting `phoenix` alone ([ADR-0077](../adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)).
+Add it to the file that already holds the token:
 
 ```bash
 umask 077
@@ -340,8 +343,13 @@ Finally it destroys the clone.
 
 A Windows clone runs specialize and OOBE first. Its guest agent is disabled in
 the template, and `SetupComplete.cmd` starts it as its last step, so the
-agent's first answer means first-boot setup has finished. Allow ten minutes. Its hostname is sysprep's random one, because the real name
-belongs to #448.
+agent's first answer means first-boot setup has finished. Allow ten minutes.
+The script then SSHes in as `Administrator` with `phoenix`'s key, because that
+is how [`ansible/`](../../ansible/README.md) reaches every guest
+([ADR-0077](../adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)).
+A Windows 11 build that fails this has usually failed to fetch the OpenSSH
+capability over the build's egress; `openssh.ps1` throws in that case. Its
+hostname is sysprep's random one, because `ansible/` sets the real name.
 
 ## 7. The SID check — what generalising was for
 

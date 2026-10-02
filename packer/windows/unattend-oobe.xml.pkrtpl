@@ -4,9 +4,10 @@
   by scripts/sysprep.ps1. Uploaded by the build; never on the answer disc.
 
   ComputerName * gives each clone a random name, which is a placeholder: the
-  real one (bahamut, carbuncle…) is set by whatever converges the guest (#448).
-  The Administrator password is the build password, and is the clone's only
-  way in until that convergence rotates it.
+  real one (bahamut, carbuncle…) is set by ansible/'s base role (#448).
+  The Administrator password is the build password until that role rotates
+  it. It opens the console and nothing else: the clone's only remote way in is
+  OpenSSH, key-only (scripts/openssh.ps1, ADR-0077).
 
   As in Autounattend.xml, LLMNR, NetBIOS, IPv6 and WPAD are left alone
   (ADR-0029).

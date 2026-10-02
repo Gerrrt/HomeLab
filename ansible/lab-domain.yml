@@ -1,0 +1,70 @@
+---
+# ADR-0029's domain, configured. The *why* is build-the-lab-domain.md and
+# ADR-0029; this file is the *how*, in the runbook's order (ADR-0077).
+#
+# Run from ansible/ on phoenix, with phoenix.env exported:
+#   ansible-playbook lab-domain.yml                 the whole domain
+#   ansible-playbook lab-domain.yml --tags exporter one stage
+#   ansible-playbook lab-domain.yml --check --diff  what would change
+#
+# Tags are stages, so one playbook serves a rebuild and a repair. #449 adds the
+# users and the deliberate weaknesses as further tags on this same file.
+#
+# NOTHING HERE HARDENS ANYTHING. LLMNR, NetBIOS over TCP/IP, IPv6, WPAD and the
+# DNS GlobalQueryBlockList are the exercises ADR-0014 built the segment for;
+# no role touches them, and verify.yml fails if any of them has moved.
+
+# Strictly serial: one Windows guest at a time. A reboot storm on Saruman's
+# disks is the failure build-the-lab-domain.md §0 prices, and the domain's
+# order (forest, clock, second DC, joins) is serial anyway.
+- name: The guest — name, address, resolver, build password rotated
+  hosts: lab_domain
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: base
+      tags: [base]
+
+- name: The forest, its forwarder, and the clock — before anything joins
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: dc_forest
+      tags: [forest]
+
+- name: The second domain controller
+  hosts: dc_replica
+  gather_facts: false
+  roles:
+    - role: dc_replica
+      tags: [replica]
+
+- name: Each DC resolves through its partner, then itself
+  hosts: dcs
+  gather_facts: false
+  roles:
+    - role: dc_resolvers
+      tags: [replica]
+
+- name: The members join
+  hosts: members:endpoints
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: member
+      tags: [join]
+
+- name: The exporter, scraped by alexander
+  hosts: lab_domain
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: exporter
+      tags: [exporter]
+
+- name: The evaluation clock, as a metric
+  hosts: servers
+  gather_facts: false
+  roles:
+    - role: licence_clock
+      tags: [licence]
