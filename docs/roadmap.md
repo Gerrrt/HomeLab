@@ -119,7 +119,10 @@ has been rehearsed on it.
     in the same room
     ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
 
-  [#533](https://github.com/Gerrrt/HomeLab/issues/533) follows the build;
+  [#533](https://github.com/Gerrrt/HomeLab/issues/533)'s converge timer is
+  authored and installs report-only; it closes when `trinity` applies and a
+  Dependabot bump to `stacks/sensitive` lands with nobody at a shell
+  (→ [runbook](runbooks/converge-the-host.md#on-trinity)).
   [#534](https://github.com/Gerrrt/HomeLab/issues/534)'s CI re-check is
   already done (#646).
 - **The nine services**, each authored ahead of the hardware and each open

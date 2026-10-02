@@ -587,6 +587,16 @@ Then put it on its timer. This is the sensitive profile of `install-timers.sh`,
 a nightly run at 04:30 whose outcome reaches the estate's staleness alerts as
 `backup-sensitive`
 ([`schedule-maintenance.md`](schedule-maintenance.md#on-trinity-the-sensitive-profile)).
+
+**First, the convergence prerequisites.** The same install adds
+`converge-sensitive`, the hourly convergence of the tier onto `main`
+([#533](https://github.com/Gerrrt/HomeLab/issues/533)), and the installer
+primes it by running it once — and applying is the default. So before the
+command below, import GitHub's signing key and put `HOMELAB_CONVERGE_APPLY=0`
+in `/etc/default/homelab-timers`:
+[`converge-the-host.md`](converge-the-host.md#on-trinity) §On trinity steps
+1–3. Its steps 5 and 6 come after: watching it, then letting it act.
+
 From this checkout:
 
 ```bash
@@ -613,8 +623,7 @@ same way, and prove the set against the database:
 
 ```bash
 make backup-library ARGS=--prove
-``` Converging the host is
-[#533](https://github.com/Gerrrt/HomeLab/issues/533), after this.
+```
 
 ## 13. Before the first real photo, document or vault item
 
@@ -678,10 +687,15 @@ parts only the host and the firewall can do.
 
    ```bash
    cd ~/code/Gerrrt/HomeLab
-   git pull
-   make up STACK=sensitive
+   make converge STACK=sensitive
    make check-container-health STACK=sensitive
    ```
+
+   Once the converge timer applies, the merge is deployed within the hour on its
+   own and this is only the way not to wait. While it is report-only it is the
+   deploy. Either way it is `make converge`, not `git pull`: the same fetch,
+   verified, and it runs `make up STACK=sensitive` on what it moved to
+   ([`converge-the-host.md`](converge-the-host.md#on-trinity)).
 
    Caddy is recreated, because its aliases changed. Its log must show
    `certificate obtained` for the new name, and

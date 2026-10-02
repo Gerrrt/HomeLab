@@ -636,10 +636,18 @@ elif docker ps -q --filter "label=com.docker.compose.project.working_dir=${REPO_
     | grep -q .; then
   # trinity: the sensitive tier is served from this checkout, and its schedule
   # is install-timers.sh's sensitive profile, not the estate's (#404 step 9).
-  if systemctl list-unit-files 'homelab-backup-sensitive.timer' --no-legend 2>/dev/null | grep -q .; then
-    pass "the sensitive tier's schedule is installed on this host"
+  # The convergence timer is named beside the backup since #533: a tier that
+  # serves here and does not converge is deployed by hand again, which is the
+  # state that issue ended, so its absence fails rather than skips.
+  sensitive_missing=()
+  for unit in homelab-backup-sensitive homelab-converge-sensitive; do
+    systemctl list-unit-files "${unit}.timer" --no-legend 2>/dev/null | grep -q . \
+      || sensitive_missing+=("${unit}.timer")
+  done
+  if ((${#sensitive_missing[@]} == 0)); then
+    pass "the sensitive tier's schedule is installed on this host, convergence included"
   else
-    fail "the sensitive tier runs here but its backup timer is not installed — run 'make install-timers PROFILE=sensitive'"
+    fail "the sensitive tier runs here but ${sensitive_missing[*]} is not installed — run 'make install-timers PROFILE=sensitive'"
   fi
 elif [[ "${REPO_ROOT}" != "$(unit_deploy_root)" ]]; then
   skip "the homelab-* units name $(unit_deploy_root), not this checkout — their jobs are not this host's"
