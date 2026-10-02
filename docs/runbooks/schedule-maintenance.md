@@ -586,7 +586,7 @@ systemctl list-timers 'homelab-*'
 
 ### On `trinity`: the sensitive profile
 
-`trinity` has two jobs of its own, in their own table and their own directory
+`trinity` has jobs of its own, in their own table and their own directory
 (`SENSITIVE_JOBS`, `systemd/sensitive/`), because it is a second host with a
 checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 
@@ -594,6 +594,7 @@ checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 | --- | --- | --- | --- |
 | `backup-sensitive` | `make backup` with `STACK=sensitive` | daily 04:30 | 2 days |
 | `backup-library` | `make backup-library` | daily 05:15 | 2 days |
+| `converge-sensitive` | `make converge` with `STACK=sensitive` | hourly at :25 | 3 hours |
 | `household-copy` | **you**, `make household-copy DEST=…` | no timer | 90 days |
 | `household-proof` | **you** and the holder, `make household-proof CODE=…` | no timer | 1 year |
 
@@ -608,21 +609,29 @@ whoever ran `sudo`, and refuses to install from anywhere but that user's
 is a bind mount ([ADR-0064](../adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
 It stops nothing, so its timer is `Persistent=true` and catches up a missed
 night at boot. It shares the `backups` lock with `backup-sensitive`, so an
-overrunning volume backup is waited for rather than raced. From that checkout
-on `trinity`:
+overrunning volume backup is waited for rather than raced.
+
+`converge-sensitive` is the monitoring host's `converge` for the tier
+([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It shares the
+`backups` lock too, so it never runs `make up` under a quiesced tier. **Before
+the install below**, import GitHub's signing key and set report-only mode —
+[`converge-the-host.md`](converge-the-host.md#on-trinity) §On trinity steps
+1–3 — because the installer primes the job and applying is the default.
+
+Then, from that checkout on `trinity`:
 
 ```bash
 make install-timers PROFILE=sensitive
 ```
 
 That writes a `homelab-jobs.prom` on `trinity` that declares only these
-four. The last two are the household's copy
+five. The last two are the household's copy
 ([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md),
 [`carry-the-household-copy.md`](carry-the-household-copy.md)). They have no
 timer, and `HouseholdCopyStale` reads them. The alert rules join on the job name alone, so a name may appear in only
-one table, and `--check` enforces that. The installer primes `backup-library`,
-which stops nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
-profiles, and `make validate` on `trinity` fails until this timer is
+one table, and `--check` enforces that. The installer primes `backup-library` and
+`converge-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
+profiles, and `make validate` on `trinity` fails until the backup and converge timers are
 installed.
 
 ## Prove it end to end

@@ -56,12 +56,13 @@ tests:
             exp_annotations:
               summary: "The deployment checkout has uncommitted changes"
               description: >-
-                Something was edited on the monitoring host instead of in the
-                repository, and convergence has stopped until it is resolved —
-                the host is frozen on whatever it was already running. The
-                change is still there: `git -C /home/robo/code/Gerrrt/HomeLab
-                status` and `git diff` show it. Commit it through a pull request
-                or discard it — docs/runbooks/converge-the-host.md.
+                Something was edited on prometheus instead of in the repository,
+                and convergence has stopped until it is resolved — the host is
+                frozen on whatever it was already running. The change is still
+                there: `git status` and `git diff` in the deployment checkout
+                (/home/robo/code/Gerrrt/HomeLab on prometheus,
+                ~/code/Gerrrt/HomeLab on trinity) show it. Commit it through a
+                pull request or discard it — docs/runbooks/converge-the-host.md.
 
   # --- DeployBehind: behind, converged, and "we do not know" ---------------
   #
@@ -95,11 +96,11 @@ tests:
               summary: "The host is 3 commit(s) behind main"
               description: >-
                 Convergence has run and has not applied what it fetched. Either
-                it is refusing — check `journalctl -u homelab-converge.service
-                -n 50` for a dirty tree, a signature that did not verify, or a
-                non-fast-forward. If DeployApplyDisabled is firing too, it is
-                neither: the host is in report-only mode and this alert is that
-                mode's report. docs/runbooks/converge-the-host.md.
+                it is refusing — check `journalctl -u 'homelab-converge*' -n 50`
+                on prometheus for a dirty tree, a signature that did not verify,
+                or a non-fast-forward. If DeployApplyDisabled is firing too, it
+                is neither: the host is in report-only mode and this alert is
+                that mode's report. docs/runbooks/converge-the-host.md.
 
   # --- DeployUnverified: unsigned, and signed -----------------------------
   - interval: 1m
@@ -125,11 +126,11 @@ tests:
             exp_annotations:
               summary: "The deployed revision has no valid signature"
               description: >-
-                Either GitHub's signing key is not in robo's keyring on this
-                host — the one-time setup step, and convergence is refusing to
-                move until it is done — or HEAD is a commit that did not come
-                through a pull request. `git -C /home/robo/code/Gerrrt/HomeLab
-                log --show-signature -1` distinguishes them.
+                Either GitHub's signing key is not in the deploying user's
+                keyring on prometheus — the one-time setup step, and convergence
+                is refusing to move until it is done — or HEAD is a commit that
+                did not come through a pull request. `git log --show-signature
+                -1` in the deployment checkout distinguishes them.
                 docs/runbooks/converge-the-host.md.
 
   # --- DeployUnapplied: stuck, healthy, and cleared by the next run --------
@@ -168,10 +169,11 @@ tests:
               description: >-
                 HEAD is not the revision `make up` last applied, so the stack is
                 serving older config than the checkout holds. Either `make up`
-                is failing — `journalctl -u homelab-converge.service -n 50` says
-                why — or the host is report-only and something moved the
-                checkout by hand. `make up` from /home/robo/code/Gerrrt/HomeLab
-                deploys it; prefer `make converge` to a bare `git pull` there.
+                is failing — `journalctl -u 'homelab-converge*' -n 50` on
+                prometheus says why — or the host is report-only and something
+                moved the checkout by hand. `make up` from the deployment
+                checkout deploys it (STACK=sensitive on trinity); prefer `make
+                converge` to a bare `git pull` there.
                 docs/runbooks/converge-the-host.md.
 
   # --- DeployApplyDisabled: report-only, and applying --------------------
@@ -179,11 +181,14 @@ tests:
   # The paired silent case is the one that matters: a host that IS applying must
   # not report itself as deliberately stopped, or the alert stops meaning
   # anything the moment it is used for its intended week.
+  #
+  # trinity is the report-only host: its converge timer was installed with
+  # HOMELAB_CONVERGE_APPLY=0 (#533), while prometheus applies.
   - interval: 1m
     input_series:
-      - series: 'homelab_deploy_apply_enabled{instance="prometheus"}'
+      - series: 'homelab_deploy_apply_enabled{instance="trinity"}'
         values: "0+0x480"
-      - series: 'homelab_deploy_apply_enabled{instance="oracle"}'
+      - series: 'homelab_deploy_apply_enabled{instance="prometheus"}'
         values: "1+0x480"
     alert_rule_test:
       - eval_time: 5h55m
@@ -195,20 +200,21 @@ tests:
         exp_alerts:
           - exp_labels:
               alertname: DeployApplyDisabled
-              instance: prometheus
+              instance: trinity
               component: deploy
               severity: info
               category: correctness
             exp_annotations:
               summary: "Convergence is in report-only mode and is deploying nothing"
               description: >-
-                HOMELAB_CONVERGE_APPLY=0 is set in
-                /etc/default/homelab-timers, so this host fetches, verifies and
-                records but applies nothing — deployment is back to being
-                something a human does. Intended as a temporary state while the
-                agent is watched. Remove the line and `systemctl restart
-                homelab-converge.timer` to let it act; this resolves on the next
-                run. docs/runbooks/converge-the-host.md.
+                HOMELAB_CONVERGE_APPLY=0 is set in /etc/default/homelab-timers
+                on trinity, so it fetches, verifies and records but applies
+                nothing — deployment is back to being something a human does.
+                Intended as a temporary state while the agent is watched. Remove
+                the line and restart the converge timer
+                (homelab-converge-sensitive.timer on trinity) to let it act;
+                this resolves on the next run.
+                docs/runbooks/converge-the-host.md.
 
   # --- DeployMetricsAbsent: the series is there ---------------------------
   #
@@ -262,3 +268,48 @@ tests:
                 /var/lib/node_exporter/textfile_collector/homelab-deploy.prom on
                 the monitoring host. If the timer was never installed, `make
                 install-timers` — docs/runbooks/converge-the-host.md.
+
+  # --- DeployRecordMissing: one host's record gone, the other's not ---------
+  #
+  # The case DeployMetricsAbsent cannot see once two hosts pull: prometheus's
+  # record keeps the instance-less absent_over_time quiet while trinity's is
+  # gone. oracle declares no converge job — it is pushed to — and must stay
+  # silent with no record either, or the rule fires on every host that exists.
+  #
+  # Mutations this catches: dropping on(instance), where `unless` matches on
+  # every label, the two series never share a set, and prometheus fires too;
+  # and dropping the homelab_job matcher, where oracle's backup row fires.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_max_age_seconds{homelab_job="converge", instance="prometheus"}'
+        values: "10800+0x180"
+      - series: 'homelab_deploy_revision_info{instance="prometheus", revision="09d618ede580"}'
+        values: "1+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="converge-sensitive", instance="trinity"}'
+        values: "10800+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="backup-volumes", instance="oracle"}'
+        values: "1209600+0x180"
+    alert_rule_test:
+      - eval_time: 55m
+        alertname: DeployRecordMissing
+        exp_alerts: []
+
+      - eval_time: 1h5m
+        alertname: DeployRecordMissing
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployRecordMissing
+              instance: trinity
+              homelab_job: converge-sensitive
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "trinity converges but has no deployment record"
+              description: >-
+                trinity declares the converge-sensitive job and no
+                homelab-deploy.prom has arrived from it, so what it is running
+                is unknown and no other rule in this file can fire for it. Check
+                /var/lib/node_exporter/textfile_collector/homelab-deploy.prom on
+                that host and `journalctl -u 'homelab-converge*' -n 50` —
+                docs/runbooks/converge-the-host.md.

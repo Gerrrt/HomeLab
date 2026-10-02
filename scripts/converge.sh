@@ -3,7 +3,7 @@
 # Bring the deployment checkout to what `main` says, and record what is
 # deployed (#99).
 #
-#   scripts/converge.sh [--dry-run] [--allow-unsigned]
+#   scripts/converge.sh [--stack observability|sensitive] [--dry-run] [--allow-unsigned]
 #
 # WHY THIS EXISTS
 #
@@ -104,6 +104,8 @@
 #   scripts/converge.sh                    fetch, verify, fast-forward, make up
 #   scripts/converge.sh --dry-run          say what it would do, change nothing
 #   scripts/converge.sh --allow-unsigned   fast-forward past a failed signature
+#   scripts/converge.sh --stack sensitive  converge trinity's tier, not the
+#                                          monitoring host's (default observability)
 #
 # Environment:
 #   TEXTFILE_DIR             where homelab-deploy.prom goes
@@ -119,17 +121,6 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
-# The checkout the stack actually runs from. Same constant, same reasoning and
-# the same refusal as scripts/install-timers.sh: `make render` writes into
-# .rendered/ under the tree it is run from, and no container mounts a worktree's
-# copy — so converging a second clone would report success while changing
-# nothing the stack can see.
-DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
-
-# What `make up` deploys here, named rather than left to the Makefile's default,
-# because the applied-revision record is per stack and must be the one read.
-DEPLOY_STACK="observability"
 
 # Read-only, credential-free, and not taken from the checkout's own config.
 CANONICAL_URL="https://github.com/Gerrrt/HomeLab.git"
@@ -157,15 +148,40 @@ usage() { sed -n '/^# Usage:/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//';
 
 DRY_RUN=0
 ALLOW_UNSIGNED=0
+DEPLOY_STACK="observability"
 while (($#)); do
   case "$1" in
     --dry-run)        DRY_RUN=1 ;;
     --allow-unsigned) ALLOW_UNSIGNED=1 ;;
+    --stack)          [[ $# -ge 2 ]] || die "--stack needs a value"
+                      DEPLOY_STACK="$2"; shift ;;
+    --stack=*)        DEPLOY_STACK="${1#--stack=}" ;;
     -h|--help)        usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
   esac
   shift
 done
+
+# What `make up` deploys here, named rather than left to the Makefile's default,
+# because the applied-revision record is per stack and must be the one read.
+#
+# And the checkout that stack actually runs from. Same rule, same reasoning and
+# the same refusal as scripts/install-timers.sh: `make render` writes into
+# .rendered/ under the tree it is run from, and no container mounts a worktree's
+# copy — so converging a second clone would report success while changing
+# nothing the stack can see.
+#
+# Two stacks pull, on two hosts (#533). The monitoring host's checkout is robo's
+# and is pinned by name. trinity's operator is written <you> by the build
+# runbook, so its checkout is the one under the running user's home — the same
+# derivation as install-timers.sh's sensitive profile, which renders the unit
+# that runs this. Any other stack is pushed to (ADR-0021), not pulled, and is
+# refused here rather than converged from a root nobody chose.
+case "${DEPLOY_STACK}" in
+  observability) DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab" ;;
+  sensitive)     DEPLOY_ROOT="${HOME:?}/code/Gerrrt/HomeLab" ;;
+  *) die "nothing converges stack '${DEPLOY_STACK}' — only observability (prometheus) and sensitive (trinity) pull" ;;
+esac
 
 # The report-only switch, so the timer can be installed and watched before it is
 # allowed to act. Folded into DRY_RUN rather than given a second code path —
@@ -208,7 +224,7 @@ RECORD=1
 if [[ ! -d "${TEXTFILE_DIR}" ]]; then
   RECORD=0
   warn "no textfile directory at ${TEXTFILE_DIR} — converging without recording what is deployed"
-  warn "on the monitoring host this means the timers were never installed: make install-timers"
+  warn "on a deployment host this means the timers were never installed: make install-timers (PROFILE=sensitive on trinity)"
 elif [[ ! -w "${TEXTFILE_DIR}" ]]; then
   die "${TEXTFILE_DIR} is not writable by $(id -un).
 The host would converge and nothing would record what it converged to, which is
@@ -427,7 +443,7 @@ a tip served by something that is not GitHub. Look at it before deploying it:
 ${hint}
 
 The host stays on ${REVISION}. To deploy it anyway, deliberately and by hand:
-  ${DEPLOY_ROOT}/scripts/converge.sh --allow-unsigned"
+  ${DEPLOY_ROOT}/scripts/converge.sh --stack ${DEPLOY_STACK} --allow-unsigned"
   fi
 fi
 
