@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
+- **ADR-0007's umbrella closes: the domain and the SOC are built
+  ([#101](https://github.com/Gerrrt/HomeLab/issues/101)).** The estate is
+  not finished, because PBS is still to build. The umbrella's done-when
+  was [#266](https://github.com/Gerrrt/HomeLab/issues/266) and
+  [#267](https://github.com/Gerrrt/HomeLab/issues/267) closing with the six
+  agents reporting in, met 2026-09-27: six Wazuh agents Active, six
+  Velociraptor clients enrolled. The link after it,
+  [#437](https://github.com/Gerrrt/HomeLab/issues/437) (Zeek on the bridge),
+  closed today. What ADR-0007 named and is not finished already has its own
+  issue: the domain's §6, §10 and §11
+  ([#414](https://github.com/Gerrrt/HomeLab/issues/414)), PBS
+  ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md))
+  and JA4 ([#776](https://github.com/Gerrrt/HomeLab/issues/776)). The
+  umbrella never had a roadmap entry, so none leaves `roadmap.md`.
+
 - **The ISO store is checked daily, and Packer builds from it**
   ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
   [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
