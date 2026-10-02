@@ -117,7 +117,7 @@ needs only the public keys, which are in `.sops.yaml`, so this works on a host
 that cannot decrypt the result:
 
 ```bash
-cd ~/HomeLab && git pull
+cd ~/code/Gerrrt/HomeLab && git pull
 set -a; . ~/.config/proxmox/phoenix.env; set +a
 umask 077
 printf 'TOFU_STATE_PASSPHRASE: %s\n' "${TF_VAR_state_passphrase}" \
@@ -143,7 +143,7 @@ because the recipients are the same.
 ## 4. The first apply: the proof guest, and both halves of the proof
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 set -a; . ~/.config/proxmox/phoenix.env; set +a
 tofu -chdir=tofu init
 tofu -chdir=tofu plan -var proof=true -out=proof.tfplan

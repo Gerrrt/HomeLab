@@ -563,10 +563,46 @@ def digest_problems() -> list[str]:
     return problems
 
 
+# A per-architecture tag, the suffix some registries publish beside the
+# multi-arch index: `1.13.1-386`, `0.156.0-amd64`. Optionally after another
+# suffix, as in `1.13.1-minimal-386`.
+ARCH_TAG = re.compile(r"-(?:386|amd64|arm64|arm|armv[0-9]+|ppc64le|s390x|riscv64)$")
+
+
+def arch_tag_problems() -> list[str]:
+    """No service image is pinned to a single-architecture tag.
+
+    Dependabot parses a numeric suffix as a version segment, so it reads
+    `1.13.1-386` as 1.13.1.386, newer than `1.13.1`, and proposes the 32-bit
+    x86 image as an upgrade over the multi-arch index (dependabot-core#15718).
+    It is a bare manifest, so it pulls without error on amd64 and runs a
+    32-bit binary, and nothing else here would notice. It reached main once:
+    #811 moved tofu, the binary that proves state encryption, to it.
+    `-amd64` and the rest are refused too. They are not Dependabot's mistake,
+    but a hand-written one would pin this estate to one CPU just as quietly.
+    """
+    problems = []
+    for cf in sorted(REPO.glob("stacks/*/compose.yaml")):
+        doc = yaml.safe_load(cf.read_text(encoding="utf-8")) or {}
+        for name, svc in (doc.get("services") or {}).items():
+            image = str((svc or {}).get("image") or "")
+            ref = image.partition("@")[0]
+            tag = ref.rpartition(":")[2] if ":" in ref.rpartition("/")[2] else ""
+            if tag and ARCH_TAG.search(tag):
+                problems.append(
+                    f"{cf.relative_to(REPO)}: {name} image {ref} is a "
+                    f"single-architecture tag — pin the multi-arch tag and its "
+                    f"index digest (a Dependabot -386 bump is "
+                    f"dependabot-core#15718; close it, do not merge it)"
+                )
+    return problems
+
+
 def main() -> int:
     problems, sites, files = [], 0, 0
     problems.extend(pattern_problems())
     problems.extend(digest_problems())
+    problems.extend(arch_tag_problems())
     for rel, lines in sources():
         found, seen = check_file(rel, lines)
         problems.extend(found)
@@ -577,8 +613,9 @@ def main() -> int:
         print(f"  {problem}", file=sys.stderr)
     if problems:
         print(
-            f"\n{len(problems)} docker command(s) running an image from outside "
-            f"compose.yaml",
+            f"\n{len(problems)} image pin problem(s): a docker command running an "
+            f"image from outside compose.yaml, or a compose image without a "
+            f"digest or on a single-architecture tag",
             file=sys.stderr,
         )
         return 1

@@ -1311,10 +1311,15 @@ services:
   # the version that encrypts the state is not something to change in passing.
   #
   # Its entrypoint IS tofu, so `version` is the harmless no-op.
+  #
+  # Dependabot proposes `<version>-386`, the 32-bit x86 image, as newer than
+  # `<version>` (dependabot-core#15718), and #811 merged one. Close such a PR:
+  # scripts/check_image_pins.py fails any single-architecture tag, so it can
+  # no longer pass CI.
   # ---------------------------------------------------------------------------
   tofu:
     profiles: ["lint"]
-    image: ghcr.io/opentofu/opentofu:1.13.1-386@sha256:176ed5e8b9741b9d6d61ece0cb641de51f224e5fdc7a6bd8ef08cdf9430f50d9
+    image: ghcr.io/opentofu/opentofu:1.13.1@sha256:1df996fca13806a20d5a3d3ad54acdcf76bcb1aa4ac30b5ba169b9e4cecdbcc8
     command: ["version"]
 
 networks:

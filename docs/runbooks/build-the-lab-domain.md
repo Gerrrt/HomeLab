@@ -93,9 +93,9 @@ ones `ansible/` pins, not whatever the distribution has:
 ```bash
 sudo apt-get install -y python3-venv
 python3 -m venv ~/.venvs/ansible
-~/.venvs/ansible/bin/pip install -r ~/HomeLab/ansible/requirements.txt
+~/.venvs/ansible/bin/pip install -r ~/code/Gerrrt/HomeLab/ansible/requirements.txt
 echo 'export PATH="$HOME/.venvs/ansible/bin:$PATH"' >> ~/.bashrc && . ~/.bashrc
-cd ~/HomeLab/ansible && ansible-galaxy collection install -r requirements.yml -p .collections
+cd ~/code/Gerrrt/HomeLab/ansible && ansible-galaxy collection install -r requirements.yml -p .collections
 ```
 
 After a `git pull` that moves a pin, re-run the `pip install` line if
