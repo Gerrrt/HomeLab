@@ -1433,6 +1433,7 @@ Then **System → Advanced Settings → Init/Shutdown Scripts → Add**, twice:
 The SHUTDOWN script runs on every stop that goes through the init system. A
 pulled plug, a crash or a cut that outlasts the pack never runs it, which is
 the whole point. It asks systemd where the stop is headed:
+
 - **A power-off** (the UI's Shut Down, or the UPS service's halt on `LB`,
   [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md))
   goes up `homelab_clean_shutdowns_total`, which the rule subtracts.
@@ -1441,8 +1442,10 @@ the whole point. It asks systemd where the stop is headed:
   the drive: on 2026-10-02 a Restart left it at 523. Counted as clean, it would
   cancel a real cut.
 - **Anything systemd does not name** goes up
-  `homelab_clean_stops_unclassified_total`, and forgives nothing. Its file, `clean-shutdowns-smaug.prom`, is rewritten only
-on a stop. An old mtime is correct, and `SmartStateStale` does not watch it.
+  `homelab_clean_stops_unclassified_total`, and forgives nothing.
+
+Its file, `clean-shutdowns-smaug.prom`, is rewritten only on a stop. An old
+mtime is correct, and `SmartStateStale` does not watch it.
 
 **Prove it with one planned Shut Down, not a Restart.** A Restart proves
 nothing, because the drive does not tick. Before, note
