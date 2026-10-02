@@ -146,12 +146,33 @@ done
 [[ -n "${addr}" ]] || die "no IPv4 address from the guest agent after 20 minutes"
 ok "agent reports ${addr}"
 
+# The guest agent answers before the guest admits logins. On Ubuntu,
+# pam_nologin refuses every session with "System is booting up" until boot
+# has finished, and a single attempt the moment an address appeared lost
+# that race on both builds of 901 on 2026-10-02. So retry for three minutes:
+# a refusal while boot finishes is "not yet", and a guest that still admits
+# nobody after that is a failure. Only the last attempt's error is printed,
+# so a real refusal is still readable.
+ssh_hostname() {
+  local user="$1" out err
+  err="$(mktemp)"
+  for _ in $(seq 1 18); do
+    if out="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10 \
+        "${user}@${addr}" hostname 2>"${err}" | tr -d '\r')" && [[ -n "${out}" ]]; then
+      rm -f "${err}"; printf '%s' "${out}"; return 0
+    fi
+    sleep 10
+  done
+  cat "${err}" >&2; rm -f "${err}"
+  return 1
+}
+
 host="$(api GET "/nodes/${NODE}/qemu/${CLONE}/agent/get-host-name" | jq -r '.data.result."host-name"')"
 if [[ "${ostype}" == l26 ]]; then
   [[ "${host}" == "${NAME}" ]] || die "hostname is ${host}, expected ${NAME}"
   ok "hostname ${host}"
-  got="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 "smoke@${addr}" hostname)"
+  got="$(ssh_hostname smoke)" || die "smoke@${addr} admitted no SSH login in three minutes"
   [[ "${got}" == "${NAME}" ]] || die "ssh smoke@${addr} printed ${got}, expected ${NAME}"
   ok "phoenix's key opens smoke@${addr}"
 else
@@ -159,8 +180,7 @@ else
   # The way ansible/ reaches every guest (ADR-0077): sshd, started by
   # SetupComplete.cmd, admitting phoenix's key as Administrator. Windows names
   # are upper-case and the agent's need not be, so compare without case.
-  got="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 "Administrator@${addr}" hostname | tr -d '\r')"
+  got="$(ssh_hostname Administrator)" || die "Administrator@${addr} admitted no SSH login in three minutes"
   [[ "${got,,}" == "${host,,}" ]] || die "ssh Administrator@${addr} printed ${got}, expected ${host}"
   ok "phoenix's key opens Administrator@${addr}"
 fi
