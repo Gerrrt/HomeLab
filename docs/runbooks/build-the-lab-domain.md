@@ -19,7 +19,7 @@ has nothing to hunt on, and
 entire placement argument is that the techniques worth detecting are layer 2 and
 only reach a domain sharing their broadcast domain.
 
-**Since [ADR-0076](../adr/0076-configure-the-lab-domain-with-ansible-from-phoenix.md),
+**Since [ADR-0077](../adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
 this page is the explanation, and [`ansible/`](../../ansible/README.md) is the
 procedure.** §2–§4 and §7 are applied by `ansible-playbook lab-domain.yml`
 from `phoenix`, and §9's checks by `ansible-playbook verify.yml`. The commands
@@ -102,7 +102,7 @@ After a `git pull` that moves a pin, re-run the `pip install` line if
 `requirements.txt` changed, and the `ansible-galaxy` line if
 `requirements.yml` did. Then add the
 two secrets to the file that already holds the token and the build password
-(ADR-0076 decision 3). For a domain built by hand, `LAB_ADMIN_PASSWORD` is
+(ADR-0077 decision 3). For a domain built by hand, `LAB_ADMIN_PASSWORD` is
 AD\Administrator's current password. For a rebuild, generate both:
 
 ```bash
@@ -154,9 +154,10 @@ The run needs these three in place first:
   above.
 - **A reservation on `morpheus` for all six, by MAC.** That includes the two
   DCs at `.50` and `.51`. A rebuilt DC first boots on DHCP, and `base` then
-  makes the same address static. The reservations only survive a rebuild
-  because [#445](https://github.com/Gerrrt/HomeLab/issues/445) pins each
-  guest's MAC (ADR-0076 decision 6).
+  makes the same address static. The reservations only survive a rebuild if
+  each guest's MAC is pinned when the six are declared in
+  [`tofu/`](../../tofu/README.md). They are not there yet; see ADR-0077
+  decision 6.
 - **A way in.** Every clone of the templates has `sshd`, key-only, admitting
   `phoenix` alone ([`openssh.ps1`](../../packer/windows/scripts/openssh.ps1)).
   The six built by hand on 2026-09-24/25 do not. Give each one the same, once,

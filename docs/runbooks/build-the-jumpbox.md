@@ -240,7 +240,12 @@ rule against the stack directories, so a `phoenix` rule fails CI until a
 define the encrypted file. It decided there is none:
 [ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
 part 4 keeps this file as the credential, because `phoenix` holds no age key
-to decrypt one with. The SSH key is the
+to decrypt one with.
+[ADR-0076](../adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)
+adds three lines for OpenTofu: the endpoint, the token in the provider's own
+form, and the state passphrase.
+[`provision-lab-guests.md`](provision-lab-guests.md) §1 writes them, and §3
+escrows the passphrase to the estate's recipients. The SSH key is the
 one the toolchain will inject into every guest it builds. It is generated
 here and goes nowhere else. The checkout holds **no age key**: `make render`
 fails here by design, and this host converges nothing — ADR-0021 owns what

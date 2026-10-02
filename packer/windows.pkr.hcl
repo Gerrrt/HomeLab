@@ -44,7 +44,7 @@ locals {
   }
 
   # phoenix's key, installed as the clones' only administrators' key by
-  # openssh.ps1 (ADR-0076). Public; read at build time, never copied in here.
+  # openssh.ps1 (ADR-0077). Public; read at build time, never copied in here.
   phoenix_pubkey = trimspace(file(pathexpand(var.ssh_public_key_file)))
 
   unattend_oobe = templatefile("${abspath(path.root)}/windows/unattend-oobe.xml.pkrtpl", {
@@ -245,7 +245,7 @@ build {
   }
 
   # OpenSSH for the clones, keyed to phoenix: the transport #448's Ansible uses
-  # once SetupComplete.cmd has closed WinRM (ADR-0076 decision 2).
+  # once SetupComplete.cmd has closed WinRM (ADR-0077 decision 2).
   provisioner "powershell" {
     script = "${abspath(path.root)}/windows/scripts/openssh.ps1"
     environment_vars = [

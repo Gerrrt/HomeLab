@@ -17,7 +17,7 @@ What this network is actually built to survive:
 | A lost or stolen tunnel peer | **Accepted.** A WireGuard peer is a device with a key and no second factor ([ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)); the firewall, not the key, bounds what it reaches — the lab and nothing else — with a `/32` pin on the server and a preshared key per peer. Revocation is a `wg0.conf` edit on `phoenix` ([runbook](runbooks/open-the-remote-path.md#rollback)), proportionate at two or three devices and recorded as the thing that stops being so |
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |
 | An attacker on the lab segment reaching the hypervisor's management plane | **Closed at the host, and watched.** `Saruman`'s Proxmox firewall admits `8006` and `22` from Hicks and `8006` from the deployment host only ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)). It was found disabled and turned on on 2026-09-20 ([#566](https://github.com/Gerrrt/HomeLab/issues/566)); since [#576](https://github.com/Gerrrt/HomeLab/issues/576) `homelab_pve_firewall_enabled` is read every five minutes and `PveFirewallDisabled` pages after ten, so a `pve-firewall stop` left in place is noticed rather than found. `PveFirewallPolicyAccept` does the same for `policy_in` left at `ACCEPT`, which reads as enabled and admits the whole segment |
-| Someone on the lab segment reaching the domain's configuration path | **Scoped, key-only, and accepted for `phoenix` itself.** Each of ADR-0029's six listens on `22` for `ansible/` ([ADR-0076](adr/0076-configure-the-lab-domain-with-ansible-from-phoenix.md)). The rule admits `10.0.30.70` alone, `sshd` refuses passwords, and the only administrators' key is `phoenix`'s, installed by the template and never by hand on a clone. The residual: whoever owns `phoenix` owns the lab domain. That was already true through its Proxmox token, so it adds reach to nothing. Host keys are not pinned, because every rebuild replaces them |
+| Someone on the lab segment reaching the domain's configuration path | **Scoped, key-only, and accepted for `phoenix` itself.** Each of ADR-0029's six listens on `22` for `ansible/` ([ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)). The rule admits `10.0.30.70` alone, `sshd` refuses passwords, and the only administrators' key is `phoenix`'s, installed by the template and never by hand on a clone. The residual: whoever owns `phoenix` owns the lab domain. That was already true through its Proxmox token, so it adds reach to nothing. Host keys are not pinned, because every rebuild replaces them |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
 | Losing visibility of a failure | 137 alert rules, 30 days of metrics and logs |
@@ -505,8 +505,10 @@ assumption consistent with what they are.
 
 - Credentials are encrypted with [SOPS](https://github.com/getsops/sops) + age
   and committed in encrypted form. See [`secrets/README.md`](../secrets/README.md).
-- The private key lives at `~/.config/sops/age/keys.txt` on the deployment host
-  and is never in the repository. That host's disk is not encrypted — see
+- The private key lives at `~/.config/sops/age/keys.txt` on `prometheus`, the
+  host that deploys the estate's stacks, and is never in the repository. (ADR-0043
+  calls `phoenix` "the deployment host" too. `phoenix` builds machines, holds no
+  age key, and is covered below.) That host's disk is not encrypted — see
   [below](#everything-above-sits-on-an-unencrypted-disk).
 - That key is the single point of failure for every encrypted secret here, so it
   is copied off the host and the copy is proven to decrypt with
@@ -520,8 +522,30 @@ assumption consistent with what they are.
   the editor cannot persist the plaintext in an undo file, swap file or backup
   that sops does not shred. See [`secrets/README.md`](../secrets/README.md).
 - CI runs `gitleaks` with rules specifically for SNMP communities, inline
-  Grafana passwords, PEM private keys and age secret keys, and separately
-  asserts that every `secrets/*.sops.yaml` is genuinely encrypted.
+  Grafana passwords, PEM private keys, age secret keys and unencrypted
+  OpenTofu state. It separately asserts that every `secrets/*.sops.yaml` is
+  genuinely encrypted, and that no state, plan or `.terraform/` is tracked.
+- **`phoenix` is a secret-bearing host, and holds no age key.** It has four
+  secrets, all mode 600 and owned by its operator:
+  - the Proxmox API token `phoenix@pve!builder`;
+  - the Windows build password, which is also a fresh clone's Administrator
+    password until #448 rotates it;
+  - `tofu/`'s state passphrase, all three in `~/.config/proxmox/phoenix.env`
+    ([ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
+    §4);
+  - the encrypted state itself, `tofu/state/lab.tfstate`
+    ([ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
+
+  The state is the one that would have been quiet. A Terraform state holds
+  every value a provider touched in cleartext, the cloud-init password of every
+  guest among them. OpenTofu encrypts it, `enforced = true` refuses a plaintext
+  write, and `scripts/check-tofu-state-encryption.sh` proves both, in CI against
+  a canary and on `phoenix` against the real file. The passphrase is escrowed in
+  `secrets/tofu.sops.yaml` to the estate's two recipients, so `phoenix` wrote
+  that copy and cannot read it. What protects all four on the host is file
+  permissions and the token's scope: `PhoenixBuilder` on named paths, never at
+  `/`. That scope is the sentence to argue with, because whoever holds the
+  token can create and destroy guests.
 - **The alert path's credentials are in SOPS on two hosts, and one of them
   crosses the CA boundary on purpose.** Since
   [#136](https://github.com/Gerrrt/HomeLab/issues/136) Alertmanager delivers to

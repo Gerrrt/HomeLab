@@ -1,4 +1,4 @@
-# ADR-0076: Configure the lab domain with Ansible from phoenix
+# ADR-0077: Configure the lab domain with Ansible from phoenix
 
 **Status:** Accepted · 2026-10 · amends decision 6 of
 [ADR-0074](0074-build-the-lab-templates-with-packer-from-phoenix.md) (the way
@@ -13,8 +13,10 @@ ADR-0029's six guests by hand, in eleven sections and about a day. It has to be
 repeated after each 180-day licence runs out on the two evaluation DCs
 (ADR-0029's 2026-10-01 note), and after any snapshot revert that loses
 something. [#440](https://github.com/Gerrrt/HomeLab/issues/440) makes the
-templates, [#445](https://github.com/Gerrrt/HomeLab/issues/445) will make the
-machines, and [#448](https://github.com/Gerrrt/HomeLab/issues/448) asks for the
+templates, [#445](https://github.com/Gerrrt/HomeLab/issues/445)'s `tofu/`
+makes machines from them
+([ADR-0076](0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)),
+and [#448](https://github.com/Gerrrt/HomeLab/issues/448) asks for the
 configuration to be code too.
 
 Four facts constrain how.
@@ -119,10 +121,12 @@ repair. [#449](https://github.com/Gerrrt/HomeLab/issues/449) adds the tiers,
 users and deliberate weaknesses as further tags on the same playbook, and that
 is where they belong. They are not in this ADR's roles.
 
-**6. #445 must pin each guest's MAC address, and `morpheus` holds a reservation
-for all six.** The four members are on DHCP reservations already (ADR-0029). A
-rebuilt guest with a new MAC would come up in the pool, where Ansible's
-inventory cannot find it.
+**6. When the six come under `tofu/`, each one's MAC address is pinned there,
+and `morpheus` holds a reservation for all six.** ADR-0076 decision 7 leaves
+the six hand-managed and leaves bringing them in to #448. The guest module it
+shipped takes no MAC yet, so adding one is part of that step. The four members
+are on DHCP reservations already (ADR-0029). A rebuilt guest with a new MAC
+would come up in the pool, where Ansible's inventory cannot find it.
 
 The two DCs also get reservations, at their static addresses. A fresh clone
 first boots on DHCP, and `base` then makes the same address static. That keeps
@@ -134,10 +138,13 @@ step.
 - **The runbook becomes the explanation, and the playbook becomes the
   procedure.** `build-the-lab-domain.md` keeps §0's decisions and the
   do-not-harden list, and its build sections become `ansible-playbook` calls.
-- **The rebuild is the proof, and it waits for #445.** The playbooks are proved
-  idempotent against the hand-built six first: a second run reports nothing
-  changed. #448 closes on `tofu destroy`, a rebuild, and `verify.yml` passing,
-  because a first build only proves the playbooks ran once.
+- **The rebuild is the proof, and it waits for the six to be in `tofu/`.** The
+  playbooks are proved idempotent against the hand-built six first: a second
+  run reports nothing changed. #448 closes on `tofu destroy`, a rebuild, and
+  `verify.yml` passing, because a first build only proves the playbooks ran
+  once. Before that can run, the six have to be declared in `tofu/guests.tf`
+  with pinned MACs (decision 6), and #440's first template build has to
+  happen.
 - **"The same tiers" in #448's verification means ADR-0029's machine tiers.**
   The DCs are Tier 0, the member servers Tier 1 and the endpoints Tier 2, and
   `verify.yml` asserts each guest's actual domain role against its inventory

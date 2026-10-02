@@ -4,7 +4,7 @@ rem
 rem Closes what bootstrap.ps1 opened for the build: the HTTP Basic WinRM
 rem listener, its firewall rule, and the service. Then starts the one way in a
 rem clone keeps: OpenSSH, key-only, admitting phoenix alone, which openssh.ps1
-rem installed disabled in the template (ADR-0076). Its first start here is what
+rem installed disabled in the template (ADR-0077). Its first start here is what
 rem generates this clone's own host keys.
 rem
 rem CRLF line endings are not required here; cmd.exe reads LF files.

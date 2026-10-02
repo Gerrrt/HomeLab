@@ -68,7 +68,7 @@ docstring gives: it is a record, not a claim about now.
 - **The lab domain's configuration is written as Ansible, and the templates
   carry the way in**
   ([#448](https://github.com/Gerrrt/HomeLab/issues/448),
-  [ADR-0076](adr/0076-configure-the-lab-domain-with-ansible-from-phoenix.md)).
+  [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)).
   - **What.** `ansible/` applies `build-the-lab-domain.md` §2–§4 and §7 from
     `phoenix`: names, the DCs' static addresses, resolvers, the forest, the
     forwarder with no root hints, the clock (asserted before anything joins),
@@ -89,9 +89,49 @@ docstring gives: it is a record, not a claim about now.
     the `production` profile, and both playbooks pass `--syntax-check`.
     Nothing has run against a guest yet. Next is the runbook's one-time
     `sshd` step on the hand-built six, a run, and a second run that must
-    report `changed=0`. #448 closes after #445 exists, on `tofu destroy`, a
-    rebuild, and `verify.yml` passing.
+    report `changed=0`. #448 closes once the six are declared in `tofu/`, on
+    `tofu destroy`, a rebuild, and `verify.yml` passing.
 
+- **OpenTofu is written, and its state is encrypted before anything has been
+  applied**
+  ([#445](https://github.com/Gerrrt/HomeLab/issues/445),
+  [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
+  - **Why OpenTofu.** A Terraform state holds every value a provider touched,
+    in cleartext. OpenTofu encrypts it. `tofu/encryption.tf` uses a `pbkdf2`
+    passphrase from `phoenix.env` and sets `enforced = true` on state and
+    plan, so a plaintext write is refused rather than made.
+  - **Why a passphrase and not age.** OpenTofu has no age key provider, and
+    ADR-0043 keeps age keys off `phoenix`. The passphrase is escrowed in
+    `secrets/tofu.sops.yaml` to the estate's two recipients, which `phoenix`
+    can write to and not read.
+  - **The guards, before the first apply.**
+    - `.gitignore` ignores state, plans and `.terraform/`.
+    - `check-tracked-artefacts.sh` asserts the same patterns are untracked,
+      and gains the `--self-test` it never had.
+    - `.gitleaks.toml` gains `tfstate-plaintext`, which matches plaintext
+      state by content under any name and is silent on the encrypted wrapper.
+    - `docs/security.md` records `phoenix`'s four secrets.
+  - **Proved so far, in CI and locally with tofu 1.13.1.**
+    `check-tofu-state-encryption.sh --self-test` copies the real
+    `encryption.tf` next to a `terraform_data` canary and shows:
+    - the canary is absent from the state;
+    - the plan is ciphertext;
+    - a wrong passphrase cannot read the state;
+    - `enforced` refuses an unencrypted method at `init`.
+
+    It also shows that without the file the canary is present and the
+    gitleaks rule matches, so the grep can fail. The `.gitignore` refuses the
+    state, and `git add -f` turns `check-tracked-artefacts.sh` red.
+
+    Deleting `enforced = true`, the `state` block, or the `.gitignore` lines
+    each turns that suite red, and dropping the new patterns turns the other
+    one red. That was checked by hand on copies.
+  - **Still open.** The first apply waits for template 901's first build
+    (#440). It is the proof guest, 998. Its cloud-init password must not occur
+    in the real state, the state must be refused by `git add`, and the guest
+    and its pool must be destroyed. The record goes in
+    `provision-lab-guests.md` §6. The six hand-built domain guests stay out of
+    this tree until #448.
 - **`SmartDriveUnsafeShutdownsGrowing` subtracts the host's own clean stops**
   ([#746](https://github.com/Gerrrt/HomeLab/issues/746), corrects the premise
   of [#574](https://github.com/Gerrrt/HomeLab/issues/574) and

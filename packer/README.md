@@ -37,7 +37,7 @@ scripts/packer-smoke.sh 912
 - `windows/scripts/openssh.ps1`: installs the OpenSSH server, disabled and
   key-only, with `phoenix`'s key and a firewall rule admitting `phoenix`
   alone. It is how [`ansible/`](../ansible/README.md) reaches a clone
-  ([ADR-0076]).
+  ([ADR-0077]).
 - `windows/scripts/SetupComplete.cmd`: runs once on each clone, closes
   that WinRM again, and starts `sshd`, which generates the clone's own host
   keys.
@@ -62,6 +62,6 @@ scripts/packer-smoke.sh 912
   passed against a real build.
 
 [ADR-0074]: ../docs/adr/0074-build-the-lab-templates-with-packer-from-phoenix.md
-[ADR-0076]: ../docs/adr/0076-configure-the-lab-domain-with-ansible-from-phoenix.md
+[ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
 [runbook]: ../docs/runbooks/build-the-lab-templates.md
 [#448]: https://github.com/Gerrrt/HomeLab/issues/448
