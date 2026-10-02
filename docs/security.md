@@ -49,8 +49,9 @@ photographs, **and the deferral was re-accepted again**
 ([ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)):
 no identity provider, and Immich named as the residual that matters. The third
 trigger keeps its full force, and so does the second for anything on the tier.
-The floor is per-application TOTP, enrolled on Vaultwarden, Paperless-ngx and
-Home Assistant since 2026-10-02, and it does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
+The floor is per-application TOTP. It is enrolled on Home Assistant
+(2026-09-28), Stirling-PDF (2026-09-29), and Vaultwarden and Paperless-ngx
+(reported 2026-10-02). It does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
 can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
 Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
 points at OAuth, and AdGuard has one password-only admin account. For those

@@ -27,11 +27,13 @@ docstring gives: it is a record, not a claim about now.
   provider is stood up.
   - **The TOTP floor.** The operator reported TOTP enrolled on Vaultwarden
     and Paperless-ngx on 2026-10-02, and neither enrolment had been recorded
-    until now. With Home Assistant's owner (2026-09-28) that is all three
-    services that can carry a factor.
+    until now. Home Assistant's owner (2026-09-28) and Stirling-PDF's admin
+    (2026-09-29) were already enrolled. That is all four services on the tier
+    that can carry a factor.
   - **Triggers 2 and 3, read the same day.** The WireGuard path reaches the
     lab only, and the tier's accounts belong to the same two people.
-    ADR-0073's household holder has a key and no login.
+    The only key for the off-estate copy is the technical second's, and it
+    is not a login. ADR-0073's household holder is not chosen yet (#455).
   - **The tracker.** #404's body still had steps 0–8 unticked. The repo had
     recorded each of them by 2026-09-28 (#674, #686–#700), and the issue now
     says so. What keeps it open is §13 items 2, 3 and 5: the second age

@@ -623,8 +623,8 @@ written in a document that already exists. The gate was passed with most of it
 open: Immich's first real photographs arrived on 2026-09-28, and the stack
 README's warning records it. Items 1 and 4 are done, and item 3 has an interim
 stand-in, ADR-0064's copy to `oracle`, which does not close it. ADR-0022's
-TOTP floor is met: Home Assistant's owner since 2026-09-28, Vaultwarden and
-Paperless-ngx by 2026-10-02.
+TOTP floor is met: Home Assistant's owner since 2026-09-28, Stirling-PDF's
+admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
 
 1. **The Immich restore rehearsal.** Upstream's database-before-first-start
    order, as the stack README's Immich section describes. Done on 2026-09-28

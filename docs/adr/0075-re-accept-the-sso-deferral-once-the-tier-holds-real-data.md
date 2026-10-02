@@ -31,15 +31,21 @@ The other two triggers were read on the same date:
   `10.0.99.40` is reachable from it, so the firing ADR-0022 already records
   against ADR-0042 is still about the lab's Grafana and nothing on the tier.
 - **Trigger 3 has not fired.** The tier's accounts belong to the two people
-  ADR-0008 counts. [ADR-0073](0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)'s
-  household holder holds an age key for the off-estate copy, and no login on
-  any service.
+  ADR-0008 counts. The only key held for the off-estate copy is the
+  technical second's (ADR-0024), which is a key and not a login.
+  [ADR-0073](0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)'s
+  household holder is not chosen yet (#455), and no household key exists.
+  When one is chosen, that role is a key too. A login for them on any
+  service would be trigger 3.
 
 ADR-0022 also set a floor the deferral rests on. Each of its three items is met:
 
-- **TOTP is enrolled on the three services that can carry it.** Home
-  Assistant's owner account was enrolled at its acceptance on 2026-09-28. The
-  operator reported Vaultwarden and Paperless-ngx enrolled on 2026-10-02.
+- **TOTP is enrolled on every service on the tier that can carry it.**
+  - Home Assistant's owner account, at its acceptance on 2026-09-28.
+  - Stirling-PDF's admin, at first login on 2026-09-29
+    ([ADR-0063](0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
+  - Vaultwarden and Paperless-ngx, which the operator reported enrolled on
+    2026-10-02.
 - **The services that cannot carry a factor are named in `security.md`.**
   Immich and AdGuard Home were named there first. Miniflux, Memos, Mealie,
   linkding and Actual joined them, each by its own ADR.
@@ -57,7 +63,8 @@ rather than as planned:
 - **Two users, and no external exposure.** Both still hold, as read above.
 - **The things most worth a second factor have one.** Vaultwarden holds the
   household's credentials, Paperless-ngx its documents, and Home Assistant
-  the device tokens in its `.storage`. All three now ask for TOTP.
+  the device tokens in its `.storage`. All three now ask for TOTP, as does
+  Stirling-PDF.
 - **An identity provider's cost has not moved.** It puts one container in the
   login path of every service, and its failure is a house-wide login outage
   that looks like everything breaking at once. ADR-0022's consequences named
@@ -90,9 +97,11 @@ one:
 
 **Stand up Authelia or Authentik in front of the tier now.** Rejected for the
 cost above. ADR-0022 observed that the change is cheapest on an empty box.
-The box is no longer empty, but the change is still a Caddy `forward_auth`
-block and one container. That is not a migration yet. The cost that decides
-it is the login outage, not the effort.
+The box is no longer empty, and ADR-0022 is right that the change is now a
+migration: accounts linked to the provider, factors re-enrolled, and an
+outage for the household while that happens. That cost grows with every
+account and is accepted knowingly. The cost that decides it is still the
+standing login outage, not the one-off effort.
 
 **Put an identity provider in front of Immich alone.** Rejected. Immich's
 route is OAuth, so the provider sits in Immich's login path and has to be
@@ -116,7 +125,8 @@ wait. Access to the data and its recovery are separate questions
   and Actual is a standing property until an identity provider exists, as it
   already is for Grafana.
 - **TOTP enrolment becomes part of rebuilding a service.** A restore that
-  recreates Vaultwarden's, Paperless-ngx's or Home Assistant's accounts from
+  recreates Vaultwarden's, Paperless-ngx's, Home Assistant's or
+  Stirling-PDF's accounts from
   scratch, rather than from their volumes, has to re-enrol before the service
   counts as restored.
 - **[#404](https://github.com/Gerrrt/HomeLab/issues/404)'s §13 item 4 is
