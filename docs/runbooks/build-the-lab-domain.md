@@ -532,8 +532,8 @@ into something a deviation can stand out against.
 
 **As built on 2026-10-02**, with three things this section did not say:
 
-- **The user is `AD\authgen`**, in the default `CN=Users` container and in no
-  group. It is the domain's only ordinary user until
+- **The user is `AD\authgen`**, in the default `CN=Users` container, a
+  member of `Domain Users` (its primary group) and nothing else. It is the domain's only ordinary user until
   [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s population arrives,
   which waits on this domain, so this one was made by hand to break the wait.
   Its password is kept nowhere: if it is lost, reset it and register the task

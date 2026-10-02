@@ -26,7 +26,7 @@ docstring gives: it is a record, not a claim about now.
   - **§6, the authentication generator.** It needed one ordinary domain user,
     and [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s population
     waits on this issue. So one was made by hand: `AD\authgen`, in `CN=Users`,
-    in no group, with its password kept nowhere. A `Lab-AuthGenerator` task on
+    a member of `Domain Users` only, with its password kept nowhere. A `Lab-AuthGenerator` task on
     `carbuncle` and `siren` runs §6's block every fifteen minutes. #449 folds
     the user into its population rather than deleting it.
   - **Two things the runbook did not say, both found by running it.**
@@ -85,7 +85,6 @@ docstring gives: it is a record, not a claim about now.
     build: `template 901 is usable`.
   - **Not yet built:** Server 2025 (912) and Windows 11 (911). They have the
     same boot order, untested.
-||||||| parent of 416dba2 (docs: the lab domain's authentication generator runs, and Hicks's view is read (#414))
 - **[#533](https://github.com/Gerrrt/HomeLab/issues/533): `trinity` converges
   its own stack, authored to start report-only.** The tier holding the
   household's real data was the one tier deployed by hand: a `git pull` and
