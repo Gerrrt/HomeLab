@@ -463,6 +463,16 @@ Where things get broken on purpose.
   addresses are DHCP reservations, read from `morpheus`'s `config.xml` on
   2026-09-26, and not statics. They run per session, so an absence from the
   segment is normal.
+- **DNS on this segment has two answers, by decision.** The six domain members
+  resolve at the two DCs, `bahamut` and `leviathan`, which are authoritative
+  for `ad.matrix.elysium` and forward everything else to `10.0.30.1`.
+  Everything else on the segment (`alexander`, `odin`, `phoenix`, `fenrir`,
+  `Saruman`) still resolves at the gateway, as ADR-0010 has it. There is **no
+  domain override for the AD zone on Unbound**, and that is deliberate
+  ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
+  An override would put a nameserver on the attackers' segment into the house
+  resolver's path. So an AD name that resolves from `alexander` is a design
+  regression, not a fix.
 - `10.0.30.61` and VMID 161 are reserved for `diabolos`, the disposable
   investigation guest of
   [ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)

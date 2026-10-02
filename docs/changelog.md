@@ -19,6 +19,45 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-02
 
+- **[#414](https://github.com/Gerrrt/HomeLab/issues/414): the lab domain's last
+  three sections are done, and the build issue closes.** The six guests were
+  built by hand on 2026-09-24 and 25. What was left was
+  `build-the-lab-domain.md` §6, §10 and §11.
+  - **§6, the authentication generator.** It needed one ordinary domain user,
+    and [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s population
+    waits on this issue. So one was made by hand: `AD\authgen`, in `CN=Users`,
+    a member of `Domain Users` only, with its password kept nowhere. A `Lab-AuthGenerator` task on
+    `carbuncle` and `siren` runs §6's block every fifteen minutes. #449 folds
+    the user into its population rather than deleting it.
+  - **Two things the runbook did not say, both found by running it.**
+    - `titan` had *Audit File Share* off, so the 5140 the section promised
+      could never appear. A `Lab - Audit File Share` GPO on `OU=Servers` now
+      sets it. Its `audit.csv` first went in as one fused line from a console
+      paste, and the extension reported success while applying nothing.
+    - Windows 11 did not give `authgen` *Log on as a batch job* when the task
+      was registered with a password, so every run failed with `0x80070569`.
+      The right is now granted locally on both endpoints.
+    - The runbook's `\\titan\share` was also wrong: the share is `Public`.
+  - **Verified, not assumed.** Both tasks read `LastTaskResult 0`. In the
+    twenty minutes after the 08:12 and 08:14 runs, `leviathan` logged 4768,
+    4769 and 4624 for `authgen`, and `titan` logged 5140 on `\\*\Public`
+    from `10.0.30.54`. All of it was read with `qm guest exec` from `Saruman`.
+  - **§10, from a Hicks laptop.** An `nmap -sT` of the six found:
+    - the DCs open on the domain ports and `5985`;
+    - `titan` open on `135`, `445` and `5985`;
+    - `ramuh` open on `5985` only;
+    - the endpoints open on `135` only;
+    - `3389` and `9182` filtered everywhere.
+
+    The runbook's old list had RDP on all six, which was wrong: it is off as
+    Windows ships it. It also left out WinRM. The table in §10 replaces it.
+  - **§11.**
+    - The rearm count, read with `slmgr /dlv` on 2026-10-01, is **1** on all
+      four servers, with 173–174 days left (around 2027-03-23).
+    - `network.md` gains the DNS paragraph: no Unbound override, by decision.
+    - `security.md` gains the `9182` residual.
+    - The roadmap entry leaves.
+
 - **Template 901 is built twice, and the second build is usable**
   ([#440](https://github.com/Gerrrt/HomeLab/issues/440)). This follows the
   2026-10-01 entry *The lab's VM templates are written for Packer, and not
