@@ -50,6 +50,13 @@ locals {
   unattend_oobe = templatefile("${abspath(path.root)}/windows/unattend-oobe.xml.pkrtpl", {
     build_password = var.build_password
   })
+
+  # Each source's VMID, for wait-for-sysprep.sh, which runs on phoenix and asks
+  # the API about the guest by number. Must match vm_id in the sources below.
+  vmids = {
+    "win11-pro"   = 911
+    "ws2025-eval" = 912
+  }
 }
 
 source "proxmox-iso" "win11-pro" {
@@ -264,11 +271,26 @@ build {
     ]
   }
 
-  # Last. /quit rather than /shutdown: the builder shuts the guest down through
-  # the agent and converts it, and a sysprep that powered off first would race
-  # that. A generalised image must not boot again before it is a template, and
-  # nothing here boots it.
+  # Last on the guest. Starts sysprep as a scheduled task with /shutdown and
+  # returns, because generalising uninstalls the network adapter and Windows
+  # then kills everything this WinRM session started, sysprep included
+  # (2026-10-02, twice). skip_clean because the provisioner's own cleanup is
+  # one more WinRM upload, and the network may already be going.
   provisioner "powershell" {
-    script = "${abspath(path.root)}/windows/scripts/sysprep.ps1"
+    script     = "${abspath(path.root)}/windows/scripts/sysprep.ps1"
+    skip_clean = true
+  }
+
+  # Then, on phoenix: wait through the API for the guest to power itself off,
+  # which is sysprep saying it has finished. The builder converts it after.
+  provisioner "shell-local" {
+    script = "${abspath(path.root)}/windows/scripts/wait-for-sysprep.sh"
+    environment_vars = [
+      "PROXMOX_URL=${var.proxmox_url}",
+      "PROXMOX_TOKEN_ID=${var.proxmox_token_id}",
+      "PROXMOX_TOKEN_SECRET=${var.proxmox_token_secret}",
+      "NODE=${var.node}",
+      "VMID=${local.vmids[source.name]}",
+    ]
   }
 }
