@@ -621,8 +621,10 @@ make backup-library ARGS=--prove
 These five are the gate on the data, not on the containers, and each is
 written in a document that already exists. The gate was passed with most of it
 open: Immich's first real photographs arrived on 2026-09-28, and the stack
-README's warning records it. Item 1 is done, and item 3 has an interim
-stand-in, ADR-0064's copy to `oracle`, which does not close it.
+README's warning records it. Items 1 and 4 are done, and item 3 has an interim
+stand-in, ADR-0064's copy to `oracle`, which does not close it. ADR-0022's
+TOTP floor is met: Home Assistant's owner since 2026-09-28, Vaultwarden and
+Paperless-ngx by 2026-10-02.
 
 1. **The Immich restore rehearsal.** Upstream's database-before-first-start
    order, as the stack README's Immich section describes. Done on 2026-09-28
@@ -639,7 +641,8 @@ stand-in, ADR-0064's copy to `oracle`, which does not close it.
    [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)). This covers
    the library disk as well as the volume sets.
 4. **ADR-0022's decision recorded.** Either an identity provider, or the
-   deferral re-accepted with reasons.
+   deferral re-accepted with reasons. Done on 2026-10-02: re-accepted, by
+   [ADR-0075](../adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md).
 5. **ADR-0023's *Independent* test.** The household's own credentials open
    from the other person's device, without the operator present.
 

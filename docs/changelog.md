@@ -17,6 +17,30 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-02
+
+- **[#404](https://github.com/Gerrrt/HomeLab/issues/404): ADR-0022's decision
+  is recorded, and the tracker caught up with the host.** ADR-0022's first
+  trigger fired on 2026-09-28 with Immich's first photographs.
+  [ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)
+  answers it four days late: the deferral is re-accepted, and no identity
+  provider is stood up.
+  - **The TOTP floor.** The operator reported TOTP enrolled on Vaultwarden
+    and Paperless-ngx on 2026-10-02, and neither enrolment had been recorded
+    until now. With Home Assistant's owner (2026-09-28) that is all three
+    services that can carry a factor.
+  - **Triggers 2 and 3, read the same day.** The WireGuard path reaches the
+    lab only, and the tier's accounts belong to the same two people.
+    ADR-0073's household holder has a key and no login.
+  - **The tracker.** #404's body still had steps 0–8 unticked. The repo had
+    recorded each of them by 2026-09-28 (#674, #686–#700), and the issue now
+    says so. What keeps it open is §13 items 2, 3 and 5: the second age
+    recipient, the copy of record (#455), and ADR-0023's *Independent* proof.
+  - **Stale text corrected:** `hardware.md`'s "enters the Compute table when
+    #404 builds it", `.sops.yaml`'s "fills the placeholder in", the stack
+    README's Mealie row ("not yet deployed"), and `security.md`'s "it is
+    unbuilt".
+
 ## 2026-10-01
 
 - **The ISO store is checked daily, and Packer builds from it**

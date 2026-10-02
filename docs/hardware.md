@@ -143,9 +143,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   notice puts the drop-off at 15:05 local on the 14th; the commit that recorded
   it was written that evening and dated by UTC, which had already turned over.
   The opening date is a separate reading and stands.
-  It enters the Compute table when
-  [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
-  firewall restore has been rehearsed on it. It ships with the onboard NIC
+  It entered the Compute table when
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404) built it on 2026-09-28,
+  after the firewall restore was rehearsed on it on 2026-09-27. It ships with the onboard NIC
   only; the I226 card the restore depends on was a separate purchase, made
   2026-09-11 and the entry below — fitted 2026-09-25 for the rehearsal, and
   **still fitted**. #686 recorded it as taken out afterwards and back in the
