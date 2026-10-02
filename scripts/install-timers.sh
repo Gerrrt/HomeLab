@@ -169,7 +169,7 @@ JOBS=(
   "offsite-copy      -                          7776000  backup-offsite"
 )
 
-# trinity's schedule (#404 step 9). Two rows: the nightly backup of the
+# trinity's schedule (#404 step 9). Two backup rows: the nightly backup of the
 # sensitive tier's volumes, which also copies each set to oracle (#535), and
 # the nightly copy of Immich's library, which no volume set can hold
 # (ADR-0064). Two days each, twice the daily period, for the same reason as
@@ -177,7 +177,9 @@ JOBS=(
 # (ADR-0073): household-copy, ninety days like offsite-copy, because a drive at
 # the holder's address is visited, not scheduled; and household-proof, a year,
 # because the holder's own proof rides ADR-0011's annual drill. Both are read
-# by HouseholdCopyStale, not ScheduledJobStale. The job name is
+# by HouseholdCopyStale, not ScheduledJobStale. And the hourly convergence of
+# the tier onto main (#533), three hours for the reason the estate's converge
+# row gives. converge-sensitive, not converge: the job name is
 # what keeps the alert joins one-to-one across hosts, so it must not reuse a
 # name from JOBS — check 8 below asserts that.
 #
@@ -189,6 +191,7 @@ SENSITIVE_PLACEHOLDER="@DEPLOY_ROOT@"
 SENSITIVE_JOBS=(
   "backup-sensitive  homelab-backup-sensitive    172800  backup"
   "backup-library    homelab-backup-library      172800  backup-library"
+  "converge-sensitive homelab-converge-sensitive 10800  converge"
   "household-copy    -                          7776000  household-copy"
   "household-proof   -                         31536000  household-proof"
 )
@@ -664,6 +667,7 @@ printf '\n'
 green "installed — systemctl list-timers 'homelab-*'"
 if [[ "${PROFILE}" == sensitive ]]; then
   info "backup-library was primed: it stops nothing, and oracle now holds a set"
+  info "converge-sensitive was primed: it applied nothing if HOMELAB_CONVERGE_APPLY=0 was set first"
   info "backup-sensitive was NOT primed: it stops the tier. Run it when you can watch:"
   info "  sudo systemctl start homelab-backup-sensitive.service"
   exit 0

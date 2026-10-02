@@ -17,7 +17,187 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-02
+
+- **[#533](https://github.com/Gerrrt/HomeLab/issues/533): `trinity` converges
+  its own stack, authored to start report-only.** The tier holding the
+  household's real data was the one tier deployed by hand: a `git pull` and
+  `make up STACK=sensitive` from a shell on `trinity`, and a Dependabot bump
+  that merged did not land until someone typed them.
+  - **The decision.** The same mechanism as `prometheus`, not a stricter one:
+    `scripts/converge.sh` takes `--stack`, and for `sensitive` it converges the
+    running user's `~/code/Gerrrt/HomeLab`, under
+    `homelab-converge-sensitive` from `install-timers.sh`'s sensitive profile.
+    The rollout is the stricter part. It installs with
+    `HOMELAB_CONVERGE_APPLY=0`, as the monitoring host's did, and
+    `converge-the-host.md` §On trinity has the step that lets it act.
+    ADR-0021 carries a note saying a second host now pulls.
+  - **SOPS.** No new key. The `sensitive` rule's recipient is already
+    `trinity`'s own, so the unit only points `SOPS_AGE_KEY_FILE` at it.
+  - **What checks it.** `make validate` on `trinity` now fails unless the
+    converge timer is installed beside the backup. `DeployRecordMissing` is
+    new: with two hosts writing `homelab-deploy.prom`, `DeployMetricsAbsent`
+    could not see one of them go missing. The deploy alerts' descriptions now
+    name the host and both units instead of `robo`'s checkout.
+  - **Not yet true.** None of this is on `trinity` until the runbook's steps
+    run there, and the issue's "lands without a shell" waits for the
+    report-only line to come out.
+
+- **[#132](https://github.com/Gerrrt/HomeLab/issues/132): `security.md`
+  stops saying the sensitive tier holds no data.** Two present-tense lines
+  were false. The threat table said "data, not yet", and the ADR-0023
+  paragraph said none of the household recovery path was built. Immich has
+  held 615 real photographs since 2026-09-28, and the off-estate copy has
+  been built and rehearsed onto the drive since 2026-10-01. Both lines now
+  say that, and say that there is no copy of record until a household holder
+  exists. Immich's restore was rehearsed on 2026-09-28 and 2026-09-29, so
+  #132's last gate is #455's holder and proof.
+- **[#404](https://github.com/Gerrrt/HomeLab/issues/404): ADR-0022's decision
+  is recorded, and the tracker caught up with the host.** ADR-0022's first
+  trigger fired on 2026-09-28 with Immich's first photographs.
+  [ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)
+  answers it four days late: the deferral is re-accepted, and no identity
+  provider is stood up.
+  - **The TOTP floor.** The operator reported TOTP enrolled on Vaultwarden
+    and Paperless-ngx on 2026-10-02, and neither enrolment had been recorded
+    until now. Home Assistant's owner (2026-09-28) and Stirling-PDF's admin
+    (2026-09-29) were already enrolled. That is all four services on the tier
+    that can carry a factor.
+  - **Triggers 2 and 3, read the same day.** The WireGuard path reaches the
+    lab only, and the tier's accounts belong to the same two people.
+    The only key for the off-estate copy is the technical second's, and it
+    is not a login. ADR-0073's household holder is not chosen yet (#455).
+  - **The tracker.** #404's body still had steps 0–8 unticked. The repo had
+    recorded each of them by 2026-09-28 (#674, #686–#700), and the issue now
+    says so. What keeps it open is §13 items 2, 3 and 5: the second age
+    recipient, the copy of record (#455), and ADR-0023's *Independent* proof.
+  - **Stale text corrected:** `hardware.md`'s "enters the Compute table when
+    #404 builds it", `.sops.yaml`'s "fills the placeholder in", the stack
+    README's Mealie row ("not yet deployed"), and `security.md`'s "it is
+    unbuilt".
+
+- **[#145](https://github.com/Gerrrt/HomeLab/issues/145): Memos registration
+  is closed.** This corrects the 2026-09-29 entry's "Still open for Memos". The
+  first account was registered at `https://memos.matrix.elysium` and is the
+  admin. As that admin, *disallow user registration* was set in the instance's
+  general settings. Checked on `trinity` with the stack README's command:
+  `/api/v1/instance/settings/GENERAL` returned
+  `"disallowUserRegistration":true`, and `"disallowPasswordAuth":false`, so
+  the password login still works. Before the change, the same command returned
+  `false`. Memos still holds no real notes until ADR-0023's *Durable*
+  condition is met.
+
 ## 2026-10-01
+
+- **The lab domain's configuration is written as Ansible, and the templates
+  carry the way in**
+  ([#448](https://github.com/Gerrrt/HomeLab/issues/448),
+  [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)).
+  - **What.** `ansible/` applies `build-the-lab-domain.md` §2–§4 and §7 from
+    `phoenix`: names, the DCs' static addresses, resolvers, the forest, the
+    forwarder with no root hints, the clock (asserted before anything joins),
+    the second DC, the joins, `windows_exporter` and the licence gauge. There
+    is one tag per stage. `verify.yml` is the runbook's §9, and it asserts
+    by name that each "Do not harden this domain" item is still shipped. The
+    tiers, users and weaknesses are left for #449.
+  - **The way in.** #448 assumed #440's Autounattend enables OpenSSH, and it
+    does not: a clone had no remote access at all. `openssh.ps1` now installs
+    `sshd` in both Windows templates, disabled, key-only, with `phoenix`'s
+    key and a rule admitting `10.0.30.70` alone. `SetupComplete.cmd` starts
+    it on each clone, which generates the clone's own host keys, and
+    `packer-smoke.sh` proves it by SSHing in.
+  - **Lint.** `scripts/lint.sh` runs `ansible-lint`, including the syntax
+    check, from the version pinned in `ansible/requirements-lint.txt`.
+    Dependabot's new pip entry for `/ansible` bumps it and `ansible-core`.
+  - **Proved so far.** Only that it parses and lints: `ansible-lint` passes
+    the `production` profile, and both playbooks pass `--syntax-check`.
+    Nothing has run against a guest yet. Next is the runbook's one-time
+    `sshd` step on the hand-built six, a run, and a second run that must
+    report `changed=0`. #448 closes once the six are declared in `tofu/`, on
+    `tofu destroy`, a rebuild, and `verify.yml` passing.
+
+- **OpenTofu is written, and its state is encrypted before anything has been
+  applied**
+  ([#445](https://github.com/Gerrrt/HomeLab/issues/445),
+  [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
+  - **Why OpenTofu.** A Terraform state holds every value a provider touched,
+    in cleartext. OpenTofu encrypts it. `tofu/encryption.tf` uses a `pbkdf2`
+    passphrase from `phoenix.env` and sets `enforced = true` on state and
+    plan, so a plaintext write is refused rather than made.
+  - **Why a passphrase and not age.** OpenTofu has no age key provider, and
+    ADR-0043 keeps age keys off `phoenix`. The passphrase is escrowed in
+    `secrets/tofu.sops.yaml` to the estate's two recipients, which `phoenix`
+    can write to and not read.
+  - **The guards, before the first apply.**
+    - `.gitignore` ignores state, plans and `.terraform/`.
+    - `check-tracked-artefacts.sh` asserts the same patterns are untracked,
+      and gains the `--self-test` it never had.
+    - `.gitleaks.toml` gains `tfstate-plaintext`, which matches plaintext
+      state by content under any name and is silent on the encrypted wrapper.
+    - `docs/security.md` records `phoenix`'s four secrets.
+  - **Proved so far, in CI and locally with tofu 1.13.1.**
+    `check-tofu-state-encryption.sh --self-test` copies the real
+    `encryption.tf` next to a `terraform_data` canary and shows:
+    - the canary is absent from the state;
+    - the plan is ciphertext;
+    - a wrong passphrase cannot read the state;
+    - `enforced` refuses an unencrypted method at `init`.
+
+    It also shows that without the file the canary is present and the
+    gitleaks rule matches, so the grep can fail. The `.gitignore` refuses the
+    state, and `git add -f` turns `check-tracked-artefacts.sh` red.
+
+    Deleting `enforced = true`, the `state` block, or the `.gitignore` lines
+    each turns that suite red, and dropping the new patterns turns the other
+    one red. That was checked by hand on copies.
+  - **Still open.** The first apply waits for template 901's first build
+    (#440). It is the proof guest, 998. Its cloud-init password must not occur
+    in the real state, the state must be refused by `git add`, and the guest
+    and its pool must be destroyed. The record goes in
+    `provision-lab-guests.md` §6. The six hand-built domain guests stay out of
+    this tree until #448.
+- **`SmartDriveUnsafeShutdownsGrowing` subtracts the host's own clean stops**
+  ([#746](https://github.com/Gerrrt/HomeLab/issues/746), corrects the premise
+  of [#574](https://github.com/Gerrrt/HomeLab/issues/574) and
+  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)).
+  - **Why.** The S3520 counts a clean stop as unsafe: 522 before a clean
+    *System → Shut Down* on 2026-09-29, 523 after. The rule would have paged
+    after every planned reboot of `smaug`, the UPS halt included.
+  - **What runs.** `scripts/mark-clean-shutdown.sh`, a TrueNAS SHUTDOWN init
+    script, serves `homelab_clean_shutdowns_total{host}`. It runs on the UI's
+    Shut Down and Restart and on the UPS halt, and never on a cut. The
+    collector also runs as a POSTINIT script, so the drive's tick and the
+    clean count move at the same boot (`build-the-nas.md` §6.4 step 7).
+  - **The rule.** It takes the day's unsafe shutdowns per drive, minus the
+    day's clean stops per host. A host with no clean count reads exactly as
+    before. On install day, the missing day-old point counts as zero.
+  - **Tests.** Nine new promtool cases: a planned reboot is quiet; a pulled
+    plug fires; a reboot and a cut on one day fire once; the
+    ten-minute lag is quiet in both orders; a cut on install day fires; and
+    another host's clean stop does not forgive `smaug`'s, whether it is
+    joined by `host` or would wrongly be by `instance` (morpheus); and a
+    clean count that went backwards is clamped to zero, so a reset pages once
+    with the drive's real count. Eight mutations of the rule were run against
+    them.
+  - **Still to do on `smaug`.** Install the two init scripts and prove one
+    planned reboot. The live pulled-plug proof waits for
+    `shut-down-on-the-ups.md` steps 5–7.
+
+- **ADR-0007's umbrella closes: the domain and the SOC are built
+  ([#101](https://github.com/Gerrrt/HomeLab/issues/101)).** The estate is
+  not finished, because PBS is still to build. The umbrella's done-when
+  was [#266](https://github.com/Gerrrt/HomeLab/issues/266) and
+  [#267](https://github.com/Gerrrt/HomeLab/issues/267) closing with the six
+  agents reporting in, met 2026-09-27: six Wazuh agents Active, six
+  Velociraptor clients enrolled. The link after it,
+  [#437](https://github.com/Gerrrt/HomeLab/issues/437) (Zeek on the bridge),
+  closed today. What ADR-0007 named and is not finished already has its own
+  issue: the domain's §6, §10 and §11
+  ([#414](https://github.com/Gerrrt/HomeLab/issues/414)), PBS
+  ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md))
+  and JA4 ([#776](https://github.com/Gerrrt/HomeLab/issues/776)). The
+  umbrella never had a roadmap entry, so none leaves `roadmap.md`.
 
 - **The ISO store is checked daily, and Packer builds from it**
   ([#440](https://github.com/Gerrrt/HomeLab/issues/440),

@@ -190,8 +190,8 @@ x-service-defaults: &service-defaults
 # in containers.rules.yaml is the limit-relative complement these numbers make
 # possible, and it has its own promtool test for the same reason.
 #
-# Not set on renderer, archiver, gitleaks, actionlint, editorconfig-checker or packer:
-# all six sit behind profiles, none runs in a normal deploy, and there is
+# Not set on renderer, archiver, gitleaks, actionlint, editorconfig-checker, packer or
+# tofu: all seven sit behind profiles, none runs in a normal deploy, and there is
 # nothing running to measure. An unmeasured ceiling on a headless Chromium is
 # the guess this block exists to avoid.
 
@@ -1296,6 +1296,25 @@ services:
   packer:
     profiles: ["lint"]
     image: hashicorp/packer:1.16.1@sha256:9fd66d5a4ea0598036e6b50ac6f8c0e72c27746648a5abe480463119e9486ea7
+    command: ["version"]
+
+  # ---------------------------------------------------------------------------
+  # tofu for scripts/lint.sh (`fmt -check`, `validate` over tofu/) and for
+  # scripts/check-tofu-state-encryption.sh --self-test, which writes real
+  # states from tofu/encryption.tf and proves the canary is not in them
+  # (ADR-0076). Behind the `lint` profile like packer, for the same reason. The
+  # real applies run from the binary installed on phoenix
+  # (provision-lab-guests.md §1), which should be this same version.
+  #
+  # tofu/versions.tf requires ~> 1.13.0, so a Dependabot bump past a minor
+  # release turns lint red until that line is moved too. That is deliberate:
+  # the version that encrypts the state is not something to change in passing.
+  #
+  # Its entrypoint IS tofu, so `version` is the harmless no-op.
+  # ---------------------------------------------------------------------------
+  tofu:
+    profiles: ["lint"]
+    image: ghcr.io/opentofu/opentofu:1.13.1@sha256:1df996fca13806a20d5a3d3ad54acdcf76bcb1aa4ac30b5ba169b9e4cecdbcc8
     command: ["version"]
 
 networks:

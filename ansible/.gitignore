@@ -1,0 +1,3 @@
+.collections/
+# ansible-lint --project-dir installs requirements.yml here (scripts/lint.sh).
+.ansible/

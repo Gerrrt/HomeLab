@@ -1,0 +1,42 @@
+---
+# --- How phoenix reaches a guest (ADR-0077 decision 2) ----------------------
+# OpenSSH, key only, as the built-in Administrator. The template installs
+# phoenix's public key into administrators_authorized_keys and SetupComplete.cmd
+# starts sshd on every clone (packer/windows/scripts/). After promotion the
+# same name logs in as AD\Administrator, which is a member of Administrators, so
+# the same key file still applies.
+ansible_connection: ssh
+ansible_shell_type: powershell
+ansible_user: Administrator
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+
+# --- ADR-0029, encoded, not re-decided --------------------------------------
+lab_domain: ad.matrix.elysium
+lab_netbios: AD
+lab_gateway: 10.0.30.1
+lab_prefix_length: 24
+# The DCs sync from the gateway, 0x8 = client mode. Set on the PDC emulator
+# before anything joins; everything else stays on NT5DS (§3, §4).
+lab_ntp_peers: "10.0.30.1,0x8"
+lab_dns_forwarder: 10.0.30.1
+lab_dc_addresses: [10.0.30.50, 10.0.30.51]
+lab_functional_level: WinThreshold
+
+# --- Secrets: from phoenix.env, never from this tree (ADR-0077 decision 3) --
+# The local Administrator before promotion and AD\Administrator after it are
+# the same password: Install-ADDSForest makes bahamut's local Administrator the
+# domain's, so one variable is the truth for both.
+lab_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_ADMIN_PASSWORD') }}"
+lab_dsrm_password: "{{ lookup('ansible.builtin.env', 'LAB_DSRM_PASSWORD') }}"
+
+# --- windows_exporter (§7) ---------------------------------------------------
+# The version is pinned here, with the MSI's sha256 beside it, because the
+# collector list below is only known-good against this release: in 0.31.x `cs`
+# no longer exists and `--collectors.time.enabled` is not a flag, and either one
+# stops the service binding 9182. Re-read the collector names when this moves.
+windows_exporter_version: "0.31.8"
+windows_exporter_sha256: 0aadce6afb20182b678bfca9e8f2e8464ef48c469b28b4cf02e99d82158f5d40
+windows_exporter_collectors: cpu,logical_disk,memory,net,os,service,system,time,textfile
+windows_exporter_textfile_dir: C:\ProgramData\windows_exporter\textfile
+# alexander, the lab Prometheus. The only source the 9182 rule admits.
+windows_exporter_scraper: 10.0.30.40

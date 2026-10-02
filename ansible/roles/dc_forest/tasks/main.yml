@@ -1,0 +1,63 @@
+---
+# bahamut: the forest, its forwarder, and the clock — in that order, and all of
+# it before anything joins (runbook §3). The play order in lab-domain.yml is
+# what enforces "before anything joins"; this role asserts the clock took.
+
+- name: Install AD DS
+  ansible.windows.win_feature:
+    name: AD-Domain-Services
+    include_management_tools: true
+
+- name: Create the forest
+  microsoft.ad.domain:
+    dns_domain_name: "{{ lab_domain }}"
+    domain_netbios_name: "{{ lab_netbios }}"
+    domain_mode: "{{ lab_functional_level }}"
+    forest_mode: "{{ lab_functional_level }}"
+    install_dns: true
+    safe_mode_password: "{{ lab_dsrm_password }}"
+    reboot: true
+  no_log: true
+
+- name: Forward to the gateway, with no root hints
+  ansible.builtin.import_role:
+    name: dns_forwarder
+
+# 0x8 is client mode; /reliable marks the PDC emulator as the domain's time
+# source. Compared against the registry rather than re-run every time, so a
+# second run reports nothing changed — and so that `w32tm /config` never
+# restarts the service under a clock that was already right.
+- name: Sync the PDC emulator's clock from the gateway
+  ansible.windows.win_powershell:
+    script: |
+      param([string]$Peers)
+      $p = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters'
+      $c = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Config'
+      if ($p.NtpServer -eq $Peers -and $p.Type -eq 'NTP' -and $c.AnnounceFlags -eq 5) {
+        $Ansible.Changed = $false
+        return
+      }
+      if ($Ansible.CheckMode) { return }
+      w32tm /config /manualpeerlist:"$Peers" /syncfromflags:manual /reliable:yes /update | Out-Null
+      Restart-Service w32time
+      w32tm /resync /rediscover | Out-Null
+    parameters:
+      Peers: "{{ lab_ntp_peers }}"
+
+# "If it reports Local CMOS Clock, stop and fix it" (§3). A member that joins
+# across a skew fails as a credential problem, so this stops the play here
+# rather than letting the join below fail for a reason nobody will look for.
+- name: Read the clock's source
+  ansible.windows.win_command: w32tm /query /source
+  register: dc_forest_source
+  changed_when: false
+  check_mode: false
+
+- name: Refuse to go on if the PDC emulator is on its own clock
+  ansible.builtin.assert:
+    that: "lab_gateway in dc_forest_source.stdout"
+    fail_msg: >-
+      bahamut reports "{{ dc_forest_source.stdout | trim }}", not {{ lab_gateway }}.
+      Nothing may join until it does — see build-the-lab-domain.md §3 and the
+      fallback to two public sources there.
+  when: not ansible_check_mode

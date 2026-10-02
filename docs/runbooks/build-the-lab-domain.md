@@ -19,6 +19,15 @@ has nothing to hunt on, and
 entire placement argument is that the techniques worth detecting are layer 2 and
 only reach a domain sharing their broadcast domain.
 
+**Since [ADR-0077](../adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
+this page is the explanation, and [`ansible/`](../../ansible/README.md) is the
+procedure.** §2–§4 and §7 are applied by `ansible-playbook lab-domain.yml`
+from `phoenix`, and §9's checks by `ansible-playbook verify.yml`. The commands
+under each section still say *what* the role does and *why*. When the two
+disagree, the role is what runs and this page is what is wrong. See
+[*Run it from `phoenix`*](#run-it-from-phoenix) below
+([#448](https://github.com/Gerrrt/HomeLab/issues/448)).
+
 Closes [#265](https://github.com/Gerrrt/HomeLab/issues/265). The stack that
 watches it is already built and running on `alexander`
 ([#262](https://github.com/Gerrrt/HomeLab/issues/262),
@@ -75,6 +84,98 @@ the reason the time estimate at the top of this page says "a day".
 > saturate the array for minutes, and services time out waiting for their own
 > disk. Build them one at a time; do not install two in parallel to save an
 > hour. It will not save an hour.
+
+## Run it from `phoenix`
+
+Ansible goes on `phoenix` once, into a venv of its own. The versions are the
+ones `ansible/` pins, not whatever the distribution has:
+
+```bash
+sudo apt-get install -y python3-venv
+python3 -m venv ~/.venvs/ansible
+~/.venvs/ansible/bin/pip install -r ~/HomeLab/ansible/requirements.txt
+echo 'export PATH="$HOME/.venvs/ansible/bin:$PATH"' >> ~/.bashrc && . ~/.bashrc
+cd ~/HomeLab/ansible && ansible-galaxy collection install -r requirements.yml -p .collections
+```
+
+After a `git pull` that moves a pin, re-run the `pip install` line if
+`requirements.txt` changed, and the `ansible-galaxy` line if
+`requirements.yml` did. Then add the
+two secrets to the file that already holds the token and the build password
+(ADR-0077 decision 3). For a domain built by hand, `LAB_ADMIN_PASSWORD` is
+AD\Administrator's current password. For a rebuild, generate both:
+
+```bash
+umask 077
+printf 'LAB_ADMIN_PASSWORD=%s\nLAB_DSRM_PASSWORD=%s\n' \
+  "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-20)Aa1!" \
+  "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-20)Aa1!" \
+  >> ~/.config/proxmox/phoenix.env
+```
+
+Then, every time:
+
+```bash
+cd ansible
+set -a; . ~/.config/proxmox/phoenix.env; set +a
+ansible-playbook lab-domain.yml --check --diff
+ansible-playbook lab-domain.yml
+ansible-playbook lab-domain.yml          # again: must report changed=0
+ansible-playbook verify.yml
+```
+
+**`--check` is only a full preview against a domain that already exists.** On
+a fresh rebuild, check mode cannot create the forest, so every later stage
+looks at a DNS server and a domain that are not there and fails. For a first
+build, preview one stage at a time and apply it before previewing the next:
+`--tags base`, then `forest`, then `replica`, `join`, `exporter` and
+`licence`.
+
+| Tag | This page | What it applies |
+| --- | --- | --- |
+| `base` | §2 | Names, the DCs' static addresses, members' resolvers, and the build password rotated to `LAB_ADMIN_PASSWORD` |
+| `forest` | §3 | `bahamut`'s forest, the forwarder, the root hints removed, and the clock from `10.0.30.1`. It stops if the clock reads anything else |
+| `replica` | §4 | `leviathan` promoted and left on NT5DS, then each DC's resolver set to its partner and loopback |
+| `join` | §5, the join only | `titan`, `ramuh`, `carbuncle` and `siren` joined |
+| `exporter` | §7 | `windows_exporter` at the pinned version, and the 9182 rule admitting `alexander` |
+| `licence` | §7 | The weekly gauge on the four servers, and the rearm count printed in the play output |
+
+The tiers, users, SPN account, GPO, shares and authentication generator (§5
+after the join, and §6) are
+[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s. They will arrive as
+further tags on the same playbook. Until then they stay here, done by hand.
+
+**Start the endpoints first.** `carbuncle` and `siren` are `--onboot 0`, so a
+run against stopped endpoints reports them `UNREACHABLE`, not configured.
+
+The run needs these three in place first:
+
+- **`LAB_ADMIN_PASSWORD` and `LAB_DSRM_PASSWORD` in `phoenix.env`**, as
+  above.
+- **A reservation on `morpheus` for all six, by MAC.** That includes the two
+  DCs at `.50` and `.51`. A rebuilt DC first boots on DHCP, and `base` then
+  makes the same address static. The reservations only survive a rebuild if
+  each guest's MAC is pinned when the six are declared in
+  [`tofu/`](../../tofu/README.md). They are not there yet; see ADR-0077
+  decision 6.
+- **A way in.** Every clone of the templates has `sshd`, key-only, admitting
+  `phoenix` alone ([`openssh.ps1`](../../packer/windows/scripts/openssh.ps1)).
+  The six built by hand on 2026-09-24/25 do not. Give each one the same, once,
+  from its console as Administrator. Use the public half of `phoenix`'s key,
+  never the private:
+
+  ```powershell
+  $env:PHOENIX_PUBKEY = '<the contents of ~/.ssh/id_ed25519.pub on phoenix>'
+  $env:PHOENIX_ADDRESS = '10.0.30.70'
+  iwr https://raw.githubusercontent.com/Gerrrt/HomeLab/main/packer/windows/scripts/openssh.ps1 -OutFile $env:TEMP\openssh.ps1
+  powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\openssh.ps1
+  Set-Service sshd -StartupType Automatic; Start-Service sshd
+  ```
+
+  It is the script the templates run, not a copy of it, so a hand-built guest
+  and a clone cannot drift apart. The licence task §7 registered by hand writes
+  the same file the role's `licence-clock` task does. Delete the hand-made one
+  after the first run, so that only one thing owns the file.
 
 ## 1. Create the six VMs
 
@@ -218,6 +319,10 @@ would add host RAM that nothing backs, on either pool.
 
 ## 2. Install, name and address
 
+> **Applied by `--tags base`** ([`roles/base`](../../ansible/roles/base/tasks/main.yml)),
+> except the installer itself, which a template clone replaces, and the
+> reservations on `morpheus`.
+
 Nothing unusual once the driver is loaded. During each installer:
 
 - **Hostnames** exactly as ADR-0029 names them: `bahamut`, `leviathan`, `titan`,
@@ -256,6 +361,12 @@ ImaginationLAN*, mapping each guest's MAC to its address.
 > what keeps ADR-0010's "the DHCP scopes do not change" literally true.
 
 ## 3. Promote `bahamut`, and set the clock before anything joins
+
+> **Applied by `--tags forest`** ([`roles/dc_forest`](../../ansible/roles/dc_forest/tasks/main.yml)).
+> The play order in `lab-domain.yml` is what enforces "before anything
+> joins". The role refuses to continue while `w32tm /query /source` reads
+> anything but `10.0.30.1`. The `ntpq -p` check on `morpheus` below is still
+> yours.
 
 Order matters here, and it is the reverse of the intuitive one.
 
@@ -327,6 +438,10 @@ too. If you find yourself writing a rule, something has been misunderstood.
 
 ## 4. The second domain controller
 
+> **Applied by `--tags replica`** ([`roles/dc_replica`](../../ansible/roles/dc_replica/tasks/main.yml),
+> then [`roles/dc_resolvers`](../../ansible/roles/dc_resolvers/tasks/main.yml)).
+> `verify.yml` runs the replication check below as `dcdiag /test:Replications`.
+
 ```powershell
 # On leviathan, after joining it to the domain.
 Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
@@ -364,6 +479,11 @@ dcdiag /test:Replications
 ```
 
 ## 5. Join the members, and build the tiers
+
+> **The join is applied by `--tags join`** ([`roles/member`](../../ansible/roles/member/tasks/main.yml)).
+> Everything after the first sentence below is
+> [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s, and is done by hand
+> until it lands.
 
 Join `titan`, `ramuh`, `carbuncle` and `siren`. Then build the structure that
 makes an intrusion *legible* — three tiers, one admin account each, five or so
@@ -412,10 +532,22 @@ into something a deviation can stand out against.
 
 It lives here as a code block rather than as a script in the repository, for the
 same reason [`build-the-playground.md`](build-the-playground.md) carries its
-sysctl file inline: nothing in this repository converges these guests, so a
-tracked file would be one that drifts from the machines with nothing to notice.
+sysctl file inline: a tracked file that nothing applies is one that drifts from
+the machines with nothing to notice. `ansible/` now applies §2–§4 and §7, but
+not this. It moves into the playbook with
+[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s users, because it runs
+as one of them.
 
 ## 7. `windows_exporter`, and the licence clock
+
+**Applied by `--tags exporter` and `--tags licence`**
+([`roles/exporter`](../../ansible/roles/exporter/tasks/main.yml),
+[`roles/licence_clock`](../../ansible/roles/licence_clock/tasks/main.yml)).
+The version, its sha256 and the collector list are pinned in
+[`group_vars/all.yaml`](../../ansible/inventory/group_vars/all.yaml), so a
+bump is one edit there. The MSI is installed with `REMOVE=FirewallException`,
+because its own rule admits any address. The rearm count is printed on every
+run.
 
 > [!TIP]
 > **When the clock runs out, the rebuild does not start from §1.**
@@ -524,6 +656,17 @@ outside its own compose network. The argument is in ADR-0029, and it is a
 deliberate reversal of what four files in `stacks/lab` used to say.
 
 ## 9. Verify — including the things that fail quietly
+
+```bash
+cd ansible && ansible-playbook verify.yml     # on phoenix
+```
+
+That answers everything on the guests in one pass: the clock source on each DC,
+the forwarder and root hints, replication, the secure channel, `windows_exporter`
+listening, 9182 admitting `alexander` and nothing else, and every item in the
+checklist at the end of this section. It is read-only, so run it whenever you
+like. It does not see the boundary, the tripwire or Prometheus, which are below
+and still yours.
 
 ```bash
 make validate     # on alexander; checks both stacks and names which is which
@@ -650,4 +793,8 @@ if you forget:
 | `up{job="windows"}` is short by one | The §7 firewall rule, or a collector list that omitted `time` |
 | Everything is slow for minutes after a `Saruman` reboot | Boot storm. The `--startup order=` values in §1 |
 | A relay attempt does nothing against `titan` | Inbound SMB signing is required. §5's check |
+| `ansible-playbook` reports a guest `UNREACHABLE` | An endpoint that is not started (`--onboot 0`), a hand-built guest that never had *Run it from `phoenix`*'s `sshd` step, or a clone whose template predates `openssh.ps1` |
+| `ansible-playbook` asks for a password, or is refused | The key on the guest is not `phoenix`'s, or `administrators_authorized_keys` grants someone besides Administrators and SYSTEM, which makes `sshd` ignore it. Re-run `openssh.ps1` |
+| `verify.yml` fails on "9182 admits 10.0.30.40 and nothing else" | The MSI's own any-address rule, left by a hand install. The role installs with `REMOVE=FirewallException`, but it does not reinstall a version already present. Delete the MSI's rule; the role's `windows_exporter from alexander` stays |
+| `verify.yml` fails on an item from §0's list | Something hardened the domain. Find what, and turn it back. That item is an exercise, not a hole |
 | `Resolve-DnsName` for an AD name works from `alexander` | Somebody added the Unbound domain override. §9's caution — this is a design regression, not a configuration one |

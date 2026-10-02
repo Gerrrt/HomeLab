@@ -69,7 +69,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 7 provisioned dashboards, 141 panels, and
-  137 alert rules — 119 metric-based in Prometheus, 18 log-based in Loki — sharing
+  138 alert rules — 120 metric-based in Prometheus, 18 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -98,8 +98,8 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 74 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 41
+- **Documented decisions and runbooks.** 77 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 42
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first.
 
@@ -195,7 +195,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 .
 ├── stacks/observability/     # the deployed stack — one compose file, nine services
 │   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 119 alert rules
+│   ├── prometheus/           # config, file_sd targets, 120 alert rules
 │   ├── alertmanager/         # routing and inhibition
 │   ├── loki/                 # single-binary config + 18 LogQL rules
 │   ├── alloy/                # the agent config directory, shipped to every host

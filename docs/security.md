@@ -17,12 +17,13 @@ What this network is actually built to survive:
 | A lost or stolen tunnel peer | **Accepted.** A WireGuard peer is a device with a key and no second factor ([ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)); the firewall, not the key, bounds what it reaches — the lab and nothing else — with a `/32` pin on the server and a preshared key per peer. Revocation is a `wg0.conf` edit on `phoenix` ([runbook](runbooks/open-the-remote-path.md#rollback)), proportionate at two or three devices and recorded as the thing that stops being so |
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |
 | An attacker on the lab segment reaching the hypervisor's management plane | **Closed at the host, and watched.** `Saruman`'s Proxmox firewall admits `8006` and `22` from Hicks and `8006` from the deployment host only ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)). It was found disabled and turned on on 2026-09-20 ([#566](https://github.com/Gerrrt/HomeLab/issues/566)); since [#576](https://github.com/Gerrrt/HomeLab/issues/576) `homelab_pve_firewall_enabled` is read every five minutes and `PveFirewallDisabled` pages after ten, so a `pve-firewall stop` left in place is noticed rather than found. `PveFirewallPolicyAccept` does the same for `policy_in` left at `ACCEPT`, which reads as enabled and admits the whole segment |
+| Someone on the lab segment reaching the domain's configuration path | **Scoped, key-only, and accepted for `phoenix` itself.** Each of ADR-0029's six listens on `22` for `ansible/` ([ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)). The rule admits `10.0.30.70` alone, `sshd` refuses passwords, and the only administrators' key is `phoenix`'s, installed by the template and never by hand on a clone. The residual: whoever owns `phoenix` owns the lab domain. That was already true through its Proxmox token, so it adds reach to nothing. Host keys are not pinned, because every rebuild replaces them |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 137 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 138 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below. **What the UPS cannot answer is what happens when the cut outlasts the pack: as of 2026-09-20 nothing shuts down on its signal, and everything on the PDU — `morpheus`, `Saruman`, `neo` and `smaug`, which is in the media room on a long cord from that PDU — stops uncleanly when the pack empties, about 47 minutes in at 21 % load by the card's own unmeasured estimate.** [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides that the firewall's NUT server halts `Saruman` and `smaug` first and itself last, and [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) is the build, the forced-shutdown proof and the one mains pull that measures the pack; until those are done the decision is a configuration nobody has tested ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
-| The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
+| The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet off the estate.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data. That tier has held real photographs since 2026-09-28, and their off-estate copy is built but has no holder yet ([#455](https://github.com/Gerrrt/HomeLab/issues/455)) — see below |
 
 What it explicitly does **not** defend against: a determined attacker with
 physical access to the rack, a supply-chain compromise in an upstream container
@@ -41,11 +42,17 @@ holder — whichever comes first. **The second of those has now fired and the
 deferral was re-accepted**, not ended:
 [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md) opens
 a WireGuard path terminating on the lab, which takes ADR-0008's *no external
-exposure* premise with it. Nothing in the tier became reachable — it is
-unbuilt, and on Winterfell when it is built — but the lab's own Grafana on
+exposure* premise with it. Nothing in the tier became reachable — it is on
+Winterfell, and the tunnel reaches the lab only — but the lab's own Grafana on
 `alexander` did, and that is one of the three below that cannot carry a factor
-at all. The other two triggers keep their full force. Until then the floor is per-application TOTP,
-and it does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
+at all. **The first trigger fired on 2026-09-28**, with Immich's first real
+photographs, **and the deferral was re-accepted again**
+([ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)):
+no identity provider, and Immich named as the residual that matters. The third
+trigger keeps its full force, and so does the second for anything on the tier.
+The floor is per-application TOTP. It is enrolled on Home Assistant
+(2026-09-28), Stirling-PDF (2026-09-29), and Vaultwarden and Paperless-ngx
+(reported 2026-10-02). It does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
 can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
 Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
 points at OAuth, and AdGuard has one password-only admin account. For those
@@ -83,7 +90,13 @@ staleness is visible, off-*estate* rather than off-*host*, because `oracle`
 shares the rack and the power feed; nothing on the break-glass card depends on a
 certificate this estate issues; and nothing physical may be operable only
 through Home Assistant. Those fall due on ADR-0022's triggers — the first real
-credential, photo or document — and none of them is built. **The copy leaving
+credential, photo or document. The photo trigger fell on 2026-09-28, when 615
+photographs reached Immich before the copy existed. The copy is built, and was
+rehearsed onto the household drive on 2026-10-01, but there is no copy of record
+until a household holder's key is in
+[`household.recipients`](../stacks/sensitive/household.recipients)
+([#455](https://github.com/Gerrrt/HomeLab/issues/455),
+[*What backs Immich up*](../stacks/sensitive/README.md#what-backs-immich-up-and-what-does-not-yet)). **The copy leaving
 the house is a new residual**: it is the first household data to sit in someone
 else's building, reduced to an availability problem by encryption at rest with a
 key that never leaves here, and accepted on that basis.
@@ -492,8 +505,10 @@ assumption consistent with what they are.
 
 - Credentials are encrypted with [SOPS](https://github.com/getsops/sops) + age
   and committed in encrypted form. See [`secrets/README.md`](../secrets/README.md).
-- The private key lives at `~/.config/sops/age/keys.txt` on the deployment host
-  and is never in the repository. That host's disk is not encrypted — see
+- The private key lives at `~/.config/sops/age/keys.txt` on `prometheus`, the
+  host that deploys the estate's stacks, and is never in the repository. (ADR-0043
+  calls `phoenix` "the deployment host" too. `phoenix` builds machines, holds no
+  age key, and is covered below.) That host's disk is not encrypted — see
   [below](#everything-above-sits-on-an-unencrypted-disk).
 - That key is the single point of failure for every encrypted secret here, so it
   is copied off the host and the copy is proven to decrypt with
@@ -507,8 +522,30 @@ assumption consistent with what they are.
   the editor cannot persist the plaintext in an undo file, swap file or backup
   that sops does not shred. See [`secrets/README.md`](../secrets/README.md).
 - CI runs `gitleaks` with rules specifically for SNMP communities, inline
-  Grafana passwords, PEM private keys and age secret keys, and separately
-  asserts that every `secrets/*.sops.yaml` is genuinely encrypted.
+  Grafana passwords, PEM private keys, age secret keys and unencrypted
+  OpenTofu state. It separately asserts that every `secrets/*.sops.yaml` is
+  genuinely encrypted, and that no state, plan or `.terraform/` is tracked.
+- **`phoenix` is a secret-bearing host, and holds no age key.** It has four
+  secrets, all mode 600 and owned by its operator:
+  - the Proxmox API token `phoenix@pve!builder`;
+  - the Windows build password, which is also a fresh clone's Administrator
+    password until #448 rotates it;
+  - `tofu/`'s state passphrase, all three in `~/.config/proxmox/phoenix.env`
+    ([ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
+    §4);
+  - the encrypted state itself, `tofu/state/lab.tfstate`
+    ([ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
+
+  The state is the one that would have been quiet. A Terraform state holds
+  every value a provider touched in cleartext, the cloud-init password of every
+  guest among them. OpenTofu encrypts it, `enforced = true` refuses a plaintext
+  write, and `scripts/check-tofu-state-encryption.sh` proves both, in CI against
+  a canary and on `phoenix` against the real file. The passphrase is escrowed in
+  `secrets/tofu.sops.yaml` to the estate's two recipients, so `phoenix` wrote
+  that copy and cannot read it. What protects all four on the host is file
+  permissions and the token's scope: `PhoenixBuilder` on named paths, never at
+  `/`. That scope is the sentence to argue with, because whoever holds the
+  token can create and destroy guests.
 - **The alert path's credentials are in SOPS on two hosts, and one of them
   crosses the CA boundary on purpose.** Since
   [#136](https://github.com/Gerrrt/HomeLab/issues/136) Alertmanager delivers to

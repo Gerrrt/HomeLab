@@ -1,0 +1,38 @@
+---
+# The evaluation clock as a metric, on the four servers only (runbook §7).
+# Activated Windows 11 reports GracePeriodRemaining 0, which would read as "no
+# days left" rather than "not an evaluation"; the inventory's `servers` group
+# is what keeps the endpoints out.
+
+- name: Place the script
+  ansible.windows.win_copy:
+    src: licence-clock.ps1
+    dest: C:\ProgramData\lab\licence-clock.ps1
+  notify: Write the gauge now
+
+- name: Run it weekly, as SYSTEM
+  community.windows.win_scheduled_task:
+    name: licence-clock
+    description: Writes windows_eval_grace_days_remaining for windows_exporter (ansible/roles/licence_clock).
+    actions:
+      - path: powershell.exe
+        arguments: -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\lab\licence-clock.ps1
+    triggers:
+      - type: weekly
+        days_of_week: monday
+        start_boundary: "2026-01-05T06:00:00"
+    username: SYSTEM
+    run_level: highest
+    state: present
+
+# ADR-0029 deliberately wrote no rearm count down, and §11 asks for it. Read it
+# on every run so the number is in the play output whenever someone looks.
+- name: Read the rearm count
+  ansible.windows.win_command: cscript //nologo C:\Windows\System32\slmgr.vbs /dlv
+  register: licence_clock_dlv
+  changed_when: false
+  check_mode: false
+
+- name: Report it
+  ansible.builtin.debug:
+    msg: "{{ licence_clock_dlv.stdout_lines | select('search', '(?i)rearm') | list }}"

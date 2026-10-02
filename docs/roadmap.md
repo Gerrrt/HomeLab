@@ -119,7 +119,10 @@ has been rehearsed on it.
     in the same room
     ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
 
-  [#533](https://github.com/Gerrrt/HomeLab/issues/533) follows the build;
+  [#533](https://github.com/Gerrrt/HomeLab/issues/533)'s converge timer is
+  authored and installs report-only; it closes when `trinity` applies and a
+  Dependabot bump to `stacks/sensitive` lands with nobody at a shell
+  (→ [runbook](runbooks/converge-the-host.md#on-trinity)).
   [#534](https://github.com/Gerrrt/HomeLab/issues/534)'s CI re-check is
   already done (#646).
 - **The nine services**, each authored ahead of the hardware and each open
@@ -229,9 +232,16 @@ Closes on BloodHound running where nothing attacks it.
   [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md);
   first build pending, → [runbook](runbooks/build-the-lab-templates.md); Kali's
   template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
-  [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu →
+  [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (written,
+  [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md),
+  state encrypted and its guards in CI; the first apply and its two proofs wait
+  for #440's first build, → [runbook](runbooks/provision-lab-guests.md)) →
   [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
-  six guests from the pipeline →
+  six guests from the pipeline (written,
+  [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
+  → [`ansible/`](../ansible/README.md); closes on a `tofu destroy` and rebuild,
+  so it waits for the six to be declared in `tofu/` with pinned MACs, and for
+  #440's first build) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
   weaknesses and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
   and Pktmon → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
@@ -274,9 +284,10 @@ none is in the order until one is taken.
 - **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
   [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
   and deployed on `trinity` 2026-09-29, and reachable from Hicks by name the
-  same day. What remains is registration closed at first login, which is
-  open until the admin exists. It holds no real notes until ADR-0023's
-  *Durable* condition is met.
+  same day. The admin registered and closed registration on 2026-10-02.
+  Nothing is left; #145 closes with this. It holds no real notes until
+  ADR-0023's *Durable* condition is met, which is the tier's condition and
+  not this issue's.
 - **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
   `recipes.matrix.elysium`.** Decided by
   [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and

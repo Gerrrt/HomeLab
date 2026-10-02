@@ -17,10 +17,12 @@
 #   Windows  the generalised image finishes OOBE unattended and the guest agent
 #            comes up with an address. The agent is disabled in the template
 #            and started by SetupComplete.cmd as its last act, so an address
-#            from it means first-boot Setup has finished, not merely begun. Its name is sysprep's random one; the
-#            real name is #448's. The SID check needs two clones and a console,
-#            so --keep leaves this one running for it (build-the-lab-templates.md
-#            §7).
+#            from it means first-boot Setup has finished, not merely begun.
+#            Then phoenix's key opens an SSH session as Administrator, which is
+#            how ansible/ reaches every guest (ADR-0077). Its name is sysprep's
+#            random one; the real name is set by ansible/. The SID check needs
+#            two clones and a console, so --keep leaves this one running for it
+#            (build-the-lab-templates.md §7).
 #
 # WHAT IT NEEDS. phoenix.env sourced (PROXMOX_URL, PROXMOX_TOKEN_ID,
 # PROXMOX_TOKEN_SECRET), curl and jq, and PhoenixBuilder holding VM.Clone,
@@ -153,7 +155,14 @@ if [[ "${ostype}" == l26 ]]; then
   [[ "${got}" == "${NAME}" ]] || die "ssh smoke@${addr} printed ${got}, expected ${NAME}"
   ok "phoenix's key opens smoke@${addr}"
 else
-  ok "hostname ${host} (sysprep's random name; the real one is #448's)"
+  ok "hostname ${host} (sysprep's random name; the real one is ansible/'s)"
+  # The way ansible/ reaches every guest (ADR-0077): sshd, started by
+  # SetupComplete.cmd, admitting phoenix's key as Administrator. Windows names
+  # are upper-case and the agent's need not be, so compare without case.
+  got="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 "Administrator@${addr}" hostname | tr -d '\r')"
+  [[ "${got,,}" == "${host,,}" ]] || die "ssh Administrator@${addr} printed ${got}, expected ${host}"
+  ok "phoenix's key opens Administrator@${addr}"
 fi
 
 printf '\n\033[0;32mtemplate %s is usable\033[0m\n' "${TEMPLATE}"

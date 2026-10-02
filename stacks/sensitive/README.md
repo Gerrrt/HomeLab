@@ -35,7 +35,7 @@ make up STACK=sensitive
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
-| mealie | `ghcr.io/mealie-recipes/mealie` | *internal* (9000) | The household's recipes, meal plans and shopping list at `https://recipes.matrix.elysium`. Beyond ADR-0008's nine, decided by its own ADR, and **authored, not yet deployed** ([#146], [ADR-0060]) |
+| mealie | `ghcr.io/mealie-recipes/mealie` | *internal* (9000) | The household's recipes, meal plans and shopping list at `https://recipes.matrix.elysium`. Beyond ADR-0008's nine, decided by its own ADR, and deployed 2026-09-29 ([#146], [ADR-0060]) |
 | linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The fourth service beyond ADR-0008's nine ([ADR-0061], [#144]) |
 | actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fifth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding, by [ADR-0062] ([#142]) |
 | stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0063]) |
@@ -214,8 +214,8 @@ time and lives in Caddy's `/data` volume, never on disk here.
   protected by [#404]'s disk-encryption decision and by the encrypted volume
   archive rather than by SOPS. [ADR-0035] records the deviation. A long-lived
   access token minted for another service goes in *that* service's SOPS file
-  — none exists yet — and TOTP is enrolled at first login, as [#404] step 6
-  says.
+  — none exists yet — and TOTP is enrolled at first login, as [ADR-0022]'s
+  floor requires. It is enrolled on the owner account since 2026-09-28.
 - **Automations are YAML in `home-assistant/packages/`, not the UI editor.**
   `configuration.yaml` is mounted read-only from this directory and loads the
   packages directory beside it; there is no `automations.yaml`, because the
@@ -272,11 +272,17 @@ time and lives in Caddy's `/data` volume, never on disk here.
   bind fails on it. The forwarder edit on `morpheus` that makes any of this
   matter is [`forward-dns-to-adguard.md`](../../docs/runbooks/forward-dns-to-adguard.md),
   and it is the whole client-side change.
-- **Nothing converges this stack.** It is deployed by hand, from a checkout
-  on `trinity` ([#533] is the change that would converge it). The one timer
-  here is the nightly backup, `homelab-backup-sensitive`, which
-  `make install-timers PROFILE=sensitive` installs. `make validate` on
-  `trinity` fails until it is installed.
+- **`trinity` converges this stack on a timer, as `prometheus` does its own**
+  ([#533], [ADR-0021]). `homelab-converge-sensitive` fetches `main` hourly,
+  verifies the merge's signature, fast-forwards the checkout on `trinity` and
+  runs `make up STACK=sensitive`, so a merged Dependabot bump lands without
+  anyone at a shell. It was installed report-only
+  (`HOMELAB_CONVERGE_APPLY=0`) and is let act by the step in
+  [`converge-the-host.md`](../../docs/runbooks/converge-the-host.md#on-trinity);
+  `DeployApplyDisabled` fires for `trinity` until then. By hand, it is
+  `make converge STACK=sensitive`, not `git pull`. The timer is installed with
+  the nightly backups by `make install-timers PROFILE=sensitive`, and
+  `make validate` on `trinity` fails until both are.
 - **Memory limits are set from day one, and now a CPU ceiling too.** [#129]'s
   ask, and the one place this file departs from the lab's reasoning — a proxy
   and a CA have working sets a limit can be stated for without a machine to
@@ -1057,6 +1063,7 @@ it matters:
 [ADR-0007]: ../../docs/adr/0007-defensive-estate-and-offensive-range.md
 [ADR-0008]: ../../docs/adr/0008-place-services-by-data-trust.md
 [ADR-0010]: ../../docs/adr/0010-keep-the-resolver-on-the-gateway.md
+[ADR-0021]: ../../docs/adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md
 [ADR-0022]: ../../docs/adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md
 [ADR-0023]: ../../docs/adr/0023-keep-the-household-recovery-path-outside-the-estate.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md

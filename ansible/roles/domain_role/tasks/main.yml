@@ -1,0 +1,17 @@
+---
+# DomainRole 4 and 5 are backup and primary domain controller. Some tasks mean
+# something different on a DC (no local SAM, its own resolver), and a
+# hand-built domain is already past promotion when they first run. Imported
+# by the roles that need it, in their own plays, so a one-stage run probes
+# only the hosts that stage touches.
+- name: Read whether this guest is already a domain controller
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      (Get-CimInstance Win32_ComputerSystem).DomainRole -ge 4
+  register: domain_role_probe
+  check_mode: false
+
+- name: Record it
+  ansible.builtin.set_fact:
+    domain_role_is_dc: "{{ domain_role_probe.output[0] | bool }}"

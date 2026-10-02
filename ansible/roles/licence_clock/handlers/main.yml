@@ -1,0 +1,6 @@
+---
+# A gauge that first appears up to a week after the build is a week of
+# LabWindowsEvaluationExpiring having nothing to read.
+- name: Write the gauge now
+  ansible.windows.win_command: >-
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\lab\licence-clock.ps1

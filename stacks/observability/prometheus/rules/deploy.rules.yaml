@@ -8,6 +8,13 @@
 # scripts/converge.sh now runs hourly and writes seven gauges into the same
 # textfile directory the maintenance jobs use.
 #
+# TWO HOSTS PULL. prometheus converges the observability stack as robo, from
+# /home/robo/code/Gerrrt/HomeLab, under homelab-converge; trinity converges the
+# sensitive tier as its operator, from ~/code/Gerrrt/HomeLab, under
+# homelab-converge-sensitive (#533). Every rule here is per series, so each
+# fires with the host's own `instance` and the descriptions name both units
+# rather than guess which one it is.
+#
 # WHAT backup.rules.yaml ALREADY COVERS, AND IS NOT REPEATED HERE
 #
 # `converge` is a row in the JOBS table like any other, so ScheduledJobStale,
@@ -19,7 +26,7 @@
 # correctly refuses to move — because the tree is dirty, or the tip did not
 # verify — exits non-zero and is fully described by ScheduledJobFailed, but the
 # interesting fact is WHICH refusal and how far behind the host now is. These
-# six rules read the record converge.sh writes rather than its exit code.
+# seven rules read the record converge.sh writes rather than its exit code.
 #
 # WHY THERE IS NO ALERT ON THE REVISION ITSELF
 #
@@ -33,7 +40,7 @@ groups:
     interval: 60s
     rules:
       - alert: DeployDrifted
-        # Someone edited a file on the monitoring host.
+        # Someone edited a file on a deployment host.
         #
         # This is the alert #99 asked for by name. converge.sh refuses to
         # fast-forward over an uncommitted change rather than overwriting it, so
@@ -55,12 +62,13 @@ groups:
         annotations:
           summary: "The deployment checkout has uncommitted changes"
           description: >-
-            Something was edited on the monitoring host instead of in the
+            Something was edited on {{ $labels.instance }} instead of in the
             repository, and convergence has stopped until it is resolved — the
             host is frozen on whatever it was already running. The change is
-            still there: `git -C /home/robo/code/Gerrrt/HomeLab status` and
-            `git diff` show it. Commit it through a pull request or discard it —
-            docs/runbooks/converge-the-host.md.
+            still there: `git status` and `git diff` in the deployment checkout
+            (/home/robo/code/Gerrrt/HomeLab on prometheus, ~/code/Gerrrt/HomeLab
+            on trinity) show it. Commit it through a pull request or discard it
+            — docs/runbooks/converge-the-host.md.
 
       - alert: DeployBehind
         # The host knows about commits it has not applied.
@@ -97,8 +105,8 @@ groups:
           summary: "The host is {{ $value }} commit(s) behind main"
           description: >-
             Convergence has run and has not applied what it fetched. Either it
-            is refusing — check `journalctl -u homelab-converge.service -n 50`
-            for a dirty tree, a signature that did not verify, or a
+            is refusing — check `journalctl -u 'homelab-converge*' -n 50` on
+            {{ $labels.instance }} for a dirty tree, a signature that did not verify, or a
             non-fast-forward. If DeployApplyDisabled is firing too, it is
             neither: the host is in report-only mode and this alert is that
             mode's report. docs/runbooks/converge-the-host.md.
@@ -127,11 +135,11 @@ groups:
         annotations:
           summary: "The deployed revision has no valid signature"
           description: >-
-            Either GitHub's signing key is not in robo's keyring on this host —
-            the one-time setup step, and convergence is refusing to move until
-            it is done — or HEAD is a commit that did not come through a pull
-            request. `git -C /home/robo/code/Gerrrt/HomeLab log --show-signature -1`
-            distinguishes them. docs/runbooks/converge-the-host.md.
+            Either GitHub's signing key is not in the deploying user's keyring on
+            {{ $labels.instance }} — the one-time setup step, and convergence is
+            refusing to move until it is done — or HEAD is a commit that did not
+            come through a pull request. `git log --show-signature -1` in the
+            deployment checkout distinguishes them. docs/runbooks/converge-the-host.md.
 
       - alert: DeployUnapplied
         # The checkout's HEAD is not the revision `make up` last applied, so the
@@ -159,10 +167,11 @@ groups:
           description: >-
             HEAD is not the revision `make up` last applied, so the stack is
             serving older config than the checkout holds. Either `make up` is
-            failing — `journalctl -u homelab-converge.service -n 50` says why —
-            or the host is report-only and something moved the checkout by hand.
-            `make up` from /home/robo/code/Gerrrt/HomeLab deploys it; prefer
-            `make converge` to a bare `git pull` there.
+            failing — `journalctl -u 'homelab-converge*' -n 50` on
+            {{ $labels.instance }} says why — or the host is report-only and
+            something moved the checkout by hand. `make up` from the deployment
+            checkout deploys it (STACK=sensitive on trinity); prefer `make
+            converge` to a bare `git pull` there.
             docs/runbooks/converge-the-host.md.
 
       - alert: DeployApplyDisabled
@@ -193,11 +202,12 @@ groups:
         annotations:
           summary: "Convergence is in report-only mode and is deploying nothing"
           description: >-
-            HOMELAB_CONVERGE_APPLY=0 is set in /etc/default/homelab-timers, so
-            this host fetches, verifies and records but applies nothing —
-            deployment is back to being something a human does. Intended as a
-            temporary state while the agent is watched. Remove the line and
-            `systemctl restart homelab-converge.timer` to let it act; this
+            HOMELAB_CONVERGE_APPLY=0 is set in /etc/default/homelab-timers on
+            {{ $labels.instance }}, so it fetches, verifies and records but
+            applies nothing — deployment is back to being something a human
+            does. Intended as a temporary state while the agent is watched.
+            Remove the line and restart the converge timer
+            (homelab-converge-sensitive.timer on trinity) to let it act; this
             resolves on the next run. docs/runbooks/converge-the-host.md.
 
       - alert: DeployMetricsAbsent
@@ -234,3 +244,38 @@ groups:
             /var/lib/node_exporter/textfile_collector/homelab-deploy.prom on the
             monitoring host. If the timer was never installed, `make
             install-timers` — docs/runbooks/converge-the-host.md.
+
+      - alert: DeployRecordMissing
+        # One host's record is gone while another's is not.
+        #
+        # DeployMetricsAbsent above asks about the series with no instance, so
+        # once two hosts pull it can only see BOTH records vanish: trinity's
+        # homelab-deploy.prom could be deleted or malformed for a month while
+        # prometheus's kept it quiet (#533). This asks per host instead, and
+        # in this repository's way — `unless` against a declaration series,
+        # not one absent() per host with the name hardcoded (backup.rules.yaml,
+        # "WHY THERE IS NO absent()").
+        #
+        # The declaration is the converge row install-timers.sh writes into
+        # homelab-jobs.prom: a host that declares a converge job and has no
+        # deploy record is a host whose deployment is unknown. Both files come
+        # through the same textfile collector, so they carry the same
+        # `instance` and the join is one-to-one per host. Hosts that are pushed
+        # to (oracle, saruman) declare no converge job and never match.
+        expr: |
+          homelab_job_max_age_seconds{homelab_job=~"converge|converge-sensitive"}
+            unless on(instance) homelab_deploy_revision_info
+        for: 1h
+        labels:
+          component: deploy
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} converges but has no deployment record"
+          description: >-
+            {{ $labels.instance }} declares the {{ $labels.homelab_job }} job
+            and no homelab-deploy.prom has arrived from it, so what it is
+            running is unknown and no other rule in this file can fire for it.
+            Check /var/lib/node_exporter/textfile_collector/homelab-deploy.prom
+            on that host and `journalctl -u 'homelab-converge*' -n 50` —
+            docs/runbooks/converge-the-host.md.

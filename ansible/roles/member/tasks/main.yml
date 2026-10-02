@@ -1,0 +1,13 @@
+---
+# titan, ramuh, carbuncle and siren join (runbook §5, first sentence). What
+# §5 builds on top of the join — tiers, users, the SPN account, the Tier 0 GPO,
+# titan's shares — is #449's, added to lab-domain.yml under its own tags.
+- name: Join the domain
+  microsoft.ad.membership:
+    dns_domain_name: "{{ lab_domain }}"
+    hostname: "{{ inventory_hostname }}"
+    domain_admin_user: "Administrator@{{ lab_domain }}"
+    domain_admin_password: "{{ lab_admin_password }}"
+    state: domain
+    reboot: true
+  no_log: true
