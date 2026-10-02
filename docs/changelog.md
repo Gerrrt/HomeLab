@@ -19,6 +19,31 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-02
 
+- **A restart no longer counts as a clean stop on `smaug`**
+  ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). This corrects the
+  2026-10-01 entry's "It runs on the UI's Shut Down and Restart".
+  - **What the first live reading showed.** The init scripts were installed
+    and `smaug` was restarted from the UI. `homelab_clean_shutdowns_total`
+    went to 1, stamped 57 s before the boot. The collector's file was
+    rewritten 78 s after the boot, so the drive's reading was current. The
+    S3520 stayed at **523**. A warm reboot never takes the drive's power
+    away, so the drive counts power-offs, not stops.
+  - **Why it mattered.** A restart counted as clean would cancel a real cut on
+    the same day, and nothing would page.
+  - **The fix.** `mark-clean-shutdown.sh` asks systemd where the stop is
+    headed. `poweroff.target` and `halt.target` (the UI's Shut Down, the UPS
+    halt) go up `homelab_clean_shutdowns_total`, which the rule subtracts. A
+    restart goes up `homelab_clean_restarts_total` and anything else goes up
+    `homelab_clean_stops_unclassified_total`; the rule reads neither. The
+    rule itself is unchanged. 25 self-test fixtures, seven of them
+    classification.
+  - **Still to prove.** That the job list shows the target while TrueNAS runs
+    a SHUTDOWN script: the next Shut Down should move the clean count, and
+    the next Restart the restart count. If the unclassified count moves
+    instead, the planned power-off pages, which is the loud failure. The
+    restart already counted as clean today leaves the day-long window by
+    2026-10-03.
+
 - **tofu's image is multi-arch again, and a single-architecture pin fails CI.**
   - **What happened.** Dependabot's #811 moved the image to
     `opentofu:1.13.1-386`, the 32-bit x86 build. Dependabot reads that

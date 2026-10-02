@@ -1430,19 +1430,29 @@ Then **System → Advanced Settings → Init/Shutdown Scripts → Add**, twice:
 | Timeout | `10` | `660` — the collector's own `timeout 600`, plus a minute |
 | Enabled | on | on |
 
-The SHUTDOWN script runs on every stop that goes through the init system: the
-UI's Shut Down and Restart, and the UPS service's halt on `LB`
-([ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)).
-A pulled plug, a crash or a cut that outlasts the pack never runs it, which
-is the whole point. Its file, `clean-shutdowns-smaug.prom`, is rewritten only
+The SHUTDOWN script runs on every stop that goes through the init system. A
+pulled plug, a crash or a cut that outlasts the pack never runs it, which is
+the whole point. It asks systemd where the stop is headed:
+- **A power-off** (the UI's Shut Down, or the UPS service's halt on `LB`,
+  [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md))
+  goes up `homelab_clean_shutdowns_total`, which the rule subtracts.
+- **A Restart** goes up `homelab_clean_restarts_total`, which the rule does not
+  read. A warm reboot never takes the S3520's power away, so it never ticks
+  the drive: on 2026-10-02 a Restart left it at 523. Counted as clean, it would
+  cancel a real cut.
+- **Anything systemd does not name** goes up
+  `homelab_clean_stops_unclassified_total`, and forgives nothing. Its file, `clean-shutdowns-smaug.prom`, is rewritten only
 on a stop. An old mtime is correct, and `SmartStateStale` does not watch it.
 
-**Prove it with one planned reboot.** Before, note
+**Prove it with one planned Shut Down, not a Restart.** A Restart proves
+nothing, because the drive does not tick. Before, note
 `homelab_clean_shutdowns_total{host="smaug"}` (absent on the first run) and
 `homelab_smart_unsafe_shutdowns_total{host="smaug"}` for the S3520's `slot`.
-Reboot from the UI. After, the clean count is one higher, and within minutes
-of the boot the S3520's counter is one higher as well, without waiting for
-08:30. `ALERTS{alertname="SmartDriveUnsafeShutdownsGrowing",host="smaug"}`
+Shut Down from the UI and power on again. After, the clean count is one
+higher, and within minutes of the boot the S3520's counter is one higher as
+well, without waiting for 08:30. If `homelab_clean_stops_unclassified_total`
+went up instead, the script could not see the stop's target, and the planned
+power-off will page; that is the loud failure, and the issue to reopen. `ALERTS{alertname="SmartDriveUnsafeShutdownsGrowing",host="smaug"}`
 stays empty for the next day. The pulled-plug half is proved by the promtool
 test and, live, by `shut-down-on-the-ups.md` step 6.
 

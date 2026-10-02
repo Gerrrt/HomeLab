@@ -1329,20 +1329,27 @@ groups:
         # halt ADR-0049 built included, and could not tell maintenance from a
         # cut — the one distinction it exists to make.
         #
-        # SO THE HOST COUNTS ITS OWN CLEAN STOPS, AND THEY ARE SUBTRACTED.
+        # SO THE HOST COUNTS ITS OWN CLEAN POWER-OFFS, AND THEY ARE SUBTRACTED.
         # scripts/mark-clean-shutdown.sh runs as smaug's SHUTDOWN init script,
-        # which every stop through the init system runs — the UI's Shut Down and
-        # Restart, and the UPS service's halt on LB — and a pulled plug, a crash
-        # or a cut that outlasts the pack never does. It serves
-        # homelab_clean_shutdowns_total{host}. The rule pages on the unsafe
-        # shutdowns of the day minus the clean stops of the day, per drive, so a
-        # planned reboot nets to zero and a cut does not. A fact the host writes
-        # on the way down, not a silence somebody has to remember (#572,
+        # which every stop through the init system runs, and a pulled plug, a
+        # crash or a cut that outlasts the pack never does. It serves
+        # homelab_clean_shutdowns_total{host}, counting only stops headed for
+        # poweroff.target or halt.target — the UI's Shut Down and the UPS
+        # service's halt on LB. The rule pages on the unsafe shutdowns of the
+        # day minus the clean power-offs of the day, per drive, so a planned
+        # power-off nets to zero and a cut does not. A fact the host writes on
+        # the way down, not a silence somebody has to remember (#572,
         # ADR-0046).
+        #
+        # A RESTART IS NOT SUBTRACTED (2026-10-02). It never takes the drive's
+        # power away: after a UI Restart the S3520 stayed at 523. Counted as
+        # clean, a restart would cancel a real cut on the same day. The script
+        # counts restarts as homelab_clean_restarts_total, and this rule does
+        # not read it.
         #
         # PER HOST, NOT PER DRIVE. The clean count belongs to the host, and
         # whether each drive counts a clean stop is its firmware's business: on
-        # a day with one planned reboot and one cut, the S3520 reads +2 against
+        # a day with one planned power-off and one cut, the S3520 reads +2 against
         # +1 and pages; a drive that only counts the cut reads +1 against +1 and
         # stays quiet. The host still pages, once, from the drive that sees
         # every power-off. That is the trade for not keeping a table of which
