@@ -41,11 +41,17 @@ holder — whichever comes first. **The second of those has now fired and the
 deferral was re-accepted**, not ended:
 [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md) opens
 a WireGuard path terminating on the lab, which takes ADR-0008's *no external
-exposure* premise with it. Nothing in the tier became reachable — it is
-unbuilt, and on Winterfell when it is built — but the lab's own Grafana on
+exposure* premise with it. Nothing in the tier became reachable — it is on
+Winterfell, and the tunnel reaches the lab only — but the lab's own Grafana on
 `alexander` did, and that is one of the three below that cannot carry a factor
-at all. The other two triggers keep their full force. Until then the floor is per-application TOTP,
-and it does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
+at all. **The first trigger fired on 2026-09-28**, with Immich's first real
+photographs, **and the deferral was re-accepted again**
+([ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)):
+no identity provider, and Immich named as the residual that matters. The third
+trigger keeps its full force, and so does the second for anything on the tier.
+The floor is per-application TOTP. It is enrolled on Home Assistant
+(2026-09-28), Stirling-PDF (2026-09-29), and Vaultwarden and Paperless-ngx
+(reported 2026-10-02). It does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
 can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
 Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
 points at OAuth, and AdGuard has one password-only admin account. For those
@@ -527,7 +533,7 @@ assumption consistent with what they are.
     ([ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
     §4);
   - the encrypted state itself, `tofu/state/lab.tfstate`
-    ([ADR-0075](adr/0075-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
+    ([ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
 
   The state is the one that would have been quiet. A Terraform state holds
   every value a provider touched in cleartext, the cloud-init password of every

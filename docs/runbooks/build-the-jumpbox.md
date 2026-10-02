@@ -241,7 +241,7 @@ define the encrypted file. It decided there is none:
 [ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
 part 4 keeps this file as the credential, because `phoenix` holds no age key
 to decrypt one with.
-[ADR-0075](../adr/0075-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)
+[ADR-0076](../adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)
 adds three lines for OpenTofu: the endpoint, the token in the provider's own
 form, and the state passphrase.
 [`provision-lab-guests.md`](provision-lab-guests.md) §1 writes them, and §3

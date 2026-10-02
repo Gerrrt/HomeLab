@@ -222,7 +222,7 @@ run_linter actionlint
 # whether the HCL means anything. A real build is proved on phoenix, not here.
 run_linter packer fmt -check -diff -recursive packer/
 run_linter packer validate -syntax-only packer/
-# tofu/ (ADR-0075). Unlike packer, validate needs the providers' schemas, so
+# tofu/ (ADR-0076). Unlike packer, validate needs the providers' schemas, so
 # init runs first and downloads them: -backend=false so no state and no
 # passphrase is involved, and -lockfile=readonly so a provider that does not
 # match the committed .terraform.lock.hcl fails here instead of being quietly

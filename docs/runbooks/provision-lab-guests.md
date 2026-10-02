@@ -26,7 +26,7 @@ templates, and `phoenix`'s token working
 theirs.
 
 This carries out what
-[ADR-0075](../adr/0075-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)
+[ADR-0076](../adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)
 decided for [#445](https://github.com/Gerrrt/HomeLab/issues/445). The HCL is in
 [`tofu/`](../../tofu/README.md).
 

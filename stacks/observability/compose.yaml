@@ -1302,7 +1302,7 @@ services:
   # tofu for scripts/lint.sh (`fmt -check`, `validate` over tofu/) and for
   # scripts/check-tofu-state-encryption.sh --self-test, which writes real
   # states from tofu/encryption.tf and proves the canary is not in them
-  # (ADR-0075). Behind the `lint` profile like packer, for the same reason. The
+  # (ADR-0076). Behind the `lint` profile like packer, for the same reason. The
   # real applies run from the binary installed on phoenix
   # (provision-lab-guests.md §1), which should be this same version.
   #

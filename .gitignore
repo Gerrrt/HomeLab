@@ -52,7 +52,7 @@ stacks/scratch/wazuh/certs/*
 # generated snmp.yaml itself IS committed, so a deploy never needs these.
 stacks/*/snmp-exporter/mibs/
 
-# ---- tofu/: state, plans and provider caches (ADR-0075) ----
+# ---- tofu/: state, plans and provider caches (ADR-0076) ----
 # State holds every value a provider touched, in cleartext unless encrypted,
 # and a plan holds the same values plus the ones about to be sent. tofu/
 # encrypts both and refuses to write either unencrypted (encryption.tf), so

@@ -1,5 +1,5 @@
 # The lab's guests, cloned from packer/'s templates through Saruman's API, run
-# from phoenix (ADR-0075). How to run it is docs/runbooks/provision-lab-guests.md.
+# from phoenix (ADR-0076). How to run it is docs/runbooks/provision-lab-guests.md.
 #
 # Both pins are exact or patch-level on purpose: a bump is a deliberate edit
 # here, not a side effect of whatever was newest on the day of an apply. That is

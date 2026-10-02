@@ -37,7 +37,7 @@ description = "age private key"
 regex = '''AGE-SECRET-KEY-1[0-9A-Z]{50,}'''
 tags = ["age", "key"]
 
-# Unencrypted OpenTofu/Terraform state or plan JSON (ADR-0075). Keyed on content,
+# Unencrypted OpenTofu/Terraform state or plan JSON (ADR-0076). Keyed on content,
 # not on a file name, so it fires on a plaintext state under any name: renamed,
 # pasted into a doc, or written by a tofu/ whose encryption.tf was broken.
 #

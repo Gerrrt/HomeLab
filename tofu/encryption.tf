@@ -1,4 +1,4 @@
-# State and plan encryption (ADR-0075). This file is the reason the tree is
+# State and plan encryption (ADR-0076). This file is the reason the tree is
 # OpenTofu rather than Terraform: a state file holds every value a provider
 # touched, in cleartext, and this one would hold cloud-init passwords.
 #

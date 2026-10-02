@@ -28,13 +28,47 @@ docstring gives: it is a record, not a claim about now.
   say that, and say that there is no copy of record until a household holder
   exists. Immich's restore was rehearsed on 2026-09-28 and 2026-09-29, so
   #132's last gate is #455's holder and proof.
+- **[#404](https://github.com/Gerrrt/HomeLab/issues/404): ADR-0022's decision
+  is recorded, and the tracker caught up with the host.** ADR-0022's first
+  trigger fired on 2026-09-28 with Immich's first photographs.
+  [ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)
+  answers it four days late: the deferral is re-accepted, and no identity
+  provider is stood up.
+  - **The TOTP floor.** The operator reported TOTP enrolled on Vaultwarden
+    and Paperless-ngx on 2026-10-02, and neither enrolment had been recorded
+    until now. Home Assistant's owner (2026-09-28) and Stirling-PDF's admin
+    (2026-09-29) were already enrolled. That is all four services on the tier
+    that can carry a factor.
+  - **Triggers 2 and 3, read the same day.** The WireGuard path reaches the
+    lab only, and the tier's accounts belong to the same two people.
+    The only key for the off-estate copy is the technical second's, and it
+    is not a login. ADR-0073's household holder is not chosen yet (#455).
+  - **The tracker.** #404's body still had steps 0–8 unticked. The repo had
+    recorded each of them by 2026-09-28 (#674, #686–#700), and the issue now
+    says so. What keeps it open is §13 items 2, 3 and 5: the second age
+    recipient, the copy of record (#455), and ADR-0023's *Independent* proof.
+  - **Stale text corrected:** `hardware.md`'s "enters the Compute table when
+    #404 builds it", `.sops.yaml`'s "fills the placeholder in", the stack
+    README's Mealie row ("not yet deployed"), and `security.md`'s "it is
+    unbuilt".
+
+- **[#145](https://github.com/Gerrrt/HomeLab/issues/145): Memos registration
+  is closed.** This corrects the 2026-09-29 entry's "Still open for Memos". The
+  first account was registered at `https://memos.matrix.elysium` and is the
+  admin. As that admin, *disallow user registration* was set in the instance's
+  general settings. Checked on `trinity` with the stack README's command:
+  `/api/v1/instance/settings/GENERAL` returned
+  `"disallowUserRegistration":true`, and `"disallowPasswordAuth":false`, so
+  the password login still works. Before the change, the same command returned
+  `false`. Memos still holds no real notes until ADR-0023's *Durable*
+  condition is met.
 
 ## 2026-10-01
 
 - **OpenTofu is written, and its state is encrypted before anything has been
   applied**
   ([#445](https://github.com/Gerrrt/HomeLab/issues/445),
-  [ADR-0075](adr/0075-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
+  [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
   - **Why OpenTofu.** A Terraform state holds every value a provider touched,
     in cleartext. OpenTofu encrypts it. `tofu/encryption.tf` uses a `pbkdf2`
     passphrase from `phoenix.env` and sets `enforced = true` on state and
@@ -71,6 +105,32 @@ docstring gives: it is a record, not a claim about now.
     and its pool must be destroyed. The record goes in
     `provision-lab-guests.md` §6. The six hand-built domain guests stay out of
     this tree until #448.
+- **`SmartDriveUnsafeShutdownsGrowing` subtracts the host's own clean stops**
+  ([#746](https://github.com/Gerrrt/HomeLab/issues/746), corrects the premise
+  of [#574](https://github.com/Gerrrt/HomeLab/issues/574) and
+  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)).
+  - **Why.** The S3520 counts a clean stop as unsafe: 522 before a clean
+    *System → Shut Down* on 2026-09-29, 523 after. The rule would have paged
+    after every planned reboot of `smaug`, the UPS halt included.
+  - **What runs.** `scripts/mark-clean-shutdown.sh`, a TrueNAS SHUTDOWN init
+    script, serves `homelab_clean_shutdowns_total{host}`. It runs on the UI's
+    Shut Down and Restart and on the UPS halt, and never on a cut. The
+    collector also runs as a POSTINIT script, so the drive's tick and the
+    clean count move at the same boot (`build-the-nas.md` §6.4 step 7).
+  - **The rule.** It takes the day's unsafe shutdowns per drive, minus the
+    day's clean stops per host. A host with no clean count reads exactly as
+    before. On install day, the missing day-old point counts as zero.
+  - **Tests.** Nine new promtool cases: a planned reboot is quiet; a pulled
+    plug fires; a reboot and a cut on one day fire once; the
+    ten-minute lag is quiet in both orders; a cut on install day fires; and
+    another host's clean stop does not forgive `smaug`'s, whether it is
+    joined by `host` or would wrongly be by `instance` (morpheus); and a
+    clean count that went backwards is clamped to zero, so a reset pages once
+    with the drive's real count. Eight mutations of the rule were run against
+    them.
+  - **Still to do on `smaug`.** Install the two init scripts and prove one
+    planned reboot. The live pulled-plug proof waits for
+    `shut-down-on-the-ups.md` steps 5–7.
 
 - **ADR-0007's umbrella closes: the domain and the SOC are built
   ([#101](https://github.com/Gerrrt/HomeLab/issues/101)).** The estate is

@@ -2,7 +2,7 @@
 #
 # The six domain guests (150-155) are NOT here. They were built by hand before
 # this tree existed, and they stay hand-managed until #448 or an evaluation
-# rebuild replaces them from 911/912 (ADR-0075). Importing a domain controller
+# rebuild replaces them from 911/912 (ADR-0076). Importing a domain controller
 # into a tool whose next plan might replace it is the wrong first apply.
 #
 # What is here today is the proof guest, declared only under -var proof=true.
@@ -49,7 +49,7 @@ resource "proxmox_virtual_environment_pool" "this" {
   for_each = local.pools
 
   pool_id = each.key
-  comment = "Managed by tofu/ (ADR-0075). Destroyed with the last guest in it."
+  comment = "Managed by tofu/ (ADR-0076). Destroyed with the last guest in it."
 }
 
 module "guest" {

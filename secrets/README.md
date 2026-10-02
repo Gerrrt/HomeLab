@@ -16,7 +16,7 @@ Every stack under `stacks/` has an example here in the same shape, except
 
 **One encrypted file belongs to no stack: `tofu.sops.yaml`.** It is the escrow
 copy of `tofu/`'s state passphrase
-([ADR-0075](../docs/adr/0075-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)),
+([ADR-0076](../docs/adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)),
 encrypted on `phoenix` to the catch-all rule's recipients. `phoenix` holds no
 age key, so it can write the file and cannot read it. Nothing renders it.
 `tofu.example.yaml` documents its one key.

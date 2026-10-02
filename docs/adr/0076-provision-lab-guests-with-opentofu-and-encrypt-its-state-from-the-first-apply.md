@@ -1,4 +1,4 @@
-# ADR-0075: Provision lab guests with OpenTofu, and encrypt its state from the first apply
+# ADR-0076: Provision lab guests with OpenTofu, and encrypt its state from the first apply
 
 **Status:** Accepted · 2026-10
 

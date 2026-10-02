@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Prove that tofu/'s state is encrypted, rather than assume it (ADR-0075).
+# Prove that tofu/'s state is encrypted, rather than assume it (ADR-0076).
 #
 # A state file holds every value a provider touched, in cleartext unless
 # OpenTofu encrypts it. Dropped into this repository unencrypted, it would undo

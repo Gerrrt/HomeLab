@@ -28,7 +28,7 @@
 # to match. Being untracked is the only control either has.
 #
 # tofu/'s state, plans and provider cache are on the list because a state file
-# holds every value a provider touched (ADR-0075). tofu/ encrypts state and
+# holds every value a provider touched (ADR-0076). tofu/ encrypts state and
 # refuses to write it otherwise, so a committed one would be ciphertext. It is
 # listed anyway: a check that only holds while encryption.tf is right is not a
 # second check. `.terraform.lock.hcl` is meant to be tracked and is not matched,

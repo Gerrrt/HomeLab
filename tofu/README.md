@@ -1,7 +1,7 @@
 # tofu
 
 The lab's guests, cloned from [`packer/`](../packer/README.md)'s templates
-through `Saruman`'s API, from `phoenix` ([ADR-0075]). How to run it is
+through `Saruman`'s API, from `phoenix` ([ADR-0076]). How to run it is
 [`provision-lab-guests.md`][runbook]. This page is the map.
 
 ```bash
@@ -44,5 +44,5 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   the image `stacks/observability/compose.yaml` pins. A change here is only
   finished once the runbook's §4 has passed against a real apply.
 
-[ADR-0075]: ../docs/adr/0075-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md
+[ADR-0076]: ../docs/adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md
 [runbook]: ../docs/runbooks/provision-lab-guests.md
