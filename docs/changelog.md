@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-02
 
+- **tofu's image is multi-arch again, and a single-architecture pin fails CI.**
+  - **What happened.** Dependabot's #811 moved the image to
+    `opentofu:1.13.1-386`, the 32-bit x86 build. Dependabot reads that
+    numeric suffix as a fourth version segment, so `-386` looks newer than
+    the multi-arch tag (dependabot-core#15718). It pulled without error and
+    CI stayed green, so `check-tofu-state-encryption.sh` was proving
+    encryption with a 32-bit binary that `phoenix` will never run.
+  - **The fix.** The pin is back to `1.13.1` and its index digest.
+    `scripts/check_image_pins.py` now refuses any compose image on a
+    `-386`, `-amd64`, `-arm64` or similar tag. The next such Dependabot PR
+    goes red; close it rather than merging it.
+  - **Not done.** There is no Dependabot `ignore`. With the suffix parsed as
+    a version, the only `ignore` that matches is one exact release, which
+    would need editing every release.
+
 - **[#414](https://github.com/Gerrrt/HomeLab/issues/414): the lab domain's last
   three sections are done, and the build issue closes.** The six guests were
   built by hand on 2026-09-24 and 25. What was left was
