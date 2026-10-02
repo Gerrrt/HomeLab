@@ -1295,12 +1295,17 @@ world-readable on purpose — uid 65534 has to read it — and carries no serial
 numbers by the script's design.
 
 **3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**, and
-every field is load-bearing:
+every field is load-bearing. The **Command** field takes exactly this, one
+line, nothing after it:
+
+```text
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 600 /bin/bash /mnt/erebor/apps/stack/collect-smart-state.sh --host smaug
+```
 
 | Field | Value | Why |
 | --- | --- | --- |
 | Description | `homelab smart-state (#483, ADR-0047)` | So the next person finds the decision from the job |
-| Command | the step-2 command line, exactly, without the `ls` | `PATH`, `TEXTFILE_DIR`, `timeout 600` and `--host smaug` each for the reason step 1 gives; `/bin/bash` so the exec bit is not relied on |
+| Command | the block above, exactly | `PATH`, `TEXTFILE_DIR`, `timeout 600` and `--host smaug` each for the reason step 1 gives; `/bin/bash` so the exec bit is not relied on |
 | Run As User | `root` | `smartctl` issues pass-through ioctls and no group substitutes; without root the script counts devices it cannot read and emits no attributes |
 | Schedule | daily, `08:30` | The estate's `smart-state` slot on the monitoring host, in this host's zone (`America/Los_Angeles`, §4.1); `SmartStateStale` fires at two days, twice the period |
 | Hide Standard Output | **on** | Success is one line and TrueNAS would mail it daily |
@@ -1713,10 +1718,16 @@ A second file beside `smart-state-smaug.prom`: `truenas-version.prom`,
 
 **3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
 
+The **Command** field takes exactly this, one line, nothing after it:
+
+```text
+TEXTFILE_DIR=/mnt/erebor/apps/textfile /bin/bash /mnt/erebor/apps/stack/collect-truenas-version.sh --host smaug
+```
+
 | Field | Value | Why |
 | --- | --- | --- |
 | Description | `homelab truenas-version (#616)` | So the next person finds the issue from the job |
-| Command | the step-2 command line, exactly, without the `ls` | `--host smaug` pins the label to the scrape's `instance`, as §6.4's does; `/bin/bash` so the exec bit is not relied on |
+| Command | the block above, exactly | `--host smaug` pins the label to the scrape's `instance`, as §6.4's does; `/bin/bash` so the exec bit is not relied on |
 | Run As User | `root` | Only because `/mnt/erebor/apps/textfile` is root-owned `0755`; the read itself needs nothing |
 | Schedule | daily, `08:40` | Beside the SMART job and ten minutes after it. The version only changes on an upgrade, but daily means the file is at most a day behind one, well inside the weekly check |
 | Hide Standard Output | **on** | Success is one line and TrueNAS would mail it daily |
@@ -1788,10 +1799,21 @@ root. The one line it prints includes `not-online=0`.
 
 **3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
 
+The **Command** field takes exactly this, one line, nothing after it:
+
+```text
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 60 /bin/bash /mnt/erebor/apps/stack/collect-zpool-state.sh --host smaug
+```
+
+On 2026-10-02 step 2's `ls` line was pasted into this field with it.
+TrueNAS joined the two into one line, the script stopped on
+`unknown argument ls` every five minutes, and `ZpoolVdevStateStale` was
+what said so.
+
 | Field | Value | Why |
 | --- | --- | --- |
 | Description | `homelab zpool-state (#744, ADR-0047)` | So the next person finds the issue from the job |
-| Command | the step-2 command line, exactly, without the `ls` | cron's `PATH` has no `/usr/sbin`, where `zpool` lives; `timeout 60` because a suspended pool can block `zpool status`, and a run that hangs must end and leave the file to go stale; `--host smaug` for the scrape's `instance` |
+| Command | the block above, exactly | cron's `PATH` has no `/usr/sbin`, where `zpool` lives; `timeout 60` because a suspended pool can block `zpool status`, and a run that hangs must end and leave the file to go stale; `--host smaug` for the scrape's `instance` |
 | Run As User | `root` | Only because `/mnt/erebor/apps/textfile` is root-owned `0755`; `zpool status` itself needs nothing |
 | Schedule | custom, `*/5 * * * *` | The page is at most one run, one scrape and one minute of `for` behind the fault. `ZpoolVdevStateStale` fires once the file is ten minutes old, twice the period |
 | Hide Standard Output | **on** | Success is one line, 288 times a day |
