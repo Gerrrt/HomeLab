@@ -17,6 +17,19 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-02
+
+- **[#145](https://github.com/Gerrrt/HomeLab/issues/145): Memos registration
+  is closed.** This corrects the 2026-09-29 entry's "Still open for Memos". The
+  first account was registered at `https://memos.matrix.elysium` and is the
+  admin. As that admin, *disallow user registration* was set in the instance's
+  general settings. Checked on `trinity` with the stack README's command:
+  `/api/v1/instance/settings/GENERAL` returned
+  `"disallowUserRegistration":true`, and `"disallowPasswordAuth":false`, so
+  the password login still works. Before the change, the same command returned
+  `false`. Memos still holds no real notes until ADR-0023's *Durable*
+  condition is met.
+
 ## 2026-10-01
 
 - **The ISO store is checked daily, and Packer builds from it**
