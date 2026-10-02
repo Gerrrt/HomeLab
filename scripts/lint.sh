@@ -14,7 +14,7 @@
 # it. The self-check at the bottom asserts the callers really do call it,
 # because one definition only helps for as long as nothing routes around it.
 #
-# actionlint, editorconfig-checker and packer run from images pinned in
+# actionlint, editorconfig-checker, packer and tofu run from images pinned in
 # stacks/observability/compose.yaml behind the `lint` profile, for the same
 # reason `archiver` and `gitleaks` are there: an image this repository runs must
 # be one Dependabot bumps and `make pin-digests` can re-digest (#65). yamllint,
@@ -49,6 +49,7 @@
 #     its exclusions live in .markdownlint-cli2.yaml
 #   - shellcheck is handed scripts/*.sh below — one literal glob, cannot wander
 #   - packer is handed packer/ — one directory, cannot wander
+#   - tofu is handed tofu/, the same way
 #   - actionlint reads only <repo root>/.github/workflows. Verified with
 #     -verbose: it lints 2 files with a worktree present, not 4
 #   - editorconfig-checker is handed a `git ls-files` list built below, so it
@@ -158,6 +159,15 @@ runner_for() {
         RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "${REPO_ROOT}:/repo" -w /repo "${img}")
         return 0
       fi ;;
+    tofu)
+      # Same shape as packer: the entrypoint IS tofu, and --user so that the
+      # provider cache `init` writes under tofu/.terraform/ (gitignored) is not
+      # root-owned on a workstation.
+      if have_docker; then
+        img="$(./scripts/image-for.sh tofu)"
+        RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TF_IN_AUTOMATION=1 -v "${REPO_ROOT}:/repo" -w /repo "${img}")
+        return 0
+      fi ;;
   esac
   return 1
 }
@@ -212,6 +222,15 @@ run_linter actionlint
 # whether the HCL means anything. A real build is proved on phoenix, not here.
 run_linter packer fmt -check -diff -recursive packer/
 run_linter packer validate -syntax-only packer/
+# tofu/ (ADR-0075). Unlike packer, validate needs the providers' schemas, so
+# init runs first and downloads them: -backend=false so no state and no
+# passphrase is involved, and -lockfile=readonly so a provider that does not
+# match the committed .terraform.lock.hcl fails here instead of being quietly
+# re-pinned. Whether the state is encrypted is not a lint question; that is
+# scripts/check-tofu-state-encryption.sh --self-test, in self-tests.sh.
+run_linter tofu fmt -check -diff -recursive tofu/
+run_linter tofu -chdir=tofu init -backend=false -input=false -lockfile=readonly
+run_linter tofu -chdir=tofu validate
 # The file list is built here rather than left to the checker, which is the one
 # linter in this list that decides for itself what to look at.
 #

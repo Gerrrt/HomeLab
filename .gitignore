@@ -52,6 +52,24 @@ stacks/scratch/wazuh/certs/*
 # generated snmp.yaml itself IS committed, so a deploy never needs these.
 stacks/*/snmp-exporter/mibs/
 
+# ---- tofu/: state, plans and provider caches (ADR-0075) ----
+# State holds every value a provider touched, in cleartext unless encrypted,
+# and a plan holds the same values plus the ones about to be sent. tofu/
+# encrypts both and refuses to write either unencrypted (encryption.tf), so
+# what would land here is ciphertext. It is ignored anyway: encrypted state
+# under a passphrase that sits on one host is still nothing a public repository
+# should carry, and the day encryption.tf is broken is the day this line is the
+# only thing left. scripts/check-tracked-artefacts.sh asserts the same patterns
+# are untracked, because `git add -f` walks straight past this file.
+#
+# Unanchored, like the rest: a state file one directory down is no safer.
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/.terraform/
+tofu/state/
+# .terraform.lock.hcl is NOT ignored. It pins provider hashes and is committed.
+
 # ---- Backups ----
 # `make backup` writes age-encrypted volume archives to backups/volumes/<stamp>/,
 # and `make restore` writes a pre-restore snapshot of what it is about to

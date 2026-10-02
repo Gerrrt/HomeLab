@@ -229,7 +229,10 @@ Closes on BloodHound running where nothing attacks it.
   [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md);
   first build pending, → [runbook](runbooks/build-the-lab-templates.md); Kali's
   template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
-  [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu →
+  [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (written,
+  [ADR-0075](adr/0075-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md),
+  state encrypted and its guards in CI; the first apply and its two proofs wait
+  for #440's first build, → [runbook](runbooks/provision-lab-guests.md)) →
   [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
   six guests from the pipeline →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate

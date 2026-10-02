@@ -37,6 +37,23 @@ description = "age private key"
 regex = '''AGE-SECRET-KEY-1[0-9A-Z]{50,}'''
 tags = ["age", "key"]
 
+# Unencrypted OpenTofu/Terraform state or plan JSON (ADR-0075). Keyed on content,
+# not on a file name, so it fires on a plaintext state under any name: renamed,
+# pasted into a doc, or written by a tofu/ whose encryption.tf was broken.
+#
+# It does NOT fire on the state tofu/ actually writes. OpenTofu's encrypted
+# state is a JSON wrapper of `meta`, `encrypted_data` and `encryption_version`,
+# and `terraform_version` is inside the ciphertext. So the encrypted file in
+# phoenix's checkout scans clean without an allowlist entry, and this rule going
+# red there means encryption is off. scripts/check-tofu-state-encryption.sh
+# --self-test proves both halves against states it writes.
+[[rules]]
+id = "tfstate-plaintext"
+description = "Unencrypted OpenTofu/Terraform state"
+regex = '''"terraform_version"\s*:\s*"[0-9]'''
+keywords = ["terraform_version"]
+tags = ["tfstate", "credential"]
+
 # ---------------------------------------------------------------------------
 # Allowlist
 # ---------------------------------------------------------------------------

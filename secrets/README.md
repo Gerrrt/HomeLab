@@ -14,6 +14,13 @@ Every stack under `stacks/` has an example here in the same shape, except
 `stacks/media`, which has none by decision:
 [`docs/security.md`](../docs/security.md) § Secrets says why.
 
+**One encrypted file belongs to no stack: `tofu.sops.yaml`.** It is the escrow
+copy of `tofu/`'s state passphrase
+([ADR-0075](../docs/adr/0075-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)),
+encrypted on `phoenix` to the catch-all rule's recipients. `phoenix` holds no
+age key, so it can write the file and cannot read it. Nothing renders it.
+`tofu.example.yaml` documents its one key.
+
 **One encrypted file is never committed: `scratch.sops.yaml`.** It is encrypted
 to the key of `diabolos`, a guest destroyed after every investigation
 ([ADR-0071](../docs/adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)).
