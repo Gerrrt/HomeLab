@@ -2,6 +2,20 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> "It does not converge anything but this host's stack" (Decision, below) is
+> amended by [#533](https://github.com/Gerrrt/HomeLab/issues/533), 2026-10: a
+> second host pulls. `trinity` converges `stacks/sensitive` with the same
+> script, the same pinned key and the same refusals, as its operator from
+> `~/code/Gerrrt/HomeLab`, under `homelab-converge-sensitive` from
+> `install-timers.sh`'s sensitive profile. It decrypts only
+> `secrets/sensitive.sops.yaml`, with the tier's own age key. The reason this
+> ADR gave for stopping at one host was about hosts with no checkout and no
+> key, and `trinity` has both. The tier with the real data gets no stricter
+> mechanism, only the same rollout: report-only until it is watched, then
+> applying. `oracle` and `saruman` are still pushed to. The text here is left
+> as written, per ADR-0001.
+
 ## Context
 
 Deployment is `make up`, typed into an SSH session on `prometheus`

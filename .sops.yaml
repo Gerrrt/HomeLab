@@ -77,8 +77,10 @@ creation_rules:
   # estate's secrets. trinity's key opens secrets/sensitive.sops.yaml — the
   # tier's own passwords and tokens — and not the SNMP communities or the
   # Grafana admin password. `make secrets-init STACK=sensitive`, run ON
-  # trinity, fills the placeholder in; the technical second's recipient
-  # (ADR-0024, #294) joins this rule the day the tier holds real data.
+  # trinity, put that key here during the build (#404), and it is also what
+  # homelab-converge-sensitive decrypts with (#533). The technical second's
+  # recipient (ADR-0024, #294) is still to join this rule — the tier holds
+  # real data and the build runbook's §13 carries it as open.
   #
   # The household holder's key never goes here (ADR-0073): it would open the
   # tier's passwords as well as the household's copy. It goes in

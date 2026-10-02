@@ -1,0 +1,57 @@
+# Hourly convergence of trinity onto what `main` says (#533).
+#
+# The same job as ../homelab-converge.service, run against the other stack on
+# the other host, and that unit explains every directive below; this one states
+# only what differs. The @...@ tokens are rendered by scripts/install-timers.sh
+# --profile sensitive, as for homelab-backup-sensitive.service, and for the same
+# reason: the build runbook writes trinity's operator as <you>.
+#
+# `converge STACK=sensitive`, not a bare `converge`. converge.sh picks the
+# deployment checkout by stack — robo's for observability, the running user's
+# ~/code/Gerrrt/HomeLab for sensitive — and a bare call here would name robo's
+# and be refused.
+#
+# The age key is the tier's own (.sops.yaml's sensitive rule, ADR-0020's shape):
+# it opens secrets/sensitive.sops.yaml and nothing else of the estate's, which
+# is everything `make up STACK=sensitive` decrypts.
+#
+# The `backups` lock, shared with homelab-backup-sensitive and
+# homelab-backup-library. homelab-backup-sensitive stops most of the tier for
+# its archive, and a convergence that ran `make up` in that window would start
+# Vaultwarden underneath a backup that is mid-read.
+#
+# HOMELAB_CONVERGE_APPLY=0 in /etc/default/homelab-timers is how this was
+# rolled out — report-only until the runs read right, as the monitoring host
+# was (ADR-0021). docs/runbooks/converge-the-host.md has the step that ends it.
+[Unit]
+Description=HomeLab: converge trinity's sensitive tier onto the main branch
+Documentation=file://@DEPLOY_ROOT@/docs/runbooks/converge-the-host.md
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=@RUN_USER@
+Group=@RUN_GROUP@
+SupplementaryGroups=docker
+WorkingDirectory=@DEPLOY_ROOT@
+Environment=STACK=sensitive
+Environment=SOPS_AGE_KEY_FILE=@RUN_HOME@/.config/sops/age/keys.txt
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=@DEPLOY_ROOT@/scripts/run-scheduled.sh --job converge-sensitive --lock backups --lock-wait 900 -- /usr/bin/make -C @DEPLOY_ROOT@ converge STACK=sensitive
+TimeoutStartSec=1800
+Restart=no
+Nice=10
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=false
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-converge-sensitive
+
+# No [Install] section: the timer enables this, and a oneshot that could be
+# enabled on its own would deploy the tier at every boot.

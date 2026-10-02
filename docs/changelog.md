@@ -17,6 +17,32 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-02
+
+- **[#533](https://github.com/Gerrrt/HomeLab/issues/533): `trinity` converges
+  its own stack, authored to start report-only.** The tier holding the
+  household's real data was the one tier deployed by hand: a `git pull` and
+  `make up STACK=sensitive` from a shell on `trinity`, and a Dependabot bump
+  that merged did not land until someone typed them.
+  - **The decision.** The same mechanism as `prometheus`, not a stricter one:
+    `scripts/converge.sh` takes `--stack`, and for `sensitive` it converges the
+    running user's `~/code/Gerrrt/HomeLab`, under
+    `homelab-converge-sensitive` from `install-timers.sh`'s sensitive profile.
+    The rollout is the stricter part. It installs with
+    `HOMELAB_CONVERGE_APPLY=0`, as the monitoring host's did, and
+    `converge-the-host.md` §On trinity has the step that lets it act.
+    ADR-0021 carries a note saying a second host now pulls.
+  - **SOPS.** No new key. The `sensitive` rule's recipient is already
+    `trinity`'s own, so the unit only points `SOPS_AGE_KEY_FILE` at it.
+  - **What checks it.** `make validate` on `trinity` now fails unless the
+    converge timer is installed beside the backup. `DeployRecordMissing` is
+    new: with two hosts writing `homelab-deploy.prom`, `DeployMetricsAbsent`
+    could not see one of them go missing. The deploy alerts' descriptions now
+    name the host and both units instead of `robo`'s checkout.
+  - **Not yet true.** None of this is on `trinity` until the runbook's steps
+    run there, and the issue's "lands without a shell" waits for the
+    report-only line to come out.
+
 ## 2026-10-01
 
 - **The ISO store is checked daily, and Packer builds from it**

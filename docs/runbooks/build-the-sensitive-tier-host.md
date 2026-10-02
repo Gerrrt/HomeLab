@@ -613,8 +613,14 @@ same way, and prove the set against the database:
 
 ```bash
 make backup-library ARGS=--prove
-``` Converging the host is
-[#533](https://github.com/Gerrrt/HomeLab/issues/533), after this.
+```
+
+The same install adds `converge-sensitive`, the hourly convergence of the tier
+onto `main` ([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It needs
+GitHub's signing key in your keyring and `HOMELAB_CONVERGE_APPLY=0` in
+`/etc/default/homelab-timers` **before** the install above, because the
+installer primes it. [`converge-the-host.md`](converge-the-host.md#on-trinity)
+§On trinity is the order, and the step that later lets it act.
 
 ## 13. Before the first real photo, document or vault item
 
@@ -675,10 +681,15 @@ parts only the host and the firewall can do.
 
    ```bash
    cd ~/code/Gerrrt/HomeLab
-   git pull
-   make up STACK=sensitive
+   make converge STACK=sensitive
    make check-container-health STACK=sensitive
    ```
+
+   Once the converge timer applies, the merge is deployed within the hour on its
+   own and this is only the way not to wait. While it is report-only it is the
+   deploy. Either way it is `make converge`, not `git pull`: the same fetch,
+   verified, and it runs `make up STACK=sensitive` on what it moved to
+   ([`converge-the-host.md`](converge-the-host.md#on-trinity)).
 
    Caddy is recreated, because its aliases changed. Its log must show
    `certificate obtained` for the new name, and

@@ -126,11 +126,14 @@ converge: ## Fetch main, verify it, fast-forward and deploy (ARGS=--dry-run)
 	@# without waiting for it. It ends in `make up` rather than replacing it, so
 	@# there is exactly one deployment path and both callers exercise it.
 	@#
-	@# It refuses to run anywhere but /home/robo/code/Gerrrt/HomeLab, for the
-	@# reason `make up` cares about and `make deploy-agent` does not: render
-	@# writes into the .rendered/ of the tree it is run from, and no container
-	@# mounts a worktree's copy. ARGS=--dry-run says what it would do.
-	./scripts/converge.sh $(ARGS)
+	@# It refuses to run anywhere but the stack's deployment checkout —
+	@# /home/robo/code/Gerrrt/HomeLab for observability, ~/code/Gerrrt/HomeLab
+	@# on trinity for STACK=sensitive (#533) — for the reason `make up` cares
+	@# about and `make deploy-agent` does not: render writes into the .rendered/
+	@# of the tree it is run from, and no container mounts a worktree's copy.
+	@# A bare `make converge` on trinity names robo's checkout and is refused,
+	@# rather than deploying the wrong stack. ARGS=--dry-run says what it would do.
+	./scripts/converge.sh --stack $(STACK) $(ARGS)
 
 .PHONY: pull
 pull: ## Pull the pinned images

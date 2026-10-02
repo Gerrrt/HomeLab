@@ -272,11 +272,17 @@ time and lives in Caddy's `/data` volume, never on disk here.
   bind fails on it. The forwarder edit on `morpheus` that makes any of this
   matter is [`forward-dns-to-adguard.md`](../../docs/runbooks/forward-dns-to-adguard.md),
   and it is the whole client-side change.
-- **Nothing converges this stack.** It is deployed by hand, from a checkout
-  on `trinity` ([#533] is the change that would converge it). The one timer
-  here is the nightly backup, `homelab-backup-sensitive`, which
-  `make install-timers PROFILE=sensitive` installs. `make validate` on
-  `trinity` fails until it is installed.
+- **`trinity` converges this stack on a timer, as `prometheus` does its own**
+  ([#533], [ADR-0021]). `homelab-converge-sensitive` fetches `main` hourly,
+  verifies the merge's signature, fast-forwards the checkout on `trinity` and
+  runs `make up STACK=sensitive`, so a merged Dependabot bump lands without
+  anyone at a shell. It was installed report-only
+  (`HOMELAB_CONVERGE_APPLY=0`) and is let act by the step in
+  [`converge-the-host.md`](../../docs/runbooks/converge-the-host.md#on-trinity);
+  `DeployApplyDisabled` fires for `trinity` until then. By hand, it is
+  `make converge STACK=sensitive`, not `git pull`. The timer is installed with
+  the nightly backups by `make install-timers PROFILE=sensitive`, and
+  `make validate` on `trinity` fails until both are.
 - **Memory limits are set from day one, and now a CPU ceiling too.** [#129]'s
   ask, and the one place this file departs from the lab's reasoning — a proxy
   and a CA have working sets a limit can be stated for without a machine to
@@ -1057,6 +1063,7 @@ it matters:
 [ADR-0007]: ../../docs/adr/0007-defensive-estate-and-offensive-range.md
 [ADR-0008]: ../../docs/adr/0008-place-services-by-data-trust.md
 [ADR-0010]: ../../docs/adr/0010-keep-the-resolver-on-the-gateway.md
+[ADR-0021]: ../../docs/adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md
 [ADR-0022]: ../../docs/adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md
 [ADR-0023]: ../../docs/adr/0023-keep-the-household-recovery-path-outside-the-estate.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
