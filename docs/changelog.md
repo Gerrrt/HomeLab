@@ -29,6 +29,17 @@ docstring gives: it is a record, not a claim about now.
   exists. Immich's restore was rehearsed on 2026-09-28 and 2026-09-29, so
   #132's last gate is #455's holder and proof.
 
+- **[#145](https://github.com/Gerrrt/HomeLab/issues/145): Memos registration
+  is closed.** This corrects the 2026-09-29 entry's "Still open for Memos". The
+  first account was registered at `https://memos.matrix.elysium` and is the
+  admin. As that admin, *disallow user registration* was set in the instance's
+  general settings. Checked on `trinity` with the stack README's command:
+  `/api/v1/instance/settings/GENERAL` returned
+  `"disallowUserRegistration":true`, and `"disallowPasswordAuth":false`, so
+  the password login still works. Before the change, the same command returned
+  `false`. Memos still holds no real notes until ADR-0023's *Durable*
+  condition is met.
+
 ## 2026-10-01
 
 - **ADR-0007's umbrella closes: the domain and the SOC are built
