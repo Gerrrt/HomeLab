@@ -19,8 +19,9 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-01
 
-- **ADR-0007's defended estate is built, and its umbrella closes
-  ([#101](https://github.com/Gerrrt/HomeLab/issues/101)).** Its done-when
+- **ADR-0007's umbrella closes: the domain and the SOC are built
+  ([#101](https://github.com/Gerrrt/HomeLab/issues/101)).** The estate is
+  not finished, because PBS is still to build. The umbrella's done-when
   was [#266](https://github.com/Gerrrt/HomeLab/issues/266) and
   [#267](https://github.com/Gerrrt/HomeLab/issues/267) closing with the six
   agents reporting in, met 2026-09-27: six Wazuh agents Active, six
