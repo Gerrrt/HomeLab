@@ -17,6 +17,18 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-02
+
+- **[#132](https://github.com/Gerrrt/HomeLab/issues/132): `security.md`
+  stops saying the sensitive tier holds no data.** Two present-tense lines
+  were false. The threat table said "data, not yet", and the ADR-0023
+  paragraph said none of the household recovery path was built. Immich has
+  held 615 real photographs since 2026-09-28, and the off-estate copy has
+  been built and rehearsed onto the drive since 2026-10-01. Both lines now
+  say that, and say that there is no copy of record until a household holder
+  exists. Immich's restore was rehearsed on 2026-09-28 and 2026-09-29, so
+  #132's last gate is #455's holder and proof.
+
 ## 2026-10-01
 
 - **ADR-0007's umbrella closes: the domain and the SOC are built
