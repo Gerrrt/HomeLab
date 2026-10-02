@@ -104,9 +104,21 @@ up: render ## Render config and start the stack
 	@# just honest about it. Passed as a %s argument, not interpolated into the
 	@# format, so a stray % in the value cannot be read as a format spec.
 	@# tail -1 because compose takes the last of duplicate keys.
-	@port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
-	printf '\n\033[0;32mup\033[0m — Grafana: https://localhost:%s\n' "$${port:-3000}"
-	@printf '   (self-signed by the lab CA — trust certificates/ca.pem, see docs/runbooks/generate-certificates.md)\n'
+	@#
+	@# Only for a stack that has a Grafana. The sensitive tier has none, and its
+	@# own Caddy serves names from step-ca rather than the lab CA, so the same
+	@# line there pointed at a port nothing listens on and a CA that signs
+	@# nothing it serves — on every deploy, and in converge's journal hourly
+	@# on trinity once it applied (#533). Read off the compose file's services
+	@# rather than a list of stack names, so a stack that gains or drops a
+	@# Grafana is right without this recipe changing.
+	@if grep -qE '^  grafana:' $(STACK_DIR)/compose.yaml; then \
+		port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
+		printf '\n\033[0;32mup\033[0m — Grafana: https://localhost:%s\n' "$${port:-3000}"; \
+		printf '   (self-signed by the lab CA — trust certificates/ca.pem, see docs/runbooks/generate-certificates.md)\n'; \
+	else \
+		printf '\n\033[0;32mup\033[0m — %s\n' "$(STACK)"; \
+	fi
 	@# Last, so it is only reached when every check above passed: the revision
 	@# this deploy applied. converge.sh compares HEAD with it, because HEAD alone
 	@# says where the checkout is, not what is running — on 2026-10-01 a
