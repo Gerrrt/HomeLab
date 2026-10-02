@@ -125,7 +125,9 @@ Record the pool's `state:` line verbatim. TrueNAS's alert said the pool is
 `ONLINE` with a `FAULTED` leaf; if `zpool status` says `DEGRADED`, the
 kstat `node_zfs_zpool_state` reads will say so too and `ZpoolNotOnline` can
 see it. If it also says `ONLINE`, the pool-level metric cannot see a faulted
-mirror leaf at all, and that goes in *What is still open*.
+mirror leaf at all, and `ZpoolVdevNotOnline` is the alert that does
+([#744](https://github.com/Gerrrt/HomeLab/issues/744),
+[`build-the-nas.md`](build-the-nas.md) §6.8).
 
 ```bash
 readlink /sys/block/sdb
@@ -547,9 +549,14 @@ same port still inherits the old one's readings until the file is rewritten.
   850 pending sectors it would have, thirty minutes in, while the pool still
   said `ONLINE`. The faulted disk gets **no** baseline row; only the boot
   SSD's four static sectors are recorded, and that row is confirmed on the
-  day (§6.4). The other half — a
-  periodic task writing `zpool status` vdev states into the same textfile
-  directory — rides the mechanism the ADR built and is its own follow-up.
+  day (§6.4). **Resolved by
+  [#744](https://github.com/Gerrrt/HomeLab/issues/744): the other half.** A
+  five-minute root cron job writes `zpool status -j` leaf states into the same
+  textfile directory, keyed by GUID and named by partuuid, and
+  `ZpoolVdevNotOnline` pages on a leaf that is not ONLINE under a pool that
+  is — this fault, read the way the pool printed it. It is live once
+  [`build-the-nas.md`](build-the-nas.md) §6.8 has run at the console, and
+  that section's step 5 is the pulled-cable drill #744 closes on.
   TrueNAS's own alert service stays where it is, a mailbox and the web UI,
   by decision rather than by default: the ADR declines it as the paging path.
 - **The exporter's hang was the fault, not a habit.** It came back on a
