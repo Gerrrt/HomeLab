@@ -165,9 +165,12 @@ fast-forward.
 
 The same steps, as the operator — the `<you>` the build runbook installed as,
 whose `~/code/Gerrrt/HomeLab` serves the tier — and with the profile and the
-stack named. Do them in this order, after
-[`build-the-sensitive-tier-host.md`](build-the-sensitive-tier-host.md) §12 has
-installed the backup timers.
+stack named. Do them in this order. Steps 1–3 come **before any**
+`make install-timers PROFILE=sensitive` — on a fresh build that is before
+[`build-the-sensitive-tier-host.md`](build-the-sensitive-tier-host.md) §12's
+install, which points back here — because the installer primes the job and
+applying is the default. On a host whose backup timers are already installed,
+step 4 simply re-runs the install.
 
 1. Import and check GitHub's signing key, exactly as §Import GitHub's signing
    key, as `<you>` rather than `robo`.

@@ -587,6 +587,16 @@ Then put it on its timer. This is the sensitive profile of `install-timers.sh`,
 a nightly run at 04:30 whose outcome reaches the estate's staleness alerts as
 `backup-sensitive`
 ([`schedule-maintenance.md`](schedule-maintenance.md#on-trinity-the-sensitive-profile)).
+
+**First, the convergence prerequisites.** The same install adds
+`converge-sensitive`, the hourly convergence of the tier onto `main`
+([#533](https://github.com/Gerrrt/HomeLab/issues/533)), and the installer
+primes it by running it once — and applying is the default. So before the
+command below, import GitHub's signing key and put `HOMELAB_CONVERGE_APPLY=0`
+in `/etc/default/homelab-timers`:
+[`converge-the-host.md`](converge-the-host.md#on-trinity) §On trinity steps
+1–3. Its steps 5 and 6 come after: watching it, then letting it act.
+
 From this checkout:
 
 ```bash
@@ -614,13 +624,6 @@ same way, and prove the set against the database:
 ```bash
 make backup-library ARGS=--prove
 ```
-
-The same install adds `converge-sensitive`, the hourly convergence of the tier
-onto `main` ([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It needs
-GitHub's signing key in your keyring and `HOMELAB_CONVERGE_APPLY=0` in
-`/etc/default/homelab-timers` **before** the install above, because the
-installer primes it. [`converge-the-host.md`](converge-the-host.md#on-trinity)
-§On trinity is the order, and the step that later lets it act.
 
 ## 13. Before the first real photo, document or vault item
 

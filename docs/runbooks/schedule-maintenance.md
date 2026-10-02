@@ -609,19 +609,20 @@ whoever ran `sudo`, and refuses to install from anywhere but that user's
 is a bind mount ([ADR-0064](../adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
 It stops nothing, so its timer is `Persistent=true` and catches up a missed
 night at boot. It shares the `backups` lock with `backup-sensitive`, so an
-overrunning volume backup is waited for rather than raced. From that checkout
-on `trinity`:
+overrunning volume backup is waited for rather than raced.
+
+`converge-sensitive` is the monitoring host's `converge` for the tier
+([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It shares the
+`backups` lock too, so it never runs `make up` under a quiesced tier. **Before
+the install below**, import GitHub's signing key and set report-only mode —
+[`converge-the-host.md`](converge-the-host.md#on-trinity) §On trinity steps
+1–3 — because the installer primes the job and applying is the default.
+
+Then, from that checkout on `trinity`:
 
 ```bash
 make install-timers PROFILE=sensitive
 ```
-
-`converge-sensitive` is the monitoring host's `converge` for the tier
-([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It shares the
-`backups` lock too, so it never runs `make up` under a quiesced tier. Set it up
-in the order [`converge-the-host.md`](converge-the-host.md#on-trinity) gives:
-the signing key and report-only mode go in before this install, because the
-installer primes it.
 
 That writes a `homelab-jobs.prom` on `trinity` that declares only these
 five. The last two are the household's copy
