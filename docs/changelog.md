@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-02
 
+- **[#132](https://github.com/Gerrrt/HomeLab/issues/132): `security.md`
+  stops saying the sensitive tier holds no data.** Two present-tense lines
+  were false. The threat table said "data, not yet", and the ADR-0023
+  paragraph said none of the household recovery path was built. Immich has
+  held 615 real photographs since 2026-09-28, and the off-estate copy has
+  been built and rehearsed onto the drive since 2026-10-01. Both lines now
+  say that, and say that there is no copy of record until a household holder
+  exists. Immich's restore was rehearsed on 2026-09-28 and 2026-09-29, so
+  #132's last gate is #455's holder and proof.
+
 - **[#145](https://github.com/Gerrrt/HomeLab/issues/145): Memos registration
   is closed.** This corrects the 2026-09-29 entry's "Still open for Memos". The
   first account was registered at `https://memos.matrix.elysium` and is the
@@ -31,6 +41,22 @@ docstring gives: it is a record, not a claim about now.
   condition is met.
 
 ## 2026-10-01
+
+- **ADR-0007's umbrella closes: the domain and the SOC are built
+  ([#101](https://github.com/Gerrrt/HomeLab/issues/101)).** The estate is
+  not finished, because PBS is still to build. The umbrella's done-when
+  was [#266](https://github.com/Gerrrt/HomeLab/issues/266) and
+  [#267](https://github.com/Gerrrt/HomeLab/issues/267) closing with the six
+  agents reporting in, met 2026-09-27: six Wazuh agents Active, six
+  Velociraptor clients enrolled. The link after it,
+  [#437](https://github.com/Gerrrt/HomeLab/issues/437) (Zeek on the bridge),
+  closed today. What ADR-0007 named and is not finished already has its own
+  issue: the domain's §6, §10 and §11
+  ([#414](https://github.com/Gerrrt/HomeLab/issues/414)), PBS
+  ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md))
+  and JA4 ([#776](https://github.com/Gerrrt/HomeLab/issues/776)). The
+  umbrella never had a roadmap entry, so none leaves `roadmap.md`.
 
 - **The ISO store is checked daily, and Packer builds from it**
   ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
