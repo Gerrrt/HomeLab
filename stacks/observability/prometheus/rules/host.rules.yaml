@@ -520,9 +520,8 @@ groups:
       # POOL state, and a two-disk mirror with one faulted leaf is, to the
       # pool, online. So this rule cannot see the fault that produced it; it
       # sees a pool that is degraded, suspended or unavailable as a whole —
-      # a resilver in progress, or the second disk gone. A per-vdev signal
-      # is #558's open line, and until it exists a one-disk mirror pages
-      # nothing here once the exporter is back.
+      # a resilver in progress, or the second disk gone. The per-vdev signal
+      # #558 left open is ZpoolVdevNotOnline below (#744).
       #
       # `state!="online"` == 1 rather than `state="online"` == 0, so the label
       # carries WHICH state the pool is in and a state name the collector
@@ -551,6 +550,98 @@ groups:
             names the device; docs/runbooks/replace-the-nas-disk.md is the
             order to do things in, and copying erebor/apps off comes before
             touching a tray.
+
+      # --- ZFS leaf state, the level below the pool (#744) ------------------
+      #
+      # scripts/collect-zpool-state.sh runs from root's cron on smaug every
+      # five minutes (build-the-nas.md §6.8) and writes `zpool status -j`
+      # into the textfile media-node-exporter serves: one
+      # homelab_zpool_vdev_state{host, pool, vdev, guid, state} = 1 per leaf,
+      # its read/write/checksum counters, and the pool's own state from the
+      # same read. Leaves are keyed by `guid` and named by partuuid, never by
+      # /dev/sdX — the letter is what made SmartDriveBadSectors fire on a
+      # healthy disk after the 2026-09-29 swap (#745).
+      #
+      # WHAT IT IS FOR: the reading ZpoolNotOnline cannot have. On 2026-09-19
+      # a leaf FAULTED with the pool, the mirror and the kstat all reading
+      # ONLINE. A cable, a controller reset, or a drive that times out
+      # without logging a bad sector looks the same, and SmartDriveBadSectors
+      # does not see those either.
+      #
+      # IT STANDS DOWN WHEN THE POOL IS NOT ONLINE. A pool that reads
+      # DEGRADED is ZpoolNotOnline's, and it already pages critical; this
+      # firing as well would be two pages for one disk. That covers the leaf
+      # replace-the-nas-disk.md step 4 offlines on purpose and the old leaf
+      # during a resilver. The `unless` uses the pool state the collector
+      # wrote in the same run, not node_zfs_zpool_state, so both halves come
+      # from one `zpool status` and carry the same labels. One consequence,
+      # accepted: during a resilver a SECOND leaf faulting is ZpoolNotOnline's
+      # alert already firing, not a new page.
+      #
+      # for: 1m, not ZpoolNotOnline's 5m. One collector reading sits in the
+      # file for five minutes, so a five-minute `for` would sit on the edge of
+      # whether a single reading pages. ZFS does not flap a leaf's state, and a
+      # leaf that read FAULTED or REMOVED once is worth the console. Worst case
+      # from fault to page: up to five minutes for the next cron run, one for
+      # the scrape, one for the `for`.
+      - alert: ZpoolVdevNotOnline
+        expr: >-
+          homelab_zpool_vdev_state{state!="online"} == 1
+          unless on(host, pool) (homelab_zpool_state{state!="online"} == 1)
+        for: 1m
+        labels:
+          component: host
+          severity: critical
+          category: hardware
+        annotations:
+          summary: "{{ $labels.host }}: a leaf of zpool {{ $labels.pool }} is {{ $labels.state }} while the pool reads online"
+          description: >-
+            Leaf {{ $labels.vdev }} (guid {{ $labels.guid }}) of
+            {{ $labels.pool }} reads {{ $labels.state }}{{ with $labels.aux }} ({{ . }}){{ end }},
+            and the pool still reads ONLINE, so ZpoolNotOnline cannot see it.
+            On a two-disk mirror that is one disk carrying everything. At the
+            console, `zpool status -v {{ $labels.pool }}` names it and
+            `lsblk -o NAME,PARTUUID,SERIAL` turns the partuuid into the serial
+            on the drive label. docs/runbooks/replace-the-nas-disk.md is the
+            order to do things in, and copying erebor/apps off comes before
+            touching a tray.
+
+      # A leaf's error counters are not zero (#744).
+      #
+      # `> 0` and not growth over a window. ZFS keeps these counters from
+      # import until `zpool clear` or a reboot. A window would miss a leaf
+      # whose series is new, which is what a renamed or replaced leaf is, and
+      # would resolve by itself an hour after the errors stopped, with
+      # nobody having looked. Here the operator resolves it: read
+      # `zpool status -v`, judge it, then `zpool clear <pool> <vdev>`.
+      # `ZVTBSDL3` had 3 read and 99 write errors when it faulted, so errors
+      # can come before or alongside the state change, and a scrub that
+      # repairs checksum errors leaves the count behind it on purpose.
+      #
+      # Warning, not critical: one checksum error repaired from the other
+      # side of a mirror is worth reading the next morning, not at 3 a.m. A
+      # leaf whose errors fault it pages through ZpoolVdevNotOnline. Not
+      # stood down for a degraded pool: the errors are their own fact, and
+      # Alertmanager's critical-over-warning inhibition applies only to the
+      # same alertname.
+      - alert: ZpoolVdevErrors
+        expr: homelab_zpool_vdev_errors > 0
+        for: 1m
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "{{ $labels.host }}: zpool {{ $labels.pool }} leaf {{ $labels.vdev }} has {{ $value }} {{ $labels.kind }} errors"
+          description: >-
+            ZFS counted {{ $value }} {{ $labels.kind }} errors on leaf
+            {{ $labels.vdev }} (guid {{ $labels.guid }}) of {{ $labels.pool }}
+            since import or the last `zpool clear`. Read `zpool status -v
+            {{ $labels.pool }}` and the drive's SMART series for the same disk.
+            A cable or a reset shows as read or write errors with clean SMART,
+            and a dying disk shows both. Once it is judged,
+            `zpool clear {{ $labels.pool }} {{ $labels.vdev }}` resolves this;
+            if it comes back, the disk or its cable is the answer.
 
       - alert: SystemUpdateAvailable
         # A pfSense system upgrade has been available for a week (#378).
@@ -1361,6 +1452,40 @@ groups:
             on an Alloy host it is homelab-smart-state.timer or, for morpheus,
             homelab-smart-state-remote.timer on the monitoring host. Check the
             job still exists and that its last run wrote the file.
+
+      - alert: ZpoolVdevStateStale
+        # The leaf-state collector has stopped rewriting its file (#744).
+        #
+        # SmartStateStale's reasoning and mechanism, with its own rule rather
+        # than a second filename in that one's regex. A shared rule would share
+        # the two-day threshold, and a five-minute signal that may be two days
+        # stale before anything says so is ZpoolVdevNotOnline blind for two
+        # days: a one-disk mirror for that long with nothing paging, which is
+        # what #744 exists to end.
+        #
+        # Twice the period, the estate's rule: two missed five-minute runs.
+        # `zpool status` answers from kernel memory and returns in well under a
+        # second, so a slow run is not a reason to be late. A failed read
+        # writes nothing on purpose, so a `zpool status -j` that starts
+        # failing ends up here, not as a file that looks healthy.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*zpool-state-.*\\.prom"} > 2 * 300
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten {{ $labels.file }} in ten minutes"
+          description: >-
+            The ZFS leaf-state textfile is {{ $value | humanizeDuration }} old,
+            and node_exporter re-serves its last contents, so every
+            homelab_zpool_vdev_* series is present and stale.
+            ZpoolVdevNotOnline cannot see a faulted leaf on this host until the
+            file is rewritten. The writer is a five-minute root cron job in
+            TrueNAS's UI (System → Advanced Settings → Cron Jobs;
+            build-the-nas.md §6.8). Check the job still exists, then run its
+            command at the console. A failure there prints why.
 
       # --- Laptop batteries, the mains-cut path nobody was watching (#454) ---
       #

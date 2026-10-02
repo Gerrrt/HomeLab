@@ -199,6 +199,28 @@ docstring gives: it is a record, not a claim about now.
   and JA4 ([#776](https://github.com/Gerrrt/HomeLab/issues/776)). The
   umbrella never had a roadmap entry, so none leaves `roadmap.md`.
 
+- **A faulted leaf under an `ONLINE` pool pages**
+  ([#744](https://github.com/Gerrrt/HomeLab/issues/744)).
+  - **Why.** On 2026-09-19 `ZVTBSDL3` FAULTED while `zpool status` and the
+    kstat both read `erebor` as `ONLINE`, so `ZpoolNotOnline` could not see
+    it. #558 closed with that box open.
+  - **What runs.** `scripts/collect-zpool-state.sh` parses
+    `zpool status -j --json-int`, which is OpenZFS 2.3's JSON, not the text
+    tree. It writes `homelab_zpool_vdev_state{host, pool, vdev, guid, state}`
+    per leaf, the read/write/checksum counters, and the pool's state.
+    Leaves are keyed by GUID and named by partuuid. `boot-pool`'s kernel-name
+    leaf is resolved through `/dev/disk/by-partuuid`, so a letter move cannot
+    move a series. Hot spares are left out. On `smaug` it runs as a root cron
+    job every five minutes, beside the SMART job (ADR-0047). It is not running
+    yet: `build-the-nas.md` §6.8 is the console procedure.
+  - **The rules.** `ZpoolVdevNotOnline` is critical and stands down when the
+    pool itself is not ONLINE, which is `ZpoolNotOnline`'s page. That covers
+    the leaf the disk runbook offlines on purpose. `ZpoolVdevErrors` warns on
+    any non-zero counter until `zpool clear`. `ZpoolVdevStateStale` fires at
+    ten minutes, as its own rule, because `SmartStateStale`'s two days is too
+    slow for this signal. Each has a firing and a quiet promtool case, and
+    each rule's mutations were killed.
+
 - **The ISO store is checked daily, and Packer builds from it**
   ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
   [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).

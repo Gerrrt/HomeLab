@@ -2628,6 +2628,59 @@ tests:
         alertname: SmartStateStale
         exp_alerts: []
 
+  # --- ZpoolVdevStateStale: fires when the five-minute file stops ------------
+  # Written at t=0 and never again. It crosses ten minutes after 10m, is
+  # pending from the 15m evaluation, and has held `for: 10m` by 25m. At 30m it
+  # is thirty minutes old. Sampled every 5m, not hourly, because the series
+  # lookback is five minutes (IsoStoreStateStale's lesson). The 20m evaluation
+  # is what kills `for: 10m -> 0m`.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="smaug",job="node",role="nas",vlan="40",file="/textfile/zpool-state-smaug.prom"}'
+        values: "0x12"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ZpoolVdevStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              file: /textfile/zpool-state-smaug.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "smaug has not rewritten /textfile/zpool-state-smaug.prom in ten minutes"
+              description: >-
+                The ZFS leaf-state textfile is 30m 0s old, and node_exporter
+                re-serves its last contents, so every homelab_zpool_vdev_*
+                series is present and stale. ZpoolVdevNotOnline cannot see a
+                faulted leaf on this host until the file is rewritten. The
+                writer is a five-minute root cron job in TrueNAS's UI (System →
+                Advanced Settings → Cron Jobs; build-the-nas.md §6.8). Check
+                the job still exists, then run its command at the console. A
+                failure there prints why.
+      - eval_time: 20m
+        alertname: ZpoolVdevStateStale
+        exp_alerts: []
+
+  # --- ZpoolVdevStateStale: quiet while the cron keeps rewriting it ----------
+  # The mtime moves 300 s every 5 m. Beside it, the SMART file, a day old
+  # and so far past ten minutes, must not match: the regex is the whole scope,
+  # and SmartStateStale owns that file.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="smaug",job="node",role="nas",vlan="40",file="/textfile/zpool-state-smaug.prom"}'
+        values: "0+300x12"
+      - series: 'node_textfile_mtime_seconds{instance="smaug",job="node",role="nas",vlan="40",file="/textfile/smart-state-smaug.prom"}'
+        values: "-86400x12"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: ZpoolVdevStateStale
+        exp_alerts: []
+
   # --- HostOnBattery: fires when the mains adapter reports no input ---------
   # prometheus's adapter is ADP1. The info series is what admits it as Mains.
   - interval: 1m
@@ -3237,4 +3290,208 @@ tests:
     alert_rule_test:
       - eval_time: 10m
         alertname: ZpoolNotOnline
+        exp_alerts: []
+
+  # ==========================================================================
+  # ZpoolVdevNotOnline, ZpoolVdevErrors — the leaf level (#744).
+  #
+  # The series are what scripts/collect-zpool-state.sh renders, plus the
+  # instance/job the scrape adds. Leaf names and GUIDs are smaug's own, read
+  # from TrueNAS's pool.query on 2026-10-01: ...c3781 is guid
+  # 5271037958598492964, ...230c6 is 1964916359723921467.
+  #
+  # Mutation-tested 2026-10-01; each was killed:
+  #
+  #   ZpoolVdevNotOnline  state!="online" -> state=~".+";  == 1 -> == 0;
+  #                       drop the `unless`;  on(host, pool) -> on(host);
+  #                       for: 1m -> 0m
+  #   ZpoolVdevErrors     > 0 -> >= 0;  > 0 -> > 100;  for: 1m -> 0m
+  # ==========================================================================
+
+  # --- ZpoolVdevNotOnline: fires on 2026-09-19's reading --------------------
+  # The pool and the mirror ONLINE, one leaf FAULTED with "too many errors".
+  # This is the reading ZpoolNotOnline could not see, and the case #744 is for.
+  # boot-pool is present and healthy, so a rule that lost `state!="online"`
+  # fires on its leaf too.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="erebor",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="boot-pool",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="52dfceb0-0c58-476b-be76-ec30184c3781",guid="5271037958598492964",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="faulted",aux="too many errors"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="boot-pool",vdev="1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10",guid="777",state="online"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts:
+          - exp_labels:
+              instance: smaug
+              job: node
+              host: smaug
+              pool: erebor
+              vdev: 9362abc8-9bc8-4045-9095-f50f03f230c6
+              guid: "1964916359723921467"
+              state: faulted
+              aux: too many errors
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "smaug: a leaf of zpool erebor is faulted while the pool reads online"
+              description: >-
+                Leaf 9362abc8-9bc8-4045-9095-f50f03f230c6 (guid
+                1964916359723921467) of erebor reads faulted (too many errors),
+                and the pool still reads ONLINE, so ZpoolNotOnline cannot see
+                it. On a two-disk mirror that is one disk carrying everything.
+                At the console, `zpool status -v erebor` names it and `lsblk -o
+                NAME,PARTUUID,SERIAL` turns the partuuid into the serial on the
+                drive label. docs/runbooks/replace-the-nas-disk.md is the order
+                to do things in, and copying erebor/apps off comes before
+                touching a tray.
+
+      # The first evaluation sees the fault but has not held it for `for: 1m`.
+      # This read is what kills `for: 1m -> 0m`.
+      - eval_time: 0m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts: []
+
+  # --- ZpoolVdevNotOnline: one pool degraded, the other not -----------------
+  # erebor DEGRADED with a leaf offlined (ZpoolNotOnline's alert), and at the
+  # same time boot-pool ONLINE with its leaf REMOVED — a cable on the boot SSD.
+  # The rule must stand down for erebor and still fire for boot-pool. A rule
+  # that joined on(host) alone would let erebor's state silence boot-pool.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="erebor",state="degraded"}'
+        values: "1x20"
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="boot-pool",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="offline"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="boot-pool",vdev="1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10",guid="777",state="removed"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts:
+          - exp_labels:
+              instance: smaug
+              job: node
+              host: smaug
+              pool: boot-pool
+              vdev: 1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10
+              guid: "777"
+              state: removed
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              summary: "smaug: a leaf of zpool boot-pool is removed while the pool reads online"
+              description: >-
+                Leaf 1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10 (guid 777) of
+                boot-pool reads removed, and the pool still reads ONLINE, so
+                ZpoolNotOnline cannot see it. On a two-disk mirror that is one
+                disk carrying everything. At the console, `zpool status -v
+                boot-pool` names it and `lsblk -o NAME,PARTUUID,SERIAL` turns
+                the partuuid into the serial on the drive label.
+                docs/runbooks/replace-the-nas-disk.md is the order to do things
+                in, and copying erebor/apps off comes before touching a tray.
+
+  # --- ZpoolVdevNotOnline: quiet for the offline leaf of runbook step 4 -----
+  # The leaf offlined on purpose, the pool DEGRADED. ZpoolNotOnline pages for
+  # it, and this must not page again. This is the case that kills dropping
+  # the `unless`.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="erebor",state="degraded"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="52dfceb0-0c58-476b-be76-ec30184c3781",guid="5271037958598492964",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="offline"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts: []
+
+  # --- ZpoolVdevNotOnline: quiet on smaug as it reads today ------------------
+  # Every leaf online, both pools online. The 0-valued leaf series is not
+  # something the collector writes. It is here so a rule that lost its `== 1`
+  # has something to fire on.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="erebor",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="52dfceb0-0c58-476b-be76-ec30184c3781",guid="5271037958598492964",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="stale",guid="1",state="faulted"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts: []
+
+  # --- ZpoolVdevErrors: fires on a leaf with errors ---------------------------
+  # 2026-09-19's 99 write errors, on a leaf whose read and checksum counters are
+  # zero. One alert, for the one non-zero counter.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",kind="write"}'
+        values: "99x20"
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",kind="read"}'
+        values: "0x20"
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",kind="checksum"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevErrors
+        exp_alerts:
+          - exp_labels:
+              instance: smaug
+              job: node
+              host: smaug
+              pool: erebor
+              vdev: 9362abc8-9bc8-4045-9095-f50f03f230c6
+              guid: "1964916359723921467"
+              kind: write
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: zpool erebor leaf 9362abc8-9bc8-4045-9095-f50f03f230c6 has 99 write errors"
+              description: >-
+                ZFS counted 99 write errors on leaf
+                9362abc8-9bc8-4045-9095-f50f03f230c6 (guid 1964916359723921467)
+                of erebor since import or the last `zpool clear`. Read `zpool
+                status -v erebor` and the drive's SMART series for the same
+                disk. A cable or a reset shows as read or write errors with
+                clean SMART, and a dying disk shows both. Once it is judged,
+                `zpool clear erebor 9362abc8-9bc8-4045-9095-f50f03f230c6`
+                resolves this; if it comes back, the disk or its cable is the
+                answer.
+
+      - eval_time: 0m
+        alertname: ZpoolVdevErrors
+        exp_alerts: []
+
+  # --- ZpoolVdevErrors: quiet on clean counters, and after a zpool clear ----
+  # One leaf all zeros. The other had a checksum error that `zpool clear` reset
+  # at 3m, so the alert was pending at 0m and the counter is zero by 5m. The
+  # rule must not latch.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="52dfceb0-0c58-476b-be76-ec30184c3781",guid="5271037958598492964",kind="checksum"}'
+        values: "0x20"
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",kind="checksum"}'
+        values: "1x3 0x17"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevErrors
         exp_alerts: []

@@ -1739,6 +1739,95 @@ day's file carries the new version, and `check-versions` fails until
 > **Not yet done.** The date and the two readings from step 4 go here, and
 > [#616](https://github.com/Gerrrt/HomeLab/issues/616) closes on them.
 
+### §6.8 — Turn leaf-state collection on
+
+[#744](https://github.com/Gerrrt/HomeLab/issues/744). On 2026-09-19 a leaf
+of `erebor` FAULTED while `zpool status` and the kstat behind
+`node_zfs_zpool_state` both read the pool **ONLINE**, so `ZpoolNotOnline`
+could not see it, and once the exporter was back nothing paged for a mirror on
+one disk ([`replace-the-nas-disk.md`](replace-the-nas-disk.md)).
+`scripts/collect-zpool-state.sh` reads `zpool status -j` and writes one
+`homelab_zpool_vdev_state` series per leaf of every pool, keyed by the vdev's
+GUID and named by its partuuid, never by `/dev/sdX`, plus its read, write and
+checksum counters and the pool's own state. `ZpoolVdevNotOnline` pages on a
+leaf that is not ONLINE under a pool that is, and `ZpoolVdevErrors` warns on
+any non-zero counter. It runs the way §6.4 and §6.7 do
+([ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)),
+but every **five minutes**: at SMART's daily slot, #558's fault would have
+gone a day unpaged.
+
+**1. The script and a dry run**, from the console shell as root. `--print`
+writes nothing:
+
+```bash
+cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-zpool-state.sh \
+  && chmod 0755 collect-zpool-state.sh
+PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash /mnt/erebor/apps/stack/collect-zpool-state.sh --print --host smaug
+```
+
+Read four things off it. `homelab_zpool_vdev_leaves` is **2** for `erebor`
+and **1** for `boot-pool`. Every `homelab_zpool_vdev_state` line says
+`state="online"`. Each `vdev=` is a partuuid, not `sdX3`: if `boot-pool`'s
+reads as a letter, `/dev/disk/by-partuuid` had no link for it, and that goes
+in the done block. Every `homelab_zpool_vdev_errors` line is **0**. A
+non-zero counter here pages `ZpoolVdevErrors` on the first scrape, so read
+`zpool status -v`, judge it, and `zpool clear` it before step 3 rather than
+after. If the command fails with a usage message, this ZFS has no `-j` and the
+script says so: it needs OpenZFS 2.3, which TrueNAS has shipped since 25.04.
+
+**2. The first real write:**
+
+```bash
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 60 /bin/bash /mnt/erebor/apps/stack/collect-zpool-state.sh --host smaug
+ls -l /mnt/erebor/apps/textfile
+```
+
+A third file beside the other two: `zpool-state-smaug.prom`, `-rw-r--r--`,
+root. The one line it prints ends `not-online=0`.
+
+**3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
+
+| Field | Value | Why |
+| --- | --- | --- |
+| Description | `homelab zpool-state (#744, ADR-0047)` | So the next person finds the issue from the job |
+| Command | the step-2 command line, exactly, without the `ls` | cron's `PATH` has no `/usr/sbin`, where `zpool` lives; `timeout 60` because a suspended pool can block `zpool status`, and a run that hangs must end and leave the file to go stale; `--host smaug` for the scrape's `instance` |
+| Run As User | `root` | Only because `/mnt/erebor/apps/textfile` is root-owned `0755`; `zpool status` itself needs nothing |
+| Schedule | custom, `*/5 * * * *` | The page is at most one run, one scrape and one minute of `for` behind the fault. `ZpoolVdevStateStale` fires at ten minutes, twice the period |
+| Hide Standard Output | **on** | Success is one line, 288 times a day |
+| Hide Standard Error | **off** | A failure is the thing worth seeing |
+| Enabled | on | |
+
+**4. Prove it from the monitoring host**, the next time the scrape runs:
+
+```bash
+curl -s http://10.0.40.30:9100/metrics | grep -E '^homelab_zpool_|^node_textfile_scrape_error'
+```
+
+`node_textfile_scrape_error` is **0**, the `homelab_zpool_*` lines match
+step 1, and in Prometheus
+`ALERTS{alertname=~"ZpoolVdev.*"}` is empty.
+
+**5. The fault drill, which is what [#744](https://github.com/Gerrrt/HomeLab/issues/744)
+closes on.** A pulled data cable on one Exos, with the pool still reading
+`ONLINE`, has to page `ZpoolVdevNotOnline` within about seven minutes. Do it
+only with §6.2's newest backup set verified, and with both leaves ONLINE and
+the last scrub clean, because for its duration the mirror is one disk. At the
+console, `zpool status erebor` first to name the leaf, then pull the SATA
+data cable of the Exos whose serial you read off the label (the power cable
+stays in). Watch `zpool status erebor`: record the pool's `state:` line and
+the leaf's state verbatim. **If the pool reads DEGRADED**, `ZpoolNotOnline`
+is the page and `ZpoolVdevNotOnline` correctly stands down. Both outcomes are
+a page, and the reading says which rule this hardware hands the fault to.
+Reseat the cable, `zpool online erebor <partuuid>` if ZFS has not
+brought it back by itself, and let the resilver finish before anything else.
+`zpool offline -t` is **not** a substitute: an offlined leaf takes the pool to
+DEGRADED by definition, so it tests `ZpoolNotOnline`, not this.
+
+> **Not yet done.** The date, step 1's readings, and step 5's pool and leaf
+> states and the time from the pull to the page go here, and
+> [#744](https://github.com/Gerrrt/HomeLab/issues/744) closes on them.
+
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the
@@ -1842,4 +1931,6 @@ day's file carries the new version, and `check-versions` fails until
   [ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),
   which closed [#483](https://github.com/Gerrrt/HomeLab/issues/483). The
   vdev-state textfile [`replace-the-nas-disk.md`](replace-the-nas-disk.md)
-  asks for rides the same mechanism and is its own follow-up.
+  asked for rides the same mechanism. It is §6.8, built under
+  [#744](https://github.com/Gerrrt/HomeLab/issues/744), and runs once that
+  section has been done at the console.

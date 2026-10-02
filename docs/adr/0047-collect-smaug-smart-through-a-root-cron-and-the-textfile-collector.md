@@ -11,6 +11,15 @@
 > directory the exporter serves
 > ([`build-the-nas.md`](../runbooks/build-the-nas.md) §6.7). The decision
 > below is unchanged; it simply has two tenants.
+>
+> **A third, 2026-10-01: ZFS leaf state**
+> ([#744](https://github.com/Gerrrt/HomeLab/issues/744)). This is the follow-up
+> *Consequences* names below. `scripts/collect-zpool-state.sh` writes
+> `zpool status -j` per leaf every five minutes, not daily, and
+> `ZpoolVdevNotOnline` pages on a faulted leaf under an `ONLINE` pool
+> ([`build-the-nas.md`](../runbooks/build-the-nas.md) §6.8). Its staleness
+> rule is its own, `ZpoolVdevStateStale` at ten minutes, because
+> `SmartStateStale`'s two days would blind a five-minute signal for two days.
 
 ## Context
 

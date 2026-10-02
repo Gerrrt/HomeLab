@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-138 rules in total: 120 metric-based in `prometheus/rules/`, and 18 log-based in
+141 rules in total: 123 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -450,7 +450,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-120 rules across eleven files in `prometheus/rules/`:
+123 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -473,7 +473,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 100 rules of 120 so far — all ten
+against the broken rule too. Coverage is 103 rules of 123 so far — all ten
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
@@ -496,7 +496,8 @@ the three laptop-battery rules from
 `HostClockUnsynchronised` from [#519](https://github.com/Gerrrt/HomeLab/issues/519),
 the cell-temperature and runtime rules from
 [#532](https://github.com/Gerrrt/HomeLab/issues/532), `SmartStateStale`
-from [#483](https://github.com/Gerrrt/HomeLab/issues/483), the three thin-pool rules from
+from [#483](https://github.com/Gerrrt/HomeLab/issues/483), the three ZFS leaf rules from
+[#744](https://github.com/Gerrrt/HomeLab/issues/744), the three thin-pool rules from
 [#538](https://github.com/Gerrrt/HomeLab/issues/538), the three firewall rules from
 [#576](https://github.com/Gerrrt/HomeLab/issues/576), the four guest-disk rules from
 [#778](https://github.com/Gerrrt/HomeLab/issues/778), the two Zeek mirror rules from

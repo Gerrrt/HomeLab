@@ -20,7 +20,9 @@
 #              scripts/collect-smart-state.sh, fetched the same way and run
 #              by TrueNAS's cron rather than by this file (§6.4); and a
 #              fourth since #616, scripts/collect-truenas-version.sh, the
-#              same way for the version check-versions compares (§6.7).
+#              same way for the version check-versions compares (§6.7); and a
+#              fifth since #744, scripts/collect-zpool-state.sh, every five
+#              minutes, for ZFS leaf state (§6.8).
 #
 # ---------------------------------------------------------------------------
 # Why this stack is three media services
