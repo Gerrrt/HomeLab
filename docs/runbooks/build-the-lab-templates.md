@@ -72,7 +72,7 @@ packer version
 Then fetch the plugin `packer/versions.pkr.hcl` pins:
 
 ```bash
-cd ~/HomeLab && git pull && packer init packer/
+cd ~/code/Gerrrt/HomeLab && git pull && packer init packer/
 ```
 
 ## 2. What the token is missing, on `Saruman`
@@ -85,35 +85,73 @@ its own:
 ```bash
 pveum acl modify /storage/large_data --users phoenix@pve --roles PhoenixBuilder
 pveum role modify PhoenixBuilder --append 1 --privs "VM.GuestAgent.Audit"
+```
+
+Packer uploads each build's answer disc to `local` and deletes it at the
+end, and deleting a volume is `Datastore.Allocate`. That privilege also
+deletes any volume and edits a storage's configuration, and `PhoenixBuilder`
+is granted on `large_data`, where the domain's disks live. So it goes in a
+role of its own, granted on `local` alone. Without it every build leaves its
+answer disc behind, and the Windows one carries the build password (found
+2026-10-02, when the first Ubuntu build could not clean up):
+
+```bash
+pveum role add PhoenixIsoCleanup --privs "Datastore.Allocate"
+pveum acl modify /storage/local --users phoenix@pve --roles PhoenixIsoCleanup
 pveum acl list | grep phoenix
 ```
 
 **Then make `phoenix` verify the API's certificate.** Packer and
 `scripts/packer-smoke.sh` both check TLS, because the token travels in a header,
 and a guest on VLAN 30 answering for `10.0.30.110` would collect it otherwise.
-The attack VM shares that segment. Saruman's API certificate is signed by the
-cluster's own CA. Print it on `Saruman`:
+The attack VM shares that segment.
+
+**First, check what `Saruman` actually serves.** Its API certificate should
+be the one signed by the cluster's own CA. If
+`/etc/pve/local/pveproxy-ssl.pem` exists, `pveproxy` serves that custom
+certificate instead, and on 2026-10-02 it did: a hand-made one from
+September 2025, issued by OpenSSL's placeholder `Internet Widgits Pty Ltd`
+and naming only `10.0.0.208`, the host's address before it moved. On
+`Saruman`:
 
 ```bash
-cat /etc/pve/pve-root-ca.pem
+echo | openssl s_client -connect 10.0.30.110:8006 2>/dev/null | openssl x509 -noout -issuer -ext subjectAltName
 ```
 
-On `phoenix`, paste it into the trust store and prove it with no `-k`:
+The issuer must be `PVE Cluster Manager CA`, and the names must include
+`10.0.30.110`. If either is wrong, keep a copy of any custom certificate,
+regenerate the node's own from `/etc/hosts` (check the host's line there
+first, because this reads it), and stop serving the custom one. Restarting
+`pveproxy` drops open web-UI sessions and touches no guest:
 
 ```bash
-sudo tee /usr/local/share/ca-certificates/saruman-pve-root-ca.crt >/dev/null   # paste, then Ctrl-D
-sudo update-ca-certificates
+cp -a /etc/pve/local/pveproxy-ssl.pem /etc/pve/local/pveproxy-ssl.key /root/ 2>/dev/null; pvecm updatecerts --force && pvenode cert delete && systemctl restart pveproxy
+```
+
+**Then trust the cluster CA on `phoenix`.** It is public, so copying it
+carries no secret; only the key beside it in `/etc/pve` is secret. `phoenix`
+cannot SSH to `Saruman`, so relay it from a workstation that reaches both:
+
+```bash
+ssh saruman cat /etc/pve/pve-root-ca.pem | ssh phoenix 'cat > ~/saruman-pve-root-ca.crt'
+```
+
+On `phoenix`, the subject must be the same `PVE Cluster Manager CA` the
+`s_client` line printed as issuer. Then install it and prove it with no
+`-k`:
+
+```bash
+openssl x509 -in ~/saruman-pve-root-ca.crt -noout -subject -enddate
+sudo install -m 0644 ~/saruman-pve-root-ca.crt /usr/local/share/ca-certificates/saruman-pve-root-ca.crt && sudo update-ca-certificates && rm -f ~/saruman-pve-root-ca.crt
 set -a; . ~/.config/proxmox/phoenix.env; set +a
 curl -fsS -H "Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}" \
   "${PROXMOX_URL}/version"
 ```
 
-A version, not `SSL certificate problem`. If the error is that the name does not
-match, the certificate does not list `10.0.30.110`. Check with
-`openssl x509 -in /etc/pve/local/pve-ssl.pem -noout -ext subjectAltName` on
-`Saruman`. `pvecm updatecerts --force` regenerates it with the node's
-addresses. The CA is public: copying it carries no secret. Only the key beside
-it in `/etc/pve` is secret.
+A version, not `SSL certificate problem`. **Check this before a build, not
+during one.** Packer checks the name before the chain, so a host serving the
+wrong certificate *and* a `phoenix` without the CA shows only the name error,
+and the second problem appears after the first is fixed.
 
 That is ADR-0043's rule applied: **privileges are added to the role, and the
 role is never granted at `/`**. If a build fails with
@@ -128,6 +166,7 @@ Found on the first build (fill in):
 | --- | --- | --- |
 | `Datastore.AllocateSpace` (role) | `/storage/large_data` | every disk, EFI disk and TPM state |
 | `VM.GuestAgent.Audit` | `/vms` | Packer's address lookup, `scripts/packer-smoke.sh` |
+| `Datastore.Allocate` (`PhoenixIsoCleanup`, its own role) | `/storage/local` | deleting the answer disc a build uploaded. Not added to `PhoenixBuilder`, which would grant it on `large_data` too |
 | `Datastore.Audit` (`PVEAuditor`, read-only) | `/storage/smaug-iso` | attaching the installers from the ISO store, §2b step 5 |
 
 ## 2b. The installers, on `smaug-iso`, on `Saruman`
@@ -244,7 +283,7 @@ that already holds the token:
 
 ```bash
 umask 077
-printf 'PKR_VAR_build_password=%s\n' "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-20)Aa1!" \
+printf 'PKR_VAR_build_password=%s\n' "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-20)"'Aa1!' \
   >> ~/.config/proxmox/phoenix.env
 ```
 
@@ -255,7 +294,7 @@ Every build validates every variable, so the Linux builds need it set too.
 ## 4. Build
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 set -a; . ~/.config/proxmox/phoenix.env; set +a
 packer build -only='ubuntu.*' packer/
 packer build -only='windows.proxmox-iso.ws2025-eval' packer/
