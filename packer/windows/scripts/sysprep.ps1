@@ -1,10 +1,18 @@
 # The last thing a Windows build does: generalise, so every clone takes a new
 # machine SID at first boot (ADR-0074 part 3).
 #
-# /quit, not /shutdown: the Proxmox builder shuts the guest down through the
-# agent once this returns, then converts it. Nothing may boot this disk again
-# before it is a template, or the generalisation is spent on the template
-# itself.
+# NOT RUN OVER WINRM, AND /shutdown, NOT /quit. Generalising uninstalls every
+# device, the network adapter included, so the WinRM session this script runs
+# in dies partway through. Windows then tears that session down and kills
+# everything it started. On 2026-10-02 that was sysprep itself, twice: its
+# log stopped mid "Uninstalling all existing devices", with no error and no
+# Sysprep_succeeded.tag. So sysprep runs as a one-off scheduled task as
+# SYSTEM, outside WinRM's job, and this script returns once that task is
+# running. The task waits 30 seconds first, so this session ends cleanly
+# before the network goes. Sysprep then powers the VM off, and
+# wait-for-sysprep.sh, the build's next step, waits on phoenix for that.
+# Nothing may boot this disk again before it is a template, or the
+# generalisation is spent on the template itself.
 
 $ErrorActionPreference = 'Stop'
 
@@ -25,14 +33,30 @@ Set-Service -Name QEMU-GA -StartupType Disabled
 # each clone's first sshd start generates its own.
 Remove-Item -Path (Join-Path $env:ProgramData 'ssh\ssh_host_*') -Force -ErrorAction SilentlyContinue
 
-$sysprep = Join-Path $env:WINDIR 'System32\Sysprep\sysprep.exe'
 $answer = Join-Path $env:WINDIR 'Panther\unattend-oobe.xml'
-$p = Start-Process -FilePath $sysprep -Wait -PassThru -ArgumentList `
-  '/generalize', '/oobe', '/quit', '/quiet', "/unattend:$answer"
-if ($p.ExitCode -ne 0) { throw "sysprep exited $($p.ExitCode); see C:\Windows\System32\Sysprep\Panther\setuperr.log" }
+if (-not (Test-Path $answer)) { throw "no $answer; the file provisioner should have put it there" }
 
-# sysprep.exe can return before its own work is flushed. The tag it writes is
-# the signal that the image is sealed.
-$tag = Join-Path $env:WINDIR 'System32\Sysprep\Sysprep_succeeded.tag'
-for ($i = 0; $i -lt 60 -and -not (Test-Path $tag); $i++) { Start-Sleep -Seconds 5 }
-if (-not (Test-Path $tag)) { throw 'sysprep did not write Sysprep_succeeded.tag' }
+# The 30-second wait is ping, not timeout.exe, which fails without a console.
+# SetupComplete.cmd deletes this file and the task on every clone.
+$cmd = Join-Path $env:WINDIR 'Temp\packer-sysprep.cmd'
+Set-Content -Path $cmd -Encoding ascii -Value @(
+  '@echo off'
+  'ping -n 31 127.0.0.1 >nul'
+  ('"%WINDIR%\System32\Sysprep\sysprep.exe" /generalize /oobe /shutdown /quiet /unattend:' + $answer)
+)
+
+$action = New-ScheduledTaskAction -Execute (Join-Path $env:WINDIR 'System32\cmd.exe') -Argument "/c `"$cmd`""
+$principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+Register-ScheduledTask -TaskName 'packer-sysprep' -Action $action -Principal $principal -Force | Out-Null
+Start-ScheduledTask -TaskName 'packer-sysprep'
+
+# Return only once it is really running, so a task that cannot start fails
+# the build here, while WinRM can still say so.
+for ($i = 0; $i -lt 10; $i++) {
+  if ((Get-ScheduledTask -TaskName 'packer-sysprep').State -eq 'Running') {
+    Write-Output 'sysprep scheduled; the VM powers off when it has generalised'
+    exit 0
+  }
+  Start-Sleep -Seconds 1
+}
+throw "the packer-sysprep task did not start: $((Get-ScheduledTaskInfo -TaskName 'packer-sysprep').LastTaskResult)"

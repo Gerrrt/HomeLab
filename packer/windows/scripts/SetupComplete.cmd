@@ -15,6 +15,12 @@ sc.exe config WinRM start= disabled
 sc.exe stop WinRM
 del /q "%WINDIR%\Panther\unattend-oobe.xml"
 
+rem What sysprep.ps1 left to run sysprep outside the build's WinRM session.
+rem The task has no trigger and cannot run again, but it has no business in
+rem a guest.
+schtasks.exe /delete /tn packer-sysprep /f
+del /q "%WINDIR%\Temp\packer-sysprep.cmd"
+
 sc.exe config sshd start= auto
 sc.exe start sshd
 
