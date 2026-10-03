@@ -411,3 +411,116 @@ tests:
       - eval_time: 50m
         alertname: ContainerCpuThrottled
         exp_alerts: []
+
+  # --- ContainerGone (#838): stopped and stayed stopped -----------------------
+  #
+  # trinity: vaultwarden stops at 30m while alloy carries on, so the host is
+  # still reporting. It fires once the series is stale (5m) and the `for` (10m)
+  # has run. Beside it, on the same host:
+  #   - a homelab.logs=off throwaway that exits by design, which must not fire;
+  #   - immich, recreated by a `make up` with a 3-minute gap, which must not fire.
+  # oracle: every series stops at once. A dead host is InstanceDown's, so
+  # nothing here may fire for it.
+  - interval: 1m
+    input_series:
+      - series: 'container_last_seen{name="alloy",instance="trinity"}'
+        values: "1+60x80"
+      - series: 'container_last_seen{name="vaultwarden",instance="trinity"}'
+        values: "1+60x30 _x50"
+      - series: 'container_last_seen{name="archiver-1",instance="trinity",container_label_homelab_logs="off"}'
+        values: "1+60x10 _x70"
+      - series: 'container_last_seen{name="immich-server",instance="trinity"}'
+        values: "1+60x20 _x3 1500+60x57"
+      - series: 'container_last_seen{name="alloy",instance="oracle"}'
+        values: "1+60x30 _x50"
+      - series: 'container_last_seen{name="wiki",instance="oracle"}'
+        values: "1+60x30 _x50"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: ContainerGone
+        exp_alerts: []
+      - eval_time: 50m
+        alertname: ContainerGone
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerGone
+              instance: trinity
+              name: vaultwarden
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: >-
+                Container vaultwarden on trinity has stopped and not come back
+              description: >-
+                It was running within the last week and is not running now. `docker ps
+                -a --filter name=vaultwarden` on trinity shows how it exited; `make
+                up` for its stack starts it. If it was removed on purpose, silence
+                this with the issue that removed it: it stops on its own seven days
+                after the container was last seen.
+
+  # --- ContainerNotRunning and ContainerStateStale (#838): smaug --------------
+  #
+  # jellyfin exited; navidrome running. The collector's timestamp keeps pace
+  # with the clock, so the stale rule stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_container_running{project="media",name="jellyfin",instance="smaug"}'
+        values: "0+0x30"
+      - series: 'homelab_container_running{project="media",name="navidrome",instance="smaug"}'
+        values: "1+0x30"
+      - series: 'homelab_container_state_timestamp_seconds{project="media",instance="smaug"}'
+        values: "0+60x30"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ContainerNotRunning
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: ContainerNotRunning
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerNotRunning
+              project: media
+              name: jellyfin
+              instance: smaug
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: >-
+                Container jellyfin (media) on smaug is not running
+              description: >-
+                It exists and is not running. On smaug, `docker ps -a` in the TrueNAS
+                shell shows how it exited, and `docker compose up -d` from the stack's
+                directory on the pool starts it (docs/runbooks/build-the-nas.md).
+      - eval_time: 30m
+        alertname: ContainerStateStale
+        exp_alerts: []
+
+  # The collector stopped: its timestamp froze at 0. Over 1800s from 30m, so
+  # pending from there and firing once the `for` has run.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_container_state_timestamp_seconds{project="media",instance="smaug"}'
+        values: "0+0x50"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: ContainerStateStale
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: ContainerStateStale
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerStateStale
+              project: media
+              instance: smaug
+              component: containers
+              severity: warning
+              category: monitoring
+            exp_annotations:
+              summary: "media container state is 45m 0s old"
+              description: >-
+                collect-container-state.sh has stopped running, so ContainerNotRunning
+                cannot see this stack. Check the cron job in TrueNAS (System →
+                Advanced Settings → Cron Jobs) and run its command by hand with
+                --print.

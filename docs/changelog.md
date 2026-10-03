@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **A container that stops and stays stopped now raises an alert**
+  ([#838](https://github.com/Gerrrt/HomeLab/issues/838)).
+  - **The gap.** The container rules covered restart loops, OOMs, memory and
+    CPU. A container that exited and stayed down just lost its cAdvisor
+    series, and nothing read that. smaug's media apps had no container metrics
+    at all.
+  - **Where cAdvisor runs:** `ContainerGone`. A container seen in the last
+    seven days and not now, on a host still reporting, alerts. Throwaway
+    `homelab.logs=off` containers are excluded. Removing a service on purpose
+    means silencing it with the issue that removed it.
+  - **smaug:** `scripts/collect-container-state.sh`, as a TrueNAS cron job in
+    ADR-0047's shape, feeds `ContainerNotRunning` and `ContainerStateStale`.
+    It needs the one-time cron entry in `build-the-nas.md` §6.9.
+  - Tests cover all three. Two deliberately broken versions of `ContainerGone`
+    were caught by them.
+  - trinity's sites from the outside are #855.
+
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`
