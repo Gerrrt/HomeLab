@@ -134,10 +134,10 @@ creation_rules:
   # the inversion the lab rule's comment describes. docs/security.md § Secrets
   # records the exception.
   #
-  # There is NO sensor rule either (#437). stacks/sensor takes no credential at
-  # all, so `fenrir` renders nothing and holds no age key. The same warning
-  # applies: a rule for it goes ABOVE the catch-all before
-  # secrets/sensor.sops.yaml is ever created.
+  # The sensor HAS a rule since #834, above, and that is the warning above
+  # followed. stacks/sensor took no credential until the lab's ingest proxy gave
+  # fenrir a token, so its rule went in, with a placeholder for fenrir's key,
+  # before secrets/sensor.sops.yaml could exist.
 
   - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
     age: >-

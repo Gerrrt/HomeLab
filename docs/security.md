@@ -501,6 +501,9 @@ anything could:
 - delete log ranges through Loki's live delete API, in the store that holds the
   segment's own evidence.
 
+**Authored, and live only after its rollout.** Until the ordered steps in
+`stacks/lab/README.md` have run and their three `curl`s return 401, the
+exposure above is still the running state: none of these hosts converges.
 The fix is the estate's proxy, moved one segment down: the stores on loopback,
 and `stacks/lab/Caddyfile` on `10.0.30.40` with one token each for `odin`,
 `phoenix` and `fenrir`. Those tokens are the lab's own, in
