@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **The key scripts' verify hints name the stack they acted on.**
+  - **The gap.** `add-recipient.sh` closed by telling the operator to run
+    `make secrets-verify-backup KEY=…` with no `STACK`, so it defaulted to
+    `observability`. The sensitive tier's re-key (#835) hit it. The new key is
+    also on the catch-all rule, so following the hint would have passed against
+    `observability.sops.yaml` and recorded the proof there.
+    `SecretsKeyBackupUnproven` would have kept naming the key for `sensitive`.
+  - **The fix.** `add-recipient.sh`, `remove-recipient.sh` and `bootstrap.sh`
+    all take a stack, and each now prints `STACK=<that stack>` in its hint.
+
 - **The sensitive tier's secrets open with two keys, its backups will, and CI
   refuses one** ([#835](https://github.com/Gerrrt/HomeLab/issues/835)).
   - **The gap.** `secrets/sensitive.sops.yaml` was created on 2026-09-28
