@@ -130,30 +130,62 @@ def file_recipients(path: pathlib.Path) -> set[str]:
 
 
 def check_recipients(
-    files: dict[str, set[str]], rule_for: dict[str, set[str]]
+    files: dict[str, set[str]],
+    rule_for: dict[str, set[str]],
+    rule_of: dict[str, str] | None = None,
 ) -> list[str]:
     """Checks 5 and 6: each file matches its rule, and the data-guarding ones
-    have two recipients. Pure, so --self-test can hand it fixtures."""
+    have two recipients. Pure, so --self-test can hand it fixtures.
+
+    `rule_of` maps each file to its rule's path_regex, so the repair advice can
+    name every file that shares the rule. `make secrets-add-recipient` re-keys
+    ONE file (secrets/<STACK>.sops.yaml). On a rule of its own that is the whole
+    job; on the catch-all it leaves the rule's other files out of sync, and this
+    check would fail on them next. Without `rule_of` every rule is treated as
+    unshared, which is what the fixtures before it assumed."""
+    rule_of = rule_of or {}
     problems: list[str] = []
     for path, have in sorted(files.items()):
+        siblings = sorted(
+            p for p in files if p != path and rule_of.get(p) is not None
+            and rule_of.get(p) == rule_of.get(path)
+        )
+        sharing = [path, *siblings]
+        rekey = " ".join(f"`sops updatekeys {p}`" for p in sharing)
         want = rule_for.get(path)
         if want is not None and not any(k.startswith("REPLACE_WITH_") for k in want) \
                 and have != want:
             missing = ", ".join(sorted(want - have)) or "none"
             extra = ", ".join(sorted(have - want)) or "none"
+            # Not `make secrets-add-recipient`: that ADDS a key to the rule. Here
+            # the rule and the file already disagree, so the repair is to decide
+            # which is right and make the other agree — and a key passed to it
+            # that the rule already lists would be written into it twice.
             problems.append(
                 f"{path} is encrypted to recipients its rule does not list, or "
                 f"not to ones it does (rule only: {missing}; file only: "
-                f"{extra}). Run `sops updatekeys {path}` on a host that holds "
-                f"one of its keys, or use `make secrets-add-recipient`"
+                f"{extra}). Decide which side is right and fix .sops.yaml if it "
+                f"is the rule that is wrong, then, on a host that holds one of "
+                f"the file's current keys, run {rekey}"
             )
         reason = SECOND_RECIPIENT_REQUIRED.get(path)
         if reason and len(have) < 2:
+            if siblings:
+                how = (
+                    f"Add the technical second's public key to that rule in "
+                    f".sops.yaml, then re-key every file the rule matches, on a "
+                    f"host that holds a current key: {rekey}. Not `make "
+                    f"secrets-add-recipient` — it re-keys only one of them"
+                )
+            else:
+                how = (
+                    f"Add the technical second: `make secrets-add-recipient "
+                    f"STACK={pathlib.Path(path).name.split('.')[0]} "
+                    f"PUBKEY=age1...` on the host that holds the current key"
+                )
             problems.append(
                 f"{path} opens with {len(have)} key — {reason}, so losing that "
-                f"key loses data (ADR-0024). Add the technical second: `make "
-                f"secrets-add-recipient STACK={pathlib.Path(path).name.split('.')[0]} "
-                f"PUBKEY=age1...` on the host that holds the current key"
+                f"key loses data (ADR-0024). {how}"
             )
     return problems
 
@@ -186,6 +218,39 @@ def self_test() -> int:
         ok = got == want
         failed += not ok
         print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got} problem(s), expected {want})"))
+
+    # The advice, not just the verdict (#866 review): a file on a shared rule
+    # must be told to re-key every file the rule matches, and never pointed at
+    # secrets-add-recipient, which re-keys one; a file on its own rule may be.
+    catch_all = "(secrets/.*|backups/firewall/.*)"
+    shared = check_recipients(
+        {"secrets/observability.sops.yaml": {one}, "secrets/wiki.sops.yaml": {one}},
+        {"secrets/observability.sops.yaml": {one}, "secrets/wiki.sops.yaml": {one}},
+        {"secrets/observability.sops.yaml": catch_all, "secrets/wiki.sops.yaml": catch_all},
+    )
+    alone = check_recipients(
+        {"secrets/sensitive.sops.yaml": {one}}, {"secrets/sensitive.sops.yaml": {one}},
+        {"secrets/sensitive.sops.yaml": "secrets/sensitive"},
+    )
+    drift = check_recipients(
+        {"secrets/sensitive.sops.yaml": {one, two}},
+        {"secrets/sensitive.sops.yaml": {one, two, three}},
+    )
+    advice = [
+        ("a shared rule's file is told to re-key its sibling too",
+         len(shared) == 1 and "sops updatekeys secrets/wiki.sops.yaml" in shared[0]),
+        ("a shared rule's file is not pointed at secrets-add-recipient",
+         len(shared) == 1 and "Not `make secrets-add-recipient`" in shared[0]
+         and "`make secrets-add-recipient STACK" not in shared[0]),
+        ("a file on its own rule may use secrets-add-recipient",
+         len(alone) == 1 and "make secrets-add-recipient STACK=sensitive" in alone[0]),
+        ("rule/file drift is repaired by updatekeys, not secrets-add-recipient",
+         len(drift) == 1 and "sops updatekeys secrets/sensitive.sops.yaml" in drift[0]
+         and "secrets-add-recipient" not in drift[0]),
+    ]
+    for name, ok in advice:
+        failed += not ok
+        print(f"  {'PASS' if ok else 'FAIL'} {name}")
     return 1 if failed else 0
 
 
@@ -281,6 +346,7 @@ def main() -> int:
     # Checks 5 and 6, over every committed secrets file, tofu's included.
     files: dict[str, set[str]] = {}
     rule_for: dict[str, set[str]] = {}
+    rule_of: dict[str, str] = {}
     for path in sorted((REPO / "secrets").glob("*.sops.yaml")):
         rel = path.relative_to(REPO).as_posix()
         files[rel] = file_recipients(path)
@@ -288,7 +354,8 @@ def main() -> int:
         rule = next((r for r in rules if r.get("path_regex") == hit), None)
         if rule is not None:
             rule_for[rel] = rule_keys(rule)
-    problems.extend(check_recipients(files, rule_for))
+            rule_of[rel] = hit
+    problems.extend(check_recipients(files, rule_for, rule_of))
 
     if problems:
         for problem in problems:
