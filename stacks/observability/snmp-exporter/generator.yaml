@@ -179,6 +179,35 @@ modules:
       - 1.3.6.1.2.1.25.4.2.1.2   # hrSWRunName        filter + lookup label; not a metric
       - 1.3.6.1.2.1.25.4.2.1.5   # hrSWRunParameters  lookup label ("-i igc0.20 ..."); not a metric
       - 1.3.6.1.2.1.25.4.2.1.7   # hrSWRunStatus      1 running 2 runnable 3 notRunnable 4 invalid
+      # HOST-RESOURCES-MIB hrStorageTable, for morpheus's filesystems (#841).
+      # morpheus runs no node_exporter, so a full /var (logs, RRD, the
+      # blocklists, Suricata's data) was invisible until the box stopped
+      # writing. The same snmp_hostres.so serves it as serves hrSWRunTable
+      # above. Bytes are Used x AllocationUnits; hrStorageDescr is the mount
+      # point (or a memory pool's name) and rides as a label only.
+      #
+      # Measured 2026-10-03 with scripts/snmp-walk.sh --max-repetitions 25
+      # (this module's request size): 751 rows, not the few dozen guessed here
+      # first. 16 are real: Real Memory Metrics, Shared Real Memory Metrics,
+      # the swap device, and 13 mounts. The other 735 are FreeBSD's kernel
+      # allocator zones, "UMA: mbuf", "MALLOC: pf_rule" and so on, each served
+      # as a storage row. Walked whole, the four columns are ~3,000 varbinds,
+      # ~120 GETBULKs (about 4s at the 33ms each the walk measured) and ~2,250
+      # series nothing reads. The walk itself reached the probe's 200-request
+      # ceiling in 6.6s while it was still in the seventh column.
+      #
+      # So the dynamic filter below walks hrStorageDescr alone (751 rows, ~31
+      # requests) and GETs the other three columns only for rows whose descr
+      # starts with "/", the 13 mounts. Every consumer already selects
+      # hrStorageDescr=~"/.*", so nothing it reads is lost.
+      #
+      # bsnmpd's descr is not the bare mount point: it is
+      # "/var, type: zfs, dev: pfSense/var". The rule and the dashboard cut
+      # the mount point out with label_replace.
+      - 1.3.6.1.2.1.25.2.3.1.3   # hrStorageDescr           lookup label; not a metric
+      - 1.3.6.1.2.1.25.2.3.1.4   # hrStorageAllocationUnits bytes per unit
+      - 1.3.6.1.2.1.25.2.3.1.5   # hrStorageSize            in units
+      - 1.3.6.1.2.1.25.2.3.1.6   # hrStorageUsed            in units
       # SNMPv2-MIB sysDescr, for #292. pfSense sets this string explicitly
       # rather than taking bsnmpd's default, and it carries both versions this
       # repository records about the box:
@@ -206,6 +235,8 @@ modules:
         lookup: hrSWRunName
       - source_indexes: [hrSWRunIndex]
         lookup: hrSWRunParameters
+      - source_indexes: [hrStorageIndex]
+        lookup: hrStorageDescr
     # No drop_source_indexes: during a restart the old and the new pid can both
     # be in the table for one scrape, and hrSWRunIndex is what keeps them
     # distinct series rather than one series with two values.
@@ -216,6 +247,8 @@ modules:
       hrSWRunParameters:
         ignore: true
         type: DisplayString
+      hrStorageDescr:
+        ignore: true
     filters:
       dynamic:
         # Numeric OIDs, not names: the generator copies this block into
@@ -229,6 +262,14 @@ modules:
             - 1.3.6.1.2.1.25.4.2.1.5
             - 1.3.6.1.2.1.25.4.2.1.7
           values: ["^suricata$"]
+        # hrStorageTable: the 13 mounts out of 751 rows (see the walk above).
+        - oid: 1.3.6.1.2.1.25.2.3.1.3
+          targets:
+            - 1.3.6.1.2.1.25.2.3.1.3
+            - 1.3.6.1.2.1.25.2.3.1.4
+            - 1.3.6.1.2.1.25.2.3.1.5
+            - 1.3.6.1.2.1.25.2.3.1.6
+          values: ["^/"]
 
   # MokerLink 26-port managed switch (neo, 10.7.7.2) — IF-MIB, five columns.
   #

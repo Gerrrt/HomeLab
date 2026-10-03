@@ -62,7 +62,10 @@ groups:
       # takes seconds, and backup-volumes.sh no longer stops AdGuard, so five
       # minutes does not page on routine maintenance.
       - alert: AdGuardNotAnswering
-        expr: probe_success{job="blackbox-dns", check="liveness"} == 0
+        # name="adguard" since #841, when Unbound's liveness probe joined the
+        # same job. Without it this rule would page "AdGuard is not answering"
+        # for an Unbound fault, and send the reader to the wrong host.
+        expr: probe_success{job="blackbox-dns", name="adguard", check="liveness"} == 0
         for: 5m
         labels:
           component: dns
@@ -114,3 +117,36 @@ groups:
             simply fallen off the list it is on, replace the canary in
             blackbox/blackbox.yaml — do not disable the probe, which is the one
             thing standing between this and three weeks of quiet.
+
+      # Unbound on morpheus, the resolver the house actually asks (#841).
+      #
+      # `unless on () ... adguard ... == 0` keeps this to faults of Unbound's
+      # own. Unbound forwards to AdGuard alone (ADR-0055), so a dead AdGuard
+      # fails this probe too; AdGuardNotAnswering already pages for that, and a
+      # second page naming the firewall would send the reader to the wrong box.
+      #
+      # `unless ... == 0` and not `and ... == 1`: the suppression needs AdGuard
+      # to be explicitly failing. If AdGuard's probe series is absent, nothing
+      # else would page for the resolver the house uses, so this fires (#873
+      # review).
+      - alert: UnboundNotAnswering
+        expr: >-
+          probe_success{job="blackbox-dns", name="unbound", check="liveness"} == 0
+          unless on ()
+          probe_success{job="blackbox-dns", name="adguard", check="liveness"} == 0
+        for: 5m
+        labels:
+          component: dns
+          severity: critical
+          category: availability
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#unboundnotanswering"
+          summary: "Unbound on morpheus is not answering DNS"
+          description: >-
+            Asked at {{ $labels.instance }} for example.com for five minutes and
+            got no valid answer, and AdGuard is not failing its own probe. So
+            the fault is the firewall's resolver: Unbound stopped,
+            its forwarding to 10.0.99.40 broken, or a rule now blocking it.
+            Every device in the house resolves through it. Status > Services
+            on morpheus shows unbound; Diagnostics > DNS Lookup asks it
+            directly.

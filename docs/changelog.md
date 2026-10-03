@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **morpheus's resolver and its disks are watched**
+  ([#841](https://github.com/Gerrrt/HomeLab/issues/841)).
+  - **Unbound.** The house resolves through Unbound on morpheus, and the only
+    check on it was a TCP connect, which passes while every query gets
+    SERVFAIL. It is now asked for example.com, the same question AdGuard is
+    asked. `UnboundNotAnswering` fires only while AdGuard answers, because a
+    dead AdGuard breaks Unbound too and already pages.
+    `AdGuardNotAnswering` now selects `name="adguard"`, so it cannot fire for
+    an Unbound fault.
+  - **Filesystems.** HOST-RESOURCES-MIB `hrStorageTable` is added to the
+    `pfsense` SNMP module, and `GatewayFilesystemCritical` mirrors
+    `HostDiskCritical` for the firewall that runs no node_exporter. Memory is
+    collected but not alerted on, because ZFS's ARC holds memory by design.
+    `snmp.yaml` was written to the generator's format without the generator
+    (no Docker where it was authored). Regenerate it before relying on it.
+  - **What the walk found.** The table on morpheus has 751 rows, not a few
+    dozen. 13 are mounts; 735 are FreeBSD kernel allocator zones (`UMA:`,
+    `MALLOC:`). Walked whole, that would have been about 120 GETBULKs and
+    2,250 series nothing reads. A dynamic filter now walks `hrStorageDescr`
+    alone and fetches the other columns only for descriptions starting with
+    `/`. bsnmpd's description is `/var, type: zfs, dev: pfSense/var`, not the
+    bare mount point. So the rule and the dashboard derive `mountpoint` with
+    `label_replace`, and the test fixtures use the real strings.
+
 - **A stopped Loki ruler now pages**
   ([#837](https://github.com/Gerrrt/HomeLab/issues/837)).
   - **The gap.** Every security alert is evaluated by Loki's ruler, and the
