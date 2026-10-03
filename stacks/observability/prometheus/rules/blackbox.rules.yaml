@@ -29,6 +29,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#blackboxexporterdown"
           summary: "blackbox-exporter is down — every probed endpoint will look reachable"
           description: >-
             No probe is running. This is the failure mode that matters most,
@@ -54,6 +55,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#endpointunreachable"
           summary: "{{ $labels.name }} is not reachable at {{ $labels.instance }}"
           description: >-
             Probed by {{ $labels.via }} and got no successful response for five
@@ -106,6 +108,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#ingestauthnotenforced"
           summary: "{{ $labels.name }} at {{ $labels.instance }} did not refuse a request with no token"
           description: >-
             The ingest proxy should answer this with 401 and its
@@ -171,6 +174,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/generate-certificates.md#renewal"
           summary: "{{ $labels.name }}'s certificate has {{ $value | printf \"%.0f\" }} days left"
           description: >-
             Under a week, or already expired if the number is negative. A
@@ -229,6 +233,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-tier-ca.md#5-verify--the-certificate-caddy-is-serving-not-the-files-on-disk"
           summary: "{{ $labels.name }}'s ACME certificate has {{ $value | printf \"%.0f\" }}h left and has not renewed"
           description: >-
             Caddy on {{ $labels.host }} should have renewed this leaf about a day

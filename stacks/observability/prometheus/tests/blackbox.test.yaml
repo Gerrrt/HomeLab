@@ -52,6 +52,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#endpointunreachable"
               summary: "wiki is not reachable at http://10.0.99.30"
               description: >-
                 Probed by address and got no successful response for five
@@ -72,6 +73,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#endpointunreachable"
               summary: "wiki is not reachable at http://lemmiwinks.matrix.elysium"
               description: >-
                 Probed by dns and got no successful response for five
@@ -161,6 +163,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#endpointunreachable"
               summary: "ups-ui is not reachable at https://10.0.99.10/"
               description: >-
                 Probed by address and got no successful response for five
@@ -181,6 +184,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#endpointunreachable"
               summary: "alertmanager is not reachable at http://alertmanager:9093/-/healthy"
               description: >-
                 Probed by compose and got no successful response for five
@@ -232,6 +236,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#blackboxexporterdown"
               summary: "blackbox-exporter is down — every probed endpoint will look reachable"
               description: >-
                 No probe is running. This is the failure mode that matters most,
@@ -321,6 +326,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/generate-certificates.md#renewal"
               summary: "ilo-ui's certificate has -2 days left"
               description: >-
                 Under a week, or already expired if the number is negative. A
@@ -338,6 +344,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/generate-certificates.md#renewal"
               summary: "pfsense-ui's certificate has 3 days left"
               description: >-
                 Under a week, or already expired if the number is negative. A
@@ -594,6 +601,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-tier-ca.md#5-verify--the-certificate-caddy-is-serving-not-the-files-on-disk"
               summary: "ntfy's ACME certificate has 30h left and has not renewed"
               description: >-
                 Caddy on trinity should have renewed this leaf about a day
@@ -658,6 +666,7 @@ tests:
               severity: critical
               category: security
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#ingestauthnotenforced"
               summary: >-
                 prometheus at http://10.0.99.20:9090/api/v1/query?query=up did
                 not refuse a request with no token
