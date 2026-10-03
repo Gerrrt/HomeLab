@@ -73,7 +73,7 @@ AUTHGEN = {
     "groups": ["IT"],
 }
 
-HEADER_RE = re.compile(r"^# Regenerate: scripts/gen_population\.py --count (\d+) --seed (\d+)$", re.M)
+HEADER_RE = re.compile(r"^# Regenerate: scripts/gen_population\.py --count (\d+) --seed (-?\d+)$", re.M)
 
 
 def read_names(path: Path) -> list[str]:
@@ -221,6 +221,9 @@ def self_test() -> int:
     check("a long surname is cut so a suffix still fits",
           len(sam_for("A", "Wolfeschlegelsteinhausen", set())) == 18)
     check("rendering is stable", render(40, 449, a) == render(40, 449, b))
+    neg = render(3, -1, draw(3, -1, given, surnames))
+    m = HEADER_RE.search(neg)
+    check("a negative seed's header reads back", bool(m) and m.group(2) == "-1")
 
     committed = OUT.read_text() if OUT.exists() else ""
     m = HEADER_RE.search(committed)

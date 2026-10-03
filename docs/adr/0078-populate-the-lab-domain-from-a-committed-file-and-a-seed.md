@@ -51,8 +51,11 @@ Decided on #449, 2026-10-03.
    is met without storing them.
 3. **`authgen` is a fixed entry in the population.** It is drawn into `OU=IT`
    like anyone else, but with a fixed name and no random groups. Its password
-   becomes the derived one, and `roles/authgen` stores the new one in the
-   endpoints' task when the population play changed the account.
+   becomes the derived one. Each endpoint records a fingerprint of the
+   credential its task holds, written only after the task registers.
+   `roles/authgen` sets the task's password whenever that fingerprint differs
+   from the current one. So a rotation an endpoint missed is repaired by the
+   next ordinary run.
 4. **The population is ordinary.** No account in it is given a weakness, and
    no group in it is delegated anything. #449's deliberate weaknesses are its
    own tags, each applied on top of this population separately. So turning

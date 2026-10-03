@@ -2,11 +2,13 @@
 # The share the generator lists. titan's, because §6's 5140 is read there.
 authgen_share: \\titan\Public
 
-# Whether to set the task's stored password even when nothing else about the
-# task changed. community.windows.win_scheduled_task reports a change every run
-# when this is true, so it is true only when the population play just changed
-# authgen. After changing LAB_POPULATION_SEED, or after resetting authgen by
-# hand, run `--tags population,authgen` together, or pass
-# `-e authgen_update_password=true`.
-authgen_update_password: >-
-  {{ hostvars[groups['dc_primary'][0]]['population_authgen_changed'] | default(false) | bool }}
+# Where each endpoint records which credential its task holds: a truncated
+# sha256 of the derived password, written only after the task registered. The
+# task's password is set whenever this differs from the current one, so a
+# rotation an endpoint missed (unreachable, or a failed registration) is
+# repaired by the next ordinary run, and a healthy task is left alone.
+authgen_marker_path: HKLM:\SOFTWARE\Lab\authgen
+authgen_marker_name: CredentialFingerprint
+
+# Set the stored password regardless of the marker: `-e authgen_update_password=true`.
+authgen_update_password: false

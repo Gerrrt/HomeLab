@@ -89,18 +89,7 @@
   loop: "{{ population_users }}"
   loop_control:
     label: "{{ item.sam }}"
-  register: population_users_result
   no_log: true
-
-# roles/authgen re-registers the endpoints' task with the new password when
-# this changed authgen. A change to anything else about the account updates the
-# task too, which costs nothing: the password it sets is the same derived one.
-- name: Remember whether authgen changed, for the authgen play
-  ansible.builtin.set_fact:
-    population_authgen_changed: >-
-      {{ population_users_result.results
-         | selectattr('item.sam', 'equalto', 'authgen')
-         | map(attribute='changed') | first | default(false) }}
 
 - name: Read who is in OU=People that the file does not name
   ansible.windows.win_powershell:

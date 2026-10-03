@@ -30,10 +30,12 @@
           PeopleOu: "OU={{ population_ou }},{{ lab_domain_dn }}"
           Sams: "{{ population_users | map(attribute='sam') | list }}"
           Groups: "{{ population_groups | map(attribute='name') | list }}"
+          Netbios: "{{ lab_netbios }}"
         script: |
           param([string]$Domain, [string]$Name, [string]$IsDc, [string]$IsPrimary,
                 [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$LabRole,
-                [string]$PrimaryDc, [string]$PeopleOu, [string[]]$Sams, [string[]]$Groups)
+                [string]$PrimaryDc, [string]$PeopleOu, [string[]]$Sams, [string[]]$Groups,
+                [string]$Netbios)
           $Ansible.Changed = $false
           # Not $isDc: PowerShell names are case-insensitive, so that is the [string]
           # parameter above, and assigning the bool to it turns it back into "False",
@@ -135,8 +137,13 @@
           }
           if ($LabRole -eq 'endpoint') {
             $t = Get-ScheduledTask -TaskName Lab-AuthGenerator -ErrorAction SilentlyContinue
+            # By SID, not by name: a suffix match would accept AD\notauthgen, or
+            # a local account that happens to be called authgen.
+            $sid = { param($n) try { (New-Object System.Security.Principal.NTAccount($n)).Translate(
+              [System.Security.Principal.SecurityIdentifier]).Value } catch { $null } }
+            $authgenSid = & $sid "$Netbios\authgen"
             $r['the authentication generator runs as authgen'] =
-              [bool]($t -and $t.Principal.UserId -match 'authgen$')
+              [bool]($t -and $authgenSid -and ((& $sid $t.Principal.UserId) -eq $authgenSid))
             $r['its last run succeeded'] =
               [bool]($t -and (Get-ScheduledTaskInfo -TaskName Lab-AuthGenerator).LastTaskResult -eq 0)
           }
