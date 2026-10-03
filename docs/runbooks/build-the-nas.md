@@ -1401,15 +1401,21 @@ reopens it.
 > The cron job is as the table says: daily 08:30, `root`, stdout hidden,
 > stderr not.
 
-**7. Count the clean stops, and read the counter at boot
-([#746](https://github.com/Gerrrt/HomeLab/issues/746)).** Added 2026-10-01,
-after this section's done block. The S3520 adds one to its unsafe-shutdown
-counter on *every* power-off: 522 before a clean *System → Shut Down* on
-2026-09-29, 523 after. Without this step `SmartDriveUnsafeShutdownsGrowing`
-pages after every planned reboot. Two init scripts fix it. The first has the
-host count its own clean stops, and the rule subtracts them. The second runs
-the collector at boot, so the drive's tick and the clean count land within
-minutes of each other instead of up to a day apart.
+**7. Read the counter at boot, and record the clean stops
+([#746](https://github.com/Gerrrt/HomeLab/issues/746)).** Added 2026-10-01
+and corrected 2026-10-03, after this section's done block. Two init scripts.
+The second runs the collector at boot, so a cut is read at the boot after it
+instead of at the next 08:30. The first records what kind of clean stop came
+before, so a page can say whether a planned power-off came first.
+
+**What the drive counts.** #746 began from the S3520 reading 522 before a clean
+*System → Shut Down* on 2026-09-29 and 523 after, and read that as a clean stop
+ticking the drive. Controlled stops settled it on 2026-10-02/03: two UI
+Restarts and one UI Shut Down, left plugged in, all left it at **523**. On
+2026-09-29 the box was also unplugged for the memory install, and that is what
+it counted. A clean TrueNAS shutdown does not move the counter; removing mains
+afterwards can. So unplugging for maintenance, or the UPS cutting its output
+after its halt, **pages once**, and the page says a clean power-off came first.
 
 From the console shell, as root, fetch the script next to the collector and
 prove it writes:
@@ -1421,8 +1427,8 @@ cd /mnt/erebor/apps/stack \
 /bin/bash /mnt/erebor/apps/stack/mark-clean-shutdown.sh --self-test
 ```
 
-Do **not** run it for real by hand. Every run counts one clean stop, and an
-extra one forgives one real cut for a day.
+Do **not** run it for real by hand. Every run records a stop that did not
+happen, and a page that day would blame an unplug that never was.
 
 Then **System → Advanced Settings → Init/Shutdown Scripts → Add**, twice:
 
@@ -1436,33 +1442,28 @@ Then **System → Advanced Settings → Init/Shutdown Scripts → Add**, twice:
 | Enabled | on | on |
 
 The SHUTDOWN script runs on every stop that goes through the init system. A
-pulled plug, a crash or a cut that outlasts the pack never runs it, which is
-the whole point. It asks systemd where the stop is headed:
+pulled plug, a crash or a cut that outlasts the pack never runs it. It asks
+systemd where the stop is headed:
 
 - **A power-off** (the UI's Shut Down, or the UPS service's halt on `LB`,
   [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md))
-  goes up `homelab_clean_shutdowns_total`, which the rule subtracts.
-- **A Restart** goes up `homelab_clean_restarts_total`, which the rule does not
-  read. A warm reboot never takes the S3520's power away, so it never ticks
-  the drive: on 2026-10-02 a Restart left it at 523. Counted as clean, it would
-  cancel a real cut.
+  goes up `homelab_clean_shutdowns_total`.
+- **A Restart** goes up `homelab_clean_restarts_total`.
 - **Anything systemd does not name** goes up
-  `homelab_clean_stops_unclassified_total`, and forgives nothing.
+  `homelab_clean_stops_unclassified_total`.
+
+`SmartDriveUnsafeShutdownsGrowing` reads only the first, and only in its
+description. No count here can silence a page.
 
 Its file, `clean-shutdowns-smaug.prom`, is rewritten only on a stop. An old
 mtime is correct, and `SmartStateStale` does not watch it.
 
-**Prove it with one planned Shut Down, not a Restart.** A Restart proves
-nothing, because the drive does not tick. Before, note
-`homelab_clean_shutdowns_total{host="smaug"}` (absent on the first run) and
-`homelab_smart_unsafe_shutdowns_total{host="smaug"}` for the S3520's `slot`.
-Shut Down from the UI and power on again. After, the clean count is one
-higher, and within minutes of the boot the S3520's counter is one higher as
-well, without waiting for 08:30. If `homelab_clean_stops_unclassified_total`
-went up instead, the script could not see the stop's target, and the planned
-power-off will page; that is the loud failure, and the issue to reopen. `ALERTS{alertname="SmartDriveUnsafeShutdownsGrowing",host="smaug"}`
-stays empty for the next day. The pulled-plug half is proved by the promtool
-test and, live, by `shut-down-on-the-ups.md` step 6.
+> **Proved 2026-10-02/03.** A UI Restart read `homelab_clean_restarts_total 1`,
+> `homelab_clean_shutdowns_total` unchanged, unclassified `0`, stamped 56 s
+> before the boot. A UI Shut Down, off about four minutes and powered on by
+> the button, read `homelab_clean_shutdowns_total 2`, stamped 258 s before the
+> boot. The collector's file was rewritten 82 s after that boot, and the
+> S3520 read **523** throughout.
 
 ### §6.5 — Add Audiobookshelf
 

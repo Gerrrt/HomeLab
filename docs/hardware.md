@@ -638,6 +638,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   *Answered 2026-10-01:* `smaug` now records its clean stops itself
   (`scripts/mark-clean-shutdown.sh`, a TrueNAS SHUTDOWN init script), and the
   rule pages only on the unsafe shutdowns those do not account for.
+  **Corrected 2026-10-03: a clean shutdown does not tick this drive.** Two UI
+  Restarts and a UI Shut Down, left plugged in, all left it at 523. On
+  2026-09-29 the machine was also unplugged for the memory install after the
+  Shut Down, and that is what the drive counted. The likeliest reading is
+  that the TS150 keeps the SATA rail on standby power while "off", so mains
+  removal is when the drive loses power; that was not measured. The rule
+  pages on any tick again, and the clean count only explains a page.
   **Its letter is not stable.** On the chipset the boot SSD read `sdc` after
   the disk swap and `sdb` after the memory install, a boot with no disk
   changed. The baseline row moved to `/dev/sdb` the same day, and since
