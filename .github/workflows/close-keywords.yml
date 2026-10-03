@@ -46,8 +46,11 @@ jobs:
   close-keywords:
     name: No close keyword in prose
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Through env, not ${{ }} in the script: the number is an integer, but
       # nothing from the event is interpolated into a shell line here, so that

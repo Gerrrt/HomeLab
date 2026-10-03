@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **The workflows are pinned and hardened the way the images already were**
+  ([#839](https://github.com/Gerrrt/HomeLab/issues/839)).
+  - **Pinned.** Every `uses:` is pinned to a commit SHA with its exact
+    version beside it: `actions/checkout` v7.0.1 and `actions/cache` v6.1.0.
+    These are the commits the major tags already pointed at, so nothing that
+    runs changed. Dependabot now checks actions weekly instead of monthly.
+  - **Hardened.**
+    - `persist-credentials: false` on every checkout. `lint.sh` mounts the
+      whole tree, `.git/config` included, into third-party images.
+    - A `timeout-minutes` on every job, sized from recent maximums with
+      headroom.
+    - A queued concurrency group on `digests.yml`, with the re-enable command
+      for GitHub's 60-day schedule pause written beside it.
+  - **Checked.** zizmor runs in `make lint`, pinned as a `lint`-profile image.
+    On `main` it found 16 problems: 9 unpinned actions and 7 credential
+    persistences. After this change it finds none.
+
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`
