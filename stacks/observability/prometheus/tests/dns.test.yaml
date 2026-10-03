@@ -146,3 +146,133 @@ tests:
       - eval_time: 40m
         alertname: AdGuardNotFiltering
         exp_alerts: []
+
+
+  # --- UnboundNotAnswering (#841) ---------------------------------------------
+  #
+  # Unbound down, AdGuard up: Unbound's fault, and only Unbound's rule fires.
+  # AdGuardNotAnswering must stay quiet even though Unbound's probe is also
+  # check="liveness" in the same job; that is what its name="adguard" is for.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{instance="10.0.99.1:53",job="blackbox-dns",module="dns_answers",name="unbound",check="liveness",role="resolver",host="morpheus"}'
+        values: "0x20"
+      - series: 'probe_success{instance="10.0.99.40:53",job="blackbox-dns",module="dns_answers",name="adguard",check="liveness",role="dns-filter",host="trinity"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: UnboundNotAnswering
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: UnboundNotAnswering
+        exp_alerts:
+          - exp_labels:
+              alertname: UnboundNotAnswering
+              instance: 10.0.99.1:53
+              job: blackbox-dns
+              module: dns_answers
+              name: unbound
+              check: liveness
+              role: resolver
+              host: morpheus
+              component: dns
+              severity: critical
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#unboundnotanswering"
+              summary: "Unbound on morpheus is not answering DNS"
+              description: >-
+                Asked at 10.0.99.1:53 for example.com for five minutes and got no
+                valid answer, and AdGuard is not failing its own probe. So the fault
+                is the firewall's resolver: Unbound stopped, its forwarding to
+                10.0.99.40 broken, or a rule now blocking it. Every device in the
+                house resolves through it. Status > Services on morpheus shows
+                unbound; Diagnostics > DNS Lookup asks it directly.
+      - eval_time: 7m
+        alertname: AdGuardNotAnswering
+        exp_alerts: []
+
+  # Both down: AdGuard is the cause, Unbound only its symptom. One page, AdGuard's.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{instance="10.0.99.1:53",job="blackbox-dns",module="dns_answers",name="unbound",check="liveness",role="resolver",host="morpheus"}'
+        values: "0x20"
+      - series: 'probe_success{instance="10.0.99.40:53",job="blackbox-dns",module="dns_answers",name="adguard",check="liveness",role="dns-filter",host="trinity"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: UnboundNotAnswering
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: AdGuardNotAnswering
+        exp_alerts:
+          - exp_labels:
+              alertname: AdGuardNotAnswering
+              instance: 10.0.99.40:53
+              job: blackbox-dns
+              module: dns_answers
+              name: adguard
+              check: liveness
+              role: dns-filter
+              host: trinity
+              component: dns
+              severity: critical
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/forward-dns-to-adguard.md#reversing-it"
+              summary: "adguard is not answering DNS \u2014 the house cannot resolve outside names"
+              description: >-
+                Asked directly at 10.0.99.40:53 for five minutes and got no valid
+                answer. AdGuard is the only forwarder behind Unbound on morpheus
+                (ADR-0055), so outside names are failing for every device in the
+                house. Internal matrix.elysium names still resolve from the host
+                overrides. Check the container on trinity (make ps STACK=sensitive),
+                then re-probe from the exporter. To restore DNS before fixing AdGuard,
+                add 1.1.1.1 back under System > General Setup > DNS Servers on
+                morpheus, and remove it again afterwards.
+
+  # AdGuard's probe absent altogether: nothing else would page for the resolver
+  # the house uses, so Unbound's rule must fire. The suppression needs AdGuard
+  # explicitly failing (`== 0`), and an absent series is not that (#873 review).
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{instance="10.0.99.1:53",job="blackbox-dns",module="dns_answers",name="unbound",check="liveness",role="resolver",host="morpheus"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: UnboundNotAnswering
+        exp_alerts:
+          - exp_labels:
+              alertname: UnboundNotAnswering
+              instance: 10.0.99.1:53
+              job: blackbox-dns
+              module: dns_answers
+              name: unbound
+              check: liveness
+              role: resolver
+              host: morpheus
+              component: dns
+              severity: critical
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#unboundnotanswering"
+              summary: "Unbound on morpheus is not answering DNS"
+              description: >-
+                Asked at 10.0.99.1:53 for example.com for five minutes and got no
+                valid answer, and AdGuard is not failing its own probe. So the fault
+                is the firewall's resolver: Unbound stopped, its forwarding to
+                10.0.99.40 broken, or a rule now blocking it. Every device in the
+                house resolves through it. Status > Services on morpheus shows
+                unbound; Diagnostics > DNS Lookup asks it directly.
+
+  # Both healthy: nothing.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{instance="10.0.99.1:53",job="blackbox-dns",module="dns_answers",name="unbound",check="liveness",role="resolver",host="morpheus"}'
+        values: "1x20"
+      - series: 'probe_success{instance="10.0.99.40:53",job="blackbox-dns",module="dns_answers",name="adguard",check="liveness",role="dns-filter",host="trinity"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: UnboundNotAnswering
+        exp_alerts: []

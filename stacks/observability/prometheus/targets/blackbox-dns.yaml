@@ -18,11 +18,17 @@
 #          this, so a target added without it fires nothing.
 # `role`   as elsewhere: what the thing is for.
 #
-# The address is the service's own, on port 53, NEVER pfSense. That is the
-# entire point of the file. Under ADR-0010 Unbound forwards to AdGuard with the
-# public resolvers listed alongside it, so a query through the normal path is
-# answered by the fallback and passes while AdGuard is dead — see ADR-0010
-# and #126.
+# A service's probes go to that service's own address on port 53, so the
+# AdGuard probes never ask pfSense. Under ADR-0010 Unbound forwarded to
+# AdGuard with the public resolvers listed alongside it, so a query through the
+# normal path was answered by the fallback and passed while AdGuard was dead
+# (ADR-0010, #126).
+#
+# Unbound on morpheus is probed too, since #841, and that is not the same
+# mistake. It is asked a different question: whether the resolver every device
+# in the house actually uses is answering. Its probe carries name="unbound",
+# and the AdGuard rules select on name="adguard", so neither can stand in for
+# the other.
 
 # --- AdGuard Home ------------------------------------------------------------
 #
@@ -62,3 +68,18 @@
     check: filtering
     role: dns-filter
     host: trinity
+
+# --- Unbound on morpheus (#841) -----------------------------------------------
+#
+# The house's resolver: DHCP hands out 10.0.99.1 and its siblings, and Unbound
+# answers from host overrides or forwards to AdGuard alone (ADR-0055). Before
+# this, blackbox-latency.yaml checked 10.0.99.1:53 with tcp_connect only, which
+# passes while Unbound returns SERVFAIL for every name. dns_answers asks for
+# example.com and validates the answer, the same question AdGuard is asked.
+- targets: ["10.0.99.1:53"]
+  labels:
+    module: dns_answers
+    name: unbound
+    check: liveness
+    role: resolver
+    host: morpheus
