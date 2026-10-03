@@ -411,3 +411,31 @@ tests:
       - eval_time: 50m
         alertname: ContainerCpuThrottled
         exp_alerts: []
+
+  # --- ContainerOomKilled, untested until #843 -----------------------------
+
+  # An OOM kill on grafana fires at once (no `for`: the kill is the event); loki's
+  # flat counter beside it does not.
+  - interval: 1m
+    input_series:
+      - series: 'container_oom_events_total{instance="prometheus",job="integrations/cadvisor",name="grafana"}'
+        values: "0x5 1x20"
+      - series: 'container_oom_events_total{instance="prometheus",job="integrations/cadvisor",name="loki"}'
+        values: "0x25"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ContainerOomKilled
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: ContainerOomKilled
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerOomKilled
+              instance: prometheus
+              job: integrations/cadvisor
+              name: grafana
+              component: containers
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Container grafana was OOM-killed"
