@@ -685,7 +685,10 @@ See [`hardware.md`](hardware.md).
 
 ## Diagrams
 
-- [Current topology](diagrams/current/matrix_elysium.png) — high-resolution
-  export. An inline Mermaid version is in [`architecture.md`](architecture.md).
-- [Previous topology](diagrams/previous/Network_Diagram.png) — kept for
-  comparison.
+- [Current network diagram](diagrams/current/network.svg) — drawn from this
+  file and [`hardware.md`](hardware.md), so a change to a table here touches
+  it in the same pull request ([`diagrams/README.md`](diagrams/README.md)).
+  An inline Mermaid version is in [`architecture.md`](architecture.md).
+- Previous diagrams, kept for comparison:
+  [`matrix_elysium.png`](diagrams/previous/matrix_elysium.png) (2025) and
+  [`Network_Diagram.png`](diagrams/previous/Network_Diagram.png).

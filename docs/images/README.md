@@ -1,5 +1,8 @@
 # Screenshots
 
+[![part of README.md](https://img.shields.io/badge/part%20of-README.md-30363d?style=plastic)](../../README.md)
+[![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
+
 Dashboard screenshots go here and are referenced from the root `README.md`.
 
 Every one is a real render of the real stack. A mocked-up dashboard image in a
@@ -34,8 +37,9 @@ shows the old "No battery is installed in this UPS" banner and the
 "(fabricated — no battery fitted)" panel titles. It stays in place rather than
 being deleted — it is a real render of what the dashboard said that day, and the
 root `README.md` says underneath it when it was taken and what has changed
-since. Re-shoot it once the pack has passed a self-test, when the panels will
-read measured values instead of unproven ones.
+since. The pack has since passed its self-test, so the panels now read
+measured values and the re-shoot is due: run `make screenshots` and work
+through the checklist below before committing what it renders.
 
 The Container inventory panel used to publish the absolute path of
 `compose.yaml` — and so a username — because it excluded fields by name and

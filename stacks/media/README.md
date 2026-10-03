@@ -1,5 +1,14 @@
 # Media stack
 
+[![host: smaug](https://img.shields.io/badge/host-smaug-30363d?style=plastic)](../../docs/network.md#casabonita--vlan-40--media)
+[![VLAN 40: CasaBonita](https://img.shields.io/badge/VLAN%2040-CasaBonita-e3b341?style=plastic)](../../docs/network.md#casabonita--vlan-40--media)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
+[![TrueNAS](https://img.shields.io/badge/TrueNAS-0095D5?style=plastic&logo=truenas&logoColor=white)](https://www.truenas.com)
+[![Jellyfin](https://img.shields.io/badge/Jellyfin-00A4DC?style=plastic&logo=jellyfin&logoColor=white)](https://jellyfin.org)
+[![Audiobookshelf](https://img.shields.io/badge/Audiobookshelf-82612C?style=plastic&logo=audiobookshelf&logoColor=white)](https://www.audiobookshelf.org)
+[![Navidrome](https://img.shields.io/badge/Navidrome-0084ff?style=plastic)](https://www.navidrome.org)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
 [ADR-0008]'s media tier — the household's media and music servers — on `smaug`
 (`10.0.40.30`, CasaBonita / VLAN 40), the ThinkServer TS150 that [#413] bought
 and [ADR-0040] gave TrueNAS. **Deployed 2026-09-19**, from a copy of this

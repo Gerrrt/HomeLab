@@ -1,5 +1,9 @@
 # ansible
 
+[![host: phoenix](https://img.shields.io/badge/host-phoenix-30363d?style=plastic)](../docs/network.md#imaginationlan--vlan-30--lab)
+[![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../docs/network.md#imaginationlan--vlan-30--lab)
+[![Ansible](https://img.shields.io/badge/Ansible-EE0000?style=plastic&logo=ansible&logoColor=white)](https://docs.ansible.com)
+
 This directory configures the lab domain's six guests from `phoenix`
 ([ADR-0077]). The *why* is in [`build-the-lab-domain.md`][runbook] and
 ADR-0029. This page covers what is here and how to run it.
@@ -70,6 +74,9 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
     name, and removes none.
   - `tiers`: the five tier OUs, the three tier admins, the `Tier 0 Admins`
     group, and the members placed in `Servers`/`Workstations` (#448).
+  - `gpos`: the two hand-built GPOs, *Deny Tier 0 Logon on Members* and *Lab -
+    Audit File Share*, ensured on `bahamut` compare-first, so a second run
+    against the hand-built domain writes nothing.
   - `shares`: `titan`'s `Public` and `Finance` shares, with the decoy (#448).
   - `soc_agents`: Wazuh and Velociraptor installed directly, by product code,
     in place of the deploy GPOs (#448).

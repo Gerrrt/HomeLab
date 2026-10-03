@@ -1,5 +1,12 @@
 # Scratch stack
 
+[![host: diabolos](https://img.shields.io/badge/host-diabolos-30363d?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
+[![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
+![status: disposable](https://img.shields.io/badge/status-disposable-8b949e?style=plastic)
+[![Wazuh](https://img.shields.io/badge/Wazuh-3595F7?style=plastic)](https://wazuh.com)
+[![Velociraptor](https://img.shields.io/badge/Velociraptor-4b7b4b?style=plastic)](https://docs.velociraptor.app)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
 A **disposable** copy of [`stacks/soc`](../soc/README.md), for the investigation
 that wants a store it can fill with noise, query hard and then delete:
 detonating a sample, or working one question over a weekend. It runs on
