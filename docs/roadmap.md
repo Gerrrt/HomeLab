@@ -243,7 +243,10 @@ Closes on BloodHound running where nothing attacks it.
   so it waits for the six to be declared in `tofu/` with pinned MACs, and for
   #440's first build) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
-  weaknesses and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
+  weaknesses (the population and the authentication generator are written as
+  `--tags population,authgen`,
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md),
+  and not yet applied; the weaknesses are not written) and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
   and Pktmon → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
   BloodHound, which closes the milestone. All of it runs from `phoenix`
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),

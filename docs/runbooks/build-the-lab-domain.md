@@ -148,6 +148,16 @@ printf 'LAB_ADMIN_PASSWORD=%s\nLAB_DSRM_PASSWORD=%s\n' \
   >> ~/.config/proxmox/phoenix.env
 ```
 
+The population ([#449](https://github.com/Gerrrt/HomeLab/issues/449)) needs a
+third entry, `LAB_POPULATION_SEED`. Every population password is derived from
+it and the account's name, so it is generated once and never typed. It is the
+one value that gives back every population password, so treat it as one
+(ADR-0078). It replaces any earlier entry:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; sed -i '/^LAB_POPULATION_SEED=/d' "$f"; printf "LAB_POPULATION_SEED='%s'\n" "$(openssl rand -hex 24)" >> "$f")
+```
+
 Then, every time. **First applied to the hand-built six on 2026-10-03**: a
 run on `main` after #825 reported `changed=0` everywhere, and `verify.yml`
 passed on all six (`changelog.md`, 2026-10-03).
@@ -176,11 +186,14 @@ build, preview one stage at a time and apply it before previewing the next:
 | `join` | §5, the join only | `titan`, `ramuh`, `carbuncle` and `siren` joined |
 | `exporter` | §7 | `windows_exporter` at the pinned version, and the 9182 rule admitting `alexander` |
 | `licence` | §7 | The weekly gauge on the four servers, and the rearm count printed in the play output |
+| `population` | §5 | The people in [`population.yaml`](../../ansible/population/population.yaml): an OU per department under `OU=People`, their groups under `OU=Groups`, and the users, `authgen` among them, with passwords derived from `LAB_POPULATION_SEED` |
+| `authgen` | §6 | The batch-logon right and the `Lab-AuthGenerator` task on both endpoints, as `authgen` |
 
-The tiers, users, SPN account, GPO, shares and authentication generator (§5
-after the join, and §6) are
-[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s. They will arrive as
-further tags on the same playbook. Until then they stay here, done by hand.
+The tiers, the SPN account, the Tier 0 GPO and the shares (the rest of §5) are
+still [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s and still done by
+hand, and so are its deliberate weaknesses. Each will arrive as a further tag
+on the same playbook. `ansible-playbook population-credentials.yml` prints the
+population's passwords, on `phoenix`, when you need one.
 
 **Start the endpoints first.** `carbuncle` and `siren` are `--onboot 0`, so a
 run against stopped endpoints reports them `UNREACHABLE`, not configured.
@@ -538,10 +551,14 @@ dcdiag /test:Replications
 
 ## 5. Join the members, and build the tiers
 
-> **The join is applied by `--tags join`** ([`roles/member`](../../ansible/roles/member/tasks/main.yml)).
-> Everything after the first sentence below is
-> [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s, and is done by hand
-> until it lands.
+> **The join is applied by `--tags join`** ([`roles/member`](../../ansible/roles/member/tasks/main.yml)),
+> **and the ordinary users by `--tags population`**
+> ([`roles/population`](../../ansible/roles/population/tasks/main.yml)): forty
+> people drawn by `scripts/gen_population.py` into a committed
+> [`population.yaml`](../../ansible/population/population.yaml), in place of
+> "five or so". The rest of this section is still
+> [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s and still done by
+> hand.
 
 Join `titan`, `ramuh`, `carbuncle` and `siren`. Then build the structure that
 makes an intrusion *legible* — three tiers, one admin account each, five or so
@@ -633,13 +650,14 @@ Register-ScheduledTask -TaskName 'Lab-AuthGenerator' -Description 'build-the-lab
 On the DCs, 4769 names the account as `authgen@AD.MATRIX.ELYSIUM`, so match it
 with `-match`, not `-contains`.
 
-It lives here as a code block rather than as a script in the repository, for the
-same reason [`build-the-playground.md`](build-the-playground.md) carries its
-sysctl file inline: a tracked file that nothing applies is one that drifts from
-the machines with nothing to notice. `ansible/` now applies §2–§4 and §7, but
-not this. It moves into the playbook with
-[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s users, because it runs
-as one of them.
+**Applied by `--tags authgen` since #449**
+([`roles/authgen`](../../ansible/roles/authgen/tasks/main.yml)), which adopts the
+task above by name, grants the batch right, and stores `authgen`'s derived
+password in it. `authgen` itself moved into `OU=IT` with the population. The
+blocks above are how it was built by hand on 2026-10-02, kept as the record of
+what the role encodes. After changing `LAB_POPULATION_SEED`, run
+`--tags population,authgen` together, so the task gets the password the account
+now has.
 
 ## 7. `windows_exporter`, and the licence clock
 

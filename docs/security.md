@@ -526,8 +526,8 @@ assumption consistent with what they are.
   Grafana passwords, PEM private keys, age secret keys and unencrypted
   OpenTofu state. It separately asserts that every `secrets/*.sops.yaml` is
   genuinely encrypted, and that no state, plan or `.terraform/` is tracked.
-- **`phoenix` is a secret-bearing host, and holds no age key.** It has four
-  secrets, all mode 600 and owned by its operator:
+- **`phoenix` is a secret-bearing host, and holds no age key.** Its secrets
+  are all mode 600 and owned by its operator:
   - the Proxmox API token `phoenix@pve!builder`;
   - the Windows build password, which is also a fresh clone's Administrator
     password until #448 rotates it;
@@ -535,7 +535,13 @@ assumption consistent with what they are.
     ([ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
     §4);
   - the encrypted state itself, `tofu/state/lab.tfstate`
-    ([ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
+    ([ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md));
+  - the lab domain's three, also in `phoenix.env`: `LAB_ADMIN_PASSWORD`, which
+    is Domain Admin, `LAB_DSRM_PASSWORD`
+    ([ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)),
+    and `LAB_POPULATION_SEED`, from which every population password is derived
+    ([ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md)).
+    The seed adds no reach: the first of the three already owns the domain.
 
   The state is the one that would have been quiet. A Terraform state holds
   every value a provider touched in cleartext, the cloud-init password of every
