@@ -1,5 +1,10 @@
 # tofu
 
+[![host: phoenix](https://img.shields.io/badge/host-phoenix-30363d?style=plastic)](../docs/network.md#imaginationlan--vlan-30--lab)
+[![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../docs/network.md#imaginationlan--vlan-30--lab)
+[![OpenTofu](https://img.shields.io/badge/OpenTofu-FFDA18?style=plastic&logo=opentofu&logoColor=black)](https://opentofu.org)
+[![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-E57000?style=plastic&logo=proxmox&logoColor=white)](https://www.proxmox.com/en/proxmox-virtual-environment)
+
 The lab's guests, cloned from [`packer/`](../packer/README.md)'s templates
 through `Saruman`'s API, from `phoenix` ([ADR-0076]). How to run it is
 [`provision-lab-guests.md`][runbook]. This page is the map.

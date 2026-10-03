@@ -1,5 +1,15 @@
 # Lab observability stack
 
+[![host: alexander](https://img.shields.io/badge/host-alexander-30363d?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
+[![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
+[![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io)
+[![Loki](https://img.shields.io/badge/Loki-F5A800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/loki/)
+[![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
+[![Alloy](https://img.shields.io/badge/Alloy-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/alloy-opentelemetry-collector/)
+[![Caddy](https://img.shields.io/badge/Caddy-1F88C0?style=plastic&logo=caddy&logoColor=white)](https://caddyserver.com)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
 Runs on `alexander` (10.0.30.40), VLAN 30 — a **guest on `Saruman`**, not the
 hypervisor. A compose stack is Docker, and Docker rewrites the iptables of a
 box whose own firewall ADR-0014 relies on, which is why `Saruman` carries the
@@ -19,7 +29,7 @@ make up STACK=lab        # from the repository root
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 
-Six services, where the estate has seven. What is absent is as deliberate as
+Six services, where the estate has nine. What is absent is as deliberate as
 what is here:
 
 - **No Alertmanager.** Nothing in the lab pages. ADR-0020 decided it, and it is
@@ -46,8 +56,9 @@ compose.yaml               six services, one network, health-gated ordering
 Caddyfile                  the ingest proxy's token table and path allowlist
 .env.example               non-sensitive tunables — edit this, not .env
 prometheus/
-  prometheus.yaml          four scrape jobs; no alerting block, no file_sd;
-                           the domain's and odin's jobs land commented
+  prometheus.yaml          six scrape jobs — this stack's four, the domain's
+                           windows_exporter and odin's Velociraptor; no
+                           alerting block, no file_sd
   rules/lab.rules.yaml     9 rules — four for this stack watching itself,
                            two for the guests' disks, three for the domain
                            ADR-0029 sized
@@ -180,9 +191,9 @@ any change to the Caddyfile. A lab failure that reaches the estate is
   commented until then;
   [`build-the-jumpbox.md`](../../docs/runbooks/build-the-jumpbox.md) §5
   published them in 2026-09
-  ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and
-  [`build-the-soc-guest.md`](../../docs/runbooks/build-the-soc-guest.md) §7 now
-  only confirms they are open.
+  ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and since [#834]
+  they belong to `caddy`, which wants a token from each client
+  ([*The ingest proxy*](#the-ingest-proxy-and-the-order-it-goes-in)).
 - **Image tags are pinned here but bumped separately.** `.github/dependabot.yml`
   now watches this directory as well as the estate's, so the two do not drift.
   Versions are deliberately absent from the table above — Dependabot only edits

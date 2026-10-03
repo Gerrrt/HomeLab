@@ -1,10 +1,19 @@
 # SOC stack
 
+[![host: odin](https://img.shields.io/badge/host-odin-30363d?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
+[![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
+[![Wazuh](https://img.shields.io/badge/Wazuh-3595F7?style=plastic)](https://wazuh.com)
+[![Velociraptor](https://img.shields.io/badge/Velociraptor-4b7b4b?style=plastic)](https://docs.velociraptor.app)
+[![Alloy](https://img.shields.io/badge/Alloy-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/alloy-opentelemetry-collector/)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
 Wazuh and Velociraptor — the security half of [ADR-0007]'s defended estate —
 on `odin` (`10.0.30.60`, ImaginationLAN / VLAN 30), a **second guest on
-`Saruman`** beside `alexander`. **The guest is not built yet**; the build is
-[`build-the-soc-guest.md`], it waits on the domain ([#414]), and this directory
-is the stack it deploys, authored ahead of the host the way `stacks/lab` was.
+`Saruman`** beside `alexander`. **Built 2026-09-27** from
+[`build-the-soc-guest.md`], once the domain it watches existed ([#414]); this
+directory is the stack it deploys, authored ahead of the host the way
+`stacks/lab` was.
 [ADR-0030] is the decision: why a second guest and not `alexander`, why one
 stack and not two, why the directory is not called `wazuh`.
 
@@ -27,11 +36,12 @@ Six services, and what is absent is as deliberate as what is here:
 - **No Prometheus, Loki or Grafana.** They are on `alexander`, four hundred
   metres of copper away on the same segment, and this guest's Alloy pushes to
   them: `LOKI_URL` and `PROMETHEUS_REMOTE_WRITE_URL` in `compose.yaml` point at
-  `10.0.30.40`. That makes `odin` the first genuine off-host client the lab's
-  stores have had, and the day it comes up is the day
-  `stacks/lab/compose.yaml`'s two commented `ports:` blocks are uncommented —
-  [`build-the-soc-guest.md`] §7, not before. Nothing here remote-writes to
-  `10.0.99.20` ([ADR-0007]).
+  `10.0.30.40`. `odin` was the first genuine off-host client the lab's
+  stores had. Since [#834] they are reached through the lab's Caddy ingest
+  proxy, which holds those two ports and wants a token per client — `odin`'s
+  is `INGEST_TOKEN` in this stack's secrets
+  ([`stacks/lab`'s README](../lab/README.md#the-ingest-proxy-and-the-order-it-goes-in)).
+  Nothing here remote-writes to `10.0.99.20` ([ADR-0007]).
 - **No Grafana OpenSearch datasource on the lab's Grafana**, refused in
   [ADR-0030]: it is a plugin fetched unpinned at every start, and the Wazuh
   dashboard is not a viewer that Grafana panels could replace.
@@ -200,5 +210,6 @@ it matters:
 [ADR-0027]: ../../docs/adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md
 [ADR-0030]: ../../docs/adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md
 [#414]: https://github.com/Gerrrt/HomeLab/issues/414
+[#834]: https://github.com/Gerrrt/HomeLab/issues/834
 [`build-the-soc-guest.md`]: ../../docs/runbooks/build-the-soc-guest.md
 [#439]: https://github.com/Gerrrt/HomeLab/issues/439

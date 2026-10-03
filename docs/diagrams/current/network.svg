@@ -1,0 +1,673 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1540" width="2400" height="1540" role="img" aria-labelledby="title desc">
+<title id="title">matrix.elysium home network</title>
+<desc id="desc">Physical and logical topology of the home network: ISP gateway in bridge mode, the pfSense firewall morpheus, the core switch neo, the 9U rack, and the six VLANs with every addressed host. Drawn from docs/network.md and docs/hardware.md.</desc>
+<style>
+  text { font-family: Inter, "Segoe UI", "Helvetica Neue", Helvetica, Arial, "DejaVu Sans", sans-serif; fill: #c9d1d9; }
+  .mono, .ip { font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace; }
+  .h1 { font-size: 34px; font-weight: 700; fill: #f0f6fc; }
+  .h1d { font-size: 34px; font-weight: 300; fill: #8b949e; }
+  .lede { font-size: 15px; fill: #8b949e; }
+  .h2 { font-size: 15px; font-weight: 700; fill: #f0f6fc; letter-spacing: 0.06em; }
+  .pname { font-size: 20px; font-weight: 700; }
+  .purpose { font-size: 13px; fill: #c9d1d9; }
+  .mono { font-size: 13px; fill: #c9d1d9; }
+  .ip { font-size: 13px; font-weight: 700; }
+  .hn { font-size: 15px; font-weight: 700; fill: #f0f6fc; }
+  .sub { font-size: 12px; fill: #8b949e; }
+  .role { font-size: 12px; fill: #c9d1d9; }
+  .foot { font-size: 12px; fill: #8b949e; font-style: italic; }
+  .pill { font-size: 11px; font-weight: 700; }
+  .lbl { font-size: 12px; fill: #8b949e; }
+  .lblb { font-size: 12px; fill: #c9d1d9; font-weight: 700; }
+  .card { fill: #161b22; stroke: #30363d; stroke-width: 1; }
+  .planned { fill: none; stroke: #6e7681; stroke-dasharray: 5 4; }
+  .planned-t { fill: #6e7681; }
+  .box { fill: #161b22; stroke: #484f58; stroke-width: 1.5; }
+  .wire { fill: none; stroke-width: 3; stroke-linejoin: round; }
+</style>
+<rect width="2400" height="1540" fill="#0d1117"/>
+<defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#161b22" stroke-width="1"/></pattern></defs>
+<rect width="2400" height="1540" fill="url(#grid)"/>
+<g id="title-block">
+<text x="40" y="62"><tspan class="h1">matrix</tspan><tspan class="h1d">.elysium</tspan></text>
+<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-10-03</text>
+</g>
+<g id="legend">
+<rect x="40" y="120" width="640" height="400" rx="12" class="box"/>
+<text x="60" y="152" class="h2">SEGMENTS</text>
+<text x="660" y="152" class="lbl" text-anchor="end">fill = patch-cable colour (ADR-0009)</text>
+<circle cx="70" cy="182" r="7" fill="#8b949e"/>
+<text x="88" y="186" class="lblb">—</text>
+<text x="180" y="186" class="lblb">WAN</text>
+<text x="320" y="186" class="mono">ISP-assigned</text>
+<text x="450" y="186" class="lbl">Uplink</text>
+<circle cx="70" cy="212" r="7" fill="#8b949e"/>
+<text x="88" y="216" class="lblb">untagged</text>
+<text x="180" y="216" class="lblb">LAN</text>
+<text x="320" y="216" class="mono">10.7.7.0/24</text>
+<text x="450" y="216" class="lbl">Switch management only</text>
+<circle cx="70" cy="242" r="7" fill="#f85149"/>
+<text x="88" y="246" class="lblb">VLAN 99</text>
+<text x="180" y="246" class="lblb" fill="#f85149">Winterfell</text>
+<text x="320" y="246" class="mono">10.0.99.0/24</text>
+<text x="450" y="246" class="lbl">Infrastructure management</text>
+<circle cx="70" cy="272" r="7" fill="#db6d28"/>
+<text x="88" y="276" class="lblb">VLAN 50</text>
+<text x="180" y="276" class="lblb" fill="#db6d28">Hicks</text>
+<text x="320" y="276" class="mono">10.0.50.0/24</text>
+<text x="450" y="276" class="lbl">Trusted workstations</text>
+<circle cx="70" cy="302" r="7" fill="#e3b341"/>
+<text x="88" y="306" class="lblb">VLAN 40</text>
+<text x="180" y="306" class="lblb" fill="#e3b341">CasaBonita</text>
+<text x="320" y="306" class="mono">10.0.40.0/24</text>
+<text x="450" y="306" class="lbl">TVs, consoles and the NAS</text>
+<circle cx="70" cy="332" r="7" fill="#2ea043"/>
+<text x="88" y="336" class="lblb">VLAN 30</text>
+<text x="180" y="336" class="lblb" fill="#2ea043">ImaginationLAN</text>
+<text x="320" y="336" class="mono">10.0.30.0/24</text>
+<text x="450" y="336" class="lbl">Hypervisor / lab</text>
+<circle cx="70" cy="362" r="7" fill="#388bfd"/>
+<text x="88" y="366" class="lblb">VLAN 20</text>
+<text x="180" y="366" class="lblb" fill="#388bfd">Skids</text>
+<text x="320" y="366" class="mono">10.0.20.0/24</text>
+<text x="450" y="366" class="lbl">IoT and cameras</text>
+<circle cx="70" cy="392" r="7" fill="#a371f7"/>
+<text x="88" y="396" class="lblb">VLAN 10</text>
+<text x="180" y="396" class="lblb" fill="#a371f7">Degens</text>
+<text x="320" y="396" class="mono">10.0.10.0/24</text>
+<text x="450" y="396" class="lbl">Guest Wi-Fi</text>
+<line x1="60" y1="418" x2="660" y2="418" stroke="#30363d"/>
+<g transform="translate(60 444)"><line x1="0" y1="0" x2="44" y2="0" stroke="#8b949e" stroke-width="7"/></g>
+<text x="118" y="448" class="lbl">802.1Q trunk</text>
+<g transform="translate(370 444)"><line x1="0" y1="0" x2="44" y2="0" stroke="#e3b341" stroke-width="3"/></g>
+<text x="428" y="448" class="lbl">access link, cable colour</text>
+<g transform="translate(60 474)"><rect x="0" y="-9" width="44" height="18" rx="4" fill="none" stroke="#a371f7" stroke-width="2" stroke-dasharray="7 4"/></g>
+<text x="118" y="478" class="lbl">terminal: initiates nothing outward</text>
+<g transform="translate(370 474)"><rect x="0" y="-9" width="44" height="18" rx="4" fill="none" stroke="#6e7681" stroke-dasharray="5 4"/></g>
+<text x="428" y="478" class="lbl">planned, not built</text>
+<g transform="translate(60 504)"><line x1="0" y1="0" x2="44" y2="0" stroke="#39c5cf" stroke-width="2.5" stroke-dasharray="8 5"/></g>
+<text x="118" y="508" class="lbl">WireGuard path</text>
+<g transform="translate(370 504)"><rect x="8" y="-9" width="34" height="18" rx="9" fill="#8b949e" fill-opacity="0.18" stroke="#8b949e"/></g>
+<text x="428" y="508" class="lbl">polled over SNMP</text>
+</g>
+<g id="edge">
+<g transform="translate(1180 70)"><path d="M-110 30 a34 34 0 0 1 10 -62 a48 48 0 0 1 86 -16 a40 40 0 0 1 72 10 a32 32 0 0 1 42 68 z" fill="#161b22" stroke="#8b949e" stroke-width="2"/></g>
+<text x="1184" y="82" class="hn" text-anchor="middle">Internet</text>
+<rect x="1440" y="40" width="300" height="74" rx="10" fill="#161b22" stroke="#39c5cf" stroke-width="2" stroke-dasharray="8 5"/>
+<text x="1456" y="64" class="hn">WireGuard peers</text>
+<text x="1724" y="64" class="ip" text-anchor="end" fill="#39c5cf">172.31.0.0/24</text>
+<text x="1456" y="84" class="sub">routed, not a VLAN · keyed peers only</text>
+<text x="1456" y="101" class="sub">endpoint name and port withheld</text>
+<path d="M1440 77 H1262" class="wire" stroke="#39c5cf" stroke-width="2.5" stroke-dasharray="8 5"/>
+<line x1="1180" y1="102" x2="1180" y2="146" stroke="#8b949e" stroke-width="3"/>
+<rect x="1030" y="146" width="300" height="46" rx="8" class="box"/>
+<text x="1180" y="166" class="hn" text-anchor="middle">ISP gateway · Xfinity XB7</text>
+<text x="1180" y="183" class="sub" text-anchor="middle">bridge mode · its Wi-Fi radio unused</text>
+<line x1="1180" y1="192" x2="1180" y2="226" stroke="#8b949e" stroke-width="3"/>
+<text x="1190" y="214" class="lbl">Cat6 → em0</text>
+<g id="morpheus">
+<rect x="790" y="226" width="780" height="196" rx="12" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
+<text x="810" y="258" class="pname" fill="#f0f6fc">morpheus</text>
+<text x="930" y="258" class="sub">pfSense CE · HP ProDesk 600 G4 Mini · rack U5</text>
+<rect x="1506" y="243" width="50" height="18" rx="9" fill="#8b949e" fill-opacity="0.18" stroke="#8b949e" stroke-width="1"/>
+<text x="1531.0" y="256" class="pill" fill="#8b949e" text-anchor="middle">SNMP</text>
+<rect x="810" y="282" width="52" height="44" rx="6" fill="#0d1117" stroke="#8b949e"/>
+<text x="836" y="309" class="mono" text-anchor="middle">em0</text>
+<text x="874" y="300" class="role">WAN · onboard I219-LM</text>
+<text x="874" y="318" class="sub">ISP-assigned address, withheld</text>
+<rect x="810" y="342" width="52" height="44" rx="6" fill="#0d1117" stroke="#8b949e"/>
+<text x="836" y="369" class="mono" text-anchor="middle">igc0</text>
+<text x="874" y="360" class="role">trunk · Intel I226-V 2.5 GbE (M.2)</text>
+<text x="874" y="378" class="sub">gateway .1 on every segment</text>
+<text x="1170" y="290" class="h2">SERVICES</text>
+<circle cx="1174" cy="306" r="2.5" fill="#8b949e"/>
+<text x="1184" y="310" class="role">Kea DHCP on the six VLANs (none on LAN)</text>
+<circle cx="1174" cy="322" r="2.5" fill="#8b949e"/>
+<text x="1184" y="326" class="role">Unbound, forwarding to AdGuard on trinity</text>
+<circle cx="1174" cy="338" r="2.5" fill="#8b949e"/>
+<text x="1184" y="342" class="role">Suricata IDS</text>
+<circle cx="1174" cy="354" r="2.5" fill="#8b949e"/>
+<text x="1184" y="358" class="role">NUT server: orderly shutdown on mjolnir</text>
+<circle cx="1174" cy="370" r="2.5" fill="#8b949e"/>
+<text x="1184" y="374" class="role">Dynamic DNS for the WireGuard endpoint</text>
+<circle cx="1174" cy="386" r="2.5" fill="#8b949e"/>
+<text x="1184" y="390" class="role">rdr UDP → phoenix, the one inbound pass</text>
+<circle cx="1174" cy="402" r="2.5" fill="#8b949e"/>
+<text x="1184" y="406" class="role">syslog → prometheus</text>
+</g>
+</g>
+<g id="neo">
+<path d="M836 386 V430 H710 V500" class="wire" stroke="#8b949e" stroke-width="7"/>
+<text x="724" y="470" class="lbl">802.1Q trunk: igc0 → port 1 · LAN untagged · VLANs 10, 20, 30, 40, 50, 99 tagged</text>
+<rect x="640" y="500" width="1080" height="92" rx="10" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
+<text x="660" y="530" class="pname" fill="#f0f6fc">neo</text>
+<text x="706" y="530" class="sub">MokerLink 26-port managed · rack U9</text>
+<text x="660" y="554" class="ip" fill="#8b949e">10.7.7.2</text>
+<text x="736" y="554" class="sub">on LAN · neo.matrix.elysium · UI plain HTTP</text>
+<text x="660" y="576" class="sub">Port map lives on the wiki (infrastructure/switching)</text>
+<rect x="1000" y="517" width="50" height="18" rx="9" fill="#8b949e" fill-opacity="0.18" stroke="#8b949e" stroke-width="1"/>
+<text x="1025.0" y="530" class="pill" fill="#8b949e" text-anchor="middle">SNMP</text>
+<rect x="1110" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1119" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1150" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1159" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1190" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1199" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1230" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1239" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1278" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1287" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1318" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1327" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1358" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1367" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1398" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1407" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1446" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1455" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1486" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1495" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1526" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1535" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1566" y="516" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1575" y="532" width="12" height="5" fill="#30363d"/>
+<rect x="1110" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1119" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1150" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1159" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1190" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1199" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1230" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1239" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1278" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1287" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1318" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1327" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1358" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1367" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1398" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1407" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1446" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1455" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1486" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1495" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1526" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1535" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1566" y="550" width="30" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1575" y="566" width="12" height="5" fill="#30363d"/>
+<rect x="1626" y="516" width="40" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<rect x="1626" y="550" width="40" height="24" rx="3" fill="#0d1117" stroke="#484f58"/>
+<text x="1646" y="586" class="lbl" text-anchor="middle">SFP</text>
+</g>
+<rect x="1740" y="500" width="220" height="92" rx="8" class="planned"/>
+<text x="1754" y="524" class="lblb" fill="#6e7681">planned replacement</text>
+<text x="1754" y="544" class="sub planned-t">MikroTik CRS326-24G-2S+RM</text>
+<text x="1754" y="562" class="sub planned-t">inherits name, address and U9</text>
+<text x="1754" y="580" class="sub planned-t">ADR-0041 · awaiting its PSU</text>
+<g id="rack">
+<rect x="1990" y="120" width="370" height="440" rx="12" class="box"/>
+<text x="2010" y="152" class="h2">RACK · 9U OPEN FRAME</text>
+<rect x="2010" y="170" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="170" width="5" height="28" fill="#8b949e"/>
+<text x="2024" y="188.0" class="mono">U9</text>
+<text x="2076" y="188.0" class="role">MokerLink 26-port · neo</text>
+<rect x="2010" y="202" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="220.0" class="mono">U8</text>
+<text x="2076" y="220.0" class="role">Jadol 24-port patch panel</text>
+<rect x="2010" y="234" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="252.0" class="mono">U7</text>
+<text x="2076" y="252.0" class="role">10-outlet PDU · fed from the UPS</text>
+<rect x="2010" y="266" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="284.0" class="mono">U6</text>
+<text x="2076" y="284.0" class="role">MT-VIKI 8-port KVM</text>
+<rect x="2010" y="298" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="298" width="5" height="28" fill="#8b949e"/>
+<text x="2024" y="316.0" class="mono">U5</text>
+<text x="2076" y="316.0" class="role">HP ProDesk 600 G4 Mini · morpheus</text>
+<rect x="2010" y="330" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="330" width="5" height="28" fill="#f85149"/>
+<text x="2024" y="348.0" class="mono">U4</text>
+<text x="2076" y="348.0" class="role">shelf: TP-Link 8-port, on a UPS outlet</text>
+<rect x="2010" y="362" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="362" width="5" height="28" fill="#2ea043"/>
+<text x="2024" y="380.0" class="mono">U3</text>
+<text x="2076" y="380.0" class="role">HPE DL360 Gen9 · Saruman / shiva</text>
+<rect x="2010" y="394" width="330" height="60" rx="4" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="394" width="5" height="60" fill="#f85149"/>
+<text x="2024" y="428.0" class="mono">U1–2</text>
+<text x="2076" y="428.0" class="role">APC Smart-UPS X 1500 · mjolnir</text>
+<text x="2010" y="480" class="sub">Off the rack: prometheus, oracle and trinity</text>
+<text x="2010" y="496" class="sub">on shelves; smaug in the media room, on the</text>
+<text x="2010" y="512" class="sub">PDU by a long cord; eeros through the house.</text>
+</g>
+<g id="drops">
+<path d="M700 592 V612 H230.0 V680" class="wire" stroke="#f85149"/>
+<circle cx="700" cy="592" r="4" fill="#f85149"/>
+<path d="M800 592 V628 H611.0 V680" class="wire" stroke="#db6d28"/>
+<circle cx="800" cy="592" r="4" fill="#db6d28"/>
+<path d="M900 592 V644 H987.0 V680" class="wire" stroke="#e3b341"/>
+<circle cx="900" cy="592" r="4" fill="#e3b341"/>
+<path d="M1180 592 V640 H1448.0 V680" class="wire" stroke="#2ea043"/>
+<circle cx="1180" cy="592" r="4" fill="#2ea043"/>
+<path d="M1500 592 V640 H1909.0 V680" class="wire" stroke="#388bfd"/>
+<circle cx="1500" cy="592" r="4" fill="#388bfd"/>
+<path d="M1610 592 V620 H2235.0 V680" class="wire" stroke="#a371f7"/>
+<circle cx="1610" cy="592" r="4" fill="#a371f7"/>
+<text x="706" y="608" class="lbl">port 3</text>
+<text x="906" y="614" class="lbl">port 15</text>
+</g>
+<g id="vlan-99">
+<rect x="40" y="680" width="380" height="820" rx="14" fill="#f85149" fill-opacity="0.07" stroke="#f85149" stroke-width="2.5"/>
+<path d="M40 694 a14 14 0 0 1 14 -14 h352 a14 14 0 0 1 14 14 v62 h-380 z" fill="#f85149" fill-opacity="0.22"/>
+<rect x="54" y="694" width="70" height="18" rx="9" fill="#f85149" fill-opacity="0.18" stroke="#f85149" stroke-width="1"/>
+<text x="89.0" y="707" class="pill" fill="#f85149" text-anchor="middle">VLAN 99</text>
+<text x="134" y="709" class="pname" fill="#f85149">Winterfell</text>
+<text x="406" y="709" class="mono" text-anchor="end">10.0.99.0/24</text>
+<text x="56" y="740" class="purpose">Infrastructure management</text>
+<text x="56" y="1468" class="foot">Reaches: internet, and trinity → bifrost on 80/443.</text>
+<text x="56" y="1484" class="foot">Hicks reaches it on named ports only.</text>
+<g class="host" data-host="mjolnir">
+<rect x="54" y="772" width="352" height="76" rx="8" class="card"/>
+<rect x="54" y="778" width="4" height="64" rx="2" fill="#f85149"/>
+<text x="68" y="794" class="hn">mjolnir</text>
+<text x="394" y="794" class="ip" text-anchor="end" fill="#f85149">.10</text>
+<text x="68" y="812" class="sub">APC Smart-UPS X 1500 · network card</text>
+<text x="68" y="828" class="role">UPS · rack U1–U2 · web UI on 443</text>
+</g>
+<rect x="344" y="822" width="50" height="18" rx="9" fill="#8b949e" fill-opacity="0.18" stroke="#8b949e" stroke-width="1"/>
+<text x="369.0" y="835" class="pill" fill="#8b949e" text-anchor="middle">SNMP</text>
+<rect x="54" y="860" width="352" height="226" rx="10" fill="none" stroke="#f85149" stroke-opacity="0.5" stroke-dasharray="4 4"/>
+<text x="66" y="880" class="sub">TP-Link 8-port unmanaged · neo port 3 · U4</text>
+<g class="host" data-host="prometheus">
+<rect x="64" y="890" width="332" height="92" rx="8" class="card"/>
+<rect x="64" y="896" width="4" height="80" rx="2" fill="#f85149"/>
+<text x="78" y="912" class="hn">prometheus</text>
+<text x="384" y="912" class="ip" text-anchor="end" fill="#f85149">.20</text>
+<text x="78" y="930" class="sub">MacBook Pro (2012) · Ubuntu · USB NIC</text>
+<text x="78" y="946" class="role">stacks/observability: Prometheus, Loki,</text>
+<text x="78" y="962" class="role">Grafana, Alertmanager · the estate CA</text>
+</g>
+<g class="host" data-host="oracle">
+<rect x="64" y="988" width="332" height="92" rx="8" class="card"/>
+<rect x="64" y="994" width="4" height="80" rx="2" fill="#f85149"/>
+<text x="78" y="1010" class="hn">oracle</text>
+<text x="384" y="1010" class="ip" text-anchor="end" fill="#f85149">.30</text>
+<text x="78" y="1028" class="sub">Dell Inspiron 15 · Ubuntu · 100 Mb/s link</text>
+<text x="78" y="1044" class="role">stacks/wiki: the household wiki,</text>
+<text x="78" y="1060" class="role">and the off-host backup copies</text>
+</g>
+<g class="host" data-host="trinity">
+<rect x="54" y="1098" width="352" height="110" rx="8" class="card"/>
+<rect x="54" y="1104" width="4" height="98" rx="2" fill="#f85149"/>
+<text x="68" y="1120" class="hn">trinity</text>
+<text x="394" y="1120" class="ip" text-anchor="end" fill="#f85149">.40</text>
+<text x="68" y="1138" class="sub">HP ProDesk 600 G4 DM · Ubuntu · LUKS + TPM</text>
+<text x="68" y="1154" class="role">stacks/sensitive: Caddy, step-ca, AdGuard,</text>
+<text x="68" y="1170" class="role">Home Assistant, Immich, Paperless-ngx,</text>
+<text x="68" y="1186" class="role">Vaultwarden, ntfy and the household&#x27;s apps</text>
+</g>
+<rect x="54" y="1220" width="352" height="96" rx="8" fill="#0d1117" stroke="#30363d"/>
+<text x="68" y="1242" class="pill" fill="#8b949e">WHAT WATCHES WHAT</text>
+<text x="68" y="1262" class="sub">Alloy agents push metrics and logs to prometheus.</text>
+<text x="68" y="1278" class="sub">SNMP: morpheus, neo, mjolnir, shiva.</text>
+<text x="68" y="1294" class="sub">Node scrape: smaug. Blackbox: AdGuard, the wiki,</text>
+<text x="68" y="1310" class="sub">Grafana, ntfy and the UPS card.</text>
+</g>
+<g id="vlan-50">
+<rect x="436" y="680" width="350" height="820" rx="14" fill="#db6d28" fill-opacity="0.07" stroke="#db6d28" stroke-width="2.5"/>
+<path d="M436 694 a14 14 0 0 1 14 -14 h322 a14 14 0 0 1 14 14 v62 h-350 z" fill="#db6d28" fill-opacity="0.22"/>
+<rect x="450" y="694" width="70" height="18" rx="9" fill="#db6d28" fill-opacity="0.18" stroke="#db6d28" stroke-width="1"/>
+<text x="485.0" y="707" class="pill" fill="#db6d28" text-anchor="middle">VLAN 50</text>
+<text x="530" y="709" class="pname" fill="#db6d28">Hicks</text>
+<text x="772" y="709" class="mono" text-anchor="end">10.0.50.0/24</text>
+<text x="452" y="740" class="purpose">Trusted workstations · by role, not owner</text>
+<text x="452" y="1468" class="foot">Reaches: internet, all of 30, and a</text>
+<text x="452" y="1484" class="foot">named list of host:port on 99.</text>
+<g class="host" data-host="desktop-01">
+<rect x="450" y="772" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="778" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="794" class="hn">desktop-01</text>
+<text x="760" y="794" class="ip" text-anchor="end" fill="#db6d28">.20</text>
+<text x="464" y="812" class="sub">ASUS ROG Strix X570-E · Windows 11 · wired</text>
+</g>
+<g class="host" data-host="desktop-02">
+<rect x="450" y="828" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="834" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="850" class="hn">desktop-02</text>
+<text x="760" y="850" class="ip" text-anchor="end" fill="#db6d28">.90</text>
+<text x="464" y="868" class="sub">ASUS ROG Crosshair VIII · Windows 11 · wired</text>
+</g>
+<g class="host" data-host="laptop-01">
+<rect x="450" y="884" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="890" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="906" class="hn">laptop-01</text>
+<text x="760" y="906" class="ip" text-anchor="end" fill="#db6d28">.10</text>
+<text x="464" y="924" class="sub">HP Pavilion Gaming · Windows 11</text>
+</g>
+<g class="host" data-host="laptop-02">
+<rect x="450" y="940" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="946" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="962" class="hn">laptop-02</text>
+<text x="760" y="962" class="ip" text-anchor="end" fill="#db6d28">.80</text>
+<text x="464" y="980" class="sub">Apple MacBook Pro · macOS</text>
+</g>
+<g class="host" data-host="workstation-01">
+<rect x="450" y="996" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="1002" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="1018" class="hn">workstation-01</text>
+<text x="760" y="1018" class="ip" text-anchor="end" fill="#db6d28">.69</text>
+<text x="464" y="1036" class="sub">Surface Laptop 6 · corporate</text>
+</g>
+<g class="host" data-host="workstation-02">
+<rect x="450" y="1052" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="1058" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="1074" class="hn">workstation-02</text>
+<text x="760" y="1074" class="ip" text-anchor="end" fill="#db6d28">.70</text>
+<text x="464" y="1092" class="sub">Surface Laptop 6 · corporate</text>
+</g>
+<g class="host" data-host="mobile-01">
+<rect x="450" y="1108" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="1114" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="1130" class="hn">mobile-01</text>
+<text x="760" y="1130" class="ip" text-anchor="end" fill="#db6d28">.105</text>
+<text x="464" y="1148" class="sub">Apple iPhone</text>
+</g>
+<g class="host" data-host="mobile-02">
+<rect x="450" y="1164" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="1170" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="1186" class="hn">mobile-02</text>
+<text x="760" y="1186" class="ip" text-anchor="end" fill="#db6d28">.109</text>
+<text x="464" y="1204" class="sub">Google Pixel</text>
+</g>
+<g class="host" data-host="wearable-01">
+<rect x="450" y="1220" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="1226" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="1242" class="hn">wearable-01</text>
+<text x="760" y="1242" class="ip" text-anchor="end" fill="#db6d28">.112</text>
+<text x="464" y="1260" class="sub">Apple Watch</text>
+</g>
+<g class="host" data-host="eero mesh · trusted">
+<rect x="450" y="1282" width="322" height="76" rx="8" class="card"/>
+<rect x="450" y="1288" width="4" height="64" rx="2" fill="#db6d28"/>
+<text x="464" y="1304" class="hn">eero mesh · trusted</text>
+<text x="760" y="1304" class="ip" text-anchor="end" fill="#db6d28">.104 .110 .111</text>
+<text x="464" y="1322" class="sub">3 × eero Pro 6E, bridged</text>
+<text x="464" y="1338" class="role">one wired backhaul, two meshed</text>
+</g>
+<rect x="450" y="1370" width="322" height="56" rx="8" fill="#0d1117" stroke="#30363d"/>
+<text x="464" y="1392" class="sub">Corporate laptops get the same rules</text>
+<text x="464" y="1410" class="sub">as everything else on this segment.</text>
+</g>
+<g id="vlan-40">
+<rect x="802" y="680" width="370" height="820" rx="14" fill="#e3b341" fill-opacity="0.07" stroke="#e3b341" stroke-width="2.5" stroke-dasharray="10 6"/>
+<path d="M802 694 a14 14 0 0 1 14 -14 h342 a14 14 0 0 1 14 14 v62 h-370 z" fill="#e3b341" fill-opacity="0.22"/>
+<rect x="816" y="694" width="70" height="18" rx="9" fill="#e3b341" fill-opacity="0.18" stroke="#e3b341" stroke-width="1"/>
+<text x="851.0" y="707" class="pill" fill="#e3b341" text-anchor="middle">VLAN 40</text>
+<text x="896" y="709" class="pname" fill="#e3b341">CasaBonita</text>
+<text x="1158" y="709" class="mono" text-anchor="end">10.0.40.0/24</text>
+<text x="818" y="740" class="purpose">TVs, consoles and the NAS</text>
+<text x="818" y="1452" class="foot">Terminal outward: initiates nothing internal.</text>
+<text x="818" y="1468" class="foot">Inbound to smaug only, on named ports</text>
+<text x="818" y="1484" class="foot">(ADR-0016).</text>
+<g class="host" data-host="smaug">
+<rect x="816" y="772" width="342" height="172" rx="8" class="card"/>
+<rect x="816" y="778" width="4" height="160" rx="2" fill="#e3b341"/>
+<text x="830" y="794" class="hn">smaug</text>
+<text x="1146" y="794" class="ip" text-anchor="end" fill="#e3b341">.30</text>
+<text x="830" y="812" class="sub">Lenovo ThinkServer TS150 · TrueNAS</text>
+<text x="830" y="828" class="role">neo port 15, untagged · PVID 40 · media room</text>
+<text x="830" y="844" class="role">ZFS mirror erebor · 2 × 18 TB</text>
+<text x="830" y="860" class="role">stacks/media, under TrueNAS&#x27;s own Docker:</text>
+<text x="830" y="876" class="role">  Jellyfin · Quick Sync transcoding</text>
+<text x="830" y="892" class="role">  Audiobookshelf · Navidrome</text>
+<text x="830" y="908" class="role">  SMB share · node_exporter</text>
+<text x="830" y="924" class="role">NFS: ISO store to Saruman</text>
+</g>
+<g class="host" data-host="mediatv">
+<rect x="816" y="956" width="342" height="50" rx="8" class="card"/>
+<rect x="816" y="962" width="4" height="38" rx="2" fill="#e3b341"/>
+<text x="830" y="978" class="hn">mediatv</text>
+<text x="1146" y="978" class="ip" text-anchor="end" fill="#e3b341">.100</text>
+<text x="830" y="996" class="sub">LG OLED · webOS · wired</text>
+</g>
+<g class="host" data-host="streambox">
+<rect x="816" y="1012" width="342" height="50" rx="8" class="card"/>
+<rect x="816" y="1018" width="4" height="38" rx="2" fill="#e3b341"/>
+<text x="830" y="1034" class="hn">streambox</text>
+<text x="1146" y="1034" class="ip" text-anchor="end" fill="#e3b341">.101</text>
+<text x="830" y="1052" class="sub">Xumo Stream Box · wired</text>
+</g>
+<g class="host" data-host="nibelheim">
+<rect x="816" y="1068" width="342" height="50" rx="8" class="card"/>
+<rect x="816" y="1074" width="4" height="38" rx="2" fill="#e3b341"/>
+<text x="830" y="1090" class="hn">nibelheim</text>
+<text x="1146" y="1090" class="ip" text-anchor="end" fill="#e3b341">.10</text>
+<text x="830" y="1108" class="sub">Sony PlayStation 5 · wired</text>
+</g>
+<g class="host" data-host="hyrule">
+<rect x="816" y="1124" width="342" height="50" rx="8" class="card"/>
+<rect x="816" y="1130" width="4" height="38" rx="2" fill="#e3b341"/>
+<text x="830" y="1146" class="hn">hyrule</text>
+<text x="1146" y="1146" class="ip" text-anchor="end" fill="#e3b341">.20</text>
+<text x="830" y="1164" class="sub">Nintendo Switch · wired</text>
+</g>
+</g>
+<g id="vlan-30">
+<rect x="1188" y="680" width="520" height="820" rx="14" fill="#2ea043" fill-opacity="0.07" stroke="#2ea043" stroke-width="2.5"/>
+<path d="M1188 694 a14 14 0 0 1 14 -14 h492 a14 14 0 0 1 14 14 v62 h-520 z" fill="#2ea043" fill-opacity="0.22"/>
+<rect x="1202" y="694" width="70" height="18" rx="9" fill="#2ea043" fill-opacity="0.18" stroke="#2ea043" stroke-width="1"/>
+<text x="1237.0" y="707" class="pill" fill="#2ea043" text-anchor="middle">VLAN 30</text>
+<text x="1282" y="709" class="pname" fill="#2ea043">ImaginationLAN</text>
+<text x="1694" y="709" class="mono" text-anchor="end">10.0.30.0/24</text>
+<text x="1204" y="740" class="purpose">Hypervisor and lab</text>
+<text x="1204" y="1468" class="foot">Reaches: internet. Hicks reaches all of it; the WireGuard</text>
+<text x="1204" y="1484" class="foot">peers land here via phoenix and reach the lab only.</text>
+<rect x="1202" y="772" width="492" height="560" rx="10" fill="#0d1117" stroke="#2ea043" stroke-opacity="0.6"/>
+<text x="1216" y="796" class="sub">HPE ProLiant DL360 Gen9 · rack U3 · 2 × E5-2680 v3 · 128 GB</text>
+<g class="host" data-host="Saruman">
+<rect x="1212" y="806" width="231.0" height="62" rx="8" class="card"/>
+<rect x="1212" y="812" width="4" height="50" rx="2" fill="#2ea043"/>
+<text x="1226" y="828" class="hn">Saruman</text>
+<text x="1431.0" y="828" class="ip" text-anchor="end" fill="#2ea043">.110</text>
+<text x="1226" y="846" class="sub">Proxmox VE · hypervisor</text>
+<text x="1226" y="862" class="role">native Alloy agent</text>
+</g>
+<g class="host" data-host="shiva">
+<rect x="1453.0" y="806" width="231.0" height="62" rx="8" class="card"/>
+<rect x="1453.0" y="812" width="4" height="50" rx="2" fill="#2ea043"/>
+<text x="1467.0" y="828" class="hn">shiva</text>
+<text x="1672.0" y="828" class="ip" text-anchor="end" fill="#2ea043">.10</text>
+<text x="1467.0" y="846" class="sub">iLO 4 · dedicated port</text>
+<text x="1467.0" y="862" class="role">BMC, out of band</text>
+</g>
+<rect x="1630" y="846" width="50" height="18" rx="9" fill="#8b949e" fill-opacity="0.18" stroke="#8b949e" stroke-width="1"/>
+<text x="1655.0" y="859" class="pill" fill="#8b949e" text-anchor="middle">SNMP</text>
+<text x="1216" y="888" class="pill" fill="#2ea043">KVM GUESTS</text>
+<g class="host" data-host="alexander">
+<rect x="1212.0" y="898" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1212.0" y="904" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="920" class="hn">alexander</text>
+<text x="1431.0" y="920" class="ip" text-anchor="end" fill="#2ea043">.40</text>
+<text x="1226.0" y="938" class="sub">stacks/lab · lab observability</text>
+</g>
+<g class="host" data-host="odin">
+<rect x="1453.0" y="898" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1453.0" y="904" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1467.0" y="920" class="hn">odin</text>
+<text x="1672.0" y="920" class="ip" text-anchor="end" fill="#2ea043">.60</text>
+<text x="1467.0" y="938" class="sub">stacks/soc · Wazuh, Velociraptor</text>
+</g>
+<g class="host" data-host="phoenix">
+<rect x="1212.0" y="956" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1212.0" y="962" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="978" class="hn">phoenix</text>
+<text x="1431.0" y="978" class="ip" text-anchor="end" fill="#2ea043">.70</text>
+<text x="1226.0" y="996" class="sub">deploy host · WireGuard end</text>
+</g>
+<g class="host" data-host="fenrir">
+<rect x="1453.0" y="956" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1453.0" y="962" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1467.0" y="978" class="hn">fenrir</text>
+<text x="1672.0" y="978" class="ip" text-anchor="end" fill="#2ea043">.90</text>
+<text x="1467.0" y="996" class="sub">stacks/sensor · Zeek on vmbr1</text>
+</g>
+<rect x="1208" y="1022" width="480" height="210" rx="8" fill="none" stroke="#2ea043" stroke-opacity="0.5" stroke-dasharray="4 4"/>
+<text x="1220" y="1042" class="sub">ad.matrix.elysium · lab domain</text>
+<g class="host" data-host="bahamut">
+<rect x="1212.0" y="1052" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1212.0" y="1058" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1074" class="hn">bahamut</text>
+<text x="1431.0" y="1074" class="ip" text-anchor="end" fill="#2ea043">.50</text>
+<text x="1226.0" y="1092" class="sub">Server 2025 · DC, PDC</text>
+</g>
+<g class="host" data-host="leviathan">
+<rect x="1453.0" y="1052" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1453.0" y="1058" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1467.0" y="1074" class="hn">leviathan</text>
+<text x="1672.0" y="1074" class="ip" text-anchor="end" fill="#2ea043">.51</text>
+<text x="1467.0" y="1092" class="sub">Server 2025 · DC</text>
+</g>
+<g class="host" data-host="titan">
+<rect x="1212.0" y="1110" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1212.0" y="1116" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1132" class="hn">titan</text>
+<text x="1431.0" y="1132" class="ip" text-anchor="end" fill="#2ea043">.52</text>
+<text x="1226.0" y="1150" class="sub">Server 2025 · file</text>
+</g>
+<g class="host" data-host="ramuh">
+<rect x="1453.0" y="1110" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1453.0" y="1116" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1467.0" y="1132" class="hn">ramuh</text>
+<text x="1672.0" y="1132" class="ip" text-anchor="end" fill="#2ea043">.53</text>
+<text x="1467.0" y="1150" class="sub">Server 2025 · app</text>
+</g>
+<g class="host" data-host="carbuncle">
+<rect x="1212.0" y="1168" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1212.0" y="1174" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1190" class="hn">carbuncle</text>
+<text x="1431.0" y="1190" class="ip" text-anchor="end" fill="#2ea043">.54</text>
+<text x="1226.0" y="1208" class="sub">Windows 11 · endpoint</text>
+</g>
+<g class="host" data-host="siren">
+<rect x="1453.0" y="1168" width="231.0" height="50" rx="8" class="card"/>
+<rect x="1453.0" y="1174" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1467.0" y="1190" class="hn">siren</text>
+<text x="1672.0" y="1190" class="ip" text-anchor="end" fill="#2ea043">.55</text>
+<text x="1467.0" y="1208" class="sub">Windows 11 · endpoint</text>
+</g>
+<text x="1216" y="1244" class="pill" fill="#6e7681">PLANNED</text>
+<g class="host" data-host="golem">
+<rect x="1212.0" y="1254" width="231.0" height="50" rx="8" class="card planned"/>
+<text x="1226.0" y="1276" class="hn planned-t">golem</text>
+<text x="1431.0" y="1276" class="ip" text-anchor="end" fill="#2ea043">.80</text>
+<text x="1226.0" y="1294" class="sub planned-t">PBS guest (ADR-0053)</text>
+</g>
+<g class="host" data-host="diabolos">
+<rect x="1453.0" y="1254" width="231.0" height="50" rx="8" class="card planned"/>
+<text x="1467.0" y="1276" class="hn planned-t">diabolos</text>
+<text x="1672.0" y="1276" class="ip" text-anchor="end" fill="#2ea043">.61</text>
+<text x="1467.0" y="1294" class="sub planned-t">disposable (ADR-0071)</text>
+</g>
+<g class="host" data-host="ifrit">
+<rect x="1202" y="1344" width="492" height="64" rx="8" class="card planned"/>
+<text x="1216" y="1366" class="hn planned-t">ifrit</text>
+<text x="1682" y="1366" class="ip" text-anchor="end" fill="#2ea043">.30</text>
+<text x="1216" y="1384" class="sub planned-t">second server for the range, not yet bought;</text>
+<text x="1216" y="1400" class="sub planned-t">range bridge 172.30.30.0/24 · Saruman moves to .20</text>
+</g>
+</g>
+<g id="vlan-20">
+<rect x="1724" y="680" width="370" height="820" rx="14" fill="#388bfd" fill-opacity="0.07" stroke="#388bfd" stroke-width="2.5" stroke-dasharray="10 6"/>
+<path d="M1724 694 a14 14 0 0 1 14 -14 h342 a14 14 0 0 1 14 14 v62 h-370 z" fill="#388bfd" fill-opacity="0.22"/>
+<rect x="1738" y="694" width="70" height="18" rx="9" fill="#388bfd" fill-opacity="0.18" stroke="#388bfd" stroke-width="1"/>
+<text x="1773.0" y="707" class="pill" fill="#388bfd" text-anchor="middle">VLAN 20</text>
+<text x="1818" y="709" class="pname" fill="#388bfd">Skids</text>
+<text x="2080" y="709" class="mono" text-anchor="end">10.0.20.0/24</text>
+<text x="1740" y="740" class="purpose">IoT and cameras · all wireless</text>
+<text x="1740" y="1468" class="foot">Terminal outward: initiates nothing internal.</text>
+<text x="1740" y="1484" class="foot">Inbound: trinity → bifrost on 80/443 only.</text>
+<g class="host" data-host="bifrost">
+<rect x="1738" y="772" width="342" height="62" rx="8" class="card"/>
+<rect x="1738" y="778" width="4" height="50" rx="2" fill="#388bfd"/>
+<text x="1752" y="794" class="hn">bifrost</text>
+<text x="2068" y="794" class="ip" text-anchor="end" fill="#388bfd">.20</text>
+<text x="1752" y="812" class="sub">Philips Hue Bridge</text>
+<text x="1752" y="828" class="role">local API, used by Home Assistant</text>
+</g>
+<g class="host" data-host="eero mesh · IoT">
+<rect x="1738" y="846" width="342" height="76" rx="8" class="card"/>
+<rect x="1738" y="852" width="4" height="64" rx="2" fill="#388bfd"/>
+<text x="1752" y="868" class="hn">eero mesh · IoT</text>
+<text x="2068" y="868" class="ip" text-anchor="end" fill="#388bfd">.101–.103</text>
+<text x="1752" y="886" class="sub">3 × eero Pro 6E, bridged</text>
+<text x="1752" y="902" class="role">one wired backhaul</text>
+</g>
+<text x="1740" y="940" class="pill" fill="#388bfd">POOLED LEASES, BY CLASS</text>
+<g class="host" data-host="speaker ×4">
+<rect x="1738" y="950" width="342" height="50" rx="8" class="card"/>
+<rect x="1738" y="956" width="4" height="38" rx="2" fill="#388bfd"/>
+<text x="1752" y="972" class="hn">speaker ×4</text>
+<text x="1752" y="990" class="sub">Apple HomePod</text>
+</g>
+<g class="host" data-host="assistant ×5">
+<rect x="1738" y="1006" width="342" height="50" rx="8" class="card"/>
+<rect x="1738" y="1012" width="4" height="38" rx="2" fill="#388bfd"/>
+<text x="1752" y="1028" class="hn">assistant ×5</text>
+<text x="1752" y="1046" class="sub">Amazon Echo</text>
+</g>
+<g class="host" data-host="camera ×7">
+<rect x="1738" y="1062" width="342" height="50" rx="8" class="card"/>
+<rect x="1738" y="1068" width="4" height="38" rx="2" fill="#388bfd"/>
+<text x="1752" y="1084" class="hn">camera ×7</text>
+<text x="1752" y="1102" class="sub">Ring cameras, floodlights, doorbell</text>
+</g>
+<g class="host" data-host="alarm-hub">
+<rect x="1738" y="1118" width="342" height="50" rx="8" class="card"/>
+<rect x="1738" y="1124" width="4" height="38" rx="2" fill="#388bfd"/>
+<text x="1752" y="1140" class="hn">alarm-hub</text>
+<text x="1752" y="1158" class="sub">Ring Alarm Base Station · .121</text>
+</g>
+<g class="host" data-host="monitor ×2">
+<rect x="1738" y="1174" width="342" height="50" rx="8" class="card"/>
+<rect x="1738" y="1180" width="4" height="38" rx="2" fill="#388bfd"/>
+<text x="1752" y="1196" class="hn">monitor ×2</text>
+<text x="1752" y="1214" class="sub">VTech baby monitor and tablet</text>
+</g>
+<g class="host" data-host="appliance ×2">
+<rect x="1738" y="1230" width="342" height="50" rx="8" class="card"/>
+<rect x="1738" y="1236" width="4" height="38" rx="2" fill="#388bfd"/>
+<text x="1752" y="1252" class="hn">appliance ×2</text>
+<text x="1752" y="1270" class="sub">Litter-Robot · white-noise machine</text>
+</g>
+<rect x="1738" y="1290" width="342" height="56" rx="8" fill="#0d1117" stroke="#30363d"/>
+<text x="1752" y="1312" class="sub">Everything else here is reached through</text>
+<text x="1752" y="1330" class="sub">its vendor&#x27;s cloud, or not at all.</text>
+</g>
+<g id="vlan-10">
+<rect x="2110" y="680" width="250" height="820" rx="14" fill="#a371f7" fill-opacity="0.07" stroke="#a371f7" stroke-width="2.5" stroke-dasharray="10 6"/>
+<path d="M2110 694 a14 14 0 0 1 14 -14 h222 a14 14 0 0 1 14 14 v62 h-250 z" fill="#a371f7" fill-opacity="0.22"/>
+<rect x="2124" y="694" width="70" height="18" rx="9" fill="#a371f7" fill-opacity="0.18" stroke="#a371f7" stroke-width="1"/>
+<text x="2159.0" y="707" class="pill" fill="#a371f7" text-anchor="middle">VLAN 10</text>
+<text x="2204" y="709" class="pname" fill="#a371f7">Degens</text>
+<text x="2346" y="740" class="mono" text-anchor="end">10.0.10.0/24</text>
+<text x="2126" y="740" class="purpose">Guest Wi-Fi</text>
+<text x="2126" y="1468" class="foot">Internet only.</text>
+<text x="2126" y="1484" class="foot">Client isolation on.</text>
+<g class="host" data-host="eero · guest">
+<rect x="2124" y="772" width="222" height="76" rx="8" class="card"/>
+<rect x="2124" y="778" width="4" height="64" rx="2" fill="#a371f7"/>
+<text x="2138" y="794" class="hn">eero · guest</text>
+<text x="2334" y="794" class="ip" text-anchor="end" fill="#a371f7">.10 .101</text>
+<text x="2138" y="812" class="sub">2 × eero Pro 6E</text>
+<text x="2138" y="828" class="role">bridged, main floor</text>
+</g>
+<g class="host" data-host="wired guests">
+<rect x="2124" y="860" width="222" height="62" rx="8" class="card"/>
+<rect x="2124" y="866" width="4" height="50" rx="2" fill="#a371f7"/>
+<text x="2138" y="882" class="hn">wired guests</text>
+<text x="2138" y="900" class="sub">small unmanaged switch</text>
+<text x="2138" y="916" class="role">main floor</text>
+</g>
+</g>
+<text x="40" y="1526" class="sub">Source: docs/network.md is the authority for addresses and segments; docs/hardware.md for the rack. Withheld on purpose: WAN address, WireGuard endpoint and port, full MACs, owner-linked names, camera placement.</text>
+</svg>
