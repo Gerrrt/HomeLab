@@ -549,6 +549,7 @@ tests:
               severity: critical
               category: correctness
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/deploy-stack.md#troubleshooting"
               summary: "Prometheus rejected its own config reload on localhost:9090"
 
   # PrometheusRuleEvaluationFailures: one failure a minute is 15 over the 15m

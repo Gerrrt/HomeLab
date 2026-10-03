@@ -222,6 +222,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
               summary: "UPS mjolnir is running on battery"
               description: >-
                 On battery for 2m 0s. Estimated runtime remaining is reported by
@@ -251,6 +252,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
               summary: "UPS mjolnir battery status is 3 (>2 = low/depleted)"
 
   # UpsRuntimeCritical: 4 minutes fires; exactly 5 does not (`< 5`).
@@ -276,6 +278,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
               summary: "UPS mjolnir has 4 minutes of runtime left"
 
   # UpsChargeLow: 40% fires after its 10m `for`; 50% does not (`< 50`).
@@ -403,6 +406,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/fit-the-ups-battery.md#4-run-one-self-test-and-read-it-from-both-ends"
               summary: "UPS mjolnir failed its self-test (result 3)"
               description: >-
                 2=doneWarning 3=doneError 4=aborted. A UPS that cannot complete a

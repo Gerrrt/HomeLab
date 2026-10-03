@@ -668,6 +668,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#snmpexporterdown"
               summary: "snmp-exporter is down \u2014 every SNMP device will appear unreachable"
 
   # SnmpTargetUnreachable: neo stops answering and fires after 10m; mjolnir answers
@@ -751,6 +752,7 @@ tests:
               severity: critical
               category: security
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#pfnotrunning"
               summary: "Packet filter is NOT running on morpheus"
               description: >-
                 pf is disabled. Inter-VLAN isolation and the default-deny posture
