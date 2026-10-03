@@ -31,7 +31,10 @@
                 [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$LabRole,
                 [string]$PrimaryDc)
           $Ansible.Changed = $false
-          $isDc = [bool]::Parse($IsDc)
+          # Not $isDc: PowerShell names are case-insensitive, so that would assign
+          # back into the [string] parameter, turn $false into the string 'False',
+          # and make every guest run the DC checks. That happened on 2026-10-02.
+          $onDc = [bool]::Parse($IsDc)
           $r = [ordered]@{}
           $cs = Get-CimInstance Win32_ComputerSystem
           $if = Get-NetIPConfiguration | Where-Object IPv4DefaultGateway | Select-Object -First 1
@@ -44,7 +47,7 @@
           # Prometheus `role` label, must describe what the guest actually is.
           $want = @{ dc = @(4, 5); member = @(3); endpoint = @(1) }[$LabRole]
           $r["is the $LabRole its inventory says"] = ($want -contains [int]$cs.DomainRole)
-          if (-not $isDc) {
+          if (-not $onDc) {
             $r['secure channel to a DC'] = [bool](Test-ComputerSecureChannel -ErrorAction SilentlyContinue)
           }
           $svc = Get-Service windows_exporter -ErrorAction SilentlyContinue
@@ -79,7 +82,7 @@
             -ErrorAction SilentlyContinue).AutoDetect
           $r['WPAD auto-detect not turned off by policy'] = ($autoDetect -ne 0)
 
-          if ($isDc) {
+          if ($onDc) {
             $bl = Get-DnsServerGlobalQueryBlockList
             $r['GlobalQueryBlockList on, and still blocks wpad'] = ($bl.Enable -and ($bl.List -contains 'wpad'))
             $r['no wpad record'] = -not (Get-DnsServerResourceRecord -ZoneName $Domain -Name wpad `
@@ -98,7 +101,15 @@
               $r['clock type NT5DS'] = ($type -eq 'NT5DS')
               $r["clock from $PrimaryDc"] = ($src -like "$PrimaryDc*")
             }
-            $r['replication clean'] = -not (dcdiag /test:Replications /q | Out-String).Trim()
+            # Not dcdiag: it binds to the partner DC, and an SSH key logon carries
+            # no network credentials, so it fails with "DsBindWithSpnEx() ...
+            # Access is denied" however healthy replication is. The partner
+            # metadata is read from this DC alone.
+            $partners = @(Get-ADReplicationPartnerMetadata -Target $env:COMPUTERNAME `
+              -ErrorAction SilentlyContinue)
+            $r['replication clean'] = ($partners.Count -gt 0 -and
+              -not ($partners | Where-Object {
+                $_.LastReplicationResult -ne 0 -or $_.ConsecutiveReplicationFailures -ne 0 }))
           }
 
           if ([bool]::Parse($IsTitan)) {
