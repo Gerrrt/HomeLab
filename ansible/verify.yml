@@ -31,9 +31,9 @@
                 [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$LabRole,
                 [string]$PrimaryDc)
           $Ansible.Changed = $false
-          # Not $isDc: PowerShell names are case-insensitive, so that would assign
-          # back into the [string] parameter, turn $false into the string 'False',
-          # and make every guest run the DC checks. That happened on 2026-10-02.
+          # Not $isDc: PowerShell names are case-insensitive, so that is the [string]
+          # parameter above, and assigning the bool to it turns it back into "False",
+          # which is truthy. That ran every DC check on every member (#448's first run).
           $onDc = [bool]::Parse($IsDc)
           $r = [ordered]@{}
           $cs = Get-CimInstance Win32_ComputerSystem

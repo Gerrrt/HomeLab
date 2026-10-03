@@ -26,12 +26,13 @@
 # 0x8 is client mode; /reliable marks the PDC emulator as the domain's time
 # source. Compared against the registry rather than re-run every time, so a
 # second run reports nothing changed — and so that `w32tm /config` never
-# restarts the service under a clock that was already right. Declares
-# SupportsShouldProcess so that check mode runs the comparison (roles/dns_client
-# says why).
+# restarts the service under a clock that was already right.
 - name: Sync the PDC emulator's clock from the gateway
   ansible.windows.win_powershell:
     script: |
+      # SupportsShouldProcess is what makes win_powershell run this in check mode,
+      # where $Ansible.CheckMode keeps it read-only. Without it --check reported a
+      # change here on every run instead of looking (#448's first run).
       [CmdletBinding(SupportsShouldProcess)]
       param([string]$Peers)
       $p = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters'

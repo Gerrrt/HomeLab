@@ -102,8 +102,43 @@ After a `git pull` that moves a pin, re-run the `pip install` line if
 `requirements.txt` changed, and the `ansible-galaxy` line if
 `requirements.yml` did. Then add the
 two secrets to the file that already holds the token and the build password
-(ADR-0077 decision 3). For a domain built by hand, `LAB_ADMIN_PASSWORD` is
-AD\Administrator's current password. For a rebuild, generate both:
+(ADR-0077 decision 3).
+
+For a domain built by hand, `LAB_ADMIN_PASSWORD` must be AD\Administrator's
+**current** password, because the members join and `leviathan` promotes as
+that account. The DSRM password is only used if a DC is promoted again, so any
+long, complex value will do.
+
+`phoenix.env` is *sourced* (`set -a; . phoenix.env`), so each value is
+written single-quoted. Unquoted, a password with a space, `$`, a quote or a
+backslash would be split, expanded or stripped before Ansible saw it. This
+prompts for both without echoing them or leaving them in shell history. It
+refuses empty input, restores the terminal if interrupted, and replaces any
+earlier entries instead of adding a second pair. It works in zsh, phoenix's
+login shell, and in bash:
+
+```bash
+(
+  f=~/.config/proxmox/phoenix.env; umask 077; trap 'stty echo' EXIT INT TERM
+  q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+  printf 'AD\\Administrator password: '; stty -echo; read -r A; echo
+  printf 'New DSRM password: '; read -r D; stty echo; echo
+  [ -n "$A" ] && [ -n "$D" ] || { echo 'empty input: nothing written' >&2; exit 1; }
+  sed -i '/^LAB_ADMIN_PASSWORD=/d; /^LAB_DSRM_PASSWORD=/d' "$f"
+  printf 'LAB_ADMIN_PASSWORD=%s\nLAB_DSRM_PASSWORD=%s\n' "$(q "$A")" "$(q "$D")" >> "$f"
+)
+```
+
+`read -p` is a bash-only spelling: zsh reads `-p` as a coprocess, fails, and
+a `printf` after it still appends two empty entries. Check the file the way
+the playbook will read it, by sourcing it. This prints `ok` only if there is
+exactly one of each entry and both load as non-empty:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; set -a; . "$f"; set +a; [ "$(grep -c '^LAB_ADMIN_PASSWORD=' "$f")" = 1 ] && [ "$(grep -c '^LAB_DSRM_PASSWORD=' "$f")" = 1 ] && [ -n "$LAB_ADMIN_PASSWORD" ] && [ -n "$LAB_DSRM_PASSWORD" ] && echo ok || echo 'NOT ok')
+```
+
+For a rebuild, generate both instead:
 
 ```bash
 umask 077

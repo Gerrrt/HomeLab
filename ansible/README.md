@@ -12,6 +12,19 @@ ansible-playbook lab-domain.yml                  # apply
 ansible-playbook verify.yml                      # read-only proof
 ```
 
+**What `--check` reports instead of doing.** On a guest this playbook has
+never touched, `base` would create `C:\ProgramData\lab`, but check mode does
+not. Downloading into it would fail, and the serial play would stop there for
+every guest after it. So `exporter` decides "installed" from the pinned MSI's
+product code, and `licence_clock` looks for the folder. Where the work is
+still to do, each one reports it as a pending change and skips it in check
+mode. A `win_powershell` script runs in check mode only if
+it declares `[CmdletBinding(SupportsShouldProcess)]`. Every script here that
+writes either does, and guards the write with `$Ansible.CheckMode`, or is
+skipped in check mode by `when: not ansible_check_mode` beside a read-only
+probe, as `base`'s static address is. A new one that does neither reports a
+change on every `--check` instead of looking.
+
 Run it from this directory, because `ansible.cfg` is read from the current
 directory. Installing Ansible and the collections on `phoenix`, the two
 secrets, and the one-time step that lets the hand-built six be reached are

@@ -3,13 +3,12 @@
 # DNS recurses against the root servers whenever the forwarder is slow, and the
 # domain's resolution path quietly diverges from the rest of the house (§3).
 # No delegation is made on Unbound, ever: ADR-0029.
-#
-# SupportsShouldProcess makes win_powershell run this in check mode, where the
-# $Ansible.CheckMode branches below skip the writes. Without it the module
-# skips the script and reports changed, whatever the state.
 - name: Forward to the gateway, with no root hints
   ansible.windows.win_powershell:
     script: |
+      # SupportsShouldProcess is what makes win_powershell run this in check mode,
+      # where $Ansible.CheckMode keeps it read-only. Without it --check reported a
+      # change here on every run instead of looking (#448's first run).
       [CmdletBinding(SupportsShouldProcess)]
       param([string]$Forwarder)
       $changed = $false

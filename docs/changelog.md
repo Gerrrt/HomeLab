@@ -98,6 +98,26 @@ docstring gives: it is a record, not a claim about now.
     - `security.md` gains the `9182` residual.
     - The roadmap entry leaves.
 
+- **Template 912 builds, and its first clone found a bug in
+  `SetupComplete.cmd`** ([#440](https://github.com/Gerrrt/HomeLab/issues/440)).
+  - **Sysprep was being killed, not failing.** Two builds of Server 2025
+    died at `sysprep.ps1` with `no route to host`. The kept VM had not
+    rebooted, had no network adapter, had no `Sysprep_succeeded.tag` and an
+    empty `setuperr.log`. Its `setupact.log` stopped mid "Uninstalling all
+    existing devices". Generalising removed the NIC, the WinRM session
+    running sysprep died, and Windows killed what that session had started.
+    Since #816, sysprep runs as a scheduled task with `/shutdown`, and
+    `wait-for-sysprep.sh` waits on `phoenix` for the power-off. The third
+    build made template 912 in 41m28s.
+  - **The first clone never started its guest agent.** It reached the login
+    screen. Read from its disk, Windows had logged "executing"
+    `SetupComplete.cmd`, yet neither of the files the script deletes was
+    gone. Its first line was a bare `winrm …`, and `winrm` is itself a batch
+    file (`System32\winrm.cmd`). In `cmd`, running a batch file without
+    `call` never returns, so nothing after that line ran, including starting
+    `sshd` and the agent. It is `call winrm` now, proved on `cmd.exe`, and
+    each step logs to `%WINDIR%\Temp\SetupComplete.log`. 912 needs
+    rebuilding to carry the fix.
 - **Template 901 is built twice, and the second build is usable**
   ([#440](https://github.com/Gerrrt/HomeLab/issues/440)). This follows the
   2026-10-01 entry *The lab's VM templates are written for Packer, and not
