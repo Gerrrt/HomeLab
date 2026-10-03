@@ -527,6 +527,159 @@ tests:
         alertname: SilenceWithoutIssue
         exp_alerts: []
 
+  # --- The Loki ruler (#837): failing, delivering nothing, and gone ---------
+  #
+  # LokiRuleEvaluationFailures: one group failing fires per group; a flat
+  # counter beside it must not.
+  - interval: 1m
+    input_series:
+      - series: 'loki_prometheus_rule_evaluation_failures_total{rule_group="/etc/loki/rules/fake/security.rules.yaml;authentication",user="fake"}'
+        values: "0+1x40"
+      - series: 'loki_prometheus_rule_evaluation_failures_total{rule_group="/etc/loki/rules/fake/watchdog.rules.yaml;ruler-watchdog",user="fake"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: LokiRuleEvaluationFailures
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: LokiRuleEvaluationFailures
+        exp_alerts:
+          - exp_labels:
+              alertname: LokiRuleEvaluationFailures
+              rule_group: /etc/loki/rules/fake/security.rules.yaml;authentication
+              component: stack
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Loki rule group /etc/loki/rules/fake/security.rules.yaml;authentication is failing to evaluate"
+              description: >-
+                Every alert in that group is silent while this fires. `docker logs loki
+                2>&1 | grep -i ruler` names the rule and the error. Most of loki/rules/
+                is security alerting, so read it as a security gap, not a cosmetic one.
+
+  # LokiRulerNotificationsFailing: errors fire; drops fire on their own; a
+  # healthy ruler (sent climbing, no errors, no drops) is silent.
+  - interval: 1m
+    input_series:
+      - series: 'loki_prometheus_notifications_errors_total{alertmanager="http://alertmanager:9093/api/v2/alerts",user="fake"}'
+        values: "0+1x40"
+      - series: 'loki_prometheus_notifications_dropped_total{user="fake"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: LokiRulerNotificationsFailing
+        exp_alerts:
+          - exp_labels:
+              alertname: LokiRulerNotificationsFailing
+              component: stack
+              severity: critical
+              category: correctness
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
+              summary: "The Loki ruler cannot deliver alerts to Alertmanager"
+              description: >-
+                Log-based alerts, the security ones among them, are firing and being
+                lost between Loki and Alertmanager. Check that alertmanager:9093 is up
+                and that loki-config.yaml's alertmanager_url still names it.
+  - interval: 1m
+    input_series:
+      - series: 'loki_prometheus_notifications_errors_total{alertmanager="http://alertmanager:9093/api/v2/alerts",user="fake"}'
+        values: "0+0x40"
+      - series: 'loki_prometheus_notifications_dropped_total{user="fake"}'
+        values: "0+2x40"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: LokiRulerNotificationsFailing
+        exp_alerts:
+          - exp_labels:
+              alertname: LokiRulerNotificationsFailing
+              component: stack
+              severity: critical
+              category: correctness
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
+              summary: "The Loki ruler cannot deliver alerts to Alertmanager"
+              description: >-
+                Log-based alerts, the security ones among them, are firing and being
+                lost between Loki and Alertmanager. Check that alertmanager:9093 is up
+                and that loki-config.yaml's alertmanager_url still names it.
+  - interval: 1m
+    input_series:
+      - series: 'loki_prometheus_notifications_errors_total{alertmanager="http://alertmanager:9093/api/v2/alerts",user="fake"}'
+        values: "0+0x40"
+      - series: 'loki_prometheus_notifications_dropped_total{user="fake"}'
+        values: "0+0x40"
+      - series: 'loki_prometheus_notifications_sent_total{alertmanager="http://alertmanager:9093/api/v2/alerts",user="fake"}'
+        values: "0+1x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: LokiRulerNotificationsFailing
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: LokiRulerSilent
+        exp_alerts: []
+
+  # LokiRulerSilent: the counter stops at 10m. Still inside its window at 20m,
+  # pending at 27m, firing at 31m. A rule written `< 1` or without the `for`
+  # fails one of the two quiet checks.
+  - interval: 1m
+    input_series:
+      - series: 'loki_prometheus_notifications_sent_total{alertmanager="http://alertmanager:9093/api/v2/alerts",user="fake"}'
+        values: "0+1x10 10+0x40"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: LokiRulerSilent
+        exp_alerts: []
+      - eval_time: 27m
+        alertname: LokiRulerSilent
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: LokiRulerSilent
+        exp_alerts:
+          - exp_labels:
+              alertname: LokiRulerSilent
+              component: stack
+              severity: critical
+              category: correctness
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
+              summary: "The Loki ruler has sent nothing to Alertmanager for 20 minutes"
+              description: >-
+                Every log-based alert, the security ones among them, is silent: the
+                ruler's own always-firing LokiRulerWatchdog has stopped reaching
+                Alertmanager. Look at `docker logs loki 2>&1 | grep -i ruler`, then at
+                the ruler's view of its rules: `curl -s
+                localhost:3100/prometheus/api/v1/rules` on the monitoring host. If
+                loki_prometheus_notifications_sent_total is absent rather than flat,
+                check whether a Loki upgrade renamed it.
+
+  # And the metric gone entirely, which is how a rename would look: absent()
+  # fires, so the rule cannot quietly become one that never does.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="loki",instance="loki:3100"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: LokiRulerSilent
+        exp_alerts:
+          - exp_labels:
+              alertname: LokiRulerSilent
+              component: stack
+              severity: critical
+              category: correctness
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
+              summary: "The Loki ruler has sent nothing to Alertmanager for 20 minutes"
+              description: >-
+                Every log-based alert, the security ones among them, is silent: the
+                ruler's own always-firing LokiRulerWatchdog has stopped reaching
+                Alertmanager. Look at `docker logs loki 2>&1 | grep -i ruler`, then at
+                the ruler's view of its rules: `curl -s
+                localhost:3100/prometheus/api/v1/rules` on the monitoring host. If
+                loki_prometheus_notifications_sent_total is absent rather than flat,
+                check whether a Loki upgrade renamed it.
+
   # --- #840: the rest of the stack watching itself ---------------------------
   #
   # AlertmanagerConfigReloadFailed: a rejected reload fires after its `for`; a
