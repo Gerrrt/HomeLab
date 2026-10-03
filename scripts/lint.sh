@@ -150,6 +150,15 @@ runner_for() {
         RUNNER=(docker run --rm -v "${REPO_ROOT}:/repo" -w /repo "${img}")
         return 0
       fi ;;
+    zizmor)
+      # Entrypoint is zizmor. --offline is passed by the caller below, so the
+      # audits that would query GitHub (and want a token) are skipped and the
+      # result does not depend on the network (#839).
+      if have_docker; then
+        img="$(./scripts/image-for.sh zizmor)"
+        RUNNER=(docker run --rm -v "${REPO_ROOT}:/repo:ro" -w /repo "${img}")
+        return 0
+      fi ;;
     editorconfig-checker)
       # The binary is named after the image reference because this image sets
       # Cmd and not Entrypoint: anything appended would replace the binary
@@ -240,6 +249,7 @@ run_linter markdownlint-cli2
 run_linter shellcheck scripts/*.sh
 # No arguments: actionlint finds the workflows from the repository root.
 run_linter actionlint
+run_linter zizmor --offline .github/workflows
 # packer/ (ADR-0074). Two calls, one tool: fmt is the layout, validate is
 # whether the HCL means anything. A real build is proved on phoenix, not here.
 run_linter packer fmt -check -diff -recursive packer/
