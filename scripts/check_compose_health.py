@@ -849,7 +849,10 @@ def self_test() -> int:
 
     # 19-22. The socket guard (#836). A bare mount fails, :ro or not, and in
     #        the long form too; the proxy's own mount, by image, passes.
-    proxy = "tecnativa/docker-socket-proxy:v0.5.0@sha256:" + "0" * 64
+    # Built from the prefix the check matches on, not written out: a pinned
+    # image string here is a pin outside compose.yaml, which
+    # check_image_pins.py rightly refuses.
+    proxy = SOCKET_PROXY_IMAGE + "fixture"
     check("a bare socket mount is root, even :ro", 1, len(socket_mount_problems(
         {"alloy": {"volumes": ["/var/run/docker.sock:/var/run/docker.sock:ro"]}})))
     check("the long form is the same mount", 1, len(socket_mount_problems(
