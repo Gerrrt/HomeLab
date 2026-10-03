@@ -575,6 +575,7 @@ tests:
               severity: critical
               category: correctness
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
               summary: "The Loki ruler cannot deliver alerts to Alertmanager"
               description: >-
                 Log-based alerts, the security ones among them, are firing and being
@@ -596,6 +597,7 @@ tests:
               severity: critical
               category: correctness
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
               summary: "The Loki ruler cannot deliver alerts to Alertmanager"
               description: >-
                 Log-based alerts, the security ones among them, are firing and being
@@ -640,6 +642,7 @@ tests:
               severity: critical
               category: correctness
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
               summary: "The Loki ruler has sent nothing to Alertmanager for 20 minutes"
               description: >-
                 Every log-based alert, the security ones among them, is silent: the
@@ -666,6 +669,7 @@ tests:
               severity: critical
               category: correctness
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
               summary: "The Loki ruler has sent nothing to Alertmanager for 20 minutes"
               description: >-
                 Every log-based alert, the security ones among them, is silent: the
