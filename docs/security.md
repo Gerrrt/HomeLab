@@ -909,9 +909,20 @@ this closes on.
   attack surface here — no longer has a path to `POST`. It is not "the socket is
   now safe".
 
-  `oracle`'s agent still mounts the socket directly. `docker.alloy` reads the
-  API address from `DOCKER_API` and falls back to the socket when it is unset,
-  so that host keeps working unchanged until it gets a proxy of its own.
+  **The lab's three Docker guests got the same proxy in
+  [#836](https://github.com/Gerrrt/HomeLab/issues/836).** Until then,
+  `alexander`, `odin` and `fenrir` each handed Alloy the socket itself, and
+  this paragraph named only `oracle`, so it was wrong about three hosts. Two of
+  those guests hold keys: `alexander` the lab's only age key, and `odin` the
+  SOC's key and Velociraptor's CA. `check_compose_health.py` now fails on any
+  `docker.sock` mount in a compose file outside the proxy image, which is how
+  they would have been caught.
+
+  `oracle`'s agent still mounts the socket directly. It is deployed by
+  `deploy-agent.sh` as a single `docker run`, not from a compose file, so that
+  check cannot see it. `docker.alloy` reads the API address from `DOCKER_API`
+  and falls back to the socket when it is unset, so that host keeps working
+  unchanged until it gets a proxy of its own.
 - Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
   `no-new-privileges`, so root inside it is subject to file permissions like any
   other user, and joins only the group that owns `/var/log/syslog` so the auth

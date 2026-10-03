@@ -16,8 +16,9 @@ make up STACK=lab        # from the repository root
 | `loki` | `grafana/loki` | *internal* | Log store |
 | `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards — the only published port, and the only service that terminates TLS or authenticates |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 
-Four services, where the estate has seven. What is absent is as deliberate as
+Five services, where the estate has seven. What is absent is as deliberate as
 what is here:
 
 - **No Alertmanager.** Nothing in the lab pages. ADR-0020 decided it, and it is
@@ -40,7 +41,7 @@ pass ([#88]).
 ## Layout
 
 ```text
-compose.yaml               four services, one network, health-gated ordering
+compose.yaml               five services, one network, health-gated ordering
 .env.example               non-sensitive tunables — edit this, not .env
 prometheus/
   prometheus.yaml          four scrape jobs; no alerting block, no file_sd;
@@ -146,7 +147,7 @@ matters:
 - **That it runs.** It has — `alexander` was built and this stack brought up
   on 2026-09-05 ([#262]) — but nothing in `make validate` knows that. Every
   check is static: configs parse, images resolve, healthcheck binaries exist
-  inside their pinned images. None of it says the four services come up and
+  inside their pinned images. None of it says the five services come up and
   talk to each other; that is
   [`build-the-lab-guest.md`](../../docs/runbooks/build-the-lab-guest.md) §7,
   by hand.

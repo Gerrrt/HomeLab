@@ -547,6 +547,44 @@ def bind_source_problems(compose_path: pathlib.Path, services: dict) -> list[str
     return problems
 
 
+DOCKER_SOCKET = "/var/run/docker.sock"
+# The one image allowed to hold the socket: the allowlisting proxy (#193).
+SOCKET_PROXY_IMAGE = "tecnativa/docker-socket-proxy:"
+
+
+def socket_mount_problems(services: dict) -> list[str]:
+    """The Docker socket mounted into anything but the socket proxy (#836).
+
+    `:ro` on the socket is close to decorative: read-only applies to the
+    socket file, not the API behind it, and that API will create a container
+    with / mounted read-write. So a bare mount is root on the host, and a
+    compromised collector with one is root on a host that holds an age key.
+    #193 put the estate's Alloy behind docker-socket-proxy, and three other
+    stacks kept the bare mount for months, because nothing looked. This looks.
+
+    The test is the image, not the service name, so renaming the proxy is not
+    a way past it. A service that genuinely needs the socket would be a
+    decision worth an ADR, and the place to record it is an allowlist here.
+    """
+    problems = []
+    for name, svc in services.items():
+        svc = svc or {}
+        if str(svc.get("image", "")).startswith(SOCKET_PROXY_IMAGE):
+            continue
+        for volume in (svc.get("volumes") or []):
+            source = volume.split(":")[0] if isinstance(volume, str) \
+                else str((volume or {}).get("source", ""))
+            if source.rstrip("/") == DOCKER_SOCKET:
+                problems.append(
+                    f"{name} mounts {DOCKER_SOCKET} itself — `:ro` does not "
+                    f"stop POST /containers/create, so this is root on the "
+                    f"host. Give it docker-socket-proxy (GET-only, as "
+                    f"stacks/observability does) and DOCKER_API="
+                    f"tcp://docker-socket-proxy:2375 (#193, #836)"
+                )
+    return problems
+
+
 def cross_stack_problems() -> list[str]:
     """Names this file asserts about, checked against every stack at once.
 
@@ -809,6 +847,20 @@ def self_test() -> int:
         check("a cache in a missing directory is still written", entries,
               load_proofs(nested))
 
+    # 19-22. The socket guard (#836). A bare mount fails, :ro or not, and in
+    #        the long form too; the proxy's own mount, by image, passes.
+    proxy = "tecnativa/docker-socket-proxy:v0.5.0@sha256:" + "0" * 64
+    check("a bare socket mount is root, even :ro", 1, len(socket_mount_problems(
+        {"alloy": {"volumes": ["/var/run/docker.sock:/var/run/docker.sock:ro"]}})))
+    check("the long form is the same mount", 1, len(socket_mount_problems(
+        {"alloy": {"volumes": [{"type": "bind", "source": "/var/run/docker.sock",
+                                "target": "/var/run/docker.sock", "read_only": True}]}})))
+    check("the proxy may hold it, whatever it is called", 0, len(socket_mount_problems(
+        {"anything": {"image": proxy,
+                      "volumes": ["/var/run/docker.sock:/var/run/docker.sock:ro"]}})))
+    check("another path that only mentions docker is fine", 0, len(socket_mount_problems(
+        {"alloy": {"volumes": ["/var/lib/docker/containers:/c:ro"]}})))
+
     return failed
 
 
@@ -864,6 +916,7 @@ def main() -> int:
     problems: list[str] = []
 
     problems += bind_source_problems(path, services)
+    problems += socket_mount_problems(services)
 
     for name, svc in services.items():
         svc = svc or {}
