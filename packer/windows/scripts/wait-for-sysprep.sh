@@ -52,16 +52,22 @@ status() {
   printf '%s' "${s}"
 }
 
+# Whole lines, once a minute. Packer shows a shell-local script's output a
+# line at a time, so the dots this printed on one line stayed invisible until
+# the end: the 911 build sat silent through sysprep (2026-10-03).
+start=${SECONDS}
 deadline=$((SECONDS + WAIT_SECONDS))
+next_report=$((SECONDS + 60))
 failures=0
 s=""
-printf 'waiting for VM %s to power off after sysprep' "${VMID}"
+printf 'waiting for VM %s to power off after sysprep (up to %d minutes)\n' "${VMID}" $((WAIT_SECONDS / 60))
 while ((SECONDS < deadline)); do
   if out="$(status)"; then
     failures=0
     s="${out}"
     if [[ "${s}" == stopped ]]; then
-      printf '\nVM %s is stopped: sysprep finished\n' "${VMID}"
+      printf 'VM %s is stopped after %dm%02ds: sysprep finished\n' "${VMID}" \
+        $(((SECONDS - start) / 60)) $(((SECONDS - start) % 60))
       exit 0
     fi
   else
@@ -69,10 +75,12 @@ while ((SECONDS < deadline)); do
     ((failures < MAX_API_FAILURES)) \
       || die "the Proxmox API could not be read ${failures} times in a row, so whether sysprep finished is unknown, not failed. Last error: ${out}"
   fi
-  printf '.'
+  if ((SECONDS >= next_report)); then
+    printf '  still %s after %dm\n' "${s:-unreadable}" $(((SECONDS - start) / 60))
+    next_report=$((SECONDS + 60))
+  fi
   sleep "${POLL_SECONDS}"
 done
-printf '\n' >&2
 printf 'VM %s is still %s after %d minutes. Sysprep failed or hung.\n' \
   "${VMID}" "${s:-unknown}" $((WAIT_SECONDS / 60)) >&2
 printf 'Do not boot it. Read C:\\Windows\\System32\\Sysprep\\Panther\\setupact.log and setuperr.log from its disk.\n' >&2
