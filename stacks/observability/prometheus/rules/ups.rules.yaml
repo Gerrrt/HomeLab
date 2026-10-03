@@ -99,6 +99,7 @@ groups:
           severity: critical
           category: power
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
           summary: "UPS {{ $labels.device }} is running on battery"
           description: >-
             On battery for {{ $value | humanizeDuration }}. Estimated runtime
@@ -113,6 +114,7 @@ groups:
           severity: critical
           category: power
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
           summary: "UPS {{ $labels.device }} battery status is {{ $value }} (>2 = low/depleted)"
 
       - alert: UpsRuntimeCritical
@@ -123,6 +125,7 @@ groups:
           severity: critical
           category: power
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
           summary: "UPS {{ $labels.device }} has {{ $value }} minutes of runtime left"
 
       - alert: UpsChargeLow
@@ -182,6 +185,7 @@ groups:
           severity: critical
           category: power
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/fit-the-ups-battery.md#4-run-one-self-test-and-read-it-from-both-ends"
           summary: "UPS {{ $labels.device }} failed its self-test (result {{ $value }})"
           description: >-
             2=doneWarning 3=doneError 4=aborted. A UPS that cannot complete a
