@@ -114,6 +114,21 @@ not the repository package afterwards. There is nothing here for it to run,
 and `deploy-agent.sh` reads the absence as its cue to install the native
 package.
 
+**Then install the QEMU guest agent.** `--agent enabled=1` in §1 only gives the
+VM the channel. Nothing answers on it until the package is installed in the
+guest:
+
+```bash
+sudo apt-get install -y qemu-guest-agent && sudo systemctl enable --now qemu-guest-agent
+```
+
+From `Saruman`, `qm guest cmd 170 ping` returns nothing and exits 0. This was
+missed on the first build and found on 2026-10-02 (#445). Until then, nothing
+on `Saruman` could read `phoenix`, and every step there had to be typed by
+hand. The agent grants nothing new: root on `Saruman` already holds this
+guest's console and disk. It is preferred to trusting `Saruman`'s key for SSH,
+which would open a network login into the host that holds the token.
+
 ## 3. The reservation on `morpheus`
 
 Read the guest's MAC from the hypervisor:
