@@ -1972,7 +1972,8 @@ cd /mnt/erebor/apps/stack \
 PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash /mnt/erebor/apps/stack/collect-container-state.sh --print --project media
 ```
 
-`--print` writes nothing. Expect one `homelab_container_running` line per media
+`--print` prints the metrics to the terminal and writes no file. Expect one
+`homelab_container_running` line per media
 service, each `1`: `media-jellyfin`, `media-audiobookshelf`,
 `media-navidrome` and `media-node-exporter`. A service missing from the list means its container was
 not started from the `media` project. Check `docker ps -a` before going on.
