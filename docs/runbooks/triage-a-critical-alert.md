@@ -46,20 +46,23 @@ the host it lives on and how it was probed (`via`).
   Check the host override on morpheus
   ([`add-a-host-override.md`](add-a-host-override.md)).
 - **An https endpoint:** a certificate that no longer verifies looks exactly
-  like this. `make certs ARGS=--list` shows what is being served.
+  like this. Ask the endpoint itself what it serves, from the monitoring host:
+  `openssl s_client -connect <host>:443 -servername <name> </dev/null 2>/dev/null | openssl x509 -noout -subject -enddate`.
+  (`make certs ARGS=--list` reads only the local PEM files, and says nothing
+  about the sensitive tier's ACME leaves.)
 
 ## BlackboxExporterDown
 
 No probe is running, so every endpoint alert has stopped being evaluated.
 `make ps` on the monitoring host, then
-`docker compose logs blackbox-exporter`. A config that no longer parses keeps
+`make logs SERVICE=blackbox-exporter`. A config that no longer parses keeps
 it in a restart loop; `make validate` names the line.
 
 ## SnmpExporterDown
 
 Every SNMP device (morpheus, neo, mjolnir, shiva) will look unreachable
 until this is fixed, so ignore their alerts until it is. `make ps`, then
-`docker compose logs snmp-exporter`. A failed render leaves it with no
+`make logs SERVICE=snmp-exporter`. A failed render leaves it with no
 `snmp.yaml`: `make render` re-renders it from the SOPS file.
 
 ## GatewayDown
@@ -111,7 +114,11 @@ goes read-only at once.
 A drive's own firmware says it is failing. Replace it. `smartctl -a <device>`
 on the host has the attribute that tripped. For a disk in `erebor`, follow
 [`replace-the-nas-disk.md`](replace-the-nas-disk.md). For any other disk,
-take a backup of what it holds first (`make backup`).
+first take the backup that covers that host:
+
+- `make backup` for a stack's volumes (`STACK=sensitive` on trinity);
+- `make backup-firewall` for morpheus;
+- `vzdump` on `Saruman` for a lab guest.
 
 ## SmartDriveSpareLow
 

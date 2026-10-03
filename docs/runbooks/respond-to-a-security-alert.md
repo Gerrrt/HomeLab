@@ -44,9 +44,17 @@ More than 100 failed SSH authentications on one host in five minutes.
   An accepted login from the same source is
   [SshLoginFromUnexpectedSubnet](#sshloginfromunexpectedsubnet)'s territory,
   and is the urgent half.
-- **Stop it** at pfSense with a block rule for the source on its interface
-  (Firewall → Rules), placed above the pass rules. If it is a lab guest,
-  stopping the guest on `Saruman` (`qm stop <vmid>`) is faster and reversible.
+- **Stop it where the traffic actually flows.**
+  - **Same VLAN as the target:** pfSense cannot help. For example, a VLAN 99
+    source attacking `prometheus`, `oracle` or `trinity` is switched locally
+    and never crosses the firewall. Cut the source off at the switch (disable
+    its port on neo) or power it down.
+  - **Another VLAN:** the traffic is routed, so add a pfSense block for the
+    source on its interface (Firewall → Rules), above the pass rules. Then
+    kill its existing states (Diagnostics → States, filter on the source,
+    Kill), because a block does not end connections already open.
+  - **A lab guest:** stop it on `Saruman` (`qm stop <vmid>`). That is faster
+    and reversible.
 
 ## SshLoginFromUnexpectedSubnet
 
@@ -59,9 +67,13 @@ An SSH login was **accepted** from outside VLAN 50 and VLAN 99.
 - **Was it you?** A login from the lab (10.0.30.x) or the WireGuard peers
   (172.31.x) may be legitimate work. If so, the rule's source ranges are stale,
   and fixing them is the follow-up, not a silence.
-- **If it was not you, treat the host as compromised.** On the host, `last -i`
-  and `who` show the session. Kill it (`pkill -KILL -u <user>`), then disable
-  the key it used (`~/.ssh/authorized_keys`). Then ask how the source reached
+- **If it was not you, treat the host as compromised.** On the host, `who -u`
+  and `last -i` show the session and its source. Kill **that session only**:
+  find its sshd process (`ps -ef | grep 'sshd: <user>@'`) and `kill` that PID.
+  Do not `pkill -u <user>`. For root on morpheus or `Saruman`, that kills the
+  firewall's or the hypervisor's own processes, and your access with them.
+  Then revoke the credential it used: its line in `~/.ssh/authorized_keys`,
+  or the account's password. Then ask how the source reached
   port 22 at all. That is a segmentation question, and
   [TerminalSegmentReachedInternalNetwork](#terminalsegmentreachedinternalnetwork)
   explains how to read it from the firewall.
@@ -149,14 +161,24 @@ The ingest proxy on 10.0.99.20 answered a request with no token with
 something other than its own 401. Until this is fixed, anything that can route
 there can read, write or delete metrics and logs.
 
-- On the monitoring host, `docker ps` shows whether Prometheus or Loki is
-  published on 9090 or 3100 directly. If so, the compose file has lost its
-  loopback bind.
-- `docker compose logs caddy` shows whether the proxy is up and what it is
+- **Check what each port is bound to.** On the monitoring host, run
+  `docker ps --format '{{.Names}}  {{.Ports}}'`. Healthy looks like this:
+  - `prometheus` and `loki` on `127.0.0.1:9090` and `127.0.0.1:3100`;
+  - `ingest-proxy` on `10.0.99.20:9090` and `10.0.99.20:3100`.
+
+  Prometheus or Loki on `0.0.0.0` or `10.0.99.20` is the direct exposure.
+- `make logs SERVICE=caddy` shows whether the proxy is up and what it is
   answering.
-- `make up` restores the committed config. If the committed config is the
-  problem, the fault is in `stacks/observability/compose.yaml` or
-  `stacks/observability/Caddyfile` (ADR-0067).
+- **Before redeploying, find out what changed.** `make up` deploys whatever
+  the checkout holds, so if a local edit caused this, it would redeploy the
+  edit.
+  1. Run `git status` and `git diff` in the deployment checkout.
+  2. Save the diff as evidence (`git diff > ~/ingest-auth-diff.txt`).
+  3. Restore the committed files (`git checkout -- <file>`), then `make up`.
+
+  If the committed config is itself the problem, the fault is in
+  `stacks/observability/compose.yaml` or `stacks/observability/Caddyfile`
+  (ADR-0067).
 
 ## PfNotRunning
 

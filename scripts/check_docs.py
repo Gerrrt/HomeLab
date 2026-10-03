@@ -1331,6 +1331,33 @@ def github_anchor(heading: str) -> str:
     return text.replace(" ", "-")
 
 
+def markdown_anchors(text: str) -> set[str]:
+    """The anchors GitHub generates for a Markdown file's headings.
+
+    Lines inside fenced code are skipped: a shell comment such as
+    `# Debian/Ubuntu` in a bash block is not a heading, and GitHub makes no
+    anchor for it (#874 review). A fence opens on three or more backticks or
+    tildes and closes on a fence of the same character.
+    """
+    anchors: set[str] = set()
+    fence = ""
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        m = re.match(r"(`{3,}|~{3,})", stripped)
+        if m:
+            if not fence:
+                fence = m.group(1)[0]
+            elif m.group(1)[0] == fence:
+                fence = ""
+            continue
+        if fence:
+            continue
+        h = re.match(r"#{1,6}\s+(.+?)\s*$", line)
+        if h:
+            anchors.add(github_anchor(h.group(1)))
+    return anchors
+
+
 def check_runbook_urls() -> list[str]:
     """Every critical alert names a runbook that exists, at a section that exists.
 
@@ -1369,11 +1396,7 @@ def check_runbook_urls() -> list[str]:
                     continue
                 if anchor:
                     if target not in anchors:
-                        anchors[target] = {
-                            github_anchor(m.group(1))
-                            for m in re.finditer(r"^#{1,6}\s+(.+?)\s*$",
-                                                 target.read_text(encoding="utf-8"), re.M)
-                        }
+                        anchors[target] = markdown_anchors(target.read_text(encoding="utf-8"))
                     if anchor not in anchors[target]:
                         problems.append(f"{where}: docs/runbooks/{file} has no heading for #{anchor}")
     return problems
@@ -1428,5 +1451,30 @@ def main() -> int:
     return 0
 
 
+def self_test() -> int:
+    """The anchor rules check_runbook_urls depends on (#842, #874)."""
+    doc = (
+        "# Title\n## 5. Verify — the certificate\n### `make up`, then\n"
+        "```bash\n# Debian/Ubuntu\nsudo apt install x\n```\n"
+        "~~~\n# Also not a heading\n~~~\n## After the fence\n"
+    )
+    got = markdown_anchors(doc)
+    cases = [
+        ("a heading gets GitHub's anchor", "title" in got),
+        ("an em dash leaves a double hyphen, not one", "5-verify--the-certificate" in got),
+        ("inline code and commas are dropped", "make-up-then" in got),
+        ("a # comment inside a ``` fence is not a heading", "debianubuntu" not in got),
+        ("nor inside a ~~~ fence", "also-not-a-heading" not in got),
+        ("a heading after a closed fence is one", "after-the-fence" in got),
+    ]
+    failed = 0
+    for name, ok in cases:
+        failed += not ok
+        print(f"  {'PASS' if ok else 'FAIL'} {name}")
+    return 1 if failed else 0
+
+
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(self_test())
     sys.exit(main())
