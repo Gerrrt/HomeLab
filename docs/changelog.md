@@ -38,6 +38,45 @@ docstring gives: it is a record, not a claim about now.
   - **Still open in #843:** behaviour tests for the Loki rules, which need a
     running Loki to push fixture lines into.
 
+- **oracle's Alloy, the last one holding the Docker socket, gives it up.**
+  Authored;
+  it lands at the next `deploy-agent.sh` run against oracle.
+  - **The gap.** #193 and #836 took the socket off every Alloy run from a
+    compose file. oracle's is a `docker run` in `deploy-agent.sh`, so the
+    compose check never saw it, and it kept the socket mounted.
+  - **The fix.** The script's Docker runtime now starts
+    `alloy-socket-proxy` beside Alloy on a private `alloy` network, with the
+    estate's image and GET-only allowlist. Alloy reads the API through
+    `DOCKER_API`, and its `/rootfs/run` is masked, so `/:/rootfs:ro` no longer
+    carries the socket past the proxy (the same review finding as #836).
+  - **The guard.** `check_image_pins.py` refuses any `docker run` other than
+    the proxy's, traced by image, that reaches the socket. That means the
+    socket under either spelling, its directory, or an unmasked host `/`.
+    Nine fixtures. Its first run found this one site and nothing else.
+
+- **Every critical alert links to a runbook, and CI keeps it that way**
+  ([#842](https://github.com/Gerrrt/HomeLab/issues/842)).
+  - **The gap.** No rule had a `runbook_url`, and there was no runbook for a
+    security alert at all. Many critical pages pointed at nothing:
+    `InstanceDown`, `PfNotRunning`, every critical Loki security rule.
+  - **Two new runbooks.**
+    - `respond-to-a-security-alert.md`: a section per critical security
+      alert, with its Loki query and the containment step.
+    - `triage-a-critical-alert.md`: the availability, capacity and hardware
+      alerts that had no runbook of their own.
+
+    The other 15 critical alerts link to the runbook that already covered
+    them, at the section that applies.
+  - **The guard.** `check_docs.py` gains an eleventh assertion. Every critical
+    rule must have a `runbook_url` naming a file in `docs/runbooks/`, and
+    naming a heading in it if the link has an anchor. It computes anchors the
+    way GitHub does.
+  - **On the phone.** A single-alert ntfy page now ends with a 📖 line
+    carrying the `runbook_url`. The ntfy template feeds both the in-house
+    ntfy and the ntfy.sh copies.
+  - **Also.** `docs/observability.md` no longer claims the switch UI is
+    probed: those probes were removed on 2026-09-06.
+
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`

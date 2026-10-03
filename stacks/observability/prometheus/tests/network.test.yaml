@@ -283,6 +283,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#ilohardwaredegraded"
               summary: "iLO on shiva reports degraded or failed hardware"
               description: >-
                 CPQ condition code 4 (3 = degraded, 4 = failed). Check the iLO
@@ -320,6 +321,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#ilohardwaredegraded"
               summary: "iLO on shiva reports degraded or failed hardware"
               description: >-
                 CPQ condition code 3 (3 = degraded, 4 = failed). Check the iLO
@@ -483,6 +485,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#gatewaydown"
               summary: "morpheus: WAN_DHCP is down and inet does not leave the building"
               description: >-
                 dpinger reports this gateway down and an independent probe over
