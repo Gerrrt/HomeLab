@@ -36,6 +36,29 @@ docstring gives: it is a record, not a claim about now.
     (no Docker where it was authored). Regenerate it, and measure the walk with
     `scripts/snmp-walk.sh`, before relying on it.
 
+- **Every critical alert links to a runbook, and CI keeps it that way**
+  ([#842](https://github.com/Gerrrt/HomeLab/issues/842)).
+  - **The gap.** No rule had a `runbook_url`, and there was no runbook for a
+    security alert at all. Many critical pages pointed at nothing:
+    `InstanceDown`, `PfNotRunning`, every critical Loki security rule.
+  - **Two new runbooks.**
+    - `respond-to-a-security-alert.md`: a section per critical security
+      alert, with its Loki query and the containment step.
+    - `triage-a-critical-alert.md`: the availability, capacity and hardware
+      alerts that had no runbook of their own.
+
+    The other 15 critical alerts link to the runbook that already covered
+    them, at the section that applies.
+  - **The guard.** `check_docs.py` gains an eleventh assertion. Every critical
+    rule must have a `runbook_url` naming a file in `docs/runbooks/`, and
+    naming a heading in it if the link has an anchor. It computes anchors the
+    way GitHub does.
+  - **On the phone.** A single-alert ntfy page now ends with a 📖 line
+    carrying the `runbook_url`. The ntfy template feeds both the in-house
+    ntfy and the ntfy.sh copies.
+  - **Also.** `docs/observability.md` no longer claims the switch UI is
+    probed: those probes were removed on 2026-09-06.
+
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`

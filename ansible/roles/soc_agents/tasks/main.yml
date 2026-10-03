@@ -1,0 +1,174 @@
+---
+# Wazuh and Velociraptor on all six. Decided by product code, like roles/exporter:
+# already installed means the download and install are skipped, so a second run
+# changes nothing and check mode needs no MSI on disk.
+
+# Both registry views: a 32-bit MSI (Wazuh) registers under WOW6432Node.
+- name: Read whether the agents are installed
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      $ids = @{ wazuh = '{{ soc_agents_wazuh_product_id }}'; velociraptor = '{{ soc_agents_velociraptor_product_id }}' }
+      $roots = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+      )
+      $out = @{}
+      foreach ($k in $ids.Keys) {
+        $out[$k] = [bool](($roots | ForEach-Object { Join-Path $_ $ids[$k] }) | Where-Object { Test-Path $_ })
+      }
+      $out
+  register: soc_agents_installed
+  check_mode: false
+
+- name: Note which are still to install
+  ansible.builtin.set_fact:
+    soc_agents_wazuh_present: "{{ soc_agents_installed.output[0].wazuh }}"
+    soc_agents_velociraptor_present: "{{ soc_agents_installed.output[0].velociraptor }}"
+
+- name: Report the agents as pending, in check mode
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }} would install {{ item.name }} {{ item.ver }}"
+  changed_when: true
+  when: ansible_check_mode and not item.present
+  loop:
+    - name: Wazuh
+      ver: "{{ soc_agents_wazuh_version }}"
+      present: "{{ soc_agents_wazuh_present }}"
+    - name: Velociraptor
+      ver: "{{ soc_agents_velociraptor_version }}"
+      present: "{{ soc_agents_velociraptor_present }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: The MSI source is set for whatever still needs installing
+  ansible.builtin.assert:
+    that: "lookup('ansible.builtin.vars', item.var, default='') | length > 0"
+    fail_msg: >-
+      {{ item.name }} is not installed and {{ item.var }} is unset. Point it at
+      the MSI built on odin (build-the-soc-guest.md section 11); there is no
+      default, because there is no standing URL for it.
+  when:
+    - not item.present
+    - not ansible_check_mode
+  loop:
+    - name: Wazuh
+      var: soc_agents_wazuh_msi_url
+      present: "{{ soc_agents_wazuh_present }}"
+    - name: Velociraptor
+      var: soc_agents_velociraptor_msi_url
+      present: "{{ soc_agents_velociraptor_present }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: The Wazuh enrolment password is set before installing it
+  ansible.builtin.assert:
+    that: lab_wazuh_registration_password | length > 0
+    fail_msg: >-
+      Wazuh is not installed and LAB_WAZUH_REGISTRATION_PASSWORD is unset. The
+      agent would install but never enrol, and the service check would still
+      pass. Set it in phoenix.env (it is the manager's authd.pass).
+    quiet: true
+  when:
+    - not soc_agents_wazuh_present
+    - not ansible_check_mode
+
+- name: Fetch the Wazuh MSI
+  ansible.windows.win_get_url:
+    url: "{{ soc_agents_wazuh_msi_url }}"
+    dest: C:\ProgramData\lab\wazuh-agent.msi
+    checksum: "{{ soc_agents_wazuh_msi_sha256 }}"
+    checksum_algorithm: sha256
+    force: false
+  when:
+    - not soc_agents_wazuh_present
+    - not ansible_check_mode
+
+# The enrolment password is a build-time secret, from phoenix.env, and is masked.
+# It registers the agent against the manager; it is not stored after install.
+- name: Install the Wazuh agent
+  ansible.windows.win_package:
+    path: C:\ProgramData\lab\wazuh-agent.msi
+    product_id: "{{ soc_agents_wazuh_product_id }}"
+    arguments: >-
+      /qn WAZUH_MANAGER="{{ soc_agents_wazuh_manager }}"
+      WAZUH_REGISTRATION_SERVER="{{ soc_agents_wazuh_manager }}"
+      WAZUH_REGISTRATION_PASSWORD="{{ lab_wazuh_registration_password }}"
+      WAZUH_AGENT_GROUP="default"
+    state: present
+  when:
+    - not soc_agents_wazuh_present
+    - not ansible_check_mode
+  no_log: true
+
+# WazuhSvc is plain auto; the Velociraptor service is auto-delayed, as each MSI
+# installs it. Match that rather than flip it (read on the six, 2026-10-03).
+- name: The Wazuh service runs
+  ansible.windows.win_service:
+    name: WazuhSvc
+    start_mode: auto
+    state: started
+  when: soc_agents_wazuh_present or not ansible_check_mode
+
+- name: Fetch the Velociraptor MSI
+  ansible.windows.win_get_url:
+    url: "{{ soc_agents_velociraptor_msi_url }}"
+    dest: C:\ProgramData\lab\velociraptor-client.msi
+    checksum: "{{ soc_agents_velociraptor_msi_sha256 }}"
+    checksum_algorithm: sha256
+    force: false
+  when:
+    - not soc_agents_velociraptor_present
+    - not ansible_check_mode
+
+# The repacked MSI carries its own client.config.yaml (server URL, CA, nonce),
+# so it needs no arguments (build-the-soc-guest.md section 11).
+- name: Install the Velociraptor client
+  ansible.windows.win_package:
+    path: C:\ProgramData\lab\velociraptor-client.msi
+    product_id: "{{ soc_agents_velociraptor_product_id }}"
+    state: present
+  when:
+    - not soc_agents_velociraptor_present
+    - not ansible_check_mode
+
+- name: The Velociraptor service runs
+  ansible.windows.win_service:
+    name: Velociraptor
+    start_mode: delayed
+    state: started
+  when: soc_agents_velociraptor_present or not ansible_check_mode
+
+# Retire the two GPOs that deployed these agents before this role did
+# (build-the-soc-guest.md §11). Remove-GPO takes the GPO and its own SYSVOL
+# folder, but the Wazuh startup script and the MSIs live in the domain scripts
+# share, not the GPO folder, so the readable enrolment password only goes when
+# that file does — delete it and the orphaned MSIs explicitly. On a rebuilt
+# domain none of this exists and the task is a no-op; on the hand-built domain
+# it runs once. Primary DC only (the GroupPolicy module and SYSVOL are there).
+- name: Retire the deploy GPOs and their SYSVOL payload
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string[]]$Gpos, [string[]]$Files)
+      Import-Module GroupPolicy
+      $Ansible.Changed = $false
+      foreach ($name in $Gpos) {
+        $g = Get-GPO -Name $name -ErrorAction SilentlyContinue
+        if ($g) {
+          $Ansible.Changed = $true
+          # Remove-GPO drops every link to it as well as the object and its
+          # SYSVOL folder, so the OU gPLinks do not dangle.
+          if (-not $Ansible.CheckMode) { Remove-GPO -Guid $g.Id -ErrorAction Stop }
+        }
+      }
+      foreach ($f in $Files) {
+        if (Test-Path -LiteralPath $f) {
+          $Ansible.Changed = $true
+          if (-not $Ansible.CheckMode) { Remove-Item -LiteralPath $f -Force }
+        }
+      }
+    parameters:
+      Gpos: "{{ soc_agents_deploy_gpos }}"
+      Files: "{{ soc_agents_sysvol_leftovers }}"
+  when: inventory_hostname in groups['dc_primary']
