@@ -230,7 +230,7 @@ for r in "${REMAINING[@]}"; do
 done
 ((${#proved[@]})) || die "none of the recipients that would remain has ever been proved:
 $(printf '  %s\n' "${REMAINING[@]}")
-Prove one with 'make secrets-verify-backup KEY=…' before removing ${PUBKEY}."
+Prove one with 'make secrets-verify-backup STACK=${STACK} KEY=…' before removing ${PUBKEY}."
 
 # ---------------------------------------------------------------------------
 # 5. Take it out, re-key, and check the ciphertext rather than the exit status
