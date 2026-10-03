@@ -2239,7 +2239,14 @@ tests:
               category: hardware
             exp_annotations:
               summary: "smaug: /dev/sda lost power uncleanly 1 time(s) in the last day"
-              description: "The drive's unsafe-shutdown counter moved, which means it lost power without being told first — a mains cut that outlasted the UPS, the UPS cutting its output after a halt, a crash, or a plug. Find the event: UpsOnBattery and InstanceDown around the same time say which. If a UPS shutdown sequence exists for this host (ADR-0049) and no clean stop was recorded, it did not run, and runbooks/shut-down-on-the-ups.md says how to check it."
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it.
 
   # --- SmartDriveUnsafeShutdownsGrowing: QUIET on the recorded 509 ---------
   # The count the drive arrived with is history, not an event. A static 509
@@ -2290,6 +2297,7 @@ tests:
   #   the hint's `> 0` -> `>= 0`                     restart case gains the hint
   #   the hint's host=%q filter dropped              oracle's stop hints smaug's page
   #   _shutdowns_total -> _restarts_total in hint    unplug case loses the hint
+  #   the hint's `or ... * 0` fallback dropped        install-day case loses the hint
   # ==========================================================================
 
   # --- planned Shut Down, left plugged in: QUIET. The drive does not tick. ---
@@ -2333,7 +2341,56 @@ tests:
               category: hardware
             exp_annotations:
               summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
-              description: "The drive's unsafe-shutdown counter moved, which means it lost power without being told first — a mains cut that outlasted the UPS, the UPS cutting its output after a halt, a crash, or a plug. Find the event: UpsOnBattery and InstanceDown around the same time say which. If a UPS shutdown sequence exists for this host (ADR-0049) and no clean stop was recorded, it did not run, and runbooks/shut-down-on-the-ups.md says how to check it. smaug recorded 1 clean power-off(s) in the same day, so the likeliest cause is mains removed after a clean shutdown — an unplug, or the UPS output cut after its halt."
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it. smaug recorded 1 clean power-off(s) in the same
+                day, so the likeliest cause is mains removed after a clean shutdown — an
+                unplug, or the UPS output cut after its halt. A recorded clean stop says
+                one began, not that it finished.
+
+  # --- install day: the first power-off ever recorded still earns the line.
+  # The SHUTDOWN hook creates the clean count at 1 on its first run, so there
+  # is no day-old point. Read as zero, it moved by 1 and the page explains
+  # itself; without the fallback the query is empty and the line goes missing.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "522x288 523x300"
+      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "_x288 1x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdc
+              slot: pci-0000:00:17.0-ata-6
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it. smaug recorded 1 clean power-off(s) in the same
+                day, so the likeliest cause is mains removed after a clean shutdown — an
+                unplug, or the UPS output cut after its halt. A recorded clean stop says
+                one began, not that it finished.
 
   # --- a Restart does not add the hint: FIRES, plain. ----------------------
   # A restart never removes power, so a tick on a restart day is a cut. Only
@@ -2363,7 +2420,14 @@ tests:
               category: hardware
             exp_annotations:
               summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
-              description: "The drive's unsafe-shutdown counter moved, which means it lost power without being told first — a mains cut that outlasted the UPS, the UPS cutting its output after a halt, a crash, or a plug. Find the event: UpsOnBattery and InstanceDown around the same time say which. If a UPS shutdown sequence exists for this host (ADR-0049) and no clean stop was recorded, it did not run, and runbooks/shut-down-on-the-ups.md says how to check it."
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it.
 
   # --- another host's clean power-off does not add the hint: FIRES, plain. -
   - interval: 5m
@@ -2391,7 +2455,14 @@ tests:
               category: hardware
             exp_annotations:
               summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
-              description: "The drive's unsafe-shutdown counter moved, which means it lost power without being told first — a mains cut that outlasted the UPS, the UPS cutting its output after a halt, a crash, or a plug. Find the event: UpsOnBattery and InstanceDown around the same time say which. If a UPS shutdown sequence exists for this host (ADR-0049) and no clean stop was recorded, it did not run, and runbooks/shut-down-on-the-ups.md says how to check it."
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it.
 
 
   # --- SmartDriveBadSectorsGrowing: quiet for a clean drive ----------------

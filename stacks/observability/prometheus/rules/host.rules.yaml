@@ -1345,7 +1345,11 @@ groups:
         # description below asks Prometheus whether that count moved in the same
         # day, and if it did, says so: a clean power-off came first, so the
         # likeliest cause is mains removed afterwards. The expression never
-        # reads it.
+        # reads it. A missing day-old point reads as zero, so the first
+        # power-off after install still earns the line. It is a hint, not
+        # proof either way: an earlier manual stop can supply it, the hook
+        # records a stop as it begins, and a lost file or a stop it could not
+        # classify leaves it out.
         #
         # SUBTRACTION over a day, not a week: a cut is an event with a date,
         # and the day it happened is the thing worth knowing. The same gauge
@@ -1372,12 +1376,15 @@ groups:
             power without being told first — a mains cut that outlasted the
             UPS, the UPS cutting its output after a halt, a crash, or a plug.
             Find the event: UpsOnBattery and InstanceDown around the same time
-            say which. If a UPS shutdown sequence exists for this host
-            (ADR-0049) and no clean stop was recorded, it did not run, and
-            runbooks/shut-down-on-the-ups.md says how to check it.{{ with printf "homelab_clean_shutdowns_total{host=%q} - homelab_clean_shutdowns_total{host=%q} offset 1d > 0" $labels.host $labels.host | query }}
+            say which. Whether a UPS shutdown sequence (ADR-0049) ran, and
+            finished before the power went, is in the host's shutdown log;
+            runbooks/shut-down-on-the-ups.md says how to check it.{{ $c := printf
+            "homelab_clean_shutdowns_total{host=%q}" $labels.host }}{{ with printf
+            "(%s - (%s offset 1d or %s * 0)) > 0" $c $c $c | query }}
             {{ $labels.host }} recorded {{ . | first | value }} clean power-off(s)
             in the same day, so the likeliest cause is mains removed after a
-            clean shutdown — an unplug, or the UPS output cut after its halt.{{ end }}
+            clean shutdown — an unplug, or the UPS output cut after its halt.
+            A recorded clean stop says one began, not that it finished.{{ end }}
 
       - alert: SmartStateStale
         # The SMART collector has stopped rewriting its file, on any host.

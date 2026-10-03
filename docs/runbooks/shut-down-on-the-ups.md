@@ -945,9 +945,14 @@ outgrew the window. `SmartDriveUnsafeShutdownsGrowing` is what tells you.
 Read its description first. On `smaug` it also fires when the halt *did* run
 and the UPS then cut its output: a clean TrueNAS shutdown does not move the
 S3520's counter, but losing mains afterwards can
-([#746](https://github.com/Gerrrt/HomeLab/issues/746)). If the page says a
-clean power-off was recorded the same day, the sequence ran, and the timing
-is fine. If it does not say so, the halt never ran, so re-time with step 5 and
+([#746](https://github.com/Gerrrt/HomeLab/issues/746)). The page says when a
+clean power-off was recorded the same day, but that is a hint, not proof
+either way. An earlier manual stop can supply it, and it records a stop as it
+begins, not that it finished. A lost file or a stop the hook could not
+classify leaves it out even when the halt worked. So check the event itself:
+the halt in `smaug`'s shutdown log, its time against `UpsOnBattery`, and
+`homelab_clean_shutdown_timestamp_seconds`. If the halt did not run, or ran
+too late for the pack, re-time with step 5 and
 raise the threshold in 6.5. Packs weaken with age, so a margin that fitted at
 install stops fitting eventually.
 

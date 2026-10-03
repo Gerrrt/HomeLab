@@ -37,14 +37,15 @@ docstring gives: it is a record, not a claim about now.
   - **What the clean count does now.** It only adds a line to the page. When
     `homelab_clean_shutdowns_total` moved the same day, the page says a clean
     power-off came first, so the likeliest cause is mains removed afterwards:
-    an unplug, or the UPS cutting its output after ADR-0049's halt. For the UPS
-    sequence that line is the tell, because a tick without it is a halt that
-    never ran.
-  - **Tests.** Four new promtool cases: a planned Shut Down is quiet; Shut
-    Down then unplug fires with the line; a Restart day fires without it; and
-    another host's power-off adds nothing. The original three still pass.
-    Five mutations were run, including the hint's own query, which promtool
-    evaluates.
+    an unplug, or the UPS cutting its output after ADR-0049's halt. A missing
+    day-old point reads as zero, so the first power-off after install counts.
+    It is a hint, not proof: whether a halt ran, and in time, is read from the
+    event.
+  - **Tests.** Five new promtool cases: a planned Shut Down is quiet; Shut
+    Down then unplug fires with the line, including on install day; a Restart
+    day fires without it; and another host's power-off adds nothing. The
+    original three still pass. Six mutations were run, including the hint's
+    own query, which promtool evaluates.
   - **Not measured.** Whether the TS150 keeps the SATA rail on standby power
     while "off". It is the likeliest reason an unplug ticks the drive and a
     Shut Down does not. Shut Down, unplug 30 s, power on would show it.
