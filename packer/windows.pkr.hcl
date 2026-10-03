@@ -263,8 +263,17 @@ build {
 
   # OpenSSH for the clones, keyed to phoenix: the transport #448's Ansible uses
   # once SetupComplete.cmd has closed WinRM (ADR-0077 decision 2).
+  #
+  # Elevated, meaning run as a scheduled task under Administrator rather than
+  # in the WinRM session. Windows 11 ships OpenSSH Server as a capability to
+  # download, and Add-WindowsCapability fetches it through Windows Update,
+  # which refuses a remote (network-logon) session: the first 911 build
+  # failed "Add-WindowsCapability : Access is denied" (2026-10-03). Server
+  # 2025 has it installed already, which is why 912 never asked.
   provisioner "powershell" {
-    script = "${abspath(path.root)}/windows/scripts/openssh.ps1"
+    script            = "${abspath(path.root)}/windows/scripts/openssh.ps1"
+    elevated_user     = "Administrator"
+    elevated_password = var.build_password
     environment_vars = [
       "PHOENIX_PUBKEY=${local.phoenix_pubkey}",
       "PHOENIX_ADDRESS=${var.phoenix_address}",
