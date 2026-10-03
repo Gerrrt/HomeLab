@@ -119,9 +119,12 @@ VM the channel. Nothing answers on it until the package is installed in the
 guest:
 
 ```bash
-sudo apt-get install -y qemu-guest-agent && sudo systemctl enable --now qemu-guest-agent
+sudo apt-get install -y qemu-guest-agent && sudo systemctl start qemu-guest-agent
 ```
 
+The unit is static on Ubuntu, so `systemctl enable` refuses it; it starts
+itself on every boot through the virtio channel, as
+[`build-the-lab-guest.md`](build-the-lab-guest.md) §2 says for `alexander`.
 From `Saruman`, `qm guest cmd 170 ping` returns nothing and exits 0. This was
 missed on the first build and found on 2026-10-02 (#445). Until then, nothing
 on `Saruman` could read `phoenix`, and every step there had to be typed by
