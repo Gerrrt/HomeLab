@@ -40,8 +40,12 @@
     # password. A distinct password from the domain admin's, so three tier
     # admins do not all carry Domain Admin's secret.
     update_password: on_create
+    # add, not set: set makes membership exactly this list, which excludes the
+    # primary group Domain Users and so tries to remove it every run — a no-op
+    # that still reports changed and warns. add only ensures the memberships
+    # that matter and leaves the rest, including anything #449 adds later.
     groups:
-      set: "{{ item.groups }}"
+      add: "{{ item.groups }}"
     state: present
   loop:
     - {name: t0-admin, tier: 0, groups: [Tier 0 Admins, Domain Admins]}
