@@ -160,9 +160,11 @@ The run needs these three in place first:
   decision 6.
 - **A way in.** Every clone of the templates has `sshd`, key-only, admitting
   `phoenix` alone ([`openssh.ps1`](../../packer/windows/scripts/openssh.ps1)).
-  The six built by hand on 2026-09-24/25 do not. Give each one the same, once,
-  from its console as Administrator. Use the public half of `phoenix`'s key,
-  never the private:
+  The six built by hand on 2026-09-24/25 had none. **Each was given the same
+  on 2026-10-02**, from its console. Repeat it only on a hand-built guest that
+  loses it, for example after a snapshot revert to before that date. Run it as
+  any member of Administrators, with the public half of `phoenix`'s key, never
+  the private:
 
   ```powershell
   $env:PHOENIX_PUBKEY = '<the contents of ~/.ssh/id_ed25519.pub on phoenix>'
@@ -173,24 +175,28 @@ The run needs these three in place first:
   ```
 
   It is the script the templates run, not a copy of it, so a hand-built guest
-  and a clone cannot drift apart. **Done on all six on 2026-10-02.** Three
-  things that run showed:
+  and a clone cannot drift apart. What the 2026-10-02 run showed:
 
-  - **`-UseBasicParsing` is required.** Windows PowerShell 5.1 parses a
-    response through Internet Explorer's engine unless told not to, and
-    neither Server 2025 nor Windows 11 ships IE.
+  - **`-UseBasicParsing` is required.** Without it, Windows PowerShell 5.1
+    parses a response through Internet Explorer's engine, and neither Server
+    2025 nor Windows 11 ships IE.
   - **On `carbuncle` and `siren` the fourth line takes minutes.** Windows 11
     has no OpenSSH server until `Add-WindowsCapability` downloads it. The
     console looks stuck while it does, and it is not.
   - **Paste the key itself.** Two guests first received a placeholder, and
     `sshd` started with a key nothing holds. The script now refuses anything
     that is not shaped like a public key.
+  - **Windows 11 ships with the built-in Administrator disabled**, and
+    Ansible logs in as `Administrator`. On a disabled account, `sshd` accepts
+    the TCP connection and then drops it during key exchange. `phoenix` sees
+    `Connection reset by … port 22`, and `OpenSSH/Admin` logs
+    `unable to resolve user administrator`. On the two hand-built endpoints,
+    run `Enable-LocalUser -Name Administrator`. The servers and every template
+    clone have it enabled already.
 
-  Any member of Administrators can run it at the console, such as
-  `labadmin`. Ansible still logs in as `Administrator`, because
-  `administrators_authorized_keys` covers the whole group. The licence task §7 registered by hand writes
-  the same file the role's `licence-clock` task does. Delete the hand-made one
-  after the first run, so that only one thing owns the file.
+  The licence task §7 registered by hand writes the same file the role's
+  `licence-clock` task does. Delete the hand-made one after the first run, so
+  that only one thing owns the file.
 
 ## 1. Create the six VMs
 
