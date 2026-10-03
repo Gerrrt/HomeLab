@@ -114,6 +114,18 @@ not the repository package afterwards. There is nothing here for it to run,
 and `deploy-agent.sh` reads the absence as its cue to install the native
 package.
 
+**Then give the root volume the whole disk.** Ubuntu's guided LVM install
+sizes `ubuntu-lv` at half the volume group and leaves the rest unallocated:
+on this 32 GB disk that is a 15 GiB root with 15 GiB idle beside it. `phoenix`
+filled those 15 GiB on 2026-10-03, with toolchains and caches and nothing
+runaway, and a write to `phoenix.env` failed with `No space left on device`
+(#445). Grow it online:
+
+```bash
+sudo lvextend -r -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+df -h /          # about 30G
+```
+
 **Then install the QEMU guest agent.** `--agent enabled=1` in §1 only gives the
 VM the channel. Nothing answers on it until the package is installed in the
 guest:
