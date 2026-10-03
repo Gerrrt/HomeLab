@@ -8,9 +8,10 @@
     name: domain_role
 
 - name: Resolve through bahamut, to find the domain
-  ansible.windows.win_dns_client:
-    adapter_names: "*"
-    dns_servers: ["{{ lab_dc_addresses[0] }}"]
+  ansible.builtin.include_role:
+    name: dns_client
+  vars:
+    dns_client_servers: ["{{ lab_dc_addresses[0] }}"]
   when: not domain_role_is_dc
 
 - name: Install AD DS

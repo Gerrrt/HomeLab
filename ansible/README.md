@@ -41,6 +41,9 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
   - `exporter`: `windows_exporter`, plus the 9182 rule admitting `alexander`.
   - `licence_clock`: the evaluation gauge, on the four servers.
   - `dns_forwarder`: shared by both DC roles.
+  - `dns_client`: a guest's IPv4 resolvers, set through `netsh interface ipv4`
+    so the IPv6 ones (`::1` on a DC) are never touched. Used by `base`,
+    `dc_replica` and `dc_resolvers`.
   - `domain_role`: whether a guest is a DC already, imported by `base` and
     `dc_replica` in their own plays.
 - `requirements.txt`, `requirements-lint.txt` and `requirements.yml`: exact

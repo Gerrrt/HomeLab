@@ -4,11 +4,26 @@
 # days left" rather than "not an evaluation"; the inventory's `servers` group
 # is what keeps the endpoints out.
 
+# The same check-mode gap as roles/exporter: C:\ProgramData\lab is base's, and
+# it does not exist yet in a dry run against a guest base has never touched.
+- name: See whether the pipeline's directory exists yet
+  ansible.windows.win_stat:
+    path: C:\ProgramData\lab
+  register: licence_clock_lab_dir
+  check_mode: false
+
+- name: Report the script as pending, in check mode
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }} would place C:\\ProgramData\\lab\\licence-clock.ps1"
+  changed_when: true
+  when: ansible_check_mode and not licence_clock_lab_dir.stat.exists
+
 - name: Place the script
   ansible.windows.win_copy:
     src: licence-clock.ps1
     dest: C:\ProgramData\lab\licence-clock.ps1
   notify: Write the gauge now
+  when: licence_clock_lab_dir.stat.exists or not ansible_check_mode
 
 - name: Run it weekly, as SYSTEM
   community.windows.win_scheduled_task:

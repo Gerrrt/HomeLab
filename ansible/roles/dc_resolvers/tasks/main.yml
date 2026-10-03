@@ -5,8 +5,9 @@
 # guest points at .50 and .51" rule does not apply (§4). Runs after both DCs
 # exist, because pointing bahamut at a leviathan that is not yet a DC breaks it.
 - name: Partner first, then loopback
-  ansible.windows.win_dns_client:
-    adapter_names: "*"
-    dns_servers:
+  ansible.builtin.import_role:
+    name: dns_client
+  vars:
+    dns_client_servers:
       - "{{ lab_dc_addresses | reject('equalto', ansible_host) | first }}"
       - 127.0.0.1

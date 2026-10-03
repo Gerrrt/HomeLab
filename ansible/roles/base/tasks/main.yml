@@ -98,11 +98,16 @@
 # the one documented exception to ADR-0010. The DCs' own resolvers are set by
 # roles/dc_resolvers, after both exist.
 - name: Point members and endpoints at the two DCs
-  ansible.windows.win_dns_client:
-    adapter_names: "*"
-    dns_servers: "{{ lab_dc_addresses }}"
+  ansible.builtin.include_role:
+    name: dns_client
+  vars:
+    dns_client_servers: "{{ lab_dc_addresses }}"
   when: inventory_hostname not in groups['dcs']
 
+# UTC on every guest, hand-built or cloned, so that event times line up with
+# Wazuh, Velociraptor, Zeek and Prometheus without converting. The six built by
+# hand were on Pacific; Kerberos and w32time run on UTC internally, so moving
+# the zone changes what is displayed, not what is synchronised.
 - name: Keep the clock zone UTC, as the template set it
   ansible.windows.win_timezone:
     timezone: UTC
