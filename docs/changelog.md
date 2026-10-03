@@ -47,6 +47,21 @@ docstring gives: it is a record, not a claim about now.
     failed "cannot connect". The service was disabled afterwards, but the
     configuration stayed. The script now runs `net start WinRM` first. 912
     needs a rebuild to carry it.
+- **`check_docs.py` now checks the deploy runbook's Rules-page figure.**
+  - **The gap.** `deploy-stack.md` step 2 says the page "lists 129: the 127
+    alert rules ... plus the two recording rules". That sentence has three
+    counts, and only the alert-rule count was checked. Catching up #840's
+    branch with main moved the alert-rule count to 132 and left the total at
+    129. A deploy following that step would expect five fewer rules than a
+    healthy page shows.
+  - **The fix.** Two counted claims, not a new assertion, so README's
+    assertion count stands. `page lists N` must equal the Prometheus alert
+    rules plus the `record:` rules, both counted from the rule files.
+    `N recording rules` is checked beside it, because it is the other half of
+    the sum.
+  - **Proven by mutation.** Three cases each fail with the line named: the
+    total left stale, the recording-rule count wrong, and a third recording
+    rule added to `ids.rules.yaml` with the prose untouched.
 - **The stack's self-monitoring metrics have rules behind them**
   ([#840](https://github.com/Gerrrt/HomeLab/issues/840)). Each of these was
   charted on a dashboard, or exported and read by nothing:
