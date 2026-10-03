@@ -392,6 +392,57 @@ services:
       start_period: 120s
 
   # ---------------------------------------------------------------------------
+  # Docker socket proxy (#836). The estate's docker-socket-proxy (#193); its
+  # comment in stacks/observability/compose.yaml is the reasoning. `:ro` on
+  # the socket does not stop POST /containers/create, so a collector holding the
+  # socket holds root on the host, and odin holds the SOC's age key and
+  # Velociraptor's CA.
+  # Alloy now reaches the API here, GET-only, and the socket stops at this
+  # container. Not published.
+  # ---------------------------------------------------------------------------
+  docker-socket-proxy:
+    <<: *service-defaults
+    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
+    container_name: soc-docker-socket-proxy
+    environment:
+      # The estate's allowlist exactly: what docker.alloy's three components
+      # were measured to need (#193). NETWORKS is the one that is not obvious;
+      # without it discovery.docker fails and container logs stop while the
+      # agent stays healthy.
+      CONTAINERS: 1
+      IMAGES: 1
+      INFO: 1
+      VERSION: 1
+      EVENTS: 1
+      NETWORKS: 1
+      POST: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EXEC: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "2375"
+    mem_limit: 64m
+    memswap_limit: 64m
+    # Not read_only, for the estate's measured reason: the entrypoint writes
+    # haproxy.cfg from the environment at every start.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  # ---------------------------------------------------------------------------
   # Collection agent for this guest — and the first genuine off-host client
   # the lab's Prometheus and Loki have ever had (ADR-0030).
   #
@@ -426,10 +477,16 @@ services:
       LOKI_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_LOKI_PORT:-3100}/loki/api/v1/push
       PROMETHEUS_REMOTE_WRITE_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_PROMETHEUS_PORT:-9090}/api/v1/write
       ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-alloy}
+      # Read by docker.alloy's three components; the socket is not mounted (#836).
+      DOCKER_API: tcp://docker-socket-proxy:2375
       # For the exporter in opensearch.alloy. Read through sys.env() there, so
       # the credential is in this container's environment (the same class of
       # exposure as GRAFANA_ADMIN_PASSWORD) and in no file.
       INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/soc.sops.yaml}
+      # odin's token for the lab's ingest proxy on alexander (#834). Its other
+      # copy is INGEST_TOKEN_ODIN in secrets/lab.sops.yaml; config.alloy sends
+      # it as a bearer token on both pushes.
+      INGEST_TOKEN: ${INGEST_TOKEN:?set in secrets/soc.sops.yaml}
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
@@ -448,9 +505,14 @@ services:
       # holds its Grafana scrape to.
       - ./wazuh/certs/root-ca.pem:/etc/alloy/tls/root-ca.pem:ro
       - alloy-data:/var/lib/alloy/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/log:/var/log:ro
       - /:/rootfs:ro
+    # /rootfs/run masked: stacks/lab/compose.yaml's alloy has the reason.
+    tmpfs:
+      - /rootfs/run:size=64k,mode=0755
+    depends_on:
+      docker-socket-proxy:
+        condition: service_started
     ports:
       # Debug UI, loopback only. No syslog receiver: syslog.alloy is not
       # mounted above, for the reason stacks/lab gives.

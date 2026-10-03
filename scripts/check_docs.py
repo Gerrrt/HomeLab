@@ -291,6 +291,13 @@ def count_alerts(paths) -> int:
     )
 
 
+def count_recording_rules(paths) -> int:
+    return sum(
+        len(re.findall(r"^\s*-\s*record:", p.read_text(encoding="utf-8"), re.M))
+        for p in paths
+    )
+
+
 def tested_alertnames(paths) -> set[str]:
     """Every alert named by a promtool unit test.
 
@@ -491,6 +498,7 @@ def facts() -> dict:
     dashboards = sorted((STACK / "grafana/dashboards").glob("*.json"))
     prom = count_alerts(prom_rules)
     loki = count_alerts(loki_rules)
+    recording = count_recording_rules(prom_rules)
     tested = tested_alertnames(
         sorted((STACK / "prometheus/tests").glob("*.test.yaml"))
     )
@@ -498,6 +506,8 @@ def facts() -> dict:
         "prometheus_rules": prom,
         "loki_rules": loki,
         "total_rules": prom + loki,
+        "recording_rules": recording,
+        "rules_page": prom + recording,
         "dashboards": len(dashboards),
         "panels": count_panels(dashboards),
         "prometheus_rule_files": len(prom_rules),
@@ -557,12 +567,29 @@ def check_counts(f: dict) -> list[str]:
          "unit-tested rules"),
         (rf"[Oo]ther" + WS + COUNT + WS + r"are still validated", {f["untested_rules"]},
          "rules without a unit test"),
+        # The same count in the wording #843 left it in, once it reached zero:
+        # "the other 0 are still validated" reads as nonsense, and a clearer
+        # sentence that nothing checked would drift silently.
+        (r"leaves" + WS + COUNT + WS + r"rules" + WS + r"without" + WS + r"a" + WS + r"unit" + WS + r"test",
+         {f["untested_rules"]}, "rules without a unit test"),
         # "Coverage is fifteen rules of 45" states two counts and only the
         # first was checked, so the denominator could go stale on its own —
         # the same shape as "39 rules across six files" above, and it did go
         # stale the same way the moment a rule was added (#81).
         (rf"rules of" + WS + COUNT + WS + r"so far", {f["prometheus_rules"]},
          "rules in the coverage denominator"),
+        # deploy-stack.md's Status → Rules step: "The page lists 129: the 127
+        # alert rules ... plus the two recording rules". Three counts in one
+        # sentence, and only the middle one was guarded. A merge on 2026-10-03
+        # recomputed it to 132 and left the total at 129, so the step told the
+        # operator to expect a number five short of a healthy page. The total
+        # is the alert rules plus the recording rules, both counted from the
+        # rule files, so adding either kind fails here; the recording-rule count
+        # is guarded beside it because it is the other half of the sum.
+        (r"page" + WS + r"lists" + WS + COUNT, {f["rules_page"]},
+         "rules on Prometheus's Rules page (alert + recording)"),
+        (rf"{COUNT}" + WS + r"recording rules", {f["recording_rules"]},
+         "recording rules"),
         # Where the agents run is documented, not deployed from here, so the
         # architecture table is the source and hardware.md's sentence is the
         # claim. See count_alloy_agents.

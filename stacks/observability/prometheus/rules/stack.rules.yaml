@@ -130,6 +130,93 @@ groups:
             Either every Alloy agent is down or the push endpoint is
             unreachable. Logs are being lost, not queued indefinitely.
 
+      # --- The Loki ruler (#837) --------------------------------------------
+      #
+      # Every security alert is evaluated by Loki's ruler, not by Prometheus
+      # (loki/rules/security.rules.yaml), and the Watchdog above proves only
+      # Prometheus's path. These three watch the ruler from here, so a ruler
+      # that stops is reported by the path the heartbeat already proves.
+      # The observability dashboard charted the first metric for months; no
+      # rule read it.
+      - alert: LokiRuleEvaluationFailures
+        # One group failing, not the ruler: a LogQL query over a limit, a
+        # parse the boot check missed, storage trouble on a range. Warning,
+        # because the other groups still run.
+        expr: sum by (rule_group) (increase(loki_prometheus_rule_evaluation_failures_total[10m])) > 0
+        for: 10m
+        labels:
+          component: stack
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "Loki rule group {{ $labels.rule_group }} is failing to evaluate"
+          description: >-
+            Every alert in that group is silent while this fires. `docker logs
+            loki 2>&1 | grep -i ruler` names the rule and the error. Most of
+            loki/rules/ is security alerting, so read it as a security gap, not
+            a cosmetic one.
+
+      - alert: LokiRulerNotificationsFailing
+        # The ruler evaluates, decides to alert, and cannot hand the alert to
+        # Alertmanager: errors are failed sends, drops are a full queue. Either
+        # way a security page that fired was never delivered. Critical, so it
+        # goes to `urgent`, which carries an ntfy.sh copy.
+        expr: |
+          sum(increase(loki_prometheus_notifications_errors_total[10m])) > 0
+          or sum(increase(loki_prometheus_notifications_dropped_total[10m])) > 0
+        for: 10m
+        labels:
+          component: stack
+          severity: critical
+          category: correctness
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
+          summary: "The Loki ruler cannot deliver alerts to Alertmanager"
+          description: >-
+            Log-based alerts, the security ones among them, are firing and
+            being lost between Loki and Alertmanager. Check that
+            alertmanager:9093 is up and that loki-config.yaml's
+            alertmanager_url still names it.
+
+      - alert: LokiRulerSilent
+        # The ruler has sent nothing for fifteen minutes. It cannot be idle:
+        # LokiRulerWatchdog (loki/rules/watchdog.rules.yaml) fires forever, and
+        # the ruler re-sends a firing alert every minute, so this counter
+        # climbs for as long as the ruler is evaluating and has an Alertmanager
+        # to send to. Flat means it stopped doing one of those.
+        #
+        # Whether sent_total counts a FAILED send has differed between versions
+        # of the Prometheus notifier Loki vendors: older ones counted every
+        # attempt, newer ones count only a 2xx from Alertmanager. Either way is
+        # covered. If it counts only successes, failed delivery leaves it flat
+        # and this rule fires as well; LokiRulerNotificationsFailing above
+        # reports the failures themselves whichever version is running.
+        #
+        # `or absent(...)` is deliberate. Loki down is InstanceDown's to
+        # report, but a renamed metric after a Loki upgrade would otherwise
+        # turn this rule into one that can never fire, the failure this whole
+        # repository keeps finding. Absent therefore pages too, and the fix is
+        # to read the metric name again.
+        expr: |
+          sum(increase(loki_prometheus_notifications_sent_total[15m])) == 0
+          or absent(loki_prometheus_notifications_sent_total)
+        for: 5m
+        labels:
+          component: stack
+          severity: critical
+          category: correctness
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#the-rulers-half"
+          summary: "The Loki ruler has sent nothing to Alertmanager for 20 minutes"
+          description: >-
+            Every log-based alert, the security ones among them, is silent:
+            the ruler's own always-firing LokiRulerWatchdog has stopped
+            reaching Alertmanager. Look at `docker logs loki 2>&1 | grep -i
+            ruler`, then at the ruler's view of its rules:
+            `curl -s localhost:3100/prometheus/api/v1/rules` on the monitoring
+            host. If loki_prometheus_notifications_sent_total is absent rather
+            than flat, check whether a Loki upgrade renamed it.
+
       - alert: RemoteWriteJobStale
         # THE RULE InstanceDown CANNOT BE.
         #
@@ -437,3 +524,142 @@ groups:
             exists or when it can go. Re-post it with the same id, matchers and
             startsAt and a comment that starts with #NNN — the UUID survives —
             or delete it. docs/observability.md, Silences, has the convention.
+
+      # --- The rest of the stack watching itself (#840) -------------------------
+      #
+      # Each of these was charted on the observability dashboard, or exported and
+      # read by nothing, with no rule behind it. A dashboard someone has to be
+      # looking at is not a control.
+      - alert: AlertmanagerConfigReloadFailed
+        # The twin of PrometheusConfigReloadFailed above. Alertmanager keeps
+        # serving the routing tree it last parsed, so a bad edit to
+        # alertmanager.yaml leaves every route as it was before the edit,
+        # silently, until the next restart fails outright.
+        expr: alertmanager_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          component: stack
+          severity: critical
+          category: correctness
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/deploy-stack.md#troubleshooting"
+          dashboard: "Observability Stack (/d/homelab-stack) › Alertmanager › Silences and config reloads"
+          summary: "Alertmanager rejected its config reload on {{ $labels.instance }}"
+          description: >-
+            It is still routing with the tree it last accepted, so whatever the
+            edit changed (a receiver, a route, a silence's target) is not in
+            effect. `docker logs alertmanager 2>&1 | grep -i config` names the
+            error; `make validate` (amtool check-config) catches it before a
+            deploy.
+
+      - alert: PrometheusNotificationsFailing
+        # Prometheus deciding an alert fires and failing to hand it to
+        # Alertmanager: send errors, or a full queue dropping the alert.
+        # AlertmanagerNotificationsFailing covers the hop after this one.
+        #
+        # If Alertmanager is unreachable outright, this alert cannot reach it
+        # either; the Watchdog heartbeat is what pages for that. This rule is
+        # for the partial case: some sends failing, or a burst overflowing the
+        # queue, while the path still works for the alert that says so.
+        expr: |
+          sum(increase(prometheus_notifications_errors_total{job="prometheus"}[15m])) > 0
+          or sum(increase(prometheus_notifications_dropped_total{job="prometheus"}[15m])) > 0
+        for: 5m
+        labels:
+          component: stack
+          severity: critical
+          category: correctness
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#reading-the-failure"
+          dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › Alert hand-off to Alertmanager"
+          summary: "Prometheus is failing to hand alerts to Alertmanager"
+          description: >-
+            Some alerts that fired in the last 15 minutes never reached
+            Alertmanager, so nobody was told. Check the dashboard's
+            notification panels and `docker logs prometheus 2>&1 | grep -i
+            notif`.
+
+      - alert: PrometheusTsdbFailures
+        # The TSDB degrading before it fails: compactions that do not complete
+        # (so the head grows and disk follows), WAL corruption (samples lost on
+        # the next restart), block reloads or head truncations failing. Each
+        # counter is tagged with what it measures, so the alert names the one
+        # that moved.
+        #
+        # job="prometheus" on every counter, as the dashboard has: other
+        # components embed Prometheus's storage and notifier code and export the
+        # same names, and an Alloy WAL failure is not this server's TSDB.
+        expr: |
+          label_replace(
+            sum(increase(prometheus_tsdb_compactions_failed_total{job="prometheus"}[1h])) > 0,
+            "failure", "compaction", "", "")
+          or label_replace(
+            sum(increase(prometheus_tsdb_wal_corruptions_total{job="prometheus"}[1h])) > 0,
+            "failure", "wal-corruption", "", "")
+          or label_replace(
+            sum(increase(prometheus_tsdb_reloads_failures_total{job="prometheus"}[1h])) > 0,
+            "failure", "block-reload", "", "")
+          or label_replace(
+            sum(increase(prometheus_tsdb_head_truncations_failed_total{job="prometheus"}[1h])) > 0,
+            "failure", "head-truncation", "", "")
+        labels:
+          component: stack
+          severity: warning
+          category: correctness
+        annotations:
+          dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › TSDB failures"
+          summary: "Prometheus TSDB {{ $labels.failure }} failed in the last hour"
+          description: >-
+            `docker logs prometheus 2>&1 | grep -iE 'compact|wal|reload|truncat'`
+            says why. A WAL corruption means some recent samples will not
+            survive a restart; repeated compaction failures mean the head, and
+            the disk, keep growing. Neither fixes itself.
+
+      - alert: AlloyRemoteWriteFailing
+        # An agent whose pushes are being refused, measured from its own
+        # self-scrape (config.alloy, `selfmetrics`). job=~".+-alloy" is that
+        # copy only: the local agent is also scraped directly as job="alloy",
+        # and matching both would alert twice for one agent.
+        #
+        # Catches the partial and the permanent-but-reported cases: samples
+        # rejected as too old or out of order, or a 4xx such as a refused
+        # token on some batches. An agent that can push NOTHING cannot push
+        # this counter either; RemoteWriteJobStale is that case.
+        expr: |
+          sum by (instance) (rate(prometheus_remote_storage_samples_failed_total{job=~".+-alloy"}[10m])) > 0
+        for: 15m
+        labels:
+          component: stack
+          severity: warning
+          category: correctness
+        annotations:
+          dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
+          summary: "Alloy on {{ $labels.instance }} is failing to remote-write some samples"
+          description: >-
+            Metrics from {{ $labels.instance }} are being lost, not queued. On
+            the host, `docker logs alloy 2>&1 | grep -i 'remote_write\|non-recoverable'`
+            (or `journalctl -u alloy` for a native agent) gives the status the
+            receiver returned: 401 is the ingest token, 400 out-of-order or too
+            old is the clock or a replay.
+
+      - alert: AlloyComponentUnhealthy
+        # A pipeline component the agent reports as unhealthy while the agent
+        # itself is up, which is how a bad config, an unreadable file or a
+        # refused Docker API shows. The agent's own healthcheck stays green
+        # through all of it. Same single copy per agent as above.
+        expr: |
+          sum by (instance, health_type) (
+            alloy_component_controller_running_components{job=~".+-alloy", health_type!="healthy"}
+          ) > 0
+        for: 15m
+        labels:
+          component: stack
+          severity: warning
+          category: correctness
+        annotations:
+          dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Component health"
+          summary: "Alloy on {{ $labels.instance }} has {{ $value }} {{ $labels.health_type }} component(s)"
+          description: >-
+            Part of what that agent collects has stopped while the agent stays
+            up. Its debug UI on 127.0.0.1:12345 (an SSH tunnel away) lists each
+            component with its health and last error.

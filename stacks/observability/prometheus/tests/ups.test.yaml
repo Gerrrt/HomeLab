@@ -195,3 +195,235 @@ tests:
       - eval_time: 528h
         alertname: UpsSelfTestStale
         exp_alerts: []
+
+  # --- The nine UPS rules untested until #843 -------------------------------
+
+  # UpsOnBattery: 120s on battery fires after its 30s `for`; a UPS on mains (0) beside
+  # it does not. Quiet at 1m, before the cut.
+  - interval: 1m
+    input_series:
+      - series: 'upsSecondsOnBattery{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "0x2 120x10"
+      - series: 'upsSecondsOnBattery{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "0x12"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: UpsOnBattery
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: UpsOnBattery
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsOnBattery
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: critical
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+              summary: "UPS mjolnir is running on battery"
+              description: >-
+                On battery for 2m 0s. Estimated runtime remaining is reported by
+                upsEstimatedMinutesRemaining.
+
+  # UpsBatteryLow: batteryLow(3) fires; batteryNormal(2) is the near miss the `> 2`
+  # exists for.
+  - interval: 1m
+    input_series:
+      - series: 'upsBatteryStatus{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "3x10"
+      - series: 'upsBatteryStatus{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "2x10"
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: UpsBatteryLow
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: UpsBatteryLow
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsBatteryLow
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: critical
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+              summary: "UPS mjolnir battery status is 3 (>2 = low/depleted)"
+
+  # UpsRuntimeCritical: 4 minutes fires; exactly 5 does not (`< 5`).
+  - interval: 1m
+    input_series:
+      - series: 'upsEstimatedMinutesRemaining{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "4x10"
+      - series: 'upsEstimatedMinutesRemaining{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "5x10"
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: UpsRuntimeCritical
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: UpsRuntimeCritical
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsRuntimeCritical
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: critical
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+              summary: "UPS mjolnir has 4 minutes of runtime left"
+
+  # UpsChargeLow: 40% fires after its 10m `for`; 50% does not (`< 50`).
+  - interval: 1m
+    input_series:
+      - series: 'upsEstimatedChargeRemaining{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "40x20"
+      - series: 'upsEstimatedChargeRemaining{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "50x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: UpsChargeLow
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: UpsChargeLow
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsChargeLow
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "UPS mjolnir charge at 40%"
+
+  # UpsOverloaded: 85% fires after 15m; exactly 80% does not (`> 80`).
+  - interval: 1m
+    input_series:
+      - series: 'upsOutputPercentLoad{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "85x25"
+      - series: 'upsOutputPercentLoad{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "80x25"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: UpsOverloaded
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: UpsOverloaded
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsOverloaded
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "UPS mjolnir output load at 85%"
+              description: "Sustained load above 80% shortens battery runtime non-linearly."
+
+  # UpsAlarmPresent: one alarm fires after 5m; none does not.
+  - interval: 1m
+    input_series:
+      - series: 'upsAlarmsPresent{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1x10"
+      - series: 'upsAlarmsPresent{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: UpsAlarmPresent
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: UpsAlarmPresent
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsAlarmPresent
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "UPS mjolnir reports 1 active alarm(s)"
+
+  # UpsBatteryTemperatureHigh: 45°C fires after 15m; exactly 40 does not (`> 40`).
+  - interval: 1m
+    input_series:
+      - series: 'upsBatteryTemperature{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "45x25"
+      - series: 'upsBatteryTemperature{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "40x25"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: UpsBatteryTemperatureHigh
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: UpsBatteryTemperatureHigh
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsBatteryTemperatureHigh
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "UPS mjolnir battery at 45\xB0C"
+
+  # UpsSelfTestFailed: doneError(3) fires; donePass(1) does not. 5 (inProgress) and 6
+  # (noTestsInitiated) are outside `> 1 and < 5` and get their own case below.
+  - interval: 1m
+    input_series:
+      - series: 'upsTestResultsSummary{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "3x10"
+      - series: 'upsTestResultsSummary{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: UpsSelfTestFailed
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: UpsSelfTestFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsSelfTestFailed
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: critical
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/fit-the-ups-battery.md#4-run-one-self-test-and-read-it-from-both-ends"
+              summary: "UPS mjolnir failed its self-test (result 3)"
+              description: >-
+                2=doneWarning 3=doneError 4=aborted. A UPS that cannot complete a
+                self-test cannot be assumed to carry the load, whatever its charge
+                and runtime metrics claim. Check the management card's diagnostics
+                page — "Refused / internal fault" means the pack is not seen, and
+                now that one is fitted that is a finding about the pack or its
+                seating rather than about an empty bay.
+
+  # UpsSelfTestFailed: inProgress(5) and noTestsInitiated(6) are not failures.
+  - interval: 1m
+    input_series:
+      - series: 'upsTestResultsSummary{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "5x10"
+      - series: 'upsTestResultsSummary{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "6x10"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: UpsSelfTestFailed
+        exp_alerts: []

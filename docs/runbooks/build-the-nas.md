@@ -1952,6 +1952,52 @@ rm /mnt/erebor/apps/textfile/zpool-drill-smaug.prom && date
 > under an ONLINE pool pages through `ZpoolVdevNotOnline`, from the textfile
 > through Prometheus and Alertmanager to the phone.
 
+### §6.9 — Turn container-state collection on
+
+Nothing else on this host notices a media container that has stopped and
+stayed stopped: smaug runs no cAdvisor, so `ContainerGone` cannot see it
+([#838](https://github.com/Gerrrt/HomeLab/issues/838)).
+`scripts/collect-container-state.sh` writes one gauge per container of the
+`media` project, with 1 meaning running, into the directory §6.4 made. It runs
+the same way as SMART, as a root cron job in TrueNAS's UI, and the scrape §6.1
+opened carries it. `ContainerNotRunning` fires on a 0, and `ContainerStateStale`
+fires if the job stops.
+
+**1. Fetch it and read one run**, in the TrueNAS shell:
+
+```bash
+cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-container-state.sh \
+  && chmod 0755 collect-container-state.sh
+PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash /mnt/erebor/apps/stack/collect-container-state.sh --print --project media
+```
+
+`--print` prints the metrics to the terminal and writes no file. Expect one
+`homelab_container_running` line per media
+service, each `1`: `media-jellyfin`, `media-audiobookshelf`,
+`media-navidrome` and `media-node-exporter`. A service missing from the list means its container was
+not started from the `media` project. Check `docker ps -a` before going on.
+
+**2. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
+
+```text
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 60 /bin/bash /mnt/erebor/apps/stack/collect-container-state.sh --project media
+```
+
+| Field | Value | Why |
+| --- | --- | --- |
+| Description | `homelab container-state (#838)` | So the next person finds the decision from the job |
+| Command | the block above, exactly | `PATH` because cron's has no `/usr/sbin`; `TEXTFILE_DIR` is the directory node-exporter mounts; `timeout 60` because a wedged Docker daemon would otherwise hang the job |
+| Run As User | `root` | `docker ps` needs the socket |
+| Schedule | every 15 minutes | `ContainerStateStale` fires at 30 minutes, two missed runs |
+
+**3. Confirm.** After the first scheduled run,
+`homelab_container_running{instance="smaug"}` shows the four containers in
+Prometheus. Then stop one deliberately, for example
+`docker stop media-navidrome`. `ContainerNotRunning` should be pending
+within the scrape interval and firing ten minutes later. Start it again with
+`docker start media-navidrome`.
+
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the

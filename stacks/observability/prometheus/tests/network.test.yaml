@@ -694,3 +694,209 @@ tests:
                 graphs, blocklist updates and Suricata stop writing. Diagnostics >
                 Command Prompt, `du -sh /var/log/* /var/db/* | sort -h | tail`, finds
                 the culprit. Status > System Logs > Settings sets log rotation.
+
+  # --- The seven network rules untested until #843 -------------------------
+
+  # SnmpExporterDown: the exporter's own scrape fails for its 5m `for`.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="snmp-exporter",instance="snmp-exporter:9116"}'
+        values: "1x2 0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: SnmpExporterDown
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: SnmpExporterDown
+        exp_alerts:
+          - exp_labels:
+              alertname: SnmpExporterDown
+              job: snmp-exporter
+              instance: snmp-exporter:9116
+              component: network
+              severity: critical
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#snmpexporterdown"
+              summary: "snmp-exporter is down \u2014 every SNMP device will appear unreachable"
+
+  # SnmpTargetUnreachable: neo stops answering and fires after 10m; mjolnir answers
+  # and does not. The exporter itself is up, so this is the device's failure.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="snmp",instance="10.0.99.2",device="neo",role="switch",vlan="1"}'
+        values: "0x15"
+      - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir",role="ups",vlan="99"}'
+        values: "1x15"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: SnmpTargetUnreachable
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: SnmpTargetUnreachable
+        exp_alerts:
+          - exp_labels:
+              alertname: SnmpTargetUnreachable
+              job: snmp
+              instance: 10.0.99.2
+              device: neo
+              role: switch
+              vlan: 1
+              component: network
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "SNMP device neo (10.0.99.2) is not responding"
+              description: >-
+                Role switch on VLAN 1. Check the device is up and that its SNMP
+                community still matches the one in secrets/observability.sops.yaml.
+
+  # SnmpScrapeSlow: morpheus at 35s, past 30 and inside the 45s timeout, fires after
+  # 15m; neo at 20s does not.
+  - interval: 1m
+    input_series:
+      - series: 'scrape_duration_seconds{job="snmp",instance="10.0.99.1",device="morpheus"}'
+        values: "35x20"
+      - series: 'scrape_duration_seconds{job="snmp",instance="10.0.99.2",device="neo"}'
+        values: "20x20"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: SnmpScrapeSlow
+        exp_alerts: []
+      - eval_time: 17m
+        alertname: SnmpScrapeSlow
+        exp_alerts:
+          - exp_labels:
+              alertname: SnmpScrapeSlow
+              job: snmp
+              instance: 10.0.99.1
+              device: morpheus
+              component: network
+              severity: warning
+              category: performance
+            exp_annotations:
+              summary: "SNMP scrape of morpheus takes 35s"
+              description: >-
+                The scrape timeout is 45s. A walk creeping toward it will start
+                producing gaps — narrow the module's OID list in generator.yaml.
+
+  # PfNotRunning: pf disabled (0) for its 2m `for`. Quiet at 1m, firing at 3m.
+  - interval: 1m
+    input_series:
+      - series: 'pfStatusRunning{job="snmp",instance="10.0.99.1",device="morpheus"}'
+        values: "0x5"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: PfNotRunning
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: PfNotRunning
+        exp_alerts:
+          - exp_labels:
+              alertname: PfNotRunning
+              job: snmp
+              instance: 10.0.99.1
+              device: morpheus
+              component: network
+              severity: critical
+              category: security
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#pfnotrunning"
+              summary: "Packet filter is NOT running on morpheus"
+              description: >-
+                pf is disabled. Inter-VLAN isolation and the default-deny posture
+                are not being enforced.
+
+  # PfStateTableNearLimit: 90k states of a 100k limit fires after 10m; the same
+  # limit at 70k, a minute later in a second case, does not.
+  - interval: 1m
+    input_series:
+      - series: 'pfStateTableCount{job="snmp",instance="10.0.99.1",device="morpheus"}'
+        values: "90000x15"
+      - series: 'pfLimitsStates{job="snmp",instance="10.0.99.1",device="morpheus"}'
+        values: "100000x15"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: PfStateTableNearLimit
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: PfStateTableNearLimit
+        exp_alerts:
+          - exp_labels:
+              alertname: PfStateTableNearLimit
+              job: snmp
+              instance: 10.0.99.1
+              device: morpheus
+              component: network
+              severity: warning
+              category: saturation
+            exp_annotations:
+              summary: "pf state table at 90% of limit"
+              description: "New connections are dropped once the state table fills."
+
+  # PfStateTableNearLimit at 70%: no alert.
+  - interval: 1m
+    input_series:
+      - series: 'pfStateTableCount{job="snmp",instance="10.0.99.1",device="morpheus"}'
+        values: "70000x15"
+      - series: 'pfLimitsStates{job="snmp",instance="10.0.99.1",device="morpheus"}'
+        values: "100000x15"
+    alert_rule_test:
+      - eval_time: 14m
+        alertname: PfStateTableNearLimit
+        exp_alerts: []
+
+  # PfMemoryDropsIncreasing: a climbing memory-drop counter is positive from its
+  # second sample and fires 15m later; a flat one on the switch does not.
+  - interval: 1m
+    input_series:
+      - series: 'pfCounterMemDrop{job="snmp",instance="10.0.99.1",device="morpheus"}'
+        values: "0+3x40"
+      - series: 'pfCounterMemDrop{job="snmp",instance="10.0.99.2",device="neo"}'
+        values: "7+0x40"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PfMemoryDropsIncreasing
+        exp_alerts: []
+      - eval_time: 32m
+        alertname: PfMemoryDropsIncreasing
+        exp_alerts:
+          - exp_labels:
+              alertname: PfMemoryDropsIncreasing
+              job: snmp
+              instance: 10.0.99.1
+              device: morpheus
+              component: network
+              severity: warning
+              category: saturation
+            exp_annotations:
+              summary: "pf is dropping packets for lack of memory on morpheus"
+
+  # SwitchInterfaceDown: port 15 was up and goes down at 30m, and fires 5m later.
+  # Port 20 has been down the whole hour, which is a port nothing is plugged into, not
+  # a port that went down, and the `min_over_time == 1` join is what keeps it quiet.
+  - interval: 1m
+    input_series:
+      - series: 'ifOperStatus{job="snmp",instance="10.0.99.2",device="neo",ifIndex="15",ifDescr="port 15"}'
+        values: "1x30 2x30"
+      - series: 'ifOperStatus{job="snmp",instance="10.0.99.2",device="neo",ifIndex="20",ifDescr="port 20"}'
+        values: "2x60"
+    alert_rule_test:
+      - eval_time: 33m
+        alertname: SwitchInterfaceDown
+        exp_alerts: []
+      - eval_time: 37m
+        alertname: SwitchInterfaceDown
+        exp_alerts:
+          - exp_labels:
+              alertname: SwitchInterfaceDown
+              job: snmp
+              instance: 10.0.99.2
+              device: neo
+              ifIndex: 15
+              ifDescr: port 15
+              component: network
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Interface port 15 on neo went down"
