@@ -56,7 +56,7 @@
     username: "{{ lab_netbios }}\\authgen"
     password: "{{ lab_population_password }}"
     logon_type: password
-    update_password: "{{ authgen_update_password | bool or (authgen_marker.value | default('')) != authgen_fingerprint }}"
+    update_password: "{{ authgen_task_is_stale }}"
     run_level: limited
     multiple_instances: 2
     execution_time_limit: PT5M
@@ -64,6 +64,9 @@
     state: present
   vars:
     population_account: authgen
+    authgen_task_is_stale: >-
+      {{ authgen_update_password | bool
+         or (authgen_marker.value | default('')) != authgen_fingerprint }}
   no_log: true
 
 # Only now, after the task registered with it. A failure above stops this host
