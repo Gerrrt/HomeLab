@@ -38,6 +38,58 @@ docstring gives: it is a record, not a claim about now.
       So does an API that did not answer. A long wait is `DeployBehind`.
     - 13 fixtures in `converge.sh --self-test`.
 
+- **A pulled cable on `erebor` pages, once**
+  ([#744](https://github.com/Gerrrt/HomeLab/issues/744), closed).
+  - **The setup, 2026-10-02.** `build-the-nas.md` §6.8 ran at the console.
+    The first run against the real `zpool status -j` read 3 leaves, all
+    online and named by partuuid. The cron job failed at first: step 2's
+    `ls` line was pasted into its Command field. `ZpoolVdevStateStale`
+    caught it, and [#820](https://github.com/Gerrrt/HomeLab/pull/820)
+    puts each cron command in its own block.
+  - **The drill.** `ZVTBS4NL`'s data cable was pulled at 06:08 PDT. The pool
+    read DEGRADED with the leaf REMOVED. `ZpoolNotOnline` paged at 06:13,
+    and `ZpoolVdevNotOnline` stood down as designed. The cable was reseated and the leaf resilvered at 06:28:21: 392 KiB, the writes it had missed, in under a second with 0 errors. Both leaves are ONLINE with every counter at 0.
+  - **The finding.** On the chipset's ports, a pulled cable degrades the
+    pool, so it is the pool-level rule's fault. The faulted-under-ONLINE
+    reading of 2026-09-19 came through the MegaRAID, which is gone.
+    `ZpoolVdevNotOnline` stays armed for that reading.
+  - **The leaf rule, live.** A cable pull cannot show `ZpoolVdevNotOnline`
+    paging, so a synthetic textfile did: a pool `drill` reading ONLINE with
+    one FAULTED leaf, written at 06:43:38. It paged critical at 06:45 and
+    was removed at 06:46:08 (§6.8 step 5b). That was the done-when's other
+    half.
+
+- **`SmartDriveUnsafeShutdownsGrowing` pages on any tick again; a clean
+  shutdown does not tick the S3520**
+  ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). This corrects the
+  2026-10-01 and 2026-10-02 entries, which subtracted clean stops.
+  - **What settled it.** Controlled stops on `smaug`, each read after the
+    collector's boot run. A UI Restart read restart 1, unclassified 0. A UI
+    Shut Down, off about four minutes and powered on by the button, read
+    power-off 2 and an S3520 of **523**. A Restart the day before had also left
+    it at 523. That is 0 ticks in 3 clean stops. The 522 -> 523 #746 started
+    from was 2026-09-29, when the box was **unplugged** for the memory install
+    after its Shut Down. The drive counted the unplug.
+  - **Why the subtraction went.** With clean stops subtracted, a planned Shut
+    Down that does not tick would cancel a real cut the same day, and nothing
+    would page. The expression is #574's again:
+    `(homelab_smart_unsafe_shutdowns_total - ... offset 1d) > 0`.
+  - **What the clean count does now.** It only adds a line to the page. When
+    `homelab_clean_shutdowns_total` moved the same day, the page says a clean
+    power-off came first, so the likeliest cause is mains removed afterwards:
+    an unplug, or the UPS cutting its output after ADR-0049's halt. A missing
+    day-old point reads as zero, so the first power-off after install counts.
+    It is a hint, not proof: whether a halt ran, and in time, is read from the
+    event.
+  - **Tests.** Five new promtool cases: a planned Shut Down is quiet; Shut
+    Down then unplug fires with the line, including on install day; a Restart
+    day fires without it; and another host's power-off adds nothing. The
+    original three still pass. Six mutations were run, including the hint's
+    own query, which promtool evaluates.
+  - **Not measured.** Whether the TS150 keeps the SATA rail on standby power
+    while "off". It is the likeliest reason an unplug ticks the drive and a
+    Shut Down does not. Shut Down, unplug 30 s, power on would show it.
+
 - **`ansible/` configures the hand-built domain, a second run changes
   nothing, and `verify.yml` passes on all six**
   ([#448](https://github.com/Gerrrt/HomeLab/issues/448),

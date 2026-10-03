@@ -1401,15 +1401,21 @@ reopens it.
 > The cron job is as the table says: daily 08:30, `root`, stdout hidden,
 > stderr not.
 
-**7. Count the clean stops, and read the counter at boot
-([#746](https://github.com/Gerrrt/HomeLab/issues/746)).** Added 2026-10-01,
-after this section's done block. The S3520 adds one to its unsafe-shutdown
-counter on *every* power-off: 522 before a clean *System → Shut Down* on
-2026-09-29, 523 after. Without this step `SmartDriveUnsafeShutdownsGrowing`
-pages after every planned reboot. Two init scripts fix it. The first has the
-host count its own clean stops, and the rule subtracts them. The second runs
-the collector at boot, so the drive's tick and the clean count land within
-minutes of each other instead of up to a day apart.
+**7. Read the counter at boot, and record the clean stops
+([#746](https://github.com/Gerrrt/HomeLab/issues/746)).** Added 2026-10-01
+and corrected 2026-10-03, after this section's done block. Two init scripts.
+The second runs the collector at boot, so a cut is read at the boot after it
+instead of at the next 08:30. The first records what kind of clean stop came
+before, so a page can say whether a planned power-off came first.
+
+**What the drive counts.** #746 began from the S3520 reading 522 before a clean
+*System → Shut Down* on 2026-09-29 and 523 after, and read that as a clean stop
+ticking the drive. Controlled stops settled it on 2026-10-02/03: two UI
+Restarts and one UI Shut Down, left plugged in, all left it at **523**. On
+2026-09-29 the box was also unplugged for the memory install, and that is what
+it counted. A clean TrueNAS shutdown does not move the counter; removing mains
+afterwards can. So unplugging for maintenance, or the UPS cutting its output
+after its halt, **pages once**, and the page says a clean power-off came first.
 
 From the console shell, as root, fetch the script next to the collector and
 prove it writes:
@@ -1421,8 +1427,8 @@ cd /mnt/erebor/apps/stack \
 /bin/bash /mnt/erebor/apps/stack/mark-clean-shutdown.sh --self-test
 ```
 
-Do **not** run it for real by hand. Every run counts one clean stop, and an
-extra one forgives one real cut for a day.
+Do **not** run it for real by hand. Every run records a stop that did not
+happen, and a page that day would blame an unplug that never was.
 
 Then **System → Advanced Settings → Init/Shutdown Scripts → Add**, twice:
 
@@ -1436,33 +1442,28 @@ Then **System → Advanced Settings → Init/Shutdown Scripts → Add**, twice:
 | Enabled | on | on |
 
 The SHUTDOWN script runs on every stop that goes through the init system. A
-pulled plug, a crash or a cut that outlasts the pack never runs it, which is
-the whole point. It asks systemd where the stop is headed:
+pulled plug, a crash or a cut that outlasts the pack never runs it. It asks
+systemd where the stop is headed:
 
 - **A power-off** (the UI's Shut Down, or the UPS service's halt on `LB`,
   [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md))
-  goes up `homelab_clean_shutdowns_total`, which the rule subtracts.
-- **A Restart** goes up `homelab_clean_restarts_total`, which the rule does not
-  read. A warm reboot never takes the S3520's power away, so it never ticks
-  the drive: on 2026-10-02 a Restart left it at 523. Counted as clean, it would
-  cancel a real cut.
+  goes up `homelab_clean_shutdowns_total`.
+- **A Restart** goes up `homelab_clean_restarts_total`.
 - **Anything systemd does not name** goes up
-  `homelab_clean_stops_unclassified_total`, and forgives nothing.
+  `homelab_clean_stops_unclassified_total`.
+
+`SmartDriveUnsafeShutdownsGrowing` reads only the first, and only in its
+description. No count here can silence a page.
 
 Its file, `clean-shutdowns-smaug.prom`, is rewritten only on a stop. An old
 mtime is correct, and `SmartStateStale` does not watch it.
 
-**Prove it with one planned Shut Down, not a Restart.** A Restart proves
-nothing, because the drive does not tick. Before, note
-`homelab_clean_shutdowns_total{host="smaug"}` (absent on the first run) and
-`homelab_smart_unsafe_shutdowns_total{host="smaug"}` for the S3520's `slot`.
-Shut Down from the UI and power on again. After, the clean count is one
-higher, and within minutes of the boot the S3520's counter is one higher as
-well, without waiting for 08:30. If `homelab_clean_stops_unclassified_total`
-went up instead, the script could not see the stop's target, and the planned
-power-off will page; that is the loud failure, and the issue to reopen. `ALERTS{alertname="SmartDriveUnsafeShutdownsGrowing",host="smaug"}`
-stays empty for the next day. The pulled-plug half is proved by the promtool
-test and, live, by `shut-down-on-the-ups.md` step 6.
+> **Proved 2026-10-02/03.** A UI Restart read `homelab_clean_restarts_total 1`,
+> `homelab_clean_shutdowns_total` unchanged, unclassified `0`, stamped 56 s
+> before the boot. A UI Shut Down, off about four minutes and powered on by
+> the button, read `homelab_clean_shutdowns_total 2`, stamped 258 s before the
+> boot. The collector's file was rewritten 82 s after that boot, and the
+> S3520 read **523** throughout.
 
 ### §6.5 — Add Audiobookshelf
 
@@ -1848,9 +1849,12 @@ closes on.** A pulled data cable on one Exos, with the pool still reading
 `ONLINE`, has to page `ZpoolVdevNotOnline` within about seven minutes. Do it
 only with §6.2's newest backup set verified, and with both leaves ONLINE and
 the last scrub clean, because for its duration the mirror is one disk. At the
-console, `zpool status erebor` first to name the leaf, then pull the SATA
-data cable of the Exos whose serial you read off the label (the power cable
-stays in). Watch `zpool status erebor`: record the pool's `state:` line and
+console, `zpool status erebor` first, then pull the SATA data cable of one
+Exos (the power cable stays in), following it from a 3.5" caddy and not from
+the boot SSD. Which Exos does not matter: either is a full copy. The caddy
+covers the serial, so name the disk afterwards. The leaf `zpool status`
+marks is the partuuid, and the serial missing from
+`lsblk -o NAME,SERIAL,PARTUUID` is the drive. Watch `zpool status erebor`: record the pool's `state:` line and
 the leaf's state verbatim. **If the pool reads DEGRADED**, `ZpoolNotOnline`
 is the page and `ZpoolVdevNotOnline` correctly stands down. Both outcomes are
 a page, and the reading says which rule this hardware hands the fault to.
@@ -1859,9 +1863,94 @@ brought it back by itself, and let the resilver finish before anything else.
 `zpool offline -t` is **not** a substitute: an offlined leaf takes the pool to
 DEGRADED by definition, so it tests `ZpoolNotOnline`, not this.
 
-> **Not yet done.** The date, step 1's readings, and step 5's pool and leaf
-> states and the time from the pull to the page go here, and
-> [#744](https://github.com/Gerrrt/HomeLab/issues/744) closes on them.
+**On this hardware a cable pull degrades the pool** (the done block below), so
+it cannot show `ZpoolVdevNotOnline` paging. **Step 5b** shows that, live, with
+a synthetic leaf and nothing real touched. As root at the console:
+
+```bash
+cd /mnt/erebor/apps/textfile && cat > .zpool-drill.tmp <<'EOF'
+# HELP homelab_zpool_state 1 for the state zpool status gives the pool.
+# TYPE homelab_zpool_state gauge
+homelab_zpool_state{host="smaug",pool="drill",state="online"} 1
+# HELP homelab_zpool_vdev_state 1 for the state zpool status gives this leaf vdev.
+# TYPE homelab_zpool_vdev_state gauge
+homelab_zpool_vdev_state{host="smaug",pool="drill",vdev="drill-leaf",guid="744",state="faulted",aux="synthetic drill for #744"} 1
+EOF
+chmod 0644 .zpool-drill.tmp && mv .zpool-drill.tmp zpool-drill-smaug.prom && date
+```
+
+That is 2026-09-19's reading, a FAULTED leaf under an ONLINE pool, for a pool
+named `drill` that does not exist. The HELP and TYPE lines are the
+collector's own, because node_exporter merges a metric across files and a
+mismatch would raise `node_textfile_scrape_error` for the whole directory.
+The name is not `zpool-state-*`, so the stale rule leaves it alone and the
+cron never overwrites it. A critical `ZpoolVdevNotOnline` for `drill` should
+page within about two minutes. Then remove it at once:
+
+```bash
+rm /mnt/erebor/apps/textfile/zpool-drill-smaug.prom && date
+```
+
+> **Done 2026-10-02 (steps 1–4) and 2026-10-03 (step 5).**
+>
+> **Step 1 was the first run against this host's real `zpool status -j`.**
+> The JSON parse had only been built from the OpenZFS 2.3 source. It read
+> `erebor` 2 leaves and `boot-pool` 1, all `online`, every counter 0, and
+> every `vdev=` a partuuid. That includes `boot-pool`'s, which zpool prints
+> as a kernel name and the collector resolved.
+>
+> **Step 3 failed first, and the stale rule caught it.** Step 2's `ls` line
+> went into the Command field with the collector. TrueNAS joined the two
+> lines, and the script stopped on `unknown argument ls` every five minutes
+> (TrueNAS jobs 545 and 559, 14:55 and 15:00). A failed run writes nothing,
+> so the file stopped moving and `ZpoolVdevStateStale` fired. With the field
+> corrected, the 15:15 run wrote it, and from the monitoring host
+> `node_textfile_scrape_error` read **0** with all 17 series matching step 1.
+> The tables in §6.4, §6.7 and here now give each command its own block
+> ([#820](https://github.com/Gerrrt/HomeLab/pull/820)).
+>
+> **smaug rebooted before step 5, and the Exos swapped letters.** The
+> collector's series did not move, because they are keyed on GUID. The file
+> was 118 s old afterwards, so the job survived the reboot. The leaves, read
+> with `lsblk` during the drill:
+>
+> | Partuuid | Serial | Drive |
+> | --- | --- | --- |
+> | `52dfceb0-0c58-476b-be76-ec30184c3781` | `ZVTBS4NL` | Exos, original pair |
+> | `9362abc8-9bc8-4045-9095-f50f03f230c6` | `ZVTLQEZ7` | Exos, fitted 2026-09-29 |
+> | `770066d6-4cf0-47f6-b826-a625335aa556` | `PHDV706401TM240AGN` | S3520, `boot-pool` |
+>
+> **Step 5, 2026-10-03.** Before it: both leaves ONLINE, last scrub
+> 2026-09-29 with 0 errors, newest NAS set `20261003T034255Z` verified with
+> `./data/jellyfin.db present`. `ZVTBS4NL`'s data cable was pulled at
+> **06:08 PDT**. `zpool status erebor` read **`state: DEGRADED`**, with
+> `52dfceb0-…` **REMOVED** and `9362abc8-…` ONLINE. The exporter kept
+> answering: `node_zfs_zpool_state` and `homelab_zpool_state` both read
+> `degraded`, and the leaf series read `removed`. **`ZpoolNotOnline` paged
+> at 06:13**, five minutes after the pull, which is the scrape plus its
+> `for`. **`ZpoolVdevNotOnline` did not fire**, so the stand-down works and
+> one fault gave one page. The cable was reseated and the leaf resilvered at 06:28:21: 392 KiB, the writes it had missed, in under a second with 0 errors. Both leaves are ONLINE with every counter at 0.
+>
+> **What it shows about this hardware.** On the chipset's AHCI ports, a
+> pulled cable is a clean removal, and the pool goes DEGRADED at once. That
+> is `ZpoolNotOnline`'s case. 2026-09-19's FAULTED leaf under an ONLINE pool
+> came through the MegaRAID's sixty-second timeouts, and ADR-0052 took that
+> controller out. So a cable pull cannot reproduce that reading here.
+> `ZpoolVdevNotOnline` stays armed for it, against the unit test built from
+> the 09-19 output, and for anything else that faults a leaf without
+> degrading the pool.
+>
+> **Step 5b, the same morning: `ZpoolVdevNotOnline`'s own live path.** The
+> drill file was written at **06:43:38 PDT**, and the critical page came at
+> **06:45**, the scrape plus the rule's one-minute `for`. The file was
+> removed at 06:46:08. The page was identified by elimination: the file
+> could fire nothing else. `ZpoolNotOnline` reads the kernel's pool state,
+> and there is no pool `drill`. The file carried no error counters for
+> `ZpoolVdevErrors`. Its name is outside `ZpoolVdevStateStale`'s pattern. So
+> both halves of #744 are now read live on this host: a degraded pool pages
+> through `ZpoolNotOnline` with the leaf rule silent, and a faulted leaf
+> under an ONLINE pool pages through `ZpoolVdevNotOnline`, from the textfile
+> through Prometheus and Alertmanager to the phone.
 
 ## §7 — Verify
 
