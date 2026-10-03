@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **A pulled cable on `erebor` pages, once**
+  ([#744](https://github.com/Gerrrt/HomeLab/issues/744), closed).
+  - **The setup, 2026-10-02.** `build-the-nas.md` §6.8 ran at the console.
+    The first run against the real `zpool status -j` read 3 leaves, all
+    online and named by partuuid. The cron job failed at first: step 2's
+    `ls` line was pasted into its Command field. `ZpoolVdevStateStale`
+    caught it, and [#820](https://github.com/Gerrrt/HomeLab/pull/820)
+    puts each cron command in its own block.
+  - **The drill.** `ZVTBS4NL`'s data cable was pulled at 06:08 PDT. The pool
+    read DEGRADED with the leaf REMOVED. `ZpoolNotOnline` paged at 06:13,
+    and `ZpoolVdevNotOnline` stood down as designed. The cable was reseated and the leaf resilvered at 06:28:21: 392 KiB, the writes it had missed, in under a second with 0 errors. Both leaves are ONLINE with every counter at 0.
+  - **The finding.** On the chipset's ports, a pulled cable degrades the
+    pool, so it is the pool-level rule's fault. The faulted-under-ONLINE
+    reading of 2026-09-19 came through the MegaRAID, which is gone.
+    `ZpoolVdevNotOnline` stays armed for that reading.
+  - **The leaf rule, live.** A cable pull cannot show `ZpoolVdevNotOnline`
+    paging, so a synthetic textfile did: a pool `drill` reading ONLINE with
+    one FAULTED leaf, written at 06:43:38. It paged critical at 06:45 and
+    was removed at 06:46:08 (§6.8 step 5b). That was the done-when's other
+    half.
+
 - **`SmartDriveUnsafeShutdownsGrowing` pages on any tick again; a clean
   shutdown does not tick the S3520**
   ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). This corrects the
