@@ -473,6 +473,7 @@ groups:
           severity: critical
           category: capacity
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#gatewayfilesystemcritical"
           summary: "{{ $labels.hrStorageDescr }} on {{ $labels.device }} is {{ $value | humanizePercentage }} full"
           description: >-
             pfSense keeps routing with a full filesystem, but logging, the RRD

@@ -179,6 +179,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#unboundnotanswering"
               summary: "Unbound on morpheus is not answering DNS"
               description: >-
                 Asked at 10.0.99.1:53 for example.com for five minutes and got no
@@ -218,6 +219,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/forward-dns-to-adguard.md#reversing-it"
               summary: "adguard is not answering DNS \u2014 the house cannot resolve outside names"
               description: >-
                 Asked directly at 10.0.99.40:53 for five minutes and got no valid
@@ -253,6 +255,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#unboundnotanswering"
               summary: "Unbound on morpheus is not answering DNS"
               description: >-
                 Asked at 10.0.99.1:53 for example.com for five minutes and got no

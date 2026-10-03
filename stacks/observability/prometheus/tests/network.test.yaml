@@ -687,6 +687,7 @@ tests:
               severity: critical
               category: capacity
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#gatewayfilesystemcritical"
               summary: "/var on morpheus is 95% full"
               description: >-
                 pfSense keeps routing with a full filesystem, but logging, the RRD

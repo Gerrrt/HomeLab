@@ -140,6 +140,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#unboundnotanswering"
           summary: "Unbound on morpheus is not answering DNS"
           description: >-
             Asked at {{ $labels.instance }} for example.com for five minutes and
