@@ -31,6 +31,11 @@
     description: "Realistic Kerberos traffic (build-the-lab-domain.md section 6)."
     username: "{{ lab_netbios }}\\authgen"
     password: "{{ lab_authgen_password }}"
+    # false, or the task reports changed every run: the stored password cannot
+    # be read back to compare. It is set when the task is first created; a
+    # password rotation needs the task removed and re-added, which is rare and
+    # loud, not silent drift.
+    update_password: false
     logon_type: password
     run_level: limited
     actions:
