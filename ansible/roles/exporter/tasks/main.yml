@@ -7,21 +7,23 @@
     path: "{{ windows_exporter_textfile_dir }}"
     state: directory
 
-# roles/base makes C:\ProgramData\lab. In check mode it is not made, and the
-# download below would fail on a folder that does not exist yet, which on a
-# serial play stops every later guest too. So check mode reports the download
-# and install as a change and skips them, but only where the folder is missing.
-- name: See whether the pipeline's directory exists yet
-  ansible.windows.win_stat:
-    path: C:\ProgramData\lab
-  register: exporter_lab_dir
+# Whether the pinned release is installed is read from its MSI product code,
+# not inferred from a folder or a file. That lets a run where it is already
+# installed skip the download entirely, and lets check mode answer without the
+# MSI on disk (check mode downloads nothing, and C:\ProgramData\lab may not
+# exist yet either). A version bump changes the product code, so
+# windows_exporter_product_id moves with windows_exporter_version.
+- name: Read whether the pinned windows_exporter is installed
+  ansible.windows.win_reg_stat:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{{ windows_exporter_product_id }}
+  register: exporter_installed
   check_mode: false
 
 - name: Report the download and install as pending, in check mode
   ansible.builtin.debug:
     msg: "{{ inventory_hostname }} would download and install windows_exporter {{ windows_exporter_version }}"
   changed_when: true
-  when: ansible_check_mode and not exporter_lab_dir.stat.exists
+  when: ansible_check_mode and not exporter_installed.exists
 
 - name: Fetch the pinned MSI
   ansible.windows.win_get_url:
@@ -30,7 +32,9 @@
     checksum: "{{ windows_exporter_sha256 }}"
     checksum_algorithm: sha256
     force: false
-  when: exporter_lab_dir.stat.exists or not ansible_check_mode
+  when:
+    - not exporter_installed.exists
+    - not ansible_check_mode
 
 # REMOVE=FirewallException: the MSI's own rule admits any remote address. The
 # rule below admits one, and two rules on one port is a /24 sweep finding the
@@ -38,19 +42,25 @@
 - name: Install windows_exporter
   ansible.windows.win_package:
     path: "C:\\ProgramData\\lab\\{{ exporter_msi }}"
+    product_id: "{{ windows_exporter_product_id }}"
     arguments: >-
       ENABLED_COLLECTORS={{ windows_exporter_collectors }}
       LISTEN_PORT=9182
       TEXTFILE_DIRS="{{ windows_exporter_textfile_dir }}"
       REMOVE=FirewallException
     state: present
-  when: exporter_lab_dir.stat.exists or not ansible_check_mode
+  when:
+    - not exporter_installed.exists
+    - not ansible_check_mode
 
+# In check mode with nothing installed there is no service to start; the
+# pending install above already says so.
 - name: Keep the service running
   ansible.windows.win_service:
     name: windows_exporter
     start_mode: auto
     state: started
+  when: exporter_installed.exists or not ansible_check_mode
 
 # "That is the difference between an endpoint found by a /24 sweep and one you
 # have to go looking for" (§7). Domain profile only, which is why this role

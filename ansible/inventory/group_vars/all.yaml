@@ -36,6 +36,10 @@ lab_dsrm_password: "{{ lookup('ansible.builtin.env', 'LAB_DSRM_PASSWORD') }}"
 # stops the service binding 9182. Re-read the collector names when this moves.
 windows_exporter_version: "0.31.8"
 windows_exporter_sha256: 0aadce6afb20182b678bfca9e8f2e8464ef48c469b28b4cf02e99d82158f5d40
+# The MSI's ProductCode for this release, read from Win32_Product on all six
+# hand-built guests (2026-10-02). roles/exporter decides "installed" by it, so
+# it moves with the version: a bump that leaves it stale reinstalls nothing.
+windows_exporter_product_id: "{130B5CF0-5B4F-4E85-AE10-3B9CB3FAB69B}"
 windows_exporter_collectors: cpu,logical_disk,memory,net,os,service,system,time,textfile
 windows_exporter_textfile_dir: C:\ProgramData\windows_exporter\textfile
 # alexander, the lab Prometheus. The only source the 9182 rule admits.

@@ -27,12 +27,23 @@
       $Ansible.Changed = $true
       $Ansible.Diff = @{ before = "IPv4 DNS: $before`n"; after = "IPv4 DNS: $want`n" }
       if ($Ansible.CheckMode) { return }
+      # netsh's `register=` sets the adapter's dynamic-DNS registration as well,
+      # and omitting it means `primary`. Pass back what the adapter has now, so
+      # changing resolvers never changes registration.
+      $c = Get-DnsClient -InterfaceIndex $i
+      $register = if (-not $c.RegisterThisConnectionsAddress) { 'none' }
+        elseif ($c.UseSuffixWhenRegistering) { 'both' } else { 'primary' }
       netsh interface ipv4 set dnsservers name=$i source=static address=$($Servers[0]) `
-        register=primary validate=no | Out-Null
+        register=$register validate=no | Out-Null
       for ($n = 1; $n -lt $Servers.Count; $n++) {
         netsh interface ipv4 add dnsservers name=$i address=$($Servers[$n]) index=$($n + 1) validate=no | Out-Null
       }
       $after = @((Get-DnsClientServerAddress -InterfaceIndex $i -AddressFamily IPv4).ServerAddresses) -join ','
       if ($after -ne $want) { throw "IPv4 DNS reads '$after' after setting '$want'" }
+      $c2 = Get-DnsClient -InterfaceIndex $i
+      if ($c2.RegisterThisConnectionsAddress -ne $c.RegisterThisConnectionsAddress -or
+          $c2.UseSuffixWhenRegistering -ne $c.UseSuffixWhenRegistering) {
+        throw "DNS registration changed from '$register' while setting resolvers"
+      }
     parameters:
       Servers: "{{ dns_client_servers }}"

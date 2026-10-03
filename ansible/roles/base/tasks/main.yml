@@ -98,7 +98,7 @@
 # the one documented exception to ADR-0010. The DCs' own resolvers are set by
 # roles/dc_resolvers, after both exist.
 - name: Point members and endpoints at the two DCs
-  ansible.builtin.include_role:
+  ansible.builtin.import_role:
     name: dns_client
   vars:
     dns_client_servers: "{{ lab_dc_addresses }}"
