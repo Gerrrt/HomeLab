@@ -943,6 +943,29 @@ this closes on.
   attack surface here — no longer has a path to `POST`. It is not "the socket is
   now safe".
 
+  **The lab's three Docker guests got the same proxy in
+  [#836](https://github.com/Gerrrt/HomeLab/issues/836).** Until then,
+  `alexander`, `odin` and `fenrir` each handed Alloy the socket itself, and
+  this paragraph named only `oracle`, so it was wrong about three hosts. Two of
+  those guests hold keys: `alexander` the lab's only age key, and `odin` the
+  SOC's key and Velociraptor's CA. `check_compose_health.py` now fails on any
+  `docker.sock` mount in a compose file outside the proxy image, which is how
+  they would have been caught.
+
+  **The proxy was not the whole fix, and review of #836 said why.** Every
+  Alloy also mounts the host's `/` at `/rootfs:ro` for node metrics, and that
+  carries `/rootfs/run/docker.sock` with it. A read-only mount does not stop
+  `connect()` on a socket, and Alloy runs as uid 0, which owns it, so any
+  Alloy, the estate's behind #193's proxy included, could reach the full API
+  around the proxy with no capability at all. `/rootfs/run` is now an empty
+  tmpfs in all four. smaug's node-exporter gets the same mask at `/host/run`,
+  although as uid 65534 it could not open the socket anyway. The check now
+  fails three shapes:
+
+  - the socket itself, under either spelling, `/var/run` or `/run`;
+  - its directory;
+  - the host's `/` with no mask over `<target>/run`.
+
   **`oracle`'s agent has its own proxy too.** It was the last Alloy holding
   the socket. It is started by `deploy-agent.sh` as a `docker run`, not from a
   compose file, so no compose check could see it. The script now starts

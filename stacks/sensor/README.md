@@ -22,6 +22,7 @@ none and was brought up with plain `docker compose`.
 | --- | --- | --- | --- |
 | `zeek` | `zeek/zeek` | — (host network, capture only) | Protocol logs from the mirror on `ens19`: conn, dns, ssl, x509, smb, kerberos, ntlm, files and the rest, as JSON, rotated hourly |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | This guest's collector. It tails Zeek's current logs into the lab's Loki as `job="zeek"`, one stream per `log_type` |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 
 ## What it sees
 

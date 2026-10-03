@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **No Alloy on the lab segment holds the Docker socket any more**
+  ([#836](https://github.com/Gerrrt/HomeLab/issues/836)). Authored; it
+  lands on each guest at its next `make up`.
+  - **The gap.** `alexander`, `odin` and `fenrir` each mounted
+    `/var/run/docker.sock` into Alloy. `:ro` does not stop
+    `POST /containers/create`, so that was root on three VLAN 30 hosts, two
+    of them holding age keys. `docs/security.md` named only `oracle`.
+  - **The fix.** Each stack gets the estate's `docker-socket-proxy` (#193),
+    with the same digest and the same GET-only allowlist, and Alloy reads the
+    API through `DOCKER_API`.
+  - **The guard.** `check_compose_health.py` fails on any `docker.sock`
+    mount outside the proxy image, with ten fixtures.
+  - **What review found.** Each Alloy's `/:/rootfs:ro` carried
+    `/rootfs/run/docker.sock` past the proxy, because `:ro` does not stop
+    `connect()`. That was true of the estate's Alloy since #193. `/rootfs/run`
+    is masked in all four now, as is smaug's `/host/run`. The guard also
+    covers the `/run/docker.sock` spelling, a mount of `/run` itself, and an
+    unmasked `/`.
+  - **Still open.** `oracle`'s agent is a single `docker run` from
+    `deploy-agent.sh`, not a compose service, so the guard cannot see it.
+
 - **A container that stops and stays stopped now raises an alert**
   ([#838](https://github.com/Gerrrt/HomeLab/issues/838)).
   - **The gap.** The container rules covered restart loops, OOMs, memory and
