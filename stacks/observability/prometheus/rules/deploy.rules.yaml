@@ -141,6 +141,38 @@ groups:
             come through a pull request. `git log --show-signature -1` in the
             deployment checkout distinguishes them. docs/runbooks/converge-the-host.md.
 
+      - alert: DeployTipRed
+        # main's tip did not pass CI, and convergence is refusing to deploy it
+        # (#833).
+        #
+        # The ruleset now requires the checks before a merge, so this firing
+        # means one of three things, all worth a human: the ruleset was loosened
+        # (scripts/check-ruleset.sh will say so), a check that passed on the pull
+        # request failed on main's own push run, or the merge was made with an
+        # admin bypass.
+        #
+        # == 0 and not != 1 on purpose. -1 is "not asked" (nothing to deploy) or
+        # "not finished", and neither is a red tip; a CI run still going is
+        # DeployBehind's to report if it never ends. The silent -1 case in the
+        # test pins this.
+        #
+        # 1h, so the verdict has been read on two hourly runs rather than one.
+        expr: homelab_deploy_tip_ci == 0
+        for: 1h
+        labels:
+          component: deploy
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "main's tip did not pass CI, and is not being deployed"
+          description: >-
+            Convergence on {{ $labels.instance }} fetched a tip whose required
+            checks did not pass, and is staying on what it runs. The failing
+            check is in `journalctl -u 'homelab-converge*' -n 50` and on the
+            commit's checks in GitHub. Fix main with a new pull request; deploy
+            the red tip only deliberately, with `scripts/converge.sh --allow-red`.
+            docs/runbooks/converge-the-host.md.
+
       - alert: DeployUnapplied
         # The checkout's HEAD is not the revision `make up` last applied, so the
         # running stack is something other than what HEAD says.
