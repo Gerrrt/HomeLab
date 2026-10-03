@@ -445,3 +445,33 @@ groups:
             failed, or no enabled Dynamic DNS entry exists. This says nothing
             about whether the record is right; it says nothing is watching it.
             Run `make gateway-state` and read its last line.
+
+      # morpheus's filesystems, over SNMP (#841). The firewall runs no
+      # node_exporter, so HostDiskCritical never saw it, and a full /var
+      # (logs, RRD, blocklists, Suricata's data) is a common way for pfSense
+      # to stop working properly while still passing traffic.
+      #
+      # hrStorageDescr is the mount point for a filesystem and a name such as
+      # "Real Memory Metrics" for a memory pool, so `=~"/.*"` is filesystems
+      # only. Memory is collected and deliberately not alerted on: ZFS's ARC
+      # holds memory by design, and "used" says nothing about pressure there.
+      # `> 0` on the size drops the zero-size pseudo-filesystems (devfs).
+      #
+      # Same threshold, `for` and severity as HostDiskCritical.
+      - alert: GatewayFilesystemCritical
+        expr: |
+          hrStorageUsed{role="firewall", hrStorageDescr=~"/.*"}
+          / (hrStorageSize{role="firewall", hrStorageDescr=~"/.*"} > 0)
+          > 0.90
+        for: 15m
+        labels:
+          component: network
+          severity: critical
+          category: capacity
+        annotations:
+          summary: "{{ $labels.hrStorageDescr }} on {{ $labels.device }} is {{ $value | humanizePercentage }} full"
+          description: >-
+            pfSense keeps routing with a full filesystem, but logging, the RRD
+            graphs, blocklist updates and Suricata stop writing. Diagnostics >
+            Command Prompt, `du -sh /var/log/* /var/db/* | sort -h | tail`, finds
+            the culprit. Status > System Logs > Settings sets log rotation.

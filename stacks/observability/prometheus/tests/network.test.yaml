@@ -642,3 +642,51 @@ tests:
       - eval_time: 7h
         alertname: DdnsRecordUnchecked
         exp_alerts: []
+
+
+  # --- GatewayFilesystemCritical (#841) ---------------------------------------
+  #
+  # /var at 95% fires after its `for`; / at 40% does not; a memory pool at 99%
+  # does not (not a filesystem, and ZFS's ARC holds memory by design); devfs,
+  # size 0, does not divide by zero into an alert.
+  - interval: 1m
+    input_series:
+      - series: 'hrStorageUsed{device="morpheus",role="firewall",hrStorageIndex="31",hrStorageDescr="/var"}'
+        values: "95x30"
+      - series: 'hrStorageSize{device="morpheus",role="firewall",hrStorageIndex="31",hrStorageDescr="/var"}'
+        values: "100x30"
+      - series: 'hrStorageUsed{device="morpheus",role="firewall",hrStorageIndex="30",hrStorageDescr="/"}'
+        values: "40x30"
+      - series: 'hrStorageSize{device="morpheus",role="firewall",hrStorageIndex="30",hrStorageDescr="/"}'
+        values: "100x30"
+      - series: 'hrStorageUsed{device="morpheus",role="firewall",hrStorageIndex="1",hrStorageDescr="Real Memory"}'
+        values: "99x30"
+      - series: 'hrStorageSize{device="morpheus",role="firewall",hrStorageIndex="1",hrStorageDescr="Real Memory"}'
+        values: "100x30"
+      - series: 'hrStorageUsed{device="morpheus",role="firewall",hrStorageIndex="32",hrStorageDescr="/dev"}'
+        values: "1x30"
+      - series: 'hrStorageSize{device="morpheus",role="firewall",hrStorageIndex="32",hrStorageDescr="/dev"}'
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GatewayFilesystemCritical
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: GatewayFilesystemCritical
+        exp_alerts:
+          - exp_labels:
+              alertname: GatewayFilesystemCritical
+              device: morpheus
+              role: firewall
+              hrStorageIndex: 31
+              hrStorageDescr: /var
+              component: network
+              severity: critical
+              category: capacity
+            exp_annotations:
+              summary: "/var on morpheus is 95% full"
+              description: >-
+                pfSense keeps routing with a full filesystem, but logging, the RRD
+                graphs, blocklist updates and Suricata stop writing. Diagnostics >
+                Command Prompt, `du -sh /var/log/* /var/db/* | sort -h | tail`, finds
+                the culprit. Status > System Logs > Settings sets log rotation.

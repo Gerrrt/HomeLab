@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **morpheus's resolver and its disks are watched**
+  ([#841](https://github.com/Gerrrt/HomeLab/issues/841)).
+  - **Unbound.** The house resolves through Unbound on morpheus, and the only
+    check on it was a TCP connect, which passes while every query gets
+    SERVFAIL. It is now asked for example.com, the same question AdGuard is
+    asked. `UnboundNotAnswering` fires only while AdGuard answers, because a
+    dead AdGuard breaks Unbound too and already pages.
+    `AdGuardNotAnswering` now selects `name="adguard"`, so it cannot fire for
+    an Unbound fault.
+  - **Filesystems.** HOST-RESOURCES-MIB `hrStorageTable` is added to the
+    `pfsense` SNMP module, and `GatewayFilesystemCritical` mirrors
+    `HostDiskCritical` for the firewall that runs no node_exporter. Memory is
+    collected but not alerted on, because ZFS's ARC holds memory by design.
+    `snmp.yaml` was written to the generator's format without the generator
+    (no Docker where it was authored). Regenerate it, and measure the walk with
+    `scripts/snmp-walk.sh`, before relying on it.
+
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`
