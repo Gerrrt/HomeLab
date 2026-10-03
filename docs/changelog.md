@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **The ruleset no longer requires a branch to be up to date before it
+  merges, or its commits to be signed.** `strict_required_status_checks_policy` is false in
+  `.github/rulesets/main.json` and on GitHub.
+  - **What happened.** The five required checks still have to pass; only the
+    "rebase onto main first" requirement is gone. With it on, every merge
+    sent every other open PR back to `BEHIND`, and eleven review PRs touching
+    the same rule files could only merge one at a time, each after another
+    round of CI.
+  - **What a merge queue would have done, and why there is none.** It keeps
+    the guarantee and drops the chore, but GitHub offers it only on
+    repositories owned by an organization, and this one is owned by a user.
+  - **What still covers the gap.** Two PRs that pass alone could break
+    together. `main`'s own CI runs after every merge, and `converge.sh` will
+    not deploy a tip whose checks are not green (#833).
+  - **`required_signatures` is gone too.** This corrects the #833 entry
+    below, which says the ruleset requires signed commits. The rule held
+    every PR whose branch commits were unsigned, and that was all of them,
+    while protecting nothing: merges are squash-only, so every commit that
+    lands on `main` is GitHub's own squash, signed with its web-flow key, and
+    `converge.sh` checks that signature before deploying.
+
 - **The lab's Prometheus and Loki stop taking orders from VLAN 30**
   ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Authored, not yet
   deployed. The rollout is ordered, clients first, in `stacks/lab/README.md`.
