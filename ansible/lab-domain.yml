@@ -55,6 +55,35 @@
     - role: member
       tags: [join]
 
+- name: The tiers ADR-0029 names, and where the members sit in them
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: tiers
+      tags: [tiers]
+
+- name: The Tier 0 logon denial and the file-share audit
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: gpos
+      tags: [gpos]
+
+- name: Titan's shares, with the decoy
+  hosts: titan
+  gather_facts: false
+  roles:
+    - role: shares
+      tags: [shares]
+
+- name: The SOC agents, installed not deployed by GPO
+  hosts: lab_domain
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: soc_agents
+      tags: [soc]
+
 - name: The exporter, scraped by alexander
   hosts: lab_domain
   serial: 1

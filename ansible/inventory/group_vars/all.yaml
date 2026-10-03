@@ -56,3 +56,14 @@ windows_exporter_collectors: cpu,logical_disk,memory,net,os,service,system,time,
 windows_exporter_textfile_dir: C:\ProgramData\windows_exporter\textfile
 # alexander, the lab Prometheus. The only source the 9182 rule admits.
 windows_exporter_scraper: 10.0.30.40
+
+# --- The skeleton #414 built by hand (runbook §5), reproduced so the #448 ------
+# rebuild loses nothing. The population and the switchable weaknesses on top of
+# it are #449's (roles/population); these are the tiers, shares and SOC agents.
+lab_tier_ous: [Tier0, Tier1, Tier2, Servers, Workstations]
+# A distinct password for the three tier admin accounts, set only when they are
+# made on a fresh rebuild (roles/tiers use on_create), never the domain admin's.
+lab_tier_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_TIER_ADMIN_PASSWORD') }}"
+# The Wazuh enrolment password, from phoenix.env rather than readable in SYSVOL
+# as the deploy GPO left it (build-the-soc-guest.md §11, now roles/soc_agents).
+lab_wazuh_registration_password: "{{ lookup('ansible.builtin.env', 'LAB_WAZUH_REGISTRATION_PASSWORD') }}"

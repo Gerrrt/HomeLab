@@ -108,6 +108,7 @@ tests:
               severity: critical
               category: correctness
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#reading-the-failure"
               summary: "Alertmanager cannot deliver via webhook: rateLimited"
               description: >-
                 Alerts are firing but not reaching anyone — this makes every other
