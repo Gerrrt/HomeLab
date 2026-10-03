@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **oracle's Alloy, the last one holding the Docker socket, gives it up.**
+  Authored;
+  it lands at the next `deploy-agent.sh` run against oracle.
+  - **The gap.** #193 and #836 took the socket off every Alloy run from a
+    compose file. oracle's is a `docker run` in `deploy-agent.sh`, so the
+    compose check never saw it, and it kept the socket mounted.
+  - **The fix.** The script's Docker runtime now starts
+    `alloy-socket-proxy` beside Alloy on a private `alloy` network, with the
+    estate's image and GET-only allowlist. Alloy reads the API through
+    `DOCKER_API`, and its `/rootfs/run` is masked, so `/:/rootfs:ro` no longer
+    carries the socket past the proxy (the same review finding as #836).
+  - **The guard.** `check_image_pins.py` refuses any `docker run` other than
+    the proxy's, traced by image, that reaches the socket. That means the
+    socket under either spelling, its directory, or an unmasked host `/`.
+    Nine fixtures. Its first run found this one site and nothing else.
+
 - **Every critical alert links to a runbook, and CI keeps it that way**
   ([#842](https://github.com/Gerrrt/HomeLab/issues/842)).
   - **The gap.** No rule had a `runbook_url`, and there was no runbook for a

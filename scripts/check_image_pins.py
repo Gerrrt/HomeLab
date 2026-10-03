@@ -62,6 +62,16 @@ is the one place "same file" is doing real work. A heredoc body is parsed as
 shell and would be flagged; a quoted string is a single token and would not.
 podman and nerdctl are out of scope.
 
+The socket rule
+---------------
+A `docker run` that binds /var/run/docker.sock must run the socket proxy: an
+image traced to `image-for.sh docker-socket-proxy`, through a variable. `:ro`
+on the socket does not stop POST /containers/create, so anything else holding
+it is root on the host. check_compose_health.py asks the same question of the
+compose files; this asks it of the shell, where deploy-agent.sh started
+oracle's Alloy with the socket for months after #193 and #836 had taken it off
+every compose-managed collector, because nothing that read shell looked.
+
 There is deliberately no ignore mechanism. If a case needs one, the rule is
 wrong — see the .gitleaksignore argument in the docstring of check_docs.py.
 
@@ -419,8 +429,84 @@ def traced_names(lines: list[Line]) -> set[str]:
     return traced
 
 
+DOCKER_SOCKETS = ("/var/run/docker.sock", "/run/docker.sock")
+SOCKET_DIRS = ("/run", "/var/run")
+PROXY_SERVICE = "docker-socket-proxy"
+
+
+# `docker run` flags that take no value, so the image operand can be found for
+# the socket rule (#868 review). Incomplete on purpose and safe that way: an
+# unlisted boolean flag makes the image read as that flag's value, the next
+# positional is taken as the image instead, the exemption misses, and the run is
+# FLAGGED. A wrong guess here can only refuse a run, never wave one through.
+RUN_BOOLEAN_FLAGS = {
+    "-d", "--detach", "--rm", "-i", "--interactive", "-t", "--tty", "-it",
+    "--init", "--privileged", "--read-only", "-P", "--publish-all",
+    "--no-healthcheck", "--oom-kill-disable", "--sig-proxy",
+}
+
+
+def image_operand(args: list[str]) -> str | None:
+    """The image a `docker run` executes: its first positional argument."""
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            return args[i + 1] if i + 1 < len(args) else None
+        if a.startswith("-"):
+            i += 1 if ("=" in a or a in RUN_BOOLEAN_FLAGS) else 2
+            continue
+        return a
+    return None
+
+
+def socket_reach(args: list[str]) -> str | None:
+    """How a docker run's mounts reach the socket, or None.
+
+    The same three shapes check_compose_health.py refuses (#836 review): the
+    socket under either spelling, its directory, or the host's / without a
+    --tmpfs over <target>/run. A read-only mount does not stop connect().
+    """
+    tmpfs = set()
+    for i, a in enumerate(args):
+        if a == "--tmpfs" and i + 1 < len(args):
+            tmpfs.add(args[i + 1].split(":")[0].rstrip("/"))
+        elif a.startswith("--tmpfs="):
+            tmpfs.add(a.split("=", 1)[1].split(":")[0].rstrip("/"))
+    for i, a in enumerate(args):
+        spec = None
+        if a in ("-v", "--volume") and i + 1 < len(args):
+            spec = args[i + 1].split(":")
+        elif a.startswith("--volume="):
+            spec = a.split("=", 1)[1].split(":")
+        elif a.startswith("type=bind") or "source=" in a and "target=" in a:
+            kv = dict(p.split("=", 1) for p in a.split(",") if "=" in p)
+            spec = [kv.get("source", kv.get("src", "")), kv.get("target", kv.get("dst", ""))]
+        if not spec:
+            continue
+        source = spec[0].rstrip("/") or "/"
+        target = (spec[1] if len(spec) > 1 else spec[0]).rstrip("/")
+        if source in DOCKER_SOCKETS or source in SOCKET_DIRS:
+            return f"binds {source}, which is or holds the Docker socket"
+        if source == "/" and f"{target}/run" not in tmpfs:
+            return (f"binds the host's / at {target} without --tmpfs {target}/run, "
+                    f"so the Docker socket is at {target}/run/docker.sock")
+    return None
+
+
+def proxy_names(lines: list[Line]) -> set[str]:
+    """Names assigned from `image-for.sh docker-socket-proxy`."""
+    names: set[str] = set()
+    for line in lines:
+        for statement in statements(line.text):
+            if RESOLVER in statement and PROXY_SERVICE in statement:
+                names.update(m.group(1) for m in ASSIGN.finditer(statement))
+    return names
+
+
 def check_file(rel: str, lines: list[Line]) -> tuple[list[str], int]:
     traced = traced_names(lines)
+    proxies = proxy_names(lines)
     problems, seen = [], 0
     for line in lines:
         pending = [line.text]
@@ -432,6 +518,20 @@ def check_file(rel: str, lines: list[Line]) -> tuple[list[str], int]:
                 if args is None:
                     continue
                 seen += 1
+                reach = socket_reach(args)
+                # The exemption is for the IMAGE being the proxy, not for the
+                # proxy's variable appearing somewhere: `-e "$PROXY_IMAGE"`
+                # beside a socket mount is a decoy, not a proxy (#868 review).
+                image = image_operand(args) or ""
+                if reach and not (VAR.match(image) and VAR.match(image).group(1) in proxies):
+                    where = f"{rel}:{line.lineno}"
+                    problems.append(
+                        f"{where}: this docker command {reach}, and is not the "
+                        f"socket proxy. `:ro` does not stop connect() or POST "
+                        f"/containers/create, so this is root on the host. Use "
+                        f"the image from `image-for.sh {PROXY_SERVICE}` for the "
+                        f"socket, and mask /run in a rootfs mount (#193, #836)"
+                    )
                 if any(
                     a == RESOLVED or (VAR.match(a) and VAR.match(a).group(1) in traced)
                     for a in args
@@ -614,8 +714,8 @@ def main() -> int:
     if problems:
         print(
             f"\n{len(problems)} image pin problem(s): a docker command running an "
-            f"image from outside compose.yaml, or a compose image without a "
-            f"digest or on a single-architecture tag",
+            f"image from outside compose.yaml or holding the Docker socket, or "
+            f"a compose image without a digest or on a single-architecture tag",
             file=sys.stderr,
         )
         return 1
@@ -630,5 +730,56 @@ def main() -> int:
     return 0
 
 
+def self_test() -> int:
+    """The socket rule against fixture shell; the image rule is CI's own run."""
+    def problems(*text: str) -> int:
+        lines = [Line(i + 1, t, "") for i, t in enumerate(text)]
+        return sum("socket proxy" in p for p in check_file("fixture", lines)[0])
+
+    img = 'IMAGE="$(./scripts/image-for.sh alloy)"'
+    proxy = 'PROXY_IMAGE="$(./scripts/image-for.sh docker-socket-proxy)"'
+    cases = [
+        ("a collector holding the socket fails, even :ro", 1,
+         (img, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$IMAGE"')),
+        ("the --mount form fails the same way", 1,
+         (img, 'docker run -d --mount type=bind,source=/var/run/docker.sock,target=/s "$IMAGE"')),
+        ("the proxy, traced by service, may hold it", 0,
+         (proxy, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"')),
+        ("any other traced image may not, whatever its variable is called", 1,
+         ('PROXY_IMAGE="$(./scripts/image-for.sh alloy)"',
+          'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"')),
+        ("a run without the socket is not this rule's business", 0,
+         (img, 'docker run -d -v /var/log:/var/log:ro "$IMAGE"')),
+        ("/run/docker.sock is the same socket", 1,
+         (img, 'docker run -d -v /run/docker.sock:/var/run/docker.sock "$IMAGE"')),
+        ("the host's / without /run masked reaches the socket", 1,
+         (img, 'docker run -d -v /:/rootfs:ro "$IMAGE"')),
+        ("the host's / with --tmpfs <target>/run is fine", 0,
+         (img, 'docker run -d -v /:/rootfs:ro --tmpfs /rootfs/run:size=64k "$IMAGE"')),
+        ("the proxy's variable as a decoy -e value does not exempt a socket mount", 1,
+         (img, proxy, 'docker run -d -e "$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"')),
+        ("nor as a --label value", 1,
+         (img, proxy, 'docker run -d --label "$PROXY_IMAGE" -v /var/run/docker.sock:/s "$IMAGE"')),
+        ("nor inside an -e assignment", 1,
+         (img, proxy, 'docker run -e DECOY="$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"')),
+        ("the real proxy run, flag for flag as deploy-agent.sh writes it, passes", 0,
+         (proxy, 'docker run -d --name alloy-socket-proxy --network alloy --restart unless-stopped '
+                 '--cap-drop ALL --security-opt no-new-privileges:true --memory 64m --memory-swap 64m '
+                 '--log-driver json-file --log-opt max-size=10m -e CONTAINERS=1 -e POST=0 '
+                 '-v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"')),
+        ("a mask at the wrong path does not count", 1,
+         (img, 'docker run -d -v /:/rootfs:ro --tmpfs /run "$IMAGE"')),
+    ]
+    failed = 0
+    for name, want, text in cases:
+        got = problems(*text)
+        ok = got == want
+        failed += not ok
+        print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got}, expected {want})"))
+    return 1 if failed else 0
+
+
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(self_test())
     sys.exit(main())
