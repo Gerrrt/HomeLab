@@ -71,9 +71,9 @@ run copies it to `oracle` under `backups/volumes/sensitive` — a directory of
 its own, so the estate's prune and the tier's cannot see each other's sets
 ([#535](https://github.com/Gerrrt/HomeLab/issues/535); the key exchange and
 the seed are in [`restore-the-stack.md`](restore-the-stack.md) §0). The archives are
-encrypted to every recipient of `secrets/sensitive.sops.yaml` — `trinity`'s key,
-and the technical second's once it joins that rule — and the manifest records
-which. The stack is stopped for the length of the copy, which is seconds here:
+encrypted to every recipient of `secrets/sensitive.sops.yaml` — `trinity`'s key
+and, since [#835](https://github.com/Gerrrt/HomeLab/issues/835), the technical
+second's — and the manifest records which. The stack is stopped for the length of the copy, which is seconds here:
 a copy of an open SQLite database is a file that looks like a backup.
 
 **A timer takes a set every night at 04:30.** This is
@@ -89,10 +89,12 @@ requires. That copy is step 10, and it is one reason the vault holds nothing
 real yet.
 
 **The key that opens it is not the only one.** A set encrypted to `trinity`'s
-key alone dies with `trinity`'s disk. [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
-second recipient has to be on the `sensitive` rule before the first real item
-goes in — `make secrets-add-recipient PUBKEY=age1... STACK=sensitive` — and the
-backup encrypts to it from the next run.
+key alone dies with `trinity`'s disk, so [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
+second recipient is on the `sensitive` rule
+([#835](https://github.com/Gerrrt/HomeLab/issues/835)), and the backup encrypts
+to it from the first run after that change converged. Sets older than that
+still open with `trinity`'s key alone; read a set's manifest for its
+recipients before relying on the second key to restore it.
 
 And it has been dry-run restored at least once:
 

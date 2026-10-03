@@ -253,14 +253,18 @@ because a wildcard bind covers loopback.
 
 ## Reference diagrams
 
-The Mermaid diagrams above are the maintained ones — they render on GitHub, diff
-as text, and cannot drift out of sync with the repo without a visible change.
+The Mermaid diagrams above render inline, diff as text, and cannot drift out
+of sync with the repo without a visible change. The SVG below is the detailed
+drawing, and it is text too.
 
-- [Current topology export](diagrams/current/matrix_elysium.png) — detailed
-  physical drawing, 9871×4466. Its editable `.drawio` source was lost in an
-  earlier commit, which is a large part of why the diagrams above are Mermaid.
-  **It predates the rack colour scheme and cannot be recoloured** — with no
-  source file there is nothing to edit. Treat the Mermaid diagrams and
-  [`network.md`](network.md) as authoritative for colour; this one is
-  authoritative only for physical layout.
-- [Previous topology](diagrams/previous/Network_Diagram.png)
+- [Current network diagram](diagrams/current/network.svg) — the physical and
+  logical drawing: rack, firewall, switch, and every addressed host by
+  segment, in the rack colours. It is hand-written SVG, so it diffs as text
+  and is edited in the same pull request as the `network.md` row it restates
+  ([`diagrams/README.md`](diagrams/README.md)). Where the two disagree,
+  [`network.md`](network.md) is right.
+- [Previous topology export](diagrams/previous/matrix_elysium.png), 2025 —
+  its editable source was lost, so it could never be corrected, and it
+  predates the rack colour scheme, the household tier, the NAS and the lab
+  guests. Kept for comparison.
+- [Older topology](diagrams/previous/Network_Diagram.png)

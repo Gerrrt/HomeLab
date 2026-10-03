@@ -1,5 +1,24 @@
 # Sensitive stack
 
+[![host: trinity](https://img.shields.io/badge/host-trinity-30363d?style=plastic)](../../docs/network.md#winterfell--vlan-99--management)
+[![VLAN 99: Winterfell](https://img.shields.io/badge/VLAN%2099-Winterfell-f85149?style=plastic)](../../docs/network.md#winterfell--vlan-99--management)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
+[![Caddy](https://img.shields.io/badge/Caddy-1F88C0?style=plastic&logo=caddy&logoColor=white)](https://caddyserver.com)
+[![step-ca](https://img.shields.io/badge/step--ca-2b3a8c?style=plastic)](https://smallstep.com/docs/step-ca/)
+[![AdGuard Home](https://img.shields.io/badge/AdGuard%20Home-68BC71?style=plastic&logo=adguard&logoColor=white)](https://adguard.com/adguard-home/overview.html)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-18BCF2?style=plastic&logo=homeassistant&logoColor=white)](https://www.home-assistant.io)
+[![Immich](https://img.shields.io/badge/Immich-4250AF?style=plastic&logo=immich&logoColor=white)](https://immich.app)
+[![Paperless-ngx](https://img.shields.io/badge/Paperless--ngx-17541F?style=plastic&logo=paperlessngx&logoColor=white)](https://docs.paperless-ngx.com)
+[![Vaultwarden](https://img.shields.io/badge/Vaultwarden-175DDC?style=plastic&logo=vaultwarden&logoColor=white)](https://github.com/dani-garcia/vaultwarden)
+[![ntfy](https://img.shields.io/badge/ntfy-317f6f?style=plastic&logo=ntfy&logoColor=white)](https://ntfy.sh)
+[![Homepage](https://img.shields.io/badge/Homepage-4b5563?style=plastic&logo=homepage&logoColor=white)](https://gethomepage.dev)
+[![Miniflux](https://img.shields.io/badge/Miniflux-33658a?style=plastic)](https://miniflux.app)
+[![Memos](https://img.shields.io/badge/Memos-4b5563?style=plastic)](https://usememos.com)
+[![Mealie](https://img.shields.io/badge/Mealie-E58325?style=plastic&logo=mealie&logoColor=white)](https://mealie.io)
+[![linkding](https://img.shields.io/badge/linkding-5856e0?style=plastic)](https://github.com/sissbruecker/linkding)
+[![Actual](https://img.shields.io/badge/Actual-6B46C1?style=plastic&logo=actualbudget&logoColor=white)](https://actualbudget.org)
+[![Stirling-PDF](https://img.shields.io/badge/Stirling--PDF-b91c1c?style=plastic)](https://github.com/Stirling-Tools/Stirling-PDF)
+
 ADR-0008's sensitive tier — the household's password manager, photos, documents
 and home automation — on `trinity` (`10.0.99.40`, Winterfell / VLAN 99), the
 ProDesk 600 G4 that [ADR-0034] made the tier's host after the firewall restore
@@ -87,7 +106,8 @@ is here:
 ## Layout
 
 ```text
-compose.yaml               twenty services, one network, health-gated ordering
+compose.yaml               twenty-one services, one network, health-gated ordering;
+                           Immich's machine learning sits behind the `ml` profile
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -97,6 +117,11 @@ adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists includ
 homepage/                  settings, services, widgets and bookmarks YAML and
                            custom.css — its whole configuration, mounted read-only
 ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
+ntfy/templates/            message templates, mounted read-only
+stirling-pdf/smoke.sh      proves the PDF engine works, not just its status endpoint;
+                           run by check_hardened_boot.sh (#143)
+household.recipients       the age public keys that can open the household's copies
+household-age.sha256       checksums of the age release the household copy is opened with
 consume/                   untracked: drop a scan here and Paperless-ngx imports
                            and deletes it. Created by render-config.sh
 export/                    untracked: where document_exporter writes. Likewise

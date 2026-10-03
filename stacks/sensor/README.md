@@ -1,9 +1,17 @@
 # Sensor stack
 
+[![host: fenrir](https://img.shields.io/badge/host-fenrir-30363d?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
+[![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
+[![Zeek](https://img.shields.io/badge/Zeek-0a4d84?style=plastic)](https://zeek.org)
+[![Alloy](https://img.shields.io/badge/Alloy-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/alloy-opentelemetry-collector/)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
 Zeek on a mirror of `Saruman`'s lab bridge, and the Alloy that carries its logs
 to the lab's Loki. It runs on `fenrir` (`10.0.30.90`, ImaginationLAN / VLAN 30),
-a guest on `Saruman`. **The guest is not built yet.** The build is
-[`build-the-sensor-guest.md`], and this directory is the stack it deploys.
+a guest on `Saruman`. **Built 2026-09-30** by
+[`build-the-sensor-guest.md`], and proved by rebooting `Saruman` with the
+mirror's timer disabled; this directory is the stack it deploys.
 [ADR-0068] is the decision: why the mirror is `tc` and not Open vSwitch, why a
 guest of its own, and what the hypervisor's gauge does and does not prove.
 

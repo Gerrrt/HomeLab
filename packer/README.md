@@ -1,15 +1,20 @@
 # packer
 
+[![host: phoenix](https://img.shields.io/badge/host-phoenix-30363d?style=plastic)](../docs/network.md#imaginationlan--vlan-30--lab)
+[![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../docs/network.md#imaginationlan--vlan-30--lab)
+[![Packer](https://img.shields.io/badge/Packer-02A8EF?style=plastic&logo=packer&logoColor=white)](https://developer.hashicorp.com/packer)
+[![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-E57000?style=plastic&logo=proxmox&logoColor=white)](https://www.proxmox.com/en/proxmox-virtual-environment)
+
 The lab's VM templates, built from `phoenix` through `Saruman`'s API
 ([ADR-0074]). How to run them is [`build-the-lab-templates.md`][runbook]; this
 page is the map.
 
 | VMID | Template | Source | Installer driven by | Node, and status |
 | --- | --- | --- | --- | --- |
-| 901 | `tpl-ubuntu-2604` | `ubuntu.pkr.hcl` | autoinstall, `cidata` disc | `Saruman`, first build pending |
+| 901 | `tpl-ubuntu-2604` | `ubuntu.pkr.hcl` | autoinstall, `cidata` disc | `Saruman`, built and usable |
 | 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | `ifrit`, waits for the host ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
 | 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, first build pending |
-| 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, first build pending |
+| 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built; needs a rebuild to carry the `SetupComplete.cmd` fix |
 
 ```bash
 set -a; . ~/.config/proxmox/phoenix.env; set +a

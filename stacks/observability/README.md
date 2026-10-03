@@ -1,5 +1,18 @@
 # Observability stack
 
+[![host: prometheus](https://img.shields.io/badge/host-prometheus-30363d?style=plastic)](../../docs/network.md#winterfell--vlan-99--management)
+[![VLAN 99: Winterfell](https://img.shields.io/badge/VLAN%2099-Winterfell-f85149?style=plastic)](../../docs/network.md#winterfell--vlan-99--management)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
+[![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io)
+[![Alertmanager](https://img.shields.io/badge/Alertmanager-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io/docs/alerting/latest/alertmanager/)
+[![Loki](https://img.shields.io/badge/Loki-F5A800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/loki/)
+[![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
+[![Alloy](https://img.shields.io/badge/Alloy-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/alloy-opentelemetry-collector/)
+[![snmp_exporter](https://img.shields.io/badge/snmp__exporter-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://github.com/prometheus/snmp_exporter)
+[![blackbox_exporter](https://img.shields.io/badge/blackbox__exporter-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://github.com/prometheus/blackbox_exporter)
+[![Caddy](https://img.shields.io/badge/Caddy-1F88C0?style=plastic&logo=caddy&logoColor=white)](https://caddyserver.com)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
 Runs on `prometheus` (10.0.99.20), VLAN 99.
 
 ```bash
@@ -14,7 +27,9 @@ make up        # from the repository root
 | `caddy` | `caddy` | 9090, 3100 (`INGEST_BIND_ADDR`) | The ingest proxy: a bearer token per agent to push, a reader token to query, the admin and delete APIs to nobody (#182) |
 | `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards — the only published UI, and the only service that terminates TLS |
 | `snmp-exporter` | `prom/snmp-exporter` | *internal* | SNMP polling proxy |
+| `blackbox-exporter` | `prom/blackbox-exporter` | *internal* | Probes from outside a service: is it reachable, and what did the resolver answer |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, an allowlist of endpoints ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 
 "(localhost)" means bound to `127.0.0.1`: reachable from the monitoring host
 itself and over the compose network, and from no VLAN at all. A port is
@@ -35,20 +50,24 @@ Caddyfile                  the ingest proxy's policy: which token may reach whic
 prometheus/
   prometheus.yaml          scrape config; SNMP via file_sd
   targets/snmp.yaml        SNMP targets — hot-reloaded, no restart needed
-  targets/blackbox*.yaml   probe targets, http and dns — hot-reloaded, no restart
-  rules/*.rules.yaml       137 alert rules across host/network/ups/containers/blackbox/dns/backup/ids/deploy
+  targets/node.yaml        node_exporter scrapes, for the host that runs no Alloy (smaug)
+  targets/blackbox*.yaml   probe targets, http, dns and latency — hot-reloaded, no restart
+  rules/*.rules.yaml       137 alert rules: host, network, ups, containers, blackbox,
+                           dns, backup, ids, deploy, stack and watchdog
   tests/*.test.yaml        promtool unit tests — assert the rules can fire
 blackbox/blackbox.yaml     probe modules — reachability, and what a resolver said
 alertmanager/
   alertmanager.yaml        severity + category routing, inhibition
-loki/loki-config.yaml      single-binary, filesystem, 30-day retention
+loki/
+  loki-config.yaml         single-binary, filesystem, 30-day retention
+  rules/*.rules.yaml       19 LogQL rules, security and watchdog, evaluated by Loki's ruler
 alloy/                     the agent config — Alloy loads the directory
   config.alloy             every monitored host
   docker.alloy             hosts with a Docker socket
   syslog.alloy             this host only: the listener morpheus sends to
 snmp-exporter/
   generator.yaml           source of truth — edit this
-  snmp.yaml                generated, 14k lines, ${PLACEHOLDER} communities
+  snmp.yaml                generated, never hand-edited; ${PLACEHOLDER} communities
 grafana/
   provisioning/            datasources + dashboard provider
   dashboards/*.json        7 dashboards, 144 panels

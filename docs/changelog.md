@@ -47,6 +47,26 @@ docstring gives: it is a record, not a claim about now.
     failed "cannot connect". The service was disabled afterwards, but the
     configuration stayed. The script now runs `net start WinRM` first. 912
     needs a rebuild to carry it.
+- **The sensitive tier's secrets open with two keys, its backups will, and CI
+  refuses one** ([#835](https://github.com/Gerrrt/HomeLab/issues/835)).
+  - **The gap.** `secrets/sensitive.sops.yaml` was created on 2026-09-28
+    with trinity's key alone. #294, which added the technical second, had
+    closed before this rule existed. The tier's volume backups were encrypted
+    to the same single key, Vaultwarden's included.
+  - **The fix, on trinity.** `make secrets-add-recipient` added the
+    technical second (`age19mkg…`), which re-keyed the file. Re-keying
+    changes only future sets: the volume sets already taken still open with
+    trinity's key alone. Two steps were still pending when this landed. The
+    next `make backup STACK=sensitive` after converge is the first set
+    encrypted to both keys. `make secrets-verify-backup STACK=sensitive` against
+    the technical second's own copy proves that key opens the file.
+  - **The guard.** `check_sops_rules.py` now reads each committed file's own
+    recipients. It fails if they differ from the file's rule, or if a file
+    whose key guards data has fewer than two. That covers observability,
+    sensitive and tofu.
+    - soc and lab are left out on purpose: their keys open only credentials a
+      rebuild regenerates. The lab is #671's question.
+    - The guard's first CI run failed on the real file, as it should have.
 - **morpheus's resolver and its disks are watched**
   ([#841](https://github.com/Gerrrt/HomeLab/issues/841)).
   - **Unbound.** The house resolves through Unbound on morpheus, and the only
