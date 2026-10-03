@@ -49,7 +49,7 @@ what §9 below proves on the real host.
 | Root disk | LUKS2 under LVM; the key enrolled in the TPM against PCR 7 by `systemd-cryptenroll`; the installer's passphrase kept as recovery | [ADR-0054](../adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md) |
 | Photo disk | LUKS2 on the 2 TB USB drive, opened at boot by a keyfile on the root, plus a recovery passphrase | ADR-0054 |
 | Immich's library | `/srv/immich`, the stack's `IMMICH_UPLOAD_LOCATION` default | [#132](https://github.com/Gerrrt/HomeLab/issues/132) |
-| Secrets | `secrets/sensitive.sops.yaml`, encrypted to `trinity`'s own age key | The `sensitive` rule in `.sops.yaml` |
+| Secrets | `secrets/sensitive.sops.yaml`, encrypted to `trinity`'s own age key and the technical second's ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md), [#835](https://github.com/Gerrrt/HomeLab/issues/835)) | The `sensitive` rule in `.sops.yaml` |
 | CA | The tier's own root, minted on `prometheus`; only the bundle travels | [ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md) |
 | Telemetry | An Alloy agent, pushing to `10.0.99.20`, like `oracle` | The stack README |
 | Wireless | Not configured | The box has an Intel Wireless-AC 9560 that pfSense had to be told to ignore. Linux drives it happily, which is exactly why netplan gets no Wi-Fi stanza |

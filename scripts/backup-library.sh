@@ -27,10 +27,12 @@
 #
 # This copy is OFF-HOST and NOT OFF-ESTATE. oracle is on the same shelf, in
 # the same room, on the same power, and every set here is encrypted to the
-# recipients of secrets/sensitive.sops.yaml — today trinity's key alone — and,
-# since ADR-0073, to stacks/sensitive/household.recipients as well. It
-# protects against the USB disk failing, and against trinity failing only if
-# trinity's key has a proven copy (`make secrets-verify-backup STACK=sensitive`).
+# recipients of secrets/sensitive.sops.yaml — trinity's key and, since #835,
+# the technical second's — and, since ADR-0073, to
+# stacks/sensitive/household.recipients as well. Sets taken before #835 landed
+# open with trinity's key alone. It protects against the USB disk failing, and
+# against trinity failing only if one of those keys has a proven copy
+# (`make secrets-verify-backup STACK=sensitive`).
 # It does NOT satisfy ADR-0023's Durable row, and ADR-0064 says so: that needs
 # the copy on #455's drive, encrypted to a key the operator does not solely
 # hold. The set format is the estate's standard one so that #455 can carry
