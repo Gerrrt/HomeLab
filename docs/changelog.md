@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **A red merge can no longer reach a host**
+  ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
+  - **The gap.** The repository review found that the ruleset on `main`
+    required a pull request but no status checks. `converge.sh` checks only
+    GitHub's signature, which every merge carries, so a PR with a failing Lint
+    would have been merged and deployed within the hour.
+  - **The ruleset is now a file.** `.github/rulesets/main.json` requires the
+    five CI checks (posted by GitHub Actions) and signed commits.
+    - `scripts/check-ruleset.sh` compares it with GitHub, without a login,
+      weekly in `digests.yml`.
+    - `make apply-ruleset` applies it.
+  - **Convergence asks for itself.** `converge.sh` reads the tip's own
+    check-runs before deploying.
+    - A finished failure is refused, and pages as `DeployTipRed`; `--allow-red`
+      overrides it.
+    - A check that is running, missing or cancelled waits for the next run.
+      So does an API that did not answer. A long wait is `DeployBehind`.
+    - 13 fixtures in `converge.sh --self-test`.
+
 - **`ansible/` configures the hand-built domain, a second run changes
   nothing, and `verify.yml` passes on all six**
   ([#448](https://github.com/Gerrrt/HomeLab/issues/448),

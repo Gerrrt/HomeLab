@@ -15,6 +15,26 @@
 > mechanism, only the same rollout: report-only until it is watched, then
 > applying. `oracle` and `saruman` are still pushed to. The text here is left
 > as written, per ADR-0001.
+>
+> "What actually protects `main` today" (Context, below) is amended by
+> [#833](https://github.com/Gerrrt/HomeLab/issues/833), 2026-10.
+>
+> **What the section missed.** It establishes that every merge is signed, and
+> the Decision relies on that. A signature proves a commit came through a
+> GitHub merge. It does not prove the merge was green: the ruleset on `main`
+> required a pull request and no status checks, so a PR with a failing Lint
+> could be merged, signed, and deployed within the hour.
+>
+> **What changes.**
+>
+> - The ruleset now requires the CI checks, and is kept as
+>   `.github/rulesets/main.json`. `scripts/check-ruleset.sh` compares it with
+>   GitHub weekly.
+> - `converge.sh` asks GitHub for the tip's own check-runs before deploying,
+>   and refuses a red tip.
+>
+> So the gate is two facts, the signature and green CI, and neither lives only
+> in a settings page.
 
 ## Context
 
