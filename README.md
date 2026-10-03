@@ -209,9 +209,9 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   └── scratch/              # a DISPOSABLE copy of soc on diabolos (ADR-0071)
 ├── packer/  tofu/  ansible/  # lab templates, guests and domain, run from phoenix
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
-├── scripts/                  # bootstrap, render, validate, check_docs, pin-digests…
-├── systemd/                  # the timers that back up, verify and converge
-├── .github/                  # CI workflows, Dependabot, the ruleset on main
+├── scripts/                  # bootstrap, render, validate, check_docs… — see its README
+├── systemd/                  # the timers that back up, verify and converge — see its README
+├── .github/                  # CI, Dependabot, the ruleset on main — see OVERVIEW.md
 ├── SECURITY.md               # disclosure policy and known exposure
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
@@ -221,6 +221,21 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   └── runbooks/             # 44 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
+
+Every directory with more in it than its name says has a page of its own:
+
+- [`stacks/`](stacks): each stack's README covers its host, its services and
+  what it deliberately leaves out.
+- [`scripts/`](scripts/README.md): every script by purpose, with the `make`
+  target that runs it.
+- [`systemd/`](systemd/README.md): every timer, its host and its schedule, and
+  how a job that stops running pages.
+- [`.github/`](.github/OVERVIEW.md): the workflows, the ruleset on `main`,
+  Dependabot and the templates.
+- [`docs/diagrams/`](docs/diagrams/README.md): the network diagram, what it is
+  drawn from, and how to keep it current.
+- [`packer/`](packer/README.md), [`tofu/`](tofu/README.md),
+  [`ansible/`](ansible/README.md) and [`secrets/`](secrets/README.md).
 
 ## Quick start
 

@@ -243,8 +243,11 @@ Not yet done, and the alert is already saying so:
          docs/runbooks/back-up-the-age-key.md
 
   2. Prove it opens the file. Until this runs, the new recipient is recorded as
-     never verified and SecretsKeyBackupUnproven names it:
-         make secrets-verify-backup KEY=/path/to/the/new/copy
+     never verified and SecretsKeyBackupUnproven names it. STACK matters: left
+     out, it defaults to observability, which a key on the catch-all rule also
+     opens, so the run passes against the wrong file and records the proof
+     there:
+         make secrets-verify-backup STACK=${STACK} KEY=/path/to/the/new/copy
 
   3. Commit both files together. .sops.yaml and the re-keyed secrets file are
      one change; splitting them across commits leaves main in the state this
