@@ -80,9 +80,16 @@ groups:
       - alert: SwitchInterfaceDown
         # ifOperStatus: 1=up 2=down 3=testing. Only alerts on ports that were
         # up at some point in the last hour, so unused ports stay quiet.
+        #
+        # min_over_time, not max_over_time (#843). "Was up at some point" is
+        # the lowest value in the hour being 1. The original read
+        # max_over_time(...) == 1, which is "never anything but up" for the
+        # hour, and cannot hold beside `ifOperStatus == 2` now: the current
+        # down is in the window, so the max is at least 2. The rule could not
+        # fire from the day it was written; its first test said so.
         expr: |
           ifOperStatus == 2
-          and on (instance, ifIndex) (max_over_time(ifOperStatus[1h]) == 1)
+          and on (instance, ifIndex) (min_over_time(ifOperStatus[1h]) == 1)
         for: 5m
         labels:
           component: network
