@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 #
-# Count a host's clean power-offs, as a metric, so a drive that counts every
-# power-off can still tell a planned one from a cut (#746).
+# Count a host's clean stops, by kind, as metrics, so a page about a drive
+# losing power can say whether a planned power-off came first (#746).
 #
-# WHY THIS EXISTS. SmartDriveUnsafeShutdownsGrowing was written on the premise
-# that a clean shutdown does not move a drive's unsafe-shutdown counter (#574,
-# ADR-0049). smaug's boot SSD, an Intel DC S3520, disproved it on 2026-09-29:
-# 522 before a clean TrueNAS *System → Shut Down*, 523 after. One clean stop,
-# plus one. The rule could not tell maintenance from a power cut, which is the
-# one distinction it exists to make.
+# WHY THIS EXISTS. #746 read smaug's boot SSD, an Intel DC S3520, going
+# 522 -> 523 across a clean TrueNAS *System → Shut Down* on 2026-09-29 as proof
+# that a clean stop moves its unsafe-shutdown counter, and this script was
+# written so SmartDriveUnsafeShutdownsGrowing could subtract clean stops.
+# Controlled stops on 2026-10-02/03 disproved that reading: two UI Restarts
+# and one UI Shut Down, left plugged in, all left the S3520 at 523. On
+# 2026-09-29 the box was also unplugged for a memory install, and the unplug
+# is what the drive counted. The rule no longer subtracts anything (#746): a
+# clean stop that does not tick the drive would cancel a real cut the same day.
 #
 # WHAT IT DOES. Runs as a TrueNAS SHUTDOWN init script, so it runs on every
 # stop that goes through the init system. A pulled plug, a crash, or a mains
@@ -22,20 +25,14 @@
 #   soft-reboot.target             Restart. The drive never loses power.
 #   anything else                  homelab_clean_stops_unclassified_total
 #
-# The rule subtracts only the first from the day's unsafe shutdowns. What is
-# left is a power-off nobody planned.
-#
-# A RESTART FORGIVES NOTHING (2026-10-02). The first version counted every stop.
-# The first live reading disproved it: after a UI Restart, the clean count went
-# to 1 and the S3520 stayed at 523, because a warm reboot never takes the
-# drive's power away. A restart counted as clean would cancel a real cut on
-# the same day, and nothing would page. Restarts are still counted, separately,
-# so the classification can be seen working.
-#
-# UNKNOWN LEANS LOUD. If systemd shows neither kind of target — the job list
-# unreadable, or a shutdown path this was not written for — the stop is not
-# counted as clean. A planned power-off then pages once, which is noise. The
-# other way round, an unknown stop forgiving a cut, would be silence.
+# WHAT READS IT. SmartDriveUnsafeShutdownsGrowing's description, and nothing
+# else. When the drive's counter moved and the first counter moved the same
+# day, the page says a clean power-off came first, so the likeliest cause is
+# mains removed afterwards — an unplug, or the UPS cutting its output after
+# its halt. The expression never reads these counts, so no value here can
+# silence a page. Restarts and unclassified stops are kept so the
+# classification can be seen working: on 2026-10-03 a Restart counted as a
+# restart and a Shut Down as a power-off, from inside TrueNAS's SHUTDOWN hook.
 #
 # A FACT IN A FILE, NOT A SILENCE. #572 / ADR-0046 argued that a silence is the
 # wrong place to record a fact: it matches labels, not values, it expires, and
@@ -47,9 +44,8 @@
 # previous values are read back out of the .prom, so the file on the pool is
 # the whole of it. A missing or unreadable file starts again from zero. If
 # Prometheus still holds the old count N in its day-long window, the clean
-# delta reads at most 1 - N, which is negative. The rule clamps that to zero,
-# so a reset forgives nothing that day: the stop that reset it pages, with the
-# drive's real count. The failure leans LOUD, once, and never hides a cut.
+# delta reads at most 1 - N, which is negative, and the page simply leaves
+# the hint out. A lost file costs an explanation, never a page.
 #
 # FAST, BECAUSE IT IS ON THE WAY DOWN. TrueNAS gives a SHUTDOWN script a timeout
 # (10s is what build-the-nas.md §6.4 sets) and the pool is still imported when
@@ -123,10 +119,10 @@ render() {
 # HELP homelab_clean_shutdowns_total Clean stops of this host that powered it off (#746).
 # TYPE homelab_clean_shutdowns_total counter
 homelab_clean_shutdowns_total{host="${host}"} ${poweroffs}
-# HELP homelab_clean_restarts_total Clean stops that restarted without powering off. Not subtracted (#746).
+# HELP homelab_clean_restarts_total Clean stops that restarted without powering off (#746).
 # TYPE homelab_clean_restarts_total counter
 homelab_clean_restarts_total{host="${host}"} ${restarts}
-# HELP homelab_clean_stops_unclassified_total Clean stops systemd did not say were either. Not subtracted (#746).
+# HELP homelab_clean_stops_unclassified_total Clean stops systemd did not say were either (#746).
 # TYPE homelab_clean_stops_unclassified_total counter
 homelab_clean_stops_unclassified_total{host="${host}"} ${unknown}
 # HELP homelab_clean_shutdown_timestamp_seconds When the last clean stop of any kind began.

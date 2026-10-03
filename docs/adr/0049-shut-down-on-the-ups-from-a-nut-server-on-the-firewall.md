@@ -294,6 +294,20 @@ after the event, so the counter is watched rather than remembered.
 > power away. The script now counts only stops headed for `poweroff.target`
 > or `halt.target` — the UI's Shut Down and the `LB` halt — and keeps restarts
 > in a counter the rule does not read.
+>
+> **Correction · 2026-10-03.** The first correction above was itself wrong,
+> and the premise this section began with was right: a clean shutdown does
+> not move the S3520's counter. Two UI Restarts and a UI Shut Down, left
+> plugged in, all left it at 523. On 2026-09-29 the box was also unplugged
+> for the memory install, and that is what it counted. The subtraction is
+> gone. `SmartDriveUnsafeShutdownsGrowing` pages on any growth again, and
+> `homelab_clean_shutdowns_total` only adds a line to the page when a clean
+> power-off came the same day. For this ADR's halt, the UPS cutting its
+> output after `smaug` halted will tick the drive and page, normally with
+> the line. The line is a hint, not proof: an earlier manual stop can supply
+> it, and a lost file or an unclassified stop can leave it out. Whether the
+> halt ran, and in time, is read from the event, as
+> `shut-down-on-the-ups.md` says.
 
 ## Consequences
 
