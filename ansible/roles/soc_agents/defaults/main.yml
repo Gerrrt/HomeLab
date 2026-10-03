@@ -1,8 +1,10 @@
 ---
-# The SOC agents, replacing the two GPOs that deployed them (ADR-0030,
-# build-the-soc-guest.md section 11). Ansible installs them directly: the Wazuh
-# enrolment password comes from phoenix.env, never SYSVOL, which retires the
-# readable-password residual that section 11 accepted.
+# The SOC agents (ADR-0030, build-the-soc-guest.md section 11). Ansible installs
+# them directly rather than by GPO, taking the Wazuh enrolment password from
+# phoenix.env. A rebuilt domain therefore has no deploy GPO and no password in
+# SYSVOL. The hand-built domain still has both: the section 11 deploy GPOs
+# predate this role, and removing them is an operational step on the live
+# domain, not something this role does on a run that is a no-op there otherwise.
 #
 # The MSIs are binaries, built on odin and not in the repo (*.msi is gitignored):
 # the Velociraptor one is repacked by Server.Utils.CreateMSI with the client
@@ -15,6 +17,11 @@
 # Wazuh's 32-bit MSI registers under WOW6432Node, Velociraptor's 64-bit one does
 # not, so the role looks in both views.
 soc_agents_wazuh_manager: 10.0.30.60
+# This must match the wazuh/wazuh-manager image in stacks/soc/compose.yaml
+# (build-the-soc-guest.md §11). That manager is 4.14.8; the six were installed
+# with 4.14.7 and still carry it, so the pin stays 4.14.7 until the agents are
+# upgraded in step with the manager — a bump moves the version, product code
+# and sha256 together, with the 4.14.8 MSI in hand.
 soc_agents_wazuh_version: "4.14.7"
 soc_agents_wazuh_product_id: "{D9770AF7-8335-4FEB-927C-C575B11A1F7B}"
 soc_agents_wazuh_msi_sha256: "e967f36b75589d6210244fd58239c7021fa53a77c38d92315c3b3bd115002ede"

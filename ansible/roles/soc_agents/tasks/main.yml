@@ -61,6 +61,18 @@
   loop_control:
     label: "{{ item.name }}"
 
+- name: The Wazuh enrolment password is set before installing it
+  ansible.builtin.assert:
+    that: lab_wazuh_registration_password | length > 0
+    fail_msg: >-
+      Wazuh is not installed and LAB_WAZUH_REGISTRATION_PASSWORD is unset. The
+      agent would install but never enrol, and the service check would still
+      pass. Set it in phoenix.env (it is the manager's authd.pass).
+    quiet: true
+  when:
+    - not soc_agents_wazuh_present
+    - not ansible_check_mode
+
 - name: Fetch the Wazuh MSI
   ansible.windows.win_get_url:
     url: "{{ soc_agents_wazuh_msi_url }}"
