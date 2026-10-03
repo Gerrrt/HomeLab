@@ -79,14 +79,15 @@ documents for different readers.
   `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
   dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
   `gitleaks` over the full history.
-- **CI that validates the documentation too.** Ten assertions cross-check
+- **CI that validates the documentation too.** Eleven assertions cross-check
   this prose against the configs it describes — counted claims (rules,
   dashboards, panels, Alloy agents, VLANs, ADRs, runbooks), the SNMP
   inventory and the compute table against `docs/network.md`, the host/stack
   and ports tables against `compose.yaml`, ADR numbering, firewall posture
   against `docs/firewall-claims.yaml`, guest rows against each other, this
-  file's outstanding-purchase count against the roadmap's buy table, and a
-  ban on image versions in prose — Dependabot edits only `compose.yaml`, so
+  file's outstanding-purchase count against the roadmap's buy table, every
+  critical alert's `runbook_url` against the runbook and heading it names, and
+  a ban on image versions in prose — Dependabot edits only `compose.yaml`, so
   a version written anywhere else is stale from the next bump. A document
   that disagrees with the repository fails the build. That opening count is
   now one of the claims, read from the check registry rather than kept by
@@ -99,9 +100,10 @@ documents for different readers.
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
 - **Documented decisions and runbooks.** 78 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 42
+  and what was rejected — including the costs accepted knowingly; 44
   runbooks for the operations that are easy to get wrong at 1am, one of which
-  is the handover page a successor reads first.
+  is the handover page a successor reads first. Every critical alert links to
+  one.
 
 ## Architecture
 

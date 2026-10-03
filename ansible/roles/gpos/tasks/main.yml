@@ -1,0 +1,87 @@
+---
+# Deny Tier 0 Logon on Members, and Lab - Audit File Share (runbook §5, §6).
+# On the primary DC, where the GroupPolicy module and SYSVOL are local.
+#
+# microsoft.ad.gpo only links an existing GPO, so the whole ensure — create,
+# settings file, CSE names, version, links — is one compare-first script per
+# GPO. It writes only on a real difference, bumping the GPO version only when it
+# writes the file, so against the hand-built domain (already correct) it is a
+# no-op, and a fresh rebuild gets the same GPOs with the new domain's SID.
+- name: The lab's hand-built GPOs match their definitions
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([object[]]$Gpos)
+      Import-Module GroupPolicy, ActiveDirectory
+      $Ansible.Changed = $false
+      $dn = (Get-ADDomain).DistinguishedName
+      $tier0 = (Get-ADGroup 'Tier 0 Admins' -ErrorAction SilentlyContinue).SID.Value
+      $polRoot = Join-Path $env:SystemRoot 'SYSVOL\domain\Policies'
+
+      function Norm($t) {
+        if ($null -eq $t) { return $null }
+        (($t -replace "`r`n", "`n") -split "`n" | ForEach-Object { $_.Trim() } |
+          Where-Object { $_ -ne '' }) -join "`n"
+      }
+
+      foreach ($g in $Gpos) {
+        $want = $g.content
+        if ($g.name -eq 'Deny Tier 0 Logon on Members') {
+          if (-not $tier0) { throw 'Tier 0 Admins group not found; run the tiers role first' }
+          $want = $want.Replace('__TIER0SID__', $tier0)
+        }
+
+        $gpo = Get-GPO -Name $g.name -ErrorAction SilentlyContinue
+        if (-not $gpo) {
+          $Ansible.Changed = $true
+          if ($Ansible.CheckMode) { continue }  # nothing downstream resolves on a GPO not yet made
+          $gpo = New-GPO -Name $g.name
+        }
+
+        $folder = Join-Path $polRoot ("{" + $gpo.Id + "}")
+        $file = Join-Path $folder ($g.rel_path.TrimStart('\'))
+        $enc = if ($g.encoding -eq 'unicode') { [Text.Encoding]::Unicode } else { New-Object Text.UTF8Encoding($false) }
+
+        $current = if (Test-Path -LiteralPath $file) { [IO.File]::ReadAllText($file, $enc) } else { $null }
+        $fileDiffers = (Norm $current) -ne (Norm $want)
+
+        $adPath = "CN={$($gpo.Id)},CN=Policies,CN=System,$dn"
+        $ad = Get-ADObject -Identity $adPath -Properties gPCMachineExtensionNames, versionNumber
+        $cseDiffers = ("$($ad.gPCMachineExtensionNames)".ToUpper() -ne $g.cse.ToUpper())
+
+        if ($fileDiffers -or $cseDiffers) {
+          $Ansible.Changed = $true
+          if (-not $Ansible.CheckMode) {
+            if ($fileDiffers) {
+              New-Item -ItemType Directory -Force -Path (Split-Path $file) | Out-Null
+              [IO.File]::WriteAllText($file, ($want -replace "`r?`n", "`r`n"), $enc)
+            }
+            if ($cseDiffers) {
+              Set-ADObject -Identity $adPath -Replace @{ gPCMachineExtensionNames = $g.cse }
+            }
+            # Bump the computer half (low word) so members reprocess, and keep
+            # GPT.INI in step with the AD object, which is what the engine reads.
+            $new = ([int]$ad.versionNumber -band 0xFFFF0000) -bor ((([int]$ad.versionNumber -band 0xFFFF) + 1))
+            Set-ADObject -Identity $adPath -Replace @{ versionNumber = $new }
+            $gptIni = Join-Path $folder 'GPT.INI'
+            $lines = if (Test-Path $gptIni) { Get-Content $gptIni } else { '[General]' }
+            if ($lines -match '^Version=') {
+              $lines = $lines -replace '^Version=.*', "Version=$new"
+            } else {
+              $lines = $lines + "Version=$new"
+            }
+            Set-Content -LiteralPath $gptIni -Value $lines -Encoding Ascii
+          }
+        }
+
+        foreach ($ou in $g.links) {
+          $target = "OU=$ou,$dn"
+          $linked = (Get-GPInheritance -Target $target).GpoLinks | Where-Object DisplayName -eq $g.name
+          if (-not $linked) {
+            $Ansible.Changed = $true
+            if (-not $Ansible.CheckMode) { New-GPLink -Name $g.name -Target $target -LinkEnabled Yes | Out-Null }
+          }
+        }
+      }
+    parameters:
+      Gpos: "{{ gpos_defs }}"

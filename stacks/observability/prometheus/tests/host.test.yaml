@@ -156,6 +156,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#instancedown"
               summary: "integrations/node_exporter target oracle:9100 is down"
               description: >-
                 Prometheus has failed to scrape oracle:9100
@@ -208,6 +209,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#instancedown"
               summary: "node target smaug is down"
               description: >-
                 Prometheus has failed to scrape smaug
@@ -241,6 +243,7 @@ tests:
               severity: critical
               category: capacity
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostdiskcritical"
               summary: "oracle:/ below 10% free"
 
       # Below threshold, but for: 15m has not elapsed at 10m.
@@ -726,6 +729,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#smartdriveunhealthy"
               summary: "oracle: SMART says /dev/sda is failing"
               description: >-
                 The drive's own overall self-assessment has failed on
@@ -764,6 +768,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#smartdrivesparelow"
               summary: "morpheus: /dev/nvme0 spare capacity below the drive's own threshold"
               description: >-
                 Remaining spare is 8%, under the threshold the drive itself
@@ -1491,6 +1496,7 @@ tests:
               severity: critical
               category: capacity
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#thinpoolwillfillin24h"
               summary: "Saruman: thin pool large_data/large_data data fills within 24h"
               description: >-
                 Over half used and, extrapolating the last six hours, full
@@ -1582,6 +1588,7 @@ tests:
               severity: critical
               category: security
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-lab-templates.md#2b-the-installers-on-smaug-iso-on-saruman"
               summary: "Saruman: windows-11.iso on the ISO store does not match its checksum"
               description: >-
                 Do not build a template from smaug-iso until this is explained.
@@ -1761,6 +1768,7 @@ tests:
               severity: critical
               category: capacity
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#guestdiskcritical"
               summary: "Saruman: guest odin:/ below 10% free"
               description: >-
                 / on odin (VMID 160) has 2.073% free. On a Docker host,
@@ -1812,6 +1820,7 @@ tests:
               severity: critical
               category: capacity
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#guestdiskwillfillin24h"
               summary: "Saruman: guest odin:/ fills within 24h"
               description: >-
                 / on odin (VMID 160) is below 30% free and, extrapolating the
@@ -1945,6 +1954,7 @@ tests:
               severity: critical
               category: security
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md#4-close-the-management-plane"
               summary: "Saruman's Proxmox firewall is off"
               description: >-
                 `pve-firewall status` has not read enabled/running for ten
@@ -1987,6 +1997,7 @@ tests:
               severity: critical
               category: security
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md#4-close-the-management-plane"
               summary: "Saruman's Proxmox firewall is on and admits everything"
               description: >-
                 `policy_in` in /etc/pve/firewall/cluster.fw is not DROP, so the
@@ -2601,6 +2612,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostonbattery"
               summary: "prometheus is running on its own battery"
               description: >-
                 The mains adapter (ADP1) reports no input. Either the shelf has
@@ -2628,6 +2640,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostonbattery"
               summary: "oracle is running on its own battery"
               description: >-
                 The mains adapter (AC) reports no input. Either the shelf has
@@ -2838,6 +2851,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-laptop-cell.md#3-a-thirteen-year-old-lithium-cell-is-the-hazard-not-the-laptop"
               summary: "prometheus: BAT0 reads 48 °C"
               description: >-
                 The cell's own gauge has read above 45 °C for five minutes. The
@@ -2866,6 +2880,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-laptop-cell.md#3-a-thirteen-year-old-lithium-cell-is-the-hazard-not-the-laptop"
               summary: "oracle: BAT0 reads 48 °C"
               description: >-
                 The cell's own gauge has read above 45 °C for five minutes. The
@@ -3039,6 +3054,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostbatteryruntimelow"
               summary: "prometheus has 22m 13s of battery left"
               description: >-
                 The host is on its own cell and, at the draw it is presenting
@@ -3072,6 +3088,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostbatteryruntimelow"
               summary: "oracle has 27m 8s of battery left"
               description: >-
                 The host is on its own cell and, at the draw it is presenting
@@ -3133,6 +3150,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
               summary: "smaug: zpool erebor is degraded"
               description: >-
                 The pool's own state, read from its kstat, has not been online
@@ -3245,6 +3263,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
               summary: "smaug: a leaf of zpool erebor is faulted while the pool reads online"
               description: >-
                 Leaf 9362abc8-9bc8-4045-9095-f50f03f230c6 (guid
@@ -3294,6 +3313,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
               summary: "smaug: a leaf of zpool boot-pool is removed while the pool reads online"
               description: >-
                 Leaf 1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10 (guid 777) of

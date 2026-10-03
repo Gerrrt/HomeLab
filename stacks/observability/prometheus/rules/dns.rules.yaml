@@ -69,6 +69,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/forward-dns-to-adguard.md#reversing-it"
           summary: "{{ $labels.name }} is not answering DNS — the house cannot resolve outside names"
           description: >-
             Asked directly at {{ $labels.instance }} for five minutes and got no
