@@ -22,15 +22,37 @@
 
 # Authenticated Users, matching as-built: Finance is Change, Public is Full. The
 # NTFS ACLs are left at the directory defaults (verify reads the share ACL).
-- name: The shares are published with their as-built access
-  ansible.windows.win_share:
-    name: "{{ item.name }}"
-    path: "C:\\Shares\\{{ item.name }}"
-    state: present
-    change: "{{ item.change | default(omit) }}"
-    full: "{{ item.full | default(omit) }}"
-  loop:
-    - {name: Public, full: Authenticated Users}
-    - {name: Finance, change: Authenticated Users}
-  loop_control:
-    label: "{{ item.name }}"
+#
+# Not ansible.windows.win_share: given only `full`/`change` it reports changed
+# on every check-mode run against a share that already grants exactly that
+# ("NT AUTHORITY\Authenticated Users" Full/Change, confirmed on titan). This
+# compares the single ACE first and only acts on a real difference, like
+# roles/dns_client does for the resolvers.
+- name: Publish Public (Full) and Finance (Change) to Authenticated Users
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([object[]]$Shares)
+      $Ansible.Changed = $false
+      $au = 'NT AUTHORITY\Authenticated Users'
+      foreach ($sh in $Shares) {
+        $want = $sh.right
+        $cur = Get-SmbShare -Name $sh.name -ErrorAction SilentlyContinue
+        if ($cur -and $cur.Path -eq $sh.path) {
+          $ace = @(Get-SmbShareAccess -Name $sh.name)
+          if ($ace.Count -eq 1 -and $ace[0].AccountName -eq $au -and
+              $ace[0].AccessControlType -eq 'Allow' -and $ace[0].AccessRight -eq $want) {
+            continue
+          }
+        }
+        $Ansible.Changed = $true
+        if ($Ansible.CheckMode) { continue }
+        if ($cur) { Remove-SmbShare -Name $sh.name -Force | Out-Null }
+        $p = @{ Name = $sh.name; Path = $sh.path }
+        if ($want -eq 'Full') { $p.FullAccess = $au } else { $p.ChangeAccess = $au }
+        New-SmbShare @p | Out-Null
+      }
+    parameters:
+      Shares:
+        - {name: Public, path: 'C:\Shares\Public', right: Full}
+        - {name: Finance, path: 'C:\Shares\Finance', right: Change}

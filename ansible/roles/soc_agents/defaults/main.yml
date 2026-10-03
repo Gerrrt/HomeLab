@@ -12,6 +12,8 @@
 # served from, and the role fails with a clear message if it needs one unset.
 # The product codes, read from the six on 2026-10-03, decide "already installed"
 # so a reinstall is not attempted every run; a version bump moves code and url.
+# Wazuh's 32-bit MSI registers under WOW6432Node, Velociraptor's 64-bit one does
+# not, so the role looks in both views.
 soc_agents_wazuh_manager: 10.0.30.60
 soc_agents_wazuh_version: "4.14.7"
 soc_agents_wazuh_product_id: "{D9770AF7-8335-4FEB-927C-C575B11A1F7B}"

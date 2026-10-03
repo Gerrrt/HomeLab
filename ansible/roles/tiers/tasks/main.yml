@@ -33,8 +33,13 @@
     name: "{{ item.name }}"
     sam_account_name: "{{ item.name }}"
     path: "OU=Tier{{ item.tier }},{{ lab_domain_dn }}"
-    password: "{{ lab_admin_password }}"
-    update_password: when_changed
+    password: "{{ lab_tier_admin_password }}"
+    # on_create, not when_changed: against the live domain these accounts exist
+    # with #414's passwords, which we do not know and must not reset, so this is
+    # a no-op there. On a rebuild they are made fresh and take the managed
+    # password. A distinct password from the domain admin's, so three tier
+    # admins do not all carry Domain Admin's secret.
+    update_password: on_create
     groups:
       set: "{{ item.groups }}"
     state: present

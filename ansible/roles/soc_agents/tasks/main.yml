@@ -3,21 +3,28 @@
 # already installed means the download and install are skipped, so a second run
 # changes nothing and check mode needs no MSI on disk.
 
+# Both registry views: a 32-bit MSI (Wazuh) registers under WOW6432Node.
 - name: Read whether the agents are installed
-  ansible.windows.win_reg_stat:
-    path: "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{ item.id }}"
-  loop:
-    - {name: wazuh, id: "{{ soc_agents_wazuh_product_id }}"}
-    - {name: velociraptor, id: "{{ soc_agents_velociraptor_product_id }}"}
-  loop_control:
-    label: "{{ item.name }}"
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      $ids = @{ wazuh = '{{ soc_agents_wazuh_product_id }}'; velociraptor = '{{ soc_agents_velociraptor_product_id }}' }
+      $roots = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+      )
+      $out = @{}
+      foreach ($k in $ids.Keys) {
+        $out[$k] = [bool](($roots | ForEach-Object { Join-Path $_ $ids[$k] }) | Where-Object { Test-Path $_ })
+      }
+      $out
   register: soc_agents_installed
   check_mode: false
 
 - name: Note which are still to install
   ansible.builtin.set_fact:
-    soc_agents_wazuh_present: "{{ soc_agents_installed.results[0].exists }}"
-    soc_agents_velociraptor_present: "{{ soc_agents_installed.results[1].exists }}"
+    soc_agents_wazuh_present: "{{ soc_agents_installed.output[0].wazuh }}"
+    soc_agents_velociraptor_present: "{{ soc_agents_installed.output[0].velociraptor }}"
 
 - name: Report the agents as pending, in check mode
   ansible.builtin.debug:
@@ -82,6 +89,8 @@
     - not ansible_check_mode
   no_log: true
 
+# WazuhSvc is plain auto; the Velociraptor service is auto-delayed, as each MSI
+# installs it. Match that rather than flip it (read on the six, 2026-10-03).
 - name: The Wazuh service runs
   ansible.windows.win_service:
     name: WazuhSvc
@@ -114,6 +123,6 @@
 - name: The Velociraptor service runs
   ansible.windows.win_service:
     name: Velociraptor
-    start_mode: auto
+    start_mode: delayed
     state: started
   when: soc_agents_velociraptor_present or not ansible_check_mode

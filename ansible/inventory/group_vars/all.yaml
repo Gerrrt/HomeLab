@@ -55,5 +55,6 @@ lab_tier_ous: [Tier0, Tier1, Tier2, Servers, Workstations]
 # authgen's own password, and the Wazuh enrolment password, both from
 # phoenix.env (ADR-0077 decision 3). The Wazuh one replaces the copy that used
 # to sit readable in SYSVOL (build-the-soc-guest.md §11).
+lab_tier_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_TIER_ADMIN_PASSWORD') }}"
 lab_authgen_password: "{{ lookup('ansible.builtin.env', 'LAB_AUTHGEN_PASSWORD') }}"
 lab_wazuh_registration_password: "{{ lookup('ansible.builtin.env', 'LAB_WAZUH_REGISTRATION_PASSWORD') }}"
