@@ -167,7 +167,10 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      # Weekly since #839. The actions are pinned to commit SHAs now, so a
+      # security fix in one reaches CI only through this PR; a month is too
+      # long to wait for that.
+      interval: weekly
     commit-message:
       prefix: "chore(ci)"
     labels: ["dependencies", "ci"]

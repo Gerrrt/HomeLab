@@ -112,10 +112,12 @@ services:
   # stack's own and lives HERE: the estate's Alloy mounts that whole directory,
   # and a copy there would tail a /zeek that does not exist on VLAN 99.
   #
-  # DIFFERENCE from stacks/soc: no `make render`, so the two values it writes
-  # are defaulted here instead. LOG_READ_GID is 4, `adm` on Ubuntu, which owns
-  # /var/log/syslog; ALLOY_HOSTNAME comes from .env.example, since this stack
-  # has exactly one host.
+  # LOG_READ_GID and ALLOY_HOSTNAME keep defaults here: LOG_READ_GID is 4,
+  # `adm` on Ubuntu, which owns /var/log/syslog, and ALLOY_HOSTNAME is fenrir,
+  # since this stack has exactly one host. They date from when the stack had no
+  # `make render`. Since #834 it has one, for INGEST_TOKEN below, and render
+  # writes both values anyway; the defaults are kept so a `docker compose`
+  # typed by hand still labels the host correctly.
   # ---------------------------------------------------------------------------
   alloy:
     image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
@@ -138,6 +140,10 @@ services:
       LOKI_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_LOKI_PORT:-3100}/loki/api/v1/push
       PROMETHEUS_REMOTE_WRITE_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_PROMETHEUS_PORT:-9090}/api/v1/write
       ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-fenrir}
+      # fenrir's token for the lab's ingest proxy (#834), and the reason this
+      # stack now has a secrets file and a `make up`. Its other copy is
+      # INGEST_TOKEN_FENRIR in secrets/lab.sops.yaml.
+      INGEST_TOKEN: ${INGEST_TOKEN:?set in secrets/sensor.sops.yaml}
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345

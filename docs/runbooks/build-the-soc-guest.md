@@ -257,10 +257,17 @@ make secrets-edit STACK=soc
 ```
 
 [`secrets/soc.example.yaml`](../../secrets/soc.example.yaml) says what each of
-the seven is for. Generate the passwords with `make gen-secret`, and read the
+the eight is for. Generate the passwords with `make gen-secret`, and read the
 note there about `API_PASSWORD` first: the Wazuh API refuses a password without
 upper, lower, digit and symbol, and the image pastes it into a JSON document
 unquoted, so no `"`, `\` or `$`.
+
+The eighth, `INGEST_TOKEN`, is not generated here. It is `odin`'s token for the
+lab's ingest proxy, and its other copy is `INGEST_TOKEN_ODIN` in
+`secrets/lab.sops.yaml` on `alexander`. Copy it from there
+(`make secrets-show STACK=lab`). Without it, `make up STACK=soc` refuses, and
+the proxy would refuse every push anyway
+([#834](https://github.com/Gerrrt/HomeLab/issues/834)).
 
 Commit and push `.sops.yaml` and `secrets/soc.sops.yaml` from here, then:
 
@@ -327,9 +334,12 @@ edit. Confirm the doors are open before going on:
 ss -ltn '( sport = :9090 or sport = :3100 )'
 ```
 
-Both must show `10.0.30.40` or `0.0.0.0`. If either is missing, `alexander`'s
-checkout is behind: `cd ~/code/Gerrrt/HomeLab && git pull && make up STACK=lab` and check
-again. Read the comment above each block in `compose.yaml` once — it says what
+Since [#834](https://github.com/Gerrrt/HomeLab/issues/834) both must show
+`10.0.30.40`, which is the lab's ingest proxy, and `127.0.0.1`, which is the
+stores behind it. `0.0.0.0` on either port is the old unauthenticated
+publish: `alexander`'s checkout is behind, or its rollout has not run
+(`stacks/lab/README.md`). If either is missing, `cd ~/code/Gerrrt/HomeLab &&
+git pull && make up STACK=lab` and check again. Read the comment above each block in `compose.yaml` once — it says what
 is listening on the segment that exists to hold attackers, and that is a thing
 to know rather than discover.
 
@@ -346,7 +356,7 @@ make up STACK=soc
 
 `render` writes three things: `.env`, the indexer's user database with the two
 hashes substituted, and the manager's `authd.pass`. It refuses if any of the
-seven keys is missing, and refuses if you are not uid 1000.
+eight keys is missing, and refuses if you are not uid 1000.
 
 The first start is slow, and slow in a particular order. Watch it:
 
@@ -520,6 +530,17 @@ issued for a name other than `wazuh.indexer` fails exactly here and nowhere
 visible.
 
 ## 11. Agents, by GPO — the second evening, and after #414
+
+> [!NOTE]
+> **Since #448, the lab pipeline installs both agents directly**, not by GPO:
+> [`ansible/roles/soc_agents`](../../ansible/roles/soc_agents/) runs the two
+> MSIs on all six by product code, and takes the Wazuh enrolment password from
+> `phoenix.env` rather than leaving it readable in SYSVOL. On a `tofu`-rebuilt
+> domain that is the whole of it, and the two GPOs below are not recreated.
+> The GPOs this section describes still exist on the hand-built domain; retiring
+> them there is an operational step, left to whoever next edits the SOC setup.
+> The rest of this section is the original by-hand procedure, kept for that
+> history and for a domain without the pipeline.
 
 Both agents go to ADR-0029's six machines through the domain, because the
 domain is the exercise (ADR-0030): a reverted or rebuilt workstation re-enrols

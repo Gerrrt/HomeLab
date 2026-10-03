@@ -460,11 +460,23 @@ argument and for what to do when it exits 1.
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
 | `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion, and the two cases `up == 0` structurally cannot see — a remote-writing agent that stops pushing, and a scraped target that stops being a target at all. The second is `ScrapeTargetDisappeared`, added with the first scraped host ([#256](https://github.com/Gerrrt/HomeLab/issues/256)): an emptied or unparseable `targets/node.yaml` makes the series vanish rather than fall to 0, so `InstanceDown` stays silent and `RemoteWriteJobStale` excludes scraped jobs by design. The target for `smaug` was written into `targets/node.yaml` disabled on 2026-09-17 and enabled on 2026-09-19, once the exporter answered from the pool. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault. Since [#575](https://github.com/Gerrrt/HomeLab/issues/575) also whether an Alertmanager silence is about to lapse or names no owning issue, read from the per-silence series `scripts/collect_silences.py` writes every fifteen minutes — `alertmanager_silences` is a count per state and cannot say which alert, when, or whose |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
-| `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — the sensitive tier's seven-day ACME leaves excepted, which an hours pair watches for a stalled renewal instead — `TlsAcmeRenewalLate` at 48h, `TlsAcmeRenewalStalled` at 36h ([#426](https://github.com/Gerrrt/HomeLab/issues/426)) — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki, Alertmanager and the switch UI over plain http, and — the other way round — that the ingest proxy on `10.0.99.20:9090` and `:3100` still refuses a request with no token (`IngestAuthNotEnforced`, [#182](https://github.com/Gerrrt/HomeLab/issues/182)). The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
+| `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — the sensitive tier's seven-day ACME leaves excepted, which an hours pair watches for a stalled renewal instead — `TlsAcmeRenewalLate` at 48h, `TlsAcmeRenewalStalled` at 36h ([#426](https://github.com/Gerrrt/HomeLab/issues/426)) — Grafana verified against the lab CA, the APC card's self-signed one read but not trusted, the wiki, Prometheus, Loki and Alertmanager over plain http (the switch UI's probes were removed on 2026-09-06, `targets/blackbox.yaml`), and — the other way round — that the ingest proxy on `10.0.99.20:9090` and `:3100` still refuses a request with no token (`IngestAuthNotEnforced`, [#182](https://github.com/Gerrrt/HomeLab/issues/182)). The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)) |
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense. Since [ADR-0055](adr/0055-forward-to-adguard-alone.md) AdGuard is the only forwarder, so `AdGuardNotAnswering` is **critical** at five minutes: the house cannot resolve outside names. `AdGuardNotFiltering` stays a warning, because a filter that fails open is a convenience lost, not an outage. The targets in `targets/blackbox-dns.yaml` are live since 2026-09-28, against AdGuard on `trinity` ([#126](https://github.com/Gerrrt/HomeLab/issues/126), [#404](https://github.com/Gerrrt/HomeLab/issues/404)) |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, whether the age-key proof record exists to be held to its deadline, whether the CA key's offline copy has been proved lately ([#496](https://github.com/Gerrrt/HomeLab/issues/496)), whether the newest backup sets have been carried onto the second recipient's medium within ninety days ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)), and whether the household's copy has been carried to the holder's drive within ninety days and proved by the holder within a year ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)) |
 | `deploy.rules.yaml` | Whether each host that pulls — `prometheus` and `trinity` ([#533](https://github.com/Gerrrt/HomeLab/issues/533)) — is running what the repository says: an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` it is, and a host whose record stopped arriving. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the fast, per-interface half; `SuricataLogsStopped` in `loki/rules/security.rules.yaml` is the slow, aggregate half ([#90](https://github.com/Gerrrt/HomeLab/issues/90), [#441](https://github.com/Gerrrt/HomeLab/issues/441)) |
+
+**Every critical alert links to a runbook** ([#842](https://github.com/Gerrrt/HomeLab/issues/842)).
+Its `runbook_url` annotation is a GitHub link to a file in `docs/runbooks/`,
+usually to the section for that alert. A single-alert ntfy page carries it on
+its own line, marked 📖 (`stacks/sensitive/ntfy/templates/homelab.yml`). Security alerts go to
+[`respond-to-a-security-alert.md`](runbooks/respond-to-a-security-alert.md),
+alerts with a runbook of their own go there, and the rest go to
+[`triage-a-critical-alert.md`](runbooks/triage-a-critical-alert.md).
+`check_docs.py` fails a critical rule with no `runbook_url`, a link to a file
+that does not exist, or an anchor that is not a heading in that file. A new
+critical rule therefore arrives with its runbook section, or CI says which is
+missing.
 
 `promtool check rules` validates that these parse. It does not — and cannot —
 tell you whether a rule can ever be true: `ContainerHighMemory` passed it for
@@ -473,7 +485,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 104 rules of 124 so far — all ten
+against the broken rule too. Coverage is 124 rules of 124 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all ten
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
@@ -502,11 +514,16 @@ from [#483](https://github.com/Gerrrt/HomeLab/issues/483), the three ZFS leaf ru
 [#576](https://github.com/Gerrrt/HomeLab/issues/576), the four guest-disk rules from
 [#778](https://github.com/Gerrrt/HomeLab/issues/778), the two Zeek mirror rules from
 [#437](https://github.com/Gerrrt/HomeLab/issues/437), and the two silence rules from
-[#575](https://github.com/Gerrrt/HomeLab/issues/575).
-The other 20 are still validated for syntax only, which is exactly the
-standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
-sentence they replaced claimed six and named two, and had been wrong for
-weeks.
+[#575](https://github.com/Gerrrt/HomeLab/issues/575), and the last twenty from
+[#843](https://github.com/Gerrrt/HomeLab/issues/843): the nine UPS rules, seven
+network rules, three stack rules and `ContainerOomKilled`.
+That leaves 0 rules without a unit test. The first test of `SwitchInterfaceDown`
+showed it had been unable to fire since it was written: it required the port's
+hourly maximum to be 1 while the port read 2. `scripts/check_rule_tests.py`
+now fails CI on any alert, in any stack, that no test selects. It checks per
+rule, where the older per-stack guard only refused a stack with no tests at
+all. Both numbers here are checked by `scripts/check_docs.py` — the sentence
+they replaced claimed six and named two, and had been wrong for weeks.
 
 `ContainerCpuThrottled` is the odd one in that list: it is
 inert in production and cannot fire against anything cAdvisor

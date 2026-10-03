@@ -11,6 +11,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#snmpexporterdown"
           summary: "snmp-exporter is down — every SNMP device will appear unreachable"
 
       - alert: SnmpTargetUnreachable
@@ -49,6 +50,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#pfnotrunning"
           summary: "Packet filter is NOT running on {{ $labels.device }}"
           description: >-
             pf is disabled. Inter-VLAN isolation and the default-deny posture
@@ -80,9 +82,16 @@ groups:
       - alert: SwitchInterfaceDown
         # ifOperStatus: 1=up 2=down 3=testing. Only alerts on ports that were
         # up at some point in the last hour, so unused ports stay quiet.
+        #
+        # min_over_time, not max_over_time (#843). "Was up at some point" is
+        # the lowest value in the hour being 1. The original read
+        # max_over_time(...) == 1, which is "never anything but up" for the
+        # hour, and cannot hold beside `ifOperStatus == 2` now: the current
+        # down is in the window, so the max is at least 2. The rule could not
+        # fire from the day it was written; its first test said so.
         expr: |
           ifOperStatus == 2
-          and on (instance, ifIndex) (max_over_time(ifOperStatus[1h]) == 1)
+          and on (instance, ifIndex) (min_over_time(ifOperStatus[1h]) == 1)
         for: 5m
         labels:
           component: network
@@ -180,6 +189,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#ilohardwaredegraded"
           summary: "iLO on {{ $labels.device }} reports degraded or failed hardware"
           description: >-
             CPQ condition code {{ $value }} (3 = degraded, 4 = failed). Check
@@ -358,6 +368,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#gatewaydown"
           summary: >-
             {{ $labels.host }}: {{ $labels.gateway }} is down and
             {{ $labels.family }} does not leave the building

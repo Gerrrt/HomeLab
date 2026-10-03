@@ -36,6 +36,99 @@ docstring gives: it is a record, not a claim about now.
       rebuild regenerates. The lab is #671's question.
     - The guard's first CI run failed on the real file, as it should have.
 
+- **The lab's Prometheus and Loki stop taking orders from VLAN 30**
+  ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Authored, not yet
+  deployed. The rollout is ordered, clients first, in `stacks/lab/README.md`.
+  - **The gap.** The repository review found both published to the whole of
+    the segment built to hold attackers, unauthenticated. Anything there
+    could `POST /-/quit`, forge series, and delete log ranges.
+  - **The fix is ADR-0067 moved one segment down.** The stores are on
+    loopback, and `stacks/lab/Caddyfile` on `10.0.30.40` holds one token each
+    for `odin`, `phoenix` and `fenrir`, plus a reader token.
+    - The tokens are the lab's own, two copies each: `lab.sops.yaml` for the
+      proxy, and each client's own secrets.
+    - `fenrir` gets its first secrets file and `.sops.yaml` rule, and moves
+      to `make up STACK=sensor`.
+    - `deploy-agent.sh` no longer decrypts the estate's tokens for a lab
+      target.
+  - **Not covered.** Nothing pages if the proxy is bypassed: the lab has no
+    Alertmanager (#858).
+
+- **The workflows are pinned and hardened the way the images already were**
+  ([#839](https://github.com/Gerrrt/HomeLab/issues/839)).
+  - **Pinned.** Every `uses:` is pinned to a commit SHA with its exact
+    version beside it: `actions/checkout` v7.0.1 and `actions/cache` v6.1.0.
+    These are the commits the major tags already pointed at, so nothing that
+    runs changed. Dependabot now checks actions weekly instead of monthly.
+  - **Hardened.**
+    - `persist-credentials: false` on every checkout. `lint.sh` mounts the
+      whole tree, `.git/config` included, into third-party images.
+    - A `timeout-minutes` on every job, sized from recent maximums with
+      headroom.
+    - A queued concurrency group on `digests.yml`, with the re-enable command
+      for GitHub's 60-day schedule pause written beside it.
+  - **Checked.** zizmor runs in `make lint`, pinned as a `lint`-profile image.
+    On `main` it found 16 problems: 9 unpinned actions and 7 credential
+    persistences. After this change it finds none.
+
+- **Every Prometheus alert rule has a test, and CI refuses one that does not**
+  ([#843](https://github.com/Gerrrt/HomeLab/issues/843)).
+  - **Twenty rules gained tests:** nine UPS, seven network, three stack and
+    `ContainerOomKilled`. Each gets a firing case and the near-miss that must
+    stay quiet. Coverage is 124 of 124.
+  - **One of them could never fire.** `SwitchInterfaceDown` required the
+    port's hourly maximum `ifOperStatus` to be 1 while the port read 2, and a
+    window containing the current 2 has a maximum of at least 2. It has been
+    `min_over_time` since. Its first test found that, which is #63's lesson
+    again.
+  - **The guard.** `scripts/check_rule_tests.py` fails CI, `make check-rules`
+    and `validate.sh` on any alert, in any stack, that no promtool test
+    selects. It checks per rule; the older per-stack guard only refused a
+    stack with no tests at all.
+  - `UpsBatteryUnproven`'s seven-day test has a file of its own at a 15m
+    evaluation interval, which keeps it to two seconds.
+  - **Still open in #843:** behaviour tests for the Loki rules, which need a
+    running Loki to push fixture lines into.
+
+- **oracle's Alloy, the last one holding the Docker socket, gives it up.**
+  Authored;
+  it lands at the next `deploy-agent.sh` run against oracle.
+  - **The gap.** #193 and #836 took the socket off every Alloy run from a
+    compose file. oracle's is a `docker run` in `deploy-agent.sh`, so the
+    compose check never saw it, and it kept the socket mounted.
+  - **The fix.** The script's Docker runtime now starts
+    `alloy-socket-proxy` beside Alloy on a private `alloy` network, with the
+    estate's image and GET-only allowlist. Alloy reads the API through
+    `DOCKER_API`, and its `/rootfs/run` is masked, so `/:/rootfs:ro` no longer
+    carries the socket past the proxy (the same review finding as #836).
+  - **The guard.** `check_image_pins.py` refuses any `docker run` other than
+    the proxy's, traced by image, that reaches the socket. That means the
+    socket under either spelling, its directory, or an unmasked host `/`.
+    Nine fixtures. Its first run found this one site and nothing else.
+
+- **Every critical alert links to a runbook, and CI keeps it that way**
+  ([#842](https://github.com/Gerrrt/HomeLab/issues/842)).
+  - **The gap.** No rule had a `runbook_url`, and there was no runbook for a
+    security alert at all. Many critical pages pointed at nothing:
+    `InstanceDown`, `PfNotRunning`, every critical Loki security rule.
+  - **Two new runbooks.**
+    - `respond-to-a-security-alert.md`: a section per critical security
+      alert, with its Loki query and the containment step.
+    - `triage-a-critical-alert.md`: the availability, capacity and hardware
+      alerts that had no runbook of their own.
+
+    The other 15 critical alerts link to the runbook that already covered
+    them, at the section that applies.
+  - **The guard.** `check_docs.py` gains an eleventh assertion. Every critical
+    rule must have a `runbook_url` naming a file in `docs/runbooks/`, and
+    naming a heading in it if the link has an anchor. It computes anchors the
+    way GitHub does.
+  - **On the phone.** A single-alert ntfy page now ends with a 📖 line
+    carrying the `runbook_url`. The ntfy template feeds both the in-house
+    ntfy and the ntfy.sh copies.
+  - **Also.** `docs/observability.md` no longer claims the switch UI is
+    probed: those probes were removed on 2026-09-06.
+
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`

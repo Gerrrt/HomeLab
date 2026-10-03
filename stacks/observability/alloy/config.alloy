@@ -30,12 +30,17 @@
 // Inside the observability stack the compose service names are the defaults.
 // See docs/observability.md.
 //
-// INGEST_TOKEN is the bearer token the monitoring host's ingest proxy wants
-// before it passes a push through (#182, ADR-0067). scripts/deploy-agent.sh
-// sets it from secrets/observability.sops.yaml. Unset, as it is for the agent
-// inside this stack and the lab and SOC stacks' agents, which push to compose
-// names directly, the writers send no Authorization header at all. That was
-// measured against a listener on the pinned image, not read from the docs.
+// INGEST_TOKEN is the bearer token an ingest proxy wants before it passes a
+// push through (#182, ADR-0067). Two proxies, two sets of tokens:
+//   the estate's on 10.0.99.20  deploy-agent.sh sets it from
+//                               secrets/observability.sops.yaml
+//   the lab's on 10.0.30.40     odin's and fenrir's from their own stacks'
+//                               secrets (soc, sensor), phoenix's exported by
+//                               hand (#834)
+// Unset, as it is for the agents inside the observability and lab stacks,
+// which push to compose names directly, the writers send no Authorization
+// header at all. That was measured against a listener on the pinned image,
+// not read from the docs.
 //
 // ALLOY_HOSTNAME is the name this agent labels everything with, and it is read
 // from the environment rather than taken from constants.hostname.
