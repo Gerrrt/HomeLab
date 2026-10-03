@@ -54,6 +54,38 @@
     - role: member
       tags: [join]
 
+- name: The tiers, the share decoy's home, and the authgen account
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: tiers
+      tags: [tiers]
+    - role: authgen
+      tags: [authgen]
+
+- name: Titan's shares, with the decoy
+  hosts: titan
+  gather_facts: false
+  roles:
+    - role: shares
+      tags: [shares]
+
+- name: The authentication generator task, on the workstations
+  hosts: endpoints
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: authgen
+      tags: [authgen]
+
+- name: The SOC agents, installed not deployed by GPO
+  hosts: lab_domain
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: soc_agents
+      tags: [soc]
+
 - name: The exporter, scraped by alexander
   hosts: lab_domain
   serial: 1

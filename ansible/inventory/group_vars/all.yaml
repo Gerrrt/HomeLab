@@ -44,3 +44,16 @@ windows_exporter_collectors: cpu,logical_disk,memory,net,os,service,system,time,
 windows_exporter_textfile_dir: C:\ProgramData\windows_exporter\textfile
 # alexander, the lab Prometheus. The only source the 9182 rule admits.
 windows_exporter_scraper: 10.0.30.40
+
+# --- The skeleton #414 built by hand (runbook §5, §6), now code ---------------
+# Reproduced as it stands so the #448 rebuild loses nothing. The users and the
+# switchable weaknesses on top are #449's, not here.
+lab_domain_dn: "DC=ad,DC=matrix,DC=elysium"
+lab_computers_container: "CN=Computers,DC=ad,DC=matrix,DC=elysium"
+lab_tier_ous: [Tier0, Tier1, Tier2, Servers, Workstations]
+
+# authgen's own password, and the Wazuh enrolment password, both from
+# phoenix.env (ADR-0077 decision 3). The Wazuh one replaces the copy that used
+# to sit readable in SYSVOL (build-the-soc-guest.md §11).
+lab_authgen_password: "{{ lookup('ansible.builtin.env', 'LAB_AUTHGEN_PASSWORD') }}"
+lab_wazuh_registration_password: "{{ lookup('ansible.builtin.env', 'LAB_WAZUH_REGISTRATION_PASSWORD') }}"

@@ -1,0 +1,50 @@
+---
+# The authentication generator (runbook §6): an ordinary domain account, and a
+# task on each workstation every 15 minutes that purges tickets and maps a share
+# on titan. It turns #266's baseline from empty into something a deviation can
+# stand out against, "for no disk and no measurable IOPS".
+#
+# The account part runs on the PDC emulator; the task part on the endpoints. The
+# role is imported twice from lab-domain.yml with a different `when`, so each
+# half runs where it belongs.
+
+- name: The authgen account exists
+  microsoft.ad.user:
+    name: authgen
+    sam_account_name: authgen
+    upn: "authgen@{{ lab_domain }}"
+    description: "build-the-lab-domain.md section 6: authentication generator"
+    password: "{{ lab_authgen_password }}"
+    update_password: when_changed
+    password_never_expires: true
+    user_cannot_change_password: true
+    state: present
+  when: inventory_hostname in groups['dc_primary']
+  no_log: true
+
+# logon_type password, because the task runs whether or not authgen is logged in
+# and needs the network to reach titan — s4u would carry no network credential.
+# The command is the runbook's, mapping \\titan\Public (the share §5 builds).
+- name: The 15-minute generator task is registered on the workstation
+  community.windows.win_scheduled_task:
+    name: Lab-AuthGenerator
+    description: "Realistic Kerberos traffic (build-the-lab-domain.md section 6)."
+    username: "{{ lab_netbios }}\\authgen"
+    password: "{{ lab_authgen_password }}"
+    logon_type: password
+    run_level: limited
+    actions:
+      - path: powershell.exe
+        arguments: >-
+          -NoProfile -NonInteractive -WindowStyle Hidden -Command "klist purge;
+          New-PSDrive -Name S -PSProvider FileSystem -Root \\titan\Public -ErrorAction SilentlyContinue | Out-Null;
+          Get-ChildItem S:\ -ErrorAction SilentlyContinue | Out-Null;
+          Remove-PSDrive S -ErrorAction SilentlyContinue"
+    triggers:
+      - type: time
+        start_boundary: "2026-01-05T06:00:00"
+        repetition:
+          interval: PT15M
+    state: present
+  when: inventory_hostname in groups['endpoints']
+  no_log: true

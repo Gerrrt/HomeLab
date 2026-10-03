@@ -1,0 +1,36 @@
+---
+# titan's two shares (runbook §5): Public, and Finance with its decoy. The decoy
+# is "a share nobody would open is not a share anyone will be caught opening" —
+# an obviously-interesting file on a share Authenticated Users can reach.
+#
+# titan keeps SMB signing not-required so it stays a relay target; that is
+# roles/base's and §0's concern, asserted in verify.yml, not set here.
+
+- name: The share directories exist
+  ansible.windows.win_file:
+    path: "C:\\Shares\\{{ item }}"
+    state: directory
+  loop: [Public, Finance]
+
+# The decoy's content does not matter, only that it is reachable and tempting.
+# Written only if absent, so its mtime does not move every run.
+- name: The Finance decoy exists
+  ansible.windows.win_copy:
+    dest: C:\Shares\Finance\payroll-2026-Q4.xlsx
+    content: "decoy\n"
+    force: false
+
+# Authenticated Users, matching as-built: Finance is Change, Public is Full. The
+# NTFS ACLs are left at the directory defaults (verify reads the share ACL).
+- name: The shares are published with their as-built access
+  ansible.windows.win_share:
+    name: "{{ item.name }}"
+    path: "C:\\Shares\\{{ item.name }}"
+    state: present
+    change: "{{ item.change | default(omit) }}"
+    full: "{{ item.full | default(omit) }}"
+  loop:
+    - {name: Public, full: Authenticated Users}
+    - {name: Finance, change: Authenticated Users}
+  loop_control:
+    label: "{{ item.name }}"
