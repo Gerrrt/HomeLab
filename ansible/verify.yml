@@ -13,6 +13,7 @@
 - name: Verify the lab domain, and that nothing has been hardened
   hosts: lab_domain
   gather_facts: false
+  vars_files: [population/population.yaml]
   tasks:
     - name: Ask each guest
       ansible.windows.win_powershell:
@@ -26,10 +27,13 @@
           PrimaryDc: "{{ groups['dc_primary'][0] }}"
           Gateway: "{{ lab_gateway }}"
           Scraper: "{{ windows_exporter_scraper }}"
+          PeopleOu: "OU={{ population_ou }},{{ lab_domain_dn }}"
+          Sams: "{{ population_users | map(attribute='sam') | list }}"
+          Groups: "{{ population_groups | map(attribute='name') | list }}"
         script: |
           param([string]$Domain, [string]$Name, [string]$IsDc, [string]$IsPrimary,
                 [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$LabRole,
-                [string]$PrimaryDc)
+                [string]$PrimaryDc, [string]$PeopleOu, [string[]]$Sams, [string[]]$Groups)
           $Ansible.Changed = $false
           # Not $isDc: PowerShell names are case-insensitive, so that is the [string]
           # parameter above, and assigning the bool to it turns it back into "False",
@@ -116,6 +120,25 @@
             # Still a relay target (§5); a servicing update moving this default
             # is exactly the change this is here to catch.
             $r['titan does not require SMB signing'] = -not (Get-SmbServerConfiguration).RequireSecuritySignature
+          }
+
+          # --- #449: the population, and the generator that runs as it ----------
+          if ([bool]::Parse($IsPrimary)) {
+            # Exactly the file's accounts: one missing is a run that did not
+            # finish, and one extra is a removal nobody has decided on.
+            $people = @(Get-ADUser -Filter * -SearchBase $PeopleOu -ErrorAction SilentlyContinue |
+              ForEach-Object { $_.SamAccountName })
+            $r['OU=People holds population.yaml, and nothing else'] =
+              ((($people | Sort-Object) -join ',') -eq (($Sams | Sort-Object) -join ','))
+            $r['every population group exists'] =
+              -not ($Groups | Where-Object { -not (Get-ADGroup -Filter "Name -eq '$_'") })
+          }
+          if ($LabRole -eq 'endpoint') {
+            $t = Get-ScheduledTask -TaskName Lab-AuthGenerator -ErrorAction SilentlyContinue
+            $r['the authentication generator runs as authgen'] =
+              [bool]($t -and $t.Principal.UserId -match 'authgen$')
+            $r['its last run succeeded'] =
+              [bool]($t -and (Get-ScheduledTaskInfo -TaskName Lab-AuthGenerator).LastTaskResult -eq 0)
           }
           $r
       register: verify_answer

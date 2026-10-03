@@ -1,0 +1,52 @@
+---
+# Runbook §6's authentication generator, on the two endpoints: a task every
+# fifteen minutes, as AD\authgen, that lists titan's share. It produces 4768,
+# 4769 and 4624 on the DCs and 5140 on titan, which is what gives the SOC a
+# baseline to see a deviation against. Built by hand on 2026-10-02; this adopts
+# that task by name rather than adding a second.
+#
+# authgen's password is the population's derived one (roles/population), so
+# that play must have run first on a fresh domain.
+
+- name: Refuse to run without the population seed
+  ansible.builtin.assert:
+    that: lab_population_seed | length >= 16
+    fail_msg: LAB_POPULATION_SEED is missing from phoenix.env; authgen's password is derived from it.
+    quiet: true
+
+# Windows 11 does not grant this when a task is registered with a password,
+# and the task then fails every run with 0x80070569 (§6, found 2026-10-02).
+- name: Let authgen log on as a batch job
+  ansible.windows.win_user_right:
+    name: SeBatchLogonRight
+    users: ["{{ lab_netbios }}\\authgen"]
+    action: add
+
+- name: Run the generator every fifteen minutes, as authgen
+  community.windows.win_scheduled_task:
+    name: Lab-AuthGenerator
+    description: build-the-lab-domain.md section 6 (ansible/roles/authgen)
+    actions:
+      - path: powershell.exe
+        arguments: >-
+          -NoProfile -NonInteractive -WindowStyle Hidden -Command
+          "klist purge; New-PSDrive -Name S -PSProvider FileSystem -Root {{ authgen_share }}
+          -ErrorAction SilentlyContinue | Out-Null; Get-ChildItem S:\ -ErrorAction SilentlyContinue
+          | Out-Null; Remove-PSDrive S -ErrorAction SilentlyContinue"
+    triggers:
+      - type: time
+        start_boundary: "2026-10-02T00:00:00"
+        repetition:
+          interval: PT15M
+    username: "{{ lab_netbios }}\\authgen"
+    password: "{{ lab_population_password }}"
+    logon_type: password
+    update_password: "{{ authgen_update_password }}"
+    run_level: limited
+    multiple_instances: 2
+    execution_time_limit: PT5M
+    start_when_available: true
+    state: present
+  vars:
+    population_account: authgen
+  no_log: true

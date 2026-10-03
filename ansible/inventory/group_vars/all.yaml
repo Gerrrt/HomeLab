@@ -29,6 +29,18 @@ lab_functional_level: WinThreshold
 lab_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_ADMIN_PASSWORD') }}"
 lab_dsrm_password: "{{ lookup('ansible.builtin.env', 'LAB_DSRM_PASSWORD') }}"
 
+# --- The population (#449) ----------------------------------------------------
+# ansible/population/population.yaml is committed and holds no passwords. Each
+# one is derived here, from this seed and the sAMAccountName, so a rerun sets
+# the same password it set last time, and population-credentials.yml can print
+# them again on phoenix. The task supplies `population_account`. The hex digest
+# is lower case, so the suffix adds the upper case, digit and symbol that the
+# domain's complexity rule asks for. Change the seed and every password moves.
+lab_population_seed: "{{ lookup('ansible.builtin.env', 'LAB_POPULATION_SEED') }}"
+lab_population_password: >-
+  {{ ((lab_population_seed ~ ':' ~ population_account) | hash('sha256'))[:20] ~ 'Aa1!' }}
+lab_domain_dn: "DC={{ lab_domain.split('.') | join(',DC=') }}"
+
 # --- windows_exporter (§7) ---------------------------------------------------
 # The version is pinned here, with the MSI's sha256 beside it, because the
 # collector list below is only known-good against this release: in 0.31.x `cs`

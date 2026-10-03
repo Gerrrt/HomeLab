@@ -1,0 +1,12 @@
+---
+# The share the generator lists. titan's, because §6's 5140 is read there.
+authgen_share: \\titan\Public
+
+# Whether to set the task's stored password even when nothing else about the
+# task changed. community.windows.win_scheduled_task reports a change every run
+# when this is true, so it is true only when the population play just changed
+# authgen. After changing LAB_POPULATION_SEED, or after resetting authgen by
+# hand, run `--tags population,authgen` together, or pass
+# `-e authgen_update_password=true`.
+authgen_update_password: >-
+  {{ hostvars[groups['dc_primary'][0]]['population_authgen_changed'] | default(false) | bool }}

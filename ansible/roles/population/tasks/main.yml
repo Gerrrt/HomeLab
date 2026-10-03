@@ -1,0 +1,124 @@
+---
+# The domain's people, from ansible/population/population.yaml (#449): an OU
+# per department under OU=People, a global group per department and per
+# cross-cutting group under OU=Groups, and the users. Runbook §5 after the join.
+#
+# Ordinary accounts only. Nothing here gives any account a weakness; those are
+# #449's own tags, each applied separately on top of this. The tier admins and
+# the Tier 0 logon GPO that §5 also describes are not this role's either.
+#
+# Runs on the PDC emulator, where the AD module is local. Accounts that are in
+# OU=People but not in the file are left alone and reported; verify.yml fails
+# on them, so a removal is a decision someone makes, not a side effect.
+
+- name: Refuse to run without the population seed
+  ansible.builtin.assert:
+    that: lab_population_seed | length >= 16
+    fail_msg: >-
+      LAB_POPULATION_SEED is missing from phoenix.env, or shorter than 16
+      characters. Every password in the population is derived from it.
+    quiet: true
+
+- name: The People OU
+  microsoft.ad.ou:
+    name: "{{ population_ou }}"
+    path: "{{ lab_domain_dn }}"
+    state: present
+
+- name: An OU per department
+  microsoft.ad.ou:
+    name: "{{ item }}"
+    path: "OU={{ population_ou }},{{ lab_domain_dn }}"
+    state: present
+  loop: "{{ population_departments }}"
+
+- name: The Groups OU
+  microsoft.ad.ou:
+    name: "{{ population_groups_ou }}"
+    path: "{{ lab_domain_dn }}"
+    state: present
+
+- name: The groups
+  microsoft.ad.group:
+    name: "{{ item.name }}"
+    path: "OU={{ population_groups_ou }},{{ lab_domain_dn }}"
+    scope: global
+    category: security
+    description: "{{ item.description }}"
+    state: present
+  loop: "{{ population_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# `identity` finds an account wherever it is, so authgen, made by hand in
+# CN=Users on 2026-10-02, is moved into OU=IT rather than made twice.
+# `when_changed` tries the derived password before it sets it, which is what
+# lets a second run report nothing; it costs one logon per account per run, so
+# expect that many 4624s on the DCs whenever this runs.
+#
+# Group membership is `set`, with Domain Users named because it is everyone's
+# primary group, so regenerating the file moves people out of groups as well as
+# into them.
+- name: The users
+  microsoft.ad.user:
+    identity: "{{ item.sam }}"
+    name: "{{ item.given }} {{ item.surname }}"
+    sam_account_name: "{{ item.sam }}"
+    upn: "{{ item.sam }}@{{ lab_domain }}"
+    firstname: "{{ item.given }}"
+    surname: "{{ item.surname }}"
+    display_name: "{{ item.given }} {{ item.surname }}"
+    description: "{{ item.title }}"
+    attributes:
+      set:
+        title: "{{ item.title }}"
+        department: "{{ item.department }}"
+    path: "OU={{ item.department }},OU={{ population_ou }},{{ lab_domain_dn }}"
+    password: "{{ lab_population_password }}"
+    update_password: when_changed
+    password_never_expires: true
+    enabled: true
+    groups:
+      set: "{{ item.groups + ['Domain Users'] }}"
+      # In check mode on a domain not yet populated, the groups above were not
+      # really made, so a lookup that would fail only warns.
+      lookup_failure_action: "{{ 'warn' if ansible_check_mode else 'fail' }}"
+    state: present
+  vars:
+    population_account: "{{ item.sam }}"
+  loop: "{{ population_users }}"
+  loop_control:
+    label: "{{ item.sam }}"
+  register: population_users_result
+  no_log: true
+
+# roles/authgen re-registers the endpoints' task with the new password when
+# this changed authgen. A change to anything else about the account updates the
+# task too, which costs nothing: the password it sets is the same derived one.
+- name: Remember whether authgen changed, for the authgen play
+  ansible.builtin.set_fact:
+    population_authgen_changed: >-
+      {{ population_users_result.results
+         | selectattr('item.sam', 'equalto', 'authgen')
+         | map(attribute='changed') | first | default(false) }}
+
+- name: Read who is in OU=People that the file does not name
+  ansible.windows.win_powershell:
+    script: |
+      param([string]$Ou, [string[]]$Known)
+      $Ansible.Changed = $false
+      # Absent on a first --check, because the OU above was not really made.
+      if (-not (Get-ADOrganizationalUnit -Filter "DistinguishedName -eq '$Ou'")) { return @() }
+      @(Get-ADUser -Filter * -SearchBase $Ou |
+        Where-Object { $Known -notcontains $_.SamAccountName } |
+        ForEach-Object { $_.SamAccountName })
+    parameters:
+      Ou: "OU={{ population_ou }},{{ lab_domain_dn }}"
+      Known: "{{ population_users | map(attribute='sam') | list }}"
+  register: population_extras
+  check_mode: false
+
+- name: Report them, without removing them
+  ansible.builtin.debug:
+    msg: "In OU={{ population_ou }} but not in population.yaml: {{ population_extras.output | join(', ') }}"
+  when: population_extras.output | length > 0
