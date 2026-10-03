@@ -1,0 +1,39 @@
+---
+# A Watchdog for the Loki ruler (#837).
+#
+# Every security alert the estate has is evaluated here, by Loki's ruler, and
+# not by Prometheus: SSH brute force, segment breaches, unknown devices,
+# Suricata priority 1 (security.rules.yaml). The Watchdog in
+# prometheus/rules/watchdog.rules.yaml proves Prometheus -> Alertmanager ->
+# heartbeat. It says nothing about this ruler, so a ruler that stopped
+# evaluating, or could not reach Alertmanager, silenced every security alert
+# at once while the heartbeat stayed green.
+#
+# This rule's firing carries no information. What matters is that the ruler
+# SENDS it: the ruler re-sends a firing alert every minute, so
+# loki_prometheus_notifications_sent_total climbs for as long as it is
+# evaluating and delivering. LokiRulerSilent in prometheus/rules/stack.rules.yaml
+# reads that counter, and that rule is itself covered by the Prometheus Watchdog
+# and the external heartbeat. So the chain is proven end to end without a
+# second external check.
+#
+# Alertmanager routes this to the "null" receiver above every severity route
+# (alertmanager.yaml), so it never reaches a phone.
+groups:
+  - name: ruler-watchdog
+    interval: 1m
+    rules:
+      - alert: LokiRulerWatchdog
+        # vector(1) has no stream selector, so there is no log, label or
+        # retention problem that can stop it firing. Anything that stops the
+        # counter climbing is a fault in the ruler or its path to Alertmanager.
+        expr: vector(1)
+        for: 0s
+        labels:
+          component: watchdog
+          # `none`, for the reasons the Prometheus Watchdog gives: it keeps the
+          # alert out of the severity routes and out of both inhibit rules.
+          severity: none
+          category: monitoring
+        annotations:
+          summary: "The Loki ruler is evaluating and sending (always fires; see LokiRulerSilent)"

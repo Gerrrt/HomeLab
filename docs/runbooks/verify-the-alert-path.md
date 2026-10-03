@@ -31,6 +31,22 @@ route proves delivery to a *different* URL than real alerts use, so it cannot
 see a deleted ntfy topic. The daily route travels the identical URL your warnings
 travel, but nothing machine-checks its absence — you do.
 
+## The ruler's half
+
+The heartbeat proves Prometheus's path, and Loki's ruler evaluates every
+security alert on a path of its own. `LokiRulerWatchdog` fires forever in
+Loki and is routed to `null`. Prometheus watches the ruler's sent counter,
+and `LokiRulerSilent` pages if it stops climbing
+([#837](https://github.com/Gerrrt/HomeLab/issues/837)). To see it working,
+on the monitoring host:
+
+```bash
+curl -s localhost:3100/prometheus/api/v1/alerts | grep -c LokiRulerWatchdog
+```
+
+The command should print `1`. In Prometheus, `increase(loki_prometheus_notifications_sent_total[15m])`
+should be above zero.
+
 ## Where the real alerts go
 
 Since [#136](https://github.com/Gerrrt/HomeLab/issues/136) the three real
@@ -334,6 +350,7 @@ Put it back to `24h` afterwards.
 | External check UP, daily heartbeat stopped | The **real alert channel** is broken — since #136 the in-house ntfy: a token that no longer matches, a topic renamed on one host and not the other, the phone's subscription or password. This is #67's original failure. Pages still reach you over the ntfy.sh copies; nothing else does. |
 | `EndpointUnreachable` for `ntfy` on the ntfy.sh topic | The in-house ntfy, Caddy, or `trinity` itself. Warnings sent meanwhile reached no one — `default` has no second route — so read what fired in Alertmanager, through Grafana, once it is back. |
 | Both stopped | Prometheus, Alertmanager, or this host. Start with `docker compose ps` and `curl -s localhost:9093/-/healthy`. |
+| `LokiRulerSilent` or `LokiRulerNotificationsFailing` | The heartbeat is fine and Loki's ruler is not: every log-based alert, the security ones among them, is silent. `docker logs loki 2>&1 \| grep -i ruler`. |
 | Both fine, but you expected an alert about something else | Not this runbook. The path works; check the rule, then the routing tree with `amtool config routes test`. |
 
 The second row is the one this whole arrangement exists for, and it is the one
