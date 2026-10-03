@@ -30,7 +30,13 @@ docstring gives: it is a record, not a claim about now.
     with the same digest and the same GET-only allowlist, and Alloy reads the
     API through `DOCKER_API`.
   - **The guard.** `check_compose_health.py` fails on any `docker.sock`
-    mount outside the proxy image, with four fixtures.
+    mount outside the proxy image, with ten fixtures.
+  - **What review found.** Each Alloy's `/:/rootfs:ro` carried
+    `/rootfs/run/docker.sock` past the proxy, because `:ro` does not stop
+    `connect()`. That was true of the estate's Alloy since #193. `/rootfs/run`
+    is masked in all four now, as is smaug's `/host/run`. The guard also
+    covers the `/run/docker.sock` spelling, a mount of `/run` itself, and an
+    unmasked `/`.
   - **Still open.** `oracle`'s agent is a single `docker run` from
     `deploy-agent.sh`, not a compose service, so the guard cannot see it.
 

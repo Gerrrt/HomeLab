@@ -999,6 +999,9 @@ services:
     tmpfs:
       - /tmp:size=32m
       - /root/.cache:size=16m
+      # See the note on /rootfs/run in stacks/lab/compose.yaml's alloy: the
+      # same mask, for #193's proxy as much as #836's.
+      - /rootfs/run:size=64k,mode=0755
     # Root without DAC_OVERRIDE also cannot read /var/log/auth.log or
     # /var/log/syslog — they are syslog:adm 0640 and root owns neither — which
     # would take out the two file sources in config.alloy and, with them, most

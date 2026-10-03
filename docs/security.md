@@ -918,6 +918,20 @@ this closes on.
   `docker.sock` mount in a compose file outside the proxy image, which is how
   they would have been caught.
 
+  **The proxy was not the whole fix, and review of #836 said why.** Every
+  Alloy also mounts the host's `/` at `/rootfs:ro` for node metrics, and that
+  carries `/rootfs/run/docker.sock` with it. A read-only mount does not stop
+  `connect()` on a socket, and Alloy runs as uid 0, which owns it, so any
+  Alloy, the estate's behind #193's proxy included, could reach the full API
+  around the proxy with no capability at all. `/rootfs/run` is now an empty
+  tmpfs in all four. smaug's node-exporter gets the same mask at `/host/run`,
+  although as uid 65534 it could not open the socket anyway. The check now
+  fails three shapes:
+
+  - the socket itself, under either spelling, `/var/run` or `/run`;
+  - its directory;
+  - the host's `/` with no mask over `<target>/run`.
+
   `oracle`'s agent still mounts the socket directly. It is deployed by
   `deploy-agent.sh` as a single `docker run`, not from a compose file, so that
   check cannot see it. `docker.alloy` reads the API address from `DOCKER_API`

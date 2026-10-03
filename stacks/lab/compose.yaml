@@ -366,6 +366,16 @@ services:
       - alloy-data:/var/lib/alloy/data
       - /var/log:/var/log:ro
       - /:/rootfs:ro
+    # The host's /run is masked inside /rootfs (#836 review). `/:/rootfs:ro`
+    # otherwise hands this container /rootfs/run/docker.sock, and :ro does not
+    # stop connect() on a socket; Alloy runs as uid 0, the socket's owner, so it
+    # would reach the full Docker API around the proxy with no capability at
+    # all. containerd's socket is under /run too. Nothing here reads /run: the
+    # journal is /var/log/journal, and tmpfs is excluded from the filesystem
+    # collector, so the mask changes no series. check_compose_health.py fails a
+    # rootfs mount without it.
+    tmpfs:
+      - /rootfs/run:size=64k,mode=0755
     ports:
       # Debug UI, loopback only. No syslog receiver on 1514/udp, because
       # syslog.alloy is not mounted above.

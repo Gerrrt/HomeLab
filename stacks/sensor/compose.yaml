@@ -207,6 +207,9 @@ services:
       - alloy-data:/var/lib/alloy/data
       - /var/log:/var/log:ro
       - /:/rootfs:ro
+    # /rootfs/run masked: stacks/lab/compose.yaml's alloy has the reason.
+    tmpfs:
+      - /rootfs/run:size=64k,mode=0755
     depends_on:
       docker-socket-proxy:
         condition: service_started
