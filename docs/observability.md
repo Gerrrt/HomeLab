@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-145 rules in total: 127 metric-based in `prometheus/rules/`, and 18 log-based in
+150 rules in total: 132 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -450,7 +450,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-127 rules across eleven files in `prometheus/rules/`:
+132 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -485,14 +485,15 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 127 rules of 127 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all ten
+against the broken rule too. Coverage is 132 rules of 132 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all ten
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from
 [#838](https://github.com/Gerrrt/HomeLab/issues/838) and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all seven in
-`backup.test.yaml`, all eight in `deploy.test.yaml`, `RemoteWriteJobStale`,
+`backup.test.yaml`, all eight in `deploy.test.yaml`, the five self-monitoring
+rules from [#840](https://github.com/Gerrrt/HomeLab/issues/840), `RemoteWriteJobStale`,
 `ScrapeTargetDisappeared`,
 `SuricataStopped`, the two gateway rules from
 [#353](https://github.com/Gerrrt/HomeLab/issues/353), the two dynamic DNS rules from

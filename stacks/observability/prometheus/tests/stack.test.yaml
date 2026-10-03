@@ -527,6 +527,229 @@ tests:
         alertname: SilenceWithoutIssue
         exp_alerts: []
 
+  # --- #840: the rest of the stack watching itself ---------------------------
+  #
+  # AlertmanagerConfigReloadFailed: a rejected reload fires after its `for`; a
+  # successful one beside it does not.
+  - interval: 1m
+    input_series:
+      - series: 'alertmanager_config_last_reload_successful{instance="alertmanager:9093",job="alertmanager"}'
+        values: "1x5 0x20"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: AlertmanagerConfigReloadFailed
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: AlertmanagerConfigReloadFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: AlertmanagerConfigReloadFailed
+              instance: alertmanager:9093
+              job: alertmanager
+              component: stack
+              severity: critical
+              category: correctness
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/deploy-stack.md#troubleshooting"
+              dashboard: "Observability Stack (/d/homelab-stack) › Alertmanager › Silences and config reloads"
+              summary: "Alertmanager rejected its config reload on alertmanager:9093"
+              description: >-
+                It is still routing with the tree it last accepted, so whatever the
+                edit changed (a receiver, a route, a silence's target) is not in
+                effect. `docker logs alertmanager 2>&1 | grep -i config` names the
+                error; `make validate` (amtool check-config) catches it before a
+                deploy.
+
+  # PrometheusNotificationsFailing: errors fire; drops fire on their own; flat
+  # counters are quiet.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_notifications_errors_total{alertmanager="http://alertmanager:9093/api/v2/alerts",instance="localhost:9090",job="prometheus"}'
+        values: "0+1x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PrometheusNotificationsFailing
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusNotificationsFailing
+              component: stack
+              severity: critical
+              category: correctness
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#reading-the-failure"
+              dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › Alert hand-off to Alertmanager"
+              summary: "Prometheus is failing to hand alerts to Alertmanager"
+              description: >-
+                Some alerts that fired in the last 15 minutes never reached
+                Alertmanager, so nobody was told. Check the dashboard's notification
+                panels and `docker logs prometheus 2>&1 | grep -i notif`.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_notifications_dropped_total{instance="localhost:9090",job="prometheus"}'
+        values: "0+5x30"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PrometheusNotificationsFailing
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusNotificationsFailing
+              component: stack
+              severity: critical
+              category: correctness
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#reading-the-failure"
+              dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › Alert hand-off to Alertmanager"
+              summary: "Prometheus is failing to hand alerts to Alertmanager"
+              description: >-
+                Some alerts that fired in the last 15 minutes never reached
+                Alertmanager, so nobody was told. Check the dashboard's notification
+                panels and `docker logs prometheus 2>&1 | grep -i notif`.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_notifications_errors_total{alertmanager="http://alertmanager:9093/api/v2/alerts",instance="localhost:9090",job="prometheus"}'
+        values: "0+0x30"
+      - series: 'prometheus_notifications_dropped_total{instance="localhost:9090",job="prometheus"}'
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: PrometheusNotificationsFailing
+        exp_alerts: []
+
+  # PrometheusTsdbFailures: each counter is reported under its own `failure`
+  # label, so the alert says which one moved; flat counters are quiet.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_tsdb_compactions_failed_total{instance="localhost:9090",job="prometheus"}'
+        values: "0x10 1x50"
+      - series: 'prometheus_tsdb_wal_corruptions_total{instance="localhost:9090",job="prometheus"}'
+        values: "0x20 1x40"
+      - series: 'prometheus_tsdb_reloads_failures_total{instance="localhost:9090",job="prometheus"}'
+        values: "0x60"
+      - series: 'prometheus_tsdb_head_truncations_failed_total{instance="localhost:9090",job="prometheus"}'
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PrometheusTsdbFailures
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: PrometheusTsdbFailures
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusTsdbFailures
+              failure: compaction
+              component: stack
+              severity: warning
+              category: correctness
+            exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › TSDB failures"
+              summary: "Prometheus TSDB compaction failed in the last hour"
+              description: >-
+                `docker logs prometheus 2>&1 | grep -iE 'compact|wal|reload|truncat'`
+                says why. A WAL corruption means some recent samples will not survive
+                a restart; repeated compaction failures mean the head, and the disk,
+                keep growing. Neither fixes itself.
+          - exp_labels:
+              alertname: PrometheusTsdbFailures
+              failure: wal-corruption
+              component: stack
+              severity: warning
+              category: correctness
+            exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › TSDB failures"
+              summary: "Prometheus TSDB wal-corruption failed in the last hour"
+              description: >-
+                `docker logs prometheus 2>&1 | grep -iE 'compact|wal|reload|truncat'`
+                says why. A WAL corruption means some recent samples will not survive
+                a restart; repeated compaction failures mean the head, and the disk,
+                keep growing. Neither fixes itself.
+
+  # AlloyRemoteWriteFailing: oracle's agent is refusing some samples and fires.
+  # The local agent's failures arrive twice, once from the direct scrape
+  # (job="alloy", instance="alloy:12345") and once by its own push
+  # (job="prometheus-alloy"). It must alert ONCE, as instance="prometheus". A rule
+  # matching both jobs would add a second alert and fail this test. trinity's is
+  # healthy.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_remote_storage_samples_failed_total{instance="oracle",job="oracle-alloy",url="http://10.0.99.20:9090/api/v1/write"}'
+        values: "0+3x40"
+      - series: 'prometheus_remote_storage_samples_failed_total{instance="prometheus",job="prometheus-alloy",url="http://prometheus:9090/api/v1/write"}'
+        values: "0+2x40"
+      - series: 'prometheus_remote_storage_samples_failed_total{instance="alloy:12345",job="alloy",url="http://prometheus:9090/api/v1/write"}'
+        values: "0+2x40"
+      - series: 'prometheus_remote_storage_samples_failed_total{instance="trinity",job="trinity-alloy",url="http://10.0.99.20:9090/api/v1/write"}'
+        values: "0+0x40"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: AlloyRemoteWriteFailing
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: AlloyRemoteWriteFailing
+        exp_alerts:
+          - exp_labels:
+              alertname: AlloyRemoteWriteFailing
+              instance: oracle
+              component: stack
+              severity: warning
+              category: correctness
+            exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
+              summary: "Alloy on oracle is failing to remote-write some samples"
+              description: >-
+                Metrics from oracle are being lost, not queued. On the host, `docker
+                logs alloy 2>&1 | grep -i 'remote_write\|non-recoverable'` (or
+                `journalctl -u alloy` for a native agent) gives the status the
+                receiver returned: 401 is the ingest token, 400 out-of-order or too
+                old is the clock or a replay.
+          - exp_labels:
+              alertname: AlloyRemoteWriteFailing
+              instance: prometheus
+              component: stack
+              severity: warning
+              category: correctness
+            exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
+              summary: "Alloy on prometheus is failing to remote-write some samples"
+              description: >-
+                Metrics from prometheus are being lost, not queued. On the host,
+                `docker logs alloy 2>&1 | grep -i 'remote_write\|non-recoverable'` (or
+                `journalctl -u alloy` for a native agent) gives the status the
+                receiver returned: 401 is the ingest token, 400 out-of-order or too
+                old is the clock or a replay.
+
+  # AlloyComponentUnhealthy: one unhealthy component on oracle fires, under the
+  # self-scraped job only; the healthy count beside it, and the same unhealthy
+  # count under the direct-scrape job, add nothing.
+  - interval: 1m
+    input_series:
+      - series: 'alloy_component_controller_running_components{health_type="unhealthy",instance="oracle",job="oracle-alloy"}'
+        values: "0x5 1x30"
+      - series: 'alloy_component_controller_running_components{health_type="healthy",instance="oracle",job="oracle-alloy"}'
+        values: "31x35"
+      - series: 'alloy_component_controller_running_components{health_type="unhealthy",instance="alloy:12345",job="alloy"}'
+        values: "1x35"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: AlloyComponentUnhealthy
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: AlloyComponentUnhealthy
+        exp_alerts:
+          - exp_labels:
+              alertname: AlloyComponentUnhealthy
+              instance: oracle
+              health_type: unhealthy
+              component: stack
+              severity: warning
+              category: correctness
+            exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Component health"
+              summary: "Alloy on oracle has 1 unhealthy component(s)"
+              description: >-
+                Part of what that agent collects has stopped while the agent stays up.
+                Its debug UI on 127.0.0.1:12345 (an SSH tunnel away) lists each
+                component with its health and last error.
+
   # --- The three stack rules untested until #843 ---------------------------
 
   # PrometheusConfigReloadFailed: a rejected reload (0) fires after its 5m `for`.
