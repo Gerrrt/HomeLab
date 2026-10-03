@@ -148,7 +148,9 @@ printf 'LAB_ADMIN_PASSWORD=%s\nLAB_DSRM_PASSWORD=%s\n' \
   >> ~/.config/proxmox/phoenix.env
 ```
 
-Then, every time:
+Then, every time. **First applied to the hand-built six on 2026-10-03**: a
+run on `main` after #825 reported `changed=0` everywhere, and `verify.yml`
+passed on all six (`changelog.md`, 2026-10-03).
 
 ```bash
 cd ansible

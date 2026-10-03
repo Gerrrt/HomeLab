@@ -49,6 +49,48 @@ docstring gives: it is a record, not a claim about now.
     while "off". It is the likeliest reason an unplug ticks the drive and a
     Shut Down does not. Shut Down, unplug 30 s, power on would show it.
 
+- **`ansible/` configures the hand-built domain, a second run changes
+  nothing, and `verify.yml` passes on all six**
+  ([#448](https://github.com/Gerrrt/HomeLab/issues/448),
+  [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)).
+  #448 stays open for the rebuild.
+  - **The way in.** Each of the six got key-only `sshd`, admitting
+    `phoenix` alone, from its console on 2026-10-02. Each was checked from
+    `Saruman`, and then logged into from `phoenix`.
+    - On `carbuncle` and `siren`, the key file first held a draft's
+      placeholder. `openssh.ps1` now refuses one (#821).
+    - Their built-in Administrator was disabled and had no password, so
+      `sshd` reset the connection during key exchange. It was enabled, with
+      a password set, at each console.
+  - **What the first real run changed.** All six moved from Pacific to UTC,
+    and gained `C:\ProgramData\lab`. The four servers gained the
+    licence-clock task, which wrote its first value. Joins, the forest, the
+    forwarder, root hints, the clock and the Administrator password were
+    already right, and were left alone.
+  - **What the runs found in the playbook, not the guests** (#825, #827):
+    - `win_dns_client` treats IPv6 resolvers it was not given as drift, and
+      reported a change on both DCs every run. `::1` survived, but the role
+      now sets IPv4 resolvers only, through `netsh interface ipv4`.
+    - `win_powershell` skips a script in check mode unless it declares
+      `SupportsShouldProcess`, so `--check` reported changes on state that
+      was already right.
+    - In `verify.yml`, `$isDc` overwrote the `[string]` parameter `$IsDc`,
+      because PowerShell names ignore case. Every member ran the DC checks.
+    - `dcdiag` cannot bind to the partner DC from an SSH key logon. Verify
+      now reads the DC's own replication partner metadata. `repadmin` showed
+      0 failures out of 5 both ways throughout.
+    - In check mode, `exporter` and `licence_clock` failed or would have
+      failed on a folder `base` had not made. They now report pending work
+      instead.
+  - **Proved.** On `main` after #825, `ansible-playbook lab-domain.yml`
+    reported `changed=0` and `failed=0` on all six, DCs included.
+    `verify.yml` then passed on all six. That covers the do-not-harden
+    list, titan's unsigned SMB, replication, the clocks, and 9182 admitting
+    `alexander` alone.
+  - **What #448 still needs.** The six declared in `tofu/` with pinned MACs,
+    which the guest module cannot yet take, and #440's first template build.
+    Then `tofu destroy`, a rebuild, `lab-domain.yml` and `verify.yml`.
+
 - **OpenTofu's first apply ran, and both proofs passed against real state.
   This closes #445**
   ([#445](https://github.com/Gerrrt/HomeLab/issues/445),
