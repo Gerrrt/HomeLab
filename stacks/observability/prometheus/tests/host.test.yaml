@@ -2239,14 +2239,7 @@ tests:
               category: hardware
             exp_annotations:
               summary: "smaug: /dev/sda lost power uncleanly 1 time(s) in the last day"
-              description: >-
-                The drive's unsafe-shutdown counter moved more times than the host
-                recorded a clean stop, which means it stopped without going through
-                its shutdown sequence — a mains cut that outlasted the UPS with
-                nothing acting on its signal, a crash, or a plug. Find the event:
-                UpsOnBattery and InstanceDown around the same time say which. If a
-                UPS shutdown sequence exists for this host (ADR-0049), it did not
-                run, and runbooks/shut-down-on-the-ups.md says how to check it.
+              description: "The drive's unsafe-shutdown counter moved, which means it lost power without being told first — a mains cut that outlasted the UPS, the UPS cutting its output after a halt, a crash, or a plug. Find the event: UpsOnBattery and InstanceDown around the same time say which. If a UPS shutdown sequence exists for this host (ADR-0049) and no clean stop was recorded, it did not run, and runbooks/shut-down-on-the-ups.md says how to check it."
 
   # --- SmartDriveUnsafeShutdownsGrowing: QUIET on the recorded 509 ---------
   # The count the drive arrived with is history, not an event. A static 509
@@ -2275,269 +2268,83 @@ tests:
         exp_alerts: []
 
   # ==========================================================================
-  # SmartDriveUnsafeShutdownsGrowing against the host's own clean stops (#746).
+  # SmartDriveUnsafeShutdownsGrowing and smaug's clean stops (#746).
   #
-  # smaug's S3520 counts every power-off, clean or not: 522 before a clean
-  # System → Shut Down on 2026-09-29, 523 after. scripts/mark-clean-shutdown.sh
-  # runs as smaug's SHUTDOWN init script and serves homelab_clean_shutdowns_total,
-  # and the rule pages on the day's unsafe shutdowns minus the day's clean ones.
-  # The fixtures carry the real label sets — `slot` and the scrape's labels on
-  # the drive, the scrape's labels on the clean count — because the join is
-  # on(host) and a fixture without the extra labels could not catch a join that
-  # only works when they are absent.
+  # Settled 2026-10-03 by controlled stops on smaug: two UI Restarts and one UI
+  # Shut Down, left plugged in, all left the S3520 at 523. The 522 -> 523 of
+  # 2026-09-29 was the unplug for the memory install, not the clean shutdown
+  # before it. So the expression is "any tick pages" again, and the clean
+  # count from scripts/mark-clean-shutdown.sh only changes the description:
+  # when a clean power-off was recorded the same day, the page says the likely
+  # cause is mains removed afterwards. These cases pin both halves — a clean
+  # stop that does not tick stays quiet, and no clean stop ever silences a
+  # tick, which is the hole #800/#819 opened and this closes.
   #
-  # Mutation-tested 2026-10-01, each asserted to apply exactly once; all killed:
+  # Fixtures carry the real label sets, because the hint's query filters on
+  # `host` and must not pick up another host's count.
   #
-  #   drop the `- on (host) group_left () (...)` subtraction  planned reboot fires
-  #   on (host) -> on (instance) on the subtraction            morpheus netted against prometheus
-  #   drop `or homelab_clean_shutdowns_total * 0`              install-day cut is quiet
-  #   drop the `or ( ... unless on (host) ... )` branch        no-clean-count host is quiet
-  #   unless on (host) -> unless on (job)                      morpheus beside a clean host is quiet
-  #   for: 1h -> 0m                                            the lag cases fire
-  #   > 0 -> >= 0                                              planned reboot fires
-  #   drop clamp_min(..., 0)                                   a reset reads 5, not 1
+  # Mutation-tested 2026-10-03, each asserted to apply exactly once; all killed:
+  #
+  #   > 0 -> >= 0 on the expression                  planned Shut Down fires
+  #   offset 1d -> offset 7d on the expression       quiet-again-after-a-day fires
+  #   the hint's `> 0` -> `>= 0`                     restart case gains the hint
+  #   the hint's host=%q filter dropped              oracle's stop hints smaug's page
+  #   _shutdowns_total -> _restarts_total in hint    unplug case loses the hint
   # ==========================================================================
 
-  # --- planned reboot: QUIET. One clean stop, one tick on the S3520. ---------
-  # The case #746 exists for. The drive goes 522 -> 523 at the boot that the
-  # SHUTDOWN script counted, and the two cancel.
+  # --- planned Shut Down, left plugged in: QUIET. The drive does not tick. ---
+  # 2026-10-03 exactly: clean power-offs 1 -> 2, the S3520 flat at 523.
   - interval: 5m
     input_series:
-      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "523x600"
+      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "1x288 2x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts: []
+
+  # --- Shut Down, then unplugged: FIRES, and says why it probably did. -----
+  # 2026-09-29 exactly: a clean power-off, then mains removed for the memory
+  # install. The drive counts the unplug. It pages, once, with the hint. The
+  # same shape is a planned Shut Down plus a real cut that day, which is why
+  # the hint says "likeliest" and the page still fires.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
         values: "522x288 523x300"
       - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
         values: "0x288 1x300"
     alert_rule_test:
       - eval_time: 36h
         alertname: SmartDriveUnsafeShutdownsGrowing
-        exp_alerts: []
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdc
+              slot: pci-0000:00:17.0-ata-6
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
+              description: "The drive's unsafe-shutdown counter moved, which means it lost power without being told first — a mains cut that outlasted the UPS, the UPS cutting its output after a halt, a crash, or a plug. Find the event: UpsOnBattery and InstanceDown around the same time say which. If a UPS shutdown sequence exists for this host (ADR-0049) and no clean stop was recorded, it did not run, and runbooks/shut-down-on-the-ups.md says how to check it. smaug recorded 1 clean power-off(s) in the same day, so the likeliest cause is mains removed after a clean shutdown — an unplug, or the UPS output cut after its halt."
 
-  # --- pulled plug: FIRES. The drive ticks and the host recorded nothing. ----
-  # The case the rule exists for, and the other half of #746's "done when".
+  # --- a Restart does not add the hint: FIRES, plain. ----------------------
+  # A restart never removes power, so a tick on a restart day is a cut. Only
+  # clean POWER-OFFS earn the hint; homelab_clean_restarts_total is not read.
   - interval: 5m
     input_series:
-      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
         values: "522x288 523x300"
       - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "0x600"
-    alert_rule_test:
-      - eval_time: 36h
-        alertname: SmartDriveUnsafeShutdownsGrowing
-        exp_alerts:
-          - exp_labels:
-              host: smaug
-              device: /dev/sdb
-              slot: pci-0000:00:17.0-ata-6
-              instance: smaug
-              job: node
-              role: nas
-              vlan: "40"
-              component: host
-              severity: warning
-              category: hardware
-            exp_annotations:
-              summary: "smaug: /dev/sdb lost power uncleanly 1 time(s) in the last day"
-              description: >-
-                The drive's unsafe-shutdown counter moved more times than the host
-                recorded a clean stop, which means it stopped without going through
-                its shutdown sequence — a mains cut that outlasted the UPS with
-                nothing acting on its signal, a crash, or a plug. Find the event:
-                UpsOnBattery and InstanceDown around the same time say which. If a
-                UPS shutdown sequence exists for this host (ADR-0049), it did not
-                run, and runbooks/shut-down-on-the-ups.md says how to check it.
-
-  # --- planned reboot AND a cut on the same day: FIRES, once. ---------------
-  # Two power-offs on the S3520, one clean stop. A day of maintenance does not
-  # hide a cut inside it.
-  - interval: 5m
-    input_series:
-      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "522x288 524x300"
-      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "0x288 1x300"
-    alert_rule_test:
-      - eval_time: 36h
-        alertname: SmartDriveUnsafeShutdownsGrowing
-        exp_alerts:
-          - exp_labels:
-              host: smaug
-              device: /dev/sdb
-              slot: pci-0000:00:17.0-ata-6
-              instance: smaug
-              job: node
-              role: nas
-              vlan: "40"
-              component: host
-              severity: warning
-              category: hardware
-            exp_annotations:
-              summary: "smaug: /dev/sdb lost power uncleanly 1 time(s) in the last day"
-              description: >-
-                The drive's unsafe-shutdown counter moved more times than the host
-                recorded a clean stop, which means it stopped without going through
-                its shutdown sequence — a mains cut that outlasted the UPS with
-                nothing acting on its signal, a crash, or a plug. Find the event:
-                UpsOnBattery and InstanceDown around the same time say which. If a
-                UPS shutdown sequence exists for this host (ADR-0049), it did not
-                run, and runbooks/shut-down-on-the-ups.md says how to check it.
-
-  # --- unsafe lands 10m before clean, at the boot: QUIET. ------------------
-  # The collector's POSTINIT run and node_exporter's first read of the clean
-  # file are minutes apart, in either order. Here the drive's tick arrives
-  # first (sample 575, 47h55m) and the clean stop ten minutes later. At 48h the
-  # difference is 1 and pending; `for: 1h` must hold it until the clean count
-  # catches up. Evaluated again an hour on, when it has.
-  - interval: 5m
-    input_series:
-      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "522x574 523x400"
-      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "0x576 1x400"
-    alert_rule_test:
-      - eval_time: 48h
-        alertname: SmartDriveUnsafeShutdownsGrowing
-        exp_alerts: []
-      - eval_time: 49h
-        alertname: SmartDriveUnsafeShutdownsGrowing
-        exp_alerts: []
-
-  # --- clean lands 10m before unsafe: QUIET a day later, on the way out. ---
-  # The other order. Now the gap is at the trailing edge: the clean stop leaves
-  # the day-long window at 71h50m and the drive's tick at 72h, so for ten
-  # minutes the difference is 1 again. Pending, not firing.
-  - interval: 5m
-    input_series:
-      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "522x576 523x400"
-      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "0x574 1x400"
-    alert_rule_test:
-      - eval_time: 71h55m
-        alertname: SmartDriveUnsafeShutdownsGrowing
-        exp_alerts: []
-
-  # --- install day: a cut the day the clean count first appears: FIRES. ----
-  # The file only exists after the first clean stop, so on the install day the
-  # clean count has no day-old point. Read as zero, the first clean stop
-  # (sample 200) forgives the drive's tick at the same boot, and the cut at 24h
-  # still pages. Without the fallback the host drops out of both branches and
-  # a cut on install day says nothing.
-  - interval: 5m
-    input_series:
-      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "522x200 523x88 524x400"
-      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "_x200 1x500"
-    alert_rule_test:
-      - eval_time: 30h
-        alertname: SmartDriveUnsafeShutdownsGrowing
-        exp_alerts:
-          - exp_labels:
-              host: smaug
-              device: /dev/sdb
-              slot: pci-0000:00:17.0-ata-6
-              instance: smaug
-              job: node
-              role: nas
-              vlan: "40"
-              component: host
-              severity: warning
-              category: hardware
-            exp_annotations:
-              summary: "smaug: /dev/sdb lost power uncleanly 1 time(s) in the last day"
-              description: >-
-                The drive's unsafe-shutdown counter moved more times than the host
-                recorded a clean stop, which means it stopped without going through
-                its shutdown sequence — a mains cut that outlasted the UPS with
-                nothing acting on its signal, a crash, or a plug. Find the event:
-                UpsOnBattery and InstanceDown around the same time say which. If a
-                UPS shutdown sequence exists for this host (ADR-0049), it did not
-                run, and runbooks/shut-down-on-the-ups.md says how to check it.
-
-  # --- the clean count went backwards: FIRES, with the drive's real count. -
-  # The .prom was lost and the next clean stop restarted it at one, while
-  # Prometheus still holds 5 a day back. Unclamped, the clean delta is -4 and
-  # the alert reads 1 - (-4) = 5. Clamped, the reset day forgives nothing and
-  # the reboot that reset it pages once, as 1. Loud, and honest about it.
-  - interval: 5m
-    input_series:
-      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "522x288 523x300"
-      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "5x288 1x300"
-    alert_rule_test:
-      - eval_time: 36h
-        alertname: SmartDriveUnsafeShutdownsGrowing
-        exp_alerts:
-          - exp_labels:
-              host: smaug
-              device: /dev/sdb
-              slot: pci-0000:00:17.0-ata-6
-              instance: smaug
-              job: node
-              role: nas
-              vlan: "40"
-              component: host
-              severity: warning
-              category: hardware
-            exp_annotations:
-              summary: "smaug: /dev/sdb lost power uncleanly 1 time(s) in the last day"
-              description: >-
-                The drive's unsafe-shutdown counter moved more times than the host
-                recorded a clean stop, which means it stopped without going through
-                its shutdown sequence — a mains cut that outlasted the UPS with
-                nothing acting on its signal, a crash, or a plug. Find the event:
-                UpsOnBattery and InstanceDown around the same time say which. If a
-                UPS shutdown sequence exists for this host (ADR-0049), it did not
-                run, and runbooks/shut-down-on-the-ups.md says how to check it.
-
-  # --- a host with no clean count, beside one that has it: FIRES. ----------
-  # morpheus's NVMe arrives through the monitoring host's Alloy, so it carries
-  # instance="prometheus" and the monitoring host's job. Give the monitoring
-  # host a clean stop on the day morpheus lost power: morpheus has no clean
-  # count of its own, so it must still read as the old rule did. This is the
-  # case where `host` and `instance` part ways — a join on the wrong one nets
-  # morpheus's cut against another machine's reboot.
-  - interval: 5m
-    input_series:
-      - series: 'homelab_smart_unsafe_shutdowns_total{host="morpheus",device="/dev/nvme0",slot="/dev/nvme0",instance="prometheus",job="integrations/node_exporter"}'
-        values: "41x288 42x300"
-      - series: 'homelab_clean_shutdowns_total{host="prometheus",instance="prometheus",job="integrations/node_exporter"}'
-        values: "0x288 1x300"
-    alert_rule_test:
-      - eval_time: 36h
-        alertname: SmartDriveUnsafeShutdownsGrowing
-        exp_alerts:
-          - exp_labels:
-              host: morpheus
-              device: /dev/nvme0
-              slot: /dev/nvme0
-              instance: prometheus
-              job: integrations/node_exporter
-              component: host
-              severity: warning
-              category: hardware
-            exp_annotations:
-              summary: "morpheus: /dev/nvme0 lost power uncleanly 1 time(s) in the last day"
-              description: >-
-                The drive's unsafe-shutdown counter moved more times than the host
-                recorded a clean stop, which means it stopped without going through
-                its shutdown sequence — a mains cut that outlasted the UPS with
-                nothing acting on its signal, a crash, or a plug. Find the event:
-                UpsOnBattery and InstanceDown around the same time say which. If a
-                UPS shutdown sequence exists for this host (ADR-0049), it did not
-                run, and runbooks/shut-down-on-the-ups.md says how to check it.
-
-  # --- another host's clean stop does not forgive smaug's cut: FIRES. ------
-  # The subtraction is per host. oracle rebooting cleanly on the day smaug lost
-  # power must not net smaug's cut to zero.
-  - interval: 5m
-    input_series:
-      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "522x288 523x300"
-      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
-        values: "0x600"
-      - series: 'homelab_clean_shutdowns_total{host="oracle",instance="oracle",job="node"}'
+        values: "1x600"
+      - series: 'homelab_clean_restarts_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
         values: "0x288 1x300"
     alert_rule_test:
       - eval_time: 36h
@@ -2545,7 +2352,7 @@ tests:
         exp_alerts:
           - exp_labels:
               host: smaug
-              device: /dev/sdb
+              device: /dev/sdc
               slot: pci-0000:00:17.0-ata-6
               instance: smaug
               job: node
@@ -2555,15 +2362,37 @@ tests:
               severity: warning
               category: hardware
             exp_annotations:
-              summary: "smaug: /dev/sdb lost power uncleanly 1 time(s) in the last day"
-              description: >-
-                The drive's unsafe-shutdown counter moved more times than the host
-                recorded a clean stop, which means it stopped without going through
-                its shutdown sequence — a mains cut that outlasted the UPS with
-                nothing acting on its signal, a crash, or a plug. Find the event:
-                UpsOnBattery and InstanceDown around the same time say which. If a
-                UPS shutdown sequence exists for this host (ADR-0049), it did not
-                run, and runbooks/shut-down-on-the-ups.md says how to check it.
+              summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
+              description: "The drive's unsafe-shutdown counter moved, which means it lost power without being told first — a mains cut that outlasted the UPS, the UPS cutting its output after a halt, a crash, or a plug. Find the event: UpsOnBattery and InstanceDown around the same time say which. If a UPS shutdown sequence exists for this host (ADR-0049) and no clean stop was recorded, it did not run, and runbooks/shut-down-on-the-ups.md says how to check it."
+
+  # --- another host's clean power-off does not add the hint: FIRES, plain. -
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "522x288 523x300"
+      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "1x600"
+      - series: 'homelab_clean_shutdowns_total{host="oracle",instance="oracle",job="node",role="nas",vlan="40"}'
+        values: "0x288 1x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdc
+              slot: pci-0000:00:17.0-ata-6
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
+              description: "The drive's unsafe-shutdown counter moved, which means it lost power without being told first — a mains cut that outlasted the UPS, the UPS cutting its output after a halt, a crash, or a plug. Find the event: UpsOnBattery and InstanceDown around the same time say which. If a UPS shutdown sequence exists for this host (ADR-0049) and no clean stop was recorded, it did not run, and runbooks/shut-down-on-the-ups.md says how to check it."
+
 
   # --- SmartDriveBadSectorsGrowing: quiet for a clean drive ----------------
   - interval: 5m

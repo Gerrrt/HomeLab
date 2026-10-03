@@ -942,13 +942,12 @@ the card is not reporting the transfer — plug back in and stop.
 
 **A real cut later ended with a host stopping uncleanly anyway.** The sequence
 outgrew the window. `SmartDriveUnsafeShutdownsGrowing` is what tells you.
-On `smaug` the S3520 counts a clean stop as well as a cut, so the rule
-subtracts the stops `smaug` recorded as clean
-(`homelab_clean_shutdowns_total`, written by its SHUTDOWN init script —
-[#746](https://github.com/Gerrrt/HomeLab/issues/746)). What is left is a stop
-that never ran the shutdown sequence. If the halt in step 6 *did* run and the
-rule fired anyway, check that the init script is still installed
-(`build-the-nas.md` §6.4) before you blame the timing. Re-time with step 5 and
+Read its description first. On `smaug` it also fires when the halt *did* run
+and the UPS then cut its output: a clean TrueNAS shutdown does not move the
+S3520's counter, but losing mains afterwards can
+([#746](https://github.com/Gerrrt/HomeLab/issues/746)). If the page says a
+clean power-off was recorded the same day, the sequence ran, and the timing
+is fine. If it does not say so, the halt never ran, so re-time with step 5 and
 raise the threshold in 6.5. Packs weaken with age, so a margin that fitted at
 install stops fitting eventually.
 

@@ -78,7 +78,10 @@ the rule.
   *(2026-10-01: answered under
   [#746](https://github.com/Gerrrt/HomeLab/issues/746). `smaug` counts its own
   clean stops from a SHUTDOWN init script, and the rule subtracts them, so a
-  planned reboot nets to zero.)*
+  planned reboot nets to zero.)* *(2026-10-03: and then withdrawn. A clean
+  stop does not tick the S3520; the 2026-09-29 tick was the unplug for the
+  memory install. The rule is "any tick pages" again, and the clean count
+  only explains a page.)*
 - **Every per-device SMART series gains a label.** That starts a new series in
   Prometheus. Nothing in Grafana reads `homelab_smart_*`, and every rule
   keys on `host`, `device` or now `slot`, so nothing downstream breaks.

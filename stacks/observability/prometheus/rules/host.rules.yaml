@@ -1322,81 +1322,42 @@ groups:
         # carries the counter off smaug and named this rule as the decision
         # left to #574.
         #
-        # A CLEAN STOP CAN MOVE THE COUNTER (#746). This rule was written on the
-        # premise that it does not. smaug's Intel DC S3520 disproved that on
-        # 2026-09-29: 522 before a clean System → Shut Down, 523 after. Read as
-        # it was, the rule paged after every planned reboot of smaug, the UPS
-        # halt ADR-0049 built included, and could not tell maintenance from a
-        # cut — the one distinction it exists to make.
+        # ANY TICK PAGES, AND A CLEAN STOP DOES NOT TICK (#746, settled
+        # 2026-10-03). #746 read smaug's S3520 going 522 -> 523 across the
+        # 2026-09-29 Shut Down as proof that a clean stop counts, and #800 and
+        # #819 subtracted the host's clean stops from this rule. Controlled
+        # stops disproved the reading: two UI Restarts and one UI Shut Down,
+        # left plugged in, all left the S3520 at 523. On 2026-09-29 the box was
+        # also UNPLUGGED for the memory install, and that is what the drive
+        # counted. The subtraction is gone, because it was a hole: a planned
+        # Shut Down that does not tick the drive would cancel a real cut the
+        # same day, and nothing would page.
         #
-        # SO THE HOST COUNTS ITS OWN CLEAN POWER-OFFS, AND THEY ARE SUBTRACTED.
-        # scripts/mark-clean-shutdown.sh runs as smaug's SHUTDOWN init script,
-        # which every stop through the init system runs, and a pulled plug, a
-        # crash or a cut that outlasts the pack never does. It serves
-        # homelab_clean_shutdowns_total{host}, counting only stops headed for
-        # poweroff.target or halt.target — the UI's Shut Down and the UPS
-        # service's halt on LB. The rule pages on the unsafe shutdowns of the
-        # day minus the clean power-offs of the day, per drive, so a planned
-        # power-off nets to zero and a cut does not. A fact the host writes on
-        # the way down, not a silence somebody has to remember (#572,
-        # ADR-0046).
+        # SO MAINS REMOVED AFTER A CLEAN SHUTDOWN STILL PAGES, ONCE. Unplugging
+        # for maintenance, or the UPS cutting its output after ADR-0049's halt,
+        # looks to the drive like what it is: power gone. During a UPS event
+        # UpsOnBattery is already paging, and an operator who unplugged knows
+        # it. That is noise with an explanation, which beats a blind spot.
         #
-        # A RESTART IS NOT SUBTRACTED (2026-10-02). It never takes the drive's
-        # power away: after a UI Restart the S3520 stayed at 523. Counted as
-        # clean, a restart would cancel a real cut on the same day. The script
-        # counts restarts as homelab_clean_restarts_total, and this rule does
-        # not read it.
-        #
-        # PER HOST, NOT PER DRIVE. The clean count belongs to the host, and
-        # whether each drive counts a clean stop is its firmware's business: on
-        # a day with one planned power-off and one cut, the S3520 reads +2 against
-        # +1 and pages; a drive that only counts the cut reads +1 against +1 and
-        # stays quiet. The host still pages, once, from the drive that sees
-        # every power-off. That is the trade for not keeping a table of which
-        # firmware does what.
-        #
-        # A HOST WITHOUT THE CLEAN COUNT IS READ AS BEFORE. The second branch
-        # is the old expression for every host that has no
-        # homelab_clean_shutdowns_total at all — every agent host today. And
-        # the install day, when the clean count has no day-old point yet, reads
-        # that point as zero rather than dropping the host out of both
-        # branches. A clean count that went BACKWARDS — the file lost and
-        # restarted at one — is clamped to zero, not subtracted as a negative:
-        # that day forgives nothing and pages with the drive's real count,
-        # rather than inflating it by the lost history.
-        #
-        # BOTH COUNTERS MOVE AT THE SAME BOOT. The collector runs as smaug's
-        # POSTINIT script as well as at 08:30 (build-the-nas.md §6.4). Read only
-        # at 08:30, a 07:00 reboot would show its clean stop at once and its
-        # unsafe one ninety minutes later, the two day-long windows would close
-        # ninety minutes apart, and the gap would page. At the same boot they
-        # are minutes apart, and `for: 1h` covers it.
+        # THE CLEAN COUNT IS ONLY THE EXPLANATION. scripts/mark-clean-shutdown.sh,
+        # smaug's SHUTDOWN init script, still serves homelab_clean_shutdowns_total
+        # for every stop headed to poweroff.target or halt.target. The
+        # description below asks Prometheus whether that count moved in the same
+        # day, and if it did, says so: a clean power-off came first, so the
+        # likeliest cause is mains removed afterwards. The expression never
+        # reads it.
         #
         # SUBTRACTION over a day, not a week: a cut is an event with a date,
         # and the day it happened is the thing worth knowing. The same gauge
         # reasoning as SmartDriveBadSectorsGrowing applies — served
         # continuously by the textfile collector, so the point-against-point
-        # comparison is exact. The metric has one name for both drive types
-        # by design: NVMe's health log and ATA attribute 174 both land on it.
+        # comparison is exact. The collector also runs as smaug's POSTINIT
+        # script (build-the-nas.md §6.4), so a cut is read at the boot after
+        # it rather than at the next 08:30. The metric has one name for both
+        # drive types by design: NVMe's health log and ATA attribute 174 both
+        # land on it.
         expr: >-
-          (
-              (
-                  (homelab_smart_unsafe_shutdowns_total - homelab_smart_unsafe_shutdowns_total offset 1d)
-                - on (host) group_left ()
-                  clamp_min(
-                      homelab_clean_shutdowns_total
-                    - (homelab_clean_shutdowns_total offset 1d or homelab_clean_shutdowns_total * 0),
-                    0
-                  )
-              )
-            or
-              (
-                  (homelab_smart_unsafe_shutdowns_total - homelab_smart_unsafe_shutdowns_total offset 1d)
-                unless on (host)
-                  homelab_clean_shutdowns_total
-              )
-          )
-          > 0
+          (homelab_smart_unsafe_shutdowns_total - homelab_smart_unsafe_shutdowns_total offset 1d) > 0
         for: 1h
         labels:
           component: host
@@ -1407,13 +1368,16 @@ groups:
             {{ $labels.host }}: {{ $labels.device }} lost power uncleanly
             {{ $value }} time(s) in the last day
           description: >-
-            The drive's unsafe-shutdown counter moved more times than the host
-            recorded a clean stop, which means it stopped without going through
-            its shutdown sequence — a mains cut that outlasted the UPS with
-            nothing acting on its signal, a crash, or a plug. Find the event:
-            UpsOnBattery and InstanceDown around the same time say which. If a
-            UPS shutdown sequence exists for this host (ADR-0049), it did not
-            run, and runbooks/shut-down-on-the-ups.md says how to check it.
+            The drive's unsafe-shutdown counter moved, which means it lost
+            power without being told first — a mains cut that outlasted the
+            UPS, the UPS cutting its output after a halt, a crash, or a plug.
+            Find the event: UpsOnBattery and InstanceDown around the same time
+            say which. If a UPS shutdown sequence exists for this host
+            (ADR-0049) and no clean stop was recorded, it did not run, and
+            runbooks/shut-down-on-the-ups.md says how to check it.{{ with printf "homelab_clean_shutdowns_total{host=%q} - homelab_clean_shutdowns_total{host=%q} offset 1d > 0" $labels.host $labels.host | query }}
+            {{ $labels.host }} recorded {{ . | first | value }} clean power-off(s)
+            in the same day, so the likeliest cause is mains removed after a
+            clean shutdown — an unplug, or the UPS output cut after its halt.{{ end }}
 
       - alert: SmartStateStale
         # The SMART collector has stopped rewriting its file, on any host.
