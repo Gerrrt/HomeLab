@@ -37,10 +37,13 @@ Six services, and what is absent is as deliberate as what is here:
   metres of copper away on the same segment, and this guest's Alloy pushes to
   them: `LOKI_URL` and `PROMETHEUS_REMOTE_WRITE_URL` in `compose.yaml` point at
   `10.0.30.40`. `odin` was the first genuine off-host client the lab's
-  stores had. Since [#834] they are reached through the lab's Caddy ingest
-  proxy, which holds those two ports and wants a token per client — `odin`'s
-  is `INGEST_TOKEN` in this stack's secrets
-  ([`stacks/lab`'s README](../lab/README.md#the-ingest-proxy-and-the-order-it-goes-in)).
+  stores had. [#834] puts them behind the lab's Caddy ingest proxy, which
+  holds those two ports and wants a token per client. `odin`'s token is
+  `INGEST_TOKEN` in this stack's secrets. **That is authored, not yet
+  deployed.** Until the ordered rollout in
+  [`stacks/lab`'s README](../lab/README.md#the-ingest-proxy-and-the-order-it-goes-in)
+  has run and its `curl`s return 401, the stores still take unauthenticated
+  pushes from the segment.
   Nothing here remote-writes to `10.0.99.20` ([ADR-0007]).
 - **No Grafana OpenSearch datasource on the lab's Grafana**, refused in
   [ADR-0030]: it is a plugin fetched unpinned at every start, and the Wazuh

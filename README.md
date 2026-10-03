@@ -148,16 +148,18 @@ network.](docs/diagrams/current/network.svg)](docs/diagrams/current/network.svg)
 
 Each panel's footer says what that segment reaches, and that is the short
 version. Default deny holds for every segment except Hicks and the switch LAN,
-both of which reach further than any picture of exceptions suggests — so what a
-segment can actually reach is recorded per segment in
-[`network.md`](docs/network.md)'s *Reaches* column, which is the document to
-read for the current state.
+both of which reach further than any picture of exceptions suggests.
+[`network.md`](docs/network.md)'s *Reaches* column is the segment-level
+summary. The host-scoped passes underneath it are in each segment's notes in
+the same file, and the two together are the current state. Two examples:
+`Saruman` reaching `prometheus` on 9090/3100, and `smaug` over NFS.
 [ADR-0013](docs/adr/0013-segment-access-as-implemented.md) holds the method and
 the reasoning, and describes the ruleset as it stood on 2026-09-01; the Hicks
 interface was narrowed the day after. A count was the wrong instrument and this
 README carried the wrong count for months. Segment colour matches the patch
-cable in the rack; a dashed border means the segment initiates nothing
-inward. Data flow and the maintained Mermaid topology are in
+cable in the rack. A dashed border means the segment is terminal outward:
+nothing on it initiates a connection to another internal segment, though named
+inbound passes may still reach it. Data flow and the maintained Mermaid topology are in
 [`docs/architecture.md`](docs/architecture.md).
 
 ## Stack
@@ -172,7 +174,7 @@ inward. Data flow and the maintained Mermaid topology are in
 | Wiki | [Wiki.js and Postgres](stacks/wiki) | `oracle` | The household's documentation, and the off-host backup copies |
 | Metrics | [Prometheus](stacks/observability/prometheus) | `prometheus` | 30-day retention capped at 12 GiB, remote-write receiver |
 | Logs | [Loki](stacks/observability/loki) | `prometheus` | Single-binary, filesystem storage |
-| Collection | [Grafana Alloy](stacks/observability/alloy) | every Linux host | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
+| Collection | [Grafana Alloy](stacks/observability/alloy) | every Linux host but `smaug`, which is scraped through node_exporter instead | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
 | Network polling | [snmp_exporter](stacks/observability/snmp-exporter) | `prometheus` | pfSense, switch, UPS, iLO |
 | Alerting | [Alertmanager](stacks/observability/alertmanager) | `prometheus` | Severity routing, inhibition |
 | Visualisation | [Grafana](stacks/observability/grafana) | `prometheus` | 7 provisioned dashboards |

@@ -17,7 +17,7 @@ Every stack under `stacks/` has an example here in the same shape, except
 two. `stacks/media` has none by decision:
 [`docs/security.md`](../docs/security.md) § Secrets says why. `stacks/wiki`
 has none because its one secret, the database role's password, lives in a
-root-owned file on `oracle` and never passes through SOPS:
+file on `oracle` readable by uid 1000 alone, and never passes through SOPS:
 [its README](../stacks/wiki/README.md#the-one-secret) says where and why.
 
 **One encrypted file belongs to no stack: `tofu.sops.yaml`.** It is the escrow

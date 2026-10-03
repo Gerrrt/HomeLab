@@ -460,8 +460,9 @@
 <text x="1282" y="709" class="pname" fill="#2ea043">ImaginationLAN</text>
 <text x="1694" y="709" class="mono" text-anchor="end">10.0.30.0/24</text>
 <text x="1204" y="740" class="purpose">Hypervisor and lab</text>
-<text x="1204" y="1468" class="foot">Reaches: internet. Hicks reaches all of it; the WireGuard</text>
-<text x="1204" y="1484" class="foot">peers land here via phoenix and reach the lab only.</text>
+<text x="1204" y="1452" class="foot">Reaches: internet. Host passes: Saruman → prometheus</text>
+<text x="1204" y="1468" class="foot">9090/3100, Saruman → smaug NFS. Hicks reaches all of it;</text>
+<text x="1204" y="1484" class="foot">WireGuard peers land via phoenix and reach the lab only.</text>
 <rect x="1202" y="772" width="492" height="560" rx="10" fill="#0d1117" stroke="#2ea043" stroke-opacity="0.6"/>
 <text x="1216" y="796" class="sub">HPE ProLiant DL360 Gen9 · rack U3 · 2 × E5-2680 v3 · 128 GB</text>
 <g class="host" data-host="Saruman">
@@ -470,7 +471,7 @@
 <text x="1226" y="828" class="hn">Saruman</text>
 <text x="1431.0" y="828" class="ip" text-anchor="end" fill="#2ea043">.110</text>
 <text x="1226" y="846" class="sub">Proxmox VE · hypervisor</text>
-<text x="1226" y="862" class="role">native Alloy agent</text>
+<text x="1226" y="862" class="role">Alloy → prometheus 9090/3100</text>
 </g>
 <g class="host" data-host="shiva">
 <rect x="1453.0" y="806" width="231.0" height="62" rx="8" class="card"/>

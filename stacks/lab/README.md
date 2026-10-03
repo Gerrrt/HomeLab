@@ -191,9 +191,10 @@ any change to the Caddyfile. A lab failure that reaches the estate is
   commented until then;
   [`build-the-jumpbox.md`](../../docs/runbooks/build-the-jumpbox.md) §5
   published them in 2026-09
-  ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and since [#834]
-  they belong to `caddy`, which wants a token from each client
-  ([*The ingest proxy*](#the-ingest-proxy-and-the-order-it-goes-in)).
+  ([#436](https://github.com/Gerrrt/HomeLab/issues/436)). [#834] hands them
+  to `caddy`, which wants a token from each client, once its rollout has run
+  ([*The ingest proxy*](#the-ingest-proxy-and-the-order-it-goes-in)). Until
+  then they are still published unauthenticated.
 - **Image tags are pinned here but bumped separately.** `.github/dependabot.yml`
   now watches this directory as well as the estate's, so the two do not drift.
   Versions are deliberately absent from the table above — Dependabot only edits
