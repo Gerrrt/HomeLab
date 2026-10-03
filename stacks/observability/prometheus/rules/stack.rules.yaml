@@ -455,6 +455,7 @@ groups:
           severity: critical
           category: correctness
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/deploy-stack.md#troubleshooting"
           dashboard: "Observability Stack (/d/homelab-stack) › Alertmanager › Silences and config reloads"
           summary: "Alertmanager rejected its config reload on {{ $labels.instance }}"
           description: >-
@@ -482,6 +483,7 @@ groups:
           severity: critical
           category: correctness
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#reading-the-failure"
           dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › Alert hand-off to Alertmanager"
           summary: "Prometheus is failing to hand alerts to Alertmanager"
           description: >-
