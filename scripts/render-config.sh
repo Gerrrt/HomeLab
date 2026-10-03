@@ -318,7 +318,9 @@ done
 # is what secrets/observability.example.yaml says to use.
 ingest_tokens=()
 for var in "${REQUIRED[@]}"; do
-  [[ "${var}" == INGEST_TOKEN_* ]] || continue
+  # INGEST_TOKEN alone is a client's own copy (stacks/soc, stacks/sensor,
+  # #834), held to the same floor as the proxy's.
+  [[ "${var}" == INGEST_TOKEN || "${var}" == INGEST_TOKEN_* ]] || continue
   value="${!var}"
   ((${#value} >= 32)) || die "${var} in ${SECRETS_FILE} is ${#value} characters; the floor is 32 (openssl rand -hex 32)"
   for seen in "${ingest_tokens[@]}"; do
@@ -539,6 +541,10 @@ COMPOSE_VARS=(
   INGEST_TOKEN_TRINITY
   INGEST_TOKEN_SARUMAN
   INGEST_TOKEN_READER
+  INGEST_TOKEN_ODIN
+  INGEST_TOKEN_PHOENIX
+  INGEST_TOKEN_FENRIR
+  INGEST_TOKEN
   HOMEPAGE_PROMETHEUS_TOKEN
   HA_PROMETHEUS_AUTHORIZATION
   STEPCA_PASSWORD

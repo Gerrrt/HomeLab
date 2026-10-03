@@ -73,6 +73,13 @@
 # needs the READER token: INGEST_TOKEN_READER, decrypted the same way, or
 # exported. Without one it is skipped, with a warning.
 #
+# FOR THE LAB (--monitoring-host 10.0.30.40, phoenix) nothing is decrypted.
+# The lab's proxy has its own tokens, in secrets/lab.sops.yaml on alexander,
+# which no checkout here can open (#834). Export INGEST_TOKEN and
+# INGEST_TOKEN_READER from that file before running this. Decrypting the
+# estate's file instead would hand a lab host the estate's reader token, and
+# send it across the segment built to hold attackers, which ADR-0007 forbids.
+#
 # What it does not do
 # -------------------
 # Firewall rules. A host outside VLAN 99 needs a pass to 10.0.99.20 on 9090
@@ -174,7 +181,11 @@ TOKEN_KEY="INGEST_TOKEN_$(printf '%s' "$HOST" | tr '[:lower:]' '[:upper:]' | tr 
 # and exits if sops cannot decrypt, so it runs in a subshell and only the two
 # values come back out. Its stderr is left alone: it says why a decrypt
 # failed, and it never prints a value.
-if [[ -z "${INGEST_TOKEN:-}" || -z "${INGEST_TOKEN_READER:-}" ]]; then
+ESTATE_MON="10.0.99.20"
+if [[ "${MON}" != "${ESTATE_MON}" ]]; then
+  [[ -n "${INGEST_TOKEN:-}" ]] \
+    || die "no agent token for ${HOST}: ${MON} is not the estate's stack, so nothing is decrypted here. Export INGEST_TOKEN from secrets/lab.sops.yaml on alexander (${TOKEN_KEY}), and INGEST_TOKEN_READER for the arrival check (#834)"
+elif [[ -z "${INGEST_TOKEN:-}" || -z "${INGEST_TOKEN_READER:-}" ]]; then
   if command -v sops >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/secrets/observability.sops.yaml" ]]; then
     decrypted="$(
       # shellcheck source=scripts/secrets-env.sh

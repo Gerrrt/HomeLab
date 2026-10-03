@@ -257,10 +257,17 @@ make secrets-edit STACK=soc
 ```
 
 [`secrets/soc.example.yaml`](../../secrets/soc.example.yaml) says what each of
-the seven is for. Generate the passwords with `make gen-secret`, and read the
+the eight is for. Generate the passwords with `make gen-secret`, and read the
 note there about `API_PASSWORD` first: the Wazuh API refuses a password without
 upper, lower, digit and symbol, and the image pastes it into a JSON document
 unquoted, so no `"`, `\` or `$`.
+
+The eighth, `INGEST_TOKEN`, is not generated here. It is `odin`'s token for the
+lab's ingest proxy, and its other copy is `INGEST_TOKEN_ODIN` in
+`secrets/lab.sops.yaml` on `alexander`. Copy it from there
+(`make secrets-show STACK=lab`). Without it, `make up STACK=soc` refuses, and
+the proxy would refuse every push anyway
+([#834](https://github.com/Gerrrt/HomeLab/issues/834)).
 
 Commit and push `.sops.yaml` and `secrets/soc.sops.yaml` from here, then:
 
