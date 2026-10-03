@@ -119,28 +119,31 @@ groups:
 
       # Unbound on morpheus, the resolver the house actually asks (#841).
       #
-      # `and on () ... adguard ... == 1` keeps this to faults of Unbound's own.
-      # Unbound forwards to AdGuard alone (ADR-0055), so a dead AdGuard fails
-      # this probe too; AdGuardNotAnswering already pages for that, and a
+      # `unless on () ... adguard ... == 0` keeps this to faults of Unbound's
+      # own. Unbound forwards to AdGuard alone (ADR-0055), so a dead AdGuard
+      # fails this probe too; AdGuardNotAnswering already pages for that, and a
       # second page naming the firewall would send the reader to the wrong box.
-      # If the AdGuard probe is absent altogether, this stays quiet, and
-      # EndpointUnreachable and the scrape rules are what speak.
+      #
+      # `unless ... == 0` and not `and ... == 1`: the suppression needs AdGuard
+      # to be explicitly failing. If AdGuard's probe series is absent, nothing
+      # else would page for the resolver the house uses, so this fires (#873
+      # review).
       - alert: UnboundNotAnswering
         expr: >-
           probe_success{job="blackbox-dns", name="unbound", check="liveness"} == 0
-          and on ()
-          probe_success{job="blackbox-dns", name="adguard", check="liveness"} == 1
+          unless on ()
+          probe_success{job="blackbox-dns", name="adguard", check="liveness"} == 0
         for: 5m
         labels:
           component: dns
           severity: critical
           category: availability
         annotations:
-          summary: "Unbound on morpheus is not answering DNS, and AdGuard is"
+          summary: "Unbound on morpheus is not answering DNS"
           description: >-
             Asked at {{ $labels.instance }} for example.com for five minutes and
-            got no valid answer, while AdGuard answers the same question
-            directly. So the fault is the firewall's resolver: Unbound stopped,
+            got no valid answer, and AdGuard is not failing its own probe. So
+            the fault is the firewall's resolver: Unbound stopped,
             its forwarding to 10.0.99.40 broken, or a rule now blocking it.
             Every device in the house resolves through it. Status > Services
             on morpheus shows unbound; Diagnostics > DNS Lookup asks it

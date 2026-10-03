@@ -1274,6 +1274,84 @@
       ]
     },
     {
+      "type": "timeseries",
+      "title": "Filesystem usage",
+      "description": "Each of morpheus's filesystems as a fraction of its size, from HOST-RESOURCES-MIB hrStorageTable over SNMP: morpheus runs no node_exporter. Memory pools are excluded (they are not mount points). GatewayFilesystemCritical fires above 90% for 15 minutes (#841).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "hrStorageUsed{role=\"firewall\", hrStorageDescr=~\"/.*\"} / (hrStorageSize{role=\"firewall\", hrStorageDescr=~\"/.*\"} > 0)",
+          "legendFormat": "{{hrStorageDescr}}",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        }
+      ]
+    },
+    {
       "type": "row",
       "title": "Switch (MokerLink, IF-MIB)",
       "collapsed": false,
@@ -1281,7 +1359,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 39
       },
       "panels": []
     },
@@ -1297,7 +1375,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 40
       },
       "fieldConfig": {
         "defaults": {
@@ -1385,7 +1463,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 41
+        "y": 49
       },
       "fieldConfig": {
         "defaults": {
@@ -1502,7 +1580,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 58
       },
       "panels": []
     },
@@ -1518,7 +1596,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 59
       },
       "fieldConfig": {
         "defaults": {
@@ -1595,7 +1673,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 59
       },
       "fieldConfig": {
         "defaults": {

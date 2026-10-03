@@ -146,6 +146,7 @@ tests:
         alertname: AdGuardNotFiltering
         exp_alerts: []
 
+
   # --- UnboundNotAnswering (#841) ---------------------------------------------
   #
   # Unbound down, AdGuard up: Unbound's fault, and only Unbound's rule fires.
@@ -177,11 +178,11 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
-              summary: "Unbound on morpheus is not answering DNS, and AdGuard is"
+              summary: "Unbound on morpheus is not answering DNS"
               description: >-
                 Asked at 10.0.99.1:53 for example.com for five minutes and got no
-                valid answer, while AdGuard answers the same question directly. So the
-                fault is the firewall's resolver: Unbound stopped, its forwarding to
+                valid answer, and AdGuard is not failing its own probe. So the fault
+                is the firewall's resolver: Unbound stopped, its forwarding to
                 10.0.99.40 broken, or a rule now blocking it. Every device in the
                 house resolves through it. Status > Services on morpheus shows
                 unbound; Diagnostics > DNS Lookup asks it directly.
@@ -226,6 +227,39 @@ tests:
                 then re-probe from the exporter. To restore DNS before fixing AdGuard,
                 add 1.1.1.1 back under System > General Setup > DNS Servers on
                 morpheus, and remove it again afterwards.
+
+  # AdGuard's probe absent altogether: nothing else would page for the resolver
+  # the house uses, so Unbound's rule must fire. The suppression needs AdGuard
+  # explicitly failing (`== 0`), and an absent series is not that (#873 review).
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{instance="10.0.99.1:53",job="blackbox-dns",module="dns_answers",name="unbound",check="liveness",role="resolver",host="morpheus"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: UnboundNotAnswering
+        exp_alerts:
+          - exp_labels:
+              alertname: UnboundNotAnswering
+              instance: 10.0.99.1:53
+              job: blackbox-dns
+              module: dns_answers
+              name: unbound
+              check: liveness
+              role: resolver
+              host: morpheus
+              component: dns
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "Unbound on morpheus is not answering DNS"
+              description: >-
+                Asked at 10.0.99.1:53 for example.com for five minutes and got no
+                valid answer, and AdGuard is not failing its own probe. So the fault
+                is the firewall's resolver: Unbound stopped, its forwarding to
+                10.0.99.40 broken, or a rule now blocking it. Every device in the
+                house resolves through it. Status > Services on morpheus shows
+                unbound; Diagnostics > DNS Lookup asks it directly.
 
   # Both healthy: nothing.
   - interval: 1m
