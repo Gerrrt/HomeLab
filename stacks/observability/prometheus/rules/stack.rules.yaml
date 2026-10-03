@@ -542,7 +542,7 @@ groups:
           severity: warning
           category: correctness
         annotations:
-          dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Remote-write throughput"
+          dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
           summary: "Alloy on {{ $labels.instance }} is failing to remote-write some samples"
           description: >-
             Metrics from {{ $labels.instance }} are being lost, not queued. On
@@ -566,7 +566,7 @@ groups:
           severity: warning
           category: correctness
         annotations:
-          dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Component health"
+          dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Component health"
           summary: "Alloy on {{ $labels.instance }} has {{ $value }} {{ $labels.health_type }} component(s)"
           description: >-
             Part of what that agent collects has stopped while the agent stays

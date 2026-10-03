@@ -689,7 +689,7 @@ tests:
               severity: warning
               category: correctness
             exp_annotations:
-              dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Remote-write throughput"
+              dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
               summary: "Alloy on oracle is failing to remote-write some samples"
               description: >-
                 Metrics from oracle are being lost, not queued. On the host, `docker
@@ -704,7 +704,7 @@ tests:
               severity: warning
               category: correctness
             exp_annotations:
-              dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Remote-write throughput"
+              dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
               summary: "Alloy on prometheus is failing to remote-write some samples"
               description: >-
                 Metrics from prometheus are being lost, not queued. On the host,
@@ -739,7 +739,7 @@ tests:
               severity: warning
               category: correctness
             exp_annotations:
-              dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Component health"
+              dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Component health"
               summary: "Alloy on oracle has 1 unhealthy component(s)"
               description: >-
                 Part of what that agent collects has stopped while the agent stays up.
