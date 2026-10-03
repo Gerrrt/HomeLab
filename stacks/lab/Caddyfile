@@ -1,0 +1,121 @@
+# The lab's ingest proxy: what a client on VLAN 30 has to prove before the
+# lab's Prometheus or Loki serves it (#834).
+#
+# This is stacks/observability/Caddyfile (#182, ADR-0067) moved one segment
+# down, and the reasoning there — the roles, the allowlist, why served requests
+# are not logged — is not repeated here. What differs is only the table below.
+#
+# WHY THE LAB NEEDS IT MORE THAN THE ESTATE DID. VLAN 30 is the segment that
+# exists to hold attackers (ADR-0007), and #449 makes the domain on it
+# deliberately weak. Before this file, anything on it could POST /-/quit to the
+# lab's Prometheus, forge series through remote-write, and submit Loki delete
+# requests: the evidence store for the segment's incidents, editable by the
+# segment.
+#
+# THE CLIENTS are the three guests with no scrape alternative: odin (stacks/soc,
+# ADR-0030), phoenix (ADR-0043) and fenrir (stacks/sensor). Each has its own
+# token, in secrets/lab.sops.yaml for this proxy and in its own secrets for
+# itself: soc.sops.yaml on odin, sensor.sops.yaml on fenrir, and exported on the
+# Mac when deploy-agent.sh ships phoenix's agent. The reader token is for that
+# script's arrival check. None of these is an estate token, and none may be:
+# a lab host holding an estate credential is the inversion ADR-0007 forbids.
+{
+	admin off
+	auto_https off
+}
+
+(ingest_auth) {
+	map {http.request.header.Authorization} {ingest_client} {ingest_role} {
+		"Bearer {$INGEST_TOKEN_ODIN}" odin agent
+		"Bearer {$INGEST_TOKEN_PHOENIX}" phoenix agent
+		"Bearer {$INGEST_TOKEN_FENRIR}" fenrir agent
+		"Bearer {$INGEST_TOKEN_READER}" reader reader
+		default - -
+	}
+	log {
+		output stdout
+		format json
+	}
+	log_append ingest_client {ingest_client}
+	log_append ingest_role {ingest_role}
+}
+
+(refuse) {
+	handle {
+		header WWW-Authenticate `Bearer realm="homelab-ingest"`
+		respond 401
+	}
+}
+
+:9090 {
+	import ingest_auth
+
+	@health path /-/healthy /-/ready
+	handle @health {
+		log_skip
+		reverse_proxy prometheus:9090
+	}
+
+	@push {
+		method POST
+		path /api/v1/write
+		vars {ingest_role} agent
+	}
+	handle @push {
+		log_skip
+		reverse_proxy prometheus:9090
+	}
+
+	@read {
+		method GET POST
+		path /api/v1/query /api/v1/query_range /api/v1/targets /api/v1/series /api/v1/labels /api/v1/label/*
+		vars {ingest_role} reader
+	}
+	handle @read {
+		log_skip
+		reverse_proxy prometheus:9090
+	}
+
+	import refuse
+}
+
+# Loki's delete API is on (loki-config.yaml: retention_enabled with a
+# delete_request_store), and auth_enabled is false upstream, so this allowlist
+# is the only thing between the segment and the lab's logs being edited.
+:3100 {
+	import ingest_auth
+
+	@health path /ready
+	handle @health {
+		log_skip
+		reverse_proxy loki:3100
+	}
+
+	@push {
+		method POST
+		path /loki/api/v1/push
+		vars {ingest_role} agent
+	}
+	handle @push {
+		log_skip
+		reverse_proxy loki:3100
+	}
+
+	@read {
+		method GET POST
+		path /loki/api/v1/query /loki/api/v1/query_range /loki/api/v1/labels /loki/api/v1/label/*
+		vars {ingest_role} reader
+	}
+	handle @read {
+		log_skip
+		reverse_proxy loki:3100
+	}
+
+	import refuse
+}
+
+# The container's own healthcheck, as on the estate: not published, and it
+# answers without touching an upstream.
+:2020 {
+	respond /healthz 200
+}

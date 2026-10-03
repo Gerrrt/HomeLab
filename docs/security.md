@@ -21,7 +21,7 @@ What this network is actually built to survive:
 | Someone on the lab segment reading the domain's metrics | **Scoped, unauthenticated, and accepted.** `windows_exporter` listens on `9182` on all six of ADR-0029's guests, on the segment that exists to hold attackers. Each guest's Windows Firewall admits `10.0.30.40` (`alexander`) alone ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §7). That rule is the difference between an endpoint a `/24` sweep finds and one you have to go looking for, and it is a residual, not a control: the exporter has no authentication, so whoever owns `alexander` reads every gauge. It has no write API, so what leaks is the shape of the host (services, disks, uptime, the licence clock), the same class as `node_exporter` on the NAS below |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 142 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 145 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below. **What the UPS cannot answer is what happens when the cut outlasts the pack: as of 2026-09-20 nothing shuts down on its signal, and everything on the PDU — `morpheus`, `Saruman`, `neo` and `smaug`, which is in the media room on a long cord from that PDU — stops uncleanly when the pack empties, about 47 minutes in at 21 % load by the card's own unmeasured estimate.** [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides that the firewall's NUT server halts `Saruman` and `smaug` first and itself last, and [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) is the build, the forced-shutdown proof and the one mains pull that measures the pack; until those are done the decision is a configuration nobody has tested ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet off the estate.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data. That tier has held real photographs since 2026-09-28, and their off-estate copy is built but has no holder yet ([#455](https://github.com/Gerrrt/HomeLab/issues/455)) — see below |
@@ -490,6 +490,37 @@ What remains is deliberate, and `SECURITY.md` records it. The tokens are plain
 HTTP on VLAN 99, which a Hicks workstation can route to but not sniff. Loopback
 is unauthenticated, for a local user who already holds the SOPS key.
 
+**The lab's stores got the same treatment second, and needed it more**
+([#834](https://github.com/Gerrrt/HomeLab/issues/834)). `alexander` published
+its Prometheus and Loki to all of VLAN 30, unauthenticated, from 2026-09
+(#436). VLAN 30 is the segment that exists to hold attackers. From there,
+anything could:
+
+- `POST /-/quit` to the lab's Prometheus;
+- forge series through remote-write;
+- delete log ranges through Loki's live delete API, in the store that holds the
+  segment's own evidence.
+
+**Authored, and live only after its rollout.** Until the ordered steps in
+`stacks/lab/README.md` have run and their three `curl`s return 401, the
+exposure above is still the running state: none of these hosts converges.
+The fix is the estate's proxy, moved one segment down: the stores on loopback,
+and `stacks/lab/Caddyfile` on `10.0.30.40` with one token each for `odin`,
+`phoenix` and `fenrir`. Those tokens are the lab's own, in
+`secrets/lab.sops.yaml`. A lab host never holds an estate token, and
+`deploy-agent.sh` refuses to decrypt the estate's file for a lab target.
+
+Two residuals are recorded rather than fixed:
+
+- **The tokens are plain HTTP on a segment built for ARP spoofing,** so they can
+  be stolen by anyone in a position to spoof. A stolen token can still only
+  push, or read; it cannot quit or delete. TLS is #764's question, asked here
+  too.
+- **Nothing pages if the proxy is bypassed.** The lab has no blackbox exporter
+  and no Alertmanager (ADR-0020), so its version of `IngestAuthNotEnforced` is
+  a step in the rollout check, not a rule. Making the lab's failures reach the
+  estate is [#858](https://github.com/Gerrrt/HomeLab/issues/858).
+
 What has been taken off the firewall's shoulders is Alertmanager. It had no
 off-host client, so it now binds to `127.0.0.1` and reaching VLAN 99 no longer
 lets anyone silence an alert; see
@@ -607,17 +638,20 @@ assumption consistent with what they are.
   than the host's — a decision for that day and not before. Recovering the
   admin without the password is in
   [`stacks/media/README.md`](../stacks/media/README.md).
-- **The sensor stack has no secrets file either, because it has no
-  secrets.** Zeek takes no credential, and `fenrir`'s Alloy pushes to the
-  lab's unauthenticated Loki and Prometheus the way `odin`'s does. So
-  `stacks/sensor` has no `secrets/sensor.*` and no `.sops.yaml` rule, is
-  brought up with `docker compose` rather than `make up`, and sets in
-  `.env.example` the two values `render-config.sh` would otherwise write
+- **The sensor stack has had a secrets file since
+  [#834](https://github.com/Gerrrt/HomeLab/issues/834), and it holds one key.**
+  Until then it had none, because it had no secrets: Zeek takes no credential,
+  and `fenrir`'s Alloy pushed to the lab's unauthenticated Loki and
+  Prometheus. It was brought up with `docker compose` rather than `make up`
   ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
   [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
-  What would retire it is the same as for media: a service there taking a
-  credential from outside. Then it gets a rule of its own above the
-  catch-all, with `fenrir`'s key, before the file exists.
+  - **What retired that** is the trigger this entry named: a service there
+    taking a credential from outside. The lab's stores now sit behind an
+    ingest proxy, and `fenrir` needs a token to push.
+  - **So it took the shape this entry prescribed.** `secrets/sensor.sops.yaml`
+    has a rule of its own above the catch-all, and `make secrets-init
+    STACK=sensor` on `fenrir` writes its key there. The stack is now brought up
+    with `make up STACK=sensor`.
 - **The scratch stack's secrets exist only on its guest, and are never
   committed.** `diabolos` is built for one investigation and destroyed at the
   end of it ([#438](https://github.com/Gerrrt/HomeLab/issues/438),

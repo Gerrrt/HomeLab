@@ -40,6 +40,62 @@ docstring gives: it is a record, not a claim about now.
   - **Still open.** `oracle`'s agent is a single `docker run` from
     `deploy-agent.sh`, not a compose service, so the guard cannot see it.
 
+- **A container that stops and stays stopped now raises an alert**
+  ([#838](https://github.com/Gerrrt/HomeLab/issues/838)).
+  - **The gap.** The container rules covered restart loops, OOMs, memory and
+    CPU. A container that exited and stayed down just lost its cAdvisor
+    series, and nothing read that. smaug's media apps had no container metrics
+    at all.
+  - **Where cAdvisor runs:** `ContainerGone`. A container seen in the last
+    seven days and not now, on a host still reporting, alerts. Throwaway
+    `homelab.logs=off` containers are excluded. Removing a service on purpose
+    means silencing it with the issue that removed it.
+  - **smaug:** `scripts/collect-container-state.sh`, as a TrueNAS cron job in
+    ADR-0047's shape, feeds `ContainerNotRunning` and `ContainerStateStale`.
+    It needs the one-time cron entry in `build-the-nas.md` §6.9.
+  - Tests cover all three. Two deliberately broken versions of `ContainerGone`
+    were caught by them.
+  - trinity's sites from the outside are #855.
+
+- **The ruleset no longer requires a branch to be up to date before it
+  merges, or its commits to be signed.** `strict_required_status_checks_policy` is false in
+  `.github/rulesets/main.json` and on GitHub.
+  - **What happened.** The five required checks still have to pass; only the
+    "rebase onto main first" requirement is gone. With it on, every merge
+    sent every other open PR back to `BEHIND`, and eleven review PRs touching
+    the same rule files could only merge one at a time, each after another
+    round of CI.
+  - **What a merge queue would have done, and why there is none.** It keeps
+    the guarantee and drops the chore, but GitHub offers it only on
+    repositories owned by an organization, and this one is owned by a user.
+  - **What still covers the gap.** Two PRs that pass alone could break
+    together. `main`'s own CI runs after every merge, and `converge.sh` will
+    not deploy a tip whose checks are not green (#833).
+  - **`required_signatures` is gone too.** This corrects the #833 entry
+    below, which says the ruleset requires signed commits. The rule held
+    every PR whose branch commits were unsigned, and that was all of them,
+    while protecting nothing: merges are squash-only, so every commit that
+    lands on `main` is GitHub's own squash, signed with its web-flow key, and
+    `converge.sh` checks that signature before deploying.
+
+- **The lab's Prometheus and Loki stop taking orders from VLAN 30**
+  ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Authored, not yet
+  deployed. The rollout is ordered, clients first, in `stacks/lab/README.md`.
+  - **The gap.** The repository review found both published to the whole of
+    the segment built to hold attackers, unauthenticated. Anything there
+    could `POST /-/quit`, forge series, and delete log ranges.
+  - **The fix is ADR-0067 moved one segment down.** The stores are on
+    loopback, and `stacks/lab/Caddyfile` on `10.0.30.40` holds one token each
+    for `odin`, `phoenix` and `fenrir`, plus a reader token.
+    - The tokens are the lab's own, two copies each: `lab.sops.yaml` for the
+      proxy, and each client's own secrets.
+    - `fenrir` gets its first secrets file and `.sops.yaml` rule, and moves
+      to `make up STACK=sensor`.
+    - `deploy-agent.sh` no longer decrypts the estate's tokens for a lab
+      target.
+  - **Not covered.** Nothing pages if the proxy is bypassed: the lab has no
+    Alertmanager (#858).
+
 - **The workflows are pinned and hardened the way the images already were**
   ([#839](https://github.com/Gerrrt/HomeLab/issues/839)).
   - **Pinned.** Every `uses:` is pinned to a commit SHA with its exact

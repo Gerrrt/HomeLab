@@ -90,7 +90,8 @@ velociraptor/
 Secrets are `secrets/soc.sops.yaml`, encrypted to this stack's own rule in
 `.sops.yaml` — `odin`'s key opens this file and nothing else of the estate's or
 the lab's ([`secrets/soc.example.yaml`](../../secrets/soc.example.yaml) says
-why, and lists the seven keys). No certificate here comes from the lab CA:
+why, and lists the eight keys, the last of them `odin`'s token for the lab's
+ingest proxy). No certificate here comes from the lab CA:
 each tool keeps its own ([ADR-0030]), and the two browser-facing leaves from
 the lab CA are a named follow-up rather than a prerequisite.
 

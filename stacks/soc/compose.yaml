@@ -483,6 +483,10 @@ services:
       # the credential is in this container's environment (the same class of
       # exposure as GRAFANA_ADMIN_PASSWORD) and in no file.
       INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/soc.sops.yaml}
+      # odin's token for the lab's ingest proxy on alexander (#834). Its other
+      # copy is INGEST_TOKEN_ODIN in secrets/lab.sops.yaml; config.alloy sends
+      # it as a bearer token on both pushes.
+      INGEST_TOKEN: ${INGEST_TOKEN:?set in secrets/soc.sops.yaml}
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
