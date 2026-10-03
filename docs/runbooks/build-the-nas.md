@@ -1863,6 +1863,34 @@ brought it back by itself, and let the resilver finish before anything else.
 `zpool offline -t` is **not** a substitute: an offlined leaf takes the pool to
 DEGRADED by definition, so it tests `ZpoolNotOnline`, not this.
 
+**On this hardware a cable pull degrades the pool** (the done block below), so
+it cannot show `ZpoolVdevNotOnline` paging. **Step 5b** shows that, live, with
+a synthetic leaf and nothing real touched. As root at the console:
+
+```bash
+cd /mnt/erebor/apps/textfile && cat > .zpool-drill.tmp <<'EOF'
+# HELP homelab_zpool_state 1 for the state zpool status gives the pool.
+# TYPE homelab_zpool_state gauge
+homelab_zpool_state{host="smaug",pool="drill",state="online"} 1
+# HELP homelab_zpool_vdev_state 1 for the state zpool status gives this leaf vdev.
+# TYPE homelab_zpool_vdev_state gauge
+homelab_zpool_vdev_state{host="smaug",pool="drill",vdev="drill-leaf",guid="744",state="faulted",aux="synthetic drill for #744"} 1
+EOF
+chmod 0644 .zpool-drill.tmp && mv .zpool-drill.tmp zpool-drill-smaug.prom && date
+```
+
+That is 2026-09-19's reading, a FAULTED leaf under an ONLINE pool, for a pool
+named `drill` that does not exist. The HELP and TYPE lines are the
+collector's own, because node_exporter merges a metric across files and a
+mismatch would raise `node_textfile_scrape_error` for the whole directory.
+The name is not `zpool-state-*`, so the stale rule leaves it alone and the
+cron never overwrites it. A critical `ZpoolVdevNotOnline` for `drill` should
+page within about two minutes. Then remove it at once:
+
+```bash
+rm /mnt/erebor/apps/textfile/zpool-drill-smaug.prom && date
+```
+
 > **Done 2026-10-02 (steps 1–4) and 2026-10-03 (step 5).**
 >
 > **Step 1 was the first run against this host's real `zpool status -j`.**
@@ -1911,6 +1939,18 @@ DEGRADED by definition, so it tests `ZpoolNotOnline`, not this.
 > `ZpoolVdevNotOnline` stays armed for it, against the unit test built from
 > the 09-19 output, and for anything else that faults a leaf without
 > degrading the pool.
+>
+> **Step 5b, the same morning: `ZpoolVdevNotOnline`'s own live path.** The
+> drill file was written at **06:43:38 PDT**, and the critical page came at
+> **06:45**, the scrape plus the rule's one-minute `for`. The file was
+> removed at 06:46:08. The page was identified by elimination: the file
+> could fire nothing else. `ZpoolNotOnline` reads the kernel's pool state,
+> and there is no pool `drill`. The file carried no error counters for
+> `ZpoolVdevErrors`. Its name is outside `ZpoolVdevStateStale`'s pattern. So
+> both halves of #744 are now read live on this host: a degraded pool pages
+> through `ZpoolNotOnline` with the leaf rule silent, and a faulted leaf
+> under an ONLINE pool pages through `ZpoolVdevNotOnline`, from the textfile
+> through Prometheus and Alertmanager to the phone.
 
 ## §7 — Verify
 

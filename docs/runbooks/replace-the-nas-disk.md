@@ -557,7 +557,9 @@ same port still inherits the old one's readings until the file is rewritten.
   is — this fault, read the way the pool printed it. Live since 2026-10-02
   ([`build-the-nas.md`](build-the-nas.md) §6.8). The cable pull of
   2026-10-03 took the pool to DEGRADED on the chipset ports. `ZpoolNotOnline`
-  paged in five minutes, and the leaf rule correctly stood down.
+  paged in five minutes, and the leaf rule correctly stood down. A synthetic
+  faulted leaf under an ONLINE pool, this fault's own shape, then paged
+  `ZpoolVdevNotOnline` in under two minutes (§6.8 step 5b).
   TrueNAS's own alert service stays where it is, a mailbox and the web UI,
   by decision rather than by default: the ADR declines it as the paging path.
 - **The exporter's hang was the fault, not a habit.** It came back on a

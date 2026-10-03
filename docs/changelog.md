@@ -34,6 +34,11 @@ docstring gives: it is a record, not a claim about now.
     pool, so it is the pool-level rule's fault. The faulted-under-ONLINE
     reading of 2026-09-19 came through the MegaRAID, which is gone.
     `ZpoolVdevNotOnline` stays armed for that reading.
+  - **The leaf rule, live.** A cable pull cannot show `ZpoolVdevNotOnline`
+    paging, so a synthetic textfile did: a pool `drill` reading ONLINE with
+    one FAULTED leaf, written at 06:43:38. It paged critical at 06:45 and
+    was removed at 06:46:08 (§6.8 step 5b). That was the done-when's other
+    half.
 
 - **`SmartDriveUnsafeShutdownsGrowing` pages on any tick again; a clean
   shutdown does not tick the S3520**
