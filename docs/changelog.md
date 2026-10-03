@@ -20,7 +20,7 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-10-03
 
 - **The ruleset no longer requires a branch to be up to date before it
-  merges.** `strict_required_status_checks_policy` is false in
+  merges, or its commits to be signed.** `strict_required_status_checks_policy` is false in
   `.github/rulesets/main.json` and on GitHub.
   - **What happened.** The five required checks still have to pass; only the
     "rebase onto main first" requirement is gone. With it on, every merge
@@ -33,6 +33,12 @@ docstring gives: it is a record, not a claim about now.
   - **What still covers the gap.** Two PRs that pass alone could break
     together. `main`'s own CI runs after every merge, and `converge.sh` will
     not deploy a tip whose checks are not green (#833).
+  - **`required_signatures` is gone too.** This corrects the #833 entry
+    below, which says the ruleset requires signed commits. The rule held
+    every PR whose branch commits were unsigned, and that was all of them,
+    while protecting nothing: merges are squash-only, so every commit that
+    lands on `main` is GitHub's own squash, signed with its web-flow key, and
+    `converge.sh` checks that signature before deploying.
 
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
