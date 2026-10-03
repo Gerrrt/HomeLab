@@ -205,3 +205,93 @@ groups:
           category: saturation
         annotations:
           summary: "Container {{ $labels.name }} throttled {{ $value | humanizePercentage }} of CPU periods"
+
+      # --- A container that stopped and stayed stopped (#838) ---------------
+      #
+      # The rules above cover restart loops, OOMs, memory and CPU. None covers a
+      # container that exits and stays down: cAdvisor reports running
+      # containers only, so a stopped one simply stops having series, and no
+      # rule read that as a fault. Vaultwarden, Immich, Paperless and the rest
+      # could be down until someone in the house noticed.
+      - alert: ContainerGone
+        # Seen in the last seven days, not seen now, on a host that is still
+        # reporting containers.
+        #
+        # SEVEN DAYS is the window, chosen over shorter ones. A container still
+        # down when it falls out of the window stops alerting, so the window
+        # has to outlast the longest stretch nobody looks: a short one clears a
+        # Friday-night failure by Saturday. The cost is that removing a service
+        # on purpose alerts for up to a week. Silence it with the issue that
+        # removed it, per the silence convention in docs/observability.md.
+        #
+        # THE LAST LINE keeps this off a dead host. A host that stopped
+        # reporting has lost every container series at once; that is
+        # InstanceDown's or RemoteWriteJobStale's to say, and a page per
+        # container on top would bury it. Every Docker host runs Alloy as a
+        # container, so a host that is reporting always has at least one series.
+        #
+        # homelab.logs=off already marks the estate's throwaway containers
+        # (backup-volumes.sh, restore-volumes.sh), which exit by design. cAdvisor
+        # carries Docker labels as container_label_*; where it does not, the
+        # matcher matches nothing and excludes nothing.
+        #
+        # 10m rides out a `make up` that recreates a container: the same name
+        # comes straight back, and the series with it.
+        expr: |
+          max by (instance, name) (
+            max_over_time(container_last_seen{name!="", container_label_homelab_logs!="off"}[7d])
+          )
+          unless on (instance, name)
+          max by (instance, name) (container_last_seen{name!=""})
+          and on (instance)
+          count by (instance) (container_last_seen{name!=""})
+        for: 10m
+        labels:
+          component: containers
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Container {{ $labels.name }} on {{ $labels.instance }} has stopped and not come back"
+          description: >-
+            It was running within the last week and is not running now. `docker
+            ps -a --filter name={{ $labels.name }}` on {{ $labels.instance }}
+            shows how it exited; `make up` for its stack starts it. If it was
+            removed on purpose, silence this with the issue that removed it:
+            it stops on its own seven days after the container was last seen.
+
+      # Where cAdvisor is not: smaug's media stack, through
+      # scripts/collect-container-state.sh in a TrueNAS cron job (ADR-0047's
+      # shape). `docker ps -a` lists a stopped container, so this is a direct 0
+      # and needs no look-back.
+      - alert: ContainerNotRunning
+        expr: homelab_container_running == 0
+        for: 10m
+        labels:
+          component: containers
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Container {{ $labels.name }} ({{ $labels.project }}) on {{ $labels.instance }} is not running"
+          description: >-
+            It exists and is not running. On smaug, `docker ps -a` in the
+            TrueNAS shell shows how it exited, and `docker compose up -d` from
+            the stack's directory on the pool starts it
+            (docs/runbooks/build-the-nas.md).
+
+      - alert: ContainerStateStale
+        # The collector itself stopping: a cron job deleted or failing, or the
+        # pool copy of the script gone. 30 minutes is two missed runs at the
+        # 15-minute schedule the runbook sets.
+        expr: time() - homelab_container_state_timestamp_seconds > 1800
+        for: 10m
+        labels:
+          component: containers
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "{{ $labels.project }} container state is {{ $value | humanizeDuration }} old"
+          description: >-
+            collect-container-state.sh has stopped running, so ContainerNotRunning
+            cannot see this stack. Check the cron job in TrueNAS (System →
+            Advanced Settings → Cron Jobs) and run its command by hand with
+            --print.
