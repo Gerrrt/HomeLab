@@ -62,22 +62,45 @@ unzip -o "tofu_${V}_linux_amd64.zip" tofu && sudo install -m 755 tofu /usr/local
 tofu version
 ```
 
-Then add three lines to `phoenix.env`. The provider reads the first two
-directly. The third is the state key:
+§3 encrypts with `sops`, which `phoenix` did not otherwise have. It needs only
+the public keys, so installing it here gives this host nothing it can decrypt.
+Install it the same way, checked against the release's checksums file:
 
 ```bash
-P="$(openssl rand -base64 32)"
-cat >> ~/.config/proxmox/phoenix.env <<EOT
-PROXMOX_VE_ENDPOINT=https://10.0.30.110:8006/
-PROXMOX_VE_API_TOKEN=phoenix@pve!builder=<the same secret as PROXMOX_TOKEN_SECRET>
-TF_VAR_state_passphrase=${P}
-EOT
-unset P
-chmod 600 ~/.config/proxmox/phoenix.env
+S=3.13.3   # the getsops/sops release
+curl -fsSLO "https://github.com/getsops/sops/releases/download/v${S}/sops-v${S}.linux.amd64"
+curl -fsSLO "https://github.com/getsops/sops/releases/download/v${S}/sops-v${S}.checksums.txt"
+grep " sops-v${S}.linux.amd64$" "sops-v${S}.checksums.txt" | sha256sum -c -
+sudo install -m 755 "sops-v${S}.linux.amd64" /usr/local/bin/sops
 ```
 
-Edit the token line by hand. Copying the secret from the line above keeps it
-out of shell history. **Do §3 before any `tofu apply`.** A state written before
+Then add three lines to `phoenix.env`. The provider reads the first two
+directly. The third is the state key. The token line is built from the file's
+own `PROXMOX_TOKEN_ID` and `PROXMOX_TOKEN_SECRET`, so no secret is typed or
+printed. This prints only variable names, the passphrase's length and the
+API's status code:
+
+```bash
+E=~/.config/proxmox/phoenix.env
+if grep -qE '^(PROXMOX_VE_|TF_VAR_state_passphrase)' "$E"; then
+  echo "already present"
+elif cp -p "$E" "$E.bak-445"; then
+  ( set -a; . "$E"; set +a; umask 077
+    printf 'PROXMOX_VE_ENDPOINT=https://10.0.30.110:8006/\nPROXMOX_VE_API_TOKEN=%s=%s\nTF_VAR_state_passphrase=%s\n' \
+      "$PROXMOX_TOKEN_ID" "$PROXMOX_TOKEN_SECRET" "$(openssl rand -base64 32)" >> "$E" )
+  chmod 600 "$E"; grep -o '^[A-Za-z_]*=' "$E"
+  ( set -a; . "$E"; set +a; echo "passphrase length ${#TF_VAR_state_passphrase}"
+    curl -fsS -o /dev/null -w 'API %{http_code}\n' -H "Authorization: PVEAPIToken=${PROXMOX_VE_API_TOKEN}" \
+      "${PROXMOX_VE_ENDPOINT}api2/json/version" )
+else
+  echo "backup failed: nothing written"
+fi
+```
+
+`passphrase length 44` and `API 200`. Then `rm` the `.bak-445` copy, which
+holds the token. A full root makes the copy fail. The first run hit exactly
+that, and the build's §2 now grows the volume (`build-the-jumpbox.md`). A
+failed backup now stops the edit rather than being skipped past. **Do §3 before any `tofu apply`.** A state written before
 its key is escrowed is a state that one disk failure can lose.
 
 ## 2. What the token is missing, on `Saruman`
@@ -220,7 +243,10 @@ replaces the guest, and replacing it re-clones it from scratch.
 
 | Date | What | Result |
 | --- | --- | --- |
-| | §3 escrow, hashes compared on `prometheus` | |
+| 2026-10-03 | §1 tofu 1.13.1 and sops 3.13.3, both checksum-verified | Installed in `/usr/local/bin`. `phoenix.env` gained its three lines: `passphrase length 44`, `API 200` |
+| 2026-10-03 | §2 grant, as root on `Saruman` | `Pool.Allocate` and `Pool.Audit` on `PhoenixBuilder`, and the ACL on `/pool/proof`. Proxmox accepted an ACL on a pool that did not exist yet |
+| 2026-10-03 | §3 escrow written on `phoenix` | 2 recipients, the catch-all's two. `sops --decrypt` fails on `phoenix`, as designed. Committed as `secrets/tofu.sops.yaml` |
+| | §3 hashes compared on `prometheus` | |
 | | §4 half one, `check-tofu-state-encryption.sh` on the real state | |
 | | §4 half two, `git add` refused, and `-f` caught | |
 | | §4 proof guest and `proof` pool destroyed | |
