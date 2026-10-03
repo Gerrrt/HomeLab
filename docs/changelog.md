@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **Every Prometheus alert rule has a test, and CI refuses one that does not**
+  ([#843](https://github.com/Gerrrt/HomeLab/issues/843)).
+  - **Twenty rules gained tests:** nine UPS, seven network, three stack and
+    `ContainerOomKilled`. Each gets a firing case and the near-miss that must
+    stay quiet. Coverage is 124 of 124.
+  - **One of them could never fire.** `SwitchInterfaceDown` required the
+    port's hourly maximum `ifOperStatus` to be 1 while the port read 2, and a
+    window containing the current 2 has a maximum of at least 2. It has been
+    `min_over_time` since. Its first test found that, which is #63's lesson
+    again.
+  - **The guard.** `scripts/check_rule_tests.py` fails CI, `make check-rules`
+    and `validate.sh` on any alert, in any stack, that no promtool test
+    selects. It checks per rule; the older per-stack guard only refused a
+    stack with no tests at all.
+  - `UpsBatteryUnproven`'s seven-day test has a file of its own at a 15m
+    evaluation interval, which keeps it to two seconds.
+  - **Still open in #843:** behaviour tests for the Loki rules, which need a
+    running Loki to push fixture lines into.
+
 - **oracle's Alloy, the last one holding the Docker socket, gives it up.**
   Authored;
   it lands at the next `deploy-agent.sh` run against oracle.
