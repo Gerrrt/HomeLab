@@ -118,6 +118,11 @@ services:
       # because Alloy in this same stack pushes through it: the agent uses
       # remote_write, not a scrape, exactly as it does on the monitoring host.
       - --web.enable-remote-write-receiver
+      # Kept, because `make up` reloads through it (scripts/reload-config.sh,
+      # `docker exec … wget localhost:9090/-/reload`, inside the container). It
+      # is no longer reachable from the segment: the port below is loopback,
+      # and the ingest proxy refuses /-/reload and /-/quit whatever the token
+      # (#834).
       - --web.enable-lifecycle
     volumes:
       - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
@@ -151,8 +156,14 @@ services:
     # receiver published with no client at all is exactly the ADR-0012 case, on
     # the segment where it matters most; one with a client days away is the
     # narrowest gap the runbook could cut.
+    #
+    # LOOPBACK SINCE #834. Published to the segment, it was what the paragraph
+    # above warned of: an unauthenticated receiver, /-/quit and a delete path,
+    # open to every guest on VLAN 30. The `caddy` service below now holds
+    # alexander's address on this port and serves a client only what its
+    # token allows, which is ADR-0067's answer moved one segment down.
     ports:
-      - "${BIND_ADDR:-0.0.0.0}:${PROMETHEUS_PORT:-9090}:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     expose:
       - "9090"
     healthcheck:
@@ -192,11 +203,64 @@ services:
     # Loki is that GUEST's own logs — journal, auth.log, containers — the way
     # every other host's agent does — as `phoenix`'s does (ADR-0043). Those are
     # the clients this is open for, published for `phoenix` in 2026-09 by the
-    # same runbook step as prometheus above (#436):
+    # same runbook step as prometheus above (#436). Loopback since #834, with
+    # the `caddy` service below in front, for prometheus's reason and one of
+    # its own: retention_enabled with a delete_request_store means Loki's
+    # delete API is live, and auth_enabled is false.
     ports:
-      - "${BIND_ADDR:-0.0.0.0}:${LOKI_PORT:-3100}:3100"
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
     expose:
       - "3100"
+
+  # ---------------------------------------------------------------------------
+  # Ingest proxy (#834). The estate's `caddy` service, moved one segment down:
+  # its comment in stacks/observability/compose.yaml carries the reasoning
+  # (non-root, why NET_BIND_SERVICE stays, the 64m bound, the tokens in the
+  # environment) and is not repeated. What differs is the clients, which are
+  # this segment's own (stacks/lab/Caddyfile), and the address it holds.
+  #
+  # INGEST_BIND_ADDR is alexander's own address and must be specific, for the
+  # estate's reason: Docker cannot publish 0.0.0.0:9090 while prometheus holds
+  # 127.0.0.1:9090. odin, phoenix and fenrir already push to 10.0.30.40 on
+  # these two ports, so their URLs do not change; only the header they send.
+  # ---------------------------------------------------------------------------
+  caddy:
+    <<: *service-defaults
+    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
+    container_name: lab-ingest-proxy
+    user: "65534:65534"
+    mem_limit: 64m
+    memswap_limit: 64m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /data:size=1m,uid=65534,gid=65534
+      - /config:size=1m,uid=65534,gid=65534
+      - /tmp:size=1m
+    environment:
+      INGEST_TOKEN_ODIN: ${INGEST_TOKEN_ODIN:?set in secrets/lab.sops.yaml}
+      INGEST_TOKEN_PHOENIX: ${INGEST_TOKEN_PHOENIX:?set in secrets/lab.sops.yaml}
+      INGEST_TOKEN_FENRIR: ${INGEST_TOKEN_FENRIR:?set in secrets/lab.sops.yaml}
+      INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/lab.sops.yaml}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "${INGEST_BIND_ADDR:-10.0.30.40}:${PROMETHEUS_PORT:-9090}:9090"
+      - "${INGEST_BIND_ADDR:-10.0.30.40}:${LOKI_PORT:-3100}:3100"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2020/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Visualisation. The one service here a human opens, and the one this stack

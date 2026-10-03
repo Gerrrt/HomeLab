@@ -1283,6 +1283,15 @@ services:
     image: mstruebing/editorconfig-checker:4.0.2@sha256:2ba6232bfa0058f72f5f7d7816711590aa764afab1542af30b3ecb4553587918
     command: ["editorconfig-checker", "--version"]
 
+  # zizmor, the workflows' security linter (#839), beside actionlint, which
+  # checks they are valid; this checks they are safe. It found 16 problems on
+  # main the day it was added: nine unpinned `uses:` and seven checkouts
+  # leaving the token in .git/config. Its entrypoint IS zizmor.
+  zizmor:
+    profiles: ["lint"]
+    image: ghcr.io/zizmorcore/zizmor:1.30.1@sha256:a2eb396d886c053073405c7a980f2139ba2248ec172243cfa3841e57196e8101
+    command: ["--version"]
+
   # ---------------------------------------------------------------------------
   # packer for scripts/lint.sh: `fmt -check` and `validate -syntax-only` over
   # packer/ (ADR-0074). Behind the `lint` profile like the two above, and for
