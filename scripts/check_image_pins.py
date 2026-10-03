@@ -434,6 +434,32 @@ SOCKET_DIRS = ("/run", "/var/run")
 PROXY_SERVICE = "docker-socket-proxy"
 
 
+# `docker run` flags that take no value, so the image operand can be found for
+# the socket rule (#868 review). Incomplete on purpose and safe that way: an
+# unlisted boolean flag makes the image read as that flag's value, the next
+# positional is taken as the image instead, the exemption misses, and the run is
+# FLAGGED. A wrong guess here can only refuse a run, never wave one through.
+RUN_BOOLEAN_FLAGS = {
+    "-d", "--detach", "--rm", "-i", "--interactive", "-t", "--tty", "-it",
+    "--init", "--privileged", "--read-only", "-P", "--publish-all",
+    "--no-healthcheck", "--oom-kill-disable", "--sig-proxy",
+}
+
+
+def image_operand(args: list[str]) -> str | None:
+    """The image a `docker run` executes: its first positional argument."""
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            return args[i + 1] if i + 1 < len(args) else None
+        if a.startswith("-"):
+            i += 1 if ("=" in a or a in RUN_BOOLEAN_FLAGS) else 2
+            continue
+        return a
+    return None
+
+
 def socket_reach(args: list[str]) -> str | None:
     """How a docker run's mounts reach the socket, or None.
 
@@ -493,9 +519,11 @@ def check_file(rel: str, lines: list[Line]) -> tuple[list[str], int]:
                     continue
                 seen += 1
                 reach = socket_reach(args)
-                if reach and not any(
-                    VAR.match(a) and VAR.match(a).group(1) in proxies for a in args
-                ):
+                # The exemption is for the IMAGE being the proxy, not for the
+                # proxy's variable appearing somewhere: `-e "$PROXY_IMAGE"`
+                # beside a socket mount is a decoy, not a proxy (#868 review).
+                image = image_operand(args) or ""
+                if reach and not (VAR.match(image) and VAR.match(image).group(1) in proxies):
                     where = f"{rel}:{line.lineno}"
                     problems.append(
                         f"{where}: this docker command {reach}, and is not the "
@@ -728,6 +756,17 @@ def self_test() -> int:
          (img, 'docker run -d -v /:/rootfs:ro "$IMAGE"')),
         ("the host's / with --tmpfs <target>/run is fine", 0,
          (img, 'docker run -d -v /:/rootfs:ro --tmpfs /rootfs/run:size=64k "$IMAGE"')),
+        ("the proxy's variable as a decoy -e value does not exempt a socket mount", 1,
+         (img, proxy, 'docker run -d -e "$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"')),
+        ("nor as a --label value", 1,
+         (img, proxy, 'docker run -d --label "$PROXY_IMAGE" -v /var/run/docker.sock:/s "$IMAGE"')),
+        ("nor inside an -e assignment", 1,
+         (img, proxy, 'docker run -e DECOY="$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"')),
+        ("the real proxy run, flag for flag as deploy-agent.sh writes it, passes", 0,
+         (proxy, 'docker run -d --name alloy-socket-proxy --network alloy --restart unless-stopped '
+                 '--cap-drop ALL --security-opt no-new-privileges:true --memory 64m --memory-swap 64m '
+                 '--log-driver json-file --log-opt max-size=10m -e CONTAINERS=1 -e POST=0 '
+                 '-v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"')),
         ("a mask at the wrong path does not count", 1,
          (img, 'docker run -d -v /:/rootfs:ro --tmpfs /run "$IMAGE"')),
     ]
