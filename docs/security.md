@@ -21,7 +21,7 @@ What this network is actually built to survive:
 | Someone on the lab segment reading the domain's metrics | **Scoped, unauthenticated, and accepted.** `windows_exporter` listens on `9182` on all six of ADR-0029's guests, on the segment that exists to hold attackers. Each guest's Windows Firewall admits `10.0.30.40` (`alexander`) alone ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §7). That rule is the difference between an endpoint a `/24` sweep finds and one you have to go looking for, and it is a residual, not a control: the exporter has no authentication, so whoever owns `alexander` reads every gauge. It has no write API, so what leaks is the shape of the host (services, disks, uptime, the licence clock), the same class as `node_exporter` on the NAS below |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 142 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 150 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below. **What the UPS cannot answer is what happens when the cut outlasts the pack: as of 2026-09-20 nothing shuts down on its signal, and everything on the PDU — `morpheus`, `Saruman`, `neo` and `smaug`, which is in the media room on a long cord from that PDU — stops uncleanly when the pack empties, about 47 minutes in at 21 % load by the card's own unmeasured estimate.** [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides that the firewall's NUT server halts `Saruman` and `smaug` first and itself last, and [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) is the build, the forced-shutdown proof and the one mains pull that measures the pack; until those are done the decision is a configuration nobody has tested ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet off the estate.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data. That tier has held real photographs since 2026-09-28, and their off-estate copy is built but has no holder yet ([#455](https://github.com/Gerrrt/HomeLab/issues/455)) — see below |
@@ -942,6 +942,29 @@ this closes on.
   network listener, a read-only mount of the whole rootfs and by far the largest
   attack surface here — no longer has a path to `POST`. It is not "the socket is
   now safe".
+
+  **The lab's three Docker guests got the same proxy in
+  [#836](https://github.com/Gerrrt/HomeLab/issues/836).** Until then,
+  `alexander`, `odin` and `fenrir` each handed Alloy the socket itself, and
+  this paragraph named only `oracle`, so it was wrong about three hosts. Two of
+  those guests hold keys: `alexander` the lab's only age key, and `odin` the
+  SOC's key and Velociraptor's CA. `check_compose_health.py` now fails on any
+  `docker.sock` mount in a compose file outside the proxy image, which is how
+  they would have been caught.
+
+  **The proxy was not the whole fix, and review of #836 said why.** Every
+  Alloy also mounts the host's `/` at `/rootfs:ro` for node metrics, and that
+  carries `/rootfs/run/docker.sock` with it. A read-only mount does not stop
+  `connect()` on a socket, and Alloy runs as uid 0, which owns it, so any
+  Alloy, the estate's behind #193's proxy included, could reach the full API
+  around the proxy with no capability at all. `/rootfs/run` is now an empty
+  tmpfs in all four. smaug's node-exporter gets the same mask at `/host/run`,
+  although as uid 65534 it could not open the socket anyway. The check now
+  fails three shapes:
+
+  - the socket itself, under either spelling, `/var/run` or `/run`;
+  - its directory;
+  - the host's `/` with no mask over `<target>/run`.
 
   **`oracle`'s agent has its own proxy too.** It was the last Alloy holding
   the socket. It is started by `deploy-agent.sh` as a `docker run`, not from a

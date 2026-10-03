@@ -343,6 +343,56 @@ services:
   # because a bind mount carries the symlink and not its target, and the target
   # would have to resolve inside the container.
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Docker socket proxy (#836). The estate's docker-socket-proxy (#193); its
+  # comment in stacks/observability/compose.yaml is the reasoning. `:ro` on
+  # the socket does not stop POST /containers/create, so a collector holding the
+  # socket holds root on the host, and alexander holds the lab's only age key (#671).
+  # Alloy now reaches the API here, GET-only, and the socket stops at this
+  # container. Not published.
+  # ---------------------------------------------------------------------------
+  docker-socket-proxy:
+    <<: *service-defaults
+    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
+    container_name: lab-docker-socket-proxy
+    environment:
+      # The estate's allowlist exactly: what docker.alloy's three components
+      # were measured to need (#193). NETWORKS is the one that is not obvious;
+      # without it discovery.docker fails and container logs stop while the
+      # agent stays healthy.
+      CONTAINERS: 1
+      IMAGES: 1
+      INFO: 1
+      VERSION: 1
+      EVENTS: 1
+      NETWORKS: 1
+      POST: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EXEC: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "2375"
+    mem_limit: 64m
+    memswap_limit: 64m
+    # Not read_only, for the estate's measured reason: the entrypoint writes
+    # haproxy.cfg from the environment at every start.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
   alloy:
     <<: *service-defaults
     image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
@@ -367,6 +417,8 @@ services:
       LOKI_URL: http://loki:3100/loki/api/v1/push
       PROMETHEUS_REMOTE_WRITE_URL: http://prometheus:9090/api/v1/write
       ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-alloy}
+      # Read by docker.alloy's three components; the socket is not mounted (#836).
+      DOCKER_API: tcp://docker-socket-proxy:2375
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
@@ -376,14 +428,25 @@ services:
       - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
       - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
       - alloy-data:/var/lib/alloy/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/log:/var/log:ro
       - /:/rootfs:ro
+    # The host's /run is masked inside /rootfs (#836 review). `/:/rootfs:ro`
+    # otherwise hands this container /rootfs/run/docker.sock, and :ro does not
+    # stop connect() on a socket; Alloy runs as uid 0, the socket's owner, so it
+    # would reach the full Docker API around the proxy with no capability at
+    # all. containerd's socket is under /run too. Nothing here reads /run: the
+    # journal is /var/log/journal, and tmpfs is excluded from the filesystem
+    # collector, so the mask changes no series. check_compose_health.py fails a
+    # rootfs mount without it.
+    tmpfs:
+      - /rootfs/run:size=64k,mode=0755
     ports:
       # Debug UI, loopback only. No syslog receiver on 1514/udp, because
       # syslog.alloy is not mounted above.
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
     depends_on:
+      docker-socket-proxy:
+        condition: service_started
       loki:
         condition: service_started
       prometheus:

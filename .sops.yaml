@@ -89,7 +89,8 @@ creation_rules:
   # fails if it ever appears in any rule.
   - path_regex: secrets/sensitive(\..+)?\.sops\.ya?ml$
     age: >-
-      age1cpdxl6p4synccrwaaeh308n4g8rww9tv9znv32laprnk3kdpm95satjtsw
+      age1cpdxl6p4synccrwaaeh308n4g8rww9tv9znv32laprnk3kdpm95satjtsw,
+      age19mkg76v0x70wkqwuykxxqpdwrq8mhgklpjw44j6xw73psnhwyvcqa9995j
 
   # The SOC guest, for the lab's reason with more force behind it: odin sits
   # on the segment that exists to hold attackers and runs the SIEM those

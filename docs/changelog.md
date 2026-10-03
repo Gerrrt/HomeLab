@@ -36,6 +36,104 @@ docstring gives: it is a record, not a claim about now.
       rebuild regenerates. The lab is #671's question.
     - The guard's first CI run failed on the real file, as it should have.
 
+- **`check_docs.py` now checks the deploy runbook's Rules-page figure.**
+  - **The gap.** `deploy-stack.md` step 2 says the page "lists 129: the 127
+    alert rules ... plus the two recording rules". That sentence has three
+    counts, and only the alert-rule count was checked. Catching up #840's
+    branch with main moved the alert-rule count to 132 and left the total at
+    129. A deploy following that step would expect five fewer rules than a
+    healthy page shows.
+  - **The fix.** Two counted claims, not a new assertion, so README's
+    assertion count stands. `page lists N` must equal the Prometheus alert
+    rules plus the `record:` rules, both counted from the rule files.
+    `N recording rules` is checked beside it, because it is the other half of
+    the sum.
+  - **Proven by mutation.** Three cases each fail with the line named: the
+    total left stale, the recording-rule count wrong, and a third recording
+    rule added to `ids.rules.yaml` with the prose untouched.
+
+- **The stack's self-monitoring metrics have rules behind them**
+  ([#840](https://github.com/Gerrrt/HomeLab/issues/840)). Each of these was
+  charted on a dashboard, or exported and read by nothing:
+  - `AlertmanagerConfigReloadFailed`, the twin of Prometheus's.
+  - `PrometheusNotificationsFailing`, for send errors or dropped alerts on the
+    hop to Alertmanager.
+  - `PrometheusTsdbFailures`, covering compaction, WAL corruption, block
+    reload and head truncation, each named in a `failure` label.
+  - `AlloyRemoteWriteFailing`, for an agent whose samples are being refused.
+  - `AlloyComponentUnhealthy`, for a pipeline component down while the agent
+    stays up.
+
+  The two Alloy rules read each agent's self-scraped copy (`job=~".+-alloy"`),
+  so the local agent, which is also scraped directly, alerts once. A test
+  holds that, and a version of the rule without the filter fails it.
+  Each rule carries a `dashboard` annotation naming the row and panel to
+  open. Two panels are new under the Prometheus row: TSDB failures, and the
+  alert hand-off to Alertmanager. The TSDB and notification counters are
+  scoped to `job="prometheus"`, as the dashboard's are, so another
+  component's embedded storage cannot page as this server's.
+  Prometheus having no Alertmanager at all is left to the Watchdog heartbeat,
+  because no rule could deliver that page.
+
+- **No Alloy on the lab segment holds the Docker socket any more**
+  ([#836](https://github.com/Gerrrt/HomeLab/issues/836)). Authored; it
+  lands on each guest at its next `make up`.
+  - **The gap.** `alexander`, `odin` and `fenrir` each mounted
+    `/var/run/docker.sock` into Alloy. `:ro` does not stop
+    `POST /containers/create`, so that was root on three VLAN 30 hosts, two
+    of them holding age keys. `docs/security.md` named only `oracle`.
+  - **The fix.** Each stack gets the estate's `docker-socket-proxy` (#193),
+    with the same digest and the same GET-only allowlist, and Alloy reads the
+    API through `DOCKER_API`.
+  - **The guard.** `check_compose_health.py` fails on any `docker.sock`
+    mount outside the proxy image, with ten fixtures.
+  - **What review found.** Each Alloy's `/:/rootfs:ro` carried
+    `/rootfs/run/docker.sock` past the proxy, because `:ro` does not stop
+    `connect()`. That was true of the estate's Alloy since #193. `/rootfs/run`
+    is masked in all four now, as is smaug's `/host/run`. The guard also
+    covers the `/run/docker.sock` spelling, a mount of `/run` itself, and an
+    unmasked `/`.
+  - **Still open.** `oracle`'s agent is a single `docker run` from
+    `deploy-agent.sh`, not a compose service, so the guard cannot see it.
+
+- **A container that stops and stays stopped now raises an alert**
+  ([#838](https://github.com/Gerrrt/HomeLab/issues/838)).
+  - **The gap.** The container rules covered restart loops, OOMs, memory and
+    CPU. A container that exited and stayed down just lost its cAdvisor
+    series, and nothing read that. smaug's media apps had no container metrics
+    at all.
+  - **Where cAdvisor runs:** `ContainerGone`. A container seen in the last
+    seven days and not now, on a host still reporting, alerts. Throwaway
+    `homelab.logs=off` containers are excluded. Removing a service on purpose
+    means silencing it with the issue that removed it.
+  - **smaug:** `scripts/collect-container-state.sh`, as a TrueNAS cron job in
+    ADR-0047's shape, feeds `ContainerNotRunning` and `ContainerStateStale`.
+    It needs the one-time cron entry in `build-the-nas.md` §6.9.
+  - Tests cover all three. Two deliberately broken versions of `ContainerGone`
+    were caught by them.
+  - trinity's sites from the outside are #855.
+
+- **The ruleset no longer requires a branch to be up to date before it
+  merges, or its commits to be signed.** `strict_required_status_checks_policy` is false in
+  `.github/rulesets/main.json` and on GitHub.
+  - **What happened.** The five required checks still have to pass; only the
+    "rebase onto main first" requirement is gone. With it on, every merge
+    sent every other open PR back to `BEHIND`, and eleven review PRs touching
+    the same rule files could only merge one at a time, each after another
+    round of CI.
+  - **What a merge queue would have done, and why there is none.** It keeps
+    the guarantee and drops the chore, but GitHub offers it only on
+    repositories owned by an organization, and this one is owned by a user.
+  - **What still covers the gap.** Two PRs that pass alone could break
+    together. `main`'s own CI runs after every merge, and `converge.sh` will
+    not deploy a tip whose checks are not green (#833).
+  - **`required_signatures` is gone too.** This corrects the #833 entry
+    below, which says the ruleset requires signed commits. The rule held
+    every PR whose branch commits were unsigned, and that was all of them,
+    while protecting nothing: merges are squash-only, so every commit that
+    lands on `main` is GitHub's own squash, signed with its web-flow key, and
+    `converge.sh` checks that signature before deploying.
+
 - **The lab's Prometheus and Loki stop taking orders from VLAN 30**
   ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Authored, not yet
   deployed. The rollout is ordered, clients first, in `stacks/lab/README.md`.
