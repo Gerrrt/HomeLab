@@ -526,3 +526,96 @@ tests:
       - eval_time: 4m
         alertname: SilenceWithoutIssue
         exp_alerts: []
+
+  # --- The three stack rules untested until #843 ---------------------------
+
+  # PrometheusConfigReloadFailed: a rejected reload (0) fires after its 5m `for`.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_config_last_reload_successful{job="prometheus",instance="localhost:9090"}'
+        values: "1x3 0x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: PrometheusConfigReloadFailed
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: PrometheusConfigReloadFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusConfigReloadFailed
+              job: prometheus
+              instance: localhost:9090
+              component: stack
+              severity: critical
+              category: correctness
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/deploy-stack.md#troubleshooting"
+              summary: "Prometheus rejected its own config reload on localhost:9090"
+
+  # PrometheusRuleEvaluationFailures: one failure a minute is 15 over the 15m
+  # window and fires after 5m; a flat counter in the next case does not.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_rule_evaluation_failures_total{job="prometheus",instance="localhost:9090",rule_group="host"}'
+        values: "0+1x40"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: PrometheusRuleEvaluationFailures
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: PrometheusRuleEvaluationFailures
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusRuleEvaluationFailures
+              job: prometheus
+              instance: localhost:9090
+              rule_group: host
+              component: stack
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "15 rule evaluation failures in the last 15 minutes"
+
+  # PrometheusRuleEvaluationFailures: a flat counter is quiet.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_rule_evaluation_failures_total{job="prometheus",instance="localhost:9090",rule_group="host"}'
+        values: "4+0x40"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: PrometheusRuleEvaluationFailures
+        exp_alerts: []
+
+  # LokiIngestionStalled: lines stop at 20m. The 30m rate reaches 0 at 50m and the
+  # 30m `for` runs to 80m. Quiet at 70m (pending), firing at 85m.
+  - interval: 1m
+    input_series:
+      - series: 'loki_distributor_lines_received_total{job="loki",instance="loki:3100",tenant="fake"}'
+        values: "0+100x20 2000x80"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: LokiIngestionStalled
+        exp_alerts: []
+      - eval_time: 85m
+        alertname: LokiIngestionStalled
+        exp_alerts:
+          - exp_labels:
+              alertname: LokiIngestionStalled
+              component: stack
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Loki has received no log lines for 30 minutes"
+              description: >-
+                Either every Alloy agent is down or the push endpoint is
+                unreachable. Logs are being lost, not queued indefinitely.
+
+  # LokiIngestionStalled: lines still arriving is quiet.
+  - interval: 1m
+    input_series:
+      - series: 'loki_distributor_lines_received_total{job="loki",instance="loki:3100",tenant="fake"}'
+        values: "0+100x100"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: LokiIngestionStalled
+        exp_alerts: []

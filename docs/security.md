@@ -932,11 +932,23 @@ this closes on.
   - its directory;
   - the host's `/` with no mask over `<target>/run`.
 
-  `oracle`'s agent still mounts the socket directly. It is deployed by
-  `deploy-agent.sh` as a single `docker run`, not from a compose file, so that
-  check cannot see it. `docker.alloy` reads the API address from `DOCKER_API`
-  and falls back to the socket when it is unset, so that host keeps working
-  unchanged until it gets a proxy of its own.
+  **`oracle`'s agent has its own proxy too.** It was the last Alloy holding
+  the socket. It is started by `deploy-agent.sh` as a `docker run`, not from a
+  compose file, so no compose check could see it. The script now starts
+  `alloy-socket-proxy` beside it, with the same image and allowlist, on a
+  private network. Its `/rootfs/run` is an empty tmpfs, because
+  `/:/rootfs:ro` otherwise carries the socket past the proxy: a read-only
+  mount does not stop `connect()`, and Alloy is the socket's owner.
+  `check_image_pins.py` refuses any `docker run` in the repository, other than
+  the proxy's (traced by image), that reaches the socket. It looks for three
+  things:
+
+  - the socket under either spelling;
+  - its directory;
+  - the host's `/` with no `--tmpfs` over `<target>/run`.
+  `docker.alloy` still falls back to the socket when `DOCKER_API` is unset, so
+  an agent deployed before this keeps working until its next `deploy-agent.sh`
+  run.
 - Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
   `no-new-privileges`, so root inside it is subject to file permissions like any
   other user, and joins only the group that owns `/var/log/syslog` so the auth
