@@ -33,8 +33,15 @@ docstring gives: it is a record, not a claim about now.
     `HostDiskCritical` for the firewall that runs no node_exporter. Memory is
     collected but not alerted on, because ZFS's ARC holds memory by design.
     `snmp.yaml` was written to the generator's format without the generator
-    (no Docker where it was authored). Regenerate it, and measure the walk with
-    `scripts/snmp-walk.sh`, before relying on it.
+    (no Docker where it was authored). Regenerate it before relying on it.
+  - **What the walk found.** The table on morpheus has 751 rows, not a few
+    dozen. 13 are mounts; 735 are FreeBSD kernel allocator zones (`UMA:`,
+    `MALLOC:`). Walked whole, that would have been about 120 GETBULKs and
+    2,250 series nothing reads. A dynamic filter now walks `hrStorageDescr`
+    alone and fetches the other columns only for descriptions starting with
+    `/`. bsnmpd's description is `/var, type: zfs, dev: pfSense/var`, not the
+    bare mount point. So the rule and the dashboard derive `mountpoint` with
+    `label_replace`, and the test fixtures use the real strings.
 
 - **A stopped Loki ruler now pages**
   ([#837](https://github.com/Gerrrt/HomeLab/issues/837)).

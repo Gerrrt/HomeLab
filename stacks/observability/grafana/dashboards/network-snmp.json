@@ -1343,8 +1343,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "hrStorageUsed{role=\"firewall\", hrStorageDescr=~\"/.*\"} / (hrStorageSize{role=\"firewall\", hrStorageDescr=~\"/.*\"} > 0)",
-          "legendFormat": "{{hrStorageDescr}}",
+          "expr": "label_replace(hrStorageUsed{role=\"firewall\", hrStorageDescr=~\"/.*\"} / (hrStorageSize{role=\"firewall\", hrStorageDescr=~\"/.*\"} > 0), \"mountpoint\", \"$1\", \"hrStorageDescr\", \"([^,]+).*\")",
+          "legendFormat": "{{mountpoint}}",
           "range": true,
           "instant": false,
           "refId": "A"

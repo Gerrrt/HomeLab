@@ -649,26 +649,36 @@ tests:
 
   # --- GatewayFilesystemCritical (#841) ---------------------------------------
   #
-  # /var at 95% fires after its `for`; / at 40% does not; a memory pool at 99%
-  # does not (not a filesystem, and ZFS's ARC holds memory by design); devfs,
-  # size 0, does not divide by zero into an alert.
+  # The descr strings are bsnmpd's own, as walked from morpheus on 2026-10-03.
+  # /var at 95% fires after its `for`, labelled with its bare mountpoint; / at
+  # 40% does not; a memory pool at 99% does not (not a filesystem, and ZFS's
+  # ARC holds memory by design); devfs, size 0, does not divide by zero into
+  # an alert.
   - interval: 1m
     input_series:
-      - series: 'hrStorageUsed{device="morpheus",role="firewall",hrStorageIndex="31",hrStorageDescr="/var"}'
+      - series: 'hrStorageUsed{device="morpheus",role="firewall",
+          hrStorageIndex="31",hrStorageDescr="/var, type: zfs, dev: pfSense/var"}'
         values: "95x30"
-      - series: 'hrStorageSize{device="morpheus",role="firewall",hrStorageIndex="31",hrStorageDescr="/var"}'
+      - series: 'hrStorageSize{device="morpheus",role="firewall",
+          hrStorageIndex="31",hrStorageDescr="/var, type: zfs, dev: pfSense/var"}'
         values: "100x30"
-      - series: 'hrStorageUsed{device="morpheus",role="firewall",hrStorageIndex="30",hrStorageDescr="/"}'
+      - series: 'hrStorageUsed{device="morpheus",role="firewall",
+          hrStorageIndex="30",hrStorageDescr="/, type: zfs, dev: pfSense/ROOT/default"}'
         values: "40x30"
-      - series: 'hrStorageSize{device="morpheus",role="firewall",hrStorageIndex="30",hrStorageDescr="/"}'
+      - series: 'hrStorageSize{device="morpheus",role="firewall",
+          hrStorageIndex="30",hrStorageDescr="/, type: zfs, dev: pfSense/ROOT/default"}'
         values: "100x30"
-      - series: 'hrStorageUsed{device="morpheus",role="firewall",hrStorageIndex="1",hrStorageDescr="Real Memory"}'
+      - series: 'hrStorageUsed{device="morpheus",role="firewall",
+          hrStorageIndex="1",hrStorageDescr="Real Memory Metrics"}'
         values: "99x30"
-      - series: 'hrStorageSize{device="morpheus",role="firewall",hrStorageIndex="1",hrStorageDescr="Real Memory"}'
+      - series: 'hrStorageSize{device="morpheus",role="firewall",
+          hrStorageIndex="1",hrStorageDescr="Real Memory Metrics"}'
         values: "100x30"
-      - series: 'hrStorageUsed{device="morpheus",role="firewall",hrStorageIndex="32",hrStorageDescr="/dev"}'
+      - series: 'hrStorageUsed{device="morpheus",role="firewall",
+          hrStorageIndex="32",hrStorageDescr="/dev, type: devfs, dev: devfs"}'
         values: "1x30"
-      - series: 'hrStorageSize{device="morpheus",role="firewall",hrStorageIndex="32",hrStorageDescr="/dev"}'
+      - series: 'hrStorageSize{device="morpheus",role="firewall",
+          hrStorageIndex="32",hrStorageDescr="/dev, type: devfs, dev: devfs"}'
         values: "0x30"
     alert_rule_test:
       - eval_time: 10m
@@ -682,7 +692,8 @@ tests:
               device: morpheus
               role: firewall
               hrStorageIndex: 31
-              hrStorageDescr: /var
+              hrStorageDescr: "/var, type: zfs, dev: pfSense/var"
+              mountpoint: /var
               component: network
               severity: critical
               category: capacity
