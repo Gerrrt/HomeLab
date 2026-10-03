@@ -169,6 +169,17 @@
                 Where-Object { Get-GPO -Name $_ -ErrorAction SilentlyContinue })
             $r['no enrolment password left in SYSVOL'] =
               -not (Test-Path 'C:\Windows\SYSVOL\domain\scripts\wazuh-agent.ps1')
+            # The two hand-built GPOs (§5, §6), present and linked where #414 put
+            # them. Deny Tier 0 is a deliberate control, not hardening: §0's list
+            # is unchanged, and the tiering exists so a violation is an event.
+            foreach ($lk in @(
+              @{g='Deny Tier 0 Logon on Members'; ous=@('Servers','Workstations')},
+              @{g='Lab - Audit File Share'; ous=@('Servers')})) {
+              $r["$($lk.g) exists"] = [bool](Get-GPO -Name $lk.g -ErrorAction SilentlyContinue)
+              $r["$($lk.g) is linked where §5 puts it"] = -not ($lk.ous | Where-Object {
+                -not ((Get-GPInheritance -Target "OU=$_,$($base)").GpoLinks | Where-Object DisplayName -eq $lk.g)
+              })
+            }
           }
 
           # --- #449: the population, and the generator that runs as it ----------

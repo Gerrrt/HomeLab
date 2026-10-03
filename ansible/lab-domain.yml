@@ -62,6 +62,13 @@
     - role: tiers
       tags: [tiers]
 
+- name: The Tier 0 logon denial and the file-share audit
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: gpos
+      tags: [gpos]
+
 - name: Titan's shares, with the decoy
   hosts: titan
   gather_facts: false

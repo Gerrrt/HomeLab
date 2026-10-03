@@ -1,0 +1,36 @@
+---
+# The two GPOs #414 built by hand that are not the SOC deploy ones
+# (build-the-lab-domain.md §5, §6). Each is reproduced from its live settings
+# file, exactly: the role writes nothing when the GPO already matches, so a run
+# against the hand-built domain is a no-op, and a fresh rebuild gets the same.
+#
+# Deny Tier 0's privilege rights name the Tier 0 Admins group by SID. A rebuild
+# is a new forest with a new SID, so `__TIER0SID__` is a token the role fills
+# from the live group at apply time, never a SID baked into the repo.
+#
+# `cse` is gPCMachineExtensionNames, the client-side-extension GUIDs that tell a
+# member which engines to run for this GPO; without it the file in SYSVOL is
+# ignored. Read from the live GPOs on 2026-10-03.
+gpos_defs:
+  - name: Deny Tier 0 Logon on Members
+    rel_path: \Machine\Microsoft\Windows NT\SecEdit\GptTmpl.inf
+    encoding: unicode
+    cse: "[{827D319E-6EAC-11D2-A4EA-00C04F79F83A}{803E14A0-B4FB-11D0-A0D0-00A0C90F574B}]"
+    links: [Servers, Workstations]
+    content: |
+      [Unicode]
+      Unicode=yes
+      [Version]
+      signature="$CHICAGO$"
+      Revision=1
+      [Privilege Rights]
+      SeDenyInteractiveLogonRight = *__TIER0SID__
+      SeDenyNetworkLogonRight = *__TIER0SID__
+  - name: Lab - Audit File Share
+    rel_path: \Machine\Microsoft\Windows NT\Audit\audit.csv
+    encoding: utf8
+    cse: "[{35378EAC-683F-11D2-A89A-00C04FBBCFA2}{0F3F3735-573D-9804-99E4-AB2A69BA5FD4}][{F3CCC681-B74C-4060-9F26-CD84525DCA2A}{0F3F3735-573D-9804-99E4-AB2A69BA5FD4}]"
+    links: [Servers]
+    content: |
+      Machine Name,Policy Target,Subcategory,Subcategory GUID,Inclusion Setting,Exclusion Setting,Setting Value
+      ,System,Audit File Share,{0cce9224-69ae-11d9-bed3-505054503030},Success,,1
