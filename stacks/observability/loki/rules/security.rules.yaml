@@ -121,6 +121,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#sshbruteforcesevere"
           summary: "{{ $labels.host }}: {{ $value }} failed SSH auths in 5 minutes"
 
       - alert: SshLoginFromUnexpectedSubnet
@@ -172,6 +173,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#sshloginfromunexpectedsubnet"
           summary: "{{ $labels.host }}: SSH login accepted from outside VLAN 50/99"
           description: >-
             Either segmentation is broken or the source ranges in this rule are
@@ -271,6 +273,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#filesystemremountedreadonly"
           summary: "{{ $labels.host }}: filesystem remounted read-only"
           description: >-
             Almost always failing storage. The monitoring host runs on a
@@ -286,6 +289,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#diskioerrors"
           summary: "{{ $labels.host }}: disk I/O errors in the kernel log"
 
   # ---------------------------------------------------------------------------
@@ -329,6 +333,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#terminalsegmentreachedinternalnetwork"
           summary: "Segmentation breach: terminal VLAN passed to an internal segment on {{ $labels.interface }}"
           description: >-
             A packet from VLAN 10, 20 or 40 was PASSED toward VLAN 30, 50 or 99,
@@ -374,6 +379,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#labsegmentreachedinternalnetwork"
           summary: "Segmentation breach: the lab passed to the house on {{ $labels.interface }}"
           description: >-
             A packet from VLAN 30 or from the WireGuard peer subnet was
@@ -559,6 +565,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#unknowndeviceonmanagementsegment"
           summary: "{{ $labels.mac }} took a lease on Winterfell (VLAN 99) for the first time in 7 days"
           description: >-
             Something took a DHCP lease on the management segment. Everything
@@ -673,6 +680,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#suricatahighpriorityalert"
           # `interface` is derived from the syslog facility in syslog.alloy, and an
           # unmapped facility leaves it unset on purpose. An empty summary would
           # hide exactly that fault, so say so instead.

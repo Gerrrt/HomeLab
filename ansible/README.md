@@ -68,6 +68,11 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
   - `population`: the OUs, groups and users in `population/population.yaml`,
     on `bahamut`. It reports accounts in `OU=People` that the file does not
     name, and removes none.
+  - `tiers`: the five tier OUs, the three tier admins, the `Tier 0 Admins`
+    group, and the members placed in `Servers`/`Workstations` (#448).
+  - `shares`: `titan`'s `Public` and `Finance` shares, with the decoy (#448).
+  - `soc_agents`: Wazuh and Velociraptor installed directly, by product code,
+    in place of the deploy GPOs (#448).
   - `authgen`: the authentication generator's batch right and scheduled task,
     on the two endpoints.
   - `dns_forwarder`: shared by both DC roles.
@@ -91,10 +96,14 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
 | `licence` | The evaluation gauge | §7 |
 | `population` | The people: OUs, groups, users | §5 |
 | `authgen` | The generator on the endpoints, as `authgen` | §6 |
+| `tiers` | The tier OUs, admins, `Tier 0 Admins`, member placement | §5 |
+| `shares` | `titan`'s `Public` and `Finance`, with the decoy | §5 |
+| `soc` | Wazuh and Velociraptor, in place of the deploy GPOs | §11 |
 
-[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s tiers, SPN account,
-Tier 0 GPO, shares and deliberate weaknesses are still to come, each as a
-further tag in this same playbook.
+The `tiers`, `shares` and `soc` tags (#448) apply the rest of §5's skeleton and
+§11's agents. [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s SPN
+account, Tier 0 logon GPO and deliberate weaknesses are still to come, each as
+a further tag in this same playbook.
 
 ## Rules this tree keeps
 
@@ -105,8 +114,9 @@ further tag in this same playbook.
 - **The lab domain, and only the lab domain.** No host outside
   `ad.matrix.elysium` goes in the inventory. Compose stacks converge on their
   own timer (ADR-0021), and `phoenix` never pushes to them (ADR-0043).
-- **Secrets come from `phoenix.env`.** The three variables are
-  `LAB_ADMIN_PASSWORD`, `LAB_DSRM_PASSWORD` and `LAB_POPULATION_SEED`. Every
+- **Secrets come from `phoenix.env`.** The variables are
+  `LAB_ADMIN_PASSWORD`, `LAB_DSRM_PASSWORD`, `LAB_POPULATION_SEED`,
+  `LAB_TIER_ADMIN_PASSWORD` and `LAB_WAZUH_REGISTRATION_PASSWORD`. Every
   task that uses one is `no_log`. The exception is
   `population-credentials.yml`, which exists to print passwords and is run
   by hand.
