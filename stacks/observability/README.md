@@ -52,7 +52,7 @@ prometheus/
   targets/snmp.yaml        SNMP targets — hot-reloaded, no restart needed
   targets/node.yaml        node_exporter scrapes, for the host that runs no Alloy (smaug)
   targets/blackbox*.yaml   probe targets, http, dns and latency — hot-reloaded, no restart
-  rules/*.rules.yaml       135 alert rules: host, network, ups, containers, blackbox,
+  rules/*.rules.yaml       137 alert rules: host, network, ups, containers, blackbox,
                            dns, backup, ids, deploy, stack and watchdog
   tests/*.test.yaml        promtool unit tests — assert the rules can fire
 blackbox/blackbox.yaml     probe modules — reachability, and what a resolver said
@@ -70,7 +70,7 @@ snmp-exporter/
   snmp.yaml                generated, never hand-edited; ${PLACEHOLDER} communities
 grafana/
   provisioning/            datasources + dashboard provider
-  dashboards/*.json        7 dashboards, 143 panels
+  dashboards/*.json        7 dashboards, 144 panels
   dashboards/README.md     conventions that hold across all of them
 ```
 

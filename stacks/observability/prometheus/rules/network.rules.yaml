@@ -456,3 +456,44 @@ groups:
             failed, or no enabled Dynamic DNS entry exists. This says nothing
             about whether the record is right; it says nothing is watching it.
             Run `make gateway-state` and read its last line.
+
+      # morpheus's filesystems, over SNMP (#841). The firewall runs no
+      # node_exporter, so HostDiskCritical never saw it, and a full /var
+      # (logs, RRD, blocklists, Suricata's data) is a common way for pfSense
+      # to stop working properly while still passing traffic.
+      #
+      # bsnmpd's hrStorageDescr is "/var, type: zfs, dev: pfSense/var" for a
+      # filesystem and a name such as "Real Memory Metrics" for a memory pool,
+      # so `=~"/.*"` is filesystems only. The exporter's dynamic filter already
+      # drops everything else (generator.yaml); the selector stays so the rule
+      # is right on its own. label_replace cuts the mount point out as
+      # `mountpoint`, for the summary. Memory is deliberately not alerted on:
+      # ZFS's ARC holds memory by design, and "used" says nothing about
+      # pressure there. `> 0` on the size drops a zero-size pseudo-filesystem.
+      #
+      # On ZFS every dataset's size is its own used plus the pool's free
+      # space, so a filling pool raises the dataset doing the filling first
+      # and the tiny ones (/home, /tmp) only when the pool is all but full.
+      #
+      # Same threshold, `for` and severity as HostDiskCritical.
+      - alert: GatewayFilesystemCritical
+        expr: |
+          label_replace(
+            hrStorageUsed{role="firewall", hrStorageDescr=~"/.*"}
+            / (hrStorageSize{role="firewall", hrStorageDescr=~"/.*"} > 0),
+            "mountpoint", "$1", "hrStorageDescr", "([^,]+).*"
+          )
+          > 0.90
+        for: 15m
+        labels:
+          component: network
+          severity: critical
+          category: capacity
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#gatewayfilesystemcritical"
+          summary: "{{ $labels.mountpoint }} on {{ $labels.device }} is {{ $value | humanizePercentage }} full"
+          description: >-
+            pfSense keeps routing with a full filesystem, but logging, the RRD
+            graphs, blocklist updates and Suricata stop writing. Diagnostics >
+            Command Prompt, `du -sh /var/log/* /var/db/* | sort -h | tail`, finds
+            the culprit. Status > System Logs > Settings sets log rotation.

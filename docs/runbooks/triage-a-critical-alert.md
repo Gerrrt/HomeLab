@@ -150,6 +150,36 @@ so follow [SmartDriveUnhealthy](#smartdriveunhealthy).
 reachable from Hicks, shows which. For the storage controller's battery,
 [`replace-the-smart-storage-battery.md`](replace-the-smart-storage-battery.md).
 
+## UnboundNotAnswering
+
+Unbound on morpheus is not answering, while AdGuard is not failing its own
+probe. So the fault is the firewall's resolver, and every device in the house
+resolves through it ([#841](https://github.com/Gerrrt/HomeLab/issues/841)).
+
+- **Is it running?** In pfSense, Status → Services shows `unbound`. Start it
+  if it is stopped.
+- **Does it answer?** Diagnostics → DNS Lookup asks it directly. A name in
+  `matrix.elysium` answers from the host overrides. An outside name needs the
+  forward to AdGuard.
+- **Is the forward intact?** Services → DNS Resolver should forward to
+  `10.0.99.40` alone (ADR-0055).
+- **To restore DNS while you work,** follow
+  [`forward-dns-to-adguard.md`](forward-dns-to-adguard.md#reversing-it).
+
+## GatewayFilesystemCritical
+
+A filesystem on morpheus is over 90% full. pfSense keeps routing, but logs,
+the RRD graphs, blocklist updates and Suricata stop writing
+([#841](https://github.com/Gerrrt/HomeLab/issues/841)).
+
+- **Find what grew:** Diagnostics → Command Prompt,
+  `du -sh /var/log/* /var/db/* | sort -h | tail`.
+- **Logs** are the usual cause. Status → System Logs → Settings sets their
+  rotation size.
+- **Suricata's own logs** grow on their own schedule; its log retention is
+  under Services → Suricata → Global Settings
+  ([`enable-suricata.md`](enable-suricata.md)).
+
 ## HostOnBattery
 
 A laptop host has lost its mains adapter input. If `UpsOnBattery` is firing
