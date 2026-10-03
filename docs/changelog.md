@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **oracle's Alloy, the last one holding the Docker socket, gives it up.**
+  Authored;
+  it lands at the next `deploy-agent.sh` run against oracle.
+  - **The gap.** #193 and #836 took the socket off every Alloy run from a
+    compose file. oracle's is a `docker run` in `deploy-agent.sh`, so the
+    compose check never saw it, and it kept the socket mounted.
+  - **The fix.** The script's Docker runtime now starts
+    `alloy-socket-proxy` beside Alloy on a private `alloy` network, with the
+    estate's image and GET-only allowlist. Alloy reads the API through
+    `DOCKER_API`.
+  - **The guard.** `check_image_pins.py` refuses a socket bind in any
+    `docker run` in the repository except the proxy's, traced by image, with
+    five fixtures. Its first run found this one site and nothing else.
+
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`

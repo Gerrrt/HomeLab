@@ -909,9 +909,15 @@ this closes on.
   attack surface here — no longer has a path to `POST`. It is not "the socket is
   now safe".
 
-  `oracle`'s agent still mounts the socket directly. `docker.alloy` reads the
-  API address from `DOCKER_API` and falls back to the socket when it is unset,
-  so that host keeps working unchanged until it gets a proxy of its own.
+  **`oracle`'s agent has its own proxy too.** It was the last Alloy holding
+  the socket. It is started by `deploy-agent.sh` as a `docker run`, not from a
+  compose file, so no compose check could see it. The script now starts
+  `alloy-socket-proxy` beside it, with the same image and allowlist, on a
+  private network. `check_image_pins.py` now refuses a socket bind in any
+  `docker run` in the repository except the proxy's, traced by image.
+  `docker.alloy` still falls back to the socket when `DOCKER_API` is unset, so
+  an agent deployed before this keeps working until its next `deploy-agent.sh`
+  run.
 - Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
   `no-new-privileges`, so root inside it is subject to file permissions like any
   other user, and joins only the group that owns `/var/log/syslog` so the auth
