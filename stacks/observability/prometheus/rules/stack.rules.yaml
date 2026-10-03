@@ -182,8 +182,12 @@ groups:
         # climbs for as long as the ruler is evaluating and has an Alertmanager
         # to send to. Flat means it stopped doing one of those.
         #
-        # sent_total counts attempts, failures included, so a broken send
-        # still climbs it; LokiRulerNotificationsFailing above covers that.
+        # Whether sent_total counts a FAILED send has differed between versions
+        # of the Prometheus notifier Loki vendors: older ones counted every
+        # attempt, newer ones count only a 2xx from Alertmanager. Either way is
+        # covered. If it counts only successes, failed delivery leaves it flat
+        # and this rule fires as well; LokiRulerNotificationsFailing above
+        # reports the failures themselves whichever version is running.
         #
         # `or absent(...)` is deliberate. Loki down is InstanceDown's to
         # report, but a renamed metric after a Loki upgrade would otherwise

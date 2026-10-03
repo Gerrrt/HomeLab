@@ -763,10 +763,20 @@ rules read the ruler from there:
 | --- | --- |
 | `LokiRuleEvaluationFailures` | a rule group fails to evaluate (warning) |
 | `LokiRulerNotificationsFailing` | sends error or are dropped (critical) |
-| `LokiRulerSilent` | nothing is sent for 15 minutes, or the counter is absent (critical) |
+| `LokiRulerSilent` | nothing is sent for a 15-minute window, held for 5 more, so it pages at about 20 minutes; or the counter is absent (critical) |
 
 Those are Prometheus rules, so the heartbeat above already proves the path
 that would report them. One external check covers both evaluators.
+
+**Why not a second external heartbeat for the ruler.** It was the first
+design in #837. It would prove the ruler's path without depending on
+Prometheus scraping Loki, but it needs a second check at the external service
+and a second secret URL. As built, a dead Loki or a failed scrape is still
+reported, by `InstanceDown` for the `loki` job and by `LokiRulerSilent`'s
+`absent()`. So the only case a dedicated heartbeat would add is Prometheus
+and the ruler failing at the same moment, and the Prometheus heartbeat already
+pages for that. If that trade is ever wrong, the change is a `continue: true`
+route from `LokiRulerWatchdog` to a second heartbeat receiver.
 
 **The heartbeat half became a dead man's switch on 2026-09-09.** Until then all
 four receivers pointed at `ntfy.sh`, the heartbeat included, and ntfy is a push
