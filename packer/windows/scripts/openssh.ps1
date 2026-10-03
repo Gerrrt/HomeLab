@@ -16,6 +16,14 @@
 $ErrorActionPreference = 'Stop'
 
 if (-not $env:PHOENIX_PUBKEY) { throw 'PHOENIX_PUBKEY is empty' }
+# A key type, a base64 blob of real length, then an optional comment. On the
+# hand-built six (build-the-lab-domain.md), two guests were first given a
+# placeholder from a draft, `ssh-ed25519 AAAA... paste here`. The script
+# installed it without complaint, and the result was an sshd that phoenix
+# could not log in to. Refuse anything that is not shaped like a key.
+if ($env:PHOENIX_PUBKEY -notmatch '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/]{60,}={0,3}( \S.*)?$') {
+  throw "PHOENIX_PUBKEY is not a public key: '$env:PHOENIX_PUBKEY'"
+}
 if (-not $env:PHOENIX_ADDRESS) { throw 'PHOENIX_ADDRESS is empty' }
 
 # Server 2025 ships the server installed and disabled; Windows 11 needs the

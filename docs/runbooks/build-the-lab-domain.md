@@ -167,13 +167,28 @@ The run needs these three in place first:
   ```powershell
   $env:PHOENIX_PUBKEY = '<the contents of ~/.ssh/id_ed25519.pub on phoenix>'
   $env:PHOENIX_ADDRESS = '10.0.30.70'
-  iwr https://raw.githubusercontent.com/Gerrrt/HomeLab/main/packer/windows/scripts/openssh.ps1 -OutFile $env:TEMP\openssh.ps1
+  Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/Gerrrt/HomeLab/main/packer/windows/scripts/openssh.ps1 -OutFile $env:TEMP\openssh.ps1
   powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\openssh.ps1
   Set-Service sshd -StartupType Automatic; Start-Service sshd
   ```
 
   It is the script the templates run, not a copy of it, so a hand-built guest
-  and a clone cannot drift apart. The licence task §7 registered by hand writes
+  and a clone cannot drift apart. **Done on all six on 2026-10-02.** Three
+  things that run showed:
+
+  - **`-UseBasicParsing` is required.** Windows PowerShell 5.1 parses a
+    response through Internet Explorer's engine unless told not to, and
+    neither Server 2025 nor Windows 11 ships IE.
+  - **On `carbuncle` and `siren` the fourth line takes minutes.** Windows 11
+    has no OpenSSH server until `Add-WindowsCapability` downloads it. The
+    console looks stuck while it does, and it is not.
+  - **Paste the key itself.** Two guests first received a placeholder, and
+    `sshd` started with a key nothing holds. The script now refuses anything
+    that is not shaped like a public key.
+
+  Any member of Administrators can run it at the console, such as
+  `labadmin`. Ansible still logs in as `Administrator`, because
+  `administrators_authorized_keys` covers the whole group. The licence task §7 registered by hand writes
   the same file the role's `licence-clock` task does. Delete the hand-made one
   after the first run, so that only one thing owns the file.
 
