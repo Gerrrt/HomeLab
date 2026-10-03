@@ -158,6 +158,21 @@ one value that gives back every population password, so treat it as one
 (f=~/.config/proxmox/phoenix.env; umask 077; sed -i '/^LAB_POPULATION_SEED=/d' "$f"; printf "LAB_POPULATION_SEED='%s'\n" "$(openssl rand -hex 24)" >> "$f")
 ```
 
+The skeleton (#448) adds two more. `LAB_TIER_ADMIN_PASSWORD` is the password the
+three tier admins are **created** with on a fresh rebuild (the roles use
+`on_create`, so existing accounts are untouched); generate one. The Wazuh
+enrolment password, `LAB_WAZUH_REGISTRATION_PASSWORD`, is the manager's
+`authd.pass` — the value `make secrets-edit STACK=soc` holds — so copy it
+rather than generating it. Both replace any earlier entry:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; sed -i '/^LAB_TIER_ADMIN_PASSWORD=/d' "$f"; printf "LAB_TIER_ADMIN_PASSWORD='%s'\n" "$(openssl rand -base64 18)Aa1!" >> "$f")
+```
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; printf 'authd.pass: '; stty -echo; read -r W; stty echo; echo; [ -n "$W" ] && { sed -i '/^LAB_WAZUH_REGISTRATION_PASSWORD=/d' "$f"; printf "LAB_WAZUH_REGISTRATION_PASSWORD='%s'\n" "$(printf '%s' "$W" | sed "s/'/'\\\\''/g")" >> "$f"; }; unset W)
+```
+
 Then, every time. **First applied to the hand-built six on 2026-10-03**: a
 run on `main` after #825 reported `changed=0` everywhere, and `verify.yml`
 passed on all six (`changelog.md`, 2026-10-03).
@@ -188,11 +203,15 @@ build, preview one stage at a time and apply it before previewing the next:
 | `licence` | §7 | The weekly gauge on the four servers, and the rearm count printed in the play output |
 | `population` | §5 | The people in [`population.yaml`](../../ansible/population/population.yaml): an OU per department under `OU=People`, their groups under `OU=Groups`, and the users, `authgen` among them, with passwords derived from `LAB_POPULATION_SEED` |
 | `authgen` | §6 | The batch-logon right and the `Lab-AuthGenerator` task on both endpoints, as `authgen` |
+| `tiers` | §5 | The five tier OUs, the three tier admins, the `Tier 0 Admins` group, and the members placed in `Servers`/`Workstations` |
+| `shares` | §5 | `titan`'s `Public` and `Finance` shares, with the decoy |
+| `soc` | §11 | Wazuh and Velociraptor installed on all six, in place of the deploy GPOs |
 
-The tiers, the SPN account, the Tier 0 GPO and the shares (the rest of §5) are
-still [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s and still done by
-hand, and so are its deliberate weaknesses. Each will arrive as a further tag
-on the same playbook. `ansible-playbook population-credentials.yml` prints the
+The tiers, the shares and the SOC agents (the rest of §5, and §11's deployment)
+are applied by the `tiers`, `shares` and `soc` tags. The SPN account, the Tier 0
+logon GPO and the deliberate weaknesses are still
+[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s, each arriving as a
+further tag on the same playbook. `ansible-playbook population-credentials.yml` prints the
 population's passwords, on `phoenix`, when you need one.
 
 **Start the endpoints first.** `carbuncle` and `siren` are `--onboot 0`, so a
