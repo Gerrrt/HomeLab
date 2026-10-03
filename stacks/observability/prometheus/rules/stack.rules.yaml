@@ -46,6 +46,7 @@ groups:
           severity: critical
           category: correctness
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/deploy-stack.md#troubleshooting"
           summary: "Prometheus rejected its own config reload on {{ $labels.instance }}"
 
       - alert: PrometheusRuleEvaluationFailures
@@ -102,6 +103,7 @@ groups:
           severity: critical
           category: correctness
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/verify-the-alert-path.md#reading-the-failure"
           summary: "Alertmanager cannot deliver via {{ $labels.integration }}: {{ $labels.reason }}"
           description: >-
             Alerts are firing but not reaching anyone — this makes every other

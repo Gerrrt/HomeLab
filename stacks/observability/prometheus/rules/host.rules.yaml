@@ -11,6 +11,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#instancedown"
           summary: "{{ $labels.job }} target {{ $labels.instance }} is down"
           description: >-
             Prometheus has failed to scrape {{ $labels.instance }}
@@ -45,6 +46,7 @@ groups:
           severity: critical
           category: capacity
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostdiskcritical"
           summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} below 10% free"
 
       - alert: HostMemoryPressure
@@ -330,6 +332,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#smartdriveunhealthy"
           summary: "{{ $labels.host }}: SMART says {{ $labels.device }} is failing"
           description: >-
             The drive's own overall self-assessment has failed on
@@ -351,6 +354,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#smartdrivesparelow"
           summary: "{{ $labels.host }}: {{ $labels.device }} spare capacity below the drive's own threshold"
           description: >-
             Remaining spare is {{ $value }}%, under the threshold the drive
@@ -541,6 +545,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
           summary: "{{ $labels.instance }}: zpool {{ $labels.zpool }} is {{ $labels.state }}"
           description: >-
             The pool's own state, read from its kstat, has not been online for
@@ -594,6 +599,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
           summary: >-
             {{ $labels.host }}: a leaf of zpool {{ $labels.pool }} is
             {{ $labels.state }} while the pool reads online
@@ -888,6 +894,7 @@ groups:
           severity: critical
           category: capacity
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#thinpoolwillfillin24h"
           summary: >-
             {{ $labels.host }}: thin pool {{ $labels.vg }}/{{ $labels.pool }} {{ $labels.space }} fills within 24h
           description: >-
@@ -938,6 +945,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-lab-templates.md#2b-the-installers-on-smaug-iso-on-saruman"
           summary: "{{ $labels.host }}: {{ $labels.file }} on the ISO store does not match its checksum"
           description: >-
             Do not build a template from smaug-iso until this is explained.
@@ -1038,6 +1046,7 @@ groups:
           severity: critical
           category: capacity
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#guestdiskcritical"
           summary: "{{ $labels.host }}: guest {{ $labels.guest }}:{{ $labels.mountpoint }} below 10% free"
           description: >-
             {{ $labels.mountpoint }} on {{ $labels.guest }} (VMID {{ $labels.vmid }})
@@ -1063,6 +1072,7 @@ groups:
           severity: critical
           category: capacity
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#guestdiskwillfillin24h"
           summary: "{{ $labels.host }}: guest {{ $labels.guest }}:{{ $labels.mountpoint }} fills within 24h"
           description: >-
             {{ $labels.mountpoint }} on {{ $labels.guest }} (VMID {{ $labels.vmid }})
@@ -1139,6 +1149,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md#4-close-the-management-plane"
           summary: "{{ $labels.host }}'s Proxmox firewall is off"
           description: >-
             `pve-firewall status` has not read enabled/running for ten minutes,
@@ -1169,6 +1180,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md#4-close-the-management-plane"
           summary: "{{ $labels.host }}'s Proxmox firewall is on and admits everything"
           description: >-
             `policy_in` in /etc/pve/firewall/cluster.fw is not DROP, so the
@@ -1584,6 +1596,7 @@ groups:
           severity: critical
           category: power
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostonbattery"
           summary: "{{ $labels.instance }} is running on its own battery"
           description: >-
             The mains adapter ({{ $labels.power_supply }}) reports no input.
@@ -1675,6 +1688,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-laptop-cell.md#3-a-thirteen-year-old-lithium-cell-is-the-hazard-not-the-laptop"
           summary: "{{ $labels.instance }}: {{ $labels.power_supply }} reads {{ $value }} °C"
           description: >-
             The cell's own gauge has read above 45 °C for five minutes. The
@@ -1752,6 +1766,7 @@ groups:
           severity: critical
           category: power
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostbatteryruntimelow"
           summary: "{{ $labels.instance }} has {{ $value | humanizeDuration }} of battery left"
           description: >-
             The host is on its own cell and, at the draw it is presenting now,
