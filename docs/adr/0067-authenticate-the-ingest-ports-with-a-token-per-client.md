@@ -2,6 +2,19 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> Extended to the lab by [#834](https://github.com/Gerrrt/HomeLab/issues/834),
+> 2026-10. `alexander` published its own Prometheus and Loki to VLAN 30,
+> unauthenticated, for `odin`, `phoenix` and `fenrir`, which was this ADR's
+> Context on the segment where it mattered most. `stacks/lab/Caddyfile` is this
+> decision's proxy with the lab's clients in the table. Its tokens are the
+> lab's own, in `secrets/lab.sops.yaml`, never the estate's. Each client keeps
+> a second copy in its own secrets, because no host there can open another's
+> file. The one part that does not carry over is `IngestAuthNotEnforced`: the
+> lab has no blackbox exporter and no Alertmanager (ADR-0020), so the refusal
+> check is a step in `stacks/lab/README.md` rather than a rule. The text below
+> is left as written, per ADR-0001.
+
 ## Context
 
 [ADR-0012](0012-publish-only-ports-with-an-off-host-consumer.md) settled which
