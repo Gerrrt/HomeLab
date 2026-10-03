@@ -17,6 +17,35 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-03
+
+- **OpenTofu's first apply ran, and both proofs passed against real state.
+  This closes #445**
+  ([#445](https://github.com/Gerrrt/HomeLab/issues/445),
+  [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)).
+  - **Setup.** On `phoenix`, tofu 1.13.1 and sops 3.13.3 were installed and
+    checksum-verified, and `phoenix.env` gained the endpoint, the token and
+    the state passphrase. `PhoenixBuilder` got `Pool.Allocate` on
+    `/pool/proof`.
+  - **Escrow.** The passphrase was escrowed to the estate's two recipients
+    (#826). On `prometheus`, the hash of what the estate key decrypted
+    equalled the one taken on `phoenix`.
+  - **The apply.** `-var proof=true` cloned 998 from template 901 into a
+    `proof` pool.
+    - **Half one:** the proof guest's cloud-init password is not in the
+      state, the state is the encrypted wrapper with no gitleaks match, and
+      the passphrase is not in it either.
+    - **Half two:** `git add` was refused by `.gitignore`, and with `-f`,
+      `check-tracked-artefacts.sh` named the file and exited 1.
+  - **Teardown.** `-var proof=false` destroyed the guest and the pool.
+    Proxmox deleted the `/pool/proof` grant with the pool, which is the
+    behaviour #803's review predicted.
+  - **Found on the way, and fixed.**
+    - `phoenix` had no guest agent, so `Saruman` could not reach it.
+    - Its root volume was 15 GiB of a 30 GiB volume group, and full (#824).
+    - tofu wrote the state 664 under the shell's umask. The runbook now
+      sets `umask 077` and a 700 state directory before any tofu command.
+
 ## 2026-10-02
 
 - **A restart no longer counts as a clean stop on `smaug`**
