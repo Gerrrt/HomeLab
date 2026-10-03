@@ -12,12 +12,13 @@ ansible-playbook lab-domain.yml                  # apply
 ansible-playbook verify.yml                      # read-only proof
 ```
 
-**What `--check` cannot preview.** On a guest this playbook has never
-touched, the `exporter` stage fails in check mode. `base` would create
-`C:\ProgramData\lab`, but check mode does not, so the download into it has
-nowhere to land. The play runs one guest at a time, so that first failure ends
-it, and the `exporter` and `licence` stages go unpreviewed everywhere. The
-real run is unaffected. A `win_powershell` script runs in check mode only if
+**What `--check` reports instead of doing.** On a guest this playbook has
+never touched, `base` would create `C:\ProgramData\lab`, but check mode does
+not. Downloading into it would fail, and the serial play would stop there for
+every guest after it. So `exporter` decides "installed" from the pinned MSI's
+product code, and `licence_clock` looks for the folder. Where the work is
+still to do, each one reports it as a pending change and skips it in check
+mode. A `win_powershell` script runs in check mode only if
 it declares `[CmdletBinding(SupportsShouldProcess)]`. Every script here that
 writes either does, and guards the write with `$Ansible.CheckMode`, or is
 skipped in check mode by `when: not ansible_check_mode` beside a read-only
@@ -53,6 +54,9 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
   - `exporter`: `windows_exporter`, plus the 9182 rule admitting `alexander`.
   - `licence_clock`: the evaluation gauge, on the four servers.
   - `dns_forwarder`: shared by both DC roles.
+  - `dns_client`: a guest's IPv4 resolvers, set through `netsh interface ipv4`
+    so the IPv6 ones (`::1` on a DC) are never touched. Used by `base`,
+    `dc_replica` and `dc_resolvers`.
   - `domain_role`: whether a guest is a DC already, imported by `base` and
     `dc_replica` in their own plays.
 - `requirements.txt`, `requirements-lint.txt` and `requirements.yml`: exact

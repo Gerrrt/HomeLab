@@ -101,7 +101,15 @@
               $r['clock type NT5DS'] = ($type -eq 'NT5DS')
               $r["clock from $PrimaryDc"] = ($src -like "$PrimaryDc*")
             }
-            $r['replication clean'] = -not (dcdiag /test:Replications /q | Out-String).Trim()
+            # Not dcdiag: it binds to the partner DC, and an SSH key logon carries
+            # no network credentials, so it fails with "DsBindWithSpnEx() ...
+            # Access is denied" however healthy replication is. The partner
+            # metadata is read from this DC alone.
+            $partners = @(Get-ADReplicationPartnerMetadata -Target $env:COMPUTERNAME `
+              -ErrorAction SilentlyContinue)
+            $r['replication clean'] = ($partners.Count -gt 0 -and
+              -not ($partners | Where-Object {
+                $_.LastReplicationResult -ne 0 -or $_.ConsecutiveReplicationFailures -ne 0 }))
           }
 
           if ([bool]::Parse($IsTitan)) {

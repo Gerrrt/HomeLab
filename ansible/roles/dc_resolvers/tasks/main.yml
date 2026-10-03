@@ -5,27 +5,15 @@
 # guest points at .50 and .51" rule does not apply (§4). Runs after both DCs
 # exist, because pointing bahamut at a leviathan that is not yet a DC breaks it.
 #
-# IPv4 only, on the one connected NIC, compared before it acts. This was
-# win_dns_client, which reported a change on every run against both DCs:
-# promotion sets ::1 as the DC's IPv6 resolver, the module counted it as drift,
-# and the ::1 was still there afterwards (#448's first run, 2026-10-03). The IPv6
-# resolver is promotion's and stays as it shipped, like the rest of §0's list.
+# IPv4 only, through roles/dns_client. This was win_dns_client, which reported a
+# change on every run against both DCs: promotion sets ::1 as the DC's IPv6
+# resolver, the module counted it as drift, and the ::1 was still there
+# afterwards (#448's first run, 2026-10-03). The IPv6 resolver is promotion's and
+# stays as it shipped, like the rest of §0's list.
 - name: Partner first, then loopback
-  ansible.windows.win_powershell:
-    script: |
-      [CmdletBinding(SupportsShouldProcess)]
-      param([string]$Partner)
-      $want = @($Partner, '127.0.0.1')
-      $nic = @(Get-NetAdapter -Physical | Where-Object Status -eq 'Up')
-      if ($nic.Count -ne 1) { throw "expected one connected NIC, found $($nic.Count)" }
-      $i = $nic[0].ifIndex
-      $have = @((Get-DnsClientServerAddress -InterfaceIndex $i -AddressFamily IPv4).ServerAddresses)
-      if (($have -join ',') -eq ($want -join ',')) {
-        $Ansible.Changed = $false
-        return
-      }
-      if (-not $Ansible.CheckMode) {
-        Set-DnsClientServerAddress -InterfaceIndex $i -ServerAddresses $want
-      }
-    parameters:
-      Partner: "{{ lab_dc_addresses | reject('equalto', ansible_host) | first }}"
+  ansible.builtin.import_role:
+    name: dns_client
+  vars:
+    dns_client_servers:
+      - "{{ lab_dc_addresses | reject('equalto', ansible_host) | first }}"
+      - 127.0.0.1
