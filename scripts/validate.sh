@@ -209,6 +209,15 @@ else
   skip "no promtool and no docker daemon"
 fi
 
+# Every alert rule named by some test, per rule rather than per stack (#843).
+# Pure Python over the files, so it runs whether or not promtool does.
+if python3 scripts/check_rule_tests.py >/dev/null 2>&1; then
+  pass "every alert rule is selected by a promtool test"
+else
+  python3 scripts/check_rule_tests.py
+  fail "an alert rule has no promtool test (scripts/check_rule_tests.py)"
+fi
+
 # ---------------------------------------------------------------------------
 head_ "Alertmanager"
 # ---------------------------------------------------------------------------

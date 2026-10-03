@@ -222,16 +222,33 @@ page (ADR-0070): `qm guest cmd 190 get-fsinfo` should list `/` and
 
 ## 4. Docker, the repository, and the stack
 
-Install Docker and clone the repository as `alexander`'s §3 describes.
-**`sops` and `age` are not needed**: this stack has no secrets, and is brought
-up without `make render` (`docs/security.md` § Secrets).
+Install Docker, `sops`, `age` and `make`, and clone the repository, as
+`alexander`'s §3 describes.
+
+The stack has one secret: `fenrir`'s token for the lab's ingest proxy
+([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Before it, the stack
+had none and was brought up with plain `docker compose`. Create the key and
+the file **on `fenrir`**:
+
+```bash
+cd ~/HomeLab
+make secrets-init STACK=sensor
+```
+
+```bash
+make secrets-edit STACK=sensor
+```
+
+Set `INGEST_TOKEN` to `INGEST_TOKEN_FENRIR` from `secrets/lab.sops.yaml` on
+`alexander` (`make secrets-show STACK=lab` there). Then commit `.sops.yaml`,
+which now carries `fenrir`'s public key, and the new
+`secrets/sensor.sops.yaml`, through a pull request.
 
 Before the first start, check that the site policy parses on the pinned
 image:
 
 ```bash
-cd ~/HomeLab
-cp stacks/sensor/.env.example stacks/sensor/.env
+make render STACK=sensor
 docker compose -f stacks/sensor/compose.yaml run --rm --no-deps zeek \
   zeek -a local /zeek/site/local.zeek && echo parses
 ```
@@ -239,7 +256,7 @@ docker compose -f stacks/sensor/compose.yaml run --rm --no-deps zeek \
 Then bring it up:
 
 ```bash
-docker compose -f stacks/sensor/compose.yaml up -d
+make up STACK=sensor
 docker compose -f stacks/sensor/compose.yaml ps
 ```
 

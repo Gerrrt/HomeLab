@@ -203,7 +203,7 @@ Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
 │   ├── alloy/                # the agent config directory, shipped to every host
 │   ├── snmp-exporter/        # generator.yaml is the source of truth
 │   └── grafana/              # provisioning + 7 dashboards
-├── stacks/lab/               # the lab's own stack — four services on alexander,
+├── stacks/lab/               # the lab's own stack — five services on alexander,
 │                             #   a guest on Saruman; never remote-writes to
 │                             #   VLAN 99. See its README and ADR-0020
 ├── stacks/soc/               # Wazuh and Velociraptor on odin, a second guest —

@@ -490,6 +490,37 @@ What remains is deliberate, and `SECURITY.md` records it. The tokens are plain
 HTTP on VLAN 99, which a Hicks workstation can route to but not sniff. Loopback
 is unauthenticated, for a local user who already holds the SOPS key.
 
+**The lab's stores got the same treatment second, and needed it more**
+([#834](https://github.com/Gerrrt/HomeLab/issues/834)). `alexander` published
+its Prometheus and Loki to all of VLAN 30, unauthenticated, from 2026-09
+(#436). VLAN 30 is the segment that exists to hold attackers. From there,
+anything could:
+
+- `POST /-/quit` to the lab's Prometheus;
+- forge series through remote-write;
+- delete log ranges through Loki's live delete API, in the store that holds the
+  segment's own evidence.
+
+**Authored, and live only after its rollout.** Until the ordered steps in
+`stacks/lab/README.md` have run and their three `curl`s return 401, the
+exposure above is still the running state: none of these hosts converges.
+The fix is the estate's proxy, moved one segment down: the stores on loopback,
+and `stacks/lab/Caddyfile` on `10.0.30.40` with one token each for `odin`,
+`phoenix` and `fenrir`. Those tokens are the lab's own, in
+`secrets/lab.sops.yaml`. A lab host never holds an estate token, and
+`deploy-agent.sh` refuses to decrypt the estate's file for a lab target.
+
+Two residuals are recorded rather than fixed:
+
+- **The tokens are plain HTTP on a segment built for ARP spoofing,** so they can
+  be stolen by anyone in a position to spoof. A stolen token can still only
+  push, or read; it cannot quit or delete. TLS is #764's question, asked here
+  too.
+- **Nothing pages if the proxy is bypassed.** The lab has no blackbox exporter
+  and no Alertmanager (ADR-0020), so its version of `IngestAuthNotEnforced` is
+  a step in the rollout check, not a rule. Making the lab's failures reach the
+  estate is [#858](https://github.com/Gerrrt/HomeLab/issues/858).
+
 What has been taken off the firewall's shoulders is Alertmanager. It had no
 off-host client, so it now binds to `127.0.0.1` and reaching VLAN 99 no longer
 lets anyone silence an alert; see
@@ -607,17 +638,20 @@ assumption consistent with what they are.
   than the host's — a decision for that day and not before. Recovering the
   admin without the password is in
   [`stacks/media/README.md`](../stacks/media/README.md).
-- **The sensor stack has no secrets file either, because it has no
-  secrets.** Zeek takes no credential, and `fenrir`'s Alloy pushes to the
-  lab's unauthenticated Loki and Prometheus the way `odin`'s does. So
-  `stacks/sensor` has no `secrets/sensor.*` and no `.sops.yaml` rule, is
-  brought up with `docker compose` rather than `make up`, and sets in
-  `.env.example` the two values `render-config.sh` would otherwise write
+- **The sensor stack has had a secrets file since
+  [#834](https://github.com/Gerrrt/HomeLab/issues/834), and it holds one key.**
+  Until then it had none, because it had no secrets: Zeek takes no credential,
+  and `fenrir`'s Alloy pushed to the lab's unauthenticated Loki and
+  Prometheus. It was brought up with `docker compose` rather than `make up`
   ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
   [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
-  What would retire it is the same as for media: a service there taking a
-  credential from outside. Then it gets a rule of its own above the
-  catch-all, with `fenrir`'s key, before the file exists.
+  - **What retired that** is the trigger this entry named: a service there
+    taking a credential from outside. The lab's stores now sit behind an
+    ingest proxy, and `fenrir` needs a token to push.
+  - **So it took the shape this entry prescribed.** `secrets/sensor.sops.yaml`
+    has a rule of its own above the catch-all, and `make secrets-init
+    STACK=sensor` on `fenrir` writes its key there. The stack is now brought up
+    with `make up STACK=sensor`.
 - **The scratch stack's secrets exist only on its guest, and are never
   committed.** `diabolos` is built for one investigation and destroyed at the
   end of it ([#438](https://github.com/Gerrrt/HomeLab/issues/438),
@@ -909,9 +943,23 @@ this closes on.
   attack surface here — no longer has a path to `POST`. It is not "the socket is
   now safe".
 
-  `oracle`'s agent still mounts the socket directly. `docker.alloy` reads the
-  API address from `DOCKER_API` and falls back to the socket when it is unset,
-  so that host keeps working unchanged until it gets a proxy of its own.
+  **`oracle`'s agent has its own proxy too.** It was the last Alloy holding
+  the socket. It is started by `deploy-agent.sh` as a `docker run`, not from a
+  compose file, so no compose check could see it. The script now starts
+  `alloy-socket-proxy` beside it, with the same image and allowlist, on a
+  private network. Its `/rootfs/run` is an empty tmpfs, because
+  `/:/rootfs:ro` otherwise carries the socket past the proxy: a read-only
+  mount does not stop `connect()`, and Alloy is the socket's owner.
+  `check_image_pins.py` refuses any `docker run` in the repository, other than
+  the proxy's (traced by image), that reaches the socket. It looks for three
+  things:
+
+  - the socket under either spelling;
+  - its directory;
+  - the host's `/` with no `--tmpfs` over `<target>/run`.
+  `docker.alloy` still falls back to the socket when `DOCKER_API` is unset, so
+  an agent deployed before this keeps working until its next `deploy-agent.sh`
+  run.
 - Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
   `no-new-privileges`, so root inside it is subject to file permissions like any
   other user, and joins only the group that owns `/var/log/syslog` so the auth
