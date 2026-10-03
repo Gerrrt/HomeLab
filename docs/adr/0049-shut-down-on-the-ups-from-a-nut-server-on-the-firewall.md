@@ -288,6 +288,12 @@ after the event, so the counter is watched rather than remembered.
 > shutdowns minus that day's clean stops. "Any growth is a stop nobody
 > planned" becomes "any growth the host did not record as clean". The
 > collector also runs at boot, so both numbers move at the same boot.
+>
+> **Correction · 2026-10-02.** Not every clean stop: only power-offs. After a
+> UI Restart the S3520 stayed at 523, because a warm reboot never takes its
+> power away. The script now counts only stops headed for `poweroff.target`
+> or `halt.target` — the UI's Shut Down and the `LB` halt — and keeps restarts
+> in a counter the rule does not read.
 
 ## Consequences
 
