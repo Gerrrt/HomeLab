@@ -262,6 +262,7 @@ check-rules: ## Validate and unit-test Prometheus rules and config
 	promtool check config $(STACK_DIR)/prometheus/prometheus.yaml
 	promtool check rules $(STACK_DIR)/prometheus/rules/*.rules.yaml
 	promtool test rules $(STACK_DIR)/prometheus/tests/*.test.yaml
+	python3 scripts/check_rule_tests.py
 
 .PHONY: check-compose-health
 check-compose-health: ## Verify health deps are satisfiable, probe the images (needs docker)

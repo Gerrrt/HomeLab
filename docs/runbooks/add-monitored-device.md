@@ -75,8 +75,11 @@ nothing lands on the host's filesystem. The config goes in a named volume,
 `alloy-config`, and the agent's WAL and positions in another, `alloy-data`, so
 a recreate keeps its place. The container is `compose.yaml`'s `alloy` service
 written out flag for flag: no capabilities, `no-new-privileges`, `cgroupns
-host`, the syslog-owning group and the image's own group added, the Docker
-socket and `/var/log` and `/` read-only, the debug port on loopback. What it
+host`, the syslog-owning group and the image's own group added, `/var/log`
+and `/` read-only, the debug port on loopback. It has no Docker socket: it
+reads the API through `alloy-socket-proxy`, a second container the script
+starts beside it on a private network, which allows reads and refuses `POST`,
+the estate's allowlist (#193). What it
 does not have is `--privileged` and a mount of `/var/lib/docker/containers`,
 both of which the first version of this page told you to add and #188 later
 measured as unnecessary.
