@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **The stack's self-monitoring metrics have rules behind them**
+  ([#840](https://github.com/Gerrrt/HomeLab/issues/840)). Each of these was
+  charted on a dashboard, or exported and read by nothing:
+  - `AlertmanagerConfigReloadFailed`, the twin of Prometheus's.
+  - `PrometheusNotificationsFailing`, for send errors or dropped alerts on the
+    hop to Alertmanager.
+  - `PrometheusTsdbFailures`, covering compaction, WAL corruption, block
+    reload and head truncation, each named in a `failure` label.
+  - `AlloyRemoteWriteFailing`, for an agent whose samples are being refused.
+  - `AlloyComponentUnhealthy`, for a pipeline component down while the agent
+    stays up.
+
+  The two Alloy rules read each agent's self-scraped copy (`job=~".+-alloy"`),
+  so the local agent, which is also scraped directly, alerts once. A test
+  holds that, and a version of the rule without the filter fails it.
+  Prometheus having no Alertmanager at all is left to the Watchdog heartbeat,
+  because no rule could deliver that page.
+
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`
