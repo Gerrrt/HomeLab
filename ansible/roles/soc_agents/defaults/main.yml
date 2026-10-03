@@ -1,0 +1,42 @@
+---
+# The SOC agents (ADR-0030, build-the-soc-guest.md section 11). Ansible installs
+# them directly rather than by GPO, taking the Wazuh enrolment password from
+# phoenix.env. A rebuilt domain therefore has no deploy GPO and no password in
+# SYSVOL. The hand-built domain still has both: the section 11 deploy GPOs
+# predate this role, and removing them is an operational step on the live
+# domain, not something this role does on a run that is a no-op there otherwise.
+#
+# The MSIs are binaries, built on odin and not in the repo (*.msi is gitignored):
+# the Velociraptor one is repacked by Server.Utils.CreateMSI with the client
+# config inside it, the Wazuh one by the generator (build-the-soc-guest.md §11).
+# There is no standing URL for either, so soc_agents_*_msi_url has no default: it
+# is set in group_vars or on the command line to wherever the built MSIs are
+# served from, and the role fails with a clear message if it needs one unset.
+# The product codes, read from the six on 2026-10-03, decide "already installed"
+# so a reinstall is not attempted every run; a version bump moves code and url.
+# Wazuh's 32-bit MSI registers under WOW6432Node, Velociraptor's 64-bit one does
+# not, so the role looks in both views.
+soc_agents_wazuh_manager: 10.0.30.60
+# This must match the wazuh/wazuh-manager image in stacks/soc/compose.yaml
+# (build-the-soc-guest.md §11). That manager is 4.14.8; the six were installed
+# with 4.14.7 and still carry it, so the pin stays 4.14.7 until the agents are
+# upgraded in step with the manager — a bump moves the version, product code
+# and sha256 together, with the 4.14.8 MSI in hand.
+soc_agents_wazuh_version: "4.14.7"
+soc_agents_wazuh_product_id: "{D9770AF7-8335-4FEB-927C-C575B11A1F7B}"
+soc_agents_wazuh_msi_sha256: "e967f36b75589d6210244fd58239c7021fa53a77c38d92315c3b3bd115002ede"
+soc_agents_velociraptor_version: "0.77.2"
+soc_agents_velociraptor_product_id: "{2154C220-4579-49B7-A616-249C6494865F}"
+soc_agents_velociraptor_msi_sha256: "e945e798f395b996364622be9152bd8d51966bf5f6a2abe792bdfff94f495953"
+
+# The GPOs that deployed the agents before this role, and the files their
+# deploy left in the domain scripts share (the Wazuh script carried the
+# enrolment password). roles/soc_agents removes both on the primary DC, so the
+# direct install does not coexist with a GPO deploy or a readable password.
+soc_agents_deploy_gpos:
+  - SOC - Velociraptor
+  - SOC - Wazuh Agent
+soc_agents_sysvol_leftovers:
+  - C:\Windows\SYSVOL\domain\scripts\wazuh-agent.ps1
+  - C:\Windows\SYSVOL\domain\scripts\wazuh-agent.msi
+  - C:\Windows\SYSVOL\domain\scripts\velociraptor-client.msi

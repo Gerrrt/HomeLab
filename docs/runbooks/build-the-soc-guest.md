@@ -531,6 +531,17 @@ visible.
 
 ## 11. Agents, by GPO — the second evening, and after #414
 
+> [!NOTE]
+> **Since #448, the lab pipeline installs both agents directly**, not by GPO:
+> [`ansible/roles/soc_agents`](../../ansible/roles/soc_agents/) runs the two
+> MSIs on all six by product code, and takes the Wazuh enrolment password from
+> `phoenix.env` rather than leaving it readable in SYSVOL. On a `tofu`-rebuilt
+> domain that is the whole of it, and the two GPOs below are not recreated.
+> The GPOs this section describes still exist on the hand-built domain; retiring
+> them there is an operational step, left to whoever next edits the SOC setup.
+> The rest of this section is the original by-hand procedure, kept for that
+> history and for a domain without the pipeline.
+
 Both agents go to ADR-0029's six machines through the domain, because the
 domain is the exercise (ADR-0030): a reverted or rebuilt workstation re-enrols
 at the next policy refresh, which is what makes snapshot-and-revert and a SIEM

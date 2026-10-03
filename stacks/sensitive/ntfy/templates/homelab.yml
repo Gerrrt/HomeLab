@@ -57,6 +57,7 @@ message: |
     {{- $d -}}
     {{- $where := $a.labels.host | default ($a.labels.instance | default "") -}}
     {{- if $where }}{{ "\n" }}📍 {{ $where }}{{ end -}}
+    {{- with $a.annotations.runbook_url }}{{ "\n" }}📖 {{ . }}{{ end -}}
   {{- else -}}
     {{- range $i, $a := .alerts -}}
       {{- if $i }}{{ "\n" }}{{ end -}}
