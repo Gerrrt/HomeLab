@@ -228,6 +228,9 @@ jobs:
             docker run --rm --entrypoint promtool \
               -v "$PWD:/repo" -w /repo "$PROM_IMAGE" test rules $tests || fail=1
           done
+          # The per-stack guard above refuses a stack with no tests at all; this
+          # refuses a single untested rule inside a tested stack (#843).
+          python3 scripts/check_rule_tests.py || fail=1
           exit $fail
 
       # No secret needed: the receiver URL comes from url_file, which
