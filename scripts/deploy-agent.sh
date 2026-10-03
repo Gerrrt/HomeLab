@@ -73,6 +73,13 @@
 # needs the READER token: INGEST_TOKEN_READER, decrypted the same way, or
 # exported. Without one it is skipped, with a warning.
 #
+# FOR THE LAB (--monitoring-host 10.0.30.40, phoenix) nothing is decrypted.
+# The lab's proxy has its own tokens, in secrets/lab.sops.yaml on alexander,
+# which no checkout here can open (#834). Export INGEST_TOKEN and
+# INGEST_TOKEN_READER from that file before running this. Decrypting the
+# estate's file instead would hand a lab host the estate's reader token, and
+# send it across the segment built to hold attackers, which ADR-0007 forbids.
+#
 # What it does not do
 # -------------------
 # Firewall rules. A host outside VLAN 99 needs a pass to 10.0.99.20 on 9090
@@ -177,7 +184,18 @@ TOKEN_KEY="INGEST_TOKEN_$(printf '%s' "$HOST" | tr '[:lower:]' '[:upper:]' | tr 
 # and exits if sops cannot decrypt, so it runs in a subshell and only the two
 # values come back out. Its stderr is left alone: it says why a decrypt
 # failed, and it never prints a value.
-if [[ -z "${INGEST_TOKEN:-}" || -z "${INGEST_TOKEN_READER:-}" ]]; then
+ESTATE_MON="10.0.99.20"
+# Where a refused token's other half lives, for the messages below: the
+# estate's proxy and file, or the lab's (#834).
+if [[ "${MON}" == "${ESTATE_MON}" ]]; then
+  TOKEN_FILE="secrets/observability.sops.yaml"; PROXY_FILE="stacks/observability/Caddyfile"
+else
+  TOKEN_FILE="secrets/lab.sops.yaml"; PROXY_FILE="stacks/lab/Caddyfile"
+fi
+if [[ "${MON}" != "${ESTATE_MON}" ]]; then
+  [[ -n "${INGEST_TOKEN:-}" ]] \
+    || die "no agent token for ${HOST}: ${MON} is not the estate's stack, so nothing is decrypted here. Export INGEST_TOKEN from secrets/lab.sops.yaml on alexander (${TOKEN_KEY}), and INGEST_TOKEN_READER for the arrival check (#834)"
+elif [[ -z "${INGEST_TOKEN:-}" || -z "${INGEST_TOKEN_READER:-}" ]]; then
   if command -v sops >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/secrets/observability.sops.yaml" ]]; then
     decrypted="$(
       # shellcheck source=scripts/secrets-env.sh
@@ -531,7 +549,7 @@ if ((VERIFY)); then
   elif ! curl -fsS --max-time 5 "http://${MON}:9090/-/ready" >/dev/null 2>&1; then
     warn "${MON}:9090 is not reachable from here; skipping the arrival check"
   elif ! mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
-    warn "${MON}:9090 refused the reader token — is INGEST_TOKEN_READER the one in secrets/observability.sops.yaml? Skipping the arrival check"
+    warn "${MON}:9090 refused the reader token — is INGEST_TOKEN_READER the one in ${TOKEN_FILE}? Skipping the arrival check"
   else
     info "waiting for data newer than the deploy from ${HOST} in Prometheus and Loki at ${MON} (up to 3 min)"
     fresh_promql="count by (job) (timestamp(${promql}) > ${ARRIVED_AFTER})"
@@ -556,7 +574,7 @@ if ((VERIFY)); then
     if ((jobs >= expected)); then
       pass "Prometheus has samples newer than the deploy from ${jobs} job(s) for instance=\"${HOST}\""
     else
-      warn "Prometheus has samples newer than the deploy from ${jobs} job(s) for instance=\"${HOST}\" (expected ${expected}). A refused token looks exactly like this: check the agent's log for 401, then ${TOKEN_KEY} in the SOPS file and its line in stacks/observability/Caddyfile. On another VLAN, check the pass to ${MON}:9090."
+      warn "Prometheus has samples newer than the deploy from ${jobs} job(s) for instance=\"${HOST}\" (expected ${expected}). A refused token looks exactly like this: check the agent's log for 401, then ${TOKEN_KEY} in ${TOKEN_FILE} and its line in ${PROXY_FILE}. On another VLAN, check the pass to ${MON}:9090."
       arrival_failed=1
     fi
     if ((in_loki)); then

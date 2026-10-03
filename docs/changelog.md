@@ -40,6 +40,24 @@ docstring gives: it is a record, not a claim about now.
     lands on `main` is GitHub's own squash, signed with its web-flow key, and
     `converge.sh` checks that signature before deploying.
 
+- **The lab's Prometheus and Loki stop taking orders from VLAN 30**
+  ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Authored, not yet
+  deployed. The rollout is ordered, clients first, in `stacks/lab/README.md`.
+  - **The gap.** The repository review found both published to the whole of
+    the segment built to hold attackers, unauthenticated. Anything there
+    could `POST /-/quit`, forge series, and delete log ranges.
+  - **The fix is ADR-0067 moved one segment down.** The stores are on
+    loopback, and `stacks/lab/Caddyfile` on `10.0.30.40` holds one token each
+    for `odin`, `phoenix` and `fenrir`, plus a reader token.
+    - The tokens are the lab's own, two copies each: `lab.sops.yaml` for the
+      proxy, and each client's own secrets.
+    - `fenrir` gets its first secrets file and `.sops.yaml` rule, and moves
+      to `make up STACK=sensor`.
+    - `deploy-agent.sh` no longer decrypts the estate's tokens for a lab
+      target.
+  - **Not covered.** Nothing pages if the proxy is bypassed: the lab has no
+    Alertmanager (#858).
+
 - **The workflows are pinned and hardened the way the images already were**
   ([#839](https://github.com/Gerrrt/HomeLab/issues/839)).
   - **Pinned.** Every `uses:` is pinned to a commit SHA with its exact

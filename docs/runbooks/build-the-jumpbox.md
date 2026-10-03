@@ -349,6 +349,18 @@ can build every guest on the segment.
 Then from a checkout **on the Mac** — Hicks reaches this segment and
 `prometheus` does not, and the script's header says it is safe from macOS:
 
+The lab's ingest proxy wants `phoenix`'s own token
+([#834](https://github.com/Gerrrt/HomeLab/issues/834)). It is in
+`secrets/lab.sops.yaml`, which only `alexander` can open, so the script
+decrypts nothing for this target. Export two values from that file
+(`make secrets-show STACK=lab` on `alexander`) into the shell first, typed or
+pasted rather than written to a file:
+
+- `INGEST_TOKEN`: the value of `INGEST_TOKEN_PHOENIX`
+- `INGEST_TOKEN_READER`: the lab's reader token, for the arrival check
+
+Then:
+
 ```bash
 ./scripts/deploy-agent.sh --runtime native --monitoring-host 10.0.30.40 <user>@10.0.30.70
 ```
