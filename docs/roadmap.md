@@ -237,7 +237,9 @@ Closes on BloodHound running where nothing attacks it.
   [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
   six guests from the pipeline (written,
   [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
-  → [`ansible/`](../ansible/README.md); closes on a `tofu destroy` and rebuild,
+  → [`ansible/`](../ansible/README.md); applied to the hand-built six on
+  2026-10-03, with a second run of `changed=0` and `verify.yml` passing on
+  all six; closes on a `tofu destroy` and rebuild,
   so it waits for the six to be declared in `tofu/` with pinned MACs, and for
   #440's first build) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
