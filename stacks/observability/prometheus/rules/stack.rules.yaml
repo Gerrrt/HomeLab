@@ -453,6 +453,7 @@ groups:
           severity: critical
           category: correctness
         annotations:
+          dashboard: "Observability Stack (/d/homelab-stack) › Alertmanager › Silences and config reloads"
           summary: "Alertmanager rejected its config reload on {{ $labels.instance }}"
           description: >-
             It is still routing with the tree it last accepted, so whatever the
@@ -471,14 +472,15 @@ groups:
         # for the partial case: some sends failing, or a burst overflowing the
         # queue, while the path still works for the alert that says so.
         expr: |
-          sum(increase(prometheus_notifications_errors_total[15m])) > 0
-          or sum(increase(prometheus_notifications_dropped_total[15m])) > 0
+          sum(increase(prometheus_notifications_errors_total{job="prometheus"}[15m])) > 0
+          or sum(increase(prometheus_notifications_dropped_total{job="prometheus"}[15m])) > 0
         for: 5m
         labels:
           component: stack
           severity: critical
           category: correctness
         annotations:
+          dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › Alert hand-off to Alertmanager"
           summary: "Prometheus is failing to hand alerts to Alertmanager"
           description: >-
             Some alerts that fired in the last 15 minutes never reached
@@ -492,24 +494,29 @@ groups:
         # the next restart), block reloads or head truncations failing. Each
         # counter is tagged with what it measures, so the alert names the one
         # that moved.
+        #
+        # job="prometheus" on every counter, as the dashboard has: other
+        # components embed Prometheus's storage and notifier code and export the
+        # same names, and an Alloy WAL failure is not this server's TSDB.
         expr: |
           label_replace(
-            sum(increase(prometheus_tsdb_compactions_failed_total[1h])) > 0,
+            sum(increase(prometheus_tsdb_compactions_failed_total{job="prometheus"}[1h])) > 0,
             "failure", "compaction", "", "")
           or label_replace(
-            sum(increase(prometheus_tsdb_wal_corruptions_total[1h])) > 0,
+            sum(increase(prometheus_tsdb_wal_corruptions_total{job="prometheus"}[1h])) > 0,
             "failure", "wal-corruption", "", "")
           or label_replace(
-            sum(increase(prometheus_tsdb_reloads_failures_total[1h])) > 0,
+            sum(increase(prometheus_tsdb_reloads_failures_total{job="prometheus"}[1h])) > 0,
             "failure", "block-reload", "", "")
           or label_replace(
-            sum(increase(prometheus_tsdb_head_truncations_failed_total[1h])) > 0,
+            sum(increase(prometheus_tsdb_head_truncations_failed_total{job="prometheus"}[1h])) > 0,
             "failure", "head-truncation", "", "")
         labels:
           component: stack
           severity: warning
           category: correctness
         annotations:
+          dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › TSDB failures"
           summary: "Prometheus TSDB {{ $labels.failure }} failed in the last hour"
           description: >-
             `docker logs prometheus 2>&1 | grep -iE 'compact|wal|reload|truncat'`
@@ -535,6 +542,7 @@ groups:
           severity: warning
           category: correctness
         annotations:
+          dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Remote-write throughput"
           summary: "Alloy on {{ $labels.instance }} is failing to remote-write some samples"
           description: >-
             Metrics from {{ $labels.instance }} are being lost, not queued. On
@@ -558,6 +566,7 @@ groups:
           severity: warning
           category: correctness
         annotations:
+          dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Component health"
           summary: "Alloy on {{ $labels.instance }} has {{ $value }} {{ $labels.health_type }} component(s)"
           description: >-
             Part of what that agent collects has stopped while the agent stays

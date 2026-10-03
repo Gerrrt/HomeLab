@@ -68,7 +68,7 @@ documents for different readers.
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
-- **Dashboards and alerting as code.** 7 provisioned dashboards, 141 panels, and
+- **Dashboards and alerting as code.** 7 provisioned dashboards, 143 panels, and
   147 alert rules — 129 metric-based in Prometheus, 18 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,

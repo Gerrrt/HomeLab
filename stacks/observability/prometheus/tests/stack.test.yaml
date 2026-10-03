@@ -549,6 +549,7 @@ tests:
               severity: critical
               category: correctness
             exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Alertmanager › Silences and config reloads"
               summary: "Alertmanager rejected its config reload on alertmanager:9093"
               description: >-
                 It is still routing with the tree it last accepted, so whatever the
@@ -573,6 +574,7 @@ tests:
               severity: critical
               category: correctness
             exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › Alert hand-off to Alertmanager"
               summary: "Prometheus is failing to hand alerts to Alertmanager"
               description: >-
                 Some alerts that fired in the last 15 minutes never reached
@@ -592,6 +594,7 @@ tests:
               severity: critical
               category: correctness
             exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › Alert hand-off to Alertmanager"
               summary: "Prometheus is failing to hand alerts to Alertmanager"
               description: >-
                 Some alerts that fired in the last 15 minutes never reached
@@ -634,6 +637,7 @@ tests:
               severity: warning
               category: correctness
             exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › TSDB failures"
               summary: "Prometheus TSDB compaction failed in the last hour"
               description: >-
                 `docker logs prometheus 2>&1 | grep -iE 'compact|wal|reload|truncat'`
@@ -647,6 +651,7 @@ tests:
               severity: warning
               category: correctness
             exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Prometheus › TSDB failures"
               summary: "Prometheus TSDB wal-corruption failed in the last hour"
               description: >-
                 `docker logs prometheus 2>&1 | grep -iE 'compact|wal|reload|truncat'`
@@ -684,6 +689,7 @@ tests:
               severity: warning
               category: correctness
             exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Remote-write throughput"
               summary: "Alloy on oracle is failing to remote-write some samples"
               description: >-
                 Metrics from oracle are being lost, not queued. On the host, `docker
@@ -698,6 +704,7 @@ tests:
               severity: warning
               category: correctness
             exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Remote-write throughput"
               summary: "Alloy on prometheus is failing to remote-write some samples"
               description: >-
                 Metrics from prometheus are being lost, not queued. On the host,
@@ -732,6 +739,7 @@ tests:
               severity: warning
               category: correctness
             exp_annotations:
+              dashboard: "Observability Stack (/d/homelab-stack) › Alloy — the collection agents › Component health"
               summary: "Alloy on oracle has 1 unhealthy component(s)"
               description: >-
                 Part of what that agent collects has stopped while the agent stays up.

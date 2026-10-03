@@ -34,6 +34,11 @@ docstring gives: it is a record, not a claim about now.
   The two Alloy rules read each agent's self-scraped copy (`job=~".+-alloy"`),
   so the local agent, which is also scraped directly, alerts once. A test
   holds that, and a version of the rule without the filter fails it.
+  Each rule carries a `dashboard` annotation naming the row and panel to
+  open. Two panels are new under the Prometheus row: TSDB failures, and the
+  alert hand-off to Alertmanager. The TSDB and notification counters are
+  scoped to `job="prometheus"`, as the dashboard's are, so another
+  component's embedded storage cannot page as this server's.
   Prometheus having no Alertmanager at all is left to the Watchdog heartbeat,
   because no rule could deliver that page.
 
