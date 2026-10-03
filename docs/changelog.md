@@ -47,6 +47,20 @@ docstring gives: it is a record, not a claim about now.
     failed "cannot connect". The service was disabled afterwards, but the
     configuration stayed. The script now runs `net start WinRM` first. 912
     needs a rebuild to carry it.
+- **A stopped Loki ruler now pages**
+  ([#837](https://github.com/Gerrrt/HomeLab/issues/837)).
+  - **The gap.** Every security alert is evaluated by Loki's ruler, and the
+    Watchdog proves only Prometheus's path. A ruler that stopped evaluating,
+    or could not reach Alertmanager, silenced all of them while the heartbeat
+    stayed green. The dashboard charted the ruler's failures, and no rule read
+    them.
+  - **The fix.** `LokiRulerWatchdog` fires forever in Loki and is routed to
+    `null`. Three Prometheus rules read the ruler's own metrics:
+    `LokiRuleEvaluationFailures`, `LokiRulerNotificationsFailing`, and
+    `LokiRulerSilent`, which fires on a flat sent counter or an absent one.
+    The heartbeat already proves the path these three use, so no second
+    external check is needed. Tests cover all three, including the absent
+    metric.
 - **`check_docs.py` now checks the deploy runbook's Rules-page figure.**
   - **The gap.** `deploy-stack.md` step 2 says the page "lists 129: the 127
     alert rules ... plus the two recording rules". That sentence has three

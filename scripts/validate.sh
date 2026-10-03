@@ -285,6 +285,7 @@ elif ((${#AMTOOL[@]})); then
     fi
   done <<'ROUTES'
 heartbeat,default alertname=Watchdog severity=none category=monitoring
+null      alertname=LokiRulerWatchdog severity=none category=monitoring
 urgent    severity=critical category=power
 security  severity=critical category=security
 security  severity=warning category=security
@@ -297,7 +298,7 @@ null      severity=info category=correctness
 ROUTES
 
   if ((routes_ok)); then
-    pass "${stack}: amtool config routes test (10 assertions)"
+    pass "${stack}: amtool config routes test (11 assertions)"
   else
     fail "${stack}: amtool config routes test"
   fi
