@@ -47,3 +47,19 @@ jobs:
       # registry outage would read as drift and alert.
       - name: Check digests
         run: ./scripts/pin-digests.sh
+
+  # The ruleset on main is the gate converge.sh relies on, and it lives in a
+  # settings page that no diff shows (#833). Weekly, and here rather than on
+  # pull requests: a PR that changes .github/rulesets/main.json is ahead of the
+  # live ruleset until someone applies it, and failing that PR for it would be
+  # a check that can only pass after its own merge.
+  ruleset:
+    name: The ruleset on main matches .github/rulesets/main.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the ruleset
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/check-ruleset.sh

@@ -242,7 +242,7 @@ What differs from the monitoring host, and why:
 
 ## What it records
 
-Seven gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
+Eight gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
 written on every exit path including the refusals, so a run that declined to
 move still reports what the host is on.
 
@@ -255,6 +255,7 @@ move still reports what the host is on.
 | `homelab_deploy_verified` | Whether the checkout's revision has a valid signature, which is the deployed one's while `unapplied` is 0 |
 | `homelab_deploy_apply_enabled` | Whether this host applies what it fetches, or is in report-only mode |
 | `homelab_deploy_unapplied` | Whether the checkout has moved past what `make up` last applied |
+| `homelab_deploy_tip_ci` | What CI said about the fetched tip: `1` passed, `0` did not, `-1` not asked (nothing to deploy) or not finished |
 
 **Where the checkout is and what is running are two facts, and the first
 version recorded only one.** On 2026-10-01 the checkout reached #781's merge by
@@ -339,6 +340,55 @@ hand rather than teaching the timer to ignore signatures:
 ```bash
 /home/robo/code/Gerrrt/HomeLab/scripts/converge.sh --allow-unsigned
 ```
+
+### CI did not pass, or has not finished
+
+```text
+error: CI did not pass on <sha> (above).
+```
+
+Before deploying a tip, convergence asks GitHub for the tip's own check-runs. These are
+the four `ci.yml` jobs that run on a push to `main`: Lint, Validate configs,
+Boot hardened services and Secret scan. It lists each with its state above the
+error ([#833](https://github.com/Gerrrt/HomeLab/issues/833)). It asks
+anonymously, and only on a run with something to deploy.
+
+The ruleset on `main` requires those checks before a merge
+(`.github/rulesets/main.json`), so a red tip reaching `main` at all means the
+ruleset was loosened, a check failed on the push run after passing on the pull
+request, or someone merged with a bypass. Check the first:
+
+```bash
+make check-ruleset
+```
+
+Then fix `main` the usual way, with a new pull request. If the red tip is
+genuinely what should run, deploy it deliberately and by hand:
+
+```bash
+/home/robo/code/Gerrrt/HomeLab/scripts/converge.sh --allow-red
+```
+
+`DeployTipRed` fires after two runs see the same red tip.
+
+Only a check that **finished and failed** is a refusal. In these cases the run
+waits instead: it says so, exits 0, stays where it is, and the next hourly run
+asks again.
+
+- A check is still queued or running.
+- A check has no run at all.
+- A check was `cancelled`.
+- GitHub did not answer.
+
+CI on `main` takes about four minutes, so a wait is normally one hour's delay at
+most. Any wait that lasts fires `DeployBehind` at three hours. When it does, the
+lines above the warning in the journal say which check is holding it:
+
+| What the journal shows | Usual cause | What to do |
+| --- | --- | --- |
+| `missing` | A job in `ci.yml` was renamed | Rename it in `REQUIRED_CHECKS` in `converge.sh` and in `.github/rulesets/main.json`, together |
+| `cancelled` | A manual cancel on the tip's run | Re-run it in GitHub |
+| no lines at all | The API is unreachable, or the anonymous rate limit was hit | It clears by itself |
 
 ### It is not a fast-forward
 

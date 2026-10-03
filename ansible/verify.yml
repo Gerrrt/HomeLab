@@ -13,6 +13,7 @@
 - name: Verify the lab domain, and that nothing has been hardened
   hosts: lab_domain
   gather_facts: false
+  vars_files: [population/population.yaml]
   tasks:
     - name: Ask each guest
       ansible.windows.win_powershell:
@@ -26,10 +27,15 @@
           PrimaryDc: "{{ groups['dc_primary'][0] }}"
           Gateway: "{{ lab_gateway }}"
           Scraper: "{{ windows_exporter_scraper }}"
+          PeopleOu: "OU={{ population_ou }},{{ lab_domain_dn }}"
+          Sams: "{{ population_users | map(attribute='sam') | list }}"
+          Groups: "{{ population_groups | map(attribute='name') | list }}"
+          Netbios: "{{ lab_netbios }}"
         script: |
           param([string]$Domain, [string]$Name, [string]$IsDc, [string]$IsPrimary,
                 [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$LabRole,
-                [string]$PrimaryDc)
+                [string]$PrimaryDc, [string]$PeopleOu, [string[]]$Sams, [string[]]$Groups,
+                [string]$Netbios)
           $Ansible.Changed = $false
           # Not $isDc: PowerShell names are case-insensitive, so that is the [string]
           # parameter above, and assigning the bool to it turns it back into "False",
@@ -52,6 +58,11 @@
           }
           $svc = Get-Service windows_exporter -ErrorAction SilentlyContinue
           $r['windows_exporter running'] = ($svc.Status -eq 'Running')
+          # The SOC agents (ADR-0030), installed by roles/soc_agents in place of
+          # the two deploy GPOs. Service names as each MSI registers them.
+          $r['Wazuh agent running'] = ((Get-Service WazuhSvc -ErrorAction SilentlyContinue).Status -eq 'Running')
+          $velo = Get-Service Velociraptor -ErrorAction SilentlyContinue
+          $r['Velociraptor client running'] = ($velo.Status -eq 'Running')
           $r['9182 listening'] = [bool](Get-NetTCPConnection -LocalPort 9182 -State Listen `
             -ErrorAction SilentlyContinue)
           $open = Get-NetFirewallPortFilter -Protocol TCP |
@@ -116,6 +127,83 @@
             # Still a relay target (§5); a servicing update moving this default
             # is exactly the change this is here to catch.
             $r['titan does not require SMB signing'] = -not (Get-SmbServerConfiguration).RequireSecuritySignature
+            # The two shares (§5): Public is Full, Finance is Change, each to
+            # Authenticated Users and nothing else, and the decoy is present.
+            foreach ($sh in @(@{n='Public';r='Full'}, @{n='Finance';r='Change'})) {
+              $ace = @(Get-SmbShareAccess -Name $sh.n -ErrorAction SilentlyContinue)
+              $r["titan shares $($sh.n) as $($sh.r) to Authenticated Users"] =
+                ($ace.Count -eq 1 -and $ace[0].AccountName -eq 'NT AUTHORITY\Authenticated Users' -and
+                 $ace[0].AccessControlType -eq 'Allow' -and $ace[0].AccessRight -eq $sh.r)
+            }
+            $r['titan holds the Finance decoy'] = (Test-Path 'C:\Shares\Finance\payroll-2026-Q4.xlsx')
+          }
+
+          # --- #448: the tiers #414 built, the skeleton the population sits in --
+          if ([bool]::Parse($IsPrimary)) {
+            $base = (Get-ADDomain).DistinguishedName
+            $r['the five tier OUs exist'] = -not (@('Tier0','Tier1','Tier2','Servers','Workstations') |
+              Where-Object {
+                -not (Get-ADOrganizationalUnit -Filter "Name -eq '$_'" -SearchBase $base -SearchScope OneLevel)
+              })
+            foreach ($a in @(@{s='t0-admin';ou='Tier0'}, @{s='t1-admin';ou='Tier1'}, @{s='t2-admin';ou='Tier2'})) {
+              $u = Get-ADUser -Identity $a.s -ErrorAction SilentlyContinue
+              $r["$($a.s) is in OU=$($a.ou)"] =
+                [bool]($u -and ($u.DistinguishedName -split ',', 2)[1] -eq "OU=$($a.ou),$base")
+            }
+            $t0 = Get-ADGroupMember -Identity 'Tier 0 Admins' -ErrorAction SilentlyContinue
+            $r['Tier 0 Admins holds t0-admin'] = [bool]($t0 | Where-Object SamAccountName -eq 't0-admin')
+            $r['t0-admin is a Domain Admin'] =
+              [bool]((Get-ADGroupMember -Identity 'Domain Admins') | Where-Object SamAccountName -eq 't0-admin')
+            foreach ($m in @(@{n='TITAN';ou='Servers'}, @{n='RAMUH';ou='Servers'},
+                             @{n='CARBUNCLE';ou='Workstations'}, @{n='SIREN';ou='Workstations'})) {
+              $c = Get-ADComputer -Identity $m.n -ErrorAction SilentlyContinue
+              $r["$($m.n) sits in OU=$($m.ou)"] =
+                [bool]($c -and ($c.DistinguishedName -split ',', 2)[1] -eq "OU=$($m.ou),$base")
+            }
+          }
+
+          # The GPO deploy this role replaced is gone, password script included.
+          if ([bool]::Parse($IsPrimary)) {
+            $r['the SOC deploy GPOs are retired'] =
+              -not (@('SOC - Velociraptor','SOC - Wazuh Agent') |
+                Where-Object { Get-GPO -Name $_ -ErrorAction SilentlyContinue })
+            $r['no enrolment password left in SYSVOL'] =
+              -not (Test-Path 'C:\Windows\SYSVOL\domain\scripts\wazuh-agent.ps1')
+            # The two hand-built GPOs (§5, §6), present and linked where #414 put
+            # them. Deny Tier 0 is a deliberate control, not hardening: §0's list
+            # is unchanged, and the tiering exists so a violation is an event.
+            foreach ($lk in @(
+              @{g='Deny Tier 0 Logon on Members'; ous=@('Servers','Workstations')},
+              @{g='Lab - Audit File Share'; ous=@('Servers')})) {
+              $r["$($lk.g) exists"] = [bool](Get-GPO -Name $lk.g -ErrorAction SilentlyContinue)
+              $r["$($lk.g) is linked where §5 puts it"] = -not ($lk.ous | Where-Object {
+                -not ((Get-GPInheritance -Target "OU=$_,$($base)").GpoLinks | Where-Object DisplayName -eq $lk.g)
+              })
+            }
+          }
+
+          # --- #449: the population, and the generator that runs as it ----------
+          if ([bool]::Parse($IsPrimary)) {
+            # Exactly the file's accounts: one missing is a run that did not
+            # finish, and one extra is a removal nobody has decided on.
+            $people = @(Get-ADUser -Filter * -SearchBase $PeopleOu -ErrorAction SilentlyContinue |
+              ForEach-Object { $_.SamAccountName })
+            $r['OU=People holds population.yaml, and nothing else'] =
+              ((($people | Sort-Object) -join ',') -eq (($Sams | Sort-Object) -join ','))
+            $r['every population group exists'] =
+              -not ($Groups | Where-Object { -not (Get-ADGroup -Filter "Name -eq '$_'") })
+          }
+          if ($LabRole -eq 'endpoint') {
+            $t = Get-ScheduledTask -TaskName Lab-AuthGenerator -ErrorAction SilentlyContinue
+            # By SID, not by name: a suffix match would accept AD\notauthgen, or
+            # a local account that happens to be called authgen.
+            $sid = { param($n) try { (New-Object System.Security.Principal.NTAccount($n)).Translate(
+              [System.Security.Principal.SecurityIdentifier]).Value } catch { $null } }
+            $authgenSid = & $sid "$Netbios\authgen"
+            $r['the authentication generator runs as authgen'] =
+              [bool]($t -and $authgenSid -and ((& $sid $t.Principal.UserId) -eq $authgenSid))
+            $r['its last run succeeded'] =
+              [bool]($t -and (Get-ScheduledTaskInfo -TaskName Lab-AuthGenerator).LastTaskResult -eq 0)
           }
           $r
       register: verify_answer

@@ -29,6 +29,18 @@ lab_functional_level: WinThreshold
 lab_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_ADMIN_PASSWORD') }}"
 lab_dsrm_password: "{{ lookup('ansible.builtin.env', 'LAB_DSRM_PASSWORD') }}"
 
+# --- The population (#449) ----------------------------------------------------
+# ansible/population/population.yaml is committed and holds no passwords. Each
+# one is derived here, from this seed and the sAMAccountName, so a rerun sets
+# the same password it set last time, and population-credentials.yml can print
+# them again on phoenix. The task supplies `population_account`. The hex digest
+# is lower case, so the suffix adds the upper case, digit and symbol that the
+# domain's complexity rule asks for. Change the seed and every password moves.
+lab_population_seed: "{{ lookup('ansible.builtin.env', 'LAB_POPULATION_SEED') }}"
+lab_population_password: >-
+  {{ ((lab_population_seed ~ ':' ~ population_account) | hash('sha256'))[:20] ~ 'Aa1!' }}
+lab_domain_dn: "DC={{ lab_domain.split('.') | join(',DC=') }}"
+
 # --- windows_exporter (§7) ---------------------------------------------------
 # The version is pinned here, with the MSI's sha256 beside it, because the
 # collector list below is only known-good against this release: in 0.31.x `cs`
@@ -44,3 +56,14 @@ windows_exporter_collectors: cpu,logical_disk,memory,net,os,service,system,time,
 windows_exporter_textfile_dir: C:\ProgramData\windows_exporter\textfile
 # alexander, the lab Prometheus. The only source the 9182 rule admits.
 windows_exporter_scraper: 10.0.30.40
+
+# --- The skeleton #414 built by hand (runbook §5), reproduced so the #448 ------
+# rebuild loses nothing. The population and the switchable weaknesses on top of
+# it are #449's (roles/population); these are the tiers, shares and SOC agents.
+lab_tier_ous: [Tier0, Tier1, Tier2, Servers, Workstations]
+# A distinct password for the three tier admin accounts, set only when they are
+# made on a fresh rebuild (roles/tiers use on_create), never the domain admin's.
+lab_tier_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_TIER_ADMIN_PASSWORD') }}"
+# The Wazuh enrolment password, from phoenix.env rather than readable in SYSVOL
+# as the deploy GPO left it (build-the-soc-guest.md §11, now roles/soc_agents).
+lab_wazuh_registration_password: "{{ lookup('ansible.builtin.env', 'LAB_WAZUH_REGISTRATION_PASSWORD') }}"

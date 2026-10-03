@@ -19,6 +19,119 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **A red merge can no longer reach a host**
+  ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
+  - **The gap.** The repository review found that the ruleset on `main`
+    required a pull request but no status checks. `converge.sh` checks only
+    GitHub's signature, which every merge carries, so a PR with a failing Lint
+    would have been merged and deployed within the hour.
+  - **The ruleset is now a file.** `.github/rulesets/main.json` requires the
+    five CI checks (posted by GitHub Actions) and signed commits.
+    - `scripts/check-ruleset.sh` compares it with GitHub, without a login,
+      weekly in `digests.yml`.
+    - `make apply-ruleset` applies it.
+  - **Convergence asks for itself.** `converge.sh` reads the tip's own
+    check-runs before deploying.
+    - A finished failure is refused, and pages as `DeployTipRed`; `--allow-red`
+      overrides it.
+    - A check that is running, missing or cancelled waits for the next run.
+      So does an API that did not answer. A long wait is `DeployBehind`.
+    - 13 fixtures in `converge.sh --self-test`.
+
+- **A pulled cable on `erebor` pages, once**
+  ([#744](https://github.com/Gerrrt/HomeLab/issues/744), closed).
+  - **The setup, 2026-10-02.** `build-the-nas.md` §6.8 ran at the console.
+    The first run against the real `zpool status -j` read 3 leaves, all
+    online and named by partuuid. The cron job failed at first: step 2's
+    `ls` line was pasted into its Command field. `ZpoolVdevStateStale`
+    caught it, and [#820](https://github.com/Gerrrt/HomeLab/pull/820)
+    puts each cron command in its own block.
+  - **The drill.** `ZVTBS4NL`'s data cable was pulled at 06:08 PDT. The pool
+    read DEGRADED with the leaf REMOVED. `ZpoolNotOnline` paged at 06:13,
+    and `ZpoolVdevNotOnline` stood down as designed. The cable was reseated and the leaf resilvered at 06:28:21: 392 KiB, the writes it had missed, in under a second with 0 errors. Both leaves are ONLINE with every counter at 0.
+  - **The finding.** On the chipset's ports, a pulled cable degrades the
+    pool, so it is the pool-level rule's fault. The faulted-under-ONLINE
+    reading of 2026-09-19 came through the MegaRAID, which is gone.
+    `ZpoolVdevNotOnline` stays armed for that reading.
+  - **The leaf rule, live.** A cable pull cannot show `ZpoolVdevNotOnline`
+    paging, so a synthetic textfile did: a pool `drill` reading ONLINE with
+    one FAULTED leaf, written at 06:43:38. It paged critical at 06:45 and
+    was removed at 06:46:08 (§6.8 step 5b). That was the done-when's other
+    half.
+
+- **`SmartDriveUnsafeShutdownsGrowing` pages on any tick again; a clean
+  shutdown does not tick the S3520**
+  ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). This corrects the
+  2026-10-01 and 2026-10-02 entries, which subtracted clean stops.
+  - **What settled it.** Controlled stops on `smaug`, each read after the
+    collector's boot run. A UI Restart read restart 1, unclassified 0. A UI
+    Shut Down, off about four minutes and powered on by the button, read
+    power-off 2 and an S3520 of **523**. A Restart the day before had also left
+    it at 523. That is 0 ticks in 3 clean stops. The 522 -> 523 #746 started
+    from was 2026-09-29, when the box was **unplugged** for the memory install
+    after its Shut Down. The drive counted the unplug.
+  - **Why the subtraction went.** With clean stops subtracted, a planned Shut
+    Down that does not tick would cancel a real cut the same day, and nothing
+    would page. The expression is #574's again:
+    `(homelab_smart_unsafe_shutdowns_total - ... offset 1d) > 0`.
+  - **What the clean count does now.** It only adds a line to the page. When
+    `homelab_clean_shutdowns_total` moved the same day, the page says a clean
+    power-off came first, so the likeliest cause is mains removed afterwards:
+    an unplug, or the UPS cutting its output after ADR-0049's halt. A missing
+    day-old point reads as zero, so the first power-off after install counts.
+    It is a hint, not proof: whether a halt ran, and in time, is read from the
+    event.
+  - **Tests.** Five new promtool cases: a planned Shut Down is quiet; Shut
+    Down then unplug fires with the line, including on install day; a Restart
+    day fires without it; and another host's power-off adds nothing. The
+    original three still pass. Six mutations were run, including the hint's
+    own query, which promtool evaluates.
+  - **Not measured.** Whether the TS150 keeps the SATA rail on standby power
+    while "off". It is the likeliest reason an unplug ticks the drive and a
+    Shut Down does not. Shut Down, unplug 30 s, power on would show it.
+
+- **`ansible/` configures the hand-built domain, a second run changes
+  nothing, and `verify.yml` passes on all six**
+  ([#448](https://github.com/Gerrrt/HomeLab/issues/448),
+  [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)).
+  #448 stays open for the rebuild.
+  - **The way in.** Each of the six got key-only `sshd`, admitting
+    `phoenix` alone, from its console on 2026-10-02. Each was checked from
+    `Saruman`, and then logged into from `phoenix`.
+    - On `carbuncle` and `siren`, the key file first held a draft's
+      placeholder. `openssh.ps1` now refuses one (#821).
+    - Their built-in Administrator was disabled and had no password, so
+      `sshd` reset the connection during key exchange. It was enabled, with
+      a password set, at each console.
+  - **What the first real run changed.** All six moved from Pacific to UTC,
+    and gained `C:\ProgramData\lab`. The four servers gained the
+    licence-clock task, which wrote its first value. Joins, the forest, the
+    forwarder, root hints, the clock and the Administrator password were
+    already right, and were left alone.
+  - **What the runs found in the playbook, not the guests** (#825, #827):
+    - `win_dns_client` treats IPv6 resolvers it was not given as drift, and
+      reported a change on both DCs every run. `::1` survived, but the role
+      now sets IPv4 resolvers only, through `netsh interface ipv4`.
+    - `win_powershell` skips a script in check mode unless it declares
+      `SupportsShouldProcess`, so `--check` reported changes on state that
+      was already right.
+    - In `verify.yml`, `$isDc` overwrote the `[string]` parameter `$IsDc`,
+      because PowerShell names ignore case. Every member ran the DC checks.
+    - `dcdiag` cannot bind to the partner DC from an SSH key logon. Verify
+      now reads the DC's own replication partner metadata. `repadmin` showed
+      0 failures out of 5 both ways throughout.
+    - In check mode, `exporter` and `licence_clock` failed or would have
+      failed on a folder `base` had not made. They now report pending work
+      instead.
+  - **Proved.** On `main` after #825, `ansible-playbook lab-domain.yml`
+    reported `changed=0` and `failed=0` on all six, DCs included.
+    `verify.yml` then passed on all six. That covers the do-not-harden
+    list, titan's unsigned SMB, replication, the clocks, and 9182 admitting
+    `alexander` alone.
+  - **What #448 still needs.** The six declared in `tofu/` with pinned MACs,
+    which the guest module cannot yet take, and #440's first template build.
+    Then `tofu destroy`, a rebuild, `lab-domain.yml` and `verify.yml`.
+
 - **OpenTofu's first apply ran, and both proofs passed against real state.
   This closes #445**
   ([#445](https://github.com/Gerrrt/HomeLab/issues/445),

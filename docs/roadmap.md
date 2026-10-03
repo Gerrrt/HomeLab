@@ -237,11 +237,16 @@ Closes on BloodHound running where nothing attacks it.
   [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
   six guests from the pipeline (written,
   [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
-  → [`ansible/`](../ansible/README.md); closes on a `tofu destroy` and rebuild,
+  → [`ansible/`](../ansible/README.md); applied to the hand-built six on
+  2026-10-03, with a second run of `changed=0` and `verify.yml` passing on
+  all six; closes on a `tofu destroy` and rebuild,
   so it waits for the six to be declared in `tofu/` with pinned MACs, and for
   #440's first build) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
-  weaknesses and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
+  weaknesses (the population and the authentication generator are written as
+  `--tags population,authgen`,
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md),
+  and not yet applied; the weaknesses are not written) and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
   and Pktmon → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
   BloodHound, which closes the milestone. All of it runs from `phoenix`
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),

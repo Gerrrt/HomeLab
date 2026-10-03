@@ -133,6 +133,43 @@ tests:
                 -1` in the deployment checkout distinguishes them.
                 docs/runbooks/converge-the-host.md.
 
+  # --- DeployTipRed: red, not asked, and green -----------------------------
+  #
+  # oracle sits at -1, the value every run with nothing to deploy records. A rule
+  # written `!= 1` passes the other two cases and pages on every quiet hour.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_tip_ci{instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_deploy_tip_ci{instance="oracle"}'
+        values: "-1+0x180"
+      - series: 'homelab_deploy_tip_ci{instance="trinity"}'
+        values: "1+0x180"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: DeployTipRed
+        exp_alerts: []
+
+      - eval_time: 1h5m
+        alertname: DeployTipRed
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployTipRed
+              instance: prometheus
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "main's tip did not pass CI, and is not being deployed"
+              description: >-
+                Convergence on prometheus fetched a tip whose required checks
+                did not pass, and is staying on what it runs. The failing check
+                is in `journalctl -u 'homelab-converge*' -n 50` and on the
+                commit's checks in GitHub. Fix main with a new pull request;
+                deploy the red tip only deliberately, with
+                `scripts/converge.sh --allow-red`.
+                docs/runbooks/converge-the-host.md.
+
   # --- DeployUnapplied: stuck, healthy, and cleared by the next run --------
   #
   # prometheus stays unapplied, which is make up failing or a report-only host.

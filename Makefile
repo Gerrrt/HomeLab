@@ -461,6 +461,16 @@ check-firewall: ## Diff docs/firewall-claims.yaml against the LIVE pfSense rules
 	@# Prose about pfctl was wrong three times on 2026-09-06 alone (#363).
 	python3 scripts/check_firewall_claims.py
 
+.PHONY: check-ruleset
+check-ruleset: ## Diff .github/rulesets/main.json against the LIVE ruleset on main
+	@# The gate converge.sh relies on lives in a GitHub settings page (#833).
+	@# Read anonymously; also run weekly by .github/workflows/digests.yml.
+	./scripts/check-ruleset.sh
+
+.PHONY: apply-ruleset
+apply-ruleset: ## Make the ruleset on main match .github/rulesets/main.json (needs gh as admin)
+	./scripts/check-ruleset.sh --apply
+
 .PHONY: check-dashboard-roundtrip
 check-dashboard-roundtrip: ## Boot the pinned Grafana and verify the dashboards round-trip
 	@# Under Validation and not Maintenance, unlike `dashboards-export` below,
