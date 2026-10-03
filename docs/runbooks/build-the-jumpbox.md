@@ -114,6 +114,36 @@ not the repository package afterwards. There is nothing here for it to run,
 and `deploy-agent.sh` reads the absence as its cue to install the native
 package.
 
+**Then give the root volume the whole disk.** Ubuntu's guided LVM install
+sizes `ubuntu-lv` at half the volume group and leaves the rest unallocated:
+on this 32 GB disk that is a 15 GiB root with 15 GiB idle beside it. `phoenix`
+filled those 15 GiB on 2026-10-03, with toolchains and caches and nothing
+runaway, and a write to `phoenix.env` failed with `No space left on device`
+(#445). Grow it online:
+
+```bash
+sudo lvextend -r -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+df -h /          # about 30G
+```
+
+**Then install the QEMU guest agent.** `--agent enabled=1` in §1 only gives the
+VM the channel. Nothing answers on it until the package is installed in the
+guest:
+
+```bash
+sudo apt-get install -y qemu-guest-agent && sudo systemctl start qemu-guest-agent
+```
+
+The unit is static on Ubuntu, so `systemctl enable` refuses it; it starts
+itself on every boot through the virtio channel, as
+[`build-the-lab-guest.md`](build-the-lab-guest.md) §1 says for `alexander`.
+From `Saruman`, `qm guest cmd 170 ping` returns nothing and exits 0. This was
+missed on the first build and found on 2026-10-02 (#445). Until then, nothing
+on `Saruman` could read `phoenix`, and every step there had to be typed by
+hand. The agent grants nothing new: root on `Saruman` already holds this
+guest's console and disk. It is preferred to trusting `Saruman`'s key for SSH,
+which would open a network login into the host that holds the token.
+
 ## 3. The reservation on `morpheus`
 
 Read the guest's MAC from the hypervisor:
