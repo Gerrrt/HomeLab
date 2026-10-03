@@ -102,8 +102,28 @@ After a `git pull` that moves a pin, re-run the `pip install` line if
 `requirements.txt` changed, and the `ansible-galaxy` line if
 `requirements.yml` did. Then add the
 two secrets to the file that already holds the token and the build password
-(ADR-0077 decision 3). For a domain built by hand, `LAB_ADMIN_PASSWORD` is
-AD\Administrator's current password. For a rebuild, generate both:
+(ADR-0077 decision 3).
+
+For a domain built by hand, `LAB_ADMIN_PASSWORD` must be AD\Administrator's
+**current** password, because the members join and `leviathan` promotes as
+that account. The DSRM password is only used if a DC is promoted again, so any
+long, complex value will do. This prompts for both without echoing them or
+leaving them in shell history, and works in zsh, phoenix's login shell, as
+well as bash:
+
+```bash
+umask 077; printf 'AD\\Administrator password: '; stty -echo; read -r A; stty echo; echo; printf 'New DSRM password: '; stty -echo; read -r D; stty echo; echo; printf 'LAB_ADMIN_PASSWORD=%s\nLAB_DSRM_PASSWORD=%s\n' "$A" "$D" >> ~/.config/proxmox/phoenix.env; unset A D
+```
+
+`read -p` is a bash-only spelling: zsh reads `-p` as a coprocess, fails, and
+the `printf` still appends two empty entries. Check that both took, without
+printing them. This prints `2`:
+
+```bash
+grep -cE '^LAB_(ADMIN|DSRM)_PASSWORD=.+' ~/.config/proxmox/phoenix.env
+```
+
+For a rebuild, generate both instead:
 
 ```bash
 umask 077
