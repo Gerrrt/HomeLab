@@ -168,6 +168,8 @@ because the recipients are the same.
 ```bash
 cd ~/code/Gerrrt/HomeLab
 set -a; . ~/.config/proxmox/phoenix.env; set +a
+umask 077
+mkdir -p tofu/state && chmod 700 tofu/state
 tofu -chdir=tofu init
 tofu -chdir=tofu plan -var proof=true -out=proof.tfplan
 tofu -chdir=tofu apply proof.tfplan && rm tofu/proof.tfplan
@@ -175,6 +177,12 @@ api() { curl -fsS -H "Authorization: PVEAPIToken=${PROXMOX_VE_API_TOKEN}" "${PRO
 api /nodes/Saruman/qemu/998/config | jq '.data | {name, tags, scsi0, net0}'
 api /pools/proof | jq -r '.data.members[].vmid'
 ```
+
+`umask 077` is not optional. tofu creates the state file under the shell's
+umask, and the first apply, under Ubuntu's 002, wrote it 664: readable by every
+account on `phoenix`. It is ciphertext, but ADR-0076 counts file permissions as
+part of the control. Any later shell that runs tofu here needs the same
+`umask`. The directory's 700 covers a file created without it.
 
 The plan adds three things: the `proof` pool, a password, and guest 998.
 `scsi0` is on `large_data`, `tags` reads `disposable;tofu`, and the pool's only
@@ -246,10 +254,11 @@ replaces the guest, and replacing it re-clones it from scratch.
 | 2026-10-03 | §1 tofu 1.13.1 and sops 3.13.3, both checksum-verified | Installed in `/usr/local/bin`. `phoenix.env` gained its three lines: `passphrase length 44`, `API 200` |
 | 2026-10-03 | §2 grant, as root on `Saruman` | `Pool.Allocate` and `Pool.Audit` on `PhoenixBuilder`, and the ACL on `/pool/proof`. Proxmox accepted an ACL on a pool that did not exist yet |
 | 2026-10-03 | §3 escrow written on `phoenix` | 2 recipients, the catch-all's two. `sops --decrypt` fails on `phoenix`, as designed. Committed as `secrets/tofu.sops.yaml` |
-| | §3 hashes compared on `prometheus` | |
-| | §4 half one, `check-tofu-state-encryption.sh` on the real state | |
-| | §4 half two, `git add` refused, and `-f` caught | |
-| | §4 proof guest and `proof` pool destroyed | |
+| 2026-10-03 | §3 hashes compared on `prometheus` | Equal. The estate key recovers the state key |
+| 2026-10-03 | §4 apply, `-var proof=true` | Plan: 3 to add. 998 `tofu-proof` came up as a full clone of 901: `tags` `disposable;tofu`, `scsi0` on `large_data` (32G, discard, iothread, ssd), `balloon 0`, host CPU. The `proof` pool's only member was 998 |
+| 2026-10-03 | §4 half one, `check-tofu-state-encryption.sh` on the real state | Two PASS: the encrypted wrapper with no gitleaks match, and the proof password absent. The passphrase grep returned `0`. The state file was mode 664, found from `Saruman` and fixed (`umask 077` above) |
+| 2026-10-03 | §4 half two, `git add` refused, and `-f` caught | `git add` refused: "ignored by one of your .gitignore files", exit 1. With `-f`, `check-tracked-artefacts.sh` named `tofu/state/lab.tfstate`, exit 1. Reset, and nothing was left staged |
+| 2026-10-03 | §4 proof guest and `proof` pool destroyed | `-var proof=false`: 3 destroyed. From `Saruman`: no 998, no pools, no `vm-998` disk on `large_data`, and no `/pool/proof` ACL. Proxmox deleted the grant with the pool, as §2 says |
 
 ## Recovery: `phoenix` is gone
 

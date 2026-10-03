@@ -225,12 +225,15 @@ Closes on BloodHound running where nothing attacks it.
 - **A chain, in this order:**
   [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer (written,
   [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md);
-  first build pending, → [runbook](runbooks/build-the-lab-templates.md); Kali's
+  901 built twice and usable, 912 built and to be rebuilt with the
+  `SetupComplete.cmd` fix, 911 not yet built,
+  → [runbook](runbooks/build-the-lab-templates.md); Kali's
   template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
-  [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (written,
-  [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md),
-  state encrypted and its guards in CI; the first apply and its two proofs wait
-  for #440's first build, → [runbook](runbooks/provision-lab-guests.md)) →
+  [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (done
+  2026-10-03,
+  [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md):
+  state encrypted, escrowed, and both proofs run against a real apply,
+  → [runbook](runbooks/provision-lab-guests.md)) →
   [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
   six guests from the pipeline (written,
   [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
