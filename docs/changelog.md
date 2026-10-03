@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **Template 911 (Windows 11 26H2) builds. Three Windows 11-only faults
+  stood in the way, and one more in 912's clones**
+  ([#440](https://github.com/Gerrrt/HomeLab/issues/440)).
+  - **OpenSSH would not install.** `Add-WindowsCapability : Access is
+    denied`. Windows 11 downloads OpenSSH Server through Windows Update,
+    which refuses Packer's WinRM network logon. `openssh.ps1` now runs
+    elevated, as a scheduled task. Server ships it installed.
+  - **Sysprep never finished.** The build waited 45 minutes for a power-off.
+    On the kept disk, `blkid` read the Windows partition as
+    `TYPE="BitLocker"`: Windows 11 turns on device encryption by itself
+    with a TPM and Secure Boot, and sysprep will not generalise an
+    encrypting volume. `PreventDeviceEncryption` is now set in the answer
+    file's `specialize` pass. `sysprep.ps1` fails at once, while WinRM can
+    say so, if the drive is not `FullyDecrypted`. The next build's sysprep
+    took 2m32s.
+  - **SSH to the clone was reset at the first auth request.** sshd's debug
+    log, switched on through the guest agent, read `LsaLogonUser() failed
+    ... Status 0xC000006E SubStatus 0xC0000072`: the built-in Administrator
+    was disabled. Client Windows disables it by default and generalising
+    restores that, so `SetupComplete.cmd` now enables the RID-500 account
+    before starting sshd. Enabling it by hand on the kept clone let
+    `phoenix`'s key in.
+  - **WinRM's clean-up on a clone had silently done nothing, on 912 as well
+    as 911.** WinRM had not started yet when `SetupComplete.cmd` ran, so
+    deleting the build's HTTP listener and turning off Basic auth both
+    failed "cannot connect". The service was disabled afterwards, but the
+    configuration stayed. The script now runs `net start WinRM` first. 912
+    needs a rebuild to carry it.
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`
