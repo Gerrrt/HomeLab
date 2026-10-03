@@ -79,8 +79,9 @@ creation_rules:
   # Grafana admin password. `make secrets-init STACK=sensitive`, run ON
   # trinity, put its recipient below on 2026-09-28 (#688), and it is also
   # what homelab-converge-sensitive decrypts with (#533). The technical
-  # second's recipient (ADR-0024, #294) is still owed here; the tier has held
-  # real data since that day.
+  # second's recipient (ADR-0024, #294) was added by #835, after the tier had
+  # held real data on one key for days. scripts/check_sops_rules.py now fails
+  # if this file, or any whose key guards data, opens with fewer than two.
   #
   # The household holder's key never goes here (ADR-0073): it would open the
   # tier's passwords as well as the household's copy. It goes in

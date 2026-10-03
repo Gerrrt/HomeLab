@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **The sensitive tier's secrets and backups open with two keys, and CI
+  refuses one** ([#835](https://github.com/Gerrrt/HomeLab/issues/835)).
+  - **The gap.** `secrets/sensitive.sops.yaml` was created on 2026-09-28
+    with trinity's key alone. #294, which added the technical second, had
+    closed before this rule existed. The tier's volume backups were encrypted
+    to the same single key, Vaultwarden's included.
+  - **The fix, on trinity.** `make secrets-add-recipient` added the
+    technical second (`age19mkg…`), which re-keyed the file. The next
+    `make backup` encrypted to both keys.
+  - **The guard.** `check_sops_rules.py` now reads each committed file's own
+    recipients. It fails if they differ from the file's rule, or if a file
+    whose key guards data has fewer than two. That covers observability,
+    sensitive and tofu.
+    - soc and lab are left out on purpose: their keys open only credentials a
+      rebuild regenerates. The lab is #671's question.
+    - The guard's first CI run failed on the real file, as it should have.
+
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`

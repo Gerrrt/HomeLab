@@ -52,6 +52,18 @@ What this asserts
    ADR-0073 allows), IS the technical second: it is held to the catch-all like
    one, and is not a plain household key.
 
+5. **A file's recipients are its rule's** (#835). .sops.yaml is policy and the
+   `sops:` block in each committed file is fact; they differ for as long as
+   somebody added a key and forgot `sops updatekeys`, which is the window
+   ADR-0024 calls a recovery path that does not exist.
+
+6. **A stack whose key guards data has two recipients** (#835, ADR-0024).
+   `secrets/sensitive.sops.yaml` was born with one on 2026-09-28, after #294
+   had closed, and its volume backups were encrypted to the same one key for
+   days while the tier held the household's vault. Nothing noticed, because
+   SecretsKeyBackupUnproven checks the recipients that exist, not how many.
+   Which stacks need two is a list, below, with the reason for each.
+
 The paths are derived, not listed: the stacks come from scripts/stacks.sh, the
 one definition of what a stack is, and the firewall backup path is the shape
 scripts/backup-firewall.sh actually writes. A hand-kept list here would be the
@@ -75,6 +87,25 @@ except ModuleNotFoundError:  # pragma: no cover - CI installs it
 REPO = pathlib.Path(__file__).resolve().parent.parent
 POLICY = REPO / ".sops.yaml"
 
+# The secrets files whose key, if lost, loses DATA rather than a credential
+# that can be made again (#835). Each is read from the committed file's own
+# `sops:` block, not from .sops.yaml, for key-recipients.sh's reason.
+#
+# soc and lab are NOT here, deliberately. Their keys open only passwords and
+# tokens that a rebuild regenerates, and neither stack's backups are encrypted
+# to them: losing odin's or alexander's key costs an evening, not a vault. The
+# lab's second key is #671's question, on its own terms.
+SECOND_RECIPIENT_REQUIRED = {
+    "secrets/observability.sops.yaml":
+        "the estate's key also encrypts its volume backups (backup-volumes.sh)",
+    "secrets/sensitive.sops.yaml":
+        "trinity's key also encrypts the tier's volume backups, Vaultwarden's "
+        "among them (backup-volumes.sh STACK=sensitive)",
+    "secrets/tofu.sops.yaml":
+        "the state passphrase: without it the encrypted OpenTofu state is "
+        "unreadable (ADR-0076)",
+}
+
 
 def stacks() -> list[str]:
     listed = subprocess.run(
@@ -86,6 +117,76 @@ def stacks() -> list[str]:
 
 def rule_keys(rule: dict) -> set[str]:
     return {k.strip() for k in str(rule.get("age") or "").split(",") if k.strip()}
+
+
+def file_recipients(path: pathlib.Path) -> set[str]:
+    """The age recipients a committed sops file is encrypted to right now."""
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {
+        str(entry.get("recipient", "")).strip()
+        for entry in ((doc.get("sops") or {}).get("age") or [])
+        if entry.get("recipient")
+    }
+
+
+def check_recipients(
+    files: dict[str, set[str]], rule_for: dict[str, set[str]]
+) -> list[str]:
+    """Checks 5 and 6: each file matches its rule, and the data-guarding ones
+    have two recipients. Pure, so --self-test can hand it fixtures."""
+    problems: list[str] = []
+    for path, have in sorted(files.items()):
+        want = rule_for.get(path)
+        if want is not None and not any(k.startswith("REPLACE_WITH_") for k in want) \
+                and have != want:
+            missing = ", ".join(sorted(want - have)) or "none"
+            extra = ", ".join(sorted(have - want)) or "none"
+            problems.append(
+                f"{path} is encrypted to recipients its rule does not list, or "
+                f"not to ones it does (rule only: {missing}; file only: "
+                f"{extra}). Run `sops updatekeys {path}` on a host that holds "
+                f"one of its keys, or use `make secrets-add-recipient`"
+            )
+        reason = SECOND_RECIPIENT_REQUIRED.get(path)
+        if reason and len(have) < 2:
+            problems.append(
+                f"{path} opens with {len(have)} key — {reason}, so losing that "
+                f"key loses data (ADR-0024). Add the technical second: `make "
+                f"secrets-add-recipient STACK={pathlib.Path(path).name.split('.')[0]} "
+                f"PUBKEY=age1...` on the host that holds the current key"
+            )
+    return problems
+
+
+def self_test() -> int:
+    one, two, three = "age1one", "age1two", "age1three"
+    cases = [
+        ("one recipient on a data-guarding file fails",
+         {"secrets/sensitive.sops.yaml": {one}},
+         {"secrets/sensitive.sops.yaml": {one}}, 1),
+        ("two recipients, matching the rule, passes",
+         {"secrets/sensitive.sops.yaml": {one, two}},
+         {"secrets/sensitive.sops.yaml": {one, two}}, 0),
+        ("one recipient on a regenerable-credentials file passes",
+         {"secrets/soc.sops.yaml": {one}},
+         {"secrets/soc.sops.yaml": {one}}, 0),
+        ("a rule edited without updatekeys fails, even with two in the file",
+         {"secrets/sensitive.sops.yaml": {one, two}},
+         {"secrets/sensitive.sops.yaml": {one, two, three}}, 1),
+        ("a file re-keyed to a recipient the rule lacks fails",
+         {"secrets/soc.sops.yaml": {one, two}},
+         {"secrets/soc.sops.yaml": {one}}, 1),
+        ("a rule still holding its placeholder is not compared",
+         {"secrets/sensor.sops.yaml": {one}},
+         {"secrets/sensor.sops.yaml": {"REPLACE_WITH_SENSOR_AGE_PUBLIC_KEY"}}, 0),
+    ]
+    failed = 0
+    for name, files, rules, want in cases:
+        got = len(check_recipients(files, rules))
+        ok = got == want
+        failed += not ok
+        print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got} problem(s), expected {want})"))
+    return 1 if failed else 0
 
 
 def check_household(rules: list[dict], matched_by: dict[str, str]) -> list[str]:
@@ -177,6 +278,18 @@ def main() -> int:
 
     problems.extend(check_household(rules, matched_by))
 
+    # Checks 5 and 6, over every committed secrets file, tofu's included.
+    files: dict[str, set[str]] = {}
+    rule_for: dict[str, set[str]] = {}
+    for path in sorted((REPO / "secrets").glob("*.sops.yaml")):
+        rel = path.relative_to(REPO).as_posix()
+        files[rel] = file_recipients(path)
+        hit = next((raw for raw, pat in patterns if pat.search(rel)), None)
+        rule = next((r for r in rules if r.get("path_regex") == hit), None)
+        if rule is not None:
+            rule_for[rel] = rule_keys(rule)
+    problems.extend(check_recipients(files, rule_for))
+
     if problems:
         for problem in problems:
             print(f"  {problem}", file=sys.stderr)
@@ -189,4 +302,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        raise SystemExit(self_test())
     raise SystemExit(main())
