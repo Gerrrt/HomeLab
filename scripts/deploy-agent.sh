@@ -134,6 +134,9 @@ ALLOY_DIR="${REPO_ROOT}/stacks/observability/alloy"
 # there. `--tag-only` strips the digest for the .deb URL; the docker runtime
 # keeps it, so a remote host runs exactly the bytes the monitoring host does.
 IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" alloy)"
+# The Docker runtime's socket proxy: the estate's, same digest (#193). Resolved
+# whatever the runtime, because a native host simply never uses it.
+PROXY_IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" docker-socket-proxy)"
 tag="$("${REPO_ROOT}/scripts/image-for.sh" --tag-only alloy)"
 VERSION="${tag##*:v}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "could not read a version out of '${tag}'"
@@ -242,8 +245,9 @@ pass "staged ${FILES[*]} in ${STAGE}"
 # The variables are expanded HERE, on purpose, and passed as an environment
 # prefix rather than as positional arguments: scripts/check_image_pins.py reads
 # this heredoc as shell and requires every `docker run`/`docker pull` in it to
-# name $IMAGE, which it traces to image-for.sh above. Rename it and the check
-# fails, which is the check working.
+# name $IMAGE or $PROXY_IMAGE, which it traces to image-for.sh above. Rename
+# either and the check fails, which is the check working. It also refuses a
+# socket mount on anything but $PROXY_IMAGE.
 #
 # The token is the exception, and it travels differently: as the first line of
 # the script itself, on ssh's stdin. The prefix above becomes the remote
@@ -342,16 +346,49 @@ docker)
   docker run --rm -v /var/lib:/hostvarlib --entrypoint sh "$IMAGE" \
     -c 'mkdir -p /hostvarlib/node_exporter/textfile_collector && chmod 0755 /hostvarlib/node_exporter /hostvarlib/node_exporter/textfile_collector'
 
+  # The socket proxy, before Alloy, and the reason Alloy below has no socket.
+  # `:ro` on the socket does not stop POST /containers/create, so an Alloy
+  # holding it held root on this host. #193 moved the estate's Alloy behind
+  # this proxy and #836 the lab's three; this one was a `docker run` rather
+  # than a compose service, so the compose check could not see it, and it kept
+  # the socket longest. The allowlist is compose.yaml's exactly, flag for flag:
+  # read that file's comment before changing one, especially NETWORKS, whose
+  # absence silently stops container logs. A private network carries the one
+  # client to it, and nothing is published.
+  info "recreating container alloy-socket-proxy (GET-only, #193)"
+  docker pull "$PROXY_IMAGE" >/dev/null
+  docker network inspect alloy >/dev/null 2>&1 || docker network create alloy >/dev/null
+  docker rm -f alloy alloy-socket-proxy >/dev/null 2>&1 || true
+  docker run -d --name alloy-socket-proxy \
+    --network alloy \
+    --restart unless-stopped \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --memory 64m --memory-swap 64m \
+    --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+    -e CONTAINERS=1 -e IMAGES=1 -e INFO=1 -e VERSION=1 -e EVENTS=1 -e NETWORKS=1 \
+    -e POST=0 -e BUILD=0 -e COMMIT=0 -e CONFIGS=0 -e DISTRIBUTION=0 -e EXEC=0 \
+    -e NODES=0 -e PLUGINS=0 -e SECRETS=0 -e SERVICES=0 -e SESSION=0 -e SWARM=0 \
+    -e SYSTEM=0 -e TASKS=0 -e VOLUMES=0 \
+    -v /var/run/docker.sock:/var/run/docker.sock:ro \
+    "$PROXY_IMAGE" >/dev/null
+  require_stable "[[ \$(docker inspect -f '{{.State.Running}}' alloy-socket-proxy 2>/dev/null) == true ]]"
+  pass "alloy-socket-proxy running"
+
   info "recreating container alloy (log gid ${LOG_GID}, alloy gid ${ALLOY_GID}, host label ${HOSTNAME_LABEL})"
-  docker rm -f alloy >/dev/null 2>&1 || true
 
   # compose.yaml's `alloy` service, flag for flag. Read that file's comments
   # before changing anything here; each line below has a measured reason there.
   # No --hostname: ALLOY_HOSTNAME does the labelling, and a container hostname
   # registers a DNS name (config.alloy header). No /var/lib/docker/containers:
   # nothing reads it (#188). 1514/udp is not published: syslog.alloy is not
-  # shipped, so there is nothing listening.
+  # shipped, so there is nothing listening. /rootfs/run is masked, for the
+  # reason compose.yaml's alloy gives: /:/rootfs:ro otherwise carries
+  # /rootfs/run/docker.sock, a read-only mount does not stop connect(), and
+  # Alloy runs as the socket's owner, which would put the API one connect()
+  # away around the proxy above.
   docker run -d --name alloy \
+    --network alloy \
     --restart unless-stopped \
     --init \
     --pids-limit 1024 \
@@ -365,11 +402,12 @@ docker)
     -e LOKI_URL \
     -e PROMETHEUS_REMOTE_WRITE_URL \
     -e INGEST_TOKEN \
+    -e DOCKER_API=tcp://alloy-socket-proxy:2375 \
     -v alloy-config:/etc/alloy:ro \
     -v alloy-data:/var/lib/alloy/data \
-    -v /var/run/docker.sock:/var/run/docker.sock:ro \
     -v /var/log:/var/log:ro \
     -v /:/rootfs:ro \
+    --tmpfs /rootfs/run:size=64k,mode=0755 \
     -p 127.0.0.1:12345:12345 \
     "$IMAGE" run \
       --server.http.listen-addr=0.0.0.0:12345 \
@@ -469,7 +507,7 @@ DEFAULTS
   ;;
 esac
 REMOTE
-} | "${SSH[@]}" "IMAGE='${IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' bash -s"
+} | "${SSH[@]}" "IMAGE='${IMAGE}' PROXY_IMAGE='${PROXY_IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' bash -s"
 
 # ---------------------------------------------------------------------------
 # Did it arrive? Asked of the monitoring host, not the agent.
