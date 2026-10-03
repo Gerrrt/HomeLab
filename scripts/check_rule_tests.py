@@ -55,23 +55,28 @@ def main() -> int:
     checked = 0
     for stack in stacks():
         prom = REPO / "stacks" / stack / "prometheus"
-        rules = sorted((prom / "rules").glob("*.yaml"))
+        # The same globs the real commands use: Prometheus loads *.rules.yaml,
+        # and CI, validate.sh and make check-rules run *.test.yaml. A helper
+        # YAML beside them that promtool never runs must not count as a test.
+        rules = sorted((prom / "rules").glob("*.rules.yaml"))
         if not rules:
             continue
-        tests = sorted((prom / "tests").glob("*.yaml"))
+        tests = sorted((prom / "tests").glob("*.test.yaml"))
         missing = untested([r.read_text(encoding="utf-8") for r in rules],
                            [t.read_text(encoding="utf-8") for t in tests])
         checked += len([m for r in rules for m in ALERT.findall(r.read_text(encoding="utf-8"))])
         for name in missing:
-            if (stack, name) in ALLOWED:
+            if ALLOWED.get((stack, name), "").strip():
                 continue
             problems.append(
                 f"stacks/{stack}: alert {name} has no promtool test. Add a firing "
                 f"case and a quiet near-miss to prometheus/tests/, or an entry in "
                 f"ALLOWED in this script saying why not (#63, #843)"
             )
-        for (s, name) in ALLOWED:
-            if s == stack and name not in missing:
+        for (s, name), reason in ALLOWED.items():
+            if s == stack and not reason.strip():
+                problems.append(f"ALLOWED names {s}/{name} with no reason: an exception needs one")
+            elif s == stack and name not in missing:
                 problems.append(
                     f"ALLOWED names {s}/{name}, which is tested now (or gone): "
                     f"remove the entry"

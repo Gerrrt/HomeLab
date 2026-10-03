@@ -554,6 +554,11 @@ def check_counts(f: dict) -> list[str]:
          "unit-tested rules"),
         (rf"[Oo]ther" + WS + COUNT + WS + r"are still validated", {f["untested_rules"]},
          "rules without a unit test"),
+        # The same count in the wording #843 left it in, once it reached zero:
+        # "the other 0 are still validated" reads as nonsense, and a clearer
+        # sentence that nothing checked would drift silently.
+        (r"leaves" + WS + COUNT + WS + r"rules" + WS + r"without" + WS + r"a" + WS + r"unit" + WS + r"test",
+         {f["untested_rules"]}, "rules without a unit test"),
         # "Coverage is fifteen rules of 45" states two counts and only the
         # first was checked, so the denominator could go stale on its own —
         # the same shape as "39 rules across six files" above, and it did go
