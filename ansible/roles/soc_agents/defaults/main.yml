@@ -28,3 +28,15 @@ soc_agents_wazuh_msi_sha256: "e967f36b75589d6210244fd58239c7021fa53a77c38d92315c
 soc_agents_velociraptor_version: "0.77.2"
 soc_agents_velociraptor_product_id: "{2154C220-4579-49B7-A616-249C6494865F}"
 soc_agents_velociraptor_msi_sha256: "e945e798f395b996364622be9152bd8d51966bf5f6a2abe792bdfff94f495953"
+
+# The GPOs that deployed the agents before this role, and the files their
+# deploy left in the domain scripts share (the Wazuh script carried the
+# enrolment password). roles/soc_agents removes both on the primary DC, so the
+# direct install does not coexist with a GPO deploy or a readable password.
+soc_agents_deploy_gpos:
+  - SOC - Velociraptor
+  - SOC - Wazuh Agent
+soc_agents_sysvol_leftovers:
+  - C:\Windows\SYSVOL\domain\scripts\wazuh-agent.ps1
+  - C:\Windows\SYSVOL\domain\scripts\wazuh-agent.msi
+  - C:\Windows\SYSVOL\domain\scripts\velociraptor-client.msi

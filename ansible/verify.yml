@@ -162,6 +162,15 @@
             }
           }
 
+          # The GPO deploy this role replaced is gone, password script included.
+          if ([bool]::Parse($IsPrimary)) {
+            $r['the SOC deploy GPOs are retired'] =
+              -not (@('SOC - Velociraptor','SOC - Wazuh Agent') |
+                Where-Object { Get-GPO -Name $_ -ErrorAction SilentlyContinue })
+            $r['no enrolment password left in SYSVOL'] =
+              -not (Test-Path 'C:\Windows\SYSVOL\domain\scripts\wazuh-agent.ps1')
+          }
+
           # --- #449: the population, and the generator that runs as it ----------
           if ([bool]::Parse($IsPrimary)) {
             # Exactly the file's accounts: one missing is a run that did not

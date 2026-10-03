@@ -138,3 +138,37 @@
     start_mode: delayed
     state: started
   when: soc_agents_velociraptor_present or not ansible_check_mode
+
+# Retire the two GPOs that deployed these agents before this role did
+# (build-the-soc-guest.md §11). Remove-GPO takes the GPO and its own SYSVOL
+# folder, but the Wazuh startup script and the MSIs live in the domain scripts
+# share, not the GPO folder, so the readable enrolment password only goes when
+# that file does — delete it and the orphaned MSIs explicitly. On a rebuilt
+# domain none of this exists and the task is a no-op; on the hand-built domain
+# it runs once. Primary DC only (the GroupPolicy module and SYSVOL are there).
+- name: Retire the deploy GPOs and their SYSVOL payload
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string[]]$Gpos, [string[]]$Files)
+      Import-Module GroupPolicy
+      $Ansible.Changed = $false
+      foreach ($name in $Gpos) {
+        $g = Get-GPO -Name $name -ErrorAction SilentlyContinue
+        if ($g) {
+          $Ansible.Changed = $true
+          # Remove-GPO drops every link to it as well as the object and its
+          # SYSVOL folder, so the OU gPLinks do not dangle.
+          if (-not $Ansible.CheckMode) { Remove-GPO -Guid $g.Id -ErrorAction Stop }
+        }
+      }
+      foreach ($f in $Files) {
+        if (Test-Path -LiteralPath $f) {
+          $Ansible.Changed = $true
+          if (-not $Ansible.CheckMode) { Remove-Item -LiteralPath $f -Force }
+        }
+      }
+    parameters:
+      Gpos: "{{ soc_agents_deploy_gpos }}"
+      Files: "{{ soc_agents_sysvol_leftovers }}"
+  when: inventory_hostname in groups['dc_primary']
