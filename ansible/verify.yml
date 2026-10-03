@@ -31,7 +31,10 @@
                 [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$LabRole,
                 [string]$PrimaryDc)
           $Ansible.Changed = $false
-          $isDc = [bool]::Parse($IsDc)
+          # Not $isDc: PowerShell names are case-insensitive, so that is the [string]
+          # parameter above, and assigning the bool to it turns it back into "False",
+          # which is truthy. That ran every DC check on every member (#448's first run).
+          $onDc = [bool]::Parse($IsDc)
           $r = [ordered]@{}
           $cs = Get-CimInstance Win32_ComputerSystem
           $if = Get-NetIPConfiguration | Where-Object IPv4DefaultGateway | Select-Object -First 1
@@ -44,7 +47,7 @@
           # Prometheus `role` label, must describe what the guest actually is.
           $want = @{ dc = @(4, 5); member = @(3); endpoint = @(1) }[$LabRole]
           $r["is the $LabRole its inventory says"] = ($want -contains [int]$cs.DomainRole)
-          if (-not $isDc) {
+          if (-not $onDc) {
             $r['secure channel to a DC'] = [bool](Test-ComputerSecureChannel -ErrorAction SilentlyContinue)
           }
           $svc = Get-Service windows_exporter -ErrorAction SilentlyContinue
@@ -79,7 +82,7 @@
             -ErrorAction SilentlyContinue).AutoDetect
           $r['WPAD auto-detect not turned off by policy'] = ($autoDetect -ne 0)
 
-          if ($isDc) {
+          if ($onDc) {
             $bl = Get-DnsServerGlobalQueryBlockList
             $r['GlobalQueryBlockList on, and still blocks wpad'] = ($bl.Enable -and ($bl.List -contains 'wpad'))
             $r['no wpad record'] = -not (Get-DnsServerResourceRecord -ZoneName $Domain -Name wpad `
