@@ -47,6 +47,28 @@ docstring gives: it is a record, not a claim about now.
     failed "cannot connect". The service was disabled afterwards, but the
     configuration stayed. The script now runs `net start WinRM` first. 912
     needs a rebuild to carry it.
+- **The stack's self-monitoring metrics have rules behind them**
+  ([#840](https://github.com/Gerrrt/HomeLab/issues/840)). Each of these was
+  charted on a dashboard, or exported and read by nothing:
+  - `AlertmanagerConfigReloadFailed`, the twin of Prometheus's.
+  - `PrometheusNotificationsFailing`, for send errors or dropped alerts on the
+    hop to Alertmanager.
+  - `PrometheusTsdbFailures`, covering compaction, WAL corruption, block
+    reload and head truncation, each named in a `failure` label.
+  - `AlloyRemoteWriteFailing`, for an agent whose samples are being refused.
+  - `AlloyComponentUnhealthy`, for a pipeline component down while the agent
+    stays up.
+
+  The two Alloy rules read each agent's self-scraped copy (`job=~".+-alloy"`),
+  so the local agent, which is also scraped directly, alerts once. A test
+  holds that, and a version of the rule without the filter fails it.
+  Each rule carries a `dashboard` annotation naming the row and panel to
+  open. Two panels are new under the Prometheus row: TSDB failures, and the
+  alert hand-off to Alertmanager. The TSDB and notification counters are
+  scoped to `job="prometheus"`, as the dashboard's are, so another
+  component's embedded storage cannot page as this server's.
+  Prometheus having no Alertmanager at all is left to the Watchdog heartbeat,
+  because no rule could deliver that page.
 - **No Alloy on the lab segment holds the Docker socket any more**
   ([#836](https://github.com/Gerrrt/HomeLab/issues/836)). Authored; it
   lands on each guest at its next `make up`.
