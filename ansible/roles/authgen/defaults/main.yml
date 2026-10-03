@@ -1,0 +1,14 @@
+---
+# The share the generator lists. titan's, because §6's 5140 is read there.
+authgen_share: \\titan\Public
+
+# Where each endpoint records which credential its task holds: a truncated
+# sha256 of the derived password, written only after the task registered. The
+# task's password is set whenever this differs from the current one, so a
+# rotation an endpoint missed (unreachable, or a failed registration) is
+# repaired by the next ordinary run, and a healthy task is left alone.
+authgen_marker_path: HKLM:\SOFTWARE\Lab\authgen
+authgen_marker_name: CredentialFingerprint
+
+# Set the stored password regardless of the marker: `-e authgen_update_password=true`.
+authgen_update_password: false
