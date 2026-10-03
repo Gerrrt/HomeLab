@@ -913,8 +913,16 @@ this closes on.
   the socket. It is started by `deploy-agent.sh` as a `docker run`, not from a
   compose file, so no compose check could see it. The script now starts
   `alloy-socket-proxy` beside it, with the same image and allowlist, on a
-  private network. `check_image_pins.py` now refuses a socket bind in any
-  `docker run` in the repository except the proxy's, traced by image.
+  private network. Its `/rootfs/run` is an empty tmpfs, because
+  `/:/rootfs:ro` otherwise carries the socket past the proxy: a read-only
+  mount does not stop `connect()`, and Alloy is the socket's owner.
+  `check_image_pins.py` refuses any `docker run` in the repository, other than
+  the proxy's (traced by image), that reaches the socket. It looks for three
+  things:
+
+  - the socket under either spelling;
+  - its directory;
+  - the host's `/` with no `--tmpfs` over `<target>/run`.
   `docker.alloy` still falls back to the socket when `DOCKER_API` is unset, so
   an agent deployed before this keeps working until its next `deploy-agent.sh`
   run.

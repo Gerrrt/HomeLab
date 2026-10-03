@@ -364,7 +364,11 @@ docker)
   # No --hostname: ALLOY_HOSTNAME does the labelling, and a container hostname
   # registers a DNS name (config.alloy header). No /var/lib/docker/containers:
   # nothing reads it (#188). 1514/udp is not published: syslog.alloy is not
-  # shipped, so there is nothing listening.
+  # shipped, so there is nothing listening. /rootfs/run is masked, for the
+  # reason compose.yaml's alloy gives: /:/rootfs:ro otherwise carries
+  # /rootfs/run/docker.sock, a read-only mount does not stop connect(), and
+  # Alloy runs as the socket's owner, which would put the API one connect()
+  # away around the proxy above.
   docker run -d --name alloy \
     --network alloy \
     --restart unless-stopped \
@@ -385,6 +389,7 @@ docker)
     -v alloy-data:/var/lib/alloy/data \
     -v /var/log:/var/log:ro \
     -v /:/rootfs:ro \
+    --tmpfs /rootfs/run:size=64k,mode=0755 \
     -p 127.0.0.1:12345:12345 \
     "$IMAGE" run \
       --server.http.listen-addr=0.0.0.0:12345 \

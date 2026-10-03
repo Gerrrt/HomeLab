@@ -28,10 +28,12 @@ docstring gives: it is a record, not a claim about now.
   - **The fix.** The script's Docker runtime now starts
     `alloy-socket-proxy` beside Alloy on a private `alloy` network, with the
     estate's image and GET-only allowlist. Alloy reads the API through
-    `DOCKER_API`.
-  - **The guard.** `check_image_pins.py` refuses a socket bind in any
-    `docker run` in the repository except the proxy's, traced by image, with
-    five fixtures. Its first run found this one site and nothing else.
+    `DOCKER_API`, and its `/rootfs/run` is masked, so `/:/rootfs:ro` no longer
+    carries the socket past the proxy (the same review finding as #836).
+  - **The guard.** `check_image_pins.py` refuses any `docker run` other than
+    the proxy's, traced by image, that reaches the socket. That means the
+    socket under either spelling, its directory, or an unmasked host `/`.
+    Nine fixtures. Its first run found this one site and nothing else.
 
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
