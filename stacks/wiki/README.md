@@ -1,5 +1,12 @@
 # Wiki stack
 
+[![host: oracle](https://img.shields.io/badge/host-oracle-30363d?style=plastic)](../../docs/network.md#winterfell--vlan-99--management)
+[![VLAN 99: Winterfell](https://img.shields.io/badge/VLAN%2099-Winterfell-f85149?style=plastic)](../../docs/network.md#winterfell--vlan-99--management)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
+[![Wiki.js](https://img.shields.io/badge/Wiki.js-1976D2?style=plastic&logo=wikidotjs&logoColor=white)](https://js.wiki)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=plastic&logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
 The Lemmiwinks wiki: Wiki.js and its Postgres, on `oracle` (`10.0.99.30`,
 VLAN 99). It is the middle of [ADR-0011]'s three documentation tiers, the one
 the household reads, on the host [ADR-0015] ratified for it. It has run there

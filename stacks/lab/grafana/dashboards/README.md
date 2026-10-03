@@ -1,5 +1,8 @@
 # Lab dashboards
 
+[![part of stacks/lab](https://img.shields.io/badge/part%20of-stacks%2Flab-30363d?style=plastic)](../../../../stacks/lab/README.md)
+[![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
+
 There are none yet, and that is a decision rather than an omission.
 
 The estate has seven, and copying them here is the obvious move and the wrong
@@ -13,15 +16,17 @@ panels and one that works, and an empty panel is indistinguishable from a
 broken collector — which is the failure mode this repository has been bitten by
 more than any other (#62, #63, #71).
 
-What the lab needs is not known yet, because the thing it exists to observe
-does not exist yet. The Windows domain is [#265]; Wazuh is [#266]. Both come
-with their own questions about what is worth drawing.
+What the lab needs was not known while the thing it exists to observe did not
+exist. It does now: the Windows domain [#265] decided was built on 2026-09-24
+and 2026-09-25 ([#414]), and Wazuh ([#266]) on 2026-09-27. Both come with their own questions about what is
+worth drawing, and neither has been answered with a dashboard yet.
 
 **[#265] is decided and still ships no dashboard**, which is this file's own
-argument applied to itself. ADR-0029's six guests are not built, so a domain
-panel set would render exactly the rows of empty panels described above — and
-two of the six are meant to be switched off most of the time, so even once it is
-built, "no data" is the correct reading for a third of it rather than a fault.
+argument applied to itself. When it was decided, ADR-0029's six guests were not
+built, so a domain panel set would have rendered exactly the rows of empty
+panels described above. They are built now, and the other half of the argument
+still holds: two of the six are meant to be switched off most of the time, so
+"no data" is the correct reading for a third of it rather than a fault.
 The three domain rules in `../../prometheus/rules/lab.rules.yaml` are visible in
 Prometheus's own `/alerts` and in Explore, which is enough for the state the lab
 is actually in.
@@ -56,3 +61,4 @@ Two things about this stack specifically:
 [#263]: https://github.com/Gerrrt/HomeLab/issues/263
 [#265]: https://github.com/Gerrrt/HomeLab/issues/265
 [#266]: https://github.com/Gerrrt/HomeLab/issues/266
+[#414]: https://github.com/Gerrrt/HomeLab/issues/414

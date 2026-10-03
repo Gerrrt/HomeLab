@@ -1,5 +1,8 @@
 # Secrets
 
+[![SOPS](https://img.shields.io/badge/SOPS-6f42c1?style=plastic)](https://github.com/getsops/sops)
+[![age](https://img.shields.io/badge/age-6f42c1?style=plastic)](https://github.com/FiloSottile/age)
+
 Secrets are encrypted with [SOPS](https://github.com/getsops/sops) using an
 [age](https://github.com/FiloSottile/age) key, committed in encrypted form, and
 decrypted only in memory at deploy time.
@@ -11,8 +14,11 @@ decrypted only in memory at deploy time.
 | `~/.config/sops/age/keys.txt` | **never** | n/a | The private key |
 
 Every stack under `stacks/` has an example here in the same shape, except
-`stacks/media`, which has none by decision:
-[`docs/security.md`](../docs/security.md) § Secrets says why.
+two. `stacks/media` has none by decision:
+[`docs/security.md`](../docs/security.md) § Secrets says why. `stacks/wiki`
+has none because its one secret, the database role's password, lives in a
+file on `oracle` readable by uid 1000 alone, and never passes through SOPS:
+[its README](../stacks/wiki/README.md#the-one-secret) says where and why.
 
 **One encrypted file belongs to no stack: `tofu.sops.yaml`.** It is the escrow
 copy of `tofu/`'s state passphrase
