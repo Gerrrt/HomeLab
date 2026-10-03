@@ -1848,9 +1848,12 @@ closes on.** A pulled data cable on one Exos, with the pool still reading
 `ONLINE`, has to page `ZpoolVdevNotOnline` within about seven minutes. Do it
 only with §6.2's newest backup set verified, and with both leaves ONLINE and
 the last scrub clean, because for its duration the mirror is one disk. At the
-console, `zpool status erebor` first to name the leaf, then pull the SATA
-data cable of the Exos whose serial you read off the label (the power cable
-stays in). Watch `zpool status erebor`: record the pool's `state:` line and
+console, `zpool status erebor` first, then pull the SATA data cable of one
+Exos (the power cable stays in), following it from a 3.5" caddy and not from
+the boot SSD. Which Exos does not matter: either is a full copy. The caddy
+covers the serial, so name the disk afterwards. The leaf `zpool status`
+marks is the partuuid, and the serial missing from
+`lsblk -o NAME,SERIAL,PARTUUID` is the drive. Watch `zpool status erebor`: record the pool's `state:` line and
 the leaf's state verbatim. **If the pool reads DEGRADED**, `ZpoolNotOnline`
 is the page and `ZpoolVdevNotOnline` correctly stands down. Both outcomes are
 a page, and the reading says which rule this hardware hands the fault to.
@@ -1859,9 +1862,54 @@ brought it back by itself, and let the resilver finish before anything else.
 `zpool offline -t` is **not** a substitute: an offlined leaf takes the pool to
 DEGRADED by definition, so it tests `ZpoolNotOnline`, not this.
 
-> **Not yet done.** The date, step 1's readings, and step 5's pool and leaf
-> states and the time from the pull to the page go here, and
-> [#744](https://github.com/Gerrrt/HomeLab/issues/744) closes on them.
+> **Done 2026-10-02 (steps 1–4) and 2026-10-03 (step 5).**
+>
+> **Step 1 was the first run against this host's real `zpool status -j`.**
+> The JSON parse had only been built from the OpenZFS 2.3 source. It read
+> `erebor` 2 leaves and `boot-pool` 1, all `online`, every counter 0, and
+> every `vdev=` a partuuid. That includes `boot-pool`'s, which zpool prints
+> as a kernel name and the collector resolved.
+>
+> **Step 3 failed first, and the stale rule caught it.** Step 2's `ls` line
+> went into the Command field with the collector. TrueNAS joined the two
+> lines, and the script stopped on `unknown argument ls` every five minutes
+> (TrueNAS jobs 545 and 559, 14:55 and 15:00). A failed run writes nothing,
+> so the file stopped moving and `ZpoolVdevStateStale` fired. With the field
+> corrected, the 15:15 run wrote it, and from the monitoring host
+> `node_textfile_scrape_error` read **0** with all 17 series matching step 1.
+> The tables in §6.4, §6.7 and here now give each command its own block
+> ([#820](https://github.com/Gerrrt/HomeLab/pull/820)).
+>
+> **smaug rebooted before step 5, and the Exos swapped letters.** The
+> collector's series did not move, because they are keyed on GUID. The file
+> was 118 s old afterwards, so the job survived the reboot. The leaves, read
+> with `lsblk` during the drill:
+>
+> | Partuuid | Serial | Drive |
+> | --- | --- | --- |
+> | `52dfceb0-0c58-476b-be76-ec30184c3781` | `ZVTBS4NL` | Exos, original pair |
+> | `9362abc8-9bc8-4045-9095-f50f03f230c6` | `ZVTLQEZ7` | Exos, fitted 2026-09-29 |
+> | `770066d6-4cf0-47f6-b826-a625335aa556` | `PHDV706401TM240AGN` | S3520, `boot-pool` |
+>
+> **Step 5, 2026-10-03.** Before it: both leaves ONLINE, last scrub
+> 2026-09-29 with 0 errors, newest NAS set `20261003T034255Z` verified with
+> `./data/jellyfin.db present`. `ZVTBS4NL`'s data cable was pulled at
+> **06:08 PDT**. `zpool status erebor` read **`state: DEGRADED`**, with
+> `52dfceb0-…` **REMOVED** and `9362abc8-…` ONLINE. The exporter kept
+> answering: `node_zfs_zpool_state` and `homelab_zpool_state` both read
+> `degraded`, and the leaf series read `removed`. **`ZpoolNotOnline` paged
+> at 06:13**, five minutes after the pull, which is the scrape plus its
+> `for`. **`ZpoolVdevNotOnline` did not fire**, so the stand-down works and
+> one fault gave one page. The cable was reseated and the leaf resilvered at 06:28:21: 392 KiB, the writes it had missed, in under a second with 0 errors. Both leaves are ONLINE with every counter at 0.
+>
+> **What it shows about this hardware.** On the chipset's AHCI ports, a
+> pulled cable is a clean removal, and the pool goes DEGRADED at once. That
+> is `ZpoolNotOnline`'s case. 2026-09-19's FAULTED leaf under an ONLINE pool
+> came through the MegaRAID's sixty-second timeouts, and ADR-0052 took that
+> controller out. So a cable pull cannot reproduce that reading here.
+> `ZpoolVdevNotOnline` stays armed for it, against the unit test built from
+> the 09-19 output, and for anything else that faults a leaf without
+> degrading the pool.
 
 ## §7 — Verify
 

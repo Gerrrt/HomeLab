@@ -554,9 +554,10 @@ same port still inherits the old one's readings until the file is rewritten.
   five-minute root cron job writes `zpool status -j` leaf states into the same
   textfile directory, keyed by GUID and named by partuuid, and
   `ZpoolVdevNotOnline` pages on a leaf that is not ONLINE under a pool that
-  is — this fault, read the way the pool printed it. It is live once
-  [`build-the-nas.md`](build-the-nas.md) §6.8 has run at the console, and
-  that section's step 5 is the pulled-cable drill #744 closes on.
+  is — this fault, read the way the pool printed it. Live since 2026-10-02
+  ([`build-the-nas.md`](build-the-nas.md) §6.8). The cable pull of
+  2026-10-03 took the pool to DEGRADED on the chipset ports. `ZpoolNotOnline`
+  paged in five minutes, and the leaf rule correctly stood down.
   TrueNAS's own alert service stays where it is, a mailbox and the web UI,
   by decision rather than by default: the ADR declines it as the paging path.
 - **The exporter's hang was the fault, not a habit.** It came back on a
