@@ -6,6 +6,10 @@
 - name: Forward to the gateway, with no root hints
   ansible.windows.win_powershell:
     script: |
+      # SupportsShouldProcess is what makes win_powershell run this in check mode,
+      # where $Ansible.CheckMode keeps it read-only. Without it --check reported a
+      # change here on every run instead of looking (#448's first run).
+      [CmdletBinding(SupportsShouldProcess)]
       param([string]$Forwarder)
       $changed = $false
       $f = Get-DnsServerForwarder

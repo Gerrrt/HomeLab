@@ -12,6 +12,18 @@ ansible-playbook lab-domain.yml                  # apply
 ansible-playbook verify.yml                      # read-only proof
 ```
 
+**What `--check` cannot preview.** On a guest this playbook has never
+touched, the `exporter` stage fails in check mode. `base` would create
+`C:\ProgramData\lab`, but check mode does not, so the download into it has
+nowhere to land. The play runs one guest at a time, so that first failure ends
+it, and the `exporter` and `licence` stages go unpreviewed everywhere. The
+real run is unaffected. A `win_powershell` script runs in check mode only if
+it declares `[CmdletBinding(SupportsShouldProcess)]`. Every script here that
+writes either does, and guards the write with `$Ansible.CheckMode`, or is
+skipped in check mode by `when: not ansible_check_mode` beside a read-only
+probe, as `base`'s static address is. A new one that does neither reports a
+change on every `--check` instead of looking.
+
 Run it from this directory, because `ansible.cfg` is read from the current
 directory. Installing Ansible and the collections on `phoenix`, the two
 secrets, and the one-time step that lets the hand-built six be reached are

@@ -30,6 +30,10 @@
 - name: Sync the PDC emulator's clock from the gateway
   ansible.windows.win_powershell:
     script: |
+      # SupportsShouldProcess is what makes win_powershell run this in check mode,
+      # where $Ansible.CheckMode keeps it read-only. Without it --check reported a
+      # change here on every run instead of looking (#448's first run).
+      [CmdletBinding(SupportsShouldProcess)]
       param([string]$Peers)
       $p = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters'
       $c = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Config'
