@@ -17,7 +17,7 @@ standard as the rest, and linted by `actionlint` and `zizmor` in
 
 | Workflow | Runs on | Jobs |
 | --- | --- | --- |
-| [`ci.yml`](workflows/ci.yml) — **CI** | every push, every pull request, by hand | **Lint**: [`scripts/lint.sh`](../scripts/lint.sh). **Validate configs**: [`scripts/validate.sh`](../scripts/validate.sh), the same script `make validate` runs. **Boot hardened services**: starts Home Assistant, ntfy, linkding, Stirling-PDF and Actual under their real hardening and waits for each to be healthy. **Secret scan**: gitleaks over the whole history |
+| [`ci.yml`](workflows/ci.yml) — **CI** | pushes to `main`, every pull request, by hand | **Lint**: [`scripts/lint.sh`](../scripts/lint.sh). **Validate configs**: the checks [`scripts/validate.sh`](../scripts/validate.sh) runs for `make validate`, as individual steps calling the same scripts rather than the wrapper. **Boot hardened services**: starts Home Assistant, ntfy, linkding, Stirling-PDF and Actual under their real hardening and waits for each to be healthy. **Secret scan**: gitleaks over the whole history |
 | [`close-keywords.yml`](workflows/close-keywords.yml) — **Close keywords** | every pull request | **No close keyword in prose**: fails a title, body or commit whose `Closes #N` would close an issue the sentence says stays open ([`check_close_keywords.py`](../scripts/check_close_keywords.py)) |
 | [`digests.yml`](workflows/digests.yml) — **Digest drift** | Mondays 07:00 UTC, by hand | **Pinned digests still match the registry**: catches a tag moved under a pin. **The ruleset on main matches `rulesets/main.json`**: catches a ruleset edited in the UI |
 

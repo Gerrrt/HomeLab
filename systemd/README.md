@@ -8,9 +8,11 @@ The schedule. Every unit here is a `.service` and `.timer` pair, and they are
 what stop backups, proofs and deployment being things someone has to remember
 ([#77](https://github.com/Gerrrt/HomeLab/issues/77)). Two rules make that hold:
 
-- **A job that stops running pages.** Each scheduled job reports its outcome
-  as `homelab_job_*` metrics, and the alert rules fire on a job going *stale*
-  as well as on one that failed. A dead timer is as loud as a broken script.
+- **A job that stops running pages.** On the monitoring host and `trinity`,
+  each scheduled job runs through `run-scheduled.sh` and reports its outcome as
+  `homelab_job_*` metrics. The alert rules fire on a job going *stale* as well
+  as on one that failed, so a dead timer is as loud as a broken script. Agent
+  hosts work differently; see [below](#on-agent-hosts).
 - **The table, the units and the alerts agree.** The schedule is a table in
   [`scripts/install-timers.sh`](../scripts/install-timers.sh), with each
   job's staleness threshold beside it. `make check-timers` fails when a unit
@@ -90,7 +92,7 @@ installs only the collectors a host can run, and reports the rest as skipped.
 | `homelab-guest-disk-state` | every 10 min | `Saruman` | How full the guests' filesystems are |
 | `homelab-thin-pool-state` | every 10 min | `Saruman` | How full the LVM-thin pools are |
 | `homelab-iso-store-state` | daily 04:30 | `Saruman` | The ISO store against the repository's checksums |
-| `homelab-zeek-mirror` | 2 min after boot | `Saruman` | Builds the `tc` mirror of the lab bridge to `fenrir` |
+| `homelab-zeek-mirror` | 2 min after boot, then every minute | `Saruman` | Builds the `tc` mirror of the lab bridge to `fenrir`, and re-applies it every minute |
 | `homelab-zeek-mirror-state` | every 5 min | `Saruman` | Whether that mirror carries packets |
 
 ## Adding a timer

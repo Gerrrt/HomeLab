@@ -23,8 +23,9 @@ Two conventions hold across all of them:
 
 ## Validate: what CI runs
 
-`validate.sh` runs every row here except the last three, which CI runs as jobs
-or workflows of their own.
+`validate.sh` runs every row here except the last three. CI runs the first two
+of those as a job and a workflow of their own. The third runs on `phoenix`,
+and only its fixtures run in CI, through `self-tests.sh`.
 
 | Script | `make` | Checks |
 | --- | --- | --- |
@@ -59,7 +60,7 @@ or workflows of their own.
 | `seed-ha-http.sh`, `seed-actual-password.sh` | via `up` | First-start state for Home Assistant and Actual, written before anything can reach them |
 | `deploy-agent.sh` | `deploy-agent` | Deploys the Alloy agent on a monitored host, with no privilege on the target |
 | `install-timers.sh` | `install-timers`, `check-timers` | The schedule, and the staleness each job's alert allows — see [`systemd/`](../systemd/README.md) |
-| `install-agent-collectors.sh` | `install-agent-collectors` | The textfile collectors on an agent host; the one script meant to be run by hand |
+| `install-agent-collectors.sh` | `install-agent-collectors` | The textfile collectors on an agent host. Run by hand, once per host, with a TTY for its sudo prompt |
 | `run-scheduled.sh` | — | Runs a job under a lock and records its outcome as `homelab_job_*` metrics |
 | `stacks.sh`, `compose-guards.sh`, `image-for.sh` | — | The list of stacks, a stack's required variables, and a service's pinned image — each defined once |
 | `pin-digests.sh` | `pin-digests`, `check-digests` | Re-resolves every image digest, or checks they still match the registry |
