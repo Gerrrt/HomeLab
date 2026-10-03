@@ -128,6 +128,87 @@ groups:
             Either every Alloy agent is down or the push endpoint is
             unreachable. Logs are being lost, not queued indefinitely.
 
+      # --- The Loki ruler (#837) --------------------------------------------
+      #
+      # Every security alert is evaluated by Loki's ruler, not by Prometheus
+      # (loki/rules/security.rules.yaml), and the Watchdog above proves only
+      # Prometheus's path. These three watch the ruler from here, so a ruler
+      # that stops is reported by the path the heartbeat already proves.
+      # The observability dashboard charted the first metric for months; no
+      # rule read it.
+      - alert: LokiRuleEvaluationFailures
+        # One group failing, not the ruler: a LogQL query over a limit, a
+        # parse the boot check missed, storage trouble on a range. Warning,
+        # because the other groups still run.
+        expr: sum by (rule_group) (increase(loki_prometheus_rule_evaluation_failures_total[10m])) > 0
+        for: 10m
+        labels:
+          component: stack
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "Loki rule group {{ $labels.rule_group }} is failing to evaluate"
+          description: >-
+            Every alert in that group is silent while this fires. `docker logs
+            loki 2>&1 | grep -i ruler` names the rule and the error. Most of
+            loki/rules/ is security alerting, so read it as a security gap, not
+            a cosmetic one.
+
+      - alert: LokiRulerNotificationsFailing
+        # The ruler evaluates, decides to alert, and cannot hand the alert to
+        # Alertmanager: errors are failed sends, drops are a full queue. Either
+        # way a security page that fired was never delivered. Critical, so it
+        # goes to `urgent`, which carries an ntfy.sh copy.
+        expr: |
+          sum(increase(loki_prometheus_notifications_errors_total[10m])) > 0
+          or sum(increase(loki_prometheus_notifications_dropped_total[10m])) > 0
+        for: 10m
+        labels:
+          component: stack
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "The Loki ruler cannot deliver alerts to Alertmanager"
+          description: >-
+            Log-based alerts, the security ones among them, are firing and
+            being lost between Loki and Alertmanager. Check that
+            alertmanager:9093 is up and that loki-config.yaml's
+            alertmanager_url still names it.
+
+      - alert: LokiRulerSilent
+        # The ruler has sent nothing for fifteen minutes. It cannot be idle:
+        # LokiRulerWatchdog (loki/rules/watchdog.rules.yaml) fires forever, and
+        # the ruler re-sends a firing alert every minute, so this counter
+        # climbs for as long as the ruler is evaluating and has an Alertmanager
+        # to send to. Flat means it stopped doing one of those.
+        #
+        # sent_total counts attempts, failures included, so a broken send
+        # still climbs it; LokiRulerNotificationsFailing above covers that.
+        #
+        # `or absent(...)` is deliberate. Loki down is InstanceDown's to
+        # report, but a renamed metric after a Loki upgrade would otherwise
+        # turn this rule into one that can never fire, the failure this whole
+        # repository keeps finding. Absent therefore pages too, and the fix is
+        # to read the metric name again.
+        expr: |
+          sum(increase(loki_prometheus_notifications_sent_total[15m])) == 0
+          or absent(loki_prometheus_notifications_sent_total)
+        for: 5m
+        labels:
+          component: stack
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "The Loki ruler has sent nothing to Alertmanager for 20 minutes"
+          description: >-
+            Every log-based alert, the security ones among them, is silent:
+            the ruler's own always-firing LokiRulerWatchdog has stopped
+            reaching Alertmanager. Look at `docker logs loki 2>&1 | grep -i
+            ruler`, then at the ruler's view of its rules:
+            `curl -s localhost:3100/prometheus/api/v1/rules` on the monitoring
+            host. If loki_prometheus_notifications_sent_total is absent rather
+            than flat, check whether a Loki upgrade renamed it.
+
       - alert: RemoteWriteJobStale
         # THE RULE InstanceDown CANNOT BE.
         #
