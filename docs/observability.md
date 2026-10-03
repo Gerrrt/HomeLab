@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-147 rules in total: 129 metric-based in `prometheus/rules/`, and 18 log-based in
+145 rules in total: 127 metric-based in `prometheus/rules/`, and 18 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -450,7 +450,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-129 rules across eleven files in `prometheus/rules/`:
+127 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -485,9 +485,11 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 109 rules of 129 so far — all ten
+against the broken rule too. Coverage is 127 rules of 127 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all ten
 in `blackbox.rules.yaml`, both in `dns.rules.yaml`, `ContainerHighMemory`,
-`ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled` and
+`ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
+the three container-state rules from
+[#838](https://github.com/Gerrrt/HomeLab/issues/838) and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all seven in
 `backup.test.yaml`, all eight in `deploy.test.yaml`, the five self-monitoring
@@ -515,11 +517,16 @@ from [#483](https://github.com/Gerrrt/HomeLab/issues/483), the three ZFS leaf ru
 [#576](https://github.com/Gerrrt/HomeLab/issues/576), the four guest-disk rules from
 [#778](https://github.com/Gerrrt/HomeLab/issues/778), the two Zeek mirror rules from
 [#437](https://github.com/Gerrrt/HomeLab/issues/437), and the two silence rules from
-[#575](https://github.com/Gerrrt/HomeLab/issues/575).
-The other 20 are still validated for syntax only, which is exactly the
-standing #63 had. Both numbers are checked by `scripts/check_docs.py` — the
-sentence they replaced claimed six and named two, and had been wrong for
-weeks.
+[#575](https://github.com/Gerrrt/HomeLab/issues/575), and the last twenty from
+[#843](https://github.com/Gerrrt/HomeLab/issues/843): the nine UPS rules, seven
+network rules, three stack rules and `ContainerOomKilled`.
+That leaves 0 rules without a unit test. The first test of `SwitchInterfaceDown`
+showed it had been unable to fire since it was written: it required the port's
+hourly maximum to be 1 while the port read 2. `scripts/check_rule_tests.py`
+now fails CI on any alert, in any stack, that no test selects. It checks per
+rule, where the older per-stack guard only refused a stack with no tests at
+all. Both numbers here are checked by `scripts/check_docs.py` — the sentence
+they replaced claimed six and named two, and had been wrong for weeks.
 
 `ContainerCpuThrottled` is the odd one in that list: it is
 inert in production and cannot fire against anything cAdvisor

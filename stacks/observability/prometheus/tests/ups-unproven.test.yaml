@@ -1,0 +1,48 @@
+---
+# UpsBatteryUnproven alone (#843), in a file of its own for its evaluation
+# interval. The rule looks back seven days, so its test has to run at least
+# seven days of evaluations. At the 1m interval ups.test.yaml uses, that was
+# ten thousand evaluations of every rule in ups.rules.yaml: 100 seconds of CI
+# for one case. 15m is plenty against a 30m `for`.
+rule_files:
+  - ../rules/ups.rules.yaml
+
+evaluation_interval: 15m
+
+tests:
+  # UpsBatteryUnproven: noTestsInitiated(6) through the whole seven-day window fires
+  # after its 30m `for`. The spare passed one test (1) four days in and has read 6
+  # since, so it was proved inside the window and must stay quiet. 5m samples: a 1m
+  # series over 7d evaluated every minute exceeds promtool's sample limit, and 5m
+  # is still inside the 5m lookback, so the rule sees continuous data.
+  - interval: 5m
+    input_series:
+      - series: 'upsTestResultsSummary{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "6x2040"
+      - series: 'upsTestResultsSummary{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "6x1152 1 6x887"
+    alert_rule_test:
+      - eval_time: 7d1h
+        alertname: UpsBatteryUnproven
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsBatteryUnproven
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "UPS mjolnir has not completed a self-test in 7 days"
+              description: >-
+                upsTestResultsSummary has read 6 (noTestsInitiated) for seven days,
+                so the UPS has not proven it can carry the load inside that window.
+                That is what this rule detects and all it detects. It is not proof
+                the schedule has failed: this card is set to biweeklySinceLastTest,
+                a fourteen-day interval, so a card whose counters have just been
+                reset can sit at 6 for a fortnight while the schedule is working.
+                Read the schedule and the last-test date before concluding either
+                way — scripts/snmp-walk.sh --device mjolnir
+                1.3.6.1.4.1.318.1.1.1.7.2 — and if the schedule is off, turn it on
+                rather than running tests by hand.

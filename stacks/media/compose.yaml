@@ -548,6 +548,13 @@ services:
       # Jellyfin's bind mount relies on — but build-the-nas.md §6.4 creates it
       # first so the first scrape after `up` has a file to serve.
       - ${SMART_TEXTFILE_PATH:?}:/textfile:ro
+    # The host's /run masked inside /host (#836): it carries TrueNAS's Docker
+    # socket, and a read-only mount does not stop connect(). Uid 65534 cannot
+    # open a root:docker 0660 socket today, but that rests on one `user:` line;
+    # the mask does not. tmpfs series are excluded from every host.rules.yaml
+    # rule, so the /run filesystem series this changes is read by nothing.
+    tmpfs:
+      - /host/run:size=64k,mode=0755
     # PUBLISHED, with a named off-host consumer as ADR-0012 asks: Prometheus at
     # 10.0.99.20, through the `99 → 40:9100` pass created and verified in
     # position on 2026-09-16 (build-the-nas.md §0.5). That pass is what makes

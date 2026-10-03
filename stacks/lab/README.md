@@ -12,12 +12,14 @@ make up STACK=lab        # from the repository root
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `prometheus` | `prom/prometheus` | *internal* | Metrics store, remote-write receiver, rule evaluation |
-| `loki` | `grafana/loki` | *internal* | Log store |
-| `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards — the only published port, and the only service that terminates TLS or authenticates |
+| `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
+| `loki` | `grafana/loki` | 3100 (localhost) | Log store |
+| `caddy` | `caddy` | 9090, 3100 on 10.0.30.40 | The ingest proxy: odin, phoenix and fenrir push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]) |
+| `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards, the one service a human opens |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 
-Four services, where the estate has seven. What is absent is as deliberate as
+Six services, where the estate has seven. What is absent is as deliberate as
 what is here:
 
 - **No Alertmanager.** Nothing in the lab pages. ADR-0020 decided it, and it is
@@ -40,7 +42,8 @@ pass ([#88]).
 ## Layout
 
 ```text
-compose.yaml               four services, one network, health-gated ordering
+compose.yaml               six services, one network, health-gated ordering
+Caddyfile                  the ingest proxy's token table and path allowlist
 .env.example               non-sensitive tunables — edit this, not .env
 prometheus/
   prometheus.yaml          four scrape jobs; no alerting block, no file_sd;
@@ -66,6 +69,62 @@ from a hand-copied agent setup; its header states the rule as *"the fix is to
 not copy."* `syslog.alloy` is not mounted: it opens a UDP listener for the
 firewall's logs, which is the monitoring host's job and would be the wrong
 thing entirely on this segment.
+
+## The ingest proxy, and the order it goes in
+
+Since [#834], `caddy` holds `10.0.30.40:9090` and `:3100`, and Prometheus and
+Loki are on loopback. odin, phoenix and fenrir push with a token each, and
+everything else on the segment gets a 401, except the two health paths
+(`/-/healthy` and `/-/ready` on 9090, `/ready` on 3100), which answer without a
+token. The 401s include `/-/quit`, Loki's
+delete API, and any query without the reader token.
+
+**Clients first, then the proxy.** Prometheus and Loki ignore an
+`Authorization` header they do not need, so a client that starts sending its
+token early loses nothing. A proxy that goes up before its clients refuses
+their pushes until each one catches up.
+
+1. **On `alexander`**, generate four tokens with `openssl rand -hex 32` and add
+   them with `make secrets-edit STACK=lab`. The keys are `INGEST_TOKEN_ODIN`,
+   `_PHOENIX`, `_FENRIR` and `_READER`, and
+   [`secrets/lab.example.yaml`](../../secrets/lab.example.yaml) says where each
+   one goes. Do not `make up` yet.
+2. **On `odin`**, set `INGEST_TOKEN` to `INGEST_TOKEN_ODIN` with `make
+   secrets-edit STACK=soc`, then `make up STACK=soc`.
+3. **On `fenrir`**, which has no secrets file yet, follow
+   [`build-the-sensor-guest.md`](../../docs/runbooks/build-the-sensor-guest.md)
+   §4: install `sops` and `age`, then run `make secrets-init STACK=sensor` and
+   `make secrets-edit STACK=sensor`, then `make up STACK=sensor`. Commit
+   `.sops.yaml` and the new file through a pull request.
+4. **From the Mac**, export `INGEST_TOKEN` (phoenix's) and
+   `INGEST_TOKEN_READER`, then re-run `deploy-agent.sh` for phoenix
+   ([`build-the-jumpbox.md`](../../docs/runbooks/build-the-jumpbox.md) §6).
+5. **On `alexander`**, `make up STACK=lab`. The proxy is now in front.
+
+**Then prove it.** From any VLAN 30 address, or on `alexander` against its own
+address, each of these must print `401`:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.0.30.40:9090/-/quit
+```
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.0.30.40:3100/loki/api/v1/delete
+```
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.0.30.40:9090/api/v1/write
+```
+
+The three clients must still deliver. In the lab's Grafana, `up` and the
+newest log line for `odin`, `phoenix` and `fenrir` should be minutes old.
+`docker logs lab-ingest-proxy` lists any refused request, with the client its
+token mapped to. A client still on its old config shows there as `-`.
+
+Nothing pages if this later stops being true. The lab has no blackbox exporter
+and no Alertmanager (ADR-0020), so the three `curl`s are the check, re-run after
+any change to the Caddyfile. A lab failure that reaches the estate is
+[#858]'s question.
 
 ## Things worth knowing before editing
 
@@ -146,7 +205,7 @@ matters:
 - **That it runs.** It has — `alexander` was built and this stack brought up
   on 2026-09-05 ([#262]) — but nothing in `make validate` knows that. Every
   check is static: configs parse, images resolve, healthcheck binaries exist
-  inside their pinned images. None of it says the four services come up and
+  inside their pinned images. None of it says the six services come up and
   talk to each other; that is
   [`build-the-lab-guest.md`](../../docs/runbooks/build-the-lab-guest.md) §7,
   by hand.
@@ -161,3 +220,5 @@ matters:
 [#257]: https://github.com/Gerrrt/HomeLab/issues/257
 [#263]: https://github.com/Gerrrt/HomeLab/issues/263
 [#265]: https://github.com/Gerrrt/HomeLab/issues/265
+[#834]: https://github.com/Gerrrt/HomeLab/issues/834
+[#858]: https://github.com/Gerrrt/HomeLab/issues/858

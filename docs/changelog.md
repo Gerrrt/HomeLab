@@ -42,6 +42,135 @@ docstring gives: it is a record, not a claim about now.
   Prometheus having no Alertmanager at all is left to the Watchdog heartbeat,
   because no rule could deliver that page.
 
+- **No Alloy on the lab segment holds the Docker socket any more**
+  ([#836](https://github.com/Gerrrt/HomeLab/issues/836)). Authored; it
+  lands on each guest at its next `make up`.
+  - **The gap.** `alexander`, `odin` and `fenrir` each mounted
+    `/var/run/docker.sock` into Alloy. `:ro` does not stop
+    `POST /containers/create`, so that was root on three VLAN 30 hosts, two
+    of them holding age keys. `docs/security.md` named only `oracle`.
+  - **The fix.** Each stack gets the estate's `docker-socket-proxy` (#193),
+    with the same digest and the same GET-only allowlist, and Alloy reads the
+    API through `DOCKER_API`.
+  - **The guard.** `check_compose_health.py` fails on any `docker.sock`
+    mount outside the proxy image, with ten fixtures.
+  - **What review found.** Each Alloy's `/:/rootfs:ro` carried
+    `/rootfs/run/docker.sock` past the proxy, because `:ro` does not stop
+    `connect()`. That was true of the estate's Alloy since #193. `/rootfs/run`
+    is masked in all four now, as is smaug's `/host/run`. The guard also
+    covers the `/run/docker.sock` spelling, a mount of `/run` itself, and an
+    unmasked `/`.
+  - **Still open.** `oracle`'s agent is a single `docker run` from
+    `deploy-agent.sh`, not a compose service, so the guard cannot see it.
+
+- **A container that stops and stays stopped now raises an alert**
+  ([#838](https://github.com/Gerrrt/HomeLab/issues/838)).
+  - **The gap.** The container rules covered restart loops, OOMs, memory and
+    CPU. A container that exited and stayed down just lost its cAdvisor
+    series, and nothing read that. smaug's media apps had no container metrics
+    at all.
+  - **Where cAdvisor runs:** `ContainerGone`. A container seen in the last
+    seven days and not now, on a host still reporting, alerts. Throwaway
+    `homelab.logs=off` containers are excluded. Removing a service on purpose
+    means silencing it with the issue that removed it.
+  - **smaug:** `scripts/collect-container-state.sh`, as a TrueNAS cron job in
+    ADR-0047's shape, feeds `ContainerNotRunning` and `ContainerStateStale`.
+    It needs the one-time cron entry in `build-the-nas.md` §6.9.
+  - Tests cover all three. Two deliberately broken versions of `ContainerGone`
+    were caught by them.
+  - trinity's sites from the outside are #855.
+
+- **The ruleset no longer requires a branch to be up to date before it
+  merges, or its commits to be signed.** `strict_required_status_checks_policy` is false in
+  `.github/rulesets/main.json` and on GitHub.
+  - **What happened.** The five required checks still have to pass; only the
+    "rebase onto main first" requirement is gone. With it on, every merge
+    sent every other open PR back to `BEHIND`, and eleven review PRs touching
+    the same rule files could only merge one at a time, each after another
+    round of CI.
+  - **What a merge queue would have done, and why there is none.** It keeps
+    the guarantee and drops the chore, but GitHub offers it only on
+    repositories owned by an organization, and this one is owned by a user.
+  - **What still covers the gap.** Two PRs that pass alone could break
+    together. `main`'s own CI runs after every merge, and `converge.sh` will
+    not deploy a tip whose checks are not green (#833).
+  - **`required_signatures` is gone too.** This corrects the #833 entry
+    below, which says the ruleset requires signed commits. The rule held
+    every PR whose branch commits were unsigned, and that was all of them,
+    while protecting nothing: merges are squash-only, so every commit that
+    lands on `main` is GitHub's own squash, signed with its web-flow key, and
+    `converge.sh` checks that signature before deploying.
+
+- **The lab's Prometheus and Loki stop taking orders from VLAN 30**
+  ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Authored, not yet
+  deployed. The rollout is ordered, clients first, in `stacks/lab/README.md`.
+  - **The gap.** The repository review found both published to the whole of
+    the segment built to hold attackers, unauthenticated. Anything there
+    could `POST /-/quit`, forge series, and delete log ranges.
+  - **The fix is ADR-0067 moved one segment down.** The stores are on
+    loopback, and `stacks/lab/Caddyfile` on `10.0.30.40` holds one token each
+    for `odin`, `phoenix` and `fenrir`, plus a reader token.
+    - The tokens are the lab's own, two copies each: `lab.sops.yaml` for the
+      proxy, and each client's own secrets.
+    - `fenrir` gets its first secrets file and `.sops.yaml` rule, and moves
+      to `make up STACK=sensor`.
+    - `deploy-agent.sh` no longer decrypts the estate's tokens for a lab
+      target.
+  - **Not covered.** Nothing pages if the proxy is bypassed: the lab has no
+    Alertmanager (#858).
+
+- **The workflows are pinned and hardened the way the images already were**
+  ([#839](https://github.com/Gerrrt/HomeLab/issues/839)).
+  - **Pinned.** Every `uses:` is pinned to a commit SHA with its exact
+    version beside it: `actions/checkout` v7.0.1 and `actions/cache` v6.1.0.
+    These are the commits the major tags already pointed at, so nothing that
+    runs changed. Dependabot now checks actions weekly instead of monthly.
+  - **Hardened.**
+    - `persist-credentials: false` on every checkout. `lint.sh` mounts the
+      whole tree, `.git/config` included, into third-party images.
+    - A `timeout-minutes` on every job, sized from recent maximums with
+      headroom.
+    - A queued concurrency group on `digests.yml`, with the re-enable command
+      for GitHub's 60-day schedule pause written beside it.
+  - **Checked.** zizmor runs in `make lint`, pinned as a `lint`-profile image.
+    On `main` it found 16 problems: 9 unpinned actions and 7 credential
+    persistences. After this change it finds none.
+
+- **Every Prometheus alert rule has a test, and CI refuses one that does not**
+  ([#843](https://github.com/Gerrrt/HomeLab/issues/843)).
+  - **Twenty rules gained tests:** nine UPS, seven network, three stack and
+    `ContainerOomKilled`. Each gets a firing case and the near-miss that must
+    stay quiet. Coverage is 124 of 124.
+  - **One of them could never fire.** `SwitchInterfaceDown` required the
+    port's hourly maximum `ifOperStatus` to be 1 while the port read 2, and a
+    window containing the current 2 has a maximum of at least 2. It has been
+    `min_over_time` since. Its first test found that, which is #63's lesson
+    again.
+  - **The guard.** `scripts/check_rule_tests.py` fails CI, `make check-rules`
+    and `validate.sh` on any alert, in any stack, that no promtool test
+    selects. It checks per rule; the older per-stack guard only refused a
+    stack with no tests at all.
+  - `UpsBatteryUnproven`'s seven-day test has a file of its own at a 15m
+    evaluation interval, which keeps it to two seconds.
+  - **Still open in #843:** behaviour tests for the Loki rules, which need a
+    running Loki to push fixture lines into.
+
+- **oracle's Alloy, the last one holding the Docker socket, gives it up.**
+  Authored;
+  it lands at the next `deploy-agent.sh` run against oracle.
+  - **The gap.** #193 and #836 took the socket off every Alloy run from a
+    compose file. oracle's is a `docker run` in `deploy-agent.sh`, so the
+    compose check never saw it, and it kept the socket mounted.
+  - **The fix.** The script's Docker runtime now starts
+    `alloy-socket-proxy` beside Alloy on a private `alloy` network, with the
+    estate's image and GET-only allowlist. Alloy reads the API through
+    `DOCKER_API`, and its `/rootfs/run` is masked, so `/:/rootfs:ro` no longer
+    carries the socket past the proxy (the same review finding as #836).
+  - **The guard.** `check_image_pins.py` refuses any `docker run` other than
+    the proxy's, traced by image, that reaches the socket. That means the
+    socket under either spelling, its directory, or an unmasked host `/`.
+    Nine fixtures. Its first run found this one site and nothing else.
+
 - **Every critical alert links to a runbook, and CI keeps it that way**
   ([#842](https://github.com/Gerrrt/HomeLab/issues/842)).
   - **The gap.** No rule had a `runbook_url`, and there was no runbook for a

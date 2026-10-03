@@ -8,17 +8,21 @@ a guest on `Saruman`. **The guest is not built yet.** The build is
 guest of its own, and what the hypervisor's gauge does and does not prove.
 
 ```bash
-cp stacks/sensor/.env.example stacks/sensor/.env        # on fenrir, once
-docker compose -f stacks/sensor/compose.yaml up -d
+make secrets-init STACK=sensor     # on fenrir, once: its own age key and rule
+make secrets-edit STACK=sensor     # INGEST_TOKEN, copied from the lab's INGEST_TOKEN_FENRIR
+make up STACK=sensor
 ```
 
-It is **not** `make up STACK=sensor`: that target renders a secrets file, and
-this stack has none ([`docs/security.md`] § Secrets).
+Since [#834] it **is** `make up STACK=sensor`. The stack has one secret, its
+token for the lab's ingest proxy, and `make up` renders it from
+`secrets/sensor.sops.yaml` ([`docs/security.md`] § Secrets). Before that it had
+none and was brought up with plain `docker compose`.
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | `zeek` | `zeek/zeek` | — (host network, capture only) | Protocol logs from the mirror on `ens19`: conn, dns, ssl, x509, smb, kerberos, ntlm, files and the rest, as JSON, rotated hourly |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | This guest's collector. It tails Zeek's current logs into the lab's Loki as `job="zeek"`, one stream per `log_type` |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 
 ## What it sees
 
@@ -91,3 +95,4 @@ In the lab's Grafana, against its Loki:
 [ADR-0069]: ../../docs/adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md
 [`build-the-sensor-guest.md`]: ../../docs/runbooks/build-the-sensor-guest.md
 [`docs/security.md`]: ../../docs/security.md
+[#834]: https://github.com/Gerrrt/HomeLab/issues/834

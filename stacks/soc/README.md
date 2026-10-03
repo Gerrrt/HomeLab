@@ -19,6 +19,7 @@ make up STACK=soc        # from the repository root, on odin
 | `wazuh.dashboard` | `wazuh/wazuh-dashboard` | 443 (https) | Agent enrolment, group management, the ruleset editor, the MITRE mapping — not a viewer, which is why Grafana does not replace it |
 | `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000, 8889 (https), 8003 | Ask the endpoint what actually happened. Frontend for the clients, GUI for a browser on Hicks, metrics for the lab's Prometheus |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | This guest's collector, pushing to the lab's stores on `alexander` — and the indexer-health exporter |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 | `wazuh.certs-generator` | `wazuh/wazuh-certs-generator` | — | Behind the `certs` profile: run once, before the first start, to issue the indexer/manager/dashboard mTLS material |
 
 Six services, and what is absent is as deliberate as what is here:
@@ -89,7 +90,8 @@ velociraptor/
 Secrets are `secrets/soc.sops.yaml`, encrypted to this stack's own rule in
 `.sops.yaml` — `odin`'s key opens this file and nothing else of the estate's or
 the lab's ([`secrets/soc.example.yaml`](../../secrets/soc.example.yaml) says
-why, and lists the seven keys). No certificate here comes from the lab CA:
+why, and lists the eight keys, the last of them `odin`'s token for the lab's
+ingest proxy). No certificate here comes from the lab CA:
 each tool keeps its own ([ADR-0030]), and the two browser-facing leaves from
 the lab CA are a named follow-up rather than a prerequisite.
 

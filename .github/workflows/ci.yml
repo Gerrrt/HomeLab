@@ -35,8 +35,11 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # The linter list lives in scripts/lint.sh, which `make lint` and
       # scripts/validate.sh also run — so a linter cannot exist in one place and
@@ -63,8 +66,11 @@ jobs:
   validate:
     name: Validate configs
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # ghcr.io rate-limits by the identity asking, and an anonymous pull from
       # a runner is identified by an egress IP shared with everything else on
@@ -222,6 +228,9 @@ jobs:
             docker run --rm --entrypoint promtool \
               -v "$PWD:/repo" -w /repo "$PROM_IMAGE" test rules $tests || fail=1
           done
+          # The per-stack guard above refuses a stack with no tests at all; this
+          # refuses a single untested rule inside a tested stack (#843).
+          python3 scripts/check_rule_tests.py || fail=1
           exit $fail
 
       # No secret needed: the receiver URL comes from url_file, which
@@ -338,7 +347,7 @@ jobs:
       # key misses, the prefix key restores the previous proofs, and only the
       # digest that actually moved is pulled.
       - name: Restore the probe proofs
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .probe-proofs
           key: probe-proofs-${{ hashFiles('stacks/*/compose.yaml', 'scripts/check_compose_health.py') }}
@@ -496,8 +505,11 @@ jobs:
   hardened-boot:
     name: Boot hardened services
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # validate's login, for validate's reason: the image is on ghcr.io.
       - name: Authenticate to ghcr.io so the pull below is not anonymous
@@ -513,7 +525,7 @@ jobs:
           fi
 
       - name: Restore the boot proofs
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .boot-proofs
           key: >-
@@ -567,9 +579,11 @@ jobs:
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       # Same single source of truth as the validate job: whatever compose.yaml
