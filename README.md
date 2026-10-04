@@ -305,9 +305,10 @@ a ninety-day deadline and an alert instead. See
 
 ## Dashboards
 
-Rendered from the running stack by `make screenshots`, over a 24-hour window.
-Four of the seven provisioned dashboards are here; `docs/images/README.md`
-explains why the Logs and Security dashboards are deliberately not among them.
+Rendered from the running stack by `make screenshots` on 2026-10-04, over a
+24-hour window. Every dashboard but Logs and Security is here;
+`docs/images/README.md` explains why those two are deliberately left out, and
+what in these renders is a known fault rather than the steady state.
 
 ![Host Overview dashboard: CPU, memory, load, storage and network for every host
 running an Alloy agent, with a table of firing host alerts across the
@@ -321,14 +322,13 @@ inventory.](docs/images/docker-containers.png)
 MokerLink switch interface throughput and link status, and HPE iLO chassis power
 draw and hardware health.](docs/images/network-snmp.png)
 
-![UPS & Power dashboard as it read on 2026-08-22: APC power source, output load,
-input and output voltage and runtime, under the banner that stood before a
-battery pack was fitted, when every battery figure was fabricated.](docs/images/ups-power.png)
+![UPS & Power dashboard: APC power source, battery charge, output load,
+runtime, voltage and time on battery, under the banner recording when the pack
+was fitted and proven.](docs/images/ups-power.png)
 
-That capture is from 2026-08-22, before a pack was fitted on 2026-08-28. The
-banner it shows has been rewritten three times since, and the self-test has now
-passed, so the panels read measured values rather than invented ones — re-shoot
-the set with `make screenshots`.
+![Observability Stack dashboard: every scrape target with its staleness, then
+Prometheus, Loki, Alertmanager and the Alloy agents — the collection path
+watching itself.](docs/images/observability-stack.png)
 
 ## What runs it
 
