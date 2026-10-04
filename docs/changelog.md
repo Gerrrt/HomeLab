@@ -29,6 +29,43 @@ docstring gives: it is a record, not a claim about now.
   so is a documented slot for §7's `PBS_ENCRYPTION_KEY`.
   `build-the-backup-guest.md` §10 now says to export the token first.
 
+- **`golem` is built: the lab has a backup, not only revert**
+  ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
+  #485 stays open.
+  - **What exists.** VMID 180 on `Saruman`, Proxmox Backup Server 4.2 from
+    an ISO whose SHA-256 matched both Proxmox's `SHA256SUMS` and its
+    downloads page, kept on `local` and not on `smaug-iso`. Its datastore
+    `erebor` is `smaug`'s `erebor/pbs` over NFSv4, mounted on a mountpoint
+    made immutable while empty, and PBS's own access-time check passed when
+    the datastore was made. `Allow NFS from golem to smaug` sits directly
+    above *Block access to CasaBonita* on `igc0.30`. `Saruman`'s storage
+    `golem` encrypts with a key it generated, and the nightly 21:00 job
+    takes `odin` and the domain's six, which both exist now, though the
+    runbook expected neither.
+  - **The proof.** A backup of `phoenix`, 32 GiB in 6 min 43 s over the
+    firewall, was marked encrypted and verified with no errors. It restored
+    to VMID 979 at 325 MB/s, and the copy booted with its NIC unlinked.
+    Then both were deleted.
+  - **What the runbook got wrong.** §6 granted `DatastoreBackup` to the
+    token alone. A PBS token holds the intersection of its permissions and
+    its user's, so it held nothing, and `pvesm add` could not find the
+    datastore. The user needs the role too, and §6 now says so. §9's
+    deletion of the test snapshot from `Saruman` was refused for the same
+    role, correctly: `Saruman` can store a backup and cannot remove one. It
+    is deleted on `golem` instead.
+  - **Seen in passing.** Making `golem`'s disk took `large_data`'s thin
+    volumes to 920 GiB promised against an 894 GiB pool. Use is 34%, and
+    LVM's autoextend is off.
+  - **The same evening.** The encryption key went into
+    `secrets/lab.sops.yaml` and onto paper (§7), and `golem`'s Alloy agent
+    was deployed from the Mac (§10): its host metrics, its own and its logs,
+    `auth.log` and `syslog` through `rsyslog` included, reach `alexander`.
+    It needed a token of its own at the lab's ingest proxy first (#896).
+  - **What keeps #485 open.** §10's collector, which puts the verify, prune
+    and garbage-collection outcomes where the lab's alerting reads them.
+    Then the first nightly backup from §8 verified.
+
 - **Every Loki rule has a behaviour test, and a second dead branch is fixed.**
   - **The gap.** #893 tested the 8 critical rules. The other 11 had syntax
     checks only, and the coverage gate asked only for critical ones.

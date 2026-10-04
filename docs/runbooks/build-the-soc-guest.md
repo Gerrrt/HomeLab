@@ -56,6 +56,11 @@ than carrying a second copy that drifts.
 > [ADR-0053](../adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)
 > backs `odin` up, every disk, to PBS with its datastore on `erebor`. Until
 > that is built, this note stands.
+>
+> **History since 2026-10-03.** `golem` is built
+> ([`build-the-backup-guest.md`](build-the-backup-guest.md),
+> [#485](https://github.com/Gerrrt/HomeLab/issues/485)), and `odin` is in its
+> nightly 21:00 job. `odin` has backup as well as revert from that night.
 
 ## 1. Create the VM
 

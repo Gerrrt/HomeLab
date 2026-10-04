@@ -206,9 +206,11 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
   was designed for a host TrueNAS is not. **Re-read and decided 2026-09-23:**
   [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md) runs PBS on `Saruman` as `golem`
   (`10.0.30.80`) with its datastore on `erebor/pbs` over NFSv4, and TrueNAS
-  snapshots as the copy it cannot prune. What is left is the build: the
-  guest, the dataset and share, the `2049` pass on `morpheus`, and a verify
-  job the lab can see.
+  snapshots as the copy it cannot prune. **Built 2026-10-03**: the guest,
+  the dataset and share, the `2049` pass and the nightly job, proved by a
+  backup and restore of `phoenix`. What is left is a verify job the lab can
+  see (§10's collector; `golem`'s Alloy agent reports since the same
+  evening) and the first real nightly backup verified.
   → [runbook](runbooks/build-the-backup-guest.md)
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),

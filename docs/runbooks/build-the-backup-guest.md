@@ -43,7 +43,12 @@ guest's runbook, this points there rather than carrying a second copy.
 ## 1. Create the VM
 
 On `Saruman`, as for `alexander` (its §1 explains each flag). Upload the PBS
-ISO to `local` first, and check `pvesm status` for room on `large_data`:
+ISO to `local` first, and check `pvesm status` for room on `large_data`.
+**`local`, not `smaug-iso`:** every file in the ISO store is hashed daily
+against the list in `scripts/collect-iso-store-state.sh`, and one that is not
+on it fires `IsoStoreUnexpected`. That store is Packer's; this is a one-off.
+Check the ISO's SHA-256 against Proxmox's published `SHA256SUMS` before you
+use it:
 
 ```bash
 qm create 180 \
@@ -89,10 +94,12 @@ apt update && apt full-upgrade -y
 And the guest agent, which `--agent enabled=1` expects and does not install:
 
 ```bash
-apt install -y qemu-guest-agent nfs-common && systemctl start qemu-guest-agent
+apt install -y qemu-guest-agent nfs-common rsyslog && systemctl start qemu-guest-agent
 ```
 
-`qm guest exec 180 -- uptime` from `Saruman` is the check.
+`rsyslog` is for §10's agent, which reads files journald alone does not
+write. `qm guest exec 180 -- uptime` from `Saruman` is the check. Then
+`qm set 180 --ide2 none`, so the installer is not left attached.
 
 ## 3. The dataset, the share and the snapshots, on `smaug`
 
@@ -236,11 +243,17 @@ proxmox-backup-manager user create pve@pbs && proxmox-backup-manager user genera
 ```
 
 Keep the token secret it prints for §7; it is shown once. Then its
-permission, on the datastore only:
+permission, on the datastore only, **for the user and for the token**:
 
 ```bash
-proxmox-backup-manager acl update /datastore/erebor DatastoreBackup --auth-id 'pve@pbs!saruman'
+proxmox-backup-manager acl update /datastore/erebor DatastoreBackup --auth-id pve@pbs && proxmox-backup-manager acl update /datastore/erebor DatastoreBackup --auth-id 'pve@pbs!saruman'
 ```
+
+A PBS token holds the *intersection* of its own permissions and its user's.
+Granted to the token alone, it holds nothing, and §7's `pvesm add` fails
+with *Cannot find datastore 'erebor', check permissions and existence*. That
+is what the 2026-10-03 build hit with the runbook's first version of this
+line.
 
 And the fingerprint §7 pins:
 
@@ -263,20 +276,27 @@ those backups.** A rebuilt `Saruman` without it has a datastore full of
 ciphertext.
 
 So copy it off now, in two forms. Into the lab's SOPS file, from `alexander`,
-which holds the lab's age key (ADR-0020):
+which holds the lab's age key (ADR-0020), as a key `PBS_ENCRYPTION_KEY` whose
+value is the whole of `golem.enc` **as one JSON string**. On `Saruman`, print
+it in that form:
 
 ```bash
-cd ~/code/Gerrrt/HomeLab && make secrets-edit STACK=lab
+jq -c . /etc/pve/priv/storage/golem.enc | jq -R .
 ```
 
-Add a key `PBS_ENCRYPTION_KEY` whose value is the whole contents of
-`golem.enc`, a short JSON document, **on one line, in single quotes**: the
-output of `jq -c . /etc/pve/priv/storage/golem.enc` on `Saruman`. Pasted as
-the file's own multi-line JSON, it becomes a nested YAML map, and
-`scripts/secrets-env.sh` refuses the whole file, so `make render STACK=lab`
-fails. To get it back as a key file:
-`sops -d --extract '["PBS_ENCRYPTION_KEY"]' secrets/lab.sops.yaml`. Commit the
-re-encrypted file. And a paper
+and on `alexander` set it, pasting that output between the single quotes:
+
+```bash
+cd ~/code/Gerrrt/HomeLab && sops set secrets/lab.sops.yaml '["PBS_ENCRYPTION_KEY"]' '<the output>'
+```
+
+Not through `make secrets-edit`. The 2026-10-03 build pasted it there twice,
+as the file's own JSON and then unquoted, and YAML read it as a nested map
+both times; `scripts/secrets-env.sh` takes flat `KEY: value` lines only and
+refuses the whole file, so `make render STACK=lab` would fail. `sops set`
+writes a string and nothing else. To get it back as a key file:
+`sops -d --extract '["PBS_ENCRYPTION_KEY"]' secrets/lab.sops.yaml`, which must
+start `{"kdf":`. Commit the re-encrypted file. And a paper
 copy, which survives the lab's age key being lost too:
 
 ```bash
@@ -301,7 +321,8 @@ Print it, and keep it where the age key's own backup lives
 | Retention | *Keep all backups* — PBS's prune job in §6 decides |
 
 On the day this is built, the selection may be empty. That is correct: ADR-0053
-backs up the domain and `odin`, and neither may exist yet. `alexander`,
+backs up the domain and `odin`, and neither may exist yet. **On 2026-10-03,
+when it was built, both did**, and the job took all seven from that night. `alexander`,
 `phoenix`, `ifrit` and `golem` itself are rebuilt from this repository and
 stay out.
 
@@ -333,8 +354,15 @@ then remove both:
 qm destroy 979 --purge
 ```
 
-And delete the test snapshot from `golem`'s UI, so the datastore holds only
-what §8 puts there.
+And delete the test snapshot on `golem`, from its UI or as root on its
+shell, so the datastore holds only what §8 puts there. `pvesm free` from
+`Saruman` is refused, and that is correct: `DatastoreBackup` can write a
+backup and cannot remove one, so a compromised `Saruman` cannot delete what
+it has stored.
+
+```bash
+proxmox-backup-debug api delete /admin/datastore/erebor/snapshots --backup-type vm --backup-id 170 --backup-time <epoch>
+```
 
 ## 10. Make the verification visible
 
