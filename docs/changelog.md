@@ -19,6 +19,12 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-04
 
+- **The CRS326's 24HPOW was delivered on 2026-09-26**, the evening of the
+  day the 2026-09-26 entry below called it still in transit. The repository
+  went on saying so for eight days. Nothing but the bench time gates Phase 1
+  of [`swap-the-switch.md`](runbooks/swap-the-switch.md) now, and it has not
+  started ([#444](https://github.com/Gerrrt/HomeLab/issues/444)).
+
 - **`deploy-agent.sh` proves the log path with a line it writes itself.**
   Its arrival check asked Loki for any line from the host newer than the
   deploy. golem, an idle backup server, logged nothing in the three minutes,

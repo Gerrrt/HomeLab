@@ -732,8 +732,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `DC 10–28V`, beside a ground screw, with a blank plate where other units
   carry an inlet. PoE-in on port 1 is the other input. MikroTik rates the
   unit at 24 W maximum. A MikroTik 24HPOW[^24HPOW] (24 V, 2.5 A, North
-  American cord) was ordered 2026-09-23 and is in transit, and the bench
-  steps wait for it
+  American cord) was ordered 2026-09-23 and delivered 2026-09-26, so nothing
+  but the bench time gates Phase 1 now
   ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). **Not 48POW:** it
   is MikroTik's too, has the same plug, and puts 48 V into a jack labelled
   10–28 V. The replacement for
@@ -762,7 +762,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   management MAC, that the rack ears and the power supply are in the box, and
   a netinstall or factory reset before it touches the network — a used
   RouterOS device arrives with whatever its last owner left on it, users
-  included. Those go here when it lands.
+  included. Those go here when the bench steps are done; as of 2026-10-04 the
+  switch has not been powered on.
 - USB stick holding the pfSense installer — **written 2026-09-27 and used
   for #92's rehearsal; it belongs in the rack beside the KVM.** It holds the
   **Netgate Installer**, which downloads the release during the install:
