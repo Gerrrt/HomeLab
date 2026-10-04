@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **`golem` gets its own token at the lab's ingest proxy**
+  ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
+  [#834](https://github.com/Gerrrt/HomeLab/issues/834)). The first run of
+  `deploy-agent.sh` against `golem` stopped before it changed anything,
+  correctly: since #834 every client pushes with its own token, and `golem`
+  had none. `INGEST_TOKEN_GOLEM` is now in the proxy's map, compose,
+  `render-config.sh`'s list, the validation env and `lab.example.yaml`, and
+  so is a documented slot for §7's `PBS_ENCRYPTION_KEY`.
+  `build-the-backup-guest.md` §10 now says to export the token first.
+
 - **Every Loki rule has a behaviour test, and a second dead branch is fixed.**
   - **The gap.** #893 tested the 8 critical rules. The other 11 had syntax
     checks only, and the coverage gate asked only for critical ones.

@@ -270,7 +270,13 @@ cd ~/code/Gerrrt/HomeLab && make secrets-edit STACK=lab
 ```
 
 Add a key `PBS_ENCRYPTION_KEY` whose value is the whole contents of
-`golem.enc`, a short JSON document. Commit the re-encrypted file. And a paper
+`golem.enc`, a short JSON document, **on one line, in single quotes**: the
+output of `jq -c . /etc/pve/priv/storage/golem.enc` on `Saruman`. Pasted as
+the file's own multi-line JSON, it becomes a nested YAML map, and
+`scripts/secrets-env.sh` refuses the whole file, so `make render STACK=lab`
+fails. To get it back as a key file:
+`sops -d --extract '["PBS_ENCRYPTION_KEY"]' secrets/lab.sops.yaml`. Commit the
+re-encrypted file. And a paper
 copy, which survives the lab's age key being lost too:
 
 ```bash
@@ -338,7 +344,14 @@ nothing behind it. Two pieces:
 
 1. **`golem`'s agent**, as `phoenix`'s: the native Alloy package, from the
    Mac, pushing to `alexander`
-   ([`build-the-jumpbox.md`](build-the-jumpbox.md) §6):
+   ([`build-the-jumpbox.md`](build-the-jumpbox.md) §6).
+
+   The lab's ingest proxy wants `golem`'s own token first
+   ([#834](https://github.com/Gerrrt/HomeLab/issues/834)):
+   `INGEST_TOKEN_GOLEM` in `secrets/lab.sops.yaml`, generated there with
+   `openssl rand -hex 32`, and a line for it in `stacks/lab/Caddyfile`.
+   Export it as `INGEST_TOKEN`, with `INGEST_TOKEN_READER`, in the Mac's
+   shell, as `build-the-jumpbox.md` §6 does for `phoenix`. Then:
 
    ```bash
    ./scripts/deploy-agent.sh --runtime native --monitoring-host 10.0.30.40 root@10.0.30.80
