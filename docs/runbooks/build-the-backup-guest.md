@@ -344,6 +344,13 @@ nothing behind it. Two pieces:
    ./scripts/deploy-agent.sh --runtime native --monitoring-host 10.0.30.40 root@10.0.30.80
    ```
 
+   The lab's ingest proxy wants `golem`'s own token
+   ([#834](https://github.com/Gerrrt/HomeLab/issues/834)):
+   `INGEST_TOKEN_GOLEM` in `secrets/lab.sops.yaml`, generated there with
+   `openssl rand -hex 32`, and a line for it in `stacks/lab/Caddyfile`.
+   Export it as `INGEST_TOKEN`, with `INGEST_TOKEN_READER`, in the Mac's
+   shell first, as `build-the-jumpbox.md` §6 does for `phoenix`.
+
    PBS is Debian with journald and may ship no `/var/log/auth.log` or
    `/var/log/syslog`. `build-the-lab-guest.md` explains why that makes
    `config.alloy` collect nothing from them while reporting healthy, and
