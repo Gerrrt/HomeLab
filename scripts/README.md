@@ -115,6 +115,7 @@ they describe. The rest are installed on the host they describe by
 | `collect-pve-version.sh`, `collect-pve-firewall-state.sh` | The Proxmox version, and whether its firewall is on |
 | `collect-iso-store-state.sh` | Whether the ISOs on the NFS store are the ones the repository expects |
 | `collect-zeek-mirror-state.sh`, `zeek-mirror.sh` | The `tc` mirror to the Zeek sensor: build it, and whether it carries packets ([ADR-0068](../docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)) |
+| `collect-pbs-task-state.py` | What `golem`'s Proxmox Backup Server last did: verify, prune and garbage-collection outcomes, and its snapshots by verify state and encryption ([ADR-0053](../docs/adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)) |
 | `collect-drift-check.sh` | The wiki's drift check and what it found |
 | `mark-clean-shutdown.sh` | Clean stops by kind, so a disk-fault page can tell a power cut from a shutdown |
 

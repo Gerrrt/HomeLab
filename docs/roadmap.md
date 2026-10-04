@@ -200,18 +200,6 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
   the lab's secrets.** `secrets/lab.sops.yaml` is in git since #667, and
   encrypted to one key that lives only on `alexander`; a second recipient or
   a proved off-box copy, run on that guest.
-- **[#485](https://github.com/Gerrrt/HomeLab/issues/485) PBS.**
-  [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
-  trigger has fired — `smaug` answers, `erebor` is online — and its sync job
-  was designed for a host TrueNAS is not. **Re-read and decided 2026-09-23:**
-  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md) runs PBS on `Saruman` as `golem`
-  (`10.0.30.80`) with its datastore on `erebor/pbs` over NFSv4, and TrueNAS
-  snapshots as the copy it cannot prune. **Built 2026-10-03**: the guest,
-  the dataset and share, the `2049` pass and the nightly job, proved by a
-  backup and restore of `phoenix`. What is left is a verify job the lab can
-  see (§10's collector; `golem`'s Alloy agent reports since the same
-  evening) and the first real nightly backup verified.
-  → [runbook](runbooks/build-the-backup-guest.md)
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
   [#562](https://github.com/Gerrrt/HomeLab/issues/562) and

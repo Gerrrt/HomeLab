@@ -94,6 +94,7 @@ installs only the collectors a host can run, and reports the rest as skipped.
 | `homelab-iso-store-state` | daily 04:30 | `Saruman` | The ISO store against the repository's checksums |
 | `homelab-zeek-mirror` | 2 min after boot, then every minute | `Saruman` | Builds the `tc` mirror of the lab bridge to `fenrir`, and re-applies it every minute |
 | `homelab-zeek-mirror-state` | every 5 min | `Saruman` | Whether that mirror carries packets |
+| `homelab-pbs-task-state` | hourly at :17 | `golem` | What PBS last did: each verify, prune and garbage-collection job's outcome, and the snapshots by verify state ([#485](https://github.com/Gerrrt/HomeLab/issues/485)) |
 
 ## Adding a timer
 

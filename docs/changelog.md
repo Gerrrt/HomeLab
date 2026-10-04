@@ -17,7 +17,38 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
-## 2026-10-03
+## 2026-10-04
+
+- **#485 closes: what `golem` does is visible, and its first nightly run is
+  verified** ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
+  - **The first real backups.** The 21:00 job on 2026-10-03 backed up `odin`
+    and the domain's six, 21:00 to 22:53, all OK. Sunday's 03:00 verify job
+    re-read all seven and passed them, in 41 minutes. Those are the backups
+    ADR-0053 was written for, verified, which was half of what kept #485
+    open.
+  - **The other half.** `scripts/collect-pbs-task-state.py`, on `golem`
+    hourly, reads PBS's job-state API as root: each verify, prune and
+    garbage-collection job's last outcome and when it ended, and each
+    datastore's snapshots by verify state, the unencrypted ones, and the
+    newest. Six lab rules read it: `PbsJobFailed`, `PbsVerifyOverdue`,
+    `PbsSnapshotVerifyFailed`, `PbsBackupStale`, `PbsSnapshotUnencrypted`
+    and `PbsTaskStateStale`, each with a firing and a quiet test. Its
+    fixtures are `golem`'s own answers that morning. Installed on `golem`
+    with `install-agent-collectors.sh`; the series reach `alexander`, and
+    every rule's expression is quiet against them.
+  - **One garbage collection, run early.** The fixture for a garbage
+    collection that has run had to be real, so the first one was started by
+    hand that morning rather than waiting for Saturday. 11 minutes, nothing
+    removed, as a first run must; 575 GB of backups take 115 GB on
+    `erebor`.
+  - **The label it does not use.** The job's ID is `pbs_job`, not `job`,
+    which Prometheus already sets to the scrape job and would have renamed
+    the collector's to `exported_job`.
+  - **Not deployed yet.** The six rules reach `alexander` with the next
+    `make up STACK=lab`, which cannot render while the lab's secrets lack
+    #834's four tokens. Until then the collector's series arrive and nothing
+    evaluates them.
 
 - **`golem` gets its own token at the lab's ingest proxy**
   ([#485](https://github.com/Gerrrt/HomeLab/issues/485),

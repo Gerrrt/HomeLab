@@ -1,0 +1,32 @@
+# What golem's Proxmox Backup Server last did (#485, ADR-0053).
+#
+# WHAT IT IS FOR. ADR-0053 requires a verify job's outcome to reach where the
+# lab already looks. PBS keeps its task results to itself; this publishes the
+# last verify, prune and garbage-collection outcome per job, and each
+# datastore's snapshots by verify state, for the lab's rules (PbsJobFailed,
+# PbsVerifyOverdue and the rest in stacks/lab/prometheus/rules/lab.rules.yaml).
+#
+# Root because `proxmox-backup-debug api` reads PBS's state as root, which
+# needs no token and no password, and for the textfile directory. Read-only:
+# it starts no job and changes nothing in PBS.
+[Unit]
+Description=HomeLab: record what Proxmox Backup Server last did
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/build-the-backup-guest.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/proxmox-backup-debug
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-pbs-task-state
+TimeoutStartSec=600
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-pbs-task-state

@@ -389,15 +389,24 @@ nothing behind it. Two pieces:
    `/var/log/syslog`. `build-the-lab-guest.md` explains why that makes
    `config.alloy` collect nothing from them while reporting healthy, and
    `apt install -y rsyslog` is the fix.
-2. **The PBS task outcomes**, which the agent cannot see by itself. This is
-   a textfile collector that does not exist yet: something that reads the
-   last verify, prune and garbage-collection results from
-   `proxmox-backup-manager` and writes them into the textfile directory, with
-   a rule in the lab's Prometheus that fires when the last verify failed or
-   is older than a fortnight. It is written, with fixtures, as its own change
-   once there is a real PBS to read output from.
-   **[#485](https://github.com/Gerrrt/HomeLab/issues/485) stays open until it
-   exists.**
+2. **The PBS task outcomes**, which the agent cannot see by itself.
+   `scripts/collect-pbs-task-state.py` reads them from PBS's own job-state
+   API every hour and writes them into the textfile directory: each verify,
+   prune and garbage-collection job's last outcome and when it ended, and
+   each datastore's snapshots by verify state, the unencrypted ones, and the
+   newest. Install it from `Saruman`, which can reach `golem` as root:
+
+   ```bash
+   ./scripts/install-agent-collectors.sh --only pbs-task-state root@10.0.30.80
+   ```
+
+   The installer checks the timer and that the file is written mode 644.
+   `stacks/lab/prometheus/rules/lab.rules.yaml` reads it: `PbsJobFailed`,
+   `PbsVerifyOverdue` (no verify for a fortnight), `PbsSnapshotVerifyFailed`,
+   `PbsBackupStale` (nothing for 36 hours), `PbsSnapshotUnencrypted`, and
+   `PbsTaskStateStale` for the collector itself. Like every lab rule they
+   page nobody (ADR-0020); they are in the lab Prometheus's `/alerts` and in
+   Grafana. Built 2026-10-04, after the first nightly run had been verified.
 
 ## 11. If something goes wrong
 
