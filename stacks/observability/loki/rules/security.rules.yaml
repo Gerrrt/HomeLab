@@ -280,9 +280,18 @@ groups:
             thirteen-year-old laptop SSD, so this is not hypothetical.
 
       - alert: DiskIoErrors
+        # smartd's two failure lines, from smartmontools' smartd.cpp, are
+        # "Device: %s, FAILED SMART self-check. BACK UP DATA NOW!" and
+        # "Device: %s, SMART Failure: %s". This said `SMART.*FAILED` until #843's
+        # behaviour tests pushed both: case-sensitive, it matched neither, so the
+        # smartd third of this rule could never fire.
         expr: |
           sum by (host) (
-            count_over_time({log_type=~"syslog|varlog"} |~ "(I/O error|ata[0-9]+.*failed|SMART.*FAILED)" [15m])
+            count_over_time(
+              {log_type=~"syslog|varlog"}
+              |~ "(I/O error|ata[0-9]+.*failed|FAILED SMART|SMART Failure)"
+              [15m]
+            )
           ) > 0
         labels:
           component: logs

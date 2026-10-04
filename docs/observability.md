@@ -397,6 +397,17 @@ it validates the config file and never opens the rule files. A file containing
 `count_over_time({{{BROKEN` passes `-verify-config` and is caught only by the
 boot check.
 
+Parsing is not matching, so `scripts/test_loki_rules.py` behaviour-tests them
+([#843](https://github.com/Gerrrt/HomeLab/issues/843)). It pushes the fixture
+lines in `loki/tests/*.test.yaml` into the same pinned Loki, each in its
+source's real format and with the labels Alloy attaches. Then it runs each
+rule's own `expr` as an instant query and compares the series returned with
+the ones the case expects. Every critical rule must have a case that fires and
+one that does not, or the run refuses to start. It does not exercise `for:`
+(an instant query is the expression, not the pending period), and the
+warning-level rules are not yet required to have tests. Its first run found
+`DiskIoErrors` could never match smartd's failure lines.
+
 ### Is the collection itself complete?
 
 A rule that parses and can see every host is still only as good as what reaches

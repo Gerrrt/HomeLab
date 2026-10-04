@@ -52,6 +52,27 @@ docstring gives: it is a record, not a claim about now.
     lab's alerting reads them. Then the first nightly backup from §8
     verified.
 
+- **The critical Loki rules have behaviour tests, and they found a dead one**
+  ([#843](https://github.com/Gerrrt/HomeLab/issues/843)).
+  - **The gap.** `check_loki_rules.sh` proves the LogQL parses. Nothing proved
+    it matches, so a regex no device line satisfies passed and stayed silent.
+  - **The fix.** `scripts/test_loki_rules.py` pushes fixture lines into the
+    pinned Loki and runs each rule's own `expr` as an instant query, comparing
+    the series returned. There are 21 cases over the 8 critical rules, in each
+    source's real line format. Every critical rule needs a case that fires and
+    one that does not. It runs in `make check-loki-rules`, `validate.sh` and
+    CI.
+  - **What it found.** `DiskIoErrors` matched smartd with `SMART.*FAILED`.
+    smartd writes `FAILED SMART self-check` and `SMART Failure:`, and the
+    match is case-sensitive, so that branch never fired. The tests' first
+    complete CI run failed on that case alone, 20 of 21, as intended, and the
+    regex now names both lines.
+  - **What the runner needed.** The very first run never got that far: the
+    fixtures are hours old, so the ingester flushed their chunks at once and
+    dropped them from memory before the store could serve them. The test
+    config now keeps them (`max_chunk_age`, `chunk_retain_period`).
+  - **Not covered.** `for:`, Alloy's labelling, and the 11 warning rules.
+
 - **#440 closes: the lab's templates are built, and a rebuild is one
   command** ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
   [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)).
