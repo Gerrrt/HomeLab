@@ -1664,7 +1664,7 @@
     {
       "type": "table",
       "title": "Hardware health",
-      "description": "",
+      "description": "One row per iLO-reported part, worst condition first: temperature sensors, power supplies, the Smart Storage Battery, the array controller, its board and cache, and the logical and physical drives. Each cpqHe/cpqDa condition arrives with its own index labels; the query names every row with a common component and item instead, so the table has three columns rather than one per index (#888).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1750,7 +1750,13 @@
             "sum"
           ],
           "countRows": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "Condition",
+            "desc": true
+          }
+        ]
       },
       "targets": [
         {
@@ -1759,7 +1765,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "cpqHeTemperatureCondition or cpqHeFltTolPowerSupplyCondition or cpqDaLogDrvCondition or cpqDaPhyDrvCondition or cpqDaCntlrCondition or cpqDaCntlrBoardCondition or cpqDaAccelCondition or cpqHeSysBatteryCondition",
+          "expr": "max without (cpqHeTemperatureIndex, cpqHeTemperatureChassis) (label_replace(label_join(label_replace(cpqHeTemperatureCondition, \"component\", \"Temperature sensor\", \"\", \"\"), \"item\", \":\", \"cpqHeTemperatureIndex\", \"cpqHeTemperatureChassis\"), \"item\", \"sensor $1\", \"item\", \"([^:]*):(.*)\"))\nor max without (cpqHeFltTolPowerSupplyBay, cpqHeFltTolPowerSupplyChassis) (label_replace(label_join(label_replace(cpqHeFltTolPowerSupplyCondition, \"component\", \"Power supply\", \"\", \"\"), \"item\", \":\", \"cpqHeFltTolPowerSupplyBay\", \"cpqHeFltTolPowerSupplyChassis\"), \"item\", \"bay $1\", \"item\", \"([^:]*):(.*)\"))\nor max without (cpqHeSysBatteryIndex, cpqHeSysBatteryChassis) (label_replace(label_join(label_replace(cpqHeSysBatteryCondition, \"component\", \"Smart Storage Battery\", \"\", \"\"), \"item\", \":\", \"cpqHeSysBatteryIndex\", \"cpqHeSysBatteryChassis\"), \"item\", \"battery $1\", \"item\", \"([^:]*):(.*)\"))\nor max without (cpqDaCntlrIndex) (label_replace(label_replace(cpqDaCntlrCondition, \"component\", \"Array controller\", \"\", \"\"), \"item\", \"controller $1\", \"cpqDaCntlrIndex\", \"(.*)\"))\nor max without (cpqDaCntlrIndex) (label_replace(label_replace(cpqDaCntlrBoardCondition, \"component\", \"Controller board\", \"\", \"\"), \"item\", \"controller $1\", \"cpqDaCntlrIndex\", \"(.*)\"))\nor max without (cpqDaAccelCntlrIndex) (label_replace(label_replace(cpqDaAccelCondition, \"component\", \"Cache accelerator\", \"\", \"\"), \"item\", \"controller $1\", \"cpqDaAccelCntlrIndex\", \"(.*)\"))\nor max without (cpqDaLogDrvCntlrIndex, cpqDaLogDrvIndex) (label_replace(label_join(label_replace(cpqDaLogDrvCondition, \"component\", \"Logical drive\", \"\", \"\"), \"item\", \":\", \"cpqDaLogDrvCntlrIndex\", \"cpqDaLogDrvIndex\"), \"item\", \"controller $1, volume $2\", \"item\", \"([^:]*):(.*)\"))\nor max without (cpqDaPhyDrvCntlrIndex, cpqDaPhyDrvIndex) (label_replace(label_join(label_replace(cpqDaPhyDrvCondition, \"component\", \"Physical drive\", \"\", \"\"), \"item\", \":\", \"cpqDaPhyDrvCntlrIndex\", \"cpqDaPhyDrvIndex\"), \"item\", \"controller $1, drive $2\", \"item\", \"([^:]*):(.*)\"))",
           "legendFormat": "__auto",
           "range": false,
           "instant": true,
@@ -1776,11 +1782,20 @@
               "job": true,
               "site": true,
               "monitor": true,
-              "instance": true
+              "instance": true,
+              "role": true,
+              "vlan": true,
+              "device": true
+            },
+            "indexByName": {
+              "component": 0,
+              "item": 1,
+              "Value": 2
             },
             "renameByName": {
               "Value": "Condition",
-              "__name__": "Component"
+              "component": "Component",
+              "item": "Item"
             }
           }
         }
