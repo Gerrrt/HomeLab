@@ -274,6 +274,29 @@ def instant(query: str, at: int) -> list[dict]:
     return [s["metric"] for s in data["result"]]
 
 
+def expected_counts(entries: list[tuple[dict, int, str]]) -> tuple[dict, dict]:
+    """What `sum(count_over_time({<stream's labels>}[...]))` should return for
+    each pushed stream, and how old its oldest line is.
+
+    A selector matches every stream whose labels CONTAIN it, not only the
+    stream with exactly those labels. A Suricata alert from an unmapped
+    interface carries no `interface` label, so its selector also counts the
+    alerts that do. The expectation is therefore the sum over every pushed
+    stream that is a superset (#894's first run counted 602 against 201)."""
+    exact: dict[tuple, int] = {}
+    oldest: dict[tuple, int] = {}
+    for labels, ts, _ in entries:
+        key = tuple(sorted(labels.items()))
+        exact[key] = exact.get(key, 0) + 1
+        oldest[key] = min(oldest.get(key, ts), ts)
+    want = {k: sum(n for other, n in exact.items() if set(k) <= set(other)) for k in exact}
+    # A superset stream's lines can be older than the stream's own; widen the
+    # range so the count query reaches them too.
+    for k in exact:
+        oldest[k] = min(oldest[o] for o in exact if set(k) <= set(o))
+    return want, oldest
+
+
 def barrier(entries: list[tuple[dict, int, str]], now: int, log: pathlib.Path) -> None:
     """Wait until every pushed line is queryable. Without this, a quiet case
     evaluated before ingestion caught up would pass over data it never saw.
@@ -281,12 +304,7 @@ def barrier(entries: list[tuple[dict, int, str]], now: int, log: pathlib.Path) -
     On timeout it reports every stream, not the first short one, with each
     stream's age, plus Loki's own warnings. "0 of 3" alone did not say whether
     the push, the flush or the query lost the lines."""
-    want: dict[tuple, int] = {}
-    oldest: dict[tuple, int] = {}
-    for labels, ts, _ in entries:
-        key = tuple(sorted(labels.items()))
-        want[key] = want.get(key, 0) + 1
-        oldest[key] = min(oldest.get(key, ts), ts)
+    want, oldest = expected_counts(entries)
 
     def count(key: tuple) -> int:
         span = (now - oldest[key]) // 3600 + 2
@@ -446,6 +464,12 @@ def self_test() -> int:
         ("an entry past the evaluation instant is refused",
          _raises(lambda: expand({**t, "streams": [{"labels": {"a": 1}, "entries": [
              {"before": "5s", "count": 10, "line": "l"}]}]}, 1000))),
+        ("a selector's expected count includes every stream that contains it",
+         expected_counts([({"app": "s", "i": "x"}, 5, "l"), ({"app": "s", "i": "x"}, 6, "l"),
+                          ({"app": "s"}, 9, "l")])[0]
+         == {(("app", "s"), ("i", "x")): 2, (("app", "s"),): 3}),
+        ("and reaches back to the oldest line among them",
+         expected_counts([({"app": "s", "i": "x"}, 5, "l"), ({"app": "s"}, 9, "l")])[1][(("app", "s"),)] == 5),
         ("label sets compare without order, and ignore __name__",
          label_sets([{"b": "2", "a": "1", "__name__": "x"}]) == label_sets([{"a": "1", "b": "2"}])),
         ("every rule tested both ways (the watchdog firing only) is covered", coverage(rules, both) == []),
