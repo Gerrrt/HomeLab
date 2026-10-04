@@ -41,7 +41,8 @@
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
 # (#360), smart-state (#351), pve-version (#311), guest-state (#257),
 # thin-pool-state (#538), guest-disk-state (#778), pve-firewall-state (#576),
-# iso-store-state (#440), zeek-mirror-state (#437) and drift-check (#470), plus
+# iso-store-state (#440), zeek-mirror-state (#437), pbs-task-state (#485) and
+# drift-check (#470), plus
 # two rows that collect nothing (below).
 #
 # iso-store-state's requirement is a directory, not a binary: /mnt/smaug-iso,
@@ -109,6 +110,7 @@ COLLECTORS=(
   "iso-store-state scripts/collect-iso-store-state.sh iso-store-state.prom /mnt/smaug-iso"
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"
   "zeek-mirror-state scripts/collect-zeek-mirror-state.sh zeek-mirror-state.prom /usr/sbin/qm"
+  "pbs-task-state scripts/collect-pbs-task-state.py pbs-task-state.prom /usr/sbin/proxmox-backup-debug"
   "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
   "prune-images scripts/prune-images.sh         -                      /usr/bin/docker"
 )

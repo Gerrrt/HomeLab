@@ -1,7 +1,7 @@
 ---
 # The lab stack watching itself.
 #
-# Nine rules, and the number is still the point. The estate has 48; ADR-0007
+# Sixteen rules, and the number is still the point. The estate has 48; ADR-0007
 # names giving up "Loki, the dashboards and 40 alert rules" as the price of
 # keeping lab telemetry out of the estate, and this file does not pretend to
 # replace them. Four cover this stack's own working — the things that would make
@@ -9,7 +9,9 @@
 # push here, in the detail only their own node_exporter has; the estate pages on
 # the same disks, read another way (ADR-0070). Three cover the domain ADR-0029 sized,
 # and they are here rather than in a stack of their own because this Prometheus
-# is the only thing on the segment that scrapes it.
+# is the only thing on the segment that scrapes it. Seven cover golem's backups
+# (ADR-0053), because a verify nobody watches is a green check with nothing
+# behind it, and this is where the lab looks.
 #
 # NOTHING HERE PAGES. There is no Alertmanager in this stack (ADR-0020), so a
 # firing alert is visible in Prometheus's /alerts and in Grafana and nowhere
@@ -243,3 +245,143 @@ groups:
             At expiry the machine stops being usable rather than degrading.
             Rearm it, or rebuild it from the runbook — and record the remaining
             rearm count, because no published figure agrees with another.
+
+      # --- golem's backups (ADR-0053, #485) ------------------------------------
+      #
+      # ADR-0053 and ADR-0027 require a verify job's outcome to reach where the
+      # lab already looks; PBS keeps it in its own task log on golem.
+      # scripts/collect-pbs-task-state.py publishes it hourly from golem's
+      # textfile directory, and these seven read it. Like everything in this
+      # file they page nobody: they are in /alerts and Grafana for whoever is
+      # looking at the lab.
+
+      # Any verify, prune or garbage collection whose last run did not end
+      # `OK`, `WARNINGS: n` included. The state stays until the job's next
+      # run, so this holds for a week after a failed verify unless someone
+      # re-runs it, which is the point.
+      - alert: PbsJobFailed
+        expr: homelab_pbs_job_last_run_ok == 0
+        for: 5m
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}'s {{ $labels.kind }} job {{ $labels.pbs_job }} did not finish OK"
+          description: >-
+            Read the task log in golem's web UI (Administration, Tasks) or
+            `proxmox-backup-manager task list --all` on golem. A failed verify
+            names the snapshot; a failed garbage collection on this NFS
+            datastore is worth reading build-the-backup-guest.md §11 for
+            before the next one runs.
+
+      # The verify job's last run is more than a fortnight old, or it has never
+      # run (the collector writes 0). Weekly is the schedule, so two missed
+      # Sundays: golem down over a weekend, a schedule edited away, or a verify
+      # that has hung for a week.
+      - alert: PbsVerifyOverdue
+        expr: time() - homelab_pbs_job_last_run_end_timestamp_seconds{kind="verify"} > 14 * 86400
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}'s verify job {{ $labels.pbs_job }} has not finished in 14 days"
+          description: >-
+            Its last run ended {{ $value | humanizeDuration }} ago. Backups not
+            re-read are backups not known to be readable. Check the job's
+            schedule on golem (Datastore, Verify Jobs) and its task log.
+
+      # The verify job is gone: deleted, or never made on a rebuilt golem.
+      # PbsVerifyOverdue cannot see that, because a job that does not exist
+      # leaves no last-run series to be old, so the collector counts each
+      # datastore's verify jobs, 0 included, and this reads the 0.
+      - alert: PbsNoVerifyJob
+        expr: homelab_pbs_jobs{kind="verify"} == 0
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}'s {{ $labels.store }} has no verify job"
+          description: >-
+            Nothing re-reads its backups, so nothing finds a damaged one
+            before a restore does. Recreate it as build-the-backup-guest.md
+            §6 makes it: weekly, Sunday 03:00, re-verify after 30 days.
+
+      # A snapshot PBS has re-read and found damaged. Verify-job failures say
+      # the same once; this says it for as long as the snapshot exists, and
+      # also for a verify run by hand.
+      - alert: PbsSnapshotVerifyFailed
+        expr: homelab_pbs_snapshots{verify="failed"} > 0
+        for: 5m
+        labels:
+          component: backup
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "{{ $value }} snapshot(s) on {{ $labels.host }}'s {{ $labels.store }} failed verification"
+          description: >-
+            A restore from one of them may fail. Find it in golem's web UI
+            (Datastore, Content, the red mark). Missing chunks after a garbage
+            collection are §11's atime case; roll erebor/pbs back to the
+            newest TrueNAS snapshot from before that run.
+
+      # Nothing has been backed up for a day and a half. The job runs nightly
+      # at 21:00, so this is one missed night plus margin. An empty datastore
+      # reads 0 and fires too, which is correct: it is not being backed up.
+      - alert: PbsBackupStale
+        expr: time() - homelab_pbs_snapshot_newest_timestamp_seconds > 36 * 3600
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }}'s {{ $labels.store }} has no backup newer than {{ $value | humanizeDuration }}"
+          description: >-
+            Saruman's golem-nightly job did not run or did not reach golem.
+            Check the job's last run on Saruman (Datacenter, Backup; or
+            /var/log/vzdump/), `pvesm status` for golem, and the 2049 pass to
+            smaug if golem's datastore is unmounted.
+
+      # A snapshot with a data archive not in `encrypt` mode: stored in the
+      # clear, or `sign-only`, which carries the key's fingerprint and leaves
+      # the data readable. ADR-0053 encrypts everything on Saruman before it
+      # leaves, so this is a storage or job set up without the key, and its
+      # data sits on smaug in the clear.
+      - alert: PbsSnapshotUnencrypted
+        expr: homelab_pbs_snapshots_unencrypted > 0
+        for: 5m
+        labels:
+          component: backup
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $value }} unencrypted snapshot(s) on {{ $labels.host }}'s {{ $labels.store }}"
+          description: >-
+            Check that Saruman's golem storage still has its encryption-key
+            line in /etc/pve/storage.cfg, and which job wrote the snapshot.
+            Delete the unencrypted snapshots on golem once a good backup
+            exists.
+
+      # The collector stopped, which is not PBS being fine: every rule above
+      # reads its last answer and cannot fire on a new failure. Three hours is
+      # three missed hourly runs. A collector that cannot read PBS writes
+      # nothing on purpose, so this is also "PBS's API stopped answering".
+      - alert: PbsTaskStateStale
+        expr: time() - node_textfile_mtime_seconds{file=~".*pbs-task-state\\.prom"} > 3 * 3600
+        for: 10m
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its PBS task state for {{ $value | humanizeDuration }}"
+          description: >-
+            The backup alerts are reading an old answer. Check
+            homelab-pbs-task-state.timer on golem and
+            `journalctl -u homelab-pbs-task-state`, which says what PBS
+            answered.

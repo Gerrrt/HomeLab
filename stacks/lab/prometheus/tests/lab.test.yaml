@@ -11,7 +11,7 @@
 # input, the second proves it does not produce one for the input production
 # actually supplies.
 #
-# All nine rules in lab.rules.yaml are covered here. That is a deliberate
+# All sixteen rules in lab.rules.yaml are covered here. That is a deliberate
 # difference from the estate's tests, where four of the nine stack rules are
 # syntax-checked only: this file is small enough that "test the ones that were
 # hard" has no advantage over testing all of them, and a new stack has no
@@ -374,3 +374,269 @@ tests:
                 is below 30% free and, extrapolating the last 6 hours, reaches zero
                 within a day. On a Docker host, `docker system df` first: superseded
                 images are what filled odin.
+
+  # --- golem's backups (ADR-0053, #485) -----------------------------------
+  # The series as golem's agent delivers them: the collector's own labels,
+  # plus the instance and job Alloy gives every series from golem. The quiet
+  # cases are golem's real state on 2026-10-04, the morning after its first
+  # nightly run, with the clock moved to promtool's.
+
+  # --- PbsJobFailed ----------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_job_last_run_ok{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="verify",pbs_job="weekly"}'
+        values: "0x20"
+      - series: 'homelab_pbs_job_last_run_ok{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="prune",pbs_job="daily"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: PbsJobFailed
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: PbsJobFailed
+        exp_alerts:
+          - exp_labels:
+              instance: golem
+              job: golem-metrics
+              host: golem
+              store: erebor
+              kind: verify
+              pbs_job: weekly
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "golem's verify job weekly did not finish OK"
+              description: >-
+                Read the task log in golem's web UI (Administration, Tasks) or
+                `proxmox-backup-manager task list --all` on golem. A failed verify
+                names the snapshot; a failed garbage collection on this NFS
+                datastore is worth reading build-the-backup-guest.md §11 for
+                before the next one runs.
+
+  # A job that has never run writes no _ok series at all, so a fresh garbage
+  # collection is silence, not a failure.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_job_last_run_ok{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="verify",pbs_job="weekly"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PbsJobFailed
+        exp_alerts: []
+
+  # --- PbsVerifyOverdue ------------------------------------------------------
+  # Last verify ended at t=0; promtool's clock starts there too. Quiet at 13
+  # days, firing at 15. A gc that has never run (end 0) is not a verify and
+  # stays out of it.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_job_last_run_end_timestamp_seconds{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="verify",pbs_job="weekly"}'
+        values: "0x21700"
+      - series: 'homelab_pbs_job_last_run_end_timestamp_seconds{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="gc",pbs_job="erebor"}'
+        values: "0x21700"
+    alert_rule_test:
+      - eval_time: 13d
+        alertname: PbsVerifyOverdue
+        exp_alerts: []
+      - eval_time: 15d
+        alertname: PbsVerifyOverdue
+        exp_alerts:
+          - exp_labels:
+              instance: golem
+              job: golem-metrics
+              host: golem
+              store: erebor
+              kind: verify
+              pbs_job: weekly
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "golem's verify job weekly has not finished in 14 days"
+              description: >-
+                Its last run ended 15d 0h 0m 0s ago. Backups not
+                re-read are backups not known to be readable. Check the job's
+                schedule on golem (Datastore, Verify Jobs) and its task log.
+
+  # A verify that runs weekly keeps it quiet indefinitely: the end time moves
+  # to t=7d and t=14d.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_job_last_run_end_timestamp_seconds{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="verify",pbs_job="weekly"}'
+        values: "0x10079 604800x10079 1209600x10080"
+    alert_rule_test:
+      - eval_time: 20d
+        alertname: PbsVerifyOverdue
+        exp_alerts: []
+
+  # --- PbsNoVerifyJob --------------------------------------------------------
+  # The verify job is deleted at t=10m: the count drops to 0 and, an hour
+  # later, fires. Prune and gc jobs still existing do not keep it quiet.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_jobs{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="verify"}'
+        values: "1x9 0x120"
+      - series: 'homelab_pbs_jobs{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="prune"}'
+        values: "1x130"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PbsNoVerifyJob
+        exp_alerts: []
+      - eval_time: 80m
+        alertname: PbsNoVerifyJob
+        exp_alerts:
+          - exp_labels:
+              instance: golem
+              job: golem-metrics
+              host: golem
+              store: erebor
+              kind: verify
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "golem's erebor has no verify job"
+              description: >-
+                Nothing re-reads its backups, so nothing finds a damaged one
+                before a restore does. Recreate it as build-the-backup-guest.md
+                §6 makes it: weekly, Sunday 03:00, re-verify after 30 days.
+
+  # golem as it is: one verify job.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_jobs{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="verify"}'
+        values: "1x130"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: PbsNoVerifyJob
+        exp_alerts: []
+
+  # --- PbsSnapshotVerifyFailed -----------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_snapshots{instance="golem",job="golem-metrics",host="golem",store="erebor",verify="ok"}'
+        values: "7x20"
+      - series: 'homelab_pbs_snapshots{instance="golem",job="golem-metrics",host="golem",store="erebor",verify="none"}'
+        values: "0x20"
+      - series: 'homelab_pbs_snapshots{instance="golem",job="golem-metrics",host="golem",store="erebor",verify="failed"}'
+        values: "0x5 1x15"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PbsSnapshotVerifyFailed
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: PbsSnapshotVerifyFailed
+        exp_alerts:
+          - exp_labels:
+              instance: golem
+              job: golem-metrics
+              host: golem
+              store: erebor
+              verify: failed
+              component: backup
+              severity: critical
+              category: correctness
+            exp_annotations:
+              summary: "1 snapshot(s) on golem's erebor failed verification"
+              description: >-
+                A restore from one of them may fail. Find it in golem's web UI
+                (Datastore, Content, the red mark). Missing chunks after a garbage
+                collection are §11's atime case; roll erebor/pbs back to the
+                newest TrueNAS snapshot from before that run.
+
+  # --- PbsBackupStale --------------------------------------------------------
+  # Newest backup at t=0. Quiet a day later, firing two days later. A nightly
+  # job moving it forward keeps it quiet.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_snapshot_newest_timestamp_seconds{instance="golem",job="golem-metrics",host="golem",store="erebor"}'
+        values: "0x2900"
+    alert_rule_test:
+      - eval_time: 24h
+        alertname: PbsBackupStale
+        exp_alerts: []
+      - eval_time: 48h
+        alertname: PbsBackupStale
+        exp_alerts:
+          - exp_labels:
+              instance: golem
+              job: golem-metrics
+              host: golem
+              store: erebor
+              component: backup
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "golem's erebor has no backup newer than 2d 0h 0m 0s"
+              description: >-
+                Saruman's golem-nightly job did not run or did not reach golem.
+                Check the job's last run on Saruman (Datacenter, Backup; or
+                /var/log/vzdump/), `pvesm status` for golem, and the 2049 pass to
+                smaug if golem's datastore is unmounted.
+
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_snapshot_newest_timestamp_seconds{instance="golem",job="golem-metrics",host="golem",store="erebor"}'
+        values: "0x1439 86400x1439 172800x1439 259200x1439 345600x10"
+    alert_rule_test:
+      - eval_time: 4d
+        alertname: PbsBackupStale
+        exp_alerts: []
+
+  # --- PbsSnapshotUnencrypted ------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_snapshots_unencrypted{instance="golem",job="golem-metrics",host="golem",store="erebor"}'
+        values: "0x5 2x15"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PbsSnapshotUnencrypted
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: PbsSnapshotUnencrypted
+        exp_alerts:
+          - exp_labels:
+              instance: golem
+              job: golem-metrics
+              host: golem
+              store: erebor
+              component: backup
+              severity: critical
+              category: security
+            exp_annotations:
+              summary: "2 unencrypted snapshot(s) on golem's erebor"
+              description: >-
+                Check that Saruman's golem storage still has its encryption-key
+                line in /etc/pve/storage.cfg, and which job wrote the snapshot.
+                Delete the unencrypted snapshots on golem once a good backup
+                exists.
+
+  # --- PbsTaskStateStale -----------------------------------------------------
+  # Written hourly, then the timer stops at t=2h. Quiet while it runs, firing
+  # once the file is over three hours old and has stayed so for ten minutes.
+  - interval: 1m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="golem",job="golem-metrics",file="/var/lib/node_exporter/textfile_collector/pbs-task-state.prom"}'
+        values: "0x59 3600x59 7200x300"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: PbsTaskStateStale
+        exp_alerts: []
+      - eval_time: 6h
+        alertname: PbsTaskStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: golem
+              job: golem-metrics
+              file: /var/lib/node_exporter/textfile_collector/pbs-task-state.prom
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "golem has not rewritten its PBS task state for 4h 0m 0s"
+              description: >-
+                The backup alerts are reading an old answer. Check
+                homelab-pbs-task-state.timer on golem and
+                `journalctl -u homelab-pbs-task-state`, which says what PBS
+                answered.
