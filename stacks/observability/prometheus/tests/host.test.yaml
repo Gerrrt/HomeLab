@@ -1407,10 +1407,12 @@ tests:
               summary: "Saruman: cannot read guest diabolos's config"
               description: >-
                 `qm config 161` (or `pct config`) has failed for an hour, so
-                whether this guest is tagged `disposable`, and how old it is,
-                are unknown — DisposableGuestOutlived cannot fire for it. Its
-                run state is still reported. Run the command on the hypervisor
-                and read its error.
+                whether this guest is tagged `disposable`, how old it is, and
+                whether it is a template are unknown — DisposableGuestOutlived
+                cannot fire for it, and if it is a stopped template,
+                HypervisorGuestStopped firing for it is noise. Its run state is
+                still reported. Run the command on the hypervisor and read its
+                error.
 
   # --- GuestConfigUnreadable: quiet for a failed read that recovers --------
   - interval: 5m
