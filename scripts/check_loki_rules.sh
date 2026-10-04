@@ -46,10 +46,6 @@ done
 
 STACK="${REPO_ROOT}/stacks/${STACK_NAME}"
 [[ -f "${STACK}/compose.yaml" ]] || die "no such stack: ${STACK}"
-# This stack's pin, resolved once --stack is known. image-for.sh falls back to
-# stacks/observability/compose.yaml, so resolving it earlier checked every
-# stack's rules against observability's Loki.
-LOKI_IMAGE="$(COMPOSE_FILE="${STACK}/compose.yaml" "${REPO_ROOT}/scripts/image-for.sh" loki)"
 RULES_DIR="${STACK}/loki/rules"
 
 # A stack may legitimately have neither Loki rules nor dashboards. `stacks/lab`
@@ -78,6 +74,12 @@ if ((n_committed == 0 && ${#dash_files[@]} == 0)); then
     "${STACK_NAME}: no Loki rules and no dashboards — nothing to parse"
   exit 0
 fi
+
+# This stack's pin, resolved once --stack is known and there is something to
+# check: most stacks have no loki service, and set -e would end the run on the
+# lookup. image-for.sh falls back to stacks/observability/compose.yaml, so
+# resolving it before --stack checked every stack against observability's Loki.
+LOKI_IMAGE="$(COMPOSE_FILE="${STACK}/compose.yaml" "${REPO_ROOT}/scripts/image-for.sh" loki)"
 
 # Whether this run can happen at all is decided FIRST, before anything with a
 # side effect or a failure mode of its own.
