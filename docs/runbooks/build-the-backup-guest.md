@@ -276,14 +276,27 @@ those backups.** A rebuilt `Saruman` without it has a datastore full of
 ciphertext.
 
 So copy it off now, in two forms. Into the lab's SOPS file, from `alexander`,
-which holds the lab's age key (ADR-0020):
+which holds the lab's age key (ADR-0020), as a key `PBS_ENCRYPTION_KEY` whose
+value is the whole of `golem.enc` **as one JSON string**. On `Saruman`, print
+it in that form:
 
 ```bash
-cd ~/code/Gerrrt/HomeLab && make secrets-edit STACK=lab
+jq -c . /etc/pve/priv/storage/golem.enc | jq -R .
 ```
 
-Add a key `PBS_ENCRYPTION_KEY` whose value is the whole contents of
-`golem.enc`, a short JSON document. Commit the re-encrypted file. And a paper
+and on `alexander` set it, pasting that output between the single quotes:
+
+```bash
+cd ~/code/Gerrrt/HomeLab && sops set secrets/lab.sops.yaml '["PBS_ENCRYPTION_KEY"]' '<the output>'
+```
+
+Not through `make secrets-edit`. The 2026-10-03 build pasted it there twice,
+as the file's own JSON and then unquoted, and YAML read it as a nested map
+both times; `scripts/secrets-env.sh` takes flat `KEY: value` lines only and
+refuses the whole file, so `make render STACK=lab` would fail. `sops set`
+writes a string and nothing else. To get it back as a key file:
+`sops -d --extract '["PBS_ENCRYPTION_KEY"]' secrets/lab.sops.yaml`, which must
+start `{"kdf":`. Commit the re-encrypted file. And a paper
 copy, which survives the lab's age key being lost too:
 
 ```bash
@@ -359,7 +372,14 @@ nothing behind it. Two pieces:
 
 1. **`golem`'s agent**, as `phoenix`'s: the native Alloy package, from the
    Mac, pushing to `alexander`
-   ([`build-the-jumpbox.md`](build-the-jumpbox.md) §6):
+   ([`build-the-jumpbox.md`](build-the-jumpbox.md) §6).
+
+   The lab's ingest proxy wants `golem`'s own token first
+   ([#834](https://github.com/Gerrrt/HomeLab/issues/834)):
+   `INGEST_TOKEN_GOLEM` in `secrets/lab.sops.yaml`, generated there with
+   `openssl rand -hex 32`, and a line for it in `stacks/lab/Caddyfile`.
+   Export it as `INGEST_TOKEN`, with `INGEST_TOKEN_READER`, in the Mac's
+   shell, as `build-the-jumpbox.md` §6 does for `phoenix`. Then:
 
    ```bash
    ./scripts/deploy-agent.sh --runtime native --monitoring-host 10.0.30.40 root@10.0.30.80
