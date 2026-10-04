@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-04
 
+- **`deploy-agent.sh` proves the log path with a line it writes itself.**
+  Its arrival check asked Loki for any line from the host newer than the
+  deploy. golem, an idle backup server, logged nothing in the three minutes,
+  so a working agent was reported as broken. Its logs were reaching Loki by
+  all three paths, which a hand-sent `logger` line showed. The script now
+  sends a unique marker with `logger` on the target once the agent is up,
+  then looks for that exact text. It travels the host's own logging, so it
+  arrives exactly when the host's logs are shipped. It is found by text, so
+  the search runs from ten minutes before the deploy to ten minutes after the
+  wait, and tolerates up to ten minutes of clock skew either way. If `logger`
+  cannot run, the old check stands in, with a warning, and its failure
+  message no longer names a marker that was never sent.
+
 - **#485 closes: what `golem` does is visible, and its first nightly run is
   verified** ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
   [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).

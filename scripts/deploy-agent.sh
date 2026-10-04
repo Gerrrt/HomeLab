@@ -521,17 +521,31 @@ REMOTE
 #
 #   - a sample from every expected job, timestamped after the new agent
 #     passed its checks above (the old one was gone by then);
-#   - a Loki line for this host, timestamped after the same moment;
+#   - a Loki line for this host that the deploy itself wrote: a marker sent
+#     with logger(1) on the target once the agent is up, looked for by its
+#     exact text. Asking for "any line newer than the deploy" failed on a
+#     quiet host: golem, an idle backup server, logged nothing in the three
+#     minutes, so a working agent read as a broken one (2026-10-04). The
+#     marker travels the host's own logging (journald, and rsyslog where it
+#     runs), so it arrives exactly when the host's logs are being shipped;
 #   - no rise in the agent's own loki_write_dropped_entries_total, which is
 #     where a refused log push is counted. A refused metric push cannot be
 #     counted this way, because the counter would travel on the refused path.
 #     The first check is what catches that.
 #
-# Timestamps are the agent host's clock. A skew of more than the three-minute
-# wait makes this fail, which is a fault worth hearing about anyway.
+# ARRIVED_AFTER is this machine's clock; a sample's timestamp is the agent
+# host's. A skew of more than the three-minute wait makes the Prometheus half
+# fail, which is a fault worth hearing about anyway. The marker is found by
+# its text, not its time, so the Loki half searches from ten minutes before
+# the deploy to ten minutes after the wait ends. Loki stamps a line with the
+# target's clock, so a target running fast puts the marker in the future: an
+# end left to default (Loki's now) missed it, which a review of #908 caught.
+# Skew of up to ten minutes either way is tolerated; more than that fails.
 ARRIVED_AFTER="$(date +%s)"
 promql="up{instance=\"${HOST}\"}"
 logql="{host=\"${HOST}\"}"
+MARKER="homelab-deploy-check ${HOST} ${ARRIVED_AFTER}-$$-${RANDOM}"
+marker_logql="{host=\"${HOST}\"} |= \"${MARKER}\""
 expected=2
 [[ "$RUNTIME" == docker ]] && expected=3   # + integrations/cadvisor
 
@@ -551,7 +565,18 @@ if ((VERIFY)); then
   elif ! mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
     warn "${MON}:9090 refused the reader token — is INGEST_TOKEN_READER the one in ${TOKEN_FILE}? Skipping the arrival check"
   else
-    info "waiting for data newer than the deploy from ${HOST} in Prometheus and Loki at ${MON} (up to 3 min)"
+    # The marker. logger(1) is util-linux, present on every target this ships
+    # to, and needs no root. If it is missing anyway, fall back to asking for
+    # any line newer than the deploy, and say that a quiet host can fail that.
+    loki_query="${marker_logql}"; loki_since=$((ARRIVED_AFTER - 600)); loki_what="the deploy's marker line"
+    loki_until=$((ARRIVED_AFTER + 180 + 600))   # the 3-minute wait, plus the skew allowance
+    marker_sent=1
+    if ! "${SSH[@]}" "logger -t homelab-deploy-check '${MARKER}'" 2>/dev/null; then
+      warn "could not run logger on ${HOST}; looking for any line newer than the deploy instead, which an idle host can fail"
+      loki_query="${logql}"; loki_since="${ARRIVED_AFTER}"; loki_what="a line newer than the deploy"
+      marker_sent=0
+    fi
+    info "waiting for data newer than the deploy from ${HOST} in Prometheus, and ${loki_what} in Loki, at ${MON} (up to 3 min)"
     fresh_promql="count by (job) (timestamp(${promql}) > ${ARRIVED_AFTER})"
     deadline=$((SECONDS + 180)); jobs=0; in_loki=0
     while ((SECONDS < deadline)); do
@@ -563,7 +588,8 @@ if ((VERIFY)); then
               | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ' || true)"
       jobs="${jobs:-0}"
       if mon_curl -G "http://${MON}:3100/loki/api/v1/query_range" \
-           --data-urlencode "query=${logql}" --data-urlencode "start=${ARRIVED_AFTER}000000000" \
+           --data-urlencode "query=${loki_query}" --data-urlencode "start=${loki_since}000000000" \
+           --data-urlencode "end=${loki_until}000000000" \
            --data-urlencode "limit=1" --data-urlencode "direction=forward" 2>/dev/null \
            | grep -q '"values":\[\['; then
         in_loki=1
@@ -578,9 +604,13 @@ if ((VERIFY)); then
       arrival_failed=1
     fi
     if ((in_loki)); then
-      pass "Loki has a line newer than the deploy for host=\"${HOST}\""
+      pass "Loki has ${loki_what} for host=\"${HOST}\""
     else
-      warn "Loki has no line newer than the deploy for host=\"${HOST}\". Same suspects as above, on ${MON}:3100."
+      if ((marker_sent)); then
+        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:3100. The marker was logged on ${HOST} as: ${MARKER}"
+      else
+        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:3100."
+      fi
       arrival_failed=1
     fi
     dropped="$(mon_curl "http://${MON}:9090/api/v1/query" \
