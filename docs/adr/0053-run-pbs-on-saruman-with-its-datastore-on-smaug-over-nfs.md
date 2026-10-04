@@ -5,6 +5,18 @@
 deferral in a different shape from the one it specified; decides the
 re-read [#485](https://github.com/Gerrrt/HomeLab/issues/485) asked for
 
+> [!NOTE]
+> **Built 2026-10-03**, by
+> [`build-the-backup-guest.md`](../runbooks/build-the-backup-guest.md) under
+> [#485](https://github.com/Gerrrt/HomeLab/issues/485): `golem`, VMID 180,
+> PBS 4.2, with its datastore on `erebor/pbs` over NFSv4. A one-off backup of
+> `phoenix` was encrypted, verified and restored to a spare VMID that booted,
+> and the nightly job takes `odin` and the domain's six. The first consequence
+> below, that the lab has a backup and not only revert, is true from that
+> day; ADR-0027's sentence and `build-the-soc-guest.md`'s note become history
+> with it. The verify job's outcome does not yet reach the lab's alerting,
+> which is what keeps #485 open. Nothing here is amended, per ADR-0001.
+
 ## Context
 
 ADR-0027 deferred Proxmox Backup Server on one argument: *a hypervisor

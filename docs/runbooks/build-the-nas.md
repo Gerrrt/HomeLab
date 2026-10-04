@@ -2088,7 +2088,9 @@ within the scrape interval and firing ten minutes later. Start it again with
   ([ADR-0053](../adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
   On this host that means a dataset `erebor/pbs` with `atime` on, owned by
   uid and gid 34, an NFSv4 share to `10.0.30.80` alone, and a daily
-  snapshot task keeping fourteen.
+  snapshot task keeping fourteen. **Done 2026-10-03**: all three exist, and
+  `golem` has made its datastore on the share
+  ([`build-the-backup-guest.md`](build-the-backup-guest.md)).
 - **Offsite** — owned, since 2026-09-20. §6.2 gets the media tier's state off
   `smaug`, onto the monitoring host and onto `oracle`, and every one of those
   copies is on the same shelf under the same roof — the position the volume

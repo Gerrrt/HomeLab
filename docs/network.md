@@ -372,16 +372,22 @@ Televisions and consoles. Internet only.
   [#523](https://github.com/Gerrrt/HomeLab/issues/523)). It was created on
   2026-09-23 by `build-the-nas.md` §5, and a Hicks workstation has mounted the
   share through it. With 4533 and 13378, seven exist from Hicks and
-  Winterfell. **One more is from ImaginationLAN, and it exists, which makes
-  eight.** `Allow NFS from Saruman to smaug`,
+  Winterfell. **Two more are from ImaginationLAN, and both exist, which
+  makes nine.** `Allow NFS from Saruman to smaug`,
   `10.0.30.110 → 10.0.40.30:2049`, lets the hypervisor mount `erebor/iso` as
   its ISO store for Packer
   ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),
   [#446](https://github.com/Gerrrt/HomeLab/issues/446)). It was created on
   2026-10-01 by `build-the-nas.md` §5b, directly above `igc0.30`'s *Block
   access to CasaBonita*. `Saruman` has mounted the share through it, and
-  `alexander` is refused. `golem`'s `2049` pass (ADR-0053) goes above the
-  same block when it is built.
+  `alexander` is refused. `Allow NFS from golem to smaug`,
+  `10.0.30.80 → 10.0.40.30:2049`, carries `golem`'s PBS datastore on
+  `erebor/pbs`
+  ([ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md),
+  [#485](https://github.com/Gerrrt/HomeLab/issues/485)). It was created on
+  2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
+  §4, directly above the same block, and `golem` has mounted the share
+  through it.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
@@ -415,6 +421,7 @@ Where things get broken on purpose.
 | Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
+| golem | `10.0.30.80` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Proxmox Backup Server 4 | Rack U3 | Backups (PBS) |
 | odin | `10.0.30.60` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Security tooling (SOC) |
 | bahamut | `10.0.30.50` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller (PDC) |
 | leviathan | `10.0.30.51` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller |
@@ -432,7 +439,9 @@ Where things get broken on purpose.
   Skids, CasaBonita, Hicks, Winterfell, the untagged LAN) that sit above the
   #223 tripwire and *Allow internet*. A pass from this segment to `smaug`
   goes directly above it. `Allow NFS from Saruman to smaug` does, since
-  2026-10-01 ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+  2026-10-01 ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)),
+  and `Allow NFS from golem to smaug` does, since 2026-10-03
+  ([ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
   [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md) §4
   asked for this block to be named here.
 - `shiva` and `Saruman` are the same physical box: `shiva` is the iLO BMC on its
