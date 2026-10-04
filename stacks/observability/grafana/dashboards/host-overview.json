@@ -71,7 +71,7 @@
     {
       "type": "table",
       "title": "Host alerts",
-      "description": "Firing and pending alerts carrying component=host, from the ALERTS series Prometheus exposes for its own rules. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
+      "description": "One row per firing or pending alert, always the same six columns. Raw, each rule's own labels became a column apiece, empty on most rows (#888). Host is the first of host, instance. Subject is every identifying label the alert carries, in the order guest, zpool, pool, vg, vdev, kind, space, mountpoint, slot, device, model, power_supply, file, name, state, aux, via, written as \"name value\" and comma-separated, so two alerts that differ in any of them stay two rows. Either column reads — when the alert has none. The full label set is in Alertmanager.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -90,7 +90,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "ALERTS{component=\"host\",alertstate=~\"firing|pending\"}",
+          "expr": "max by (alertname, alertstate, severity, category, where, subject) (label_replace(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_join(ALERTS{component=\"host\",alertstate=~\"firing|pending\"}, \"fold_tmp\", \"|\", \"where\", \"host\"), \"where\", \"$1\", \"fold_tmp\", \"\\\\|(.+)\"), \"fold_tmp\", \"|\", \"where\", \"instance\"), \"where\", \"$1\", \"fold_tmp\", \"\\\\|(.+)\"), \"where\", \"—\", \"where\", \"\"), \"fold_tmp\", \"|\", \"subject\", \"guest\"), \"subject\", \"guest $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, guest $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"zpool\"), \"subject\", \"zpool $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, zpool $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"pool\"), \"subject\", \"pool $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, pool $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"vg\"), \"subject\", \"vg $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, vg $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"vdev\"), \"subject\", \"vdev $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, vdev $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"kind\"), \"subject\", \"kind $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, kind $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"space\"), \"subject\", \"space $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, space $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"mountpoint\"), \"subject\", \"mountpoint $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, mountpoint $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"slot\"), \"subject\", \"slot $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, slot $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"device\"), \"subject\", \"device $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, device $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"model\"), \"subject\", \"model $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, model $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"power_supply\"), \"subject\", \"power_supply $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, power_supply $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"file\"), \"subject\", \"file $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, file $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"name\"), \"subject\", \"name $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, name $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"state\"), \"subject\", \"state $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, state $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"aux\"), \"subject\", \"aux $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, aux $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"via\"), \"subject\", \"via $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, via $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"subject\", \"—\", \"subject\", \"\"))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -104,23 +104,23 @@
           "options": {
             "excludeByName": {
               "Time": true,
-              "__name__": true,
-              "Value": true,
-              "component": true,
-              "job": true,
-              "monitor": true,
-              "site": true,
-              "role": true
+              "Value": true
             },
-            "indexByName": {},
+            "indexByName": {
+              "alertname": 0,
+              "alertstate": 1,
+              "severity": 2,
+              "category": 3,
+              "where": 4,
+              "subject": 5
+            },
             "renameByName": {
               "alertname": "Alert",
               "alertstate": "State",
               "severity": "Severity",
               "category": "Category",
-              "device": "Device",
-              "instance": "Instance",
-              "vlan": "VLAN"
+              "where": "Host",
+              "subject": "Subject"
             }
           }
         }
@@ -207,59 +207,6 @@
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "color-text"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "VLAN"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "99": {
-                        "color": "red",
-                        "index": 0
-                      },
-                      "50": {
-                        "color": "orange",
-                        "index": 1
-                      },
-                      "40": {
-                        "color": "semi-dark-yellow",
-                        "index": 2
-                      },
-                      "30": {
-                        "color": "green",
-                        "index": 3
-                      },
-                      "20": {
-                        "color": "blue",
-                        "index": 4
-                      },
-                      "10": {
-                        "color": "purple",
-                        "index": 5
-                      },
-                      "lan": {
-                        "color": "#484f58",
-                        "index": 6
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background",
-                  "mode": "basic"
                 }
               }
             ]

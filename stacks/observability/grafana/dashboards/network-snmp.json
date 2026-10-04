@@ -41,7 +41,7 @@
     {
       "type": "table",
       "title": "Network & firewall alerts",
-      "description": "Firing and pending alerts carrying component=network, from the ALERTS series Prometheus exposes for its own rules. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
+      "description": "One row per firing or pending alert, always the same six columns. Raw, each rule's own labels became a column apiece, empty on most rows (#888). Host is the first of device, host, instance. Subject is every identifying label the alert carries, in the order gateway, family, ifDescr, mountpoint, chassis, battery, controller, drive, written as \"name value\" and comma-separated, so two alerts that differ in any of them stay two rows. Either column reads — when the alert has none. The full label set is in Alertmanager.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -60,7 +60,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "ALERTS{component=\"network\",alertstate=~\"firing|pending\"}",
+          "expr": "max by (alertname, alertstate, severity, category, where, subject) (label_replace(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(ALERTS{component=\"network\",alertstate=~\"firing|pending\"}, \"fold_tmp\", \"|\", \"where\", \"device\"), \"where\", \"$1\", \"fold_tmp\", \"\\\\|(.+)\"), \"fold_tmp\", \"|\", \"where\", \"host\"), \"where\", \"$1\", \"fold_tmp\", \"\\\\|(.+)\"), \"fold_tmp\", \"|\", \"where\", \"instance\"), \"where\", \"$1\", \"fold_tmp\", \"\\\\|(.+)\"), \"where\", \"—\", \"where\", \"\"), \"fold_tmp\", \"|\", \"subject\", \"gateway\"), \"subject\", \"gateway $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, gateway $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"family\"), \"subject\", \"family $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, family $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"ifDescr\"), \"subject\", \"ifDescr $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, ifDescr $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"mountpoint\"), \"subject\", \"mountpoint $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, mountpoint $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"cpqHeSysBatteryChassis\"), \"subject\", \"chassis $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, chassis $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"cpqHeSysBatteryIndex\"), \"subject\", \"battery $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, battery $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"cpqDaPhyDrvCntlrIndex\"), \"subject\", \"controller $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, controller $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"cpqDaPhyDrvIndex\"), \"subject\", \"drive $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, drive $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"subject\", \"—\", \"subject\", \"\"))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -74,23 +74,23 @@
           "options": {
             "excludeByName": {
               "Time": true,
-              "__name__": true,
-              "Value": true,
-              "component": true,
-              "job": true,
-              "monitor": true,
-              "site": true,
-              "role": true
+              "Value": true
             },
-            "indexByName": {},
+            "indexByName": {
+              "alertname": 0,
+              "alertstate": 1,
+              "severity": 2,
+              "category": 3,
+              "where": 4,
+              "subject": 5
+            },
             "renameByName": {
               "alertname": "Alert",
               "alertstate": "State",
               "severity": "Severity",
               "category": "Category",
-              "device": "Device",
-              "instance": "Instance",
-              "vlan": "VLAN"
+              "where": "Host",
+              "subject": "Subject"
             }
           }
         }
@@ -177,59 +177,6 @@
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "color-text"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "VLAN"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "99": {
-                        "color": "red",
-                        "index": 0
-                      },
-                      "50": {
-                        "color": "orange",
-                        "index": 1
-                      },
-                      "40": {
-                        "color": "semi-dark-yellow",
-                        "index": 2
-                      },
-                      "30": {
-                        "color": "green",
-                        "index": 3
-                      },
-                      "20": {
-                        "color": "blue",
-                        "index": 4
-                      },
-                      "10": {
-                        "color": "purple",
-                        "index": 5
-                      },
-                      "lan": {
-                        "color": "#484f58",
-                        "index": 6
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background",
-                  "mode": "basic"
                 }
               }
             ]
