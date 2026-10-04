@@ -50,8 +50,27 @@ groups:
           summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} below 10% free"
 
       - alert: HostMemoryPressure
+        # THE ZFS ARC COUNTS AS AVAILABLE (#910). On Linux the ARC is not page
+        # cache, so MemAvailable leaves it out, though ZFS hands it back down to
+        # c_min whenever anything else wants memory. smaug's ARC filled to 24.9
+        # of 31 GiB on 2026-10-04 and this fired with no OOM kill and no swap.
+        # So where a host exports node_zfs_arc_*, ARC above its floor is added
+        # back; a host without ZFS has no such series, and `or` gives it the
+        # plain MemAvailable it always had.
+        #
+        # A plain `+`, matching on every label, and not `+ on (instance, job)`:
+        # `on` keeps only the labels it names, so the sum lost role and vlan,
+        # no longer matched MemAvailable in the `or`, and smaug came out twice,
+        # once at 84% and once at the 7% that still fired. The tests carry the
+        # real label set so that cannot pass again.
         expr: |
-          node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+          (
+            node_memory_MemAvailable_bytes
+            + clamp_min(node_zfs_arc_size - node_zfs_arc_c_min, 0)
+            or
+            node_memory_MemAvailable_bytes
+          )
+          / node_memory_MemTotal_bytes < 0.10
         for: 15m
         labels:
           component: host
