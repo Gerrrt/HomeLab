@@ -53,6 +53,15 @@
 # Like `disposable`, it is set on the guest (`qm set <vmid> --tags '<existing>;on-demand'`), so the
 # mark cannot drift from the guest it marks, and nothing here lists them.
 #
+# GUESTS STILL BEING MADE. A fifth fact: `lock: clone` or `lock: create` in the
+# config. Proxmox writes the new guest's config, locked, before a full clone
+# copies its disks or a restore writes them, so for that whole task the
+# hypervisor shows a stopped guest that nobody has had a chance to tag yet —
+# packer-smoke.sh's VMID 999 went pending on HypervisorGuestStopped that way.
+# The clone API takes no tags, so tagging cannot close it atomically; the lock
+# can, and it covers tofu's clones and restores as well. Other locks (backup,
+# migrate, snapshot) are on guests that already exist and stay visible.
+#
 # `qm config` and not /etc/pve/qemu-server/<vmid>.conf, although reading the
 # file would be faster: the file also carries every snapshot's section, each
 # with its own `meta:` and `tags:`, and `qm config` prints the current config
@@ -112,9 +121,10 @@ parse_guest_list() {
 #       name: diabolos
 #       tags: disposable;lab
 #
-# Prints "<disposable> <ctime> <template> <on_demand>": 1 or 0, the epoch or `-`
-# when there is no ctime (a guest created before PVE recorded one, or a
-# container), 1 or 0 for `template: 1`, and 1 or 0 for the tag `on-demand`. PVE stores tags `;`-separated, but accepts `,` and
+# Prints "<disposable> <ctime> <template> <on_demand> <creating>": 1 or 0, the
+# epoch or `-` when there is no ctime (a guest created before PVE recorded one,
+# or a container), 1 or 0 for `template: 1`, 1 or 0 for the tag `on-demand`,
+# and 1 or 0 for `lock: clone` or `lock: create`. PVE stores tags `;`-separated, but accepts `,` and
 # spaces on input, so all three split.
 parse_guest_config() {
   awk '
@@ -130,7 +140,8 @@ parse_guest_config() {
       for (i = 1; i <= n; i++) if (m[i] ~ /^ctime=[0-9]+$/) ctime = substr(m[i], 7)
     }
     $1 == "template:" && $2 == "1" { template = 1 }
-    END { printf "%d %s %d %d\n", disposable, (ctime == "" ? "-" : ctime), template, on_demand }
+    $1 == "lock:" && ($2 == "clone" || $2 == "create") { creating = 1 }
+    END { printf "%d %s %d %d %d\n", disposable, (ctime == "" ? "-" : ctime), template, on_demand, creating }
   '
 }
 
@@ -177,45 +188,55 @@ if [[ "${1:-}" == "--self-test" ]]; then
       fail=1
     fi
   }
-  check_config "a disposable guest with a ctime" "1 1759300000 0 0" \
+  check_config "a disposable guest with a ctime" "1 1759300000 0 0 0" \
 "boot: order=scsi0
 meta: creation-qemu=9.2.0,ctime=1759300000
 name: diabolos
 tags: disposable"
-  check_config "the tag among others, any separator" "1 1759300000 0 0" \
+  check_config "the tag among others, any separator" "1 1759300000 0 0 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 tags: lab,soc;disposable other"
   # A substring is not the tag: `not-disposable` must not count.
-  check_config "a tag that merely contains the word" "0 1759300000 0 0" \
+  check_config "a tag that merely contains the word" "0 1759300000 0 0 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 tags: not-disposable"
-  check_config "no tags line" "0 1759300000 0 0" \
+  check_config "no tags line" "0 1759300000 0 0 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 name: alexander"
-  check_config "no meta line — created before PVE recorded one" "1 - 0 0" \
+  check_config "no meta line — created before PVE recorded one" "1 - 0 0 0" \
 "name: diabolos
 tags: disposable"
-  check_config "a meta line without ctime" "0 - 0 0" \
+  check_config "a meta line without ctime" "0 - 0 0 0" \
 "meta: creation-qemu=9.2.0"
-  check_config "empty config" "0 - 0 0" ""
-  check_config "a template" "0 1759300000 1 0" \
+  check_config "empty config" "0 - 0 0 0" ""
+  check_config "a template" "0 1759300000 1 0 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 name: tpl-ubuntu-2604
 template: 1"
   # Only the value 1 is a template; a stray `template: 0` is not.
-  check_config "template set to 0" "0 1759300000 0 0" \
+  check_config "template set to 0" "0 1759300000 0 0 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 template: 0"
-  check_config "a disposable template" "1 - 1 0" \
+  check_config "a disposable template" "1 - 1 0 0" \
 "tags: disposable
 template: 1"
-  check_config "an on-demand endpoint" "0 1759300000 0 1" \
+  check_config "an on-demand endpoint" "0 1759300000 0 1 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 name: carbuncle
 tags: lab;on-demand"
   # A substring is not the tag here either.
-  check_config "a tag that merely contains on-demand" "0 - 0 0" \
+  check_config "a tag that merely contains on-demand" "0 - 0 0 0" \
 "tags: not-on-demand"
+  # A full clone in progress: config written and locked, disks still copying.
+  check_config "a clone in progress" "0 1759600000 0 0 1" \
+"lock: clone
+meta: creation-qemu=9.2.0,ctime=1759600000
+name: smoke-911"
+  check_config "a restore in progress" "0 - 0 0 1" \
+"lock: create"
+  # A backup lock is on a guest that already exists: not "being made".
+  check_config "a backup lock is not creation" "0 - 0 0 0" \
+"lock: backup"
   exit $fail
 fi
 
@@ -283,7 +304,7 @@ if [[ -n "$rows" ]]; then
 fi
 
 emit_config_facts() {
-  local which="$1" metric="$2" kind vmid name _status facts value f_disposable f_ctime f_template f_on_demand
+  local which="$1" metric="$2" kind vmid name _status facts value f_disposable f_ctime f_template f_on_demand f_creating
   [[ -n "$rows" ]] || return 0
   while read -r kind vmid name _status; do
     [[ -n "$kind" ]] || continue
@@ -294,12 +315,13 @@ emit_config_facts() {
       continue
     fi
     [[ -n "$facts" ]] || continue
-    read -r f_disposable f_ctime f_template f_on_demand <<<"$facts"
+    read -r f_disposable f_ctime f_template f_on_demand f_creating <<<"$facts"
     case "$which" in
       disposable) value="$f_disposable" ;;
       ctime) value="$f_ctime" ;;
       template) value="$f_template" ;;
       on_demand) value="$f_on_demand" ;;
+      creating) value="$f_creating" ;;
     esac
     [[ "$value" == "-" ]] && continue
     printf '%s{host="%s",guest="%s",vmid="%s",type="%s"} %s\n' \
@@ -336,6 +358,9 @@ emit() {
   printf '# HELP homelab_guest_on_demand 1 when this guest carries the Proxmox tag on-demand: off between sessions by design (ADR-0079).\n'
   printf '# TYPE homelab_guest_on_demand gauge\n'
   emit_config_facts on_demand homelab_guest_on_demand
+  printf '# HELP homelab_guest_creating 1 while this guest'"'"'s config is locked for clone or create: still being made.\n'
+  printf '# TYPE homelab_guest_creating gauge\n'
+  emit_config_facts creating homelab_guest_creating
   printf '# HELP homelab_guest_config_readable 1 when this guest'"'"'s config was read, so the config series above can be trusted.\n'
   printf '# TYPE homelab_guest_config_readable gauge\n'
   emit_config_facts readable homelab_guest_config_readable

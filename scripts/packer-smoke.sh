@@ -26,8 +26,9 @@
 #
 # WHAT IT NEEDS. phoenix.env sourced (PROXMOX_URL, PROXMOX_TOKEN_ID,
 # PROXMOX_TOKEN_SECRET), curl and jq, and PhoenixBuilder holding VM.Clone,
-# VM.Allocate, VM.Config.Cloudinit, VM.PowerMgmt, VM.Audit and, on PVE 9,
-# VM.GuestAgent.Audit for the agent reads.
+# VM.Allocate, VM.Config.Cloudinit, VM.Config.Options (the tag below),
+# VM.PowerMgmt, VM.Audit and, on PVE 9, VM.GuestAgent.Audit for the agent
+# reads.
 #
 # Usage:
 #   scripts/packer-smoke.sh <template-vmid> [--vmid N] [--name NAME] [--keep]
@@ -116,6 +117,17 @@ upid="$(api POST "/nodes/${NODE}/qemu/${TEMPLATE}/clone" \
 trap cleanup EXIT
 wait_task "${upid}"
 ok "cloned"
+
+# Tagged `disposable` (ADR-0071), the way tofu tags its proof guest. A template
+# is stopped, so its clone sits stopped until it boots below, and a clone that
+# HypervisorGuestStopped can see went pending on every smoke run. Disposable
+# guests are outside that rule. The tag also makes a clone that outlives its
+# run visible: --keep, or a destroy that failed, is DisposableGuestOutlived's
+# case at a fortnight, instead of a VMID 999 nobody is watching. Set before
+# boot, so the hypervisor's collector never sees the clone untagged.
+api PUT "/nodes/${NODE}/qemu/${CLONE}/config" \
+  --data-urlencode "tags=disposable;smoke" >/dev/null
+ok "tagged disposable"
 
 if [[ "${ostype}" == l26 ]]; then
   # Proxmox wants sshkeys URL-encoded inside the form value, hence the jq @uri

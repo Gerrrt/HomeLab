@@ -19,6 +19,7 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-04
 
+<<<<<<< HEAD
 - **#485 closes: what `golem` does is visible, and its first nightly run is
   verified** ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
   [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
@@ -49,6 +50,42 @@ docstring gives: it is a record, not a claim about now.
     `make up STACK=lab`, which cannot render while the lab's secrets lack
     #834's four tokens. Until then the collector's series arrive and nothing
     evaluates them.
+||||||| b948d13
+## 2026-10-03
+=======
+- **`ContainerGone` fired 352 times at once, and now watches only the
+  deployed stacks** ([#901](https://github.com/Gerrrt/HomeLab/issues/901)).
+  - **What happened.** The rule from #838 reached the live stack with the
+    day's converges. It watched every container cAdvisor had seen in the
+    last seven days and excluded only `homelab.logs=off`. The week's
+    throwaways all fired together: 295 on `trinity`, 49 on `prometheus` and
+    8 on `oracle`. They were promtool and validation `docker run`s, the
+    dashboard round-trip, hardened-boot and compose-health probes, build and
+    restore rehearsals, and the old hand-made `db` and `wiki` on `oracle`.
+    None of them was a service. Every service that should run was running.
+  - **The silence.** Two silences, on the exact names, expire 2026-10-12. The
+    first one also covered `trinity`'s real `sensitive-home-assistant` and
+    was replaced. `ContainerGone` as a whole was never silenced.
+  - **The fix.** The rule now watches the compose projects this repository
+    deploys (`observability`, `sensitive`, `wiki`, `lab`, `soc`, `sensor`),
+    plus `alloy`, which `deploy-agent.sh` runs outside compose. Against live
+    data it fires for none of the 352. It watches the 34 service containers
+    running on the three hosts. The promtool test adds a bare `docker run`
+    container and an undeployed project (`mfscratch`), and both stay quiet.
+    A new stack has to be added to the rule's project list.
+
+- **The alert-path runbook says how to prove the Loki ruler's alerts page**
+  ([#837](https://github.com/Gerrrt/HomeLab/issues/837)).
+  `verify-the-alert-path.md` had the healthy check only. It now has the
+  failure test #837 asks for. A compose override under `/tmp` points the ruler
+  at an Alertmanager that is not there. `LokiRulerNotificationsFailing` pages
+  in about 12 minutes and `LokiRulerSilent` in about 21, over the path the
+  heartbeat proves. The override never touches the deployment checkout, which
+  converge needs clean. Step 3 checks that the override took before anyone
+  waits on it.
+
+## 2026-10-03
+>>>>>>> origin/main
 
 - **`golem` gets its own token at the lab's ingest proxy**
   ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
