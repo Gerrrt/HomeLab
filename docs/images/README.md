@@ -29,8 +29,8 @@ recorded here instead of being cropped out:
 - **`network-snmp.png`:**
   - *Firewall uptime* reads 12 years. `pfStatusRuntime` is in hundredths of a
     second and the panel treats it as seconds, so the value is about 44 days
-    ([#886](https://github.com/Gerrrt/HomeLab/issues/886)). The panel divides by 100
-    since, and the image predates the fix.
+    ([#886](https://github.com/Gerrrt/HomeLab/issues/886)). The panel now divides by
+    100; the image predates the fix.
   - The firewall's *Filesystem usage* panel says *No data*. #873 added it, and
     on the day of the capture the running stack was not yet collecting
     `hrStorage` from `morpheus`: its rendered `snmp.yaml` predated the generator
@@ -45,8 +45,8 @@ recorded here instead of being cropped out:
   - It now shows measured values under the banner that records the pack being
     fitted and proven.
   - *Input frequency* reads 600: the card reports tenths of a hertz and the
-    panel did not divide ([#889](https://github.com/Gerrrt/HomeLab/issues/889)). It divides by 10
-    since, and the image predates the fix.
+    panel did not divide ([#889](https://github.com/Gerrrt/HomeLab/issues/889)). It now divides by 10;
+    the image predates the fix.
 - **`observability-stack.png`:** this is its first capture. The step in
   ingestion near 22:00 is the stack being redeployed two hours before the
   shot.
