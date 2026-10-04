@@ -1146,6 +1146,13 @@ services:
   renderer:
     <<: *service-defaults
     profiles: ["capture"]
+    # Throwaway, like backup-volumes.sh's archiver: it exists for the length of
+    # one capture and is removed after it. Without this label ContainerGone
+    # (containers.rules.yaml) sees it vanish and pages for seven days (#883).
+    # The label also keeps its logs out of Alloy; a failed render still
+    # reports its error to capture-screenshots.sh.
+    labels:
+      homelab.logs: "off"
     image: grafana/grafana-image-renderer:v5.12.5@sha256:76542ccc4c045e5ff9f80f87b25de6fcc71b31222172de5031a8ceba33772ee1
     container_name: renderer
     environment:
