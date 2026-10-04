@@ -630,7 +630,7 @@
     {
       "type": "table",
       "title": "Every target",
-      "description": "Every up series the stack holds, with how long its scrape took and how many samples it returned. Samples is the column that matters: cAdvisor reporting one series where it should report hundreds is invisible in Up and obvious here (#12). Remote-written jobs show their last pushed value, which is why Staleness sits beside it.",
+      "description": "Every up series the stack holds, with how long its scrape took and how many samples it returned. Samples is the column that matters: cAdvisor reporting one series where it should report hundreds is invisible in Up and obvious here (#12). Remote-written jobs show their last pushed value, which is why Staleness sits beside it.\n\nUp is `min by (job, instance)`, the same grouping as the other three columns, so a job's extra labels (check, scope, renewal, …) never become half-empty columns. Min, not max: blackbox-dns has two /probe scrapes at one address, liveness and filtering, and the row reads down if either scrape fails. For blackbox jobs Up is the scrape of the exporter, not the probe's result: a check that fails reports probe_success 0 with Up still 1. Probe results are watched by the dns and blackbox rules, not by this column.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -649,7 +649,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "up",
+          "expr": "min by (job, instance) (up)",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -711,13 +711,7 @@
               "Time": true,
               "__name__": true,
               "site": true,
-              "monitor": true,
-              "device": true,
-              "host": true,
-              "name": true,
-              "role": true,
-              "via": true,
-              "vlan": true
+              "monitor": true
             },
             "indexByName": {
               "job": 0,

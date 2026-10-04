@@ -723,10 +723,20 @@ groups:
         # guest by scripts/collect-guest-state.sh, not from a VMID range. A
         # template whose config cannot be read loses the series and alerts
         # here, which GuestConfigUnreadable explains.
+        #
+        # AND AN ON-DEMAND GUEST (ADR-0079). The Proxmox tag `on-demand` marks
+        # a guest that is meant to be off between sessions: `carbuncle` and
+        # `siren`, the domain's endpoints, which fired this rule for 51 hours in
+        # the week to 2026-10-04 while doing exactly what ADR-0029 planned.
+        # ADR-0029 accepted that noise rather than keep a table of expected
+        # guests; a tag on the guest is not that table, which is why ADR-0079
+        # takes the other side. Tagging a guest `on-demand` is a statement that
+        # its being off is never news — use it for that and nothing else.
         expr: >-
           homelab_guest_running == 0
           unless on (host, vmid) homelab_guest_disposable == 1
           unless on (host, vmid) homelab_guest_template == 1
+          unless on (host, vmid) homelab_guest_on_demand == 1
         for: 1h
         labels:
           component: host
@@ -806,8 +816,8 @@ groups:
           summary: "{{ $labels.host }}: cannot read guest {{ $labels.guest }}'s config"
           description: >-
             `qm config {{ $labels.vmid }}` (or `pct config`) has failed for an
-            hour, so whether this guest is tagged `disposable`, how old it is,
-            and whether it is a template are unknown — DisposableGuestOutlived
+            hour, so whether this guest is tagged `disposable` or `on-demand`,
+            how old it is, and whether it is a template are unknown — DisposableGuestOutlived
             cannot fire for it, and if it is a stopped template,
             HypervisorGuestStopped firing for it is noise. Its run state is
             still reported. Run the command on the hypervisor and read its

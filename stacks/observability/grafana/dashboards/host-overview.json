@@ -1241,7 +1241,7 @@
     {
       "type": "table",
       "title": "Filesystems",
-      "description": "",
+      "description": "Alloy-pushed hosts carry `host` and smaug's direct scrape carries `role` and `vlan` instead, so all three are hidden; `instance` names the host on every row and is shown as Host.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1361,10 +1361,14 @@
               "job": true,
               "fstype": true,
               "site": true,
-              "monitor": true
+              "monitor": true,
+              "host": true,
+              "role": true,
+              "vlan": true
             },
             "renameByName": {
-              "Value": "Used %"
+              "Value": "Used %",
+              "instance": "Host"
             }
           }
         }

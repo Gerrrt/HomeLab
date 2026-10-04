@@ -46,6 +46,13 @@
 # than inferred from a VMID range, which would break the first time a template
 # was made outside 9xx.
 #
+# ON-DEMAND GUESTS (ADR-0079). A fourth fact, from the same tags line: the
+# Proxmox tag `on-demand`, for a guest that is meant to be off between
+# sessions — `carbuncle` and `siren`, the domain's two endpoints, which ADR-0029
+# starts per session and which fired HypervisorGuestStopped for 51 hours a week.
+# Like `disposable`, it is set on the guest (`qm set <vmid> --tags '<existing>;on-demand'`), so the
+# mark cannot drift from the guest it marks, and nothing here lists them.
+#
 # `qm config` and not /etc/pve/qemu-server/<vmid>.conf, although reading the
 # file would be faster: the file also carries every snapshot's section, each
 # with its own `meta:` and `tags:`, and `qm config` prints the current config
@@ -105,22 +112,25 @@ parse_guest_list() {
 #       name: diabolos
 #       tags: disposable;lab
 #
-# Prints "<disposable> <ctime> <template>": 1 or 0, the epoch or `-` when there
-# is no ctime (a guest created before PVE recorded one, or a container), and 1
-# or 0 for `template: 1`. PVE stores tags `;`-separated, but accepts `,` and
+# Prints "<disposable> <ctime> <template> <on_demand>": 1 or 0, the epoch or `-`
+# when there is no ctime (a guest created before PVE recorded one, or a
+# container), 1 or 0 for `template: 1`, and 1 or 0 for the tag `on-demand`. PVE stores tags `;`-separated, but accepts `,` and
 # spaces on input, so all three split.
 parse_guest_config() {
   awk '
     $1 == "tags:" {
       n = split(substr($0, index($0, ":") + 1), t, /[;, ]+/)
-      for (i = 1; i <= n; i++) if (t[i] == "disposable") disposable = 1
+      for (i = 1; i <= n; i++) {
+        if (t[i] == "disposable") disposable = 1
+        if (t[i] == "on-demand") on_demand = 1
+      }
     }
     $1 == "meta:" {
       n = split($2, m, ",")
       for (i = 1; i <= n; i++) if (m[i] ~ /^ctime=[0-9]+$/) ctime = substr(m[i], 7)
     }
     $1 == "template:" && $2 == "1" { template = 1 }
-    END { printf "%d %s %d\n", disposable, (ctime == "" ? "-" : ctime), template }
+    END { printf "%d %s %d %d\n", disposable, (ctime == "" ? "-" : ctime), template, on_demand }
   '
 }
 
@@ -167,38 +177,45 @@ if [[ "${1:-}" == "--self-test" ]]; then
       fail=1
     fi
   }
-  check_config "a disposable guest with a ctime" "1 1759300000 0" \
+  check_config "a disposable guest with a ctime" "1 1759300000 0 0" \
 "boot: order=scsi0
 meta: creation-qemu=9.2.0,ctime=1759300000
 name: diabolos
 tags: disposable"
-  check_config "the tag among others, any separator" "1 1759300000 0" \
+  check_config "the tag among others, any separator" "1 1759300000 0 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 tags: lab,soc;disposable other"
   # A substring is not the tag: `not-disposable` must not count.
-  check_config "a tag that merely contains the word" "0 1759300000 0" \
+  check_config "a tag that merely contains the word" "0 1759300000 0 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 tags: not-disposable"
-  check_config "no tags line" "0 1759300000 0" \
+  check_config "no tags line" "0 1759300000 0 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 name: alexander"
-  check_config "no meta line — created before PVE recorded one" "1 - 0" \
+  check_config "no meta line — created before PVE recorded one" "1 - 0 0" \
 "name: diabolos
 tags: disposable"
-  check_config "a meta line without ctime" "0 - 0" \
+  check_config "a meta line without ctime" "0 - 0 0" \
 "meta: creation-qemu=9.2.0"
-  check_config "empty config" "0 - 0" ""
-  check_config "a template" "0 1759300000 1" \
+  check_config "empty config" "0 - 0 0" ""
+  check_config "a template" "0 1759300000 1 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 name: tpl-ubuntu-2604
 template: 1"
   # Only the value 1 is a template; a stray `template: 0` is not.
-  check_config "template set to 0" "0 1759300000 0" \
+  check_config "template set to 0" "0 1759300000 0 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 template: 0"
-  check_config "a disposable template" "1 - 1" \
+  check_config "a disposable template" "1 - 1 0" \
 "tags: disposable
 template: 1"
+  check_config "an on-demand endpoint" "0 1759300000 0 1" \
+"meta: creation-qemu=9.2.0,ctime=1759300000
+name: carbuncle
+tags: lab;on-demand"
+  # A substring is not the tag here either.
+  check_config "a tag that merely contains on-demand" "0 - 0 0" \
+"tags: not-on-demand"
   exit $fail
 fi
 
@@ -266,7 +283,7 @@ if [[ -n "$rows" ]]; then
 fi
 
 emit_config_facts() {
-  local which="$1" metric="$2" kind vmid name _status facts value f_disposable f_ctime f_template
+  local which="$1" metric="$2" kind vmid name _status facts value f_disposable f_ctime f_template f_on_demand
   [[ -n "$rows" ]] || return 0
   while read -r kind vmid name _status; do
     [[ -n "$kind" ]] || continue
@@ -277,11 +294,12 @@ emit_config_facts() {
       continue
     fi
     [[ -n "$facts" ]] || continue
-    read -r f_disposable f_ctime f_template <<<"$facts"
+    read -r f_disposable f_ctime f_template f_on_demand <<<"$facts"
     case "$which" in
       disposable) value="$f_disposable" ;;
       ctime) value="$f_ctime" ;;
       template) value="$f_template" ;;
+      on_demand) value="$f_on_demand" ;;
     esac
     [[ "$value" == "-" ]] && continue
     printf '%s{host="%s",guest="%s",vmid="%s",type="%s"} %s\n' \
@@ -315,6 +333,9 @@ emit() {
   printf '# HELP homelab_guest_template 1 when this guest is a template (template: 1 in its config), which never runs (#885).\n'
   printf '# TYPE homelab_guest_template gauge\n'
   emit_config_facts template homelab_guest_template
+  printf '# HELP homelab_guest_on_demand 1 when this guest carries the Proxmox tag on-demand: off between sessions by design (ADR-0079).\n'
+  printf '# TYPE homelab_guest_on_demand gauge\n'
+  emit_config_facts on_demand homelab_guest_on_demand
   printf '# HELP homelab_guest_config_readable 1 when this guest'"'"'s config was read, so the config series above can be trusted.\n'
   printf '# TYPE homelab_guest_config_readable gauge\n'
   emit_config_facts readable homelab_guest_config_readable
