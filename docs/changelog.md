@@ -47,10 +47,14 @@ docstring gives: it is a record, not a claim about now.
   - **Seen in passing.** Making `golem`'s disk took `large_data`'s thin
     volumes to 920 GiB promised against an 894 GiB pool. Use is 34%, and
     LVM's autoextend is off.
-  - **What keeps #485 open.** §10: `golem`'s Alloy agent, and the collector
-    that puts the verify, prune and garbage-collection outcomes where the
-    lab's alerting reads them. Then the first nightly backup from §8
-    verified.
+  - **The same evening.** The encryption key went into
+    `secrets/lab.sops.yaml` and onto paper (§7), and `golem`'s Alloy agent
+    was deployed from the Mac (§10): its host metrics, its own and its logs,
+    `auth.log` and `syslog` through `rsyslog` included, reach `alexander`.
+    It needed a token of its own at the lab's ingest proxy first (#896).
+  - **What keeps #485 open.** §10's collector, which puts the verify, prune
+    and garbage-collection outcomes where the lab's alerting reads them.
+    Then the first nightly backup from §8 verified.
 
 - **Every Loki rule has a behaviour test, and a second dead branch is fixed.**
   - **The gap.** #893 tested the 8 critical rules. The other 11 had syntax

@@ -209,8 +209,8 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
   snapshots as the copy it cannot prune. **Built 2026-10-03**: the guest,
   the dataset and share, the `2049` pass and the nightly job, proved by a
   backup and restore of `phoenix`. What is left is a verify job the lab can
-  see (§10's collector, and `golem`'s Alloy agent) and the first real
-  nightly backup verified.
+  see (§10's collector; `golem`'s Alloy agent reports since the same
+  evening) and the first real nightly backup verified.
   → [runbook](runbooks/build-the-backup-guest.md)
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
