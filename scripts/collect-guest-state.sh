@@ -50,7 +50,7 @@
 # Proxmox tag `on-demand`, for a guest that is meant to be off between
 # sessions — `carbuncle` and `siren`, the domain's two endpoints, which ADR-0029
 # starts per session and which fired HypervisorGuestStopped for 51 hours a week.
-# Like `disposable`, it is set on the guest (`qm set <vmid> --tags ...`), so the
+# Like `disposable`, it is set on the guest (`qm set <vmid> --tags '<existing>;on-demand'`), so the
 # mark cannot drift from the guest it marks, and nothing here lists them.
 #
 # `qm config` and not /etc/pve/qemu-server/<vmid>.conf, although reading the

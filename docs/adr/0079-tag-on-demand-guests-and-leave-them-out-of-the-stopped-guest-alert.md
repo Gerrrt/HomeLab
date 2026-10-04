@@ -49,8 +49,11 @@ hypervisor carries the fact on the guest itself, and
 `on-demand`.** `HypervisorGuestStopped` excludes it, the same way it excludes
 disposable guests and templates.
 
-- **The tag is set on the guest**, with `qm set <vmid> --tags <existing>;on-demand`,
-  where the guest is managed. Nothing in this repository lists which guests
+- **The tag is set on the guest**, with `qm set <vmid> --tags '<existing>;on-demand'`,
+  where the guest is managed. The quotes matter: the shell would otherwise
+  end the command at `;`. `--tags` replaces the whole list, so read the
+  current one first with `qm config <vmid> | grep '^tags:'`. Nothing in this
+  repository lists which guests
   carry it. That is the line ADR-0028 drew: the fact lives once, on the thing
   it describes.
 - **`scripts/collect-guest-state.sh` exports `homelab_guest_on_demand`**, 1 or
