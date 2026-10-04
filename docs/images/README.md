@@ -12,39 +12,43 @@ out rather than illustrated.
 
 ## What is here now
 
-Four images, captured in a single run on 2026-08-22 over a 24-hour window. One
-run rather than four afternoons: a set shot at the same moment is comparable,
+Five images, captured in a single run on 2026-10-04 over a 24-hour window. One
+run rather than five afternoons: a set shot at the same moment is comparable,
 and a gap in one of them is visible against the others.
 
 Which file holds which dashboard is in the table under "Capturing them" below,
 because that pairing is defined in the capture script rather than here.
 
-Two things in them are real and should not be tidied away on the next capture.
-`network-snmp.png` shows `IloBatteryCondition` firing on `shiva` — that was a
-genuine hardware fault, tracked in
-[#76](https://github.com/Gerrrt/HomeLab/issues/76), and a screenshot of a stack
-with nothing wrong would have been the less honest picture. The pack was
-replaced on 2026-09-02, so the next capture will legitimately show it quiet.
+Some things in them are real and should not be tidied away. A screenshot of a
+stack with nothing wrong would be the less honest picture, so each of these is
+recorded here instead of being cropped out:
 
-`docker-containers.png` carries a `renderer` series in two legends: that is the
-`capture` profile container taking the screenshot, which exists only for the
-duration of a capture, which is why the inventory below it lists six containers
-and not seven.
+- **`host-overview.png`:** the alert table shows `HypervisorGuestStopped` for
+  the Packer templates 901 and 911. Templates never run, so this is the rule
+  needing a template exclusion, not a guest that died.
+- **`network-snmp.png`:**
+  - *Firewall uptime* reads 12 years. `pfStatusRuntime` is in hundredths of a
+    second and the panel treats it as seconds, so the value is about 44 days.
+  - The firewall's *Filesystem usage* panel says *No data*. #873 added it, and
+    on the day of the capture the running stack was not yet collecting
+    `hrStorage` from `morpheus`.
+  - The iLO *Hardware health* table shows raw `cpqHeTemperature` column names.
+  - The `IloBatteryCondition` fault the 2026-08-22 capture showed is gone: the
+    pack was replaced on 2026-09-02.
+- **`ups-power.png`:**
+  - It now shows measured values under the banner that records the pack being
+    fitted and proven.
+  - *Input frequency* reads 600: the card reports tenths of a hertz and the
+    panel does not divide.
+- **`observability-stack.png`:** this is its first capture. The step in
+  ingestion near 22:00 is the stack being redeployed two hours before the
+  shot.
 
-`ups-power.png` is out of date in one specific way, and knowingly so. It was
-shot before a battery pack was fitted to `mjolnir` on 2026-08-28, so it still
-shows the old "No battery is installed in this UPS" banner and the
-"(fabricated — no battery fitted)" panel titles. It stays in place rather than
-being deleted — it is a real render of what the dashboard said that day, and the
-root `README.md` says underneath it when it was taken and what has changed
-since. The pack has since passed its self-test, so the panels now read
-measured values and the re-shoot is due: run `make screenshots` and work
-through the checklist below before committing what it renders.
-
-The Container inventory panel used to publish the absolute path of
-`compose.yaml` — and so a username — because it excluded fields by name and
-cAdvisor kept adding new ones. It now filters to an allowlist. That was caught
-by this checklist working, which is the argument for having it.
+The set before this one was shot on 2026-08-22 and showed `mjolnir` with no
+battery fitted. The Container inventory panel in an earlier set published the
+absolute path of `compose.yaml`, and so a username, because it excluded fields
+by name and cAdvisor kept adding new ones. It now filters to an allowlist. That
+was caught by the checklist below, which is the argument for having it.
 
 ## Capturing them
 
@@ -55,8 +59,12 @@ make screenshots
 
 `scripts/capture-screenshots.sh` starts the `capture` profile's renderer, shoots
 five of the seven dashboards over a 24-hour window, and stops the renderer
-again. Nothing is left running and `docker compose ps` shows the same six
-services afterwards.
+again. Nothing is left running, and `docker compose ps` shows the same services
+afterwards as before. The renderer carries `homelab.logs=off`, the label the
+estate's other throwaway containers use. That keeps `ContainerGone` from paging
+for a week about a container that was meant to go
+([#883](https://github.com/Gerrrt/HomeLab/issues/883)). Before #883 a capture
+needed a silence on `ContainerGone{name="renderer"}`.
 
 Filenames and dashboards are paired in the script, not here, so they cannot
 drift:
@@ -93,23 +101,8 @@ correct fix for a bad window, not cropping.
 
 ## What is not captured, and why
 
-There are seven dashboards and four screenshots. `homelab-logs` and
-`homelab-security` are excluded on purpose and always will be. `homelab-stack`
-is in the capture set and has simply not been shot yet.
-
-### `homelab-stack` is wired for capture and is only unshot
-
-It arrived with [#81](https://github.com/Gerrrt/HomeLab/issues/81) and carries
-no log lines, no usernames and no addresses beyond the container names and
-service ports already published throughout this repository. Nothing about it
-needs redaction, and it is in `DASHBOARDS` in `scripts/capture-screenshots.sh` —
-it wants a run of `make screenshots` with a full day of history behind it so the
-panels are not half empty.
-
-It is left out of this set rather than shot in a hurry because the window
-matters more for this dashboard than for any other: it draws the collection path
-itself, so a capture taken shortly after a deploy publishes the deploy's own gap
-as though it were the steady state.
+There are seven dashboards and five screenshots. `homelab-logs` and
+`homelab-security` are excluded on purpose and always will be.
 
 ### `homelab-logs` is excluded on purpose
 
