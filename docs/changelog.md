@@ -19,6 +19,28 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **#440 closes: the lab's templates are built, and a rebuild is one
+  command** ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
+  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)).
+  - **What exists.** 901 Ubuntu 26.04, 911 Windows 11 Pro 26H2 and 912
+    Server 2025 evaluation, built on `Saruman` from `phoenix` with installers
+    read from `smaug-iso` (ADR-0072). Each was smoke-tested on a fresh full
+    clone: an address from the guest agent, its hostname, and `phoenix`'s key
+    logging in over SSH, as `smoke` on Linux and as Administrator on
+    Windows.
+  - **What the issue asked for.** Building the same template twice: 901
+    was built again with `-force`, and 912 three times.
+    `LabWindowsEvaluationExpiring` now has a command for an answer, about 35
+    minutes for 912.
+  - **What it took.** Eight fixes, each found on a real build: the ISO
+    store's checksums (#796); the boot order (#812); sysprep run outside
+    WinRM (#816); `call winrm` (#822); then OpenSSH installed elevated, no
+    automatic BitLocker, the RID-500 Administrator enabled, and WinRM's
+    clean-up made to run (#829). The entries below have each one.
+  - **What it does not include.** Kali (902) builds on `ifrit`, which does
+    not exist yet, and is
+    [#790](https://github.com/Gerrrt/HomeLab/issues/790).
+
 - **Template 911 (Windows 11 26H2) builds. Three Windows 11-only faults
   stood in the way, and one more in 912's clones**
   ([#440](https://github.com/Gerrrt/HomeLab/issues/440)).
