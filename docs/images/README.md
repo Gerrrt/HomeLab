@@ -25,21 +25,24 @@ recorded here instead of being cropped out:
 
 - **`host-overview.png`:** the alert table shows `HypervisorGuestStopped` for
   the Packer templates 901 and 911. Templates never run, so this is the rule
-  needing a template exclusion, not a guest that died.
+  needing a template exclusion, not a guest that died ([#885](https://github.com/Gerrrt/HomeLab/issues/885)).
 - **`network-snmp.png`:**
   - *Firewall uptime* reads 12 years. `pfStatusRuntime` is in hundredths of a
-    second and the panel treats it as seconds, so the value is about 44 days.
+    second and the panel treats it as seconds, so the value is about 44 days
+    ([#886](https://github.com/Gerrrt/HomeLab/issues/886)).
   - The firewall's *Filesystem usage* panel says *No data*. #873 added it, and
     on the day of the capture the running stack was not yet collecting
-    `hrStorage` from `morpheus`.
-  - The iLO *Hardware health* table shows raw `cpqHeTemperature` column names.
+    `hrStorage` from `morpheus`: the exporter had not loaded the config that
+    adds it ([#887](https://github.com/Gerrrt/HomeLab/issues/887)).
+  - The iLO *Hardware health* table shows raw `cpqHeTemperature` column names
+    ([#888](https://github.com/Gerrrt/HomeLab/issues/888)).
   - The `IloBatteryCondition` fault the 2026-08-22 capture showed is gone: the
     pack was replaced on 2026-09-02.
 - **`ups-power.png`:**
   - It now shows measured values under the banner that records the pack being
     fitted and proven.
   - *Input frequency* reads 600: the card reports tenths of a hertz and the
-    panel does not divide.
+    panel does not divide ([#889](https://github.com/Gerrrt/HomeLab/issues/889)).
 - **`observability-stack.png`:** this is its first capture. The step in
   ingestion near 22:00 is the stack being redeployed two hours before the
   shot.
