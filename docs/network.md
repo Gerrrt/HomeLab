@@ -386,8 +386,8 @@ Televisions and consoles. Internet only.
   ([ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md),
   [#485](https://github.com/Gerrrt/HomeLab/issues/485)). It was created on
   2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
-  §4, directly above the same block, and `golem` has mounted the share
-  through it.
+  §4, directly above the same block. `golem` has mounted the share through
+  it, and `alexander` is refused.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
