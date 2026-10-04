@@ -155,22 +155,10 @@ if ! python3 -c 'import yaml' 2>/dev/null; then
 fi
 
 # Rewrite every path in the real config to point inside the scratch dir, so the
-# rules are checked against the same settings production uses.
-python3 - "$STACK/loki/loki-config.yaml" "${WORK}" > "${WORK}/loki.yaml" <<'PY'
-import sys, yaml
-cfg = yaml.safe_load(open(sys.argv[1]))
-work = sys.argv[2]
-cfg["common"]["path_prefix"] = f"{work}/data"
-cfg["common"]["storage"]["filesystem"] = {
-    "chunks_directory": f"{work}/data/chunks", "rules_directory": f"{work}/data/rules"}
-cfg["storage_config"]["tsdb_shipper"] = {
-    "active_index_directory": f"{work}/data/index", "cache_location": f"{work}/data/cache"}
-cfg["storage_config"]["filesystem"] = {"directory": f"{work}/data/chunks"}
-cfg["compactor"]["working_directory"] = f"{work}/data/compactor"
-cfg["ruler"]["storage"]["local"]["directory"] = f"{work}/rules"
-cfg["ruler"]["rule_path"] = f"{work}/data/rules-temp"
-yaml.safe_dump(cfg, sys.stdout)
-PY
+# rules are checked against the same settings production uses. Shared with
+# test_loki_rules.py, so the parse check and the behaviour tests cannot drift.
+python3 "${REPO_ROOT}/scripts/loki_scratch_config.py" \
+  "$STACK/loki/loki-config.yaml" "${WORK}" > "${WORK}/loki.yaml"
 
 # Rule groups use interval: 1m in production, and Loki jitters a group's first
 # evaluation across that interval — so a short boot window can legitimately see
