@@ -29,11 +29,14 @@ recorded here instead of being cropped out:
 - **`network-snmp.png`:**
   - *Firewall uptime* reads 12 years. `pfStatusRuntime` is in hundredths of a
     second and the panel treats it as seconds, so the value is about 44 days
-    ([#886](https://github.com/Gerrrt/HomeLab/issues/886)).
+    ([#886](https://github.com/Gerrrt/HomeLab/issues/886)). The panel divides by 100
+    since, and the image predates the fix.
   - The firewall's *Filesystem usage* panel says *No data*. #873 added it, and
     on the day of the capture the running stack was not yet collecting
-    `hrStorage` from `morpheus`: the exporter had not loaded the config that
-    adds it ([#887](https://github.com/Gerrrt/HomeLab/issues/887)).
+    `hrStorage` from `morpheus`: its rendered `snmp.yaml` predated the generator
+    change. It was re-rendered and the exporter recreated the same day
+    ([#887](https://github.com/Gerrrt/HomeLab/issues/887)), and the panel
+    has had data since.
   - The iLO *Hardware health* table shows raw `cpqHeTemperature` column names
     ([#888](https://github.com/Gerrrt/HomeLab/issues/888)).
   - The `IloBatteryCondition` fault the 2026-08-22 capture showed is gone: the
@@ -42,7 +45,8 @@ recorded here instead of being cropped out:
   - It now shows measured values under the banner that records the pack being
     fitted and proven.
   - *Input frequency* reads 600: the card reports tenths of a hertz and the
-    panel does not divide ([#889](https://github.com/Gerrrt/HomeLab/issues/889)).
+    panel did not divide ([#889](https://github.com/Gerrrt/HomeLab/issues/889)). It divides by 10
+    since, and the image predates the fix.
 - **`observability-stack.png`:** this is its first capture. The step in
   ingestion near 22:00 is the stack being redeployed two hours before the
   shot.
