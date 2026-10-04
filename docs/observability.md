@@ -402,10 +402,14 @@ Parsing is not matching, so `scripts/test_loki_rules.py` behaviour-tests them
 lines in `loki/tests/*.test.yaml` into the same pinned Loki, each in its
 source's real format and with the labels Alloy attaches. Then it runs each
 rule's own `expr` as an instant query and compares the series returned with
-the ones the case expects. Every critical rule must have a case that fires and
-one that does not, or the run refuses to start. It does not exercise `for:`
-(an instant query is the expression, not the pending period), and the
-warning-level rules are not yet required to have tests. Its first run found
+the ones the case expects. Every rule must have a case that fires and one that
+does not, or the run refuses to start. The exceptions are named, each with its
+reason, in the runner: today only `LokiRulerWatchdog`, which is `vector(1)` and
+cannot be quiet. A rule that looks back further than the spacing between cases
+(the absence rules, the 7-day new-device rules) must have its cases declare a
+`window` or say `isolated_by:` how they stay apart, and the runner checks that
+against the rule's own ranges. It does not exercise `for:`, because an instant
+query is the expression, not the pending period. Its first run found
 `DiskIoErrors` could never match smartd's failure lines.
 
 ### Is the collection itself complete?

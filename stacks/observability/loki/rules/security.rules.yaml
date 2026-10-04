@@ -211,12 +211,22 @@ groups:
         # never match there. It is kept for uniformity rather than removed: the
         # five rules in this group reading the same union is worth more than
         # saving one branch that costs nothing when it matches nothing.
+        #
+        # The line is shadow-utils' own: "new user: name=%s, UID=%u, ..." and
+        # "new group: name=%s, GID=%u" (useradd.c, groupadd.c). This matched
+        # `(useradd|groupadd|usermod).*new (user|group)` until behaviour tests
+        # pushed real lines (loki/tests/security.test.yaml). The program name
+        # is in auth.log only because syslog prefixes it. Alloy's journal
+        # source forwards MESSAGE alone, so the journal branch could never
+        # match and a journal-only host created users silently. usermod never
+        # logs "new user" or "new group" at all. Matching the message itself
+        # works in every branch.
         expr: |
           (
             sum by (host) (
               count_over_time(
                 {log_type="authlog"}
-                |~ "(useradd|groupadd|usermod).*new (user|group)"
+                |~ "new (user|group): name="
                 [10m]
               )
             )
@@ -224,7 +234,7 @@ groups:
             sum by (host) (
               count_over_time(
                 {log_type="journal"}
-                |~ "(useradd|groupadd|usermod).*new (user|group)"
+                |~ "new (user|group): name="
                 [10m]
               )
             )
@@ -232,7 +242,7 @@ groups:
             sum by (host) (
               count_over_time(
                 {log_type="syslog", app=~"sshd.*|sudo|su"}
-                |~ "(useradd|groupadd|usermod).*new (user|group)"
+                |~ "new (user|group): name="
                 [10m]
               )
             )
