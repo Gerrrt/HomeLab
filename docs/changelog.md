@@ -32,11 +32,13 @@ docstring gives: it is a record, not a claim about now.
     was built again with `-force`, and 912 three times.
     `LabWindowsEvaluationExpiring` now has a command for an answer, about 35
     minutes for 912.
-  - **What it took.** Eight fixes, each found on a real build: the ISO
-    store's checksums (#796); the boot order (#812); sysprep run outside
-    WinRM (#816); `call winrm` (#822); then OpenSSH installed elevated, no
-    automatic BitLocker, the RID-500 Administrator enabled, and WinRM's
-    clean-up made to run (#829). The entries below have each one.
+  - **What it took.** The ISO store's daily checksum check (#796), which
+    was written before any build read from the store. Then seven fixes,
+    each found on a real build or its clone: the boot order (#812); sysprep
+    run outside WinRM (#816); `call winrm` (#822); then OpenSSH installed
+    elevated, no automatic BitLocker, the RID-500 Administrator enabled,
+    and WinRM's clean-up made to run (#829). The entries below have each
+    one.
   - **What it does not include.** Kali (902) builds on `ifrit`, which does
     not exist yet, and is
     [#790](https://github.com/Gerrrt/HomeLab/issues/790).
