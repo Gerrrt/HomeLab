@@ -5,15 +5,26 @@ Shared by check_loki_rules.sh (do the rules parse?) and test_loki_rules.py (do
 they match what they should?), so both boot Loki on the settings production
 uses and differ from it only where a scratch run must.
 
---for-tests adds the one setting the behaviour tests need on top of that:
+--for-tests adds what the behaviour tests need on top of that. Every one of
+them exists because the fixtures are pushed with timestamps hours or days in
+the past, and must stay queryable from the ingester for the length of a run:
 
   querier.query_ingesters_within: 0
-    The fixtures are pushed with timestamps up to a day in the past and are
-    still sitting in the ingester when they are queried; nothing has been
-    flushed to the store. With the default of 3h the querier does not ask the
-    ingester about anything older than three hours, so every fixture beyond
-    that comes back empty. A firing case then fails, and worse, a quiet case
-    passes over data it never saw. 0 means always ask the ingester.
+    With the default of 3h the querier does not ask the ingester about anything
+    older than three hours, so every older fixture comes back empty. A firing
+    case then fails, and worse, a quiet case passes over data it never saw.
+    0 means always ask the ingester.
+
+  ingester.max_chunk_age: 168h, ingester.chunk_retain_period: 1h
+    A chunk is flushed once its first entry is older than max_chunk_age (2h by
+    default), and every fixture chunk is, so the 30s flush loop takes them
+    straight to the store. chunk_retain_period (0s by default) then drops them
+    from memory before the store's index can serve them, and for the rest of
+    the run the lines are nowhere. That is the likeliest reading of the first
+    CI run (#893): the streams checked first came through and a stream of
+    8-10h-old lines checked after them never did. Each setting closes the gap
+    on its own. max_chunk_age also sets the out-of-order window (half of it),
+    and wider is harmless here.
 
 Usage: loki_scratch_config.py <loki-config.yaml> <work-dir> [--for-tests]
 """
@@ -41,6 +52,9 @@ def scratch(cfg: dict, work: str, for_tests: bool = False) -> dict:
     cfg["ruler"]["rule_path"] = f"{work}/data/rules-temp"
     if for_tests:
         cfg.setdefault("querier", {})["query_ingesters_within"] = "0"
+        ingester = cfg.setdefault("ingester", {})
+        ingester["max_chunk_age"] = "168h"
+        ingester["chunk_retain_period"] = "1h"
     return cfg
 
 

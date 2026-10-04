@@ -208,31 +208,44 @@ def instant(query: str, at: int) -> list[dict]:
     return [s["metric"] for s in data["result"]]
 
 
-def barrier(entries: list[tuple[dict, int, str]], now: int) -> None:
-    """Wait until every pushed line is queryable, stream by stream. Without
-    this, a quiet case evaluated before ingestion caught up would pass over
-    data it never saw."""
+def barrier(entries: list[tuple[dict, int, str]], now: int, log: pathlib.Path) -> None:
+    """Wait until every pushed line is queryable. Without this, a quiet case
+    evaluated before ingestion caught up would pass over data it never saw.
+
+    On timeout it reports every stream, not the first short one, with each
+    stream's age, plus Loki's own warnings. "0 of 3" alone did not say whether
+    the push, the flush or the query lost the lines."""
     want: dict[tuple, int] = {}
     oldest: dict[tuple, int] = {}
     for labels, ts, _ in entries:
         key = tuple(sorted(labels.items()))
         want[key] = want.get(key, 0) + 1
         oldest[key] = min(oldest.get(key, ts), ts)
-    deadline = time.time() + 60
-    for key, n in want.items():
+
+    def count(key: tuple) -> int:
         span = (now - oldest[key]) // 3600 + 2
         q = f"sum(count_over_time({selector(dict(key))}[{span}h]))"
-        while True:
-            code, text = http("/loki/api/v1/query", params={"query": q, "time": str(now)})
-            got = 0
-            if code == 200:
-                res = json.loads(text)["data"]["result"]
-                got = int(float(res[0]["value"][1])) if res else 0
-            if got == n:
-                break
-            if time.time() > deadline:
-                raise RuntimeError(f"{selector(dict(key))}: {got} of {n} pushed lines queryable after 60s")
-            time.sleep(1)
+        code, text = http("/loki/api/v1/query", params={"query": q, "time": str(now)})
+        if code != 200:
+            return -1
+        res = json.loads(text)["data"]["result"]
+        return int(float(res[0]["value"][1])) if res else 0
+
+    deadline = time.time() + 60
+    while True:
+        got = {key: count(key) for key in want}
+        if got == want:
+            return
+        if time.time() > deadline:
+            short = [f"{selector(dict(k))} (oldest {(now - oldest[k]) / 3600:.1f}h): "
+                     f"{got[k]} of {n}" for k, n in want.items() if got[k] != n]
+            noise = [l for l in log.read_text(errors="replace").splitlines()
+                     if re.search(r"level=(warn|error)", l)][-10:]
+            raise RuntimeError(
+                f"{len(short)} of {len(want)} stream(s) not fully queryable after 60s:\n        "
+                + "\n        ".join(short)
+                + ("\n      loki warnings:\n        " + "\n        ".join(noise) if noise else ""))
+        time.sleep(2)
 
 
 def boot(stack: pathlib.Path, work: pathlib.Path) -> tuple[subprocess.Popen, list[str]]:
@@ -317,7 +330,7 @@ def run(stack_name: str, skips_file: str | None) -> int:
         proc, cleanup = boot(stack, work)
         everything = [e for _, _, entries in plan for e in entries]
         push(everything)
-        barrier(everything, base + 60)
+        barrier(everything, base + 60, work / "loki.log")
         for t, at, _ in plan:
             got = label_sets(instant(rules[t["alert"]]["expr"], at))
             want = label_sets(t.get("expect") or [])
