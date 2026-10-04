@@ -230,16 +230,33 @@ groups:
         # container on top would bury it. Every Docker host runs Alloy as a
         # container, so a host that is reporting always has at least one series.
         #
-        # homelab.logs=off already marks the estate's throwaway containers
-        # (backup-volumes.sh, restore-volumes.sh), which exit by design. cAdvisor
-        # carries Docker labels as container_label_*; where it does not, the
-        # matcher matches nothing and excludes nothing.
+        # ONLY THE DEPLOYED STACKS' CONTAINERS (#901). The first version watched
+        # every container cAdvisor had seen and excluded throwaways by
+        # homelab.logs=off, which only backup-volumes.sh, restore-volumes.sh and
+        # the screenshot renderer set. On 2026-10-04 it fired 352 times at once
+        # across trinity, prometheus and oracle, for promtool and validation
+        # `docker run`s, the dashboard round-trip, hardened-boot and compose-
+        # health probes, build and restore rehearsals — not one a service.
+        # Labelling every `docker run` is a promise nobody keeps; the services
+        # this rule exists for are the opposite case, every one of them a
+        # compose service in a stack this repository deploys. So it watches:
+        #   - compose project observability, sensitive, wiki, lab, soc or
+        #     sensor — each stack's `name:`. Not scratch (disposable by
+        #     ADR-0071) and not media (smaug has no cAdvisor; that is
+        #     ContainerNotRunning's). A new stack is added here.
+        #   - and `alloy`, which deploy-agent.sh runs with `docker run`, outside
+        #     any project, on every agent host.
+        # homelab.logs=off still excludes, for a throwaway started with
+        # `docker compose run` inside a deployed project.
         #
         # 10m rides out a `make up` that recreates a container: the same name
         # comes straight back, and the series with it.
         expr: |
           max by (instance, name) (
-            max_over_time(container_last_seen{name!="", container_label_homelab_logs!="off"}[7d])
+            max_over_time(container_last_seen{name!="", container_label_homelab_logs!="off",
+              container_label_com_docker_compose_project=~"observability|sensitive|wiki|lab|soc|sensor"}[7d])
+            or
+            max_over_time(container_last_seen{name="alloy", container_label_homelab_logs!="off"}[7d])
           )
           unless on (instance, name)
           max by (instance, name) (container_last_seen{name!=""})

@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-04
 
+- **`ContainerGone` fired 352 times at once, and now watches only the
+  deployed stacks** ([#901](https://github.com/Gerrrt/HomeLab/issues/901)).
+  - **What happened.** The rule from #838 reached the live stack with the
+    day's converges. It watched every container cAdvisor had seen in the
+    last seven days and excluded only `homelab.logs=off`. The week's
+    throwaways all fired together: 295 on `trinity`, 49 on `prometheus` and
+    8 on `oracle`. They were promtool and validation `docker run`s, the
+    dashboard round-trip, hardened-boot and compose-health probes, build and
+    restore rehearsals, and the old hand-made `db` and `wiki` on `oracle`.
+    None of them was a service. Every service that should run was running.
+  - **The silence.** Two silences, on the exact names, expire 2026-10-12. The
+    first one also covered `trinity`'s real `sensitive-home-assistant` and
+    was replaced. `ContainerGone` as a whole was never silenced.
+  - **The fix.** The rule now watches the compose projects this repository
+    deploys (`observability`, `sensitive`, `wiki`, `lab`, `soc`, `sensor`),
+    plus `alloy`, which `deploy-agent.sh` runs outside compose. Against live
+    data it fires for none of the 352. It watches the 34 service containers
+    running on the three hosts. The promtool test adds a bare `docker run`
+    container and an undeployed project (`mfscratch`), and both stay quiet.
+    A new stack has to be added to the rule's project list.
+
 - **The alert-path runbook says how to prove the Loki ruler's alerts page**
   ([#837](https://github.com/Gerrrt/HomeLab/issues/837)).
   `verify-the-alert-path.md` had the healthy check only. It now has the
