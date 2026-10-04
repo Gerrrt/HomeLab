@@ -162,13 +162,17 @@ def coverage(rules: dict[str, dict], tests: list[dict]) -> list[str]:
     return problems
 
 
-_RANGE = re.compile(r"\[((?:\d+[smhd])+)\]")
+_RANGE = re.compile(r"\[((?:\d+[smhd])+)\](?:\s*offset\s+((?:\d+[smhd])+))?")
 
 
 def rule_range(expr: str) -> int:
-    """The longest [range] in a LogQL expression, in seconds. `offset` is not a
-    range and is ignored: it moves a window, it does not lengthen it."""
-    return max([0] + [parse_duration(m) for m in _RANGE.findall(expr)])
+    """How far back a LogQL expression reads, in seconds: the longest
+    [range], plus its `offset` where it has one. `[10m] offset 30m` is only ten
+    minutes wide but reads 30 to 40 minutes back, so it reaches 40m. Counting
+    the width alone let it past the spacing check and into the neighbouring
+    case's lines (#894 review)."""
+    return max([0] + [parse_duration(r) + (parse_duration(o) if o else 0)
+                      for r, o in _RANGE.findall(expr)])
 
 
 def layout(tests: list[dict], base: int, rules: dict | None = None) -> tuple[list, list[str]]:
@@ -488,8 +492,14 @@ def self_test() -> int:
          _clear(layout([{"name": "old", "streams": [{"labels": {"a": 1}, "entries": [
                             {"before": "2d", "line": "l"}]}]},
                         {"name": "next", "window": "30m", "streams": []}], 10**6))),
-        ("a rule's range is its longest [range], offset ignored",
-         rule_range("sum(count_over_time({a=\"b\"}[10m])) unless sum(count_over_time({a=\"b\"}[7d] offset 10m))") == 7 * 86400),
+        ("a rule's reach is its longest [range] plus that range's offset",
+         rule_range("sum(count_over_time({a=\"b\"}[10m])) unless sum(count_over_time({a=\"b\"}[7d] offset 10m))")
+         == 7 * 86400 + 600),
+        ("a narrow range far back reaches its whole depth",
+         rule_range("count_over_time({a=\"b\"}[10m] offset 30m)") == 2400),
+        ("so it must be declared, though its width fits in the gap",
+         bool(layout([{"alert": "Deep", "name": "d", "streams": []}], 10**6,
+                     {"Deep": {"expr": "count_over_time({a=\"b\"}[10m] offset 30m)"}})[1])),
         ("a case whose rule outreaches the gap must declare window or isolated_by",
          bool(layout([{"alert": "Gone", "name": "g", "streams": []}], 10**6,
                      {"Gone": {"expr": "absent_over_time({a=\"b\"}[9h])"}})[1])),
