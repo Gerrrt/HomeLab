@@ -95,9 +95,9 @@ delete API, and any query without the reader token.
 token early loses nothing. A proxy that goes up before its clients refuses
 their pushes until each one catches up.
 
-1. **On `alexander`**, generate four tokens with `openssl rand -hex 32` and add
+1. **On `alexander`**, generate five tokens with `openssl rand -hex 32` and add
    them with `make secrets-edit STACK=lab`. The keys are `INGEST_TOKEN_ODIN`,
-   `_PHOENIX`, `_FENRIR` and `_READER`, and
+   `_PHOENIX`, `_FENRIR`, `_GOLEM` and `_READER`, and
    [`secrets/lab.example.yaml`](../../secrets/lab.example.yaml) says where each
    one goes. Do not `make up` yet.
 2. **On `odin`**, set `INGEST_TOKEN` to `INGEST_TOKEN_ODIN` with `make
