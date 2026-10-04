@@ -47,6 +47,96 @@ curl -s localhost:3100/prometheus/api/v1/alerts | grep -c LokiRulerWatchdog
 The command should print `1`. In Prometheus, `increase(loki_prometheus_notifications_sent_total[15m])`
 should be above zero.
 
+### Proving it fails loudly
+
+A healthy reading proves the counter climbs. It does not prove anything pages
+when it stops. To prove that, point the ruler at an Alertmanager that is not
+there, and watch Prometheus page about it. The page travels Prometheus →
+Alertmanager → the alert channel, the path the heartbeat already proves, so it
+does not depend on the thing that is broken.
+
+**What it costs.** For the length of the test, Loki's own alerts, the security
+rules among them, cannot be delivered. Any still firing when you restore are
+sent on the ruler's next pass; any that start and clear inside the window are
+lost. That is about 12 minutes if you stop at the first page, and about 25 to
+see both. Pick a quiet hour.
+
+**The checkout stays clean.** The override goes in a file under `/tmp`, never
+in the deployment checkout, because converge refuses a checkout that is not a
+clean `main`. Converge runs at :25 past the hour and does nothing when no new
+commit has merged. But if one has, its `make up` restores Loki mid-test without
+telling you. So start just after :25, or pause it for the test:
+
+```bash
+sudo systemctl stop homelab-converge.timer
+```
+
+From the repository root of the deployment checkout:
+
+1. **Take the healthy reading.** Keep the output: it is the evidence that the
+   counter climbs while the ruler is well.
+
+   ```bash
+   curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=increase(loki_prometheus_notifications_sent_total[15m])'
+   ```
+
+2. **Point the ruler at nothing.** Write the override, then recreate Loki alone
+   with it. Loki restarts in about 30 seconds, and Alloy buffers while it does.
+
+   ```bash
+   printf 'services:\n  loki:\n    command: -config.file=/etc/loki/loki-config.yaml -ruler.alertmanager-url=http://127.0.0.1:1\n' > /tmp/loki-badam.yaml
+   ```
+
+   ```bash
+   docker compose -f stacks/observability/compose.yaml -f /tmp/loki-badam.yaml up -d --no-deps loki
+   ```
+
+3. **Check the override took.** Everything after depends on it. Loki must
+   report the bad URL:
+
+   ```bash
+   curl -s localhost:3100/config | grep alertmanager_url
+   ```
+
+   If it still names `http://alertmanager:9093`, the command-line flag did not
+   win over the config file on this Loki version. Restore (step 5) and find
+   another way to break delivery; waiting proves nothing. A minute or two
+   later, delivery errors should be climbing:
+
+   ```bash
+   curl -s localhost:3100/metrics | grep '^loki_prometheus_notifications_errors_total'
+   ```
+
+4. **Wait for the pages.** Each alert goes pending, then firing, then pages
+   through the normal critical channel:
+
+   | Alert | Fires after about | Because |
+   | --- | --- | --- |
+   | `LokiRulerNotificationsFailing` | 11–12 min | delivery errors in the last 10m, held for 10m |
+   | `LokiRulerSilent` | 20–21 min | nothing sent for 15m, held for 5m |
+
+   ```bash
+   curl -s localhost:9090/api/v1/alerts | grep -oE '"alertname":"LokiRuler(NotificationsFailing|Silent)"|"state":"(pending|firing)"'
+   ```
+
+   Either page is the proof. Waiting for both shows the "sent nothing" path as
+   well as the "delivery refused" one.
+
+5. **Restore.** Recreate Loki on the committed config, and check it took:
+
+   ```bash
+   docker compose -f stacks/observability/compose.yaml up -d --no-deps loki
+   ```
+
+   ```bash
+   curl -s localhost:3100/config | grep alertmanager_url
+   ```
+
+   It must name `http://alertmanager:9093` again. Then `rm -f /tmp/loki-badam.yaml`,
+   and `sudo systemctl start homelab-converge.timer` if you paused it.
+   Within about 15 minutes both alerts resolve, the step 1 query is above zero
+   again, and `git status` in the checkout shows nothing modified.
+
 ## Where the real alerts go
 
 Since [#136](https://github.com/Gerrrt/HomeLab/issues/136) the three real
