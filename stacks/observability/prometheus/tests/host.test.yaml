@@ -1277,6 +1277,50 @@ tests:
         alertname: HypervisorGuestStopped
         exp_alerts: []
 
+  # --- HypervisorGuestStopped: quiet for a stopped TEMPLATE (#885) ---------
+  # A template never runs. The same firing input again, plus template == 1.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_running{host="Saruman",guest="tpl-ubuntu-2604",vmid="901",type="qemu"}'
+        values: "0x150"
+      - series: 'homelab_guest_template{host="Saruman",guest="tpl-ubuntu-2604",vmid="901",type="qemu"}'
+        values: "1x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: HypervisorGuestStopped
+        exp_alerts: []
+
+  # --- HypervisorGuestStopped: still fires when template == 0 -------------
+  # Without this case the `== 1` could be dropped and every guest with a
+  # template series — that is, every guest — would go quiet.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_running{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "1x30 0x120"
+      - series: 'homelab_guest_template{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "0x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: HypervisorGuestStopped
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: alexander
+              vmid: "140"
+              type: qemu
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman: guest alexander has been stopped for an hour"
+              description: >-
+                The hypervisor reports this guest as not running. If it was
+                powered off deliberately this is expected and there is nothing
+                to do — the estate cannot tell the difference, and says so
+                rather than implying it can. If it was not, the guest is down
+                and anything inside it, including the lab stack on `alexander`,
+                is down with it.
+
   # --- DisposableGuestOutlived: fires for a fortnight-old disposable guest -
   # The ctime is set in the past rather than the test run for a fortnight:
   # promtool evaluates every rule in the file at every step, and fifteen days

@@ -716,9 +716,17 @@ groups:
         # destroyed is the goal, so this rule saying "stopped" is noise in
         # exactly the direction #438 warns about. DisposableGuestOutlived
         # watches those guests instead, running or not.
+        #
+        # AND A TEMPLATE (#885). `template: 1` in the guest's config means it
+        # can never run — 901, 911 and 912 are the Packer templates the lab's
+        # guests are cloned from — so stopped is its only state. Read from the
+        # guest by scripts/collect-guest-state.sh, not from a VMID range. A
+        # template whose config cannot be read loses the series and alerts
+        # here, which GuestConfigUnreadable explains.
         expr: >-
           homelab_guest_running == 0
           unless on (host, vmid) homelab_guest_disposable == 1
+          unless on (host, vmid) homelab_guest_template == 1
         for: 1h
         labels:
           component: host
