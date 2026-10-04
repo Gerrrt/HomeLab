@@ -26,9 +26,11 @@ docstring gives: it is a record, not a claim about now.
   all three paths, which a hand-sent `logger` line showed. The script now
   sends a unique marker with `logger` on the target once the agent is up,
   then looks for that exact text. It travels the host's own logging, so it
-  arrives exactly when the host's logs are shipped. It is found by text, not
-  time, so clock skew cannot hide it. If `logger` cannot run, the old check
-  stands in, with a warning.
+  arrives exactly when the host's logs are shipped. It is found by text, so
+  the search runs from ten minutes before the deploy to ten minutes after the
+  wait, and tolerates up to ten minutes of clock skew either way. If `logger`
+  cannot run, the old check stands in, with a warning, and its failure
+  message no longer names a marker that was never sent.
 
 - **#485 closes: what `golem` does is visible, and its first nightly run is
   verified** ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
