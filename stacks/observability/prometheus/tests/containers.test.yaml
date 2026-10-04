@@ -418,22 +418,32 @@ tests:
   # still reporting. It fires once the series is stale (5m) and the `for` (10m)
   # has run. Beside it, on the same host:
   #   - a homelab.logs=off throwaway that exits by design, which must not fire;
-  #   - immich, recreated by a `make up` with a 3-minute gap, which must not fire.
+  #   - immich, recreated by a `make up` with a 3-minute gap, which must not fire;
+  #   - (#901) a bare `docker run` container with a random name and no compose
+  #     project, and a compose service in a project nothing deploys (mfscratch),
+  #     both gone at 20m — the two shapes of 2026-10-04's 352 alerts. Neither
+  #     may fire.
+  # The services carry the project label they have in production; alloy, run
+  # by deploy-agent.sh outside compose, carries none and is still watched.
   # oracle: every series stops at once. A dead host is InstanceDown's, so
   # nothing here may fire for it.
   - interval: 1m
     input_series:
       - series: 'container_last_seen{name="alloy",instance="trinity"}'
         values: "1+60x80"
-      - series: 'container_last_seen{name="vaultwarden",instance="trinity"}'
+      - series: 'container_last_seen{name="vaultwarden",instance="trinity",container_label_com_docker_compose_project="sensitive"}'
         values: "1+60x30 _x50"
-      - series: 'container_last_seen{name="archiver-1",instance="trinity",container_label_homelab_logs="off"}'
+      - series: 'container_last_seen{name="archiver-1",instance="trinity",container_label_com_docker_compose_project="observability",container_label_homelab_logs="off"}'
         values: "1+60x10 _x70"
-      - series: 'container_last_seen{name="immich-server",instance="trinity"}'
+      - series: 'container_last_seen{name="immich-server",instance="trinity",container_label_com_docker_compose_project="sensitive"}'
         values: "1+60x20 _x3 1500+60x57"
+      - series: 'container_last_seen{name="zen_bohr",instance="trinity"}'
+        values: "1+60x20 _x60"
+      - series: 'container_last_seen{name="mfscratch-db-1",instance="trinity",container_label_com_docker_compose_project="mfscratch"}'
+        values: "1+60x20 _x60"
       - series: 'container_last_seen{name="alloy",instance="oracle"}'
         values: "1+60x30 _x50"
-      - series: 'container_last_seen{name="wiki",instance="oracle"}'
+      - series: 'container_last_seen{name="wiki",instance="oracle",container_label_com_docker_compose_project="wiki"}'
         values: "1+60x30 _x50"
     alert_rule_test:
       - eval_time: 40m
