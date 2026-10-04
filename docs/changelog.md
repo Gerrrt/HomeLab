@@ -19,7 +19,6 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-04
 
-<<<<<<< HEAD
 - **#485 closes: what `golem` does is visible, and its first nightly run is
   verified** ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
   [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
@@ -50,9 +49,7 @@ docstring gives: it is a record, not a claim about now.
     `make up STACK=lab`, which cannot render while the lab's secrets lack
     #834's four tokens. Until then the collector's series arrive and nothing
     evaluates them.
-||||||| b948d13
-## 2026-10-03
-=======
+
 - **`ContainerGone` fired 352 times at once, and now watches only the
   deployed stacks** ([#901](https://github.com/Gerrrt/HomeLab/issues/901)).
   - **What happened.** The rule from #838 reached the live stack with the
@@ -85,7 +82,6 @@ docstring gives: it is a record, not a claim about now.
   waits on it.
 
 ## 2026-10-03
->>>>>>> origin/main
 
 - **`golem` gets its own token at the lab's ingest proxy**
   ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
