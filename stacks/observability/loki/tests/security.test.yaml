@@ -296,6 +296,7 @@ tests:
   # back seven days, so each case uses MACs no other case does.
   - alert: UnknownDeviceOnManagementSegment
     name: a MAC new to VLAN 99 fires
+    isolated_by: mac
     streams:
       - labels: {app: kea-dhcp4, host: morpheus}
         entries:
@@ -309,6 +310,7 @@ tests:
 
   - alert: UnknownDeviceOnManagementSegment
     name: a MAC seen on VLAN 99 two days ago is known
+    isolated_by: mac
     streams:
       - labels: {app: kea-dhcp4, host: morpheus}
         entries:
@@ -326,6 +328,7 @@ tests:
 
   - alert: UnknownDeviceOnManagementSegment
     name: a MAC new to VLAN 50 is the other rule's business
+    isolated_by: mac
     streams:
       - labels: {app: kea-dhcp4, host: morpheus}
         entries:
@@ -362,4 +365,334 @@ tests:
               [1:2013028:7] ET POLICY curl User-Agent Outbound
               [Classification: Attempted Information Leak] [Priority: 2]
               {TCP} 10.0.20.5:443 -> 203.0.113.9:80
+    expect: []
+
+  # ===========================================================================
+  # Warning-level rules. Same contract: a case that fires and one that does
+  # not. The three "logs stopped" rules assert an absence, so each case
+  # declares the rule's range as `window` and the runner keeps every other
+  # case's lines out of it.
+  # ===========================================================================
+
+  # --- SshBruteForce: more than 20 failures from one host in 5m --------------
+  - alert: SshBruteForce
+    name: 21 failures inside five minutes fire
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 4m
+            count: 21
+            every: 5s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[41822]: Failed
+              password for invalid user admin from 203.0.113.7 port 52144 ssh2
+    expect:
+      - {host: oracle}
+
+  - alert: SshBruteForce
+    name: exactly 20 is the threshold, not over it
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 4m
+            count: 20
+            every: 5s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[41822]: Failed
+              password for invalid user admin from 203.0.113.7 port 52144 ssh2
+    expect: []
+
+  # --- SudoFailure: more than 5 sudo authentication failures in 10m ----------
+  # PAM writes the line; journald carries it as the bare MESSAGE (Alloy's
+  # journal source forwards MESSAGE alone), which still holds "sudo:auth)".
+  - alert: SudoFailure
+    name: six failures, in auth.log and in the journal, fire
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 8m
+            count: 6
+            every: 30s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sudo: pam_unix(sudo:auth):
+              authentication failure; logname=robo uid=1000 euid=0
+              tty=/dev/pts/0 ruser=robo rhost=  user=robo
+      - labels: {log_type: journal, host: trinity}
+        entries:
+          - before: 8m
+            count: 6
+            every: 30s
+            line: >-
+              pam_unix(sudo:auth): authentication failure; logname=rabbit
+              uid=1000 euid=0 tty=/dev/pts/1 ruser=rabbit rhost=  user=rabbit
+    expect:
+      - {host: oracle}
+      - {host: trinity}
+
+  - alert: SudoFailure
+    name: exactly five is the threshold, not over it
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 8m
+            count: 5
+            every: 30s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sudo: pam_unix(sudo:auth):
+              authentication failure; logname=robo uid=1000 euid=0
+              tty=/dev/pts/0 ruser=robo rhost=  user=robo
+    expect: []
+
+  # --- NewUserOrGroupCreated ---------------------------------------------------
+  # shadow-utils' own lines (useradd.c, groupadd.c): "new user: name=%s, UID=%u,
+  # GID=%u, home=%s, shell=%s, from=%s" and "new group: name=%s, GID=%u". In
+  # auth.log syslog prefixes "useradd[pid]:"; in the journal the line is the
+  # bare MESSAGE, with no program name in it.
+  - alert: NewUserOrGroupCreated
+    name: a new user in auth.log and in the journal, and a new group, fire
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle useradd[2211]: new user:
+              name=mallory, UID=1002, GID=1002, home=/home/mallory,
+              shell=/bin/bash, from=/dev/pts/0
+      - labels: {log_type: journal, host: trinity}
+        entries:
+          - before: 5m
+            line: >-
+              new user: name=mallory, UID=1002, GID=1002, home=/home/mallory,
+              shell=/bin/bash, from=/dev/pts/1
+      - labels: {log_type: authlog, host: prometheus}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 prometheus groupadd[2230]: new
+              group: name=backup-ops, GID=1003
+    expect:
+      - {host: oracle}
+      - {host: trinity}
+      - {host: prometheus}
+
+  - alert: NewUserOrGroupCreated
+    name: changing an existing user's shell is not a creation
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle usermod[2240]: change
+              user 'robo' shell from '/bin/bash' to '/bin/zsh'
+    expect: []
+
+  # --- KernelOomKill -----------------------------------------------------------
+  # The kernel prints "%s: Killed process ..." (mm/oom_kill.c) where %s is "Out
+  # of memory" for the whole machine and "Memory cgroup out of memory" for a
+  # cgroup. The rule is the machine-wide one; ContainerOomKilled has cgroups.
+  - alert: KernelOomKill
+    name: the machine-wide OOM killer fires
+    streams:
+      - labels: {log_type: varlog, host: prometheus}
+        entries:
+          - before: 10m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 prometheus kernel: Out of
+              memory: Killed process 4122 (prometheus) total-vm:2894532kB,
+              anon-rss:1803244kB, file-rss:0kB, shmem-rss:0kB, UID:65534
+              pgtables:4096kB oom_score_adj:0
+    expect:
+      - {host: prometheus}
+
+  - alert: KernelOomKill
+    name: a cgroup OOM is ContainerOomKilled's, not this rule's
+    streams:
+      - labels: {log_type: syslog, host: oracle}
+        entries:
+          - before: 10m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle kernel: Memory cgroup
+              out of memory: Killed process 5120 (node) total-vm:1204480kB,
+              anon-rss:512000kB, file-rss:0kB, shmem-rss:0kB, UID:1000
+              pgtables:1200kB oom_score_adj:0
+    expect: []
+
+  # --- IoTAttemptedLateralMovement: more than 20 blocked IoT->internal in 10m -
+  - alert: IoTAttemptedLateralMovement
+    name: 21 blocked attempts from IoT to management fire
+    streams:
+      - labels: {app: filterlog, action: block, direction: in, reason: match,
+                 interface: igc0.20, host: morpheus}
+        entries:
+          - before: 8m
+            count: 21
+            every: 10s
+            line: "5,,,1000000103,igc0.20,match,block,in,4,0x0,,64,51235,0,DF,6,tcp,60,\
+              10.0.20.15,10.0.99.20,50123,22,0,S,3520011235,,64240,,mss;sackOK;TS;nop;wscale"
+    expect:
+      - {interface: igc0.20}
+
+  - alert: IoTAttemptedLateralMovement
+    name: 20 is not over the threshold, and blocks to the internet do not count
+    streams:
+      - labels: {app: filterlog, action: block, direction: in, reason: match,
+                 interface: igc0.20, host: morpheus}
+        entries:
+          - before: 8m
+            count: 20
+            every: 10s
+            line: "5,,,1000000103,igc0.20,match,block,in,4,0x0,,64,51235,0,DF,6,tcp,60,\
+              10.0.20.15,10.0.99.20,50123,22,0,S,3520011235,,64240,,mss;sackOK;TS;nop;wscale"
+          - before: 8m
+            count: 30
+            every: 10s
+            line: "5,,,1000000103,igc0.20,match,block,in,4,0x0,,64,51236,0,DF,6,tcp,60,\
+              10.0.20.15,1.1.1.1,50124,853,0,S,3520011236,,64240,,mss;sackOK;TS;nop;wscale"
+    expect: []
+
+  # --- FirewallLogsStopped: no filterlog line for 30 minutes -----------------
+  - alert: FirewallLogsStopped
+    name: thirty minutes without a filterlog line fires
+    window: 30m
+    streams: []
+    expect:
+      - {app: filterlog}
+
+  - alert: FirewallLogsStopped
+    name: one line twenty minutes ago is enough
+    window: 30m
+    streams:
+      - labels: {app: filterlog, action: pass, direction: in, reason: match,
+                 interface: igc0.50, host: morpheus}
+        entries:
+          - before: 20m
+            line: "70,,,1000102400,igc0.50,match,pass,in,4,0x0,,64,40200,0,DF,6,tcp,60,\
+              10.0.50.12,93.184.215.14,40200,443,0,S,1200040001,,64240,,mss;sackOK;TS;nop;wscale"
+    expect: []
+
+  # --- UnknownDeviceOnTrustedSegment: a MAC on VLAN 50 unseen for 7 days -----
+  # MACs distinct from every other DHCP case, for the reason given above.
+  - alert: UnknownDeviceOnTrustedSegment
+    name: a MAC new to VLAN 50 fires
+    isolated_by: mac
+    streams:
+      - labels: {app: kea-dhcp4, host: morpheus}
+        entries:
+          - before: 3m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:20:50:01], cid=[01:02:00:5e:20:50:01], tid=0x2b3c4d5e:
+              lease 10.0.50.91 has been allocated for 7200 seconds
+    expect:
+      - {mac: "02:00:5e:20:50:01"}
+
+  - alert: UnknownDeviceOnTrustedSegment
+    name: a MAC seen on VLAN 50 yesterday is known, and VLAN 99 is the other rule's
+    isolated_by: mac
+    streams:
+      - labels: {app: kea-dhcp4, host: morpheus}
+        entries:
+          - before: 1d
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:20:50:02], cid=[01:02:00:5e:20:50:02], tid=0x3c4d5e6f:
+              lease 10.0.50.92 has been allocated for 7200 seconds
+          - before: 3m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:20:50:02], cid=[01:02:00:5e:20:50:02], tid=0x3c4d5e70:
+              lease 10.0.50.92 has been allocated for 7200 seconds
+          - before: 3m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:20:99:01], cid=[01:02:00:5e:20:99:01], tid=0x4d5e6f70:
+              lease 10.0.99.59 has been allocated for 7200 seconds
+    expect: []
+
+  # --- DhcpLeaseLogsStopped: no Kea line for 2 hours -------------------------
+  - alert: DhcpLeaseLogsStopped
+    name: two hours without a lease line fires
+    window: 2h
+    streams: []
+    expect:
+      - {app: kea-dhcp4}
+
+  - alert: DhcpLeaseLogsStopped
+    name: one lease ninety minutes ago is enough
+    window: 2h
+    streams:
+      - labels: {app: kea-dhcp4, host: morpheus}
+        entries:
+          - before: 90m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:30:50:01], cid=[01:02:00:5e:30:50:01], tid=0x5e6f7081:
+              lease 10.0.50.93 has been allocated for 7200 seconds
+    expect: []
+
+  # --- SuricataAlertStorm: more than 200 alerts on one interface in 10m ------
+  # An alert from an interface whose facility is unmapped carries no interface
+  # label (syslog.alloy says why); the storm still shows, as an empty series.
+  - alert: SuricataAlertStorm
+    name: 201 alerts on IoT fire, and on an unlabelled interface fire as an empty series
+    streams:
+      - labels: {app: suricata, host: morpheus, interface: igc0.20,
+                 priority: "3", classification: Misc activity}
+        entries:
+          - before: 9m
+            count: 201
+            every: 2s
+            line: >-
+              [1:2027390:4] ET INFO User-Agent (python-requests) Inbound to
+              Webserver [Classification: Misc activity] [Priority: 3] {TCP}
+              10.0.20.15:51544 -> 10.0.99.20:443
+      - labels: {app: suricata, host: morpheus,
+                 priority: "3", classification: Misc activity}
+        entries:
+          - before: 9m
+            count: 201
+            every: 2s
+            line: >-
+              [1:2027390:4] ET INFO User-Agent (python-requests) Inbound to
+              Webserver [Classification: Misc activity] [Priority: 3] {TCP}
+              10.0.40.8:51544 -> 10.0.99.20:443
+    expect:
+      - {interface: igc0.20}
+      - {}
+
+  - alert: SuricataAlertStorm
+    name: exactly 200 is the threshold, not over it
+    streams:
+      - labels: {app: suricata, host: morpheus, interface: igc0.20,
+                 priority: "3", classification: Misc activity}
+        entries:
+          - before: 9m
+            count: 200
+            every: 2s
+            line: >-
+              [1:2027390:4] ET INFO User-Agent (python-requests) Inbound to
+              Webserver [Classification: Misc activity] [Priority: 3] {TCP}
+              10.0.20.15:51544 -> 10.0.99.20:443
+    expect: []
+
+  # --- SuricataLogsStopped: no Suricata alert for 9 hours --------------------
+  - alert: SuricataLogsStopped
+    name: nine hours without an alert fires
+    window: 9h
+    streams: []
+    expect:
+      - {app: suricata}
+
+  - alert: SuricataLogsStopped
+    name: one alert eight hours ago is enough
+    window: 9h
+    streams:
+      - labels: {app: suricata, host: morpheus, interface: igc0.20,
+                 priority: "3", classification: Misc activity}
+        entries:
+          - before: 8h
+            line: >-
+              [1:2027390:4] ET INFO User-Agent (python-requests) Inbound to
+              Webserver [Classification: Misc activity] [Priority: 3] {TCP}
+              10.0.20.15:51544 -> 10.0.99.20:443
     expect: []

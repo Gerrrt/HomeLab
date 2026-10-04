@@ -1,0 +1,12 @@
+---
+# Behaviour test for loki/rules/watchdog.rules.yaml, run by
+# scripts/test_loki_rules.py. The watchdog is vector(1), so the only case is
+# that it fires, with no labels of its own; the runner's FIRES_ONLY table says
+# why it has no quiet case. LokiRulerSilent, in Prometheus, is what notices
+# when it stops arriving.
+tests:
+  - alert: LokiRulerWatchdog
+    name: it always fires
+    streams: []
+    expect:
+      - {}
