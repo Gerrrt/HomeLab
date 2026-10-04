@@ -17,6 +17,18 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-04
+
+- **The alert-path runbook says how to prove the Loki ruler's alerts page**
+  ([#837](https://github.com/Gerrrt/HomeLab/issues/837)).
+  `verify-the-alert-path.md` had the healthy check only. It now has the
+  failure test #837 asks for. A compose override under `/tmp` points the ruler
+  at an Alertmanager that is not there. `LokiRulerNotificationsFailing` pages
+  in about 12 minutes and `LokiRulerSilent` in about 21, over the path the
+  heartbeat proves. The override never touches the deployment checkout, which
+  converge needs clean. Step 3 checks that the override took before anyone
+  waits on it.
+
 ## 2026-10-03
 
 - **`golem` gets its own token at the lab's ingest proxy**
