@@ -223,10 +223,11 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
 Closes on BloodHound running where nothing attacks it.
 
 - **A chain, in this order:**
-  [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer (written,
-  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md);
-  901 built twice and usable, 912 built and to be rebuilt with the
-  `SetupComplete.cmd` fix, 911 not yet built,
+  [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer (done
+  2026-10-03,
+  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md):
+  901 Ubuntu, 911 Windows 11 and 912 Server 2025 built from `smaug-iso`,
+  each clone passing `scripts/packer-smoke.sh`, SSH included,
   → [runbook](runbooks/build-the-lab-templates.md); Kali's
   template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
   [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (done
@@ -240,8 +241,8 @@ Closes on BloodHound running where nothing attacks it.
   → [`ansible/`](../ansible/README.md); applied to the hand-built six on
   2026-10-03, with a second run of `changed=0` and `verify.yml` passing on
   all six; closes on a `tofu destroy` and rebuild,
-  so it waits for the six to be declared in `tofu/` with pinned MACs, and for
-  #440's first build) →
+  so it waits for the six to be declared in `tofu/` with pinned MACs; #440's
+  templates exist since 2026-10-03) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
   weaknesses (the population and the authentication generator are written as
   `--tags population,authgen`,
