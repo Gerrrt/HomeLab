@@ -11,9 +11,18 @@ forever. Loki has no `promtool test`, so this does the equivalent by hand (#843)
      that test's evaluation instant, and compare the series that come back with
      the ones the test expects.
 
-Each test gets its own evaluation instant, an hour apart, so one test's lines
-fall outside the next one's window (the longest window here is 15m). The DHCP
-rules look back 7 days, so their tests isolate by MAC address instead.
+Each test gets a span of time to itself, laid end to end going back from now
+with GAP between them: the span runs from its oldest line, or from `window`
+before its evaluation instant if that is further, to the instant. One test's
+lines therefore never fall inside another's window.
+
+That holds only if every rule's range fits in GAP or is declared, so it is
+checked rather than trusted: the runner reads each rule's longest [range]
+from its expr, and a case whose rule reaches further than GAP must either
+declare `window` at least that long (the absence rules: 30m, 2h, 9h) or say
+`isolated_by:` how it stays apart. The new-device rules look back 7 days and
+say `isolated_by: mac`, because a week each would not fit in what Loki
+accepts.
 
 WHAT THIS DOES NOT TEST
   `for:`. An instant query is the expression, not the alert's pending period.
@@ -29,6 +38,8 @@ Tests live in stacks/<stack>/loki/tests/*.test.yaml:
   tests:
     - alert: SshBruteForceSevere          # must name a rule in loki/rules/
       name: 101 failures in five minutes fire
+      window: 5m                          # optional; see the spacing note above
+      isolated_by: mac                    # optional, instead of window, ditto
       streams:
         - labels: {log_type: authlog, host: oracle}
           entries:
@@ -39,10 +50,11 @@ Tests live in stacks/<stack>/loki/tests/*.test.yaml:
       expect:                             # the series the expression returns;
         - {host: oracle}                  # [] means it must return nothing
 
-Coverage, checked before anything boots: every `severity: critical` rule has a
-test. Every tested rule has at least one case that expects a series and one
-that expects none. A test that can only ever expect silence passes against a
-broken rule (the reasoning check_rule_tests.py applies to promtool).
+Coverage, checked before anything boots: every rule has a test, unless
+EXEMPT names it with a reason, and every tested rule has at least one case that
+expects a series and one that expects none, unless FIRES_ONLY names it. A test
+that can only ever expect silence passes against a broken rule (the reasoning
+check_rule_tests.py applies to promtool).
 
 Usage: test_loki_rules.py [--stack NAME] [--skips-file PATH] [--self-test]
 """
@@ -68,11 +80,20 @@ except ImportError:
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 PORT = 3198
-SLOT = 3600  # seconds between consecutive tests' evaluation instants
+GAP = 1200  # seconds between one test's span and the next. Any rule reaching
+            # further must be declared by its tests (layout() enforces it).
 # reject_old_samples_max_age is 168h in loki-config.yaml. Stay well inside it,
 # because a rejected push is a test that silently has no data.
 MAX_LOOKBACK = 150 * 3600
-REQUIRED_SEVERITY = "critical"
+# Rules that need no behaviour test, each with the reason. Empty: every rule
+# has one. An entry here is a decision, and its reason should say who is
+# answerable for the rule instead.
+EXEMPT: dict[str, str] = {}
+# Rules that cannot have a quiet case, each with the reason.
+FIRES_ONLY: dict[str, str] = {
+    "LokiRulerWatchdog": "vector(1): it fires forever by design, and "
+                         "LokiRulerSilent (Prometheus) is what notices it stop",
+}
 
 _DUR = re.compile(r"(\d+)([smhd])")
 _UNIT = {"s": 1, "m": 60, "h": 3600, "d": 86400}
@@ -126,14 +147,59 @@ def coverage(rules: dict[str, dict], tests: list[dict]) -> list[str]:
         kinds.setdefault(name, set()).add("fires" if t.get("expect") else "quiet")
     for name, have in sorted(kinds.items()):
         for kind in ("fires", "quiet"):
+            if kind == "quiet" and name in FIRES_ONLY:
+                continue
             if kind not in have:
                 problems.append(
                     f"{name} has no case where it {'returns a series' if kind == 'fires' else 'stays quiet'}. "
                     f"Each tested rule needs both, or a broken rule can still pass")
-    for name, rule in sorted(rules.items()):
-        if rule["severity"] == REQUIRED_SEVERITY and name not in kinds:
-            problems.append(f"{name} is {REQUIRED_SEVERITY} and has no behaviour test")
+    for name in sorted(rules):
+        if name not in kinds and name not in EXEMPT:
+            problems.append(f"{name} has no behaviour test, and EXEMPT does not say why")
+    for name in sorted(set(EXEMPT) | set(FIRES_ONLY)):
+        if name not in rules:
+            problems.append(f"{name} is excused in test_loki_rules.py but is no rule in loki/rules/")
     return problems
+
+
+_RANGE = re.compile(r"\[((?:\d+[smhd])+)\]")
+
+
+def rule_range(expr: str) -> int:
+    """The longest [range] in a LogQL expression, in seconds. `offset` is not a
+    range and is ignored: it moves a window, it does not lengthen it."""
+    return max([0] + [parse_duration(m) for m in _RANGE.findall(expr)])
+
+
+def layout(tests: list[dict], base: int, rules: dict | None = None) -> tuple[list, list[str]]:
+    """Each test's evaluation instant and expanded lines, going back from base.
+
+    A test occupies [instant - span, instant], span being the further of its
+    oldest line and its declared `window`. The next test's instant sits GAP
+    before that, so no test's lines fall inside another's window. Pure, so the
+    self-test can check the spacing that the absence rules depend on."""
+    plan, problems = [], []
+    cursor = base
+    for t in tests:
+        at = cursor
+        try:
+            entries = expand(t, at)
+            window = parse_duration(t["window"]) if "window" in t else 0
+        except (KeyError, ValueError) as e:
+            problems.append(f"{t.get('_file', '?')}: {e}")
+            continue
+        reach = rule_range((rules or {}).get(t.get("alert"), {}).get("expr", ""))
+        if reach > GAP and window < reach and "isolated_by" not in t:
+            problems.append(
+                f"{t['name']}: {t['alert']} looks back {reach // 60}m, further than the "
+                f"{GAP // 60}m between cases. Declare `window: {reach // 60}m` (or more), or "
+                f"`isolated_by:` saying how it stays apart from the other cases")
+        cursor = at - max([window] + [at - ts for _, ts, _ in entries]) - GAP
+        if base - min([at - window] + [ts for _, ts, _ in entries]) > MAX_LOOKBACK:
+            problems.append(f"{t['name']}: reaches more than {MAX_LOOKBACK // 3600}h back, "
+                            f"past what Loki accepts (reject_old_samples_max_age)")
+        plan.append((t, at, entries))
+    return plan, problems
 
 
 def load_rules(rules_dir: pathlib.Path) -> dict[str, dict]:
@@ -305,18 +371,8 @@ def run(stack_name: str, skips_file: str | None) -> int:
 
     problems = coverage(rules, tests)
     base = (int(time.time()) // 60) * 60 - 300
-    plan = []
-    for i, t in enumerate(tests):
-        at = base - i * SLOT
-        try:
-            entries = expand(t, at)
-        except (KeyError, ValueError) as e:
-            problems.append(f"{t.get('_file')}: {e}")
-            continue
-        if entries and base - min(ts for _, ts, _ in entries) > MAX_LOOKBACK:
-            problems.append(f"{t['name']}: reaches more than {MAX_LOOKBACK // 3600}h back, "
-                            f"past what Loki accepts (reject_old_samples_max_age)")
-        plan.append((t, at, entries))
+    plan, laid_out = layout(tests, base, rules)
+    problems += laid_out
     if problems:
         for p in problems:
             print(f"  {p}", file=sys.stderr)
@@ -365,18 +421,21 @@ def run(stack_name: str, skips_file: str | None) -> int:
         shutil.rmtree(work, ignore_errors=True)
 
     tested = sorted({t["alert"] for t, _, _ in plan})
-    untested = sorted(set(rules) - set(tested))
     print(f"\033[0;{'31' if failed else '32'}m  {'FAIL' if failed else 'PASS'}\033[0m "
-          f"{len(plan) - failed}/{len(plan)} Loki rule test(s) over {len(tested)} rule(s); "
-          f"{len(untested)} rule(s) untested, none of them {REQUIRED_SEVERITY}")
+          f"{len(plan) - failed}/{len(plan)} Loki rule test(s) over {len(tested)} of "
+          f"{len(rules)} rule(s); {len(EXEMPT)} exempt")
     return 1 if failed else 0
 
 
 def self_test() -> int:
     rules = {"Crit": {"expr": "x", "severity": "critical"},
-             "Warn": {"expr": "x", "severity": "warning"}}
+             "Warn": {"expr": "x", "severity": "warning"},
+             "LokiRulerWatchdog": {"expr": "vector(1)", "severity": "none"}}
     both = [{"alert": "Crit", "name": "a", "expect": [{"h": "x"}]},
-            {"alert": "Crit", "name": "b", "expect": []}]
+            {"alert": "Crit", "name": "b", "expect": []},
+            {"alert": "Warn", "name": "c", "expect": [{"h": "x"}]},
+            {"alert": "Warn", "name": "d", "expect": []},
+            {"alert": "LokiRulerWatchdog", "name": "e", "expect": [{}]}]
     t = {"name": "t", "streams": [{"labels": {"a": 1},
                                    "entries": [{"before": "4m", "count": 3, "every": "10s", "line": "l"}]}]}
     cases = [
@@ -389,11 +448,38 @@ def self_test() -> int:
              {"before": "5s", "count": 10, "line": "l"}]}]}, 1000))),
         ("label sets compare without order, and ignore __name__",
          label_sets([{"b": "2", "a": "1", "__name__": "x"}]) == label_sets([{"a": "1", "b": "2"}])),
-        ("a critical rule tested both ways is covered", coverage(rules, both) == []),
-        ("an untested critical rule fails coverage", len(coverage(rules, [])) == 1),
+        ("every rule tested both ways (the watchdog firing only) is covered", coverage(rules, both) == []),
+        ("an untested rule fails coverage, warning or not",
+         any("Warn has no behaviour test" in p for p in coverage(rules, both[:2] + both[4:]))),
         ("a tested rule with only a quiet case fails coverage", len(coverage(rules, both[1:])) == 1),
-        ("a tested rule with only a firing case fails coverage", len(coverage(rules, both[:1])) == 1),
-        ("an untested warning rule is allowed", not any("Warn" in p for p in coverage(rules, both))),
+        ("a tested rule with only a firing case fails coverage",
+         len(coverage(rules, both[:1] + both[2:])) == 1),
+        ("FIRES_ONLY excuses the watchdog's missing quiet case, and no other",
+         not any("LokiRulerWatchdog" in p for p in coverage(rules, both))),
+        ("an absence test's window is kept clear of the next test's lines",
+         _clear(layout([{"name": "gone", "window": "9h", "streams": []},
+                        {"name": "next", "streams": [{"labels": {"a": 1}, "entries": [
+                            {"before": "1m", "line": "l"}]}]}], 10**6))),
+        ("a long-reaching line pushes the next test back past it",
+         _clear(layout([{"name": "old", "streams": [{"labels": {"a": 1}, "entries": [
+                            {"before": "2d", "line": "l"}]}]},
+                        {"name": "next", "window": "30m", "streams": []}], 10**6))),
+        ("a rule's range is its longest [range], offset ignored",
+         rule_range("sum(count_over_time({a=\"b\"}[10m])) unless sum(count_over_time({a=\"b\"}[7d] offset 10m))") == 7 * 86400),
+        ("a case whose rule outreaches the gap must declare window or isolated_by",
+         bool(layout([{"alert": "Gone", "name": "g", "streams": []}], 10**6,
+                     {"Gone": {"expr": "absent_over_time({a=\"b\"}[9h])"}})[1])),
+        ("a declared window that is long enough satisfies it",
+         not layout([{"alert": "Gone", "name": "g", "window": "9h", "streams": []}], 10**6,
+                    {"Gone": {"expr": "absent_over_time({a=\"b\"}[9h])"}})[1]),
+        ("a window shorter than the rule's range does not",
+         bool(layout([{"alert": "Gone", "name": "g", "window": "2h", "streams": []}], 10**6,
+                     {"Gone": {"expr": "absent_over_time({a=\"b\"}[9h])"}})[1])),
+        ("isolated_by stands in for a week-long window",
+         not layout([{"alert": "New", "name": "n", "isolated_by": "mac", "streams": []}], 10**6,
+                    {"New": {"expr": "count_over_time({a=\"b\"}[7d] offset 10m)"}})[1]),
+        ("a test reaching past Loki's acceptance window is refused",
+         bool(layout([{"name": "far", "window": "200h", "streams": []}], 10**6)[1])),
         ("a test naming no rule fails coverage",
          any("no rule" in p for p in coverage(rules, both + [{"alert": "Gone", "name": "g", "expect": []}]))),
     ]
@@ -402,6 +488,18 @@ def self_test() -> int:
         failed += not ok
         print(f"  {'PASS' if ok else 'FAIL'} {name}")
     return 1 if failed else 0
+
+
+def _clear(laid: tuple) -> bool:
+    """True when no test's lines fall inside another test's span."""
+    plan, problems = laid
+    spans = []
+    for t, at, entries in plan:
+        w = parse_duration(t["window"]) if "window" in t else 0
+        spans.append((min([at - w] + [ts for _, ts, _ in entries]), at))
+    lines = [(i, ts) for i, (_, _, entries) in enumerate(plan) for _, ts, _ in entries]
+    return not problems and all(not (lo <= ts <= hi)
+                                for i, ts in lines for j, (lo, hi) in enumerate(spans) if i != j)
 
 
 def _raises(fn) -> bool:
