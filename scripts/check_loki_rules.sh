@@ -26,8 +26,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STACK_NAME="observability"
-# Resolved from compose.yaml — see scripts/image-for.sh.
-LOKI_IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" loki)"
 BOOT_SECONDS="${BOOT_SECONDS:-45}"
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -48,6 +46,10 @@ done
 
 STACK="${REPO_ROOT}/stacks/${STACK_NAME}"
 [[ -f "${STACK}/compose.yaml" ]] || die "no such stack: ${STACK}"
+# This stack's pin, resolved once --stack is known. image-for.sh falls back to
+# stacks/observability/compose.yaml, so resolving it earlier checked every
+# stack's rules against observability's Loki.
+LOKI_IMAGE="$(COMPOSE_FILE="${STACK}/compose.yaml" "${REPO_ROOT}/scripts/image-for.sh" loki)"
 RULES_DIR="${STACK}/loki/rules"
 
 # A stack may legitimately have neither Loki rules nor dashboards. `stacks/lab`

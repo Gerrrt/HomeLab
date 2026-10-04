@@ -265,7 +265,10 @@ def boot(stack: pathlib.Path, work: pathlib.Path) -> tuple[subprocess.Popen, lis
         proc = subprocess.Popen(["loki", *args], stdout=open(work / "loki.log", "w"),
                                 stderr=subprocess.STDOUT)
     else:
+        # This stack's pin, not observability's: image-for.sh falls back to
+        # stacks/observability/compose.yaml unless told otherwise.
         image = subprocess.run([str(REPO / "scripts/image-for.sh"), "loki"],
+                               env={**os.environ, "COMPOSE_FILE": str(stack / "compose.yaml")},
                                check=True, capture_output=True, text=True).stdout.strip()
         name = f"loki-rule-tests-{os.getpid()}"
         cleanup = ["docker", "rm", "-f", name]
@@ -288,6 +291,12 @@ def boot(stack: pathlib.Path, work: pathlib.Path) -> tuple[subprocess.Popen, lis
 # ---------------------------------------------------------------------------
 def run(stack_name: str, skips_file: str | None) -> int:
     stack = REPO / "stacks" / stack_name
+    # Before the no-rules fast path: a mistyped --stack has no loki/rules
+    # either, and must not read as a stack that passed with nothing to test.
+    if not (stack / "compose.yaml").is_file():
+        print(f"\033[0;31m  FAIL\033[0m no such stack: {stack_name} (no {stack}/compose.yaml)",
+              file=sys.stderr)
+        return 1
     rules_dir, tests_dir = stack / "loki/rules", stack / "loki/tests"
     if not rules_dir.is_dir():
         print(f"\033[0;32m  PASS\033[0m {stack_name}: no Loki rules, nothing to test")
