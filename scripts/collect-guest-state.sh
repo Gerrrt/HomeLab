@@ -38,6 +38,14 @@
 # two series and keeps its run state: they are additions, and the run-state
 # guarantees below do not depend on them.
 #
+# TEMPLATES (#885). A third fact from the same config: `template: 1`, which
+# `qm template` writes when it converts a guest. A template can never run, so
+# HypervisorGuestStopped reading `stopped` for one is noise — on 2026-10-04 it
+# fired for the Packer templates 901 and 911 and was pending for 912. The rule
+# excludes `homelab_guest_template == 1`, read here from the guest itself rather
+# than inferred from a VMID range, which would break the first time a template
+# was made outside 9xx.
+#
 # `qm config` and not /etc/pve/qemu-server/<vmid>.conf, although reading the
 # file would be faster: the file also carries every snapshot's section, each
 # with its own `meta:` and `tags:`, and `qm config` prints the current config
@@ -97,9 +105,10 @@ parse_guest_list() {
 #       name: diabolos
 #       tags: disposable;lab
 #
-# Prints "<disposable> <ctime>": 1 or 0, and the epoch or `-` when there is no
-# ctime (a guest created before PVE recorded one, or a container). PVE stores
-# tags `;`-separated, but accepts `,` and spaces on input, so all three split.
+# Prints "<disposable> <ctime> <template>": 1 or 0, the epoch or `-` when there
+# is no ctime (a guest created before PVE recorded one, or a container), and 1
+# or 0 for `template: 1`. PVE stores tags `;`-separated, but accepts `,` and
+# spaces on input, so all three split.
 parse_guest_config() {
   awk '
     $1 == "tags:" {
@@ -110,7 +119,8 @@ parse_guest_config() {
       n = split($2, m, ",")
       for (i = 1; i <= n; i++) if (m[i] ~ /^ctime=[0-9]+$/) ctime = substr(m[i], 7)
     }
-    END { printf "%d %s\n", disposable, (ctime == "" ? "-" : ctime) }
+    $1 == "template:" && $2 == "1" { template = 1 }
+    END { printf "%d %s %d\n", disposable, (ctime == "" ? "-" : ctime), template }
   '
 }
 
@@ -157,27 +167,38 @@ if [[ "${1:-}" == "--self-test" ]]; then
       fail=1
     fi
   }
-  check_config "a disposable guest with a ctime" "1 1759300000" \
+  check_config "a disposable guest with a ctime" "1 1759300000 0" \
 "boot: order=scsi0
 meta: creation-qemu=9.2.0,ctime=1759300000
 name: diabolos
 tags: disposable"
-  check_config "the tag among others, any separator" "1 1759300000" \
+  check_config "the tag among others, any separator" "1 1759300000 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 tags: lab,soc;disposable other"
   # A substring is not the tag: `not-disposable` must not count.
-  check_config "a tag that merely contains the word" "0 1759300000" \
+  check_config "a tag that merely contains the word" "0 1759300000 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 tags: not-disposable"
-  check_config "no tags line" "0 1759300000" \
+  check_config "no tags line" "0 1759300000 0" \
 "meta: creation-qemu=9.2.0,ctime=1759300000
 name: alexander"
-  check_config "no meta line — created before PVE recorded one" "1 -" \
+  check_config "no meta line — created before PVE recorded one" "1 - 0" \
 "name: diabolos
 tags: disposable"
-  check_config "a meta line without ctime" "0 -" \
+  check_config "a meta line without ctime" "0 - 0" \
 "meta: creation-qemu=9.2.0"
-  check_config "empty config" "0 -" ""
+  check_config "empty config" "0 - 0" ""
+  check_config "a template" "0 1759300000 1" \
+"meta: creation-qemu=9.2.0,ctime=1759300000
+name: tpl-ubuntu-2604
+template: 1"
+  # Only the value 1 is a template; a stray `template: 0` is not.
+  check_config "template set to 0" "0 1759300000 0" \
+"meta: creation-qemu=9.2.0,ctime=1759300000
+template: 0"
+  check_config "a disposable template" "1 - 1" \
+"tags: disposable
+template: 1"
   exit $fail
 fi
 
@@ -223,7 +244,7 @@ $(printf '%s\n' "$pct_raw" | parse_guest_list lxc)"
 fi
 rows="$(printf '%s\n' "$rows" | grep -v '^$' || true)"
 
-# The two disposable-guest facts, per guest, keyed "<kind> <vmid>". A config
+# The config facts, per guest, keyed "<kind> <vmid>". A config
 # that cannot be read leaves no entry, and emit() then writes nothing extra for
 # that guest — never a 0, which would claim "not disposable" without knowing.
 #
@@ -245,7 +266,7 @@ if [[ -n "$rows" ]]; then
 fi
 
 emit_config_facts() {
-  local which="$1" metric="$2" kind vmid name _status facts value
+  local which="$1" metric="$2" kind vmid name _status facts value f_disposable f_ctime f_template
   [[ -n "$rows" ]] || return 0
   while read -r kind vmid name _status; do
     [[ -n "$kind" ]] || continue
@@ -256,7 +277,12 @@ emit_config_facts() {
       continue
     fi
     [[ -n "$facts" ]] || continue
-    if [[ "$which" == disposable ]]; then value="${facts%% *}"; else value="${facts#* }"; fi
+    read -r f_disposable f_ctime f_template <<<"$facts"
+    case "$which" in
+      disposable) value="$f_disposable" ;;
+      ctime) value="$f_ctime" ;;
+      template) value="$f_template" ;;
+    esac
     [[ "$value" == "-" ]] && continue
     printf '%s{host="%s",guest="%s",vmid="%s",type="%s"} %s\n' \
       "$metric" "$HOSTNAME_LABEL" "$name" "$vmid" "$kind" "$value"
@@ -286,7 +312,10 @@ emit() {
   printf '# HELP homelab_guest_created_timestamp_seconds When this guest was created, from the ctime in its config.\n'
   printf '# TYPE homelab_guest_created_timestamp_seconds gauge\n'
   emit_config_facts ctime homelab_guest_created_timestamp_seconds
-  printf '# HELP homelab_guest_config_readable 1 when this guest'"'"'s config was read, so the two series above can be trusted.\n'
+  printf '# HELP homelab_guest_template 1 when this guest is a template (template: 1 in its config), which never runs (#885).\n'
+  printf '# TYPE homelab_guest_template gauge\n'
+  emit_config_facts template homelab_guest_template
+  printf '# HELP homelab_guest_config_readable 1 when this guest'"'"'s config was read, so the config series above can be trusted.\n'
   printf '# TYPE homelab_guest_config_readable gauge\n'
   emit_config_facts readable homelab_guest_config_readable
   printf '# HELP homelab_guests_total Guests this hypervisor knows about, running or not.\n'
