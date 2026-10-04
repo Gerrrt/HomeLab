@@ -88,15 +88,20 @@ So each table's query reduces every alert to those six columns:
 
 - **Host** is the first non-empty of a short list per table, such as `host`
   then `instance`, or `device` first for SNMP devices.
-- **Subject** is the first non-empty of the labels the rules name in their
-  summaries, written as `label value`, for example `guest carbuncle` or
-  `name vaultwarden`.
+- **Subject** joins every identifying label the alert carries, written as
+  `name value` and comma-separated: `pool erebor, vdev sda, kind checksum`, or
+  `controller 0, drive 2` for the iLO's indices. Two alerts that differ in any
+  of those labels therefore stay two rows. The candidates are the labels each
+  component's rules name in their summaries and descriptions and group `by` or
+  `on`, so they follow the rules rather than a guess. The one deliberate merge
+  is `InstanceDown`: three jobs that lost the same host are one row for that
+  host.
 
-Each panel's description lists its candidates, in order. An alert about a
-whole host has no Subject, which is correct. The full label set is in
+Each panel's description lists its candidates, in order. A column with nothing
+to show reads `—`, so every row has all six. The full label set is in
 Alertmanager.
 
-A new rule whose identifying label is in none of the lists shows with an empty
+A new rule whose identifying label is in none of the lists shows `—` as its
 Subject, never as a new column. Add the label to that panel's list.
 
 ## The alert tables do not know about silences

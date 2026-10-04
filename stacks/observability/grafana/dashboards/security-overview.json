@@ -72,7 +72,7 @@
     {
       "type": "table",
       "title": "Security alerts",
-      "description": "One row per firing or pending alert, always the same columns. Each rule brings its own labels, and shown raw they become a column per label, empty on most rows (#888). So the query keeps alertname, state, severity and category, and folds the rest into two: Host, the first of device, instance; and Subject, the first of classification, interface, written as \"label value\". The full label set is in Alertmanager.",
+      "description": "One row per firing or pending alert, always the same six columns. Raw, each rule's own labels became a column apiece, empty on most rows (#888). Host is the first of device, instance. Subject is every identifying label the alert carries, in the order classification, interface, written as \"name value\" and comma-separated, so two alerts that differ in any of them stay two rows. Either column reads — when the alert has none. The full label set is in Alertmanager.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -90,7 +90,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (alertname, alertstate, severity, category, where, subject) (label_replace(label_join(label_replace(label_join(label_replace(label_join(label_replace(label_join(ALERTS{alertname=~\"TerminalSegmentReachedInternalNetwork|LabSegmentReachedInternalNetwork|IoTAttemptedLateralMovement|FirewallLogsStopped|SuricataHighPriorityAlert|SuricataAlertStorm|SuricataStopped|SuricataLogsStopped\",alertstate=~\"firing|pending\"}, \"coalesce_tmp\", \"|\", \"where\", \"device\"), \"where\", \"$1\", \"coalesce_tmp\", \"\\\\|(.+)\"), \"coalesce_tmp\", \"|\", \"where\", \"instance\"), \"where\", \"$1\", \"coalesce_tmp\", \"\\\\|(.+)\"), \"coalesce_tmp\", \"|\", \"subject\", \"classification\"), \"subject\", \"classification $1\", \"coalesce_tmp\", \"\\\\|(.+)\"), \"coalesce_tmp\", \"|\", \"subject\", \"interface\"), \"subject\", \"interface $1\", \"coalesce_tmp\", \"\\\\|(.+)\"))",
+          "expr": "max by (alertname, alertstate, severity, category, where, subject) (label_replace(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_join(ALERTS{alertname=~\"TerminalSegmentReachedInternalNetwork|LabSegmentReachedInternalNetwork|IoTAttemptedLateralMovement|FirewallLogsStopped|SuricataHighPriorityAlert|SuricataAlertStorm|SuricataStopped|SuricataLogsStopped\",alertstate=~\"firing|pending\"}, \"fold_tmp\", \"|\", \"where\", \"device\"), \"where\", \"$1\", \"fold_tmp\", \"\\\\|(.+)\"), \"fold_tmp\", \"|\", \"where\", \"instance\"), \"where\", \"$1\", \"fold_tmp\", \"\\\\|(.+)\"), \"where\", \"—\", \"where\", \"\"), \"fold_tmp\", \"|\", \"subject\", \"classification\"), \"subject\", \"classification $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, classification $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"interface\"), \"subject\", \"interface $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, interface $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"subject\", \"—\", \"subject\", \"\"))",
           "legendFormat": "",
           "format": "table",
           "range": false,
