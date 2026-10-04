@@ -114,6 +114,26 @@
       <ComputerName>${computer_name}</ComputerName>
       <TimeZone>UTC</TimeZone>
     </component>
+    <!--
+      No automatic BitLocker device encryption. Windows 11 turns it on by
+      itself on a machine with a TPM and Secure Boot, which it requires, and
+      sysprep will not generalise a volume that is encrypting. The first 911
+      builds (2026-10-03) waited 45 minutes on a sysprep that could not run;
+      the kept disk's system partition read TYPE="BitLocker". Set here, in
+      specialize, because encryption starts at first logon, before any
+      provisioner. It persists through generalise, so clones do not encrypt
+      either; whether a lab guest should is #448's decision, not a template's.
+      Server 2025 does not do this, but the value is harmless there.
+    -->
+    <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <RunSynchronous>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>Prevent automatic BitLocker device encryption</Description>
+          <Path>reg.exe add HKLM\SYSTEM\CurrentControlSet\Control\BitLocker /v PreventDeviceEncryption /t REG_DWORD /d 1 /f</Path>
+        </RunSynchronousCommand>
+      </RunSynchronous>
+    </component>
   </settings>
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">

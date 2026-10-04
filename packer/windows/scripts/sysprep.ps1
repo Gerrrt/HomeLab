@@ -36,6 +36,19 @@ Remove-Item -Path (Join-Path $env:ProgramData 'ssh\ssh_host_*') -Force -ErrorAct
 $answer = Join-Path $env:WINDIR 'Panther\unattend-oobe.xml'
 if (-not (Test-Path $answer)) { throw "no $answer; the file provisioner should have put it there" }
 
+# Sysprep will not generalise a volume that is encrypting, and from here on
+# nothing can see why: it fails quietly, never powers off, and the build waits
+# 45 minutes for nothing (911, 2026-10-03). So check now, while WinRM can still
+# say so. The answer file's specialize pass is what prevents it; this is the
+# alarm if that ever stops working. Server has no BitLocker cmdlets unless the
+# feature is installed, and then there is nothing to check.
+if (Get-Command -Name Get-BitLockerVolume -ErrorAction SilentlyContinue) {
+  $bl = Get-BitLockerVolume -MountPoint $env:SystemDrive
+  if ($bl.VolumeStatus -ne 'FullyDecrypted') {
+    throw "$($env:SystemDrive) is BitLocker $($bl.VolumeStatus) ($($bl.EncryptionPercentage)%); sysprep would fail. Is PreventDeviceEncryption set in autounattend.xml's specialize pass?"
+  }
+}
+
 # The 30-second wait is ping, not timeout.exe, which fails without a console.
 # SetupComplete.cmd deletes this file and the task on every clone.
 $cmd = Join-Path $env:WINDIR 'Temp\packer-sysprep.cmd'
