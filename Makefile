@@ -293,8 +293,9 @@ check-container-health: ## Ask the RUNNING stack whether its healthchecks pass (
 	python3 scripts/check_container_health.py $(STACK)
 
 .PHONY: check-loki-rules
-check-loki-rules: ## Validate Loki (LogQL) alerting rules and dashboard panel queries
+check-loki-rules: ## Validate Loki (LogQL) rules and panel queries, and behaviour-test the rules
 	./scripts/check_loki_rules.sh
+	python3 scripts/test_loki_rules.py
 
 .PHONY: patch-state
 patch-state: ## Collect this host's package patch state into the textfile dir

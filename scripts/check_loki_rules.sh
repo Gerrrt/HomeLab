@@ -26,8 +26,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STACK_NAME="observability"
-# Resolved from compose.yaml — see scripts/image-for.sh.
-LOKI_IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" loki)"
 BOOT_SECONDS="${BOOT_SECONDS:-45}"
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -76,6 +74,12 @@ if ((n_committed == 0 && ${#dash_files[@]} == 0)); then
     "${STACK_NAME}: no Loki rules and no dashboards — nothing to parse"
   exit 0
 fi
+
+# This stack's pin, resolved once --stack is known and there is something to
+# check: most stacks have no loki service, and set -e would end the run on the
+# lookup. image-for.sh falls back to stacks/observability/compose.yaml, so
+# resolving it before --stack checked every stack against observability's Loki.
+LOKI_IMAGE="$(COMPOSE_FILE="${STACK}/compose.yaml" "${REPO_ROOT}/scripts/image-for.sh" loki)"
 
 # Whether this run can happen at all is decided FIRST, before anything with a
 # side effect or a failure mode of its own.
@@ -155,22 +159,10 @@ if ! python3 -c 'import yaml' 2>/dev/null; then
 fi
 
 # Rewrite every path in the real config to point inside the scratch dir, so the
-# rules are checked against the same settings production uses.
-python3 - "$STACK/loki/loki-config.yaml" "${WORK}" > "${WORK}/loki.yaml" <<'PY'
-import sys, yaml
-cfg = yaml.safe_load(open(sys.argv[1]))
-work = sys.argv[2]
-cfg["common"]["path_prefix"] = f"{work}/data"
-cfg["common"]["storage"]["filesystem"] = {
-    "chunks_directory": f"{work}/data/chunks", "rules_directory": f"{work}/data/rules"}
-cfg["storage_config"]["tsdb_shipper"] = {
-    "active_index_directory": f"{work}/data/index", "cache_location": f"{work}/data/cache"}
-cfg["storage_config"]["filesystem"] = {"directory": f"{work}/data/chunks"}
-cfg["compactor"]["working_directory"] = f"{work}/data/compactor"
-cfg["ruler"]["storage"]["local"]["directory"] = f"{work}/rules"
-cfg["ruler"]["rule_path"] = f"{work}/data/rules-temp"
-yaml.safe_dump(cfg, sys.stdout)
-PY
+# rules are checked against the same settings production uses. Shared with
+# test_loki_rules.py, so the parse check and the behaviour tests cannot drift.
+python3 "${REPO_ROOT}/scripts/loki_scratch_config.py" \
+  "$STACK/loki/loki-config.yaml" "${WORK}" > "${WORK}/loki.yaml"
 
 # Rule groups use interval: 1m in production, and Loki jitters a group's first
 # evaluation across that interval — so a short boot window can legitimately see

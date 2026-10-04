@@ -425,6 +425,14 @@ for stack in "${STACKS[@]}"; do
   else
     FAILED=1
   fi
+  # Parsing is not matching: a regex no device line satisfies passes the check
+  # above. The behaviour tests push fixture lines and assert what fires (#843).
+  # Same skips contract — no loki and no docker is a recorded skip, not a pass.
+  if python3 scripts/test_loki_rules.py --stack "${stack}" --skips-file "${LOKI_SKIPS}"; then
+    :
+  else
+    FAILED=1
+  fi
 done
 SKIPPED=$((SKIPPED + $(wc -l < "${LOKI_SKIPS}")))
 
