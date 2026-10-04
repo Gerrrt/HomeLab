@@ -104,9 +104,26 @@ up: render ## Render config and start the stack
 	@# just honest about it. Passed as a %s argument, not interpolated into the
 	@# format, so a stray % in the value cannot be read as a format spec.
 	@# tail -1 because compose takes the last of duplicate keys.
-	@port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
-	printf '\n\033[0;32mup\033[0m — Grafana: https://localhost:%s\n' "$${port:-3000}"
-	@printf '   (self-signed by the lab CA — trust certificates/ca.pem, see docs/runbooks/generate-certificates.md)\n'
+	@#
+	@# Only for a stack that has a Grafana. The sensitive tier has none, and its
+	@# own Caddy serves names from step-ca rather than the lab CA, so the same
+	@# line there pointed at a port nothing listens on and a CA that signs
+	@# nothing it serves — on every deploy, and in converge's journal hourly
+	@# on trinity once it applied (#533). Read off the compose file's services
+	@# rather than a list of stack names, so a stack that gains or drops a
+	@# Grafana is right without this recipe changing.
+	@if grep -qE '^  grafana:' $(STACK_DIR)/compose.yaml; then \
+		port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
+		printf '\n\033[0;32mup\033[0m — Grafana: https://localhost:%s\n' "$${port:-3000}"; \
+		printf '   (self-signed by the lab CA — trust certificates/ca.pem, see docs/runbooks/generate-certificates.md)\n'; \
+	else \
+		printf '\n\033[0;32mup\033[0m — %s\n' "$(STACK)"; \
+	fi
+	@# Last, so it is only reached when every check above passed: the revision
+	@# this deploy applied. converge.sh compares HEAD with it, because HEAD alone
+	@# says where the checkout is, not what is running — on 2026-10-01 a
+	@# checkout moved by hand read as "converged" for hours over stale rules.
+	@./scripts/record-applied.sh $(STACK)
 
 .PHONY: down
 down: ## Stop the stack (volumes are preserved)
@@ -121,11 +138,14 @@ converge: ## Fetch main, verify it, fast-forward and deploy (ARGS=--dry-run)
 	@# without waiting for it. It ends in `make up` rather than replacing it, so
 	@# there is exactly one deployment path and both callers exercise it.
 	@#
-	@# It refuses to run anywhere but /home/robo/code/Gerrrt/HomeLab, for the
-	@# reason `make up` cares about and `make deploy-agent` does not: render
-	@# writes into the .rendered/ of the tree it is run from, and no container
-	@# mounts a worktree's copy. ARGS=--dry-run says what it would do.
-	./scripts/converge.sh $(ARGS)
+	@# It refuses to run anywhere but the stack's deployment checkout —
+	@# /home/robo/code/Gerrrt/HomeLab for observability, ~/code/Gerrrt/HomeLab
+	@# on trinity for STACK=sensitive (#533) — for the reason `make up` cares
+	@# about and `make deploy-agent` does not: render writes into the .rendered/
+	@# of the tree it is run from, and no container mounts a worktree's copy.
+	@# A bare `make converge` on trinity names robo's checkout and is refused,
+	@# rather than deploying the wrong stack. ARGS=--dry-run says what it would do.
+	./scripts/converge.sh --stack $(STACK) $(ARGS)
 
 .PHONY: pull
 pull: ## Pull the pinned images
@@ -242,6 +262,7 @@ check-rules: ## Validate and unit-test Prometheus rules and config
 	promtool check config $(STACK_DIR)/prometheus/prometheus.yaml
 	promtool check rules $(STACK_DIR)/prometheus/rules/*.rules.yaml
 	promtool test rules $(STACK_DIR)/prometheus/tests/*.test.yaml
+	python3 scripts/check_rule_tests.py
 
 .PHONY: check-compose-health
 check-compose-health: ## Verify health deps are satisfiable, probe the images (needs docker)
@@ -440,6 +461,16 @@ check-firewall: ## Diff docs/firewall-claims.yaml against the LIVE pfSense rules
 	@# over SSH, and `make check-docs` covers the half that is pure text.
 	@# Prose about pfctl was wrong three times on 2026-09-06 alone (#363).
 	python3 scripts/check_firewall_claims.py
+
+.PHONY: check-ruleset
+check-ruleset: ## Diff .github/rulesets/main.json against the LIVE ruleset on main
+	@# The gate converge.sh relies on lives in a GitHub settings page (#833).
+	@# Read anonymously; also run weekly by .github/workflows/digests.yml.
+	./scripts/check-ruleset.sh
+
+.PHONY: apply-ruleset
+apply-ruleset: ## Make the ruleset on main match .github/rulesets/main.json (needs gh as admin)
+	./scripts/check-ruleset.sh --apply
 
 .PHONY: check-dashboard-roundtrip
 check-dashboard-roundtrip: ## Boot the pinned Grafana and verify the dashboards round-trip
@@ -781,8 +812,33 @@ backup-nas: ## Pull the media tier's state off smaug from its newest ZFS snapsho
 	@# ARGS=--copy-only mean here what they mean above.
 	./scripts/backup-nas.sh $(ARGS)
 
+.PHONY: backup-wiki
+backup-wiki: ## Pull a pg_dump of the wiki's database off oracle, encrypt and verify
+	@# The wiki's Postgres, which nothing backed up before #251. Pulled for
+	@# backup-nas's reason: oracle holds no age identity (ADR-0015), so this
+	@# host asks it for a dump over ssh and encrypts what arrives. A dump and
+	@# not a stopped volume, the first in the repository (ADR-0065): nothing on
+	@# oracle stops, and a set restores into a newer Postgres. Sets land in
+	@# backups/wiki/ and stay here — the set leaving oracle IS the off-host
+	@# copy. WIKI_KEEP and not KEEP, for the reason backup-firewall gives for
+	@# FW_KEEP. ARGS=--prove restores the newest set into a scratch Postgres.
+	./scripts/backup-wiki.sh $(ARGS)
+
+.PHONY: backup-library
+backup-library: ## On trinity: archive Immich's library off its USB disk, encrypt, verify, copy to oracle
+	@# The photographs, which no volume set can hold: they are a bind mount
+	@# on trinity's USB disk, and `make backup` archives named volumes. Nothing
+	@# is stopped — originals are written once, and Immich's own 02:00 dump
+	@# rides in the same archive — so this runs nightly beside the volume
+	@# sets rather than inside them. LIB_KEEP and not KEEP, for the reason
+	@# backup-firewall gives for FW_KEEP; two, because every set is the whole
+	@# library and oracle's root volume is the limit. ARGS=--prove hashes
+	@# every original in the newest set against immich-db's checksums.
+	@# Off-host, NOT off-estate: ADR-0064 is the interim, #455 the answer.
+	./scripts/backup-library.sh $(ARGS)
+
 .PHONY: verify-backups
-verify-backups: ## Re-verify every retained set of both kinds: the volume sets and the NAS set
+verify-backups: ## Re-verify every retained set of every kind: the volume, NAS and wiki sets
 	@# What homelab-verify-backups.timer runs nightly. Two directories, one
 	@# job: backups/volumes/ is verified against the stack's derived volume
 	@# list and backups/nas/ each set against its own MANIFEST, and a media set in the volume
@@ -790,9 +846,13 @@ verify-backups: ## Re-verify every retained set of both kinds: the volume sets a
 	@# one target walks both rather than a second unit doing the second half.
 	@# Both halves run even when the first fails, so one morning's journal
 	@# says which sets are bad rather than stopping at the first directory.
+	@# backups/wiki/ (#251) is walked once it exists: before the first
+	@# backup-wiki run there is nothing to verify, and that run not happening
+	@# is ScheduledJobNeverRan's to report, not this job's.
 	@rc=0; \
 	STACK=$(STACK) ./scripts/backup-volumes.sh --verify-only --all || rc=1; \
 	./scripts/backup-nas.sh --verify-only --all || rc=1; \
+	if [ -d backups/wiki ]; then ./scripts/backup-wiki.sh --verify-only --all || rc=1; fi; \
 	exit $$rc
 
 .PHONY: backup-offsite
@@ -826,6 +886,50 @@ backup-offsite: ## Copy the newest set of each kind to the offline medium and pr
 		STACK=$(STACK) ./scripts/run-scheduled.sh --job offsite-copy --lock backups \
 			-- ./scripts/backup-offsite.sh "$(DEST)"; \
 	fi
+
+.PHONY: household-copy
+household-copy: ## On trinity: carry the household's photographs and documents to the holder's drive (DEST=/path/to/the/drive)
+	@# ADR-0073: the copy ADR-0023 requires, on the drive the household holder
+	@# keeps at their own address. backup-offsite's shape for the same reason:
+	@# a deadline and no timer, recorded as household-copy only for a copy of
+	@# record, with HouseholdCopyStale at ninety days. Two guards before the
+	@# wrapper, so that neither a forgotten DEST nor a recipients file with no
+	@# household key is recorded as a FAILED copy: the first is a typo and the
+	@# second is a decision nobody has taken yet. ARGS=--rehearse writes the
+	@# same copy without a holder and records nothing; --list, --verify-only and
+	@# --prune look at or tidy the drive without resetting the deadline.
+	@[[ -n "$(DEST)" ]] || { \
+		printf '\033[0;31merror:\033[0m DEST is required\n' >&2; \
+		printf 'Mount the drive, then:  make household-copy DEST=/path/to/the/drive\n' >&2; \
+		printf 'See docs/runbooks/carry-the-household-copy.md\n' >&2; \
+		exit 2; \
+	}
+	@if [[ -n "$(ARGS)" ]]; then \
+		./scripts/carry-household-copy.sh "$(DEST)" $(ARGS); \
+	else \
+		./scripts/household-recipients.sh --has-holder || { \
+			printf '\033[0;31merror:\033[0m stacks/sensitive/household.recipients has no household key yet\n' >&2; \
+			printf 'The copy of record needs the holder (ADR-0073). Rehearse instead:  make household-copy DEST=$(DEST) ARGS=--rehearse\n' >&2; \
+			exit 2; \
+		}; \
+		./scripts/run-scheduled.sh --job household-copy --lock backups \
+			-- ./scripts/carry-household-copy.sh "$(DEST)"; \
+	fi
+
+.PHONY: household-proof
+household-proof: ## On trinity: record the holder's own proof, from the code they read out (CODE=1234-5678-9012)
+	@# ADR-0023's second condition, made checkable: the holder opened
+	@# PROOF/proof.txt.age on their own device, with their own key and without
+	@# the operator, and read the code back. Checked unwrapped first, so a
+	@# misheard digit is a retry and not a FAILED household-proof; recorded
+	@# only on a match. Due yearly, beside ADR-0011's drill.
+	@[[ -n "$(CODE)" ]] || { \
+		printf '\033[0;31merror:\033[0m CODE is required: the twelve digits the holder read from PROOF/proof.txt.age\n' >&2; \
+		printf 'See docs/runbooks/open-the-household-copy.md\n' >&2; \
+		exit 2; \
+	}
+	@./scripts/carry-household-copy.sh --check-code "$(CODE)"
+	@./scripts/run-scheduled.sh --job household-proof -- ./scripts/carry-household-copy.sh --prove-code "$(CODE)"
 
 .PHONY: restore
 restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>")

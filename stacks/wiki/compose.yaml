@@ -1,0 +1,203 @@
+---
+# The Lemmiwinks wiki: the middle of ADR-0011's three documentation tiers, the
+# one the household reads, on the host ADR-0015 ratified for it.
+#
+# Deployed on: oracle (10.0.99.30, VLAN 99). Wiki.js and its Postgres have run
+#              there since 2025-11-12, created by hand with `docker run` and
+#              described by nothing until this file (#251). The containers this
+#              file replaced are recorded in README.md, with the cutover.
+# Deploy with:  NOT `make up STACK=wiki`. oracle has no age identity and must
+#              not get one — ADR-0015 put the estate's ciphertext there on the
+#              condition that no key which opens it sits beside it — so there
+#              is no secrets file to render. This is stacks/media's shape
+#              (#528): a change reaches oracle by fetching compose.yaml and
+#              .env.example from main into /opt/wiki and running
+#              `docker compose up -d` there, by hand. Nothing on oracle pulls
+#              from main on its own. README.md has the procedure.
+#
+# ---------------------------------------------------------------------------
+# What is state here, and what is not
+# ---------------------------------------------------------------------------
+# All of it is in Postgres. Read off the running containers on 2026-09-30:
+# the database is 18 MB — 108 pages, 780 history rows, 4 users, the
+# navigation, every setting, and the git storage target's configuration,
+# deploy key included. Everything under /wiki/data is derived from it or from
+# GitHub: repo/ is a clean clone of Gerrrt/Lemmiwinks at main, secure/ holds
+# the deploy key Wiki.js writes out of the database on every start, cache/ is
+# a render cache, and uploads/ is a staging directory that was empty.
+#
+# /wiki/data/content, the image's one declared VOLUME and the reason the old
+# container had an anonymous volume, was EMPTY — 4 KB, its mtime the day the
+# image was built. Nothing here writes to it: the only storage target enabled
+# is git. It is a tmpfs below so that Docker has a mount at the declared path
+# and creates no anonymous volume for it; enabling "Local File System" storage
+# at that path would need a volume here first, and this comment is where that
+# is said.
+#
+# So the backup is a pg_dump and nothing else — scripts/backup-wiki.sh, run on
+# prometheus, pulling (ADR-0065). wiki-data is a named volume so that a
+# recreate does not re-clone the repository, not because it holds anything.
+#
+# ---------------------------------------------------------------------------
+# On the comments in this file
+# ---------------------------------------------------------------------------
+# The settings shared with stacks/observability and stacks/sensitive — why
+# `init: true`, why `pids_limit`, the healthcheck shape — are argued in those
+# files and not repeated. What IS written out is what was measured on the
+# pinned images, on this host.
+
+name: wiki
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging: *default-logging
+  networks: [wiki]
+  init: true
+  pids_limit: 512
+
+services:
+  # ---------------------------------------------------------------------------
+  # Wiki.js
+  # ---------------------------------------------------------------------------
+  # Pinned by tag and digest; the image line is the only place the version is
+  # written, because Dependabot rewrites that line and nothing else. The first
+  # pin, on 2026-09-30, was the digest the hand-run container had been created
+  # from — the `2` tag it was pulled by had already moved on, which is the
+  # whole argument for pinning. An upgrade is a Dependabot bump reviewed here,
+  # then README.md's fetch on the host; never a pull there.
+  #
+  # UPGRADE_COMPANION is NOT set. The old container had it, and beside it ran
+  # requarks' update companion with the Docker socket mounted — a container
+  # whose job is to pull a newer image and recreate this one outside any
+  # compose file. It is removed, not carried over: it would undo every pin
+  # below on the day it worked.
+  #
+  # MEASURED 2026-09-30, on the image pinned that day. Re-check the ones a
+  # bump could move — the uid, the paths it writes, wget — when one lands:
+  #   1. It runs as `node`, uid 1000 — the same number as the operator's
+  #      account on oracle, which is why the secret below can be 0400 and
+  #      owned by that account rather than world-readable.
+  #   2. It writes /wiki/data, /home/node/.ssh (the git module's known_hosts)
+  #      and /tmp, and nothing else; it boots read-only with those three.
+  #   3. It listens on 3000 only. 3443 is Wiki.js's built-in Let's Encrypt
+  #      listener, which is off (SSL_ACTIVE unset) — the old container
+  #      published 443 to a port nothing answered on, and this does not.
+  #   4. /healthz answers {"ok":true}; busybox wget is present.
+  #   5. Resident at 192 MiB after thirteen hours up; 162 threads.
+  app:
+    <<: *service-defaults
+    image: ghcr.io/requarks/wiki:2.5.316@sha256:fffff288a52f76e5b8c19a4fbcd0f3e538e96edea642c4f2d813d54d59a876de
+    container_name: wiki-app
+    user: "1000:1000"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,uid=1000,gid=1000
+      - /home/node/.ssh:size=1m,uid=1000,gid=1000,mode=0700
+      - /wiki/data/content:size=1m,uid=1000,gid=1000
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: wiki
+      DB_NAME: wiki
+      # Wiki.js reads the password from this file itself. A file and not a
+      # ${VAR:?} guard because this stack has no secrets file to render one
+      # from (see the header); .env.example says where it lives on the host,
+      # who owns it and why its mode is 0400.
+      DB_PASS_FILE: /etc/wiki/.db-secret
+    volumes:
+      - ${WIKI_DB_SECRET:?set in .env — see .env.example}:/etc/wiki/.db-secret:ro
+      - wiki-data:/wiki/data
+    ports:
+      # The household reaches it as http://lemmiwinks.matrix.elysium; blackbox
+      # probes that name and the bare address (prometheus/targets/blackbox.yaml).
+      - "80:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Postgres
+  # ---------------------------------------------------------------------------
+  # Pinned by tag and digest, the version on the image line alone, as above;
+  # the first pin was the digest the hand-run container was created from.
+  # Dependabot is told to ignore majors here: a major upgrade is a dump and a
+  # restore, not a bump, and README.md § Upgrading has it.
+  #
+  # The cluster is the EXISTING one, in the volume the old container named
+  # `pgdata` — adopted below as external, never created by this file. PGDATA is
+  # the image's default for 17 and must stay that way, or Postgres would start
+  # an empty cluster beside the real one.
+  #
+  # No password is given to this container in normal running. The entrypoint
+  # only reads one to INITIALISE an empty cluster, and this one has been
+  # initialised since 2025-11-12, so the secret is mounted into the app alone.
+  # Initialising a fresh cluster — a restore onto an empty volume — is the one
+  # time it is needed, and WIKI_DB_BOOTSTRAP_PASSWORD carries it for that one
+  # `up`; README.md § Restore has the procedure.
+  #
+  # MEASURED 2026-09-30, on the image pinned that day: uid 999; 50 MiB
+  # resident; pg_hba trusts the local socket and wants scram over the network,
+  # which is how the app connects and what backup-wiki.sh's `docker exec …
+  # pg_dump` relies on.
+  db:
+    <<: *service-defaults
+    image: postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
+    container_name: wiki-db
+    user: "999:999"
+    mem_limit: 256m
+    memswap_limit: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:size=1m,uid=999,gid=999,mode=0755
+      - /tmp:size=64m
+    environment:
+      POSTGRES_DB: wiki
+      POSTGRES_USER: wiki
+      POSTGRES_PASSWORD: ${WIKI_DB_BOOTSTRAP_PASSWORD:-}
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    expose: ["5432"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "wiki", "-d", "wiki"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  wiki:
+
+volumes:
+  # The Postgres cluster: every account, page, revision and setting. Created by
+  # the hand-run container on 2025-11-12 under this name, and adopted rather
+  # than recreated — `external` means `docker compose down -v` cannot remove it.
+  # Backed up by scripts/backup-wiki.sh as a pg_dump, never as this directory.
+  pgdata:
+    external: true
+    name: pgdata
+  # Wiki.js's working directory: the git clone, the render cache, the deploy
+  # key it writes out of the database. Derived, all of it; kept only so a
+  # recreate does not re-clone. Not backed up, by decision (ADR-0065).
+  wiki-data:

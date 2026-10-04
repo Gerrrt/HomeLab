@@ -1,0 +1,3 @@
+---
+exporter_release: https://github.com/prometheus-community/windows_exporter/releases/download
+exporter_msi: windows_exporter-{{ windows_exporter_version }}-amd64.msi

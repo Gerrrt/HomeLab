@@ -77,11 +77,20 @@ creation_rules:
   # estate's secrets. trinity's key opens secrets/sensitive.sops.yaml — the
   # tier's own passwords and tokens — and not the SNMP communities or the
   # Grafana admin password. `make secrets-init STACK=sensitive`, run ON
-  # trinity, fills the placeholder in; the technical second's recipient
-  # (ADR-0024, #294) joins this rule the day the tier holds real data.
+  # trinity, put its recipient below on 2026-09-28 (#688), and it is also
+  # what homelab-converge-sensitive decrypts with (#533). The technical
+  # second's recipient (ADR-0024, #294) was added by #835, after the tier had
+  # held real data on one key for days. scripts/check_sops_rules.py now fails
+  # if this file, or any whose key guards data, opens with fewer than two.
+  #
+  # The household holder's key never goes here (ADR-0073): it would open the
+  # tier's passwords as well as the household's copy. It goes in
+  # stacks/sensitive/household.recipients, and scripts/check_sops_rules.py
+  # fails if it ever appears in any rule.
   - path_regex: secrets/sensitive(\..+)?\.sops\.ya?ml$
     age: >-
-      age1cpdxl6p4synccrwaaeh308n4g8rww9tv9znv32laprnk3kdpm95satjtsw
+      age1cpdxl6p4synccrwaaeh308n4g8rww9tv9znv32laprnk3kdpm95satjtsw,
+      age19mkg76v0x70wkqwuykxxqpdwrq8mhgklpjw44j6xw73psnhwyvcqa9995j
 
   # The SOC guest, for the lab's reason with more force behind it: odin sits
   # on the segment that exists to hold attackers and runs the SIEM those
@@ -94,6 +103,28 @@ creation_rules:
     age: >-
       age1yvxe2z99jadajjqp049e6dqeya9hp55uhv890s84exvtthvqy5pq9q2hum
 
+  # The sensor guest, fenrir, for soc's reason (#834). Until #834 its stack had
+  # no secrets and was brought up without `make render`; its one secret now is
+  # its token for the lab's ingest proxy. Its key opens secrets/sensor.sops.yaml
+  # and nothing else: not odin's, not the lab's, not the estate's. `make
+  # secrets-init STACK=sensor`, run ON fenrir, fills the placeholder in.
+  - path_regex: secrets/sensor(\..+)?\.sops\.ya?ml$
+    age: >-
+      REPLACE_WITH_SENSOR_AGE_PUBLIC_KEY
+
+  # The disposable investigation guest (ADR-0071), for soc's reason: a guest
+  # that holds a detonation's output must not be able to open the estate's
+  # credentials, or odin's. THE PLACEHOLDER IS PERMANENT IN GIT. diabolos is
+  # destroyed at the end of every investigation, and its age key with it, so
+  # each incarnation runs `make secrets-init STACK=scratch` on itself and the
+  # public key is written into ITS OWN checkout only — never committed. The
+  # encrypted file it produces is gitignored for the same reason: committed, it
+  # would be ciphertext to a key that no longer exists, plus a commit to
+  # .sops.yaml per incident. secrets/README.md records the exception.
+  - path_regex: secrets/scratch(\..+)?\.sops\.ya?ml$
+    age: >-
+      REPLACE_WITH_SCRATCH_AGE_PUBLIC_KEY
+
   # There is NO media rule, and that is a decision rather than a gap (#528).
   # stacks/media renders no secrets: Jellyfin's admin is made by its own setup
   # wizard and lives in its database, and its host — smaug, TrueNAS — runs
@@ -104,6 +135,11 @@ creation_rules:
   # for it ABOVE the catch-all first, or the file lands on the estate's key —
   # the inversion the lab rule's comment describes. docs/security.md § Secrets
   # records the exception.
+  #
+  # The sensor HAS a rule since #834, above, and that is the warning above
+  # followed. stacks/sensor took no credential until the lab's ingest proxy gave
+  # fenrir a token, so its rule went in, with a placeholder for fenrir's key,
+  # before secrets/sensor.sops.yaml could exist.
 
   - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
     age: >-

@@ -5,10 +5,11 @@
 #
 # WHAT THIS IS
 #
-# Three artefacts leave the monitoring host today — the firewall export
-# (backup-firewall.sh, nightly), the volume sets (backup-volumes.sh, weekly)
-# and the NAS set (backup-nas.sh, weekly) — and every copy of each sits on the
-# same shelf: here, and on oracle. ADR-0048 sends one copy of each beyond it,
+# Four artefacts leave the monitoring host today — the firewall export
+# (backup-firewall.sh, nightly), the volume sets (backup-volumes.sh, weekly),
+# the NAS set (backup-nas.sh, weekly) and the wiki's database
+# (backup-wiki.sh, nightly, since #251) — and every copy of each sits on the
+# same shelf: here, on oracle, or in the wiki's case here alone. ADR-0048 sends one copy of each beyond it,
 # on the offline medium that holds the second age recipient (ADR-0024, #294),
 # which is off-estate by construction and already owes this host a visit every
 # ninety days to prove that key. This script is what that visit runs against
@@ -24,8 +25,8 @@
 # WHAT IT COPIES, AND WHAT IT KEEPS
 #
 # The newest COMPLETE set of each kind that the medium does not already hold:
-# the newest volume set for STACK, the newest NAS set, the newest firewall
-# export. Not every set — the sets change little, a visit is ninety days, and a
+# the newest volume set for STACK, the newest NAS set, the newest wiki set,
+# the newest firewall export. Not every set — the sets change little, a visit is ninety days, and a
 # successor rebuilding from nothing wants the newest one of each. OFFSITE_KEEP
 # (default 1) bounds each kind on the medium, the newest is never evicted, and
 # only names this script would have written are ever removed — the posture
@@ -35,10 +36,13 @@
 #
 #   DEST/backups/volumes/<stack>/<STAMP>/   the volume set, MANIFEST last
 #   DEST/backups/nas/<STAMP>/               the NAS set, MANIFEST last
+#   DEST/backups/wiki/<STAMP>/              the wiki's pg_dump set, MANIFEST last
 #   DEST/backups/firewall/config-<STAMP>.sops.yaml, and a .sha256 beside it
 #
 # so a restore is "copy the directory back into backups/" and then the restore
-# runbook as written. Everything on the medium is ciphertext to the estate's
+# runbook as written. The wiki's sets are not on oracle at all — the set leaving
+# oracle is their off-host copy (ADR-0065) — and they sit here the way the
+# monitoring host keeps them. Everything on the medium is ciphertext to the estate's
 # age recipients, exactly as it is here and on oracle; nothing is re-encrypted
 # and no key is read.
 #
@@ -136,7 +140,7 @@ if [[ "${1:-}" == "--self-test" ]]; then
   M="${T}/medium"
   mkdir -p "${M}"
   SRC="${T}/backups"
-  mkdir -p "${SRC}/volumes" "${SRC}/nas" "${SRC}/firewall" "${INSIDE}"
+  mkdir -p "${SRC}/volumes" "${SRC}/nas" "${SRC}/wiki" "${SRC}/firewall" "${INSIDE}"
 
   # A set is a directory of *.tar.gz.age files and a MANIFEST whose five-field
   # rows are volume, service, mount, bytes, sha256 — the columns
@@ -181,6 +185,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
   mkdir -p "${SRC}/volumes/20260915T000000Z"           # INCOMPLETE: no MANIFEST
   head -c 100 /dev/urandom > "${SRC}/volumes/20260915T000000Z/grafana-data.tar.gz.age"
   fake_set "${SRC}/nas" 20260907T000000Z backup-nas.sh jellyfin-config
+  fake_set "${SRC}/wiki" 20260929T044500Z backup-wiki.sh wiki-db
+  fake_set "${SRC}/wiki" 20260930T044500Z backup-wiki.sh wiki-db
   fake_export "${SRC}/firewall/config-20260910T000000Z.sops.yaml"
   fake_export "${SRC}/firewall/config-20260911T000000Z.sops.yaml"
 
@@ -253,6 +259,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
   run "${M}";                     check "the first copy lands and is proved" 0 "copied 20260908T000000Z"
   assert "the newest NAS set and the newest export travelled too" \
     '[[ "${OUT}" == *"copied 20260907T000000Z"* && "${OUT}" == *"copied config-20260911T000000Z"* ]]'
+  assert "the newest wiki set travelled, into backups/wiki, and only the newest" \
+    '[[ -f "${M}/backups/wiki/20260930T044500Z/MANIFEST" && ! -e "${M}/backups/wiki/20260929T044500Z" ]]'
   assert "only the newest COMPLETE set travelled, into the stack directory" \
     '[[ -d "${M}/backups/volumes/observability/20260908T000000Z" && ! -e "${M}/backups/volumes/observability/20260915T000000Z" && ! -e "${M}/backups/volumes/observability/20260901T000000Z" ]]'
   assert "the export carries its sha256 beside it" \
@@ -348,8 +356,9 @@ if [[ "${1:-}" == "--self-test" ]]; then
   # must still not exit 0, because exit 0 is what run-scheduled.sh records as a
   # proof and what buys ninety days of OffsiteCopyStale silence.
   SRC2="${T}/backups-no-nas"; M2="${T}/medium-no-nas"
-  mkdir -p "${SRC2}/volumes" "${SRC2}/nas" "${SRC2}/firewall" "${M2}"
+  mkdir -p "${SRC2}/volumes" "${SRC2}/nas" "${SRC2}/wiki" "${SRC2}/firewall" "${M2}"
   fake_set "${SRC2}/volumes" 20260921T000000Z backup-volumes.sh grafana-data
+  fake_set "${SRC2}/wiki" 20260921T000000Z backup-wiki.sh wiki-db
   fake_export "${SRC2}/firewall/config-20260921T000000Z.sops.yaml"
 
   SRC_FOR_TEST="${SRC2}" run "${M2}"
@@ -359,7 +368,7 @@ if [[ "${1:-}" == "--self-test" ]]; then
   assert "the medium really did receive them" \
     '[[ -f "${M2}/backups/volumes/observability/20260921T000000Z/MANIFEST" && -f "${M2}/backups/firewall/config-20260921T000000Z.sops.yaml.sha256" ]]'
   assert "the green line names what is held rather than claiming each kind" \
-    '[[ "${OUT}" == *"the medium holds volumes, firewall"* && "${OUT}" != *"newest of each kind"* ]]'
+    '[[ "${OUT}" == *"the medium holds volumes, wiki, firewall"* && "${OUT}" != *"newest of each kind"* ]]'
 
   # The second run reaches the OTHER terminal path — everything present is
   # already on the medium, nothing to copy — which made the same false claim
@@ -375,14 +384,32 @@ if [[ "${1:-}" == "--self-test" ]]; then
   SRC_FOR_TEST="${SRC2}" run "${M2}"
   check "filling the gap restores the proof" 0 "the medium holds the newest of each kind, proved"
 
+  # The wiki is a kind like the others (#251): a medium without a wiki set is
+  # not a proof either, and a wiki set encrypted to one key of two is not fit.
+  SRC5="${T}/backups-no-wiki"; M5="${T}/medium-no-wiki"
+  mkdir -p "${SRC5}/volumes" "${SRC5}/nas" "${SRC5}/wiki" "${SRC5}/firewall" "${M5}"
+  fake_set "${SRC5}/volumes" 20260930T000000Z backup-volumes.sh grafana-data
+  fake_set "${SRC5}/nas" 20260930T000000Z backup-nas.sh jellyfin-config
+  fake_export "${SRC5}/firewall/config-20260930T000000Z.sops.yaml"
+  SRC_FOR_TEST="${SRC5}" run "${M5}"
+  check "a missing wiki set is named, not summarised as a proof" 1 "NOT held: wiki — nothing complete under ${SRC5}/wiki, run \`make backup-wiki\`"
+  SET_RECIPIENTS="${K1}" fake_set "${SRC5}/wiki" 20260930T044500Z backup-wiki.sh wiki-db
+  SRC_FOR_TEST="${SRC5}" run "${M5}"
+  check "a wiki set one key cannot open is not copied, and not a proof" 1 "NOT held: wiki — 20260930T044500Z is not encrypted to ${K2}"
+  assert "and it is not on the medium" '[[ ! -e "${M5}/backups/wiki/20260930T044500Z" ]]'
+  fake_set "${SRC5}/wiki" 20260930T054500Z backup-wiki.sh wiki-db
+  SRC_FOR_TEST="${SRC5}" run "${M5}"
+  check "a fit wiki set restores the proof" 0 "the medium holds the newest of each kind, proved"
+
   # WHO CAN OPEN WHAT TRAVELS — #573's first visit, as fixtures. The medium's
   # key is K2. A volume set from before K2 was a recipient, and an export
   # encrypted to K1 alone (backup-firewall.sh's first-key bug), both hash
   # perfectly and neither opens with the key beside them.
   SRC3="${T}/backups-stale"; M3="${T}/medium-stale"
-  mkdir -p "${SRC3}/volumes" "${SRC3}/nas" "${SRC3}/firewall" "${M3}"
+  mkdir -p "${SRC3}/volumes" "${SRC3}/nas" "${SRC3}/wiki" "${SRC3}/firewall" "${M3}"
   SET_RECIPIENTS="${K1}" fake_set "${SRC3}/volumes" 20260920T033007Z backup-volumes.sh grafana-data
   fake_set "${SRC3}/nas" 20260922T223845Z backup-nas.sh jellyfin-config
+  fake_set "${SRC3}/wiki" 20260922T044500Z backup-wiki.sh wiki-db
   SET_RECIPIENTS="${K1}" fake_export "${SRC3}/firewall/config-20260923T043134Z.sops.yaml"
   SRC_FOR_TEST="${SRC3}" run "${M3}"
   check "a set made before a recipient was added is not a proof" 1 "NOT held: volumes — 20260920T033007Z is not encrypted to ${K2}"
@@ -408,10 +435,11 @@ if [[ "${1:-}" == "--self-test" ]]; then
   # A MANIFEST from before the recipient line existed says nothing about who
   # opens it, and nothing is not a yes.
   SRC4="${T}/backups-norecip"; M4="${T}/medium-norecip"
-  mkdir -p "${SRC4}/volumes" "${SRC4}/nas" "${SRC4}/firewall" "${M4}"
+  mkdir -p "${SRC4}/volumes" "${SRC4}/nas" "${SRC4}/wiki" "${SRC4}/firewall" "${M4}"
   fake_set "${SRC4}/volumes" 20260923T000000Z backup-volumes.sh grafana-data
   sed -i '/^recipient\t/d' "${SRC4}/volumes/20260923T000000Z/MANIFEST"
   fake_set "${SRC4}/nas" 20260923T000000Z backup-nas.sh jellyfin-config
+  fake_set "${SRC4}/wiki" 20260923T000000Z backup-wiki.sh wiki-db
   fake_export "${SRC4}/firewall/config-20260923T000000Z.sops.yaml"
   SRC_FOR_TEST="${SRC4}" run "${M4}"
   check "a set that records no recipients is not a proof" 1 "records no recipients"
@@ -432,6 +460,10 @@ STACK="${STACK:-observability}"
 VOL_OFFHOST="atropos@10.0.99.30:backups/volumes/${STACK}"
 # shellcheck source=scripts/backup-volumes.sh
 source "${REPO_ROOT}/scripts/backup-volumes.sh"
+# The refusals and the set's copy, proof and retention, which the household's
+# carry shares (ADR-0073).
+# shellcheck source=scripts/medium.sh
+source "${REPO_ROOT}/scripts/medium.sh"
 
 SOURCE_ROOT="${OFFSITE_SOURCE:-${REPO_ROOT}/backups}"
 OFFSITE_KEEP="${OFFSITE_KEEP:-1}"
@@ -478,138 +510,29 @@ need df
 Mount the medium first. The path is a directory on it, not a device."
 DEST_ABS="$(cd "${DEST}" && pwd -P)"
 
-# 1. Not inside this repository. This tree is published; backups/ is
-#    gitignored by path, which protects nothing under another name.
-if [[ "${DEST_ABS}" == "${REPO_ROOT}" || "${DEST_ABS}" == "${REPO_ROOT}/"* ]]; then
-  die "the destination is inside this repository:
-  ${DEST_ABS}
-
-This tree is published. A copy of the estate's backups belongs on a medium
-that leaves the house, not in a working tree of a public repository."
-fi
-
-# 2. Is the destination a medium, or is it this host wearing one's costume?
-#
-# Three refusals and a warning, ordered so each one gives the diagnosis that
-# fits it rather than whichever fires first alphabetically.
-#
-# The history is worth the lines. This shipped with only the device-number
-# check below, on the reasoning that a medium is never the filesystem the sets
-# live on. True, and far weaker than it reads: /dev/shm is a different
-# filesystem too, and it is RAM on the host being insured. On 2026-09-21, an
-# hour after this script merged, `make backup-offsite DEST=/dev/shm` ran to a
-# green line — 1.7 GB into tmpfs on a host with 216 MB free, gone on the next
-# reboot, and a recorded success buying ninety days of silence from
-# OffsiteCopyStale for a copy that existed nowhere. A backup that cannot
-# survive a power cut is not a backup, so these are refusals, not warnings.
-#
-# The self-test sets OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS to reach the copy
-# fixtures — a real stand-in medium needs a loop mount, which needs root,
-# which CI does not have — and asserts each refusal below with it unset.
-if [[ -n ${OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS:-} ]]; then
-  warn "OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS is set — the medium checks are OFF."
-  warn "This run will accept RAM, /tmp or this host's own disk as the destination,"
-  warn "and record a success for it. That is the self-test's setting, not yours."
-else
-  # 2a. Not an in-memory or synthetic filesystem, wherever it is mounted.
-  dest_fstype="$(stat -f -c %T "${DEST_ABS}" 2>/dev/null || true)"
-  case "${dest_fstype}" in
-    tmpfs | ramfs | devtmpfs | overlay | overlayfs | squashfs | proc | sysfs | devpts | configfs | debugfs | tracefs | cgroup*)
-      die "the destination is a ${dest_fstype} filesystem, which is not a medium:
-  ${DEST_ABS}
-
-tmpfs and ramfs live in this host's RAM. A copy there disappears on the next
-reboot, and this run would record a success that silences OffsiteCopyStale for
-ninety days on a copy that no longer exists — which is worse than no copy,
-because it is read with confidence. Mount the medium and point DEST at it:
-docs/runbooks/copy-the-backups-offsite.md"
-      ;;
-  esac
-
-  # 2b. Not one of the trees this host clears or recreates, whatever is
-  #     mounted there — a separate /tmp partition passes 2a and 2c both.
-  case "${DEST_ABS}" in
-    /dev | /dev/* | /proc | /proc/* | /sys | /sys/* | /run | /run/* | /tmp | /tmp/*)
-      die "the destination is under /${DEST_ABS#/}, which this host clears or recreates:
-  ${DEST_ABS}
-
-Whatever filesystem is mounted there, it is not a medium that leaves the
-house. Mount the medium and point DEST at it:
-docs/runbooks/copy-the-backups-offsite.md"
-      ;;
-  esac
-
-  # 2c. Not the filesystem the sets already live on. Device number, not path,
-  #     so a bind mount or a symlink into the root filesystem is caught too;
-  #     compared against both the sets' filesystem and /, since a laptop with
-  #     one partition has those be the same and a medium never is.
-  fs_of() { stat -c %d "$1" 2>/dev/null; }
-  src_probe="${SOURCE_ROOT}"
-  while [[ ! -e ${src_probe} && ${src_probe} != / ]]; do src_probe="$(dirname "${src_probe}")"; done
-  dest_fs="$(fs_of "${DEST_ABS}")"
-  if [[ -n ${dest_fs} ]] && { [[ ${dest_fs} == "$(fs_of "${src_probe}")" ]] || [[ ${dest_fs} == "$(fs_of /)" ]]; }; then
-    die "the destination is on the same filesystem as the sets it would copy:
-  ${DEST_ABS}
-
-A copy on this host's own disk is off-host to nowhere. Point this at the
-mounted medium — the one the second age recipient lives on (ADR-0048):
-docs/runbooks/copy-the-backups-offsite.md"
-  fi
-
-  # 2d. Does it look removable? A warning, not a verdict: a second internal
-  #     disk and a network mount are both legitimate for someone who has
-  #     decided so, and neither reports as removable. What no check here can
-  #     establish is the property the ADR actually requires — that the medium
-  #     leaves the house — so this says what it sees and stops.
-  if command -v findmnt >/dev/null 2>&1; then
-    dest_src="$(findmnt -no SOURCE --target "${DEST_ABS}" 2>/dev/null || true)"
-    if [[ ${dest_src} == /dev/* ]]; then
-      dest_base="$(basename "${dest_src}")"
-      while [[ -n ${dest_base} && ! -e /sys/block/${dest_base} && ${dest_base} =~ [0-9]$ ]]; do
-        dest_base="${dest_base%[0-9]}"
-      done
-      if [[ -r /sys/block/${dest_base}/removable ]] \
-         && [[ "$(cat "/sys/block/${dest_base}/removable")" == 0 ]]; then
-        warn "${dest_src} does not report as removable media."
-        warn "That is fine for a disk you unplug and carry; it is not fine for a second"
-        warn "drive that stays in this house. Only you can tell the two apart."
-      fi
-    fi
-  fi
-fi
-
-# 3. Advice, not a verdict, as verify-key-backup.sh gives it. The script cannot
-#    see whether a working tree has a remote or what a folder syncs to.
-if dest_repo="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "${DEST_ABS}" rev-parse --show-toplevel 2>/dev/null)"; then
-  warn "the destination is inside a git working tree:  ${dest_repo}"
-  warn "if that repository has a remote, one 'git add .' publishes the estate's backups."
-fi
-for pattern in Dropbox OneDrive 'Google Drive' Nextcloud ownCloud Syncthing iCloud 'Mobile Documents'; do
-  shopt -s nocasematch
-  if [[ "${DEST_ABS}" == *"${pattern}"* ]]; then
-    warn "the path contains '${pattern}' — if that folder syncs to a third party, the sets are now wherever that service keeps them."
-  fi
-  shopt -u nocasematch
-done
+# 1-3. Not inside this repository, not RAM, not a tree this host clears, not
+# the sets' own filesystem; then advice. scripts/medium.sh carries each
+# refusal and the 2026-09-21 /dev/shm run that made them refusals. The
+# self-test sets OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS to reach the copy fixtures —
+# a real stand-in medium needs a loop mount, which needs root, which CI does
+# not have — and asserts each refusal with it unset.
+medium_refuse "${DEST_ABS}" "${SOURCE_ROOT}" "$([[ -n ${OFFSITE_UNSAFE_SKIP_MEDIUM_CHECKS:-} ]] && echo 1 || echo 0)" \
+  OffsiteCopyStale docs/runbooks/copy-the-backups-offsite.md \
+  "the one the second age recipient lives on (ADR-0048)"
 
 # ---------------------------------------------------------------------------
-# The three kinds
+# The four kinds
 # ---------------------------------------------------------------------------
 VOL_SRC="${SOURCE_ROOT}/volumes"
 NAS_SRC="${SOURCE_ROOT}/nas"
+WIKI_SRC="${SOURCE_ROOT}/wiki"
 FW_SRC="${SOURCE_ROOT}/firewall"
 VOL_DST="${DEST_ABS}/backups/volumes/${STACK}"
 NAS_DST="${DEST_ABS}/backups/nas"
+WIKI_DST="${DEST_ABS}/backups/wiki"
 FW_DST="${DEST_ABS}/backups/firewall"
 
-# Complete sets under a directory, newest first — complete_sets() from the
-# library reads OUT_DIR, and there are three directories here. A `.part` is
-# not a set even with a MANIFEST in it: copy_set writes the MANIFEST before
-# the rename, so a copy that died between the two left exactly that, and
-# counting it here made verify_medium refuse its name and wedge every later
-# visit until someone deleted it by hand (#613).
-sets_in()      { find "$1" -mindepth 2 -maxdepth 2 -name MANIFEST -not -path '*.part/MANIFEST' -printf '%h\n' 2>/dev/null | sort -r; }
-all_dirs_in()  { find "$1" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -r; }
+# sets_in and all_dirs_in are scripts/medium.sh's.
 exports_in()   { find "$1" -mindepth 1 -maxdepth 1 -type f -name 'config-*.sops.yaml' -printf '%f\n' 2>/dev/null | sort -r; }
 is_export()    { [[ $1 =~ ^config-[0-9]{8}T[0-9]{6}Z\.sops\.yaml$ ]]; }
 
@@ -650,20 +573,16 @@ current_recipients() {  # <stack>
 set_recipients()    { manifest_field "$1" recipient | tr ',' '\n'; }
 export_recipients() { grep -oE 'recipient: age1[a-z0-9]+' "$1" 2>/dev/null | cut -d' ' -f2 || true; }
 
-# The keys in <want> that <have> does not include, one per line. Empty means
-# every key that must open the thing can.
-cannot_open() {  # <have, newline-separated> <want, newline-separated>
-  comm -13 <(grep -v '^$' <<<"$1" | sort -u) <(grep -v '^$' <<<"$2" | sort -u)
-}
 
 # One sentence naming why a set or export is unfit to travel, or nothing when
-# every current recipient opens it. WANT_VOL and WANT_EST are read once, below,
-# before either path that calls this.
-unfit() {  # <volumes|nas|firewall> <set dir or export file>
+# every current recipient opens it. WANT_VOL, WANT_EST and WANT_WIKI are read
+# once, below, before either path that calls this.
+unfit() {  # <volumes|nas|wiki|firewall> <set dir or export file>
   local kind="$1" p="$2" have want missing
   case "${kind}" in
     volumes)  have="$(set_recipients "${p}")";    want="${WANT_VOL}" ;;
     nas)      have="$(set_recipients "${p}")";    want="${WANT_EST}" ;;
+    wiki)     have="$(set_recipients "${p}")";    want="${WANT_WIKI}" ;;
     firewall) have="$(export_recipients "${p}")"; want="${WANT_EST}" ;;
   esac
   if [[ -z ${have//[[:space:]]/} ]]; then
@@ -676,35 +595,9 @@ unfit() {  # <volumes|nas|firewall> <set dir or export file>
 }
 
 # ---------------------------------------------------------------------------
-# Proof: every archive of a set hashes to its MANIFEST; an export to its sidecar
+# Proof: an export hashes to its sidecar. A set's proof, verify_set_dir, is
+# scripts/medium.sh's.
 # ---------------------------------------------------------------------------
-# The MANIFEST column was computed on bytes verify() had just decrypted, and
-# the far-side check on oracle compares against the same column — so the
-# medium is held to exactly the standard oracle is. Named with the repair on
-# failure; nothing is deleted here.
-verify_set_dir() {  # <set dir on the medium>
-  local d="$1" stamp vol want got failed=0
-  stamp="$(basename "${d}")"
-  is_stamp "${stamp}" || { red "refusing to check a set with an unexpected name: ${stamp}"; return 1; }
-  local -a vols=()
-  mapfile -t vols < <(manifest_volumes "${d}")
-  ((${#vols[@]})) || { red "${d}: the MANIFEST lists no volumes"; return 1; }
-  for vol in "${vols[@]}"; do
-    want="$(manifest_sha "${d}" "${vol}")"
-    [[ -n ${want} ]] || { red "${d}: no sha256 for ${vol} in the MANIFEST"; failed=1; continue; }
-    if [[ ! -f ${d}/${vol}.tar.gz.age ]]; then
-      red "${d}/${vol}.tar.gz.age is missing although the MANIFEST lists it"
-      failed=1; continue
-    fi
-    got="$(sha256sum -- "${d}/${vol}.tar.gz.age" | cut -d' ' -f1)"
-    if [[ ${got} != "${want}" ]]; then
-      red "${d}/${vol}.tar.gz.age differs from its MANIFEST entry (sha256 ${got:0:12}… on the medium, ${want:0:12}… recorded)"
-      failed=1
-    fi
-  done
-  return "${failed}"
-}
-
 verify_export_file() {  # <export on the medium>
   local f="$1" want got
   [[ -f ${f}.sha256 ]] || { red "${f} has no .sha256 beside it — not written by this script, or half-copied"; return 1; }
@@ -726,7 +619,7 @@ verify_medium() {
     [[ -n ${d} ]] || continue
     verify_set_dir "${d}" || failed=1
     n=$((n + 1))
-  done < <(sets_in "${VOL_DST}"; sets_in "${NAS_DST}")
+  done < <(sets_in "${VOL_DST}"; sets_in "${NAS_DST}"; sets_in "${WIKI_DST}")
   while read -r f; do
     [[ -n ${f} ]] || continue
     verify_export_file "${FW_DST}/${f}" || failed=1
@@ -740,10 +633,11 @@ verify_medium() {
   # replaces it if a fit set exists, and names it NOT held if not. Failing it
   # here would wedge the very visit that repairs it.
   local kind newest why
-  for kind in volumes nas firewall; do
+  for kind in volumes nas wiki firewall; do
     case "${kind}" in
       volumes)  newest="$(sets_in "${VOL_DST}" | head -1)" ;;
       nas)      newest="$(sets_in "${NAS_DST}" | head -1)" ;;
+      wiki)     newest="$(sets_in "${WIKI_DST}" | head -1)" ;;
       firewall) newest="$(exports_in "${FW_DST}" | head -1)"; newest="${newest:+${FW_DST}/${newest}}" ;;
     esac
     [[ -n ${newest} ]] || continue
@@ -762,35 +656,9 @@ verify_medium() {
 }
 
 # ---------------------------------------------------------------------------
-# Copy: into a .part name, MANIFEST last, then renamed — a copy that dies
-# leaves something INCOMPLETE by the same rule as everywhere else here, never a
-# plausible-looking set that is short.
+# Copy. A set's, copy_set, is scripts/medium.sh's: into a .part name, MANIFEST
+# last, then renamed. An export's is the same shape with a sidecar.
 # ---------------------------------------------------------------------------
-copy_set() {  # <local set dir> <destination kind dir>
-  local src="$1" dstdir="$2" stamp part vol
-  stamp="$(basename "${src}")"
-  is_stamp "${stamp}" || { red "refusing to copy a set with an unexpected name: ${stamp}"; return 1; }
-  part="${dstdir}/${stamp}.part"
-  local -a vols=()
-  mapfile -t vols < <(manifest_volumes "${src}")
-  ((${#vols[@]})) || { red "${stamp}: the MANIFEST lists no volumes — not copying it"; return 1; }
-  # A .part of this exact stamp is this script's own leftover from a copy that
-  # died; nothing else writes that name.
-  rm -rf -- "${part}"
-  mkdir -p -- "${part}"
-  for vol in "${vols[@]}"; do
-    [[ -f ${src}/${vol}.tar.gz.age ]] || { red "${stamp}: ${vol}.tar.gz.age is missing here although the MANIFEST lists it"; return 1; }
-    cp -- "${src}/${vol}.tar.gz.age" "${part}/${vol}.tar.gz.age"
-  done
-  cp -- "${src}/MANIFEST" "${part}/MANIFEST"
-  sync -f "${part}" 2>/dev/null || sync
-  mv -- "${part}" "${dstdir}/${stamp}"
-  verify_set_dir "${dstdir}/${stamp}" || { red "${stamp}: the copy on the medium does not hash to its MANIFEST"; return 1; }
-  cmp -s -- "${src}/MANIFEST" "${dstdir}/${stamp}/MANIFEST" \
-    || { red "${stamp}: MANIFEST on the medium differs from the local one"; return 1; }
-  green "copied ${stamp} to ${dstdir} — every archive hashes to its MANIFEST entry"
-}
-
 copy_export() {  # <local export file>
   local src="$1" name sha
   name="$(basename "${src}")"
@@ -814,28 +682,7 @@ copy_export() {  # <local export file>
 # Retention on the medium: OFFSITE_KEEP per kind, newest never, only names
 # this script writes, strays counted and never touched.
 # ---------------------------------------------------------------------------
-prune_kind() {  # <kind dir on the medium>
-  local dir="$1" n name
-  [[ -d ${dir} ]] || return 0
-  local -a keep=() strays=()
-  mapfile -t keep < <(sets_in "${dir}")
-  while read -r name; do
-    [[ -n ${name} ]] || continue
-    is_stamp "${name}" || { strays+=("${name}"); continue; }
-  done < <(all_dirs_in "${dir}")
-  if ((${#strays[@]})); then
-    warn "${#strays[@]} name(s) in ${dir} this script did not write and will not touch: ${strays[*]}"
-  fi
-  if ((${#keep[@]} > OFFSITE_KEEP)); then
-    for n in "${keep[@]:OFFSITE_KEEP}"; do
-      if [[ -z ${n} || ${n} != "${dir}/"[0-9]* || ! -f ${n}/MANIFEST ]]; then
-        red "refusing to prune ${n}"; continue
-      fi
-      info "pruning $(basename "${n}") from ${dir}"
-      rm -rf -- "${n}"
-    done
-  fi
-}
+prune_kind() { prune_sets "$1" "${OFFSITE_KEEP}"; }  # <kind dir on the medium>
 
 prune_exports() {
   local -a names=()
@@ -865,17 +712,8 @@ prune_exports() {
 # under the `backups` lock — the copy path because the Makefile wraps it in
 # run-scheduled.sh --lock backups, --prune because it takes that lock itself.
 sweep_parts() {
-  local dir x base
-  for dir in "${VOL_DST}" "${NAS_DST}"; do
-    [[ -d ${dir} ]] || continue
-    while read -r x; do
-      [[ -n ${x} ]] || continue
-      base="${x%.part}"
-      is_stamp "${base}" || continue
-      info "removing ${x} from ${dir} — a copy that did not finish"
-      rm -rf -- "${dir:?}/${x}"
-    done < <(find "${dir}" -mindepth 1 -maxdepth 1 -type d -name '*.part' -printf '%f\n' 2>/dev/null)
-  done
+  local x base
+  sweep_set_parts "${VOL_DST}" "${NAS_DST}" "${WIKI_DST}"
   [[ -d ${FW_DST} ]] || return 0
   while read -r x; do
     [[ -n ${x} ]] || continue
@@ -894,25 +732,26 @@ sweep_parts() {
   done < <(find "${FW_DST}" -mindepth 1 -maxdepth 1 -type f -name '*.sha256' -printf '%f\n' 2>/dev/null)
 }
 
-prune_medium() { sweep_parts; prune_kind "${VOL_DST}"; prune_kind "${NAS_DST}"; prune_exports; }
+prune_medium() { sweep_parts; prune_kind "${VOL_DST}"; prune_kind "${NAS_DST}"; prune_kind "${WIKI_DST}"; prune_exports; }
 
 # ---------------------------------------------------------------------------
 # --list
 # ---------------------------------------------------------------------------
-list_side() {  # <label> <vol dir> <nas dir> <fw dir>
-  local label="$1" v="$2" n="$3" f="$4" x c=0
+list_side() {  # <label> <vol dir> <nas dir> <wiki dir> <fw dir>
+  local label="$1" v="$2" n="$3" w="$4" f="$5" x c=0
   info "${label}"
   while read -r x; do [[ -n ${x} ]] && { printf '  volumes/%s\t%s\n' "${STACK}" "$(basename "${x}")"; c=$((c + 1)); }; done < <(sets_in "${v}")
   while read -r x; do [[ -n ${x} ]] && { printf '  nas\t\t%s\n' "$(basename "${x}")"; c=$((c + 1)); }; done < <(sets_in "${n}")
+  while read -r x; do [[ -n ${x} ]] && { printf '  wiki\t\t%s\n' "$(basename "${x}")"; c=$((c + 1)); }; done < <(sets_in "${w}")
   while read -r x; do [[ -n ${x} ]] && { printf '  firewall\t%s\n' "${x}"; c=$((c + 1)); }; done < <(exports_in "${f}")
   ((c)) || printf '  (nothing)\n'
   return 0
 }
 
 if [[ ${MODE} == list ]]; then
-  list_side "complete here, newest first (${SOURCE_ROOT})" "${VOL_SRC}" "${NAS_SRC}" "${FW_SRC}"
+  list_side "complete here, newest first (${SOURCE_ROOT})" "${VOL_SRC}" "${NAS_SRC}" "${WIKI_SRC}" "${FW_SRC}"
   if [[ -d ${DEST_ABS}/backups ]]; then
-    list_side "on the medium (${DEST_ABS}/backups), keeping ${OFFSITE_KEEP} of each" "${VOL_DST}" "${NAS_DST}" "${FW_DST}"
+    list_side "on the medium (${DEST_ABS}/backups), keeping ${OFFSITE_KEEP} of each" "${VOL_DST}" "${NAS_DST}" "${WIKI_DST}" "${FW_DST}"
   else
     info "nothing on the medium yet (${DEST_ABS}/backups does not exist)"
   fi
@@ -922,11 +761,14 @@ fi
 # Who must be able to open what travels, read once for both paths below.
 # Volumes are the stack's; the NAS sets and the firewall export are encrypted to
 # the estate's catch-all rule, which observability's file carries
-# (backup-nas.sh's NAS_RECIPIENT_STACK, honoured here too).
+# (backup-nas.sh's NAS_RECIPIENT_STACK, honoured here too). The wiki's sets are
+# the same catch-all's by default, and backup-wiki.sh's WIKI_RECIPIENT_STACK is
+# honoured the same way.
 if [[ ${MODE} == verify || ${MODE} == copy ]]; then
   WANT_VOL="$(current_recipients "${STACK}")"
   WANT_EST="$(current_recipients "${NAS_RECIPIENT_STACK:-observability}")"
-  [[ -n ${WANT_VOL} && -n ${WANT_EST} ]] \
+  WANT_WIKI="$(current_recipients "${WIKI_RECIPIENT_STACK:-observability}")"
+  [[ -n ${WANT_VOL} && -n ${WANT_EST} && -n ${WANT_WIKI} ]] \
     || die "could not read who can open the secrets now (scripts/key-recipients.sh --list), so whether the sets open with the key on the medium cannot be checked"
 fi
 
@@ -971,19 +813,21 @@ sweep_parts
 # What travels: the newest complete of each kind that the medium lacks.
 newest_vol="$(sets_in "${VOL_SRC}" | head -1)"
 newest_nas="$(sets_in "${NAS_SRC}" | head -1)"
+newest_wiki="$(sets_in "${WIKI_SRC}" | head -1)"
 newest_fw="$(exports_in "${FW_SRC}" | head -1)"
-[[ -n ${newest_vol} || -n ${newest_nas} || -n ${newest_fw} ]] \
-  || die "nothing complete under ${SOURCE_ROOT} — run the backups first (make backup, make backup-nas, make backup-firewall)"
+[[ -n ${newest_vol} || -n ${newest_nas} || -n ${newest_wiki} || -n ${newest_fw} ]] \
+  || die "nothing complete under ${SOURCE_ROOT} — run the backups first (make backup, make backup-nas, make backup-wiki, make backup-firewall)"
 
 # A kind whose newest set would not open with every current key is not
 # copied: on this medium it would sit beside a key that cannot read it. It is
 # named NOT held below, so the run records no proof.
-unfit_vol=""; unfit_nas=""; unfit_fw=""
+unfit_vol=""; unfit_nas=""; unfit_wiki=""; unfit_fw=""
 [[ -n ${newest_vol} ]] && unfit_vol="$(unfit volumes "${newest_vol}")"
 [[ -n ${newest_nas} ]] && unfit_nas="$(unfit nas "${newest_nas}")"
+[[ -n ${newest_wiki} ]] && unfit_wiki="$(unfit wiki "${newest_wiki}")"
 [[ -n ${newest_fw} ]]  && unfit_fw="$(unfit firewall "${FW_SRC}/${newest_fw}")"
 
-todo_vol=""; todo_nas=""; todo_fw=""
+todo_vol=""; todo_nas=""; todo_wiki=""; todo_fw=""
 need_bytes=0
 if [[ -n ${unfit_vol} ]]; then
   red "not copying ${unfit_vol}"
@@ -1007,6 +851,17 @@ elif [[ -n ${newest_nas} ]]; then
 else
   warn "no complete NAS set under ${NAS_SRC}"
 fi
+if [[ -n ${unfit_wiki} ]]; then
+  red "not copying ${unfit_wiki}"
+elif [[ -n ${newest_wiki} ]]; then
+  if [[ -f ${WIKI_DST}/$(basename "${newest_wiki}")/MANIFEST ]]; then
+    info "the medium already holds $(basename "${newest_wiki}") (wiki)"
+  else
+    todo_wiki="${newest_wiki}"; need_bytes=$((need_bytes + $(manifest_bytes "${newest_wiki}")))
+  fi
+else
+  warn "no complete wiki set under ${WIKI_SRC}"
+fi
 if [[ -n ${unfit_fw} ]]; then
   red "not copying ${unfit_fw}"
 elif [[ -n ${newest_fw} ]]; then
@@ -1021,7 +876,7 @@ fi
 
 # WHICH KINDS ARE ABSENT, AND WHY THAT IS NOT A SUCCESS (#611)
 #
-# The three warns above used to be the only trace a missing kind left. The run
+# The warns above used to be the only trace a missing kind left. The run
 # copied what it had, printed "the medium holds the newest of each kind" in
 # green and exited 0 — so run-scheduled.sh recorded
 # homelab_job_last_success_timestamp_seconds{homelab_job="offsite-copy"} and
@@ -1035,7 +890,7 @@ fi
 # exits non-zero, so the deadline keeps nagging until somebody fixes the gap
 # rather than a warn scrolling past nobody.
 #
-# The three kinds are named here rather than counted, because "2 of 3" does not
+# The kinds are named here rather than counted, because "3 of 4" does not
 # tell the reader which one a successor will not find.
 missing=()
 held=()
@@ -1045,12 +900,15 @@ else missing+=("volumes — nothing complete under ${VOL_SRC}, run \`make backup
 if [[ -n ${unfit_nas} ]]; then missing+=("nas — ${unfit_nas}; run \`make backup-nas\` for a set every current key opens")
 elif [[ -n ${newest_nas} ]]; then held+=("nas")
 else missing+=("nas — nothing complete under ${NAS_SRC}, run \`make backup-nas\`"); fi
+if [[ -n ${unfit_wiki} ]]; then missing+=("wiki — ${unfit_wiki}; run \`make backup-wiki\` for a set every current key opens")
+elif [[ -n ${newest_wiki} ]]; then held+=("wiki")
+else missing+=("wiki — nothing complete under ${WIKI_SRC}, run \`make backup-wiki\`"); fi
 if [[ -n ${unfit_fw} ]]; then missing+=("firewall — ${unfit_fw}; run \`make backup-firewall\` for an export every current key opens")
 elif [[ -n ${newest_fw} ]]; then held+=("firewall")
 else missing+=("firewall — no export under ${FW_SRC}, run \`make backup-firewall\`"); fi
 
 # Both terminal paths go through this. #611 cites only the one after the copy,
-# but the "nothing to copy" path below made the same claim about the same three
+# but the "nothing to copy" path below made the same claim about the same
 # kinds and exited 0 just as readily — a medium already holding two of three
 # reported a clean proof on every subsequent run.
 finish() {  # <green sentence, used only when nothing is missing>
@@ -1072,7 +930,7 @@ finish() {  # <green sentence, used only when nothing is missing>
   exit 1
 }
 
-if [[ -z ${todo_vol} && -z ${todo_nas} && -z ${todo_fw} ]]; then
+if [[ -z ${todo_vol} && -z ${todo_nas} && -z ${todo_wiki} && -z ${todo_fw} ]]; then
   finish "the medium already holds the newest of each kind, and it verifies — nothing to copy"
 fi
 
@@ -1088,6 +946,7 @@ fi
 failed=0
 if [[ -n ${todo_vol} ]]; then mkdir -p -- "${VOL_DST}"; copy_set "${todo_vol}" "${VOL_DST}" || failed=1; fi
 if [[ -n ${todo_nas} ]]; then mkdir -p -- "${NAS_DST}"; copy_set "${todo_nas}" "${NAS_DST}" || failed=1; fi
+if [[ -n ${todo_wiki} ]]; then mkdir -p -- "${WIKI_DST}"; copy_set "${todo_wiki}" "${WIKI_DST}" || failed=1; fi
 if [[ -n ${todo_fw} ]];  then copy_export "${todo_fw}" || failed=1; fi
 
 if ((failed)); then

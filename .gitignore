@@ -13,6 +13,9 @@ secrets/*
 !secrets/*.sops.yaml
 !secrets/*.example.yaml
 !secrets/README.md
+# The one encrypted file that is never committed: it is encrypted to the key of
+# a guest that is destroyed after each investigation (ADR-0071, .sops.yaml).
+secrets/scratch.sops.yaml
 *.pem
 *.key
 *.p12
@@ -36,6 +39,11 @@ stacks/soc/velociraptor/etc/*
 # ignored above; the directory is listed so nothing else lands in it either.
 stacks/soc/wazuh/certs/*
 !stacks/soc/wazuh/certs/.gitkeep
+# ---- stacks/scratch: the same two, generated on diabolos (ADR-0071) ----
+stacks/scratch/velociraptor/etc/*
+!stacks/scratch/velociraptor/etc/.gitkeep
+stacks/scratch/wazuh/certs/*
+!stacks/scratch/wazuh/certs/.gitkeep
 # Client installers repacked for GPO deployment are build artefacts.
 *.msi
 
@@ -43,6 +51,24 @@ stacks/soc/wazuh/certs/*
 # Vendor MIBs, several MB of them, needed only to regenerate snmp.yaml. The
 # generated snmp.yaml itself IS committed, so a deploy never needs these.
 stacks/*/snmp-exporter/mibs/
+
+# ---- tofu/: state, plans and provider caches (ADR-0076) ----
+# State holds every value a provider touched, in cleartext unless encrypted,
+# and a plan holds the same values plus the ones about to be sent. tofu/
+# encrypts both and refuses to write either unencrypted (encryption.tf), so
+# what would land here is ciphertext. It is ignored anyway: encrypted state
+# under a passphrase that sits on one host is still nothing a public repository
+# should carry, and the day encryption.tf is broken is the day this line is the
+# only thing left. scripts/check-tracked-artefacts.sh asserts the same patterns
+# are untracked, because `git add -f` walks straight past this file.
+#
+# Unanchored, like the rest: a state file one directory down is no safer.
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/.terraform/
+tofu/state/
+# .terraform.lock.hcl is NOT ignored. It pins provider hashes and is committed.
 
 # ---- Backups ----
 # `make backup` writes age-encrypted volume archives to backups/volumes/<stamp>/,

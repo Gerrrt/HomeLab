@@ -270,6 +270,45 @@ counter as the decision #574 would take. This is that rule:
 over a day, stays quiet on the 509 the drive arrived with, and clears a day
 after the event, so the counter is watched rather than remembered.
 
+> **Correction · 2026-10-01.** The premise above is wrong for the drive it was
+> written about. It is kept rather than rewritten because ADR-0001 makes
+> accepted ADRs immutable.
+>
+> The S3520 counts a clean stop as unsafe. On 2026-09-29 it read 522 before a
+> clean *System → Shut Down* and 523 after
+> ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). A clean `LB`
+> shutdown therefore *does* move it, and the rule as written would page on
+> every planned reboot of `smaug` and on the halt this ADR builds.
+>
+> The counter is still the measure, read differently. `smaug` now counts its
+> own clean stops: `scripts/mark-clean-shutdown.sh` runs as a TrueNAS SHUTDOWN
+> init script, which the UI's Shut Down and Restart and the UPS service's
+> halt all run, and a cut never does. It serves
+> `homelab_clean_shutdowns_total`, and the rule pages on a day's unsafe
+> shutdowns minus that day's clean stops. "Any growth is a stop nobody
+> planned" becomes "any growth the host did not record as clean". The
+> collector also runs at boot, so both numbers move at the same boot.
+>
+> **Correction · 2026-10-02.** Not every clean stop: only power-offs. After a
+> UI Restart the S3520 stayed at 523, because a warm reboot never takes its
+> power away. The script now counts only stops headed for `poweroff.target`
+> or `halt.target` — the UI's Shut Down and the `LB` halt — and keeps restarts
+> in a counter the rule does not read.
+>
+> **Correction · 2026-10-03.** The first correction above was itself wrong,
+> and the premise this section began with was right: a clean shutdown does
+> not move the S3520's counter. Two UI Restarts and a UI Shut Down, left
+> plugged in, all left it at 523. On 2026-09-29 the box was also unplugged
+> for the memory install, and that is what it counted. The subtraction is
+> gone. `SmartDriveUnsafeShutdownsGrowing` pages on any growth again, and
+> `homelab_clean_shutdowns_total` only adds a line to the page when a clean
+> power-off came the same day. For this ADR's halt, the UPS cutting its
+> output after `smaug` halted will tick the drive and page, normally with
+> the line. The line is a hint, not proof: an earlier manual stop can supply
+> it, and a lost file or an unclassified stop can leave it out. Whether the
+> halt ran, and in time, is read from the event, as
+> `shut-down-on-the-ups.md` says.
+
 ## Consequences
 
 - **Two pass/block pairs join the ruleset**, on `igc0.30` and `igc0.40`, and
@@ -308,7 +347,10 @@ after the event, so the counter is watched rather than remembered.
 - **`smaug` is a subscriber on a segment with no logs**, so a shutdown that
   fails on the NAS is visible only as `InstanceDown` and a counter that moved.
   That is ADR-0016's residual arriving one more time, and the counter is the
-  answer to it.
+  answer to it. *(2026-10-01: the counter net of the host's recorded clean
+  stops, since the S3520 counts those too — see the correction under
+  "`smaug` keeps the counter" and
+  [#746](https://github.com/Gerrrt/HomeLab/issues/746).)*
 - **The runtime is still the card's estimate until the pull.** Every document
   that quotes 47 minutes is quoting a card that has never been drained, and
   says so.

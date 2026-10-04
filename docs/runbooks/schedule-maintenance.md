@@ -81,7 +81,12 @@ It stops nothing on either side. Its retention is `NAS_KEEP`, beside
 `FW_KEEP` and for the same reason: every unit reads the one environment
 file, and `KEEP` is the volume sets'. `verify-backups` reads both
 directories, here and on `oracle`, so one nightly job proves both kinds of
-set. Deployment itself is now
+set. `backup-wiki` is the other pull, from `oracle` itself: it asks the
+wiki's Postgres for a `pg_dump` over ssh, encrypts it here and keeps it here,
+because the set leaving `oracle` is already the off-host copy
+([ADR-0065](../adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)).
+Its retention is `WIKI_KEEP`, fourteen, and `verify-backups` reads
+`backups/wiki/` too once the first set exists. Deployment itself is now
 one of these jobs rather than something a human remembers to do —
 [#99](https://github.com/Gerrrt/HomeLab/issues/99),
 [ADR-0021](../adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md), and
@@ -101,6 +106,7 @@ the host.
 | `converge` | `make converge` | hourly, :25 | 3 hours |
 | `backup-volumes` | `make backup` | Sundays 03:30 | 14 days |
 | `backup-nas` | `make backup-nas` | Saturdays 03:30 | 14 days |
+| `backup-wiki` | `make backup-wiki` | daily 04:45 | 2 days |
 | `verify-backups` | `make verify-backups` | daily 05:30 | 3 days |
 | `backup-firewall` | `make backup-firewall` | daily 04:30 | 3 days |
 | `snmp-verify` | `make snmp-verify` | Wednesdays 06:30 | 14 days |
@@ -155,10 +161,50 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
-`guest-state`, `thin-pool-state`, `pve-firewall-state` and `drift-check` — and checks each host's requirements **per
+`guest-state`, `thin-pool-state`, `guest-disk-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state` and `drift-check`, plus the two
+rows that collect nothing, `zeek-mirror` and `prune-images` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
 it.
+
+**`zeek-mirror-state` watches one of the two rows in that table that are not
+collectors.** `zeek-mirror` (#437,
+[ADR-0068](../adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md))
+writes no `.prom`. Every minute it puts the `tc` mirror back on every port of
+`Saruman`'s lab bridge, because a reboot, a guest restart or a sensor restart
+each lose it. `zeek-mirror-state` reads the same kernel state without touching
+it, every five minutes, and publishes `homelab_zeek_mirror_active`: 1 only while
+the sensor runs, every port mirrors to its tap by name, and packets arrive.
+`ZeekMirrorInactive` pages on 0 after ten minutes. The two are separate so that
+disabling the first proves the second, which is
+[`build-the-sensor-guest.md`](build-the-sensor-guest.md) §7. Both require `qm`,
+so they install on the hypervisor and nowhere else.
+
+**`prune-images` is the agent hosts' copy of the `prune-images` row above.** It
+runs `docker image prune -a` on Mondays at 04:00, as the monitoring host's does,
+from `systemd/agent/homelab-prune-images.timer`. Nothing removed superseded
+images on an agent host before it, and on 2026-10-01 `odin`'s 30 GB root was at
+98%, 7.8 GB of it images no container used. It requires `/usr/bin/docker`, so
+it installs on `oracle`, `trinity`, `alexander` and `odin`, and `Saruman`
+reports it as one it cannot run. Like `zeek-mirror` it writes no `.prom`. An
+agent host has no `homelab_job_*` metrics, so a failed run shows only in
+`journalctl -u homelab-prune-images`. What would show it is the disk: on the
+two lab guests, the estate's `GuestDiskWillFillIn24h` and `GuestDiskCritical`,
+which page (below).
+
+**`guest-disk-state` is how a lab guest's disk reaches a phone.** The lab
+Prometheus has its own `HostDiskWillFillIn24h` and `HostDiskCritical` for
+`alexander` and `odin`, and they page nobody (ADR-0020). So every ten minutes,
+on `Saruman`, `scripts/collect-guest-disk-state.sh` asks each running VM's guest
+agent for `get-fsinfo` and writes each filesystem's size and used bytes. The
+estate's `GuestDiskCritical` (below 10% free) and `GuestDiskWillFillIn24h` are
+both critical
+([ADR-0070](../adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md),
+[#778](https://github.com/Gerrrt/HomeLab/issues/778)). A guest needs a running
+`qemu-guest-agent` to be covered. `GuestAgentSilent` warns when one that
+answered stops, and `GuestDiskStateStale` warns when the collector does. It
+requires `qm`, so it installs on the hypervisor only:
+`make install-agent-collectors AGENT=root@Saruman ARGS='--only guest-disk-state'`.
 
 **`drift-check` is the collector that belongs to another repository.**
 `Gerrrt/Lemmiwinks/.claude/tools/drift-check` reads the wiki's machine-checkable
@@ -235,6 +281,20 @@ rather than waiting to be found
 when its command fails, and each has a `…StateStale` rule on the file's mtime
 rather than on presence, for `SmartStateStale`'s reason: the `.prom` is
 re-served on every scrape, so only its age says the timer stopped.
+
+**`iso-store-state` runs daily, not every ten minutes, and only where the ISO
+store is mounted.** It hashes every file on `smaug-iso` against the list in
+the script itself and reports each as `match`, `mismatch`, `missing` or
+`unlisted` ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
+[ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+Reading about 15 GB is why it is daily. Its requirement in the installer's
+table is the directory `/mnt/smaug-iso`, not a binary, so it lands on the one
+host that mounts the store. `IsoChecksumMismatch` is critical,
+`IsoStoreUnexpected` and `IsoStoreNotMounted` are warnings, and
+`IsoStoreStateStale` waits two days. **The list travels inside the script**,
+because an agent host has no checkout: changing an ISO means editing the
+list and re-running the installer with `ARGS='--only iso-store-state'`
+([`build-the-lab-templates.md`](build-the-lab-templates.md) §2b).
 
 **It needs root on the target, which is not the same as needing `sudo`.** The
 estate has both shapes and the installer picks per host, from the login user's
@@ -526,30 +586,52 @@ systemctl list-timers 'homelab-*'
 
 ### On `trinity`: the sensitive profile
 
-`trinity` has one job of its own, in its own table and its own directory
+`trinity` has jobs of its own, in their own table and their own directory
 (`SENSITIVE_JOBS`, `systemd/sensitive/`), because it is a second host with a
 checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 
 | Job | Command | When | Alerts if not seen in |
 | --- | --- | --- | --- |
 | `backup-sensitive` | `make backup` with `STACK=sensitive` | daily 04:30 | 2 days |
+| `backup-library` | `make backup-library` | daily 05:15 | 2 days |
+| `converge-sensitive` | `make converge` with `STACK=sensitive` | hourly at :25 | 3 hours |
+| `household-copy` | **you**, `make household-copy DEST=…` | no timer | 90 days |
+| `household-proof` | **you** and the holder, `make household-proof CODE=…` | no timer | 1 year |
 
 It runs daily, not weekly like the estate's backup, because it holds the
 password vault. Each run also copies the set to `oracle`, the same way the
 estate's backup does. Its units name no user and no path, because the build
 runbook writes the operator as `<you>`. The installer fills them in from
 whoever ran `sudo`, and refuses to install from anywhere but that user's
-`~/code/Gerrrt/HomeLab`. From that checkout on `trinity`:
+`~/code/Gerrrt/HomeLab`.
+
+`backup-library` is Immich's library, which no volume set can hold because it
+is a bind mount ([ADR-0064](../adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+It stops nothing, so its timer is `Persistent=true` and catches up a missed
+night at boot. It shares the `backups` lock with `backup-sensitive`, so an
+overrunning volume backup is waited for rather than raced.
+
+`converge-sensitive` is the monitoring host's `converge` for the tier
+([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It shares the
+`backups` lock too, so it never runs `make up` under a quiesced tier. **Before
+the install below**, import GitHub's signing key and set report-only mode —
+[`converge-the-host.md`](converge-the-host.md#on-trinity) §On trinity steps
+1–3 — because the installer primes the job and applying is the default.
+
+Then, from that checkout on `trinity`:
 
 ```bash
 make install-timers PROFILE=sensitive
 ```
 
-That writes a `homelab-jobs.prom` on `trinity` that declares only
-`backup-sensitive`. The alert rules join on the job name alone, so a name may
-appear in only one table, and `--check` enforces that. The installer does not
-prime the job, because it stops the tier. `make check-timers` checks both
-profiles, and `make validate` on `trinity` fails until this timer is
+That writes a `homelab-jobs.prom` on `trinity` that declares only these
+five. The last two are the household's copy
+([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md),
+[`carry-the-household-copy.md`](carry-the-household-copy.md)). They have no
+timer, and `HouseholdCopyStale` reads them. The alert rules join on the job name alone, so a name may appear in only
+one table, and `--check` enforces that. The installer primes `backup-library` and
+`converge-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
+profiles, and `make validate` on `trinity` fails until the backup and converge timers are
 installed.
 
 ## Prove it end to end
@@ -672,7 +754,7 @@ expected rather than a second fault.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key, and for `offsite-copy` until the first visit makes the copy. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key, for `offsite-copy` until the first visit makes the copy, and on `trinity` for `household-copy` and `household-proof` until there is a household holder and the holder has opened it. For anything else, `systemctl start homelab-<job>.service` and read the journal |
 | `OffsiteCopyStale` | Ninety days since the newest sets were last copied to the second recipient's medium and proved there | Mount it and run `make backup-offsite DEST=…` — [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md). `--list`, `--verify-only` and `--prune` do not clear it, on purpose |
 | `CaKeyBackupUnproven` | No offline copy of `certificates/ca-key.pem` has been proved in ninety days — or ever, or not since the CA was re-minted, which the fingerprint label tells apart | Mount the medium and `make certs-verify-backup KEY=…` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)). After a re-mint, copy the new key there first; the old copy is refused |
 | `SecretsKeyRecipientsUnrecorded` | The ninety-day deadline is declared and no recipient has a proof series, so `SecretsKeyBackupUnproven` cannot fire however stale the proof is | `systemctl start homelab-recipient-state.service`. If that unit does not exist the timers predate [#400](https://github.com/Gerrrt/HomeLab/issues/400): `make install-timers` adds it and primes it. On a host with one recipient the first write inherits the old `verify-key-backup` proof rather than starting from never |
@@ -685,6 +767,7 @@ expected rather than a second fault.
 | `backup-volumes` exits 1 with *off-host copy FAILED* | The same three causes, or `oracle` ran out of room | The set was written and verified here and the stack is up. Repair the path, then `make backup ARGS=--copy-only` — it copies every set `oracle` lacks without stopping the stack, and the next weekly run would do the same |
 | `verify-backups` exits 1 naming a set on `oracle` as *missing* or *differs* | The copy of that set never landed, was removed, or its bytes no longer hash to the manifest | Every local set still decrypts, or the message would say so first. *Missing*: `make backup ARGS=--copy-only`. *Differs*: nothing removes it for you — look at it, `rm -rf` that one directory on `oracle`, then the same command. [`restore-the-stack.md`](restore-the-stack.md) §0 |
 | `backup-nas` exits 1 | The message says which: *cannot reach* means SSH is off on `smaug`, the `99 → 40:22` pass is out of position, or the key or host key is missing; *newest snapshot … is N hours old* means the periodic task on `smaug` has stopped; *tar could not read* means a media service wrote a file `frodo` cannot read | Nothing is stopped on either side and the last complete set is intact. [`build-the-nas.md`](build-the-nas.md) §6.2 is the setup this checks against, and names the fallback for the third case. A snapshot named in the *future* means `NAS_SNAPSHOT_TZ` is not `smaug`'s zone |
+| `backup-wiki` exits 1 | The message says which: *cannot reach* is `oracle` or the ssh path, the same three causes as `backup-firewall`'s; *not accepting connections* means `wiki-db` is not up on `oracle`; *pg_dump on oracle failed* carries Postgres's own message | Nothing is stopped on either side and the last complete set is intact. [`stacks/wiki/README.md`](../../stacks/wiki/README.md) is the stack; `docker compose ps` in `/opt/wiki` on `oracle` is the first look |
 | `dashboards-drift` exits 1 | Grafana holds a dashboard edit that is not committed | Not a fault. Run `make dashboards-export`, read `git diff`, commit it. If the diff is empty but the job still fails, Grafana is down or `make render` has never run here |
 | `loki-coverage` exits 1 | A Loki alerting rule cannot see a host that is producing exactly the lines it hunts | Not an outage — nothing is broken, but an alert cannot fire for that host, which is how [#261](https://github.com/Gerrrt/HomeLab/issues/261) went unnoticed. The FAIL line names the rule, the host and the log type the lines are arriving under; the fix is usually an `or` branch on the rule for that host's stream. A `WARN` is the latent form — the rule cannot reach the host at all, but nothing there matches it today — and does not fail the job |
 | `firewall-claims` exits 1 | A segmentation claim in `docs/firewall-claims.yaml` no longer matches the running ruleset | Not an outage, and the firewall is not the thing that is wrong — a document is. The FAIL line names the interface, the segment and the direction: *now reaches X* means a block was removed or a VLAN was added, *no longer reaches X* means a block landed and the prose still describes the world before it. Re-derive with `scripts/check_firewall_claims.py --derive`, then move the prose that cites it — `docs/network.md` and `docs/security.md`. Never edit an ADR in place: [ADR-0001](../adr/0001-record-architecture-decisions.md) makes them immutable, so a stale one gets a marked amendment or a superseding ADR |

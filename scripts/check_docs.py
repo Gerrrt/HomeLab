@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Ten assertions, each comparing prose against something machine-readable:
+Eleven assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents, ADRs, runbooks, and the size of this
@@ -43,6 +43,9 @@ Ten assertions, each comparing prose against something machine-readable:
                            roadmap is a source here, not a target: that table
                            is the one place a purchase may enter or leave, so
                            it is what README's count answers to.
+ 11. Runbook URLs         every critical alert's runbook_url names a file in
+                           docs/runbooks/ and, if it has one, an anchor that is
+                           a heading in that file (#842).
 
 Only present-tense documents are checked. `docs/changelog.md`, `docs/roadmap.md`
 and `docs/adr/` record what was true when the work landed — `changelog.md`
@@ -288,6 +291,13 @@ def count_alerts(paths) -> int:
     )
 
 
+def count_recording_rules(paths) -> int:
+    return sum(
+        len(re.findall(r"^\s*-\s*record:", p.read_text(encoding="utf-8"), re.M))
+        for p in paths
+    )
+
+
 def tested_alertnames(paths) -> set[str]:
     """Every alert named by a promtool unit test.
 
@@ -488,6 +498,7 @@ def facts() -> dict:
     dashboards = sorted((STACK / "grafana/dashboards").glob("*.json"))
     prom = count_alerts(prom_rules)
     loki = count_alerts(loki_rules)
+    recording = count_recording_rules(prom_rules)
     tested = tested_alertnames(
         sorted((STACK / "prometheus/tests").glob("*.test.yaml"))
     )
@@ -495,6 +506,8 @@ def facts() -> dict:
         "prometheus_rules": prom,
         "loki_rules": loki,
         "total_rules": prom + loki,
+        "recording_rules": recording,
+        "rules_page": prom + recording,
         "dashboards": len(dashboards),
         "panels": count_panels(dashboards),
         "prometheus_rule_files": len(prom_rules),
@@ -554,12 +567,29 @@ def check_counts(f: dict) -> list[str]:
          "unit-tested rules"),
         (rf"[Oo]ther" + WS + COUNT + WS + r"are still validated", {f["untested_rules"]},
          "rules without a unit test"),
+        # The same count in the wording #843 left it in, once it reached zero:
+        # "the other 0 are still validated" reads as nonsense, and a clearer
+        # sentence that nothing checked would drift silently.
+        (r"leaves" + WS + COUNT + WS + r"rules" + WS + r"without" + WS + r"a" + WS + r"unit" + WS + r"test",
+         {f["untested_rules"]}, "rules without a unit test"),
         # "Coverage is fifteen rules of 45" states two counts and only the
         # first was checked, so the denominator could go stale on its own —
         # the same shape as "39 rules across six files" above, and it did go
         # stale the same way the moment a rule was added (#81).
         (rf"rules of" + WS + COUNT + WS + r"so far", {f["prometheus_rules"]},
          "rules in the coverage denominator"),
+        # deploy-stack.md's Status → Rules step: "The page lists 129: the 127
+        # alert rules ... plus the two recording rules". Three counts in one
+        # sentence, and only the middle one was guarded. A merge on 2026-10-03
+        # recomputed it to 132 and left the total at 129, so the step told the
+        # operator to expect a number five short of a healthy page. The total
+        # is the alert rules plus the recording rules, both counted from the
+        # rule files, so adding either kind fails here; the recording-rule count
+        # is guarded beside it because it is the other half of the sum.
+        (r"page" + WS + r"lists" + WS + COUNT, {f["rules_page"]},
+         "rules on Prometheus's Rules page (alert + recording)"),
+        (rf"{COUNT}" + WS + r"recording rules", {f["recording_rules"]},
+         "recording rules"),
         # Where the agents run is documented, not deployed from here, so the
         # architecture table is the source and hardware.md's sentence is the
         # claim. See count_alloy_agents.
@@ -833,6 +863,24 @@ def check_host_stack_table() -> list[str]:
 # ---------------------------------------------------------------------------
 # 4. Ports
 # ---------------------------------------------------------------------------
+BIND_VAR = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)")
+
+
+def normalise_bind(bind: str) -> str:
+    """A bind address as the ports table writes it.
+
+    Loopback is written literally. An address that comes from a variable is
+    written as that variable, `${BIND_ADDR}` or `${INGEST_BIND_ADDR}` (#182),
+    whatever default follows it in compose.yaml. Anything else is read as
+    `${BIND_ADDR}`, which is what every published port was before the ingest
+    proxy needed an address of its own.
+    """
+    if "127.0.0.1" in bind:
+        return "127.0.0.1"
+    m = BIND_VAR.search(bind)
+    return f"${{{m.group(1)}}}" if m else "${BIND_ADDR}"
+
+
 def published_ports(services: dict) -> dict[str, list[tuple[str, str]]]:
     """service -> [(bind, container port)] for anything bound to the host."""
     out: dict[str, list[tuple[str, str]]] = {}
@@ -841,9 +889,8 @@ def published_ports(services: dict) -> dict[str, list[tuple[str, str]]]:
             parts = str(spec).split(":")
             if len(parts) < 2:
                 continue  # "9116" — exposed to the compose network only
-            bind = parts[0]
+            bind = normalise_bind(parts[0])
             container = parts[-1]
-            bind = "127.0.0.1" if bind == "127.0.0.1" else "${BIND_ADDR}"
             out.setdefault(name, []).append((bind, container))
     return out
 
@@ -880,7 +927,7 @@ def check_ports() -> list[str]:
                 )
             continue
 
-        want_bind = "127.0.0.1" if "127.0.0.1" in bind else "${BIND_ADDR}"
+        want_bind = normalise_bind(bind)
         actual = published.get(service, [])
         match = [a for a in actual if a[1] == port]
         if not match:
@@ -1296,6 +1343,92 @@ def check_buy_list() -> list[str]:
     return problems
 
 
+RUNBOOK_BASE = "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/"
+
+
+def github_anchor(heading: str) -> str:
+    """The id GitHub gives a Markdown heading, as its renderer computes it.
+
+    Lower-case; drop everything but letters, digits, spaces, hyphens and
+    underscores; each space becomes a hyphen, NOT collapsed, so "Verify — the"
+    is `verify--the`. Inline code backticks go with the other punctuation.
+    """
+    text = heading.strip().lower()
+    text = re.sub(r"[^\w\- ]", "", text)
+    return text.replace(" ", "-")
+
+
+def markdown_anchors(text: str) -> set[str]:
+    """The anchors GitHub generates for a Markdown file's headings.
+
+    Lines inside fenced code are skipped: a shell comment such as
+    `# Debian/Ubuntu` in a bash block is not a heading, and GitHub makes no
+    anchor for it (#874 review). A fence opens on three or more backticks or
+    tildes and closes on a fence of the same character.
+    """
+    anchors: set[str] = set()
+    fence = ""
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        m = re.match(r"(`{3,}|~{3,})", stripped)
+        if m:
+            if not fence:
+                fence = m.group(1)[0]
+            elif m.group(1)[0] == fence:
+                fence = ""
+            continue
+        if fence:
+            continue
+        h = re.match(r"#{1,6}\s+(.+?)\s*$", line)
+        if h:
+            anchors.add(github_anchor(h.group(1)))
+    return anchors
+
+
+def check_runbook_urls() -> list[str]:
+    """Every critical alert names a runbook that exists, at a section that exists.
+
+    #842. About 95 of the estate's alerts named no runbook, critical ones
+    included, and there was no runbook for a security alert at all: the pages
+    most likely to arrive at 1am pointed at nothing. A `runbook_url` is a
+    claim about a file, so it is checked like every other claim here: the URL
+    has the repository's shape, the file is in the tree, and the anchor, if
+    any, is a heading in that file. A renamed heading fails here instead of
+    sending a phone to the top of the page.
+    """
+    problems = []
+    anchors: dict[pathlib.Path, set[str]] = {}
+    rule_files = sorted((STACK / "prometheus/rules").glob("*.yaml")) + sorted(
+        (STACK / "loki/rules").glob("*.yaml")
+    )
+    for path in rule_files:
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        for group in doc.get("groups") or []:
+            for rule in group.get("rules") or []:
+                name = rule.get("alert")
+                if not name or (rule.get("labels") or {}).get("severity") != "critical":
+                    continue
+                where = f"{path.relative_to(REPO)}: {name}"
+                url = (rule.get("annotations") or {}).get("runbook_url")
+                if not url:
+                    problems.append(f"{where} is critical and has no runbook_url")
+                    continue
+                if not url.startswith(RUNBOOK_BASE):
+                    problems.append(f"{where}: runbook_url must start with {RUNBOOK_BASE}")
+                    continue
+                file, _, anchor = url[len(RUNBOOK_BASE):].partition("#")
+                target = REPO / "docs/runbooks" / file
+                if not target.is_file():
+                    problems.append(f"{where}: runbook_url names docs/runbooks/{file}, which does not exist")
+                    continue
+                if anchor:
+                    if target not in anchors:
+                        anchors[target] = markdown_anchors(target.read_text(encoding="utf-8"))
+                    if anchor not in anchors[target]:
+                        problems.append(f"{where}: docs/runbooks/{file} has no heading for #{anchor}")
+    return problems
+
+
 def main() -> int:
     f = facts()
     checks = (
@@ -1311,6 +1444,7 @@ def main() -> int:
         ("guest claims against each other", check_guest_claims),
         ("README's outstanding-purchase count against the roadmap's table",
          check_buy_list),
+        ("critical alerts' runbook_url against docs/runbooks/", check_runbook_urls),
     )
 
     # The registry is the source for README's "N assertions", so adding a
@@ -1344,5 +1478,30 @@ def main() -> int:
     return 0
 
 
+def self_test() -> int:
+    """The anchor rules check_runbook_urls depends on (#842, #874)."""
+    doc = (
+        "# Title\n## 5. Verify — the certificate\n### `make up`, then\n"
+        "```bash\n# Debian/Ubuntu\nsudo apt install x\n```\n"
+        "~~~\n# Also not a heading\n~~~\n## After the fence\n"
+    )
+    got = markdown_anchors(doc)
+    cases = [
+        ("a heading gets GitHub's anchor", "title" in got),
+        ("an em dash leaves a double hyphen, not one", "5-verify--the-certificate" in got),
+        ("inline code and commas are dropped", "make-up-then" in got),
+        ("a # comment inside a ``` fence is not a heading", "debianubuntu" not in got),
+        ("nor inside a ~~~ fence", "also-not-a-heading" not in got),
+        ("a heading after a closed fence is one", "after-the-fence" in got),
+    ]
+    failed = 0
+    for name, ok in cases:
+        failed += not ok
+        print(f"  {'PASS' if ok else 'FAIL'} {name}")
+    return 1 if failed else 0
+
+
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(self_test())
     sys.exit(main())

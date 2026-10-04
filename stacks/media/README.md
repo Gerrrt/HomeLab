@@ -1,5 +1,14 @@
 # Media stack
 
+[![host: smaug](https://img.shields.io/badge/host-smaug-30363d?style=plastic)](../../docs/network.md#casabonita--vlan-40--media)
+[![VLAN 40: CasaBonita](https://img.shields.io/badge/VLAN%2040-CasaBonita-e3b341?style=plastic)](../../docs/network.md#casabonita--vlan-40--media)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
+[![TrueNAS](https://img.shields.io/badge/TrueNAS-0095D5?style=plastic&logo=truenas&logoColor=white)](https://www.truenas.com)
+[![Jellyfin](https://img.shields.io/badge/Jellyfin-00A4DC?style=plastic&logo=jellyfin&logoColor=white)](https://jellyfin.org)
+[![Audiobookshelf](https://img.shields.io/badge/Audiobookshelf-82612C?style=plastic&logo=audiobookshelf&logoColor=white)](https://www.audiobookshelf.org)
+[![Navidrome](https://img.shields.io/badge/Navidrome-0084ff?style=plastic)](https://www.navidrome.org)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
 [ADR-0008]'s media tier — the household's media and music servers — on `smaug`
 (`10.0.40.30`, CasaBonita / VLAN 40), the ThinkServer TS150 that [#413] bought
 and [ADR-0040] gave TrueNAS. **Deployed 2026-09-19**, from a copy of this
@@ -14,7 +23,10 @@ A third file lives beside them since [ADR-0047]: `scripts/collect-smart-state.sh
 fetched the same way and run by TrueNAS's cron — a change to it reaches
 `smaug` only by the same re-fetch. A fourth, `scripts/collect-truenas-version.sh`,
 is the same shape for the product version `check-versions` compares
-([#616], [`build-the-nas.md`] §6.7).
+([#616], [`build-the-nas.md`] §6.7). A fifth, `scripts/collect-zpool-state.sh`,
+writes every ZFS leaf's state every five minutes, so a faulted disk under a pool
+that still reads `ONLINE` pages
+([#744](https://github.com/Gerrrt/HomeLab/issues/744), [`build-the-nas.md`] §6.8).
 
 ```bash
 cd /mnt/erebor/apps/stack && docker compose up -d
@@ -28,8 +40,8 @@ them, and say why they are bind mounts and not volumes.
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | jellyfin | `jellyfin/jellyfin` | 8096 (http), on the segment | The media server the televisions reach directly, with Quick Sync hardware transcoding on the E3-1225 v6's HD P630 ([#138], [ADR-0016]) |
-| audiobookshelf | `ghcr.io/advplyr/audiobookshelf` | 13378 (http), to Hicks through the 13378 pass | Audiobooks, with listening progress that syncs between a person's devices ([#140], [ADR-0050]). **Authored, not yet deployed** — [`build-the-nas.md`] §6.5 |
-| navidrome | `deluan/navidrome` | 4533 (http), to Hicks through the 4533 pass | The music server, over the Subsonic API, for the apps on the phones ([#141]). **Authored, not yet deployed** — [`build-the-nas.md`] §6.6 |
+| audiobookshelf | `ghcr.io/advplyr/audiobookshelf` | 13378 (http), to Hicks through the 13378 pass | Audiobooks, with listening progress that syncs between a person's devices ([#140], [ADR-0050]). **Deployed 2026-09-29** — [`build-the-nas.md`] §6.5 |
+| navidrome | `deluan/navidrome` | 4533 (http), to Hicks through the 4533 pass | The music server, over the Subsonic API, for the apps on the phones ([#141]). **Deployed 2026-09-30** — [`build-the-nas.md`] §6.6 |
 | node-exporter | `prom/node-exporter` | 9100 (http), to `10.0.99.20` only | How this host is monitored at all — Prometheus scrapes it, because nothing on this segment may push ([#256], [ADR-0016]); it also serves the SMART textfile a root cron job on the host writes ([#483], [ADR-0047]) |
 
 Four services, and three of them are the tier. `node-exporter` is here
@@ -80,16 +92,18 @@ every television would have to trust, and a second thing to be down.
 | --- | --- |
 | Televisions on CasaBonita | Natively, same broadcast domain — the firewall never sees the packet |
 | A Hicks workstation | Two of the rules in [`build-the-nas.md`] §0.5 — `50 → 10.0.40.30:443` and `50 → 10.0.40.30:8096`, one per port |
-| A Hicks phone, on `13378` | `50 → 10.0.40.30:13378`, `Allow 13378 to smaug` — the fifth by [ADR-0050]'s count and the seventh to exist — **specified, and created only when [`build-the-nas.md`] §6.5 deploys Audiobookshelf** ([ADR-0050]) |
+| A Hicks phone, on `13378` | `50 → 10.0.40.30:13378`, `Allow 13378 to smaug` — the fifth by [ADR-0050]'s count and the seventh to exist — **created by [`build-the-nas.md`] §6.5, and reached from a Hicks workstation on 2026-09-29** ([ADR-0050]) |
 | Prometheus, on `9100` | A third — `10.0.99.20 → 10.0.40.30:9100` |
 | Prometheus, on `22` | The fourth rule — `10.0.99.20 → 10.0.40.30:22`, inert until [`build-the-nas.md`] §6.2 switches SSH on for the backup pull, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
-| A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists; 445 is the sixth, and 13378 will be the seventh (§6.6) |
+| A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists; 445 is the sixth, and 13378 the seventh (§6.6) |
 | A Hicks workstation, on `445` | `50 → 10.0.40.30:445`, `Allow SMB to smaug`, to mount the `media` share as `samwise` — **created 2026-09-23** by [`build-the-nas.md`] §5's *Workstations* steps, and mounted from a Hicks workstation ([ADR-0051]) |
+| `Saruman`, on `2049` | `10.0.30.110 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, to mount `erebor/iso` as the ISO store. Not the media stack's, and listed because it is a way into this host. **Created 2026-10-01** by [`build-the-nas.md`] §5b, and mounted by `Saruman` ([ADR-0072]) |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and
-here there are four: every screen in the house, one workstation, the phones,
-and the monitoring host. The phones are the first consumers of a service on
+here there are five: every screen in the house, one workstation, the phones,
+the monitoring host, and `Saruman`, which mounts the ISO store and is the
+only consumer from ImaginationLAN ([ADR-0072]). The phones are the first consumers of a service on
 this host that are across a segment boundary rather than on it — Jellyfin's
 case for publishing to the segment was that its clients live there, and
 Audiobookshelf's and Navidrome's do not.
@@ -102,6 +116,12 @@ answers without a login. For 9100 it is a residual — an unauthenticated read
 of this host's filesystems, uptime and load, by the televisions — and
 `docs/security.md` records it rather than the firewall rule being mistaken
 for a boundary it is not.
+
+The NFS export on `2049` is not one of those three media ports, and it
+differs in kind. A device on CasaBonita can open the port, but the export
+itself admits `10.0.30.110` alone, so the share answers only `Saruman`. The
+host scope is enforced twice, by the firewall rule and by the export, and
+only the export applies on the segment.
 
 ## Why this host is scraped, and runs no agent
 
@@ -159,9 +179,9 @@ volume layout rather than in a policy document:
 | Volume / mount | What it holds | Backed up |
 | --- | --- | --- |
 | `${JELLYFIN_CONFIG_PATH}` → `/config` | database, users, **watch history, resume positions**, metadata | **yes** — `scripts/backup-nas.sh`, weekly, from a ZFS snapshot of `erebor/apps` |
-| `${AUDIOBOOKSHELF_STATE_PATH}/config` → `/config`, `…/metadata` → `/metadata` | the database — users, libraries, **every listener's position in every book** — and covers, per-item metadata, logs | **yes** — the same pull, the same snapshot, archive `audiobookshelf-state` ([ADR-0050]); `pending` in the script until §6.5 runs, and skipped by name while its directory is absent |
+| `${AUDIOBOOKSHELF_STATE_PATH}/config` → `/config`, `…/metadata` → `/metadata` | the database — users, libraries, **every listener's position in every book** — and covers, per-item metadata, logs | **yes** — the same pull, the same snapshot, archive `audiobookshelf-state` ([ADR-0050]); `required` since §6.5 ran on 2026-09-29, so a missing directory fails the pull by name |
 | `jellyfin-cache` | transcode scratch, image caches | no — regenerable |
-| `${NAVIDROME_DATA_PATH}` → `/data` | Navidrome's database — **users, playlists, favourites, play counts** — and extracted artwork | **yes** — the same pull, the same snapshot, its own archive in the set, `pending` until deployed |
+| `${NAVIDROME_DATA_PATH}` → `/data` | Navidrome's database — **users, playlists, favourites, play counts** — and extracted artwork | **yes** — the same pull, the same snapshot, archive `navidrome-data`; `required` since §6.6 ran on 2026-09-30, so a missing directory fails the pull by name |
 | `/cache` (tmpfs) | Navidrome's transcodes and resized artwork | no — regenerable, and gone on restart |
 | `${MEDIA_PATH}` → `/media`, `${AUDIOBOOKS_PATH}` → `/audiobooks`, `${MUSIC_PATH}` → `/music` | the library itself | no — see below |
 
@@ -346,6 +366,7 @@ reopen condition is closed; the stack stays here.
 [ADR-0047]: ../../docs/adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md
 [ADR-0050]: ../../docs/adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md
 [ADR-0051]: ../../docs/adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md
+[ADR-0072]: ../../docs/adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md
 [ADR-0056]: ../../docs/adr/0056-decline-plex-because-every-screen-on-casabonita-plays-jellyfin.md
 [`build-the-nas.md`]: ../../docs/runbooks/build-the-nas.md
 [#138]: https://github.com/Gerrrt/HomeLab/issues/138

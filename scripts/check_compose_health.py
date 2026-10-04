@@ -547,6 +547,81 @@ def bind_source_problems(compose_path: pathlib.Path, services: dict) -> list[str
     return problems
 
 
+# Every host path through which a container reaches the Docker socket (#836).
+# On Ubuntu /var/run is a symlink to /run, so the two spellings are one file.
+DOCKER_SOCKETS = {"/var/run/docker.sock", "/run/docker.sock"}
+SOCKET_DIRS = {"/run", "/var/run"}
+# The one image allowed to hold the socket: the allowlisting proxy (#193).
+SOCKET_PROXY_IMAGE = "tecnativa/docker-socket-proxy:"
+
+
+def _mounts(svc: dict) -> tuple[list[tuple[str, str]], set[str]]:
+    """(source, target) for each bind, and the set of tmpfs targets."""
+    binds, tmpfs = [], set()
+    for volume in (svc.get("volumes") or []):
+        if isinstance(volume, str):
+            parts = volume.split(":")
+            binds.append((parts[0], parts[1] if len(parts) > 1 else parts[0]))
+        elif isinstance(volume, dict):
+            if volume.get("type") == "tmpfs":
+                tmpfs.add(str(volume.get("target", "")).rstrip("/"))
+            else:
+                binds.append((str(volume.get("source", "")), str(volume.get("target", ""))))
+    entries = svc.get("tmpfs") or []
+    for entry in ([entries] if isinstance(entries, str) else entries):
+        tmpfs.add(str(entry).split(":")[0].rstrip("/"))
+    return binds, tmpfs
+
+
+def socket_mount_problems(services: dict) -> list[str]:
+    """Any path to the Docker socket for anything but the socket proxy (#836).
+
+    `:ro` on the socket is close to decorative: read-only applies to the
+    socket file, not the API behind it, and that API will create a container
+    with / mounted read-write. So a bare mount is root on the host, and a
+    compromised collector with one is root on a host that holds an age key.
+    #193 put the estate's Alloy behind docker-socket-proxy, and three other
+    stacks kept the bare mount for months, because nothing looked. This looks.
+
+    Three shapes, because review of #836 found the first was not the only one:
+
+      the socket itself, as /var/run/docker.sock or /run/docker.sock;
+      its directory, /run or /var/run, which carries it along;
+      the host's / anywhere, which carries /run, unless <target>/run is
+      masked by a tmpfs. A read-only mount does not stop connect() on a
+      socket, and Alloy runs as the socket's owner, so `/:/rootfs:ro` handed
+      every collector the API the proxy was meant to stand in front of.
+
+    The test is the image, not the service name, so renaming the proxy is not
+    a way past it.
+    """
+    problems = []
+    for name, svc in services.items():
+        svc = svc or {}
+        if str(svc.get("image", "")).startswith(SOCKET_PROXY_IMAGE):
+            continue
+        binds, tmpfs = _mounts(svc)
+        for source, target in binds:
+            src = source.rstrip("/") or "/"
+            if src in DOCKER_SOCKETS or src in SOCKET_DIRS:
+                problems.append(
+                    f"{name} mounts {source}, which is or holds the Docker "
+                    f"socket. `:ro` does not stop POST /containers/create, so "
+                    f"this is root on the host. Give it docker-socket-proxy "
+                    f"(GET-only, as stacks/observability does) and "
+                    f"DOCKER_API=tcp://docker-socket-proxy:2375 (#193, #836)"
+                )
+            elif src == "/" and f"{target.rstrip('/')}/run" not in tmpfs:
+                problems.append(
+                    f"{name} mounts the host's / at {target} without masking "
+                    f"{target.rstrip('/')}/run, so the Docker socket is reachable at "
+                    f"{target.rstrip('/')}/run/docker.sock, around any proxy: a "
+                    f"read-only mount does not stop connect(). Add "
+                    f"`tmpfs: [{target.rstrip('/')}/run:size=64k,mode=0755]` (#836)"
+                )
+    return problems
+
+
 def cross_stack_problems() -> list[str]:
     """Names this file asserts about, checked against every stack at once.
 
@@ -809,6 +884,36 @@ def self_test() -> int:
         check("a cache in a missing directory is still written", entries,
               load_proofs(nested))
 
+    # 19-22. The socket guard (#836). A bare mount fails, :ro or not, and in
+    #        the long form too; the proxy's own mount, by image, passes.
+    # Built from the prefix the check matches on, not written out: a pinned
+    # image string here is a pin outside compose.yaml, which
+    # check_image_pins.py rightly refuses.
+    proxy = SOCKET_PROXY_IMAGE + "fixture"
+    check("a bare socket mount is root, even :ro", 1, len(socket_mount_problems(
+        {"alloy": {"volumes": ["/var/run/docker.sock:/var/run/docker.sock:ro"]}})))
+    check("the long form is the same mount", 1, len(socket_mount_problems(
+        {"alloy": {"volumes": [{"type": "bind", "source": "/var/run/docker.sock",
+                                "target": "/var/run/docker.sock", "read_only": True}]}})))
+    check("the proxy may hold it, whatever it is called", 0, len(socket_mount_problems(
+        {"anything": {"image": proxy,
+                      "volumes": ["/var/run/docker.sock:/var/run/docker.sock:ro"]}})))
+    check("another path that only mentions docker is fine", 0, len(socket_mount_problems(
+        {"alloy": {"volumes": ["/var/lib/docker/containers:/c:ro"]}})))
+    check("/run/docker.sock is the same socket", 1, len(socket_mount_problems(
+        {"alloy": {"volumes": ["/run/docker.sock:/var/run/docker.sock:ro"]}})))
+    check("/run/docker.sock in the long form too", 1, len(socket_mount_problems(
+        {"alloy": {"volumes": [{"type": "bind", "source": "/run/docker.sock",
+                                "target": "/var/run/docker.sock"}]}})))
+    check("mounting /run carries the socket along", 1, len(socket_mount_problems(
+        {"alloy": {"volumes": ["/run:/host/run:ro"]}})))
+    check("the host's / without /run masked reaches the socket", 1, len(socket_mount_problems(
+        {"alloy": {"volumes": ["/:/rootfs:ro"]}})))
+    check("the host's / with <target>/run masked is fine", 0, len(socket_mount_problems(
+        {"alloy": {"volumes": ["/:/rootfs:ro"], "tmpfs": ["/rootfs/run:size=64k"]}})))
+    check("a mask at the wrong path does not count", 1, len(socket_mount_problems(
+        {"alloy": {"volumes": ["/:/rootfs:ro"], "tmpfs": ["/run:size=64k"]}})))
+
     return failed
 
 
@@ -864,6 +969,7 @@ def main() -> int:
     problems: list[str] = []
 
     problems += bind_source_problems(path, services)
+    problems += socket_mount_problems(services)
 
     for name, svc in services.items():
         svc = svc or {}

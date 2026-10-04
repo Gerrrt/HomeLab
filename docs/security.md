@@ -17,12 +17,14 @@ What this network is actually built to survive:
 | A lost or stolen tunnel peer | **Accepted.** A WireGuard peer is a device with a key and no second factor ([ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)); the firewall, not the key, bounds what it reaches — the lab and nothing else — with a `/32` pin on the server and a preshared key per peer. Revocation is a `wg0.conf` edit on `phoenix` ([runbook](runbooks/open-the-remote-path.md#rollback)), proportionate at two or three devices and recorded as the thing that stops being so |
 | An attacker on the lab segment reaching the hypervisor's BMC | **Accepted.** `shiva` stays on VLAN 30 by decision ([ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md)), hardened on 2026-09-09 — IPMI-over-LAN, SSH and Federation off, and its one path out of the segment deleted; a BMC compromise in the lab costs the lab, and the tripwire watches what it initiates |
 | An attacker on the lab segment reaching the hypervisor's management plane | **Closed at the host, and watched.** `Saruman`'s Proxmox firewall admits `8006` and `22` from Hicks and `8006` from the deployment host only ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)). It was found disabled and turned on on 2026-09-20 ([#566](https://github.com/Gerrrt/HomeLab/issues/566)); since [#576](https://github.com/Gerrrt/HomeLab/issues/576) `homelab_pve_firewall_enabled` is read every five minutes and `PveFirewallDisabled` pages after ten, so a `pve-firewall stop` left in place is noticed rather than found. `PveFirewallPolicyAccept` does the same for `policy_in` left at `ACCEPT`, which reads as enabled and admits the whole segment |
+| Someone on the lab segment reaching the domain's configuration path | **Scoped, key-only, and accepted for `phoenix` itself.** Each of ADR-0029's six listens on `22` for `ansible/` ([ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)). The rule admits `10.0.30.70` alone, `sshd` refuses passwords, and the only administrators' key is `phoenix`'s, installed by the template and never by hand on a clone. The residual: whoever owns `phoenix` owns the lab domain. That was already true through its Proxmox token, so it adds reach to nothing. Host keys are not pinned, because every rebuild replaces them |
+| Someone on the lab segment reading the domain's metrics | **Scoped, unauthenticated, and accepted.** `windows_exporter` listens on `9182` on all six of ADR-0029's guests, on the segment that exists to hold attackers. Each guest's Windows Firewall admits `10.0.30.40` (`alexander`) alone ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §7). That rule is the difference between an endpoint a `/24` sweep finds and one you have to go looking for, and it is a residual, not a control: the exporter has no authentication, so whoever owns `alexander` reads every gauge. It has no write API, so what leaks is the shape of the host (services, disks, uptime, the licence clock), the same class as `node_exporter` on the NAS below |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 121 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 156 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below. **What the UPS cannot answer is what happens when the cut outlasts the pack: as of 2026-09-20 nothing shuts down on its signal, and everything on the PDU — `morpheus`, `Saruman`, `neo` and `smaug`, which is in the media room on a long cord from that PDU — stops uncleanly when the pack empties, about 47 minutes in at 21 % load by the card's own unmeasured estimate.** [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides that the firewall's NUT server halts `Saruman` and `smaug` first and itself last, and [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) is the build, the forced-shutdown proof and the one mains pull that measures the pack; until those are done the decision is a configuration nobody has tested ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
-| The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data before that tier exists — see below |
+| The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet off the estate.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data. That tier has held real photographs since 2026-09-28, and their off-estate copy is built but has no holder yet ([#455](https://github.com/Gerrrt/HomeLab/issues/455)) — see below |
 
 What it explicitly does **not** defend against: a determined attacker with
 physical access to the rack, a supply-chain compromise in an upstream container
@@ -41,11 +43,17 @@ holder — whichever comes first. **The second of those has now fired and the
 deferral was re-accepted**, not ended:
 [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md) opens
 a WireGuard path terminating on the lab, which takes ADR-0008's *no external
-exposure* premise with it. Nothing in the tier became reachable — it is
-unbuilt, and on Winterfell when it is built — but the lab's own Grafana on
+exposure* premise with it. Nothing in the tier became reachable — it is on
+Winterfell, and the tunnel reaches the lab only — but the lab's own Grafana on
 `alexander` did, and that is one of the three below that cannot carry a factor
-at all. The other two triggers keep their full force. Until then the floor is per-application TOTP,
-and it does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
+at all. **The first trigger fired on 2026-09-28**, with Immich's first real
+photographs, **and the deferral was re-accepted again**
+([ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)):
+no identity provider, and Immich named as the residual that matters. The third
+trigger keeps its full force, and so does the second for anything on the tier.
+The floor is per-application TOTP. It is enrolled on Home Assistant
+(2026-09-28), Stirling-PDF (2026-09-29), and Vaultwarden and Paperless-ngx
+(reported 2026-10-02). It does not reach everything. Vaultwarden, Paperless-ngx and Home Assistant
 can each carry a second factor; **Grafana, Immich and AdGuard Home cannot** —
 Grafana OSS has no MFA in any edition, Immich's upstream has declined it and
 points at OAuth, and AdGuard has one password-only admin account. For those
@@ -83,10 +91,23 @@ staleness is visible, off-*estate* rather than off-*host*, because `oracle`
 shares the rack and the power feed; nothing on the break-glass card depends on a
 certificate this estate issues; and nothing physical may be operable only
 through Home Assistant. Those fall due on ADR-0022's triggers — the first real
-credential, photo or document — and none of them is built. **The copy leaving
+credential, photo or document. The photo trigger fell on 2026-09-28, when 615
+photographs reached Immich before the copy existed. The copy is built, and was
+rehearsed onto the household drive on 2026-10-01, but there is no copy of record
+until a household holder's key is in
+[`household.recipients`](../stacks/sensitive/household.recipients)
+([#455](https://github.com/Gerrrt/HomeLab/issues/455),
+[*What backs Immich up*](../stacks/sensitive/README.md#what-backs-immich-up-and-what-does-not-yet)). **The copy leaving
 the house is a new residual**: it is the first household data to sit in someone
 else's building, reduced to an availability problem by encryption at rest with a
 key that never leaves here, and accepted on that basis.
+[ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
+decided on 2026-10-01 that "here" means the household. The copy goes on a
+drive the household holder keeps at their own address, and the holder's key
+stays with them, apart from the drive. **The residual this adds** is that one
+burglary at the holder's address could take the drive and the key together.
+Accepted, because the alternative is a key the holder has to ask this estate
+for, which is the failure ADR-0023 exists to prevent.
 
 **The estate's own backup sets leave the house too, and with a key.** Decided
 2026-09-20: the newest firewall export, volume set and NAS set are carried onto
@@ -144,8 +165,10 @@ decision to aggregate is what keeps the rule quiet. The runbook's test alert is
 still the only proof that it detects.
 
 **A limit none of the three names, and no rule here closes: Suricata is not a
-protocol logger, and the lab is out of reach.** SNI, JA3 and certificate metadata — the
-ground the plaintext limit gives up — are Zeek's, and east-west traffic between
+protocol logger, and the lab is out of reach.** SNI, TLS fingerprints and certificate metadata — the
+ground the plaintext limit gives up — are Zeek's (JA4+ since
+[#776](https://github.com/Gerrrt/HomeLab/issues/776), by
+[ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)), and east-west traffic between
 the lab's domain guests crosses no router, so `morpheus` never sees a packet of
 it ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
 [ADR-0006](adr/0006-detect-at-the-chokepoint.md)). When that sensor is built its
@@ -156,7 +179,13 @@ absence rule this section describes has no Zeek equivalent and will not get one:
 whether that sensor is still running is answered on the hypervisor, as guest
 state crossing under
 [ADR-0028](adr/0028-let-guest-liveness-cross-but-not-guest-telemetry.md), by the
-`homelab_zeek_mirror_active` gauge #437 builds alongside the mirror.
+`homelab_zeek_mirror_active` gauge #437 builds alongside the mirror. That mirror
+is `tc` on `Saruman`'s existing Linux bridge, not Open vSwitch, and the gauge
+reads 1 only while every port of the bridge mirrors to the sensor and packets
+arrive
+([ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md));
+`ZeekMirrorInactive` pages when it does not. It proves the mirror, not the Zeek
+process inside the guest, and says so.
 
 **Device joins are detected as of 2026-09-04**, from the DHCP server rather
 than from the wireless. `morpheus` ships Kea's lease log to Loki, and the first
@@ -214,16 +243,19 @@ route that does not work, which is the failure a half-configured v6 stack
 usually causes. The estate is addressed in RFC1918 IPv4 by decision, and this
 paragraph is that decision.
 
-**The `WAN_DHCP6` gateway has reported 100% loss for days and the link is
-fine.** `dpinger` monitors the ISP gateway's link-local address, which does not
-answer ICMPv6 echo; traffic traverses that same gateway to Comcast's Seattle
-router, and its NDP entry is live. The "outage" is a property of the monitor
-target. `make gateway-state` now collects both the reported status and whether
-each family actually leaves the building, and `GatewayMonitorUnreliable` fires
-on precisely that disagreement — so this is visible instead of being something
-somebody had to go and ask the firewall about. **Fixing it is a firewall change**
-(point the gateway's Monitor IP at an address that answers, or set it to
-not-monitored) and belongs on the Lemmiwinks side.
+**The `WAN_DHCP6` gateway's monitor answers, since 2026-09-30.** From
+2026-09-07 it reported 100% loss while the link was fine. `dpinger` was
+monitoring the ISP gateway's link-local address, which does not answer
+ICMPv6 echo, while traffic went through that same gateway. `make
+gateway-state` collects both the status pfSense reports and whether each
+family actually reaches the internet, and `GatewayMonitorUnreliable` fired
+on that disagreement for three weeks.
+
+The fix was a firewall change. The gateway's Monitor IP now points at
+`2606:4700:4700::1111`, the address the collector's own v6 probe uses. The
+next collection read status 1, 14 ms, and forwarding 1. The monitor now
+measures the uplink, so a real v6 outage shows as `GatewayDown` and not as
+the same alert that fired for a working link.
 
 **IPv6 is where the segmentation pattern is not finished**, and both halves of the gap are
 worth naming because the documents recorded only one of them for a while. The
@@ -288,20 +320,23 @@ read-only user, reachable from `10.0.99.20` alone by the rule that already
 existed. The residual it leaves, accepted, is one more service on the NAS
 with one more key that reads it — a key that lives on the host already
 holding the estate's age identity, and reads a directory that includes
-Jellyfin's users' password hashes — and, once Audiobookshelf is deployed,
-its users' hashes too, in the same pull
-([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
-**Two more are for the phones on Hicks, and one of them exists.** The
+Jellyfin's users' password hashes — and, since Audiobookshelf was deployed
+on 2026-09-29, its users' hashes too, in the same pull
+([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)),
+and since Navidrome's on 2026-09-30, the hashes in its `navidrome.db`
+([#141](https://github.com/Gerrrt/HomeLab/issues/141)).
+**Two more are for the phones on Hicks, and both exist.** The
 issues that proposed Audiobookshelf and Navidrome each said no new rule
 would be needed; the Hicks passes are per port, so each needs one.
 `Allow 4533 to smaug`, for Navidrome
 ([#141](https://github.com/Gerrrt/HomeLab/issues/141)), was created on
 2026-09-22 ahead of the service, and what could be proved without a listener
 was: its position above the block, read from `morpheus`, and the monitoring
-host still refused on `4533`. That Hicks reaches it is proved at the deploy
-([`build-the-nas.md`](runbooks/build-the-nas.md) §6.6). `vlan50 net →
-10.0.40.30:13378`, for Audiobookshelf, is specified and not created — ADR-0050
-calls it the fifth; it will be the seventh. Neither adds a residual `8096` did
+host still refused on `4533`. That Hicks reaches it was proved at the deploy
+on 2026-09-30 ([`build-the-nas.md`](runbooks/build-the-nas.md) §6.6). `vlan50 net →
+10.0.40.30:13378`, for Audiobookshelf, was created by §6.5 and a Hicks
+workstation reached it on 2026-09-29 — ADR-0050 calls it the fifth; it is the
+seventh. Neither adds a residual `8096` did
 not already have: each first admin is made before a phone is pointed at it,
 and the libraries behind both are mounted read-only.
 **One more is for workstations, and it writes.** `vlan50 net →
@@ -316,6 +351,24 @@ user, typed on workstations and never stored on a television, so the
 televisions' `bilbo` and the workstations' credential are revoked apart. The
 same pass puts an SMB login prompt in front of everything on Hicks, the
 corporate laptop included, as `443` already puts the TrueNAS one.
+**One more is from ImaginationLAN, and it exists.**
+`10.0.30.110 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, lets the
+hypervisor mount `erebor/iso`, the ISO store Packer builds templates from
+([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+It was created on 2026-10-01. `Saruman` mounts the share through it, and
+`alexander`, on the same segment, is refused.
+Its residual is the one NFS with `sec=sys` always carries: the export trusts
+an address. Anything on VLAN 30 that took `Saruman`'s address could replace
+an installer, and every template built from it afterwards would carry the
+change. The control is not the rule. It is a daily hash of every file on
+the store against the list in `scripts/collect-iso-store-state.sh`, run on
+`Saruman`, which pages `IsoChecksumMismatch` if a listed ISO changes and
+warns on any file the list does not name. `phoenix`, which runs Packer, holds
+read-only `PVEAuditor` on the store and cannot write to it. The gap this
+leaves is up to a day between a replacement and the page; a template built
+inside that day is the one to suspect. Root on `Saruman` maps to
+`pippin`, which owns that one directory, so the hypervisor is not root on
+the NAS.
 [`network.md`](network.md) holds the current list. **Skids has one, since
 2026-09-28:** `10.0.99.40 → 10.0.20.20:80,443/tcp` — Home Assistant to the Hue
 bridge, the one device on that segment with a local API — above the block that
@@ -405,23 +458,68 @@ is already hearing from — so a host that has never shipped a line is absent
 from the question rather than failing it. The firewall and the tripwire are the
 control. This paragraph is the record that there is nothing else.
 
-Segmentation is doing more work here than it should have to. Prometheus and Loki
-publish unauthenticated ingest ports for `oracle`'s agent to use, so anything
-that can route to `10.0.99.20:9090` or `10.0.99.20:3100` can write to the metric
-and log stores without a credential — which is exactly the failure ADR-0002
-predicted when it recorded that "a compromised workstation reaches Winterfell".
-That is an accepted residual, recorded in [`SECURITY.md`](../SECURITY.md), not a
-solved problem.
+Segmentation used to do more work here than it should have had to. Prometheus
+and Loki published unauthenticated ingest ports for the agents to use, so
+anything that could route to `10.0.99.20:9090` or `10.0.99.20:3100` could read
+and write the metric and log stores, and delete logs, without a credential.
+That is exactly the failure ADR-0002 predicted when it recorded that "a
+compromised workstation reaches Winterfell". The firewall narrowed who
+"anything" was: since 2026-09-02 Hicks reaches `10.0.99.20` on `3000` only,
+and `10.0.30.110` on ImaginationLAN has one explicit pass for `Saruman`'s
+agent. But a control that depends on one un-reviewed rule ordering is not
+authentication.
 
-**What has changed is who "anything" is.** A workstation on Hicks was in that
-set for as long as the catch-all was the only rule in the way; since 2026-09-02
-it reaches `10.0.99.20` on `3000` only and *Block access to Winterfell* drops
-the ingest ports. What remains in the set is a host already on Winterfell, and
-`10.0.30.110` on ImaginationLAN, which has an explicit pass to both ports for
-`Saruman`'s Alloy agent. The residual narrowed by a firewall change nobody
-recorded; [#182](https://github.com/Gerrrt/HomeLab/issues/182) still owns
-closing it properly, because a control that depends on one un-reviewed rule
-ordering is not authentication.
+**Since [#182](https://github.com/Gerrrt/HomeLab/issues/182) it is
+authenticated** ([ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+Prometheus and Loki are on `127.0.0.1`. The host's address on both ports is an
+ingest proxy with an allowlist:
+
+- an agent token, one per host, may push and do nothing else;
+- the reader token may query and do nothing else;
+- the admin API, the lifecycle endpoints and Loki's delete API are refused to
+  every token.
+
+Reaching the port now grants nothing. The firewall still narrows who can try,
+and the two layers are independent: a bad rule ordering no longer hands over
+the stores, and a stolen token still has to come from a segment that can
+route. The blackbox probes in `targets/blackbox.yaml` ask the published
+address for a query and a delete with no token, and `IngestAuthNotEnforced`
+pages if either is ever answered by anything but the proxy's 401.
+
+What remains is deliberate, and `SECURITY.md` records it. The tokens are plain
+HTTP on VLAN 99, which a Hicks workstation can route to but not sniff. Loopback
+is unauthenticated, for a local user who already holds the SOPS key.
+
+**The lab's stores got the same treatment second, and needed it more**
+([#834](https://github.com/Gerrrt/HomeLab/issues/834)). `alexander` published
+its Prometheus and Loki to all of VLAN 30, unauthenticated, from 2026-09
+(#436). VLAN 30 is the segment that exists to hold attackers. From there,
+anything could:
+
+- `POST /-/quit` to the lab's Prometheus;
+- forge series through remote-write;
+- delete log ranges through Loki's live delete API, in the store that holds the
+  segment's own evidence.
+
+**Authored, and live only after its rollout.** Until the ordered steps in
+`stacks/lab/README.md` have run and their three `curl`s return 401, the
+exposure above is still the running state: none of these hosts converges.
+The fix is the estate's proxy, moved one segment down: the stores on loopback,
+and `stacks/lab/Caddyfile` on `10.0.30.40` with one token each for `odin`,
+`phoenix` and `fenrir`. Those tokens are the lab's own, in
+`secrets/lab.sops.yaml`. A lab host never holds an estate token, and
+`deploy-agent.sh` refuses to decrypt the estate's file for a lab target.
+
+Two residuals are recorded rather than fixed:
+
+- **The tokens are plain HTTP on a segment built for ARP spoofing,** so they can
+  be stolen by anyone in a position to spoof. A stolen token can still only
+  push, or read; it cannot quit or delete. TLS is #764's question, asked here
+  too.
+- **Nothing pages if the proxy is bypassed.** The lab has no blackbox exporter
+  and no Alertmanager (ADR-0020), so its version of `IngestAuthNotEnforced` is
+  a step in the rollout check, not a rule. Making the lab's failures reach the
+  estate is [#858](https://github.com/Gerrrt/HomeLab/issues/858).
 
 What has been taken off the firewall's shoulders is Alertmanager. It had no
 off-host client, so it now binds to `127.0.0.1` and reaching VLAN 99 no longer
@@ -439,8 +537,10 @@ assumption consistent with what they are.
 
 - Credentials are encrypted with [SOPS](https://github.com/getsops/sops) + age
   and committed in encrypted form. See [`secrets/README.md`](../secrets/README.md).
-- The private key lives at `~/.config/sops/age/keys.txt` on the deployment host
-  and is never in the repository. That host's disk is not encrypted — see
+- The private key lives at `~/.config/sops/age/keys.txt` on `prometheus`, the
+  host that deploys the estate's stacks, and is never in the repository. (ADR-0043
+  calls `phoenix` "the deployment host" too. `phoenix` builds machines, holds no
+  age key, and is covered below.) That host's disk is not encrypted — see
   [below](#everything-above-sits-on-an-unencrypted-disk).
 - That key is the single point of failure for every encrypted secret here, so it
   is copied off the host and the copy is proven to decrypt with
@@ -454,8 +554,36 @@ assumption consistent with what they are.
   the editor cannot persist the plaintext in an undo file, swap file or backup
   that sops does not shred. See [`secrets/README.md`](../secrets/README.md).
 - CI runs `gitleaks` with rules specifically for SNMP communities, inline
-  Grafana passwords, PEM private keys and age secret keys, and separately
-  asserts that every `secrets/*.sops.yaml` is genuinely encrypted.
+  Grafana passwords, PEM private keys, age secret keys and unencrypted
+  OpenTofu state. It separately asserts that every `secrets/*.sops.yaml` is
+  genuinely encrypted, and that no state, plan or `.terraform/` is tracked.
+- **`phoenix` is a secret-bearing host, and holds no age key.** Its secrets
+  are all mode 600 and owned by its operator:
+  - the Proxmox API token `phoenix@pve!builder`;
+  - the Windows build password, which is also a fresh clone's Administrator
+    password until #448 rotates it;
+  - `tofu/`'s state passphrase, all three in `~/.config/proxmox/phoenix.env`
+    ([ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
+    §4);
+  - the encrypted state itself, `tofu/state/lab.tfstate`
+    ([ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md));
+  - the lab domain's three, also in `phoenix.env`: `LAB_ADMIN_PASSWORD`, which
+    is Domain Admin, `LAB_DSRM_PASSWORD`
+    ([ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)),
+    and `LAB_POPULATION_SEED`, from which every population password is derived
+    ([ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md)).
+    The seed adds no reach: the first of the three already owns the domain.
+
+  The state is the one that would have been quiet. A Terraform state holds
+  every value a provider touched in cleartext, the cloud-init password of every
+  guest among them. OpenTofu encrypts it, `enforced = true` refuses a plaintext
+  write, and `scripts/check-tofu-state-encryption.sh` proves both, in CI against
+  a canary and on `phoenix` against the real file. The passphrase is escrowed in
+  `secrets/tofu.sops.yaml` to the estate's two recipients, so `phoenix` wrote
+  that copy and cannot read it. What protects all four on the host is file
+  permissions and the token's scope: `PhoenixBuilder` on named paths, never at
+  `/`. That scope is the sentence to argue with, because whoever holds the
+  token can create and destroy guests.
 - **The alert path's credentials are in SOPS on two hosts, and one of them
   crosses the CA boundary on purpose.** Since
   [#136](https://github.com/Gerrrt/HomeLab/issues/136) Alertmanager delivers to
@@ -510,6 +638,32 @@ assumption consistent with what they are.
   than the host's — a decision for that day and not before. Recovering the
   admin without the password is in
   [`stacks/media/README.md`](../stacks/media/README.md).
+- **The sensor stack has had a secrets file since
+  [#834](https://github.com/Gerrrt/HomeLab/issues/834), and it holds one key.**
+  Until then it had none, because it had no secrets: Zeek takes no credential,
+  and `fenrir`'s Alloy pushed to the lab's unauthenticated Loki and
+  Prometheus. It was brought up with `docker compose` rather than `make up`
+  ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
+  [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)).
+  - **What retired that** is the trigger this entry named: a service there
+    taking a credential from outside. The lab's stores now sit behind an
+    ingest proxy, and `fenrir` needs a token to push.
+  - **So it took the shape this entry prescribed.** `secrets/sensor.sops.yaml`
+    has a rule of its own above the catch-all, and `make secrets-init
+    STACK=sensor` on `fenrir` writes its key there. The stack is now brought up
+    with `make up STACK=sensor`.
+- **The scratch stack's secrets exist only on its guest, and are never
+  committed.** `diabolos` is built for one investigation and destroyed at the
+  end of it ([#438](https://github.com/Gerrrt/HomeLab/issues/438),
+  [ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)).
+  It has its own `.sops.yaml` rule above the catch-all, so it can never open
+  the estate's credentials or `odin`'s. The rule's
+  `REPLACE_WITH_SCRATCH_AGE_PUBLIC_KEY` placeholder is permanent in git. Each
+  incarnation runs `make secrets-init STACK=scratch` on itself, which writes
+  its key into its own checkout and encrypts `secrets/scratch.sops.yaml`
+  there, and `.gitignore` keeps that file out of git. The key has no backup,
+  unlike every other key in ADR-0024, on purpose: the key, the secrets and the
+  data they protect are destroyed together by `qm destroy 161 --purge`.
 
 ### Known historical exposure
 
@@ -780,9 +934,14 @@ this closes on.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence
   is how monitoring gets switched off — quietly, since the record lives in the
   system being switched off. Nothing off-host used the port; silences are
-  reached through Grafana. Prometheus and Loki are *not* in this list: they stay
-  published for `oracle`'s agent and remain an accepted residual. See
-  [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md).
+  reached through Grafana.
+- Prometheus and Loki bind to `127.0.0.1` only, since #182. Their off-host
+  clients (three agents, Homepage and Home Assistant) reach them through the
+  ingest proxy on `10.0.99.20`, which wants a token and serves each token one
+  role. See [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)
+  for which ports are published and
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)
+  for what a client must prove.
 - The Alloy debug UI binds to `127.0.0.1` only.
 - **The Docker socket is no longer mounted into Alloy** (#193). It was, marked
   `:ro`, which was worth less than it looked: read-only applies to the socket
@@ -800,9 +959,46 @@ this closes on.
   attack surface here — no longer has a path to `POST`. It is not "the socket is
   now safe".
 
-  `oracle`'s agent still mounts the socket directly. `docker.alloy` reads the
-  API address from `DOCKER_API` and falls back to the socket when it is unset,
-  so that host keeps working unchanged until it gets a proxy of its own.
+  **The lab's three Docker guests got the same proxy in
+  [#836](https://github.com/Gerrrt/HomeLab/issues/836).** Until then,
+  `alexander`, `odin` and `fenrir` each handed Alloy the socket itself, and
+  this paragraph named only `oracle`, so it was wrong about three hosts. Two of
+  those guests hold keys: `alexander` the lab's only age key, and `odin` the
+  SOC's key and Velociraptor's CA. `check_compose_health.py` now fails on any
+  `docker.sock` mount in a compose file outside the proxy image, which is how
+  they would have been caught.
+
+  **The proxy was not the whole fix, and review of #836 said why.** Every
+  Alloy also mounts the host's `/` at `/rootfs:ro` for node metrics, and that
+  carries `/rootfs/run/docker.sock` with it. A read-only mount does not stop
+  `connect()` on a socket, and Alloy runs as uid 0, which owns it, so any
+  Alloy, the estate's behind #193's proxy included, could reach the full API
+  around the proxy with no capability at all. `/rootfs/run` is now an empty
+  tmpfs in all four. smaug's node-exporter gets the same mask at `/host/run`,
+  although as uid 65534 it could not open the socket anyway. The check now
+  fails three shapes:
+
+  - the socket itself, under either spelling, `/var/run` or `/run`;
+  - its directory;
+  - the host's `/` with no mask over `<target>/run`.
+
+  **`oracle`'s agent has its own proxy too.** It was the last Alloy holding
+  the socket. It is started by `deploy-agent.sh` as a `docker run`, not from a
+  compose file, so no compose check could see it. The script now starts
+  `alloy-socket-proxy` beside it, with the same image and allowlist, on a
+  private network. Its `/rootfs/run` is an empty tmpfs, because
+  `/:/rootfs:ro` otherwise carries the socket past the proxy: a read-only
+  mount does not stop `connect()`, and Alloy is the socket's owner.
+  `check_image_pins.py` refuses any `docker run` in the repository, other than
+  the proxy's (traced by image), that reaches the socket. It looks for three
+  things:
+
+  - the socket under either spelling;
+  - its directory;
+  - the host's `/` with no `--tmpfs` over `<target>/run`.
+  `docker.alloy` still falls back to the socket when `DOCKER_API` is unset, so
+  an agent deployed before this keeps working until its next `deploy-agent.sh`
+  run.
 - Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
   `no-new-privileges`, so root inside it is subject to file permissions like any
   other user, and joins only the group that owns `/var/log/syslog` so the auth

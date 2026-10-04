@@ -259,7 +259,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   | `10.0.99.1` — `morpheus` | `443/tcp` admin UI, `53/tcp+udp` resolver, `123/udp` NTP |
   | `10.0.99.10` — `mjolnir` | `80,443/tcp` UPS card |
   | `10.0.99.20` — `prometheus` | `3000/tcp` Grafana |
-  | `10.0.99.30` — `oracle` | `80,443/tcp` the wiki |
+  | `10.0.99.30` — `oracle` | `80/tcp` the wiki (443 until 2026-09-30, when nothing had listened on it; [#251](https://github.com/Gerrrt/HomeLab/issues/251)) |
   | `10.0.99.40` — `trinity` | `443/tcp` the sensitive tier, since 2026-09-28 |
 
   **The source is the segment, not named hosts.** Every one of those passes is
@@ -286,12 +286,14 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   bulk restructure with no measurement behind either, and nothing here has read
   a model off either device. Treat both rows as unconfirmed until someone does.
 - **Prometheus' and Loki's ingest ports are not on the list above.** `9090` and
-  `3100` are published without authentication
-  ([#182](https://github.com/Gerrrt/HomeLab/issues/182)) and were reachable from
-  this segment for as long as the catch-all was the only rule between them;
-  *Block access to Winterfell* now drops them. Narrower, not gone:
-  `10.0.30.110` still has an explicit pass to both ports for `Saruman`'s Alloy
-  agent, and nothing stops a host already on Winterfell.
+  `3100` were reachable from this segment for as long as the catch-all was the
+  only rule between them; *Block access to Winterfell* now drops them. They are
+  also authenticated since [#182](https://github.com/Gerrrt/HomeLab/issues/182):
+  an ingest proxy holds both, and serves a push only to an agent token and a
+  query only to the reader token. So the firewall is no longer the only thing
+  between a Hicks workstation and the metric and log stores.
+  `10.0.30.110` keeps its explicit pass for `Saruman`'s Alloy agent, which now
+  presents `Saruman`'s own token.
 - **ImaginationLAN is reached entire**, on every protocol and port, by
   decision: [ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)
   keeps it open until the lab build produces the list of what a workstation
@@ -363,16 +365,17 @@ Televisions and consoles. Internet only.
   to CasaBonita* on their interfaces. Everything else on every other segment is
   still refused, and the televisions need no rule at all because they share this
   broadcast domain with the server. **Two more are written for the phones on
-  Hicks, and one of them exists.** `Allow 4533 to smaug`, Hicks →
+  Hicks, and both exist.** `Allow 4533 to smaug`, Hicks →
   `10.0.40.30:4533`, for Navidrome's Subsonic apps
   ([#141](https://github.com/Gerrrt/HomeLab/issues/141)), was created on
-  2026-09-22 ahead of the service and verified in position from `morpheus`;
-  until Navidrome is deployed it matches nothing, because nothing listens
-  there. `Allow 13378 to smaug`, Hicks → `10.0.40.30:13378`, for
+  2026-09-22 ahead of the service and verified in position from `morpheus`,
+  and a Hicks workstation and phone reached Navidrome through it on
+  2026-09-30. `Allow 13378 to smaug`, Hicks → `10.0.40.30:13378`, for
   Audiobookshelf
   ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)),
-  is specified and not yet created. ADR-0050 calls it the fifth; 4533 and
-  445 were made first, so it will be the seventh.
+  was created by §6.5 and reached from a Hicks workstation on 2026-09-29.
+  ADR-0050 calls it the fifth; 4533 and 445 were made first, so it is the
+  seventh.
   [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 and §6.6 deploy the
   two services. **One more is for workstations, and it exists.** `Allow SMB to
   smaug`, Hicks → `10.0.40.30:445`, lets a Hicks workstation mount the `media`
@@ -380,7 +383,17 @@ Televisions and consoles. Internet only.
   `bilbo` ([ADR-0051](adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md),
   [#523](https://github.com/Gerrrt/HomeLab/issues/523)). It was created on
   2026-09-23 by `build-the-nas.md` §5, and a Hicks workstation has mounted the
-  share through it. Six exist today.
+  share through it. With 4533 and 13378, seven exist from Hicks and
+  Winterfell. **One more is from ImaginationLAN, and it exists, which makes
+  eight.** `Allow NFS from Saruman to smaug`,
+  `10.0.30.110 → 10.0.40.30:2049`, lets the hypervisor mount `erebor/iso` as
+  its ISO store for Packer
+  ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),
+  [#446](https://github.com/Gerrrt/HomeLab/issues/446)). It was created on
+  2026-10-01 by `build-the-nas.md` §5b, directly above `igc0.30`'s *Block
+  access to CasaBonita*. `Saruman` has mounted the share through it, and
+  `alexander` is refused. `golem`'s `2049` pass (ADR-0053) goes above the
+  same block when it is built.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
@@ -415,20 +428,33 @@ Where things get broken on purpose.
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
 | odin | `10.0.30.60` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Security tooling (SOC) |
+| bahamut | `10.0.30.50` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller (PDC) |
+| leviathan | `10.0.30.51` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller |
+| titan | `10.0.30.52` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab file server |
+| ramuh | `10.0.30.53` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab application server |
 | carbuncle | `10.0.30.54` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
+| fenrir | `10.0.30.90` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Zeek sensor |
 
 ### Notes
 
 - Reachable from Hicks only; outbound internet permitted.
+- **The block that stops it reaching CasaBonita is *Block access to
+  CasaBonita*** on `igc0.30`, one of a run of per-segment blocks (Degens,
+  Skids, CasaBonita, Hicks, Winterfell, the untagged LAN) that sit above the
+  #223 tripwire and *Allow internet*. A pass from this segment to `smaug`
+  goes directly above it. `Allow NFS from Saruman to smaug` does, since
+  2026-10-01 ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+  [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md) §4
+  asked for this block to be named here.
 - `shiva` and `Saruman` are the same physical box: `shiva` is the iLO BMC on its
   dedicated port, `Saruman` is the Proxmox install. They are separate addresses
   and separate names, and conflating them is a mistake this document previously
   made.
-- `Saruman` runs three guests: `alexander`, built 2026-09-05
-  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), `phoenix`, built
-  2026-09-20 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)), and `odin`,
-  built 2026-09-27, described below. `alexander` runs
+- `Saruman` runs every row in the table above whose device is "KVM guest on
+  `Saruman`". The table is the count, so this note does not repeat it. Several
+  of them are described below. `alexander`, built 2026-09-05
+  ([#262](https://github.com/Gerrrt/HomeLab/issues/262)), runs
   [`stacks/lab`](../stacks/lab) — the lab's own Prometheus, Loki, Grafana and
   Alloy. **It is a guest and not the hypervisor for a reason**: a compose stack
   is Docker, and Docker would rewrite the iptables of the box whose own
@@ -441,12 +467,35 @@ Where things get broken on purpose.
   nothing outside the lab can tell it apart from a lab nobody is using
   ([#257](https://github.com/Gerrrt/HomeLab/issues/257)).
 - `carbuncle` and `siren` are [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)'s
-  two endpoints. They are built and activated, reported 2026-09-26, and not yet
-  joined, because the domain they join is not built
-  ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md)). Their
+  two endpoints. They were built and activated, reported 2026-09-26, and are
+  joined to `ad.matrix.elysium`, which `bahamut`, `leviathan`, `titan` and
+  `ramuh` were built by hand on 2026-09-24 and 2026-09-25 to serve
+  ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md),
+  [#414](https://github.com/Gerrrt/HomeLab/issues/414)). Their
   addresses are DHCP reservations, read from `morpheus`'s `config.xml` on
   2026-09-26, and not statics. They run per session, so an absence from the
   segment is normal.
+- **DNS on this segment has two answers, by decision.** The six domain members
+  resolve at the two DCs, `bahamut` and `leviathan`, which are authoritative
+  for `ad.matrix.elysium` and forward everything else to `10.0.30.1`.
+  Everything else on the segment (`alexander`, `odin`, `phoenix`, `fenrir`,
+  `Saruman`) still resolves at the gateway, as ADR-0010 has it. There is **no
+  domain override for the AD zone on Unbound**, and that is deliberate
+  ([ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)).
+  An override would put a nameserver on the attackers' segment into the house
+  resolver's path. So an AD name that resolves from `alexander` is a design
+  regression, not a fix.
+- `10.0.30.61` and VMID 161 are reserved for `diabolos`, the disposable
+  investigation guest of
+  [ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)
+  ([#438](https://github.com/Gerrrt/HomeLab/issues/438)). It is not in the table
+  above because most of the time it does not exist: it is built for one
+  investigation and destroyed at the end of it
+  ([`run-a-scratch-investigation.md`](runbooks/run-a-scratch-investigation.md)).
+  `.61` breaks the decade spacing on purpose, since every `.x0` from `.10` to
+  `.90` is taken or reserved, and sits in `odin`'s decade because it runs
+  `odin`'s stack. While it exists it is a static below the DHCP pool, like
+  `odin`, and it gets no firewall rule the segment does not already have.
 - `odin` is at `10.0.30.60` — a static below `.100`, continuing the decade
   spacing — for [`stacks/soc`](../stacks/soc): Wazuh and Velociraptor, the
   security half of ADR-0007, placed there by
@@ -494,10 +543,23 @@ Where things get broken on purpose.
   alias is pinned to `10.0.30.110` so that the four rules above are the only
   way in. Hicks reaches `8006`, `8007` and `22`; `phoenix` reaches `8006`;
   nothing else on this segment reaches the hypervisor at all.
+- `fenrir` is at `10.0.30.90`, the next free decade, built 2026-09-30 as the
+  Zeek sensor of
+  [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)
+  ([#437](https://github.com/Gerrrt/HomeLab/issues/437),
+  [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md)). It has a
+  second NIC with no address, alone on a bridge `vmbr1` on `Saruman` that has
+  no physical port, no address and no VLAN awareness. That bridge carries only
+  the copies of `vmbr0`'s traffic the hypervisor's `tc` mirror sends it, so it
+  is not a second segment and needs no row in this document's tables. Every
+  path `fenrir` needs is intra-segment — its Alloy pushes to `alexander` — so
+  it adds no firewall rule.
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
   into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
-  only; guests get no such rule (ADR-0007, as amended by #88).
+  only; guests get no such rule (ADR-0007, as amended by #88). Past the rule,
+  the ingest proxy wants `Saruman`'s agent token (#182), so the pass lets the
+  host try and the token is what gets it served.
 - **`Saruman` is the one fixed address that sits inside a DHCP pool.** Every
   other static in the estate lives below `.100`; this one is at `.110`, and the
   ImaginationLAN pool runs `.100–.200`. Until 2026-08-30 there was no
@@ -635,7 +697,10 @@ See [`hardware.md`](hardware.md).
 
 ## Diagrams
 
-- [Current topology](diagrams/current/matrix_elysium.png) — high-resolution
-  export. An inline Mermaid version is in [`architecture.md`](architecture.md).
-- [Previous topology](diagrams/previous/Network_Diagram.png) — kept for
-  comparison.
+- [Current network diagram](diagrams/current/network.svg) — drawn from this
+  file and [`hardware.md`](hardware.md), so a change to a table here touches
+  it in the same pull request ([`diagrams/README.md`](diagrams/README.md)).
+  An inline Mermaid version is in [`architecture.md`](architecture.md).
+- Previous diagrams, kept for comparison:
+  [`matrix_elysium.png`](diagrams/previous/matrix_elysium.png) (2025) and
+  [`Network_Diagram.png`](diagrams/previous/Network_Diagram.png).

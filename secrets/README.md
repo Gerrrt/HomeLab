@@ -1,5 +1,8 @@
 # Secrets
 
+[![SOPS](https://img.shields.io/badge/SOPS-6f42c1?style=plastic)](https://github.com/getsops/sops)
+[![age](https://img.shields.io/badge/age-6f42c1?style=plastic)](https://github.com/FiloSottile/age)
+
 Secrets are encrypted with [SOPS](https://github.com/getsops/sops) using an
 [age](https://github.com/FiloSottile/age) key, committed in encrypted form, and
 decrypted only in memory at deploy time.
@@ -11,8 +14,25 @@ decrypted only in memory at deploy time.
 | `~/.config/sops/age/keys.txt` | **never** | n/a | The private key |
 
 Every stack under `stacks/` has an example here in the same shape, except
-`stacks/media`, which has none by decision:
-[`docs/security.md`](../docs/security.md) § Secrets says why.
+two. `stacks/media` has none by decision:
+[`docs/security.md`](../docs/security.md) § Secrets says why. `stacks/wiki`
+has none because its one secret, the database role's password, lives in a
+file on `oracle` readable by uid 1000 alone, and never passes through SOPS:
+[its README](../stacks/wiki/README.md#the-one-secret) says where and why.
+
+**One encrypted file belongs to no stack: `tofu.sops.yaml`.** It is the escrow
+copy of `tofu/`'s state passphrase
+([ADR-0076](../docs/adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)),
+encrypted on `phoenix` to the catch-all rule's recipients. `phoenix` holds no
+age key, so it can write the file and cannot read it. Nothing renders it.
+`tofu.example.yaml` documents its one key.
+
+**One encrypted file is never committed: `scratch.sops.yaml`.** It is encrypted
+to the key of `diabolos`, a guest destroyed after every investigation
+([ADR-0071](../docs/adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)).
+Committing it would put ciphertext for a dead key in git, and a change to
+`.sops.yaml` with it, once per incident. `.gitignore` keeps it out, and the
+`scratch` rule's placeholder stays in git permanently.
 
 > What is committed is ciphertext: the values are encrypted to the age
 > recipients listed in [`.sops.yaml`](../.sops.yaml), and the key names are left

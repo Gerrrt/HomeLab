@@ -1,0 +1,58 @@
+---
+# titan's two shares (runbook §5): Public, and Finance with its decoy. The decoy
+# is "a share nobody would open is not a share anyone will be caught opening" —
+# an obviously-interesting file on a share Authenticated Users can reach.
+#
+# titan keeps SMB signing not-required so it stays a relay target; that is
+# roles/base's and §0's concern, asserted in verify.yml, not set here.
+
+- name: The share directories exist
+  ansible.windows.win_file:
+    path: "C:\\Shares\\{{ item }}"
+    state: directory
+  loop: [Public, Finance]
+
+# The decoy's content does not matter, only that it is reachable and tempting.
+# Written only if absent, so its mtime does not move every run.
+- name: The Finance decoy exists
+  ansible.windows.win_copy:
+    dest: C:\Shares\Finance\payroll-2026-Q4.xlsx
+    content: "decoy\n"
+    force: false
+
+# Authenticated Users, matching as-built: Finance is Change, Public is Full. The
+# NTFS ACLs are left at the directory defaults (verify reads the share ACL).
+#
+# Not ansible.windows.win_share: given only `full`/`change` it reports changed
+# on every check-mode run against a share that already grants exactly that
+# ("NT AUTHORITY\Authenticated Users" Full/Change, confirmed on titan). This
+# compares the single ACE first and only acts on a real difference, like
+# roles/dns_client does for the resolvers.
+- name: Publish Public (Full) and Finance (Change) to Authenticated Users
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([object[]]$Shares)
+      $Ansible.Changed = $false
+      $au = 'NT AUTHORITY\Authenticated Users'
+      foreach ($sh in $Shares) {
+        $want = $sh.right
+        $cur = Get-SmbShare -Name $sh.name -ErrorAction SilentlyContinue
+        if ($cur -and $cur.Path -eq $sh.path) {
+          $ace = @(Get-SmbShareAccess -Name $sh.name)
+          if ($ace.Count -eq 1 -and $ace[0].AccountName -eq $au -and
+              $ace[0].AccessControlType -eq 'Allow' -and $ace[0].AccessRight -eq $want) {
+            continue
+          }
+        }
+        $Ansible.Changed = $true
+        if ($Ansible.CheckMode) { continue }
+        if ($cur) { Remove-SmbShare -Name $sh.name -Force | Out-Null }
+        $p = @{ Name = $sh.name; Path = $sh.path }
+        if ($want -eq 'Full') { $p.FullAccess = $au } else { $p.ChangeAccess = $au }
+        New-SmbShare @p | Out-Null
+      }
+    parameters:
+      Shares:
+        - {name: Public, path: 'C:\Shares\Public', right: Full}
+        - {name: Finance, path: 'C:\Shares\Finance', right: Change}

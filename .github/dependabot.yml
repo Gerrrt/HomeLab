@@ -42,9 +42,10 @@ updates:
         patterns: ["prom/*"]
 
   # The sensitive tier. Its images share nothing with the other stacks, so
-  # no groups; each bump is its own PR, and each is a deploy to a host the
-  # operator has to be sitting in front of. Present before the host is, for
-  # the reason the lab entry gives: pins rot from the day they are written.
+  # no groups; each bump is its own PR, and each merge is a deploy: trinity's
+  # homelab-converge-sensitive applies it within the hour (#533), so review
+  # it as one. Written before the host existed, for the reason the lab entry
+  # gives: pins rot from the day they are written.
   - package-ecosystem: docker-compose
     directory: /stacks/sensitive
     schedule:
@@ -97,10 +98,79 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "media"]
 
+  # stacks/wiki (#251): Wiki.js and its Postgres on oracle, deployed by hand
+  # from main the way stacks/media is, so a bump merged here reaches the host
+  # only when README.md's fetch is run there. Postgres is held to 17 by
+  # ignoring majors: a major is a dump and a restore (ADR-0065), never a
+  # digest bump.
+  - package-ecosystem: docker-compose
+    directory: /stacks/wiki
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies"]
+
+  # stacks/sensor (#437): Zeek and Alloy on fenrir. It shipped without an
+  # entry, so for its first day its two digests were pinned and bumped by
+  # nothing, the rot the first entry warns about. ADR-0069 found the gap,
+  # because its whole argument leans on this stack's image being kept current.
+  # Deployed by hand with `docker compose` on fenrir, like media and wiki, so
+  # a merged bump reaches the host when the stack is pulled there.
+  - package-ecosystem: docker-compose
+    directory: /stacks/sensor
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "soc"]
+
+  # stacks/scratch (#438, ADR-0071): the disposable copy of soc on diabolos,
+  # on the same images and digests. Its own entry because a separate
+  # directory is a separate PR, so a wazuh/* release arrives as one PR here and
+  # one in /stacks/soc. Merge them together: the two stacks share their mounted
+  # config, and a scratch store on a different Wazuh from odin's answers a
+  # different question.
+  - package-ecosystem: docker-compose
+    directory: /stacks/scratch
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "soc"]
+    groups:
+      wazuh:
+        patterns: ["wazuh/*"]
+
+  # ansible/ (ADR-0077): ansible-core in requirements.txt, ansible-lint in
+  # requirements-lint.txt, both exact. The collections in requirements.yml are
+  # not an ecosystem Dependabot reads, and stay a deliberate edit like Packer's
+  # plugin pin. Monthly: phoenix applies these by hand, so a weekly PR would
+  # outrun anyone running them.
+  - package-ecosystem: pip
+    directory: /ansible
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "lab"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      # Weekly since #839. The actions are pinned to commit SHAs now, so a
+      # security fix in one reaches CI only through this PR; a month is too
+      # long to wait for that.
+      interval: weekly
     commit-message:
       prefix: "chore(ci)"
     labels: ["dependencies", "ci"]

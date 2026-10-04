@@ -225,10 +225,15 @@ The first four were created on 2026-09-16. Navidrome's `4533` was created on
 2026-09-22 as step 1 of §6.6, ahead of the service — its position is provable
 without a listener, and its reach is §6.6 step 5. Audiobookshelf's `13378`
 ([ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md),
-which calls it the fifth; it will be the seventh to exist) is created as step 1
-of §6.5. `Allow SMB to smaug` on `445`, for workstations mounting the share
+which calls it the fifth; it is the seventh to exist) was created as step 1
+of §6.5, which was done by 2026-09-29. `Allow SMB to smaug` on `445`, for workstations mounting the share
 ([ADR-0051](../adr/0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md)),
-was created on 2026-09-23 in §5, after the user it serves.
+was created on 2026-09-23 in §5, after the user it serves. `Allow NFS from
+Saruman to smaug` on `2049`, for the ISO store
+([ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)),
+was created on 2026-10-01 in §5b, after the share it serves. It is the
+first row here on ImaginationLAN. `golem`'s `2049` pass is ImaginationLAN's other one, and
+[`build-the-backup-guest.md`](build-the-backup-guest.md) §4 keeps it.
 
 | On interface | Protocol / source → destination | Description | Position |
 | --- | --- | --- | --- |
@@ -239,6 +244,7 @@ was created on 2026-09-23 in §5, after the user it serves.
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `22` | `Allow SSH to smaug` | **above** *Block access to CasaBonita* |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `13378` | `Allow 13378 to smaug` | **above** *Block access to CasaBonita* — §6.5 |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `445` | `Allow SMB to smaug` | **above** *Block access to CasaBonita* — §5 |
+| ImaginationLAN (30) | `tcp` `10.0.30.110` → `10.0.40.30` port `2049` | `Allow NFS from Saruman to smaug` | **above** *Block access to CasaBonita* on `igc0.30` — §5b |
 
 **Four, where [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 wrote three.** The Hicks pass is one rule per port rather than one rule
@@ -359,6 +365,17 @@ anything in this runbook.
 > in [`hardware.md`](../hardware.md)'s `smaug` entry, and the consequence —
 > a controller between ZFS and its disks, and what that means for the swap —
 > is in the disk runbook's step 4 and open list.
+>
+> **Re-cabled 2026-09-29, and now on the chipset.** At the disk swap
+> ([ADR-0052](../adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)),
+> both trays went onto the chipset on two new plain SATA cables, the
+> MegaRAID came out, and the pool imported there. The links read `ata1` and
+> `ata2` at 6.0 Gbps for the Exos, `ata6` for the boot SSD, and `ata5` for
+> the optical drive, which went back in the same day. `ata3` and `ata4` are
+> free. Board connector labels were not read, so this names ports the way
+> the kernel does. The instruction below still names `SATA2` and `SATA3`.
+> That is kept as the record of what was believed. For a rebuild, cable any
+> free chipset port and confirm the port with `dmesg`.
 
 Power down, unplug, hold the power button five seconds, ground yourself.
 
@@ -640,6 +657,152 @@ Have a Hicks workstation and a shell on `morpheus` ready.
    rule's position as `pfctl` printed it, and the mount. Then update the pass
    counts in `network.md`, `security.md` and `stacks/media/README.md` from
    *specified* to *created*, in one commit, the way `4533` was.
+
+## §5b — The ISO store, for `Saruman`
+
+[ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),
+[#446](https://github.com/Gerrrt/HomeLab/issues/446). An NFSv4 export of
+`erebor/iso` to the hypervisor alone, for the installer ISOs that Packer
+([#440](https://github.com/Gerrrt/HomeLab/issues/440)) builds templates from.
+This follows [`build-the-backup-guest.md`](build-the-backup-guest.md) §3–§5,
+which builds the same shape for `golem`. Where a step is the same, this points
+there. Have the TrueNAS UI and console shell, the pfSense UI, a shell on
+`morpheus`, and a root shell on `Saruman` ready.
+
+> **Done 2026-10-01.** The dataset was created through the TrueNAS API
+> rather than the UI: `erebor/iso`, lz4, atime off, dedup off, POSIX ACLs,
+> a 500 GiB quota, no snapshot task. Record size reads `1M`.
+> `pippin` is uid `3003`, gid `3002`. The share admits `10.0.30.110` alone,
+> with maproot `pippin`/`pippin`.
+>
+> `Allow NFS from Saruman to smaug` was read from `morpheus` with
+> `pfctl -sr -vv`. On `igc0.30` it printed directly above *Block access to
+> CasaBonita*, after the DHCP passes, `Saruman`'s two Alloy passes to
+> `10.0.99.20`, the three pfSense management blocks, and the Degens and
+> Skids blocks. `golem`'s pass does not exist yet, so this is the only `2049`
+> pass on that interface.
+>
+> On `Saruman`, `df` showed `10.0.40.30:/mnt/erebor/iso` at `500G`, the quota
+> and not the pool. `pvesm status` showed `smaug-iso` as an active `dir`
+> storage of 524,288,000 KiB. An upload through the web UI,
+> `virtio-win-0.1.302.iso` (877,373,440 bytes), landed in
+> `/mnt/erebor/iso/template/iso/` owned by `3003:3002`, which is `pippin`,
+> not root. lz4 holds it in about 330 MiB on disk. It is the VirtIO driver
+> disc #440's Windows builds will need, so it stays.
+>
+> `alexander`, on VLAN 30 and not `Saruman`, is refused on `2049`: the
+> connection timed out, which is the block dropping it. So is the
+> monitoring host. The `igc0.40` tripwire reads **0 packets** after 260,980 evaluations.
+>
+> One thing found on the way: the `apt install` in step 6 also finished an
+> `alloy` upgrade that an earlier run had left half-configured, and dpkg
+> asked about `/etc/default/alloy`. Keep the installed version (`N`). That
+> file is `scripts/deploy-agent.sh`'s, and the package's version would
+> blank `Saruman`'s push endpoints.
+
+| | |
+| --- | --- |
+| Dataset | `erebor/iso`: not snapshotted, not backed up, 500 GiB quota |
+| Export | NFSv4, to `10.0.30.110` alone, maproot `pippin` |
+| Rule | ImaginationLAN (30): `10.0.30.110 → 10.0.40.30:2049/tcp`, `Allow NFS from Saruman to smaug` |
+| On `Saruman` | `fstab` mount at `/mnt/smaug-iso`, Proxmox `dir` storage `smaug-iso`, content `iso`, `is_mountpoint` |
+
+1. **The dataset.** It exists (above). Finish it from the console shell, and
+   confirm the rest:
+
+   ```bash
+   zfs set recordsize=1M erebor/iso && zfs get -H -o property,value recordsize,atime,compression,quota erebor/iso
+   ```
+
+   `1M`, `off`, `lz4`, `500G`. **Do not add it to a snapshot task**, and do
+   not let §4.1's task become recursive: ISOs are replaceable, and holding
+   deleted ones in snapshots would make the quota lie.
+
+2. **The user.** **Credentials → Users → Add**: `pippin`, with SMB, TrueNAS
+   access, shell, SSH and sudo all **off**, and *Create Home Directory*
+   clear. It owns one directory and logs in nowhere. Then, on the console:
+
+   ```bash
+   chown pippin:pippin /mnt/erebor/iso && chmod 755 /mnt/erebor/iso && ls -ld /mnt/erebor/iso
+   ```
+
+3. **The service.** If `golem`'s share does not exist yet, this is the step
+   that turns NFS on. **System → Services → NFS → Edit**: **Enable NFSv4**
+   on, NFSv3 ownership model for NFSv4 off. Save, then start it and set it to
+   start automatically. If `golem`'s share already exists, the service is
+   already in this state. Read it and change nothing.
+
+4. **The share.** **Shares → Unix (NFS) Shares → Add**:
+
+   | | |
+   | --- | --- |
+   | Path | `/mnt/erebor/iso` |
+   | Description | `ISO store for Saruman (ADR-0072)` |
+   | Authorized hosts | `10.0.30.110` |
+   | Maproot User / Group | `pippin` / `pippin` |
+   | Mapall | empty |
+
+   **Maproot to `pippin`, not to `root` and not to `nobody`**, for the reason
+   `build-the-backup-guest.md` §3 gives for `backup`. Proxmox uploads as root,
+   and a squash to `nobody` refuses the write.
+
+5. **The rule**, in the pfSense UI on **ImaginationLAN (30)**: pass, `tcp`,
+   source `10.0.30.110`, destination `10.0.40.30` port `2049`, description
+   exactly **`Allow NFS from Saruman to smaug`**. Place it **directly above**
+   the first block on that interface whose destination covers
+   `10.0.40.0/24`. `build-the-backup-guest.md` §4 finds that block and names
+   it in `network.md`. If `golem`'s pass exists, put this one beside it.
+   Then read the order from `morpheus`, not the UI:
+
+   ```bash
+   pfctl -sr -vv | grep -E 'on igc0\.30 '
+   ```
+
+   `Allow NFS from Saruman to smaug` must print before that block. Read the
+   order, not the `@` numbers (§0.6).
+
+6. **The mount, on `Saruman`.** The mountpoint gets `golem`'s guard: it is
+   made immutable while empty, so an unmounted share leaves nothing for
+   Proxmox to write into:
+
+   ```bash
+   apt install -y nfs-common && mkdir -p /mnt/smaug-iso && chattr +i /mnt/smaug-iso
+   ```
+
+   ```bash
+   echo "10.0.40.30:/mnt/erebor/iso /mnt/smaug-iso nfs4 rw,hard,noatime,_netdev,nofail 0 0" >> /etc/fstab && systemctl daemon-reload && mount /mnt/smaug-iso && df -h /mnt/smaug-iso
+   ```
+
+   `df` must show `10.0.40.30:/mnt/erebor/iso` at `500G`, the quota and not
+   the pool's free space. Then the storage, as `dir` and not `nfs`. The
+   reason is ADR-0072's decision 5: Proxmox's NFS type checks the portmapper
+   on `111` first, and this rule does not open it.
+
+   ```bash
+   pvesm add dir smaug-iso --path /mnt/smaug-iso --content iso --is_mountpoint yes && pvesm status --storage smaug-iso
+   ```
+
+   `active`. Proxmox creates `template/iso/` under the mount on first use.
+   Upload one small ISO through the web UI to `smaug-iso`. On `smaug`'s
+   console, `ls -ln /mnt/erebor/iso/template/iso/` must show it owned by
+   `pippin`'s uid, not by `0`.
+
+7. **The scope.** From `alexander`, which is on VLAN 30 and is not `Saruman`,
+   the port must be refused. That proves the rule is scoped to one address,
+   not to the segment:
+
+   ```bash
+   nc -z -w 3 10.0.40.30 2049 && echo "2049 OPEN - wrong" || echo "2049 refused - correct"
+   ```
+
+   From the monitoring host, the same command must also print *refused*. Then
+   check that the `igc0.40` tripwire's packet count is still zero (§0.6).
+
+8. **Record it here**, in a note at the top of this section: the date, the
+   rule's position as `pfctl` printed it, the upload's owner, and the
+   refusal. Then move the rule from *specified* to *created* in this file's
+   §0.5 table, `network.md`, `security.md` and `stacks/media/README.md`, in
+   one commit. That commit is what finishes #446.
 
 ## §6 — The stack, and the scrape
 
@@ -1132,12 +1295,17 @@ world-readable on purpose — uid 65534 has to read it — and carries no serial
 numbers by the script's design.
 
 **3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**, and
-every field is load-bearing:
+every field is load-bearing. The **Command** field takes exactly this, one
+line, nothing after it:
+
+```text
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 600 /bin/bash /mnt/erebor/apps/stack/collect-smart-state.sh --host smaug
+```
 
 | Field | Value | Why |
 | --- | --- | --- |
 | Description | `homelab smart-state (#483, ADR-0047)` | So the next person finds the decision from the job |
-| Command | the step-2 command line, exactly, without the `ls` | `PATH`, `TEXTFILE_DIR`, `timeout 600` and `--host smaug` each for the reason step 1 gives; `/bin/bash` so the exec bit is not relied on |
+| Command | the block above, exactly | `PATH`, `TEXTFILE_DIR`, `timeout 600` and `--host smaug` each for the reason step 1 gives; `/bin/bash` so the exec bit is not relied on |
 | Run As User | `root` | `smartctl` issues pass-through ioctls and no group substitutes; without root the script counts devices it cannot read and emits no attributes |
 | Schedule | daily, `08:30` | The estate's `smart-state` slot on the monitoring host, in this host's zone (`America/Los_Angeles`, §4.1); `SmartStateStale` fires at two days, twice the period |
 | Hide Standard Output | **on** | Success is one line and TrueNAS would mail it daily |
@@ -1151,9 +1319,13 @@ day's numbers forever; `SmartStateStale` in `host.rules.yaml` exists for
 exactly that.
 
 **4. The baseline row, only if step 1 disagreed with it.** The row in
-`scripts/render-smart-baselines.sh` reads `smaug /dev/sdc 4`. If the S3520
-printed as another letter, change the row — the letter only, never the
-count — merge it, and on the monitoring host:
+`scripts/render-smart-baselines.sh` read `smaug /dev/sdc 4` when this
+section ran. Since [#745](https://github.com/Gerrrt/HomeLab/issues/745) it
+is keyed on the drive's port, not its letter
+([ADR-0066](../adr/0066-key-smart-series-on-the-port-not-the-letter.md)), and
+reads `smaug pci-0000:00:17.0-ata-6 4`: compare the `slot=` on the S3520's
+lines, not the letter. If it differs, change the row — the slot only, never
+the count — merge it, and on the monitoring host:
 
 ```bash
 sudo make smart-state
@@ -1229,20 +1401,85 @@ reopens it.
 > The cron job is as the table says: daily 08:30, `root`, stdout hidden,
 > stderr not.
 
+**7. Read the counter at boot, and record the clean stops
+([#746](https://github.com/Gerrrt/HomeLab/issues/746)).** Added 2026-10-01
+and corrected 2026-10-03, after this section's done block. Two init scripts.
+The second runs the collector at boot, so a cut is read at the boot after it
+instead of at the next 08:30. The first records what kind of clean stop came
+before, so a page can say whether a planned power-off came first.
+
+**What the drive counts.** #746 began from the S3520 reading 522 before a clean
+*System → Shut Down* on 2026-09-29 and 523 after, and read that as a clean stop
+ticking the drive. Controlled stops settled it on 2026-10-02/03: two UI
+Restarts and one UI Shut Down, left plugged in, all left it at **523**. On
+2026-09-29 the box was also unplugged for the memory install, and that is what
+it counted. A clean TrueNAS shutdown does not move the counter; removing mains
+afterwards can. So unplugging for maintenance, or the UPS cutting its output
+after its halt, **pages once**, and the page says a clean power-off came first.
+
+From the console shell, as root, fetch the script next to the collector and
+prove it writes:
+
+```bash
+cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/mark-clean-shutdown.sh \
+  && chmod 0755 mark-clean-shutdown.sh
+/bin/bash /mnt/erebor/apps/stack/mark-clean-shutdown.sh --self-test
+```
+
+Do **not** run it for real by hand. Every run records a stop that did not
+happen, and a page that day would blame an unplug that never was.
+
+Then **System → Advanced Settings → Init/Shutdown Scripts → Add**, twice:
+
+| Field | SHUTDOWN script | POSTINIT script |
+| --- | --- | --- |
+| Description | `homelab clean-shutdown count (#746)` | `homelab smart-state at boot (#746, ADR-0047)` |
+| Type | Command | Command |
+| Command | `TEXTFILE_DIR=/mnt/erebor/apps/textfile /bin/bash /mnt/erebor/apps/stack/mark-clean-shutdown.sh --host smaug` | the step-2 command line, exactly, without the `ls` |
+| When | Shutdown | Post Init |
+| Timeout | `10` | `660` — the collector's own `timeout 600`, plus a minute |
+| Enabled | on | on |
+
+The SHUTDOWN script runs on every stop that goes through the init system. A
+pulled plug, a crash or a cut that outlasts the pack never runs it. It asks
+systemd where the stop is headed:
+
+- **A power-off** (the UI's Shut Down, or the UPS service's halt on `LB`,
+  [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md))
+  goes up `homelab_clean_shutdowns_total`.
+- **A Restart** goes up `homelab_clean_restarts_total`.
+- **Anything systemd does not name** goes up
+  `homelab_clean_stops_unclassified_total`.
+
+`SmartDriveUnsafeShutdownsGrowing` reads only the first, and only in its
+description. No count here can silence a page.
+
+Its file, `clean-shutdowns-smaug.prom`, is rewritten only on a stop. An old
+mtime is correct, and `SmartStateStale` does not watch it.
+
+> **Proved 2026-10-02/03.** A UI Restart read `homelab_clean_restarts_total 1`,
+> `homelab_clean_shutdowns_total` unchanged, unclassified `0`, stamped 56 s
+> before the boot. A UI Shut Down, off about four minutes and powered on by
+> the button, read `homelab_clean_shutdowns_total 2`, stamped 258 s before the
+> boot. The collector's file was rewritten 82 s after that boot, and the
+> S3520 read **523** throughout.
+
 ### §6.5 — Add Audiobookshelf
 
 [#140](https://github.com/Gerrrt/HomeLab/issues/140),
 [ADR-0050](../adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md).
-The service is in `compose.yaml` from the day it merged, and **nothing here
-has been done on this host.** The roadmap holds it until the mirror is whole
+The service is in `compose.yaml` from the day it merged, and **every step
+below has been done on this host** — see the Done block at the end. The roadmap held it until the mirror was whole
 ([#558](https://github.com/Gerrrt/HomeLab/issues/558)): its state lands on
 `erebor/apps` like Jellyfin's, and a pool of one disk is not the place to
-start accumulating a new thing worth backing up.
+start accumulating a new thing worth backing up. **The gate opened
+2026-09-29**, when the resilver and the scrub completed.
 
-Until this section runs, `scripts/backup-nas.sh` carries
-`audiobookshelf-state` as **pending** and skips it by name when its directory
-is absent from the snapshot, so the weekly Jellyfin pull is not broken by a
-service that is not there yet. Step 8 is where that stops being allowed.
+Until this section ran, `scripts/backup-nas.sh` carried
+`audiobookshelf-state` as **pending** and skipped it by name when its directory
+was absent from the snapshot, so the weekly Jellyfin pull was not broken by a
+service that was not there yet. Step 8 is where that stopped being allowed.
 
 1. **Create the fifth rule** in §0.5's table, in the pfSense UI: Hicks (50),
    `tcp`, `vlan50 net` → `10.0.40.30` port `13378`, description exactly
@@ -1318,17 +1555,44 @@ service that is not there yet. Step 8 is where that stops being allowed.
    still **zero**. The app talks to the server; nothing on the server talks
    out to anything but the internet it already had.
 
-> **Not yet done.** The date, the set stamp from step 7 and the two readings
-> from steps 6 and 9 go here, in the commit that flips step 8.
+> **Done 2026-09-29.** `docker compose up -d` ran before that morning's
+> 03:00 snapshot, so `erebor/apps@auto-2026-09-29_03-00` was the first to hold
+> `audiobookshelf/`, and step 7 ran against it the same day rather than the
+> day after.
+>
+> **The pass is live.** A Hicks workstation (`10.0.50.90`) read
+> `http://10.0.40.30:13378/status` as `serverVersion` **2.36.1**, the pinned
+> tag, with `isInit` **true** — so the rule answers, the container is the one
+> this file pins, and `root` existed before any phone was pointed at it.
+>
+> **Steps 4 and 5:** a *Books* library on `/audiobooks`, automatic backups
+> off, no podcast library.
+>
+> **Step 6, the reason #140 was opened, read true:** a second device signed
+> in as the same user resumed where the first had stopped.
+>
+> **Step 7:** `frodo`'s tar read the `audiobookshelf` directory out of
+> `auto-2026-09-29_03-00` and printed `readable`. The set written by
+> `make backup-nas` listed **both** `jellyfin-config` and
+> `audiobookshelf-state`, and `make verify-backups` passed it. The set's
+> stamp was not recorded here.
+>
+> **Step 9:** the `igc0.40` tripwire read **zero** from `morpheus`.
+>
+> **Step 8** is this commit: `audiobookshelf-state` is `required` in
+> `NAS_ARCHIVES`. The TrueNAS middleware showed `erebor` ONLINE with 0 errors
+> and no active alerts after the pull.
 
 ### §6.6 — Add Navidrome
 
 [#141](https://github.com/Gerrrt/HomeLab/issues/141). Navidrome is in
-`compose.yaml` from the day it merged, and on this host only step 1 has been
-done. It waits on the same gate as §6.5, the mirror being whole
-([#558](https://github.com/Gerrrt/HomeLab/issues/558)), and it is carried in
-`scripts/backup-nas.sh` the same way: `navidrome-data` is **pending**, skipped
-by name while its directory is absent from the snapshot, until step 8.
+`compose.yaml` from the day it merged, and **every step below has been done
+on this host** — see the Done block at the end. It waited on the same gate as
+§6.5, the mirror being whole
+([#558](https://github.com/Gerrrt/HomeLab/issues/558)), which opened on
+2026-09-29. Until this section ran, `scripts/backup-nas.sh` carried
+`navidrome-data` as **pending** and skipped it by name while its directory was
+absent from the snapshot. Step 8 is where that stopped being allowed.
 
 1. **The 4533 pass.** Create `Allow 4533 to smaug` on Hicks exactly as the
    §0.5 table gives it, and read its position from `morpheus` with the
@@ -1375,7 +1639,50 @@ by name while its directory is absent from the snapshot, until step 8.
 > `https`, `8096`, `4533` and the block, in that order, on `igc0.50`; the
 > monitoring host was refused on `4533`; the `igc0.40` tripwire read
 > **0 packets**. What a pass with no listener cannot prove — that Hicks
-> reaches it — is step 5. Steps 2–8 wait on #558.
+> reaches it — is step 5. Steps 2–8 waited on #558, and the mirror has been
+> whole since 2026-09-29.
+>
+> **Done 2026-09-30, and the service had run before this section said so.**
+> `navidrome user list` showed an admin, `gerrrt`, created
+> **2026-09-23 22:41 UTC** from the web form. It was the operator's. So
+> `navidrome/data` existed before any step here recorded it, and the
+> `pending` row pulled it into every NAS set from `20260926T034052Z` on,
+> because a pending row whose directory is present is pulled like a required
+> one. §6.5's Done note had already seen 4533 answering. The lesson for the
+> next service: a bare `docker compose up -d` starts everything in the file
+> whose directories exist, so name the service while a sibling section is
+> still open.
+>
+> **Steps 2–4:** the directories, then a re-fetch and
+> `docker compose up -d navidrome`, recreated the container on the pinned
+> **0.64.2** digest, and it read `healthy` within a minute. A second admin,
+> `admin`, was made from the shell as step 4 says, then deleted, which leaves
+> `gerrrt` as the only admin. A `POST /auth/createAdmin` with no body answers
+> **422**, not 403: the body is parsed before the has-an-admin check. So that
+> probe proves nothing, and `navidrome user list` is the check.
+>
+> **Step 5:** `curl http://10.0.40.30:4533/ping` from a Hicks workstation
+> printed `.`. The monitoring host's `nc` read *correct: blocked*. A Subsonic
+> app on a Hicks phone logged in as `gerrrt` and played a track. The library
+> held no music, so the track was a generated two-minute 440 Hz tone at
+> `music/HomeLab/Deploy Check/`, written by the pinned Jellyfin image's
+> `ffmpeg` in a throwaway container. It picked up `erebor/media`'s inherited
+> ACL as `rwxrwxr-x`, which is readable by 65534. Delete it when real music
+> lands.
+>
+> **Step 6:** against `auto-2026-09-30_03-00`, not a manual snapshot, since the
+> directory predated it. `frodo`'s tar printed `readable`. The set
+> **`20260930T131627Z`** holds `jellyfin-config`, `audiobookshelf-state` and
+> `navidrome-data` (4 entries, `./navidrome.db present`; no `./artwork`
+> yet). It was copied to `atropos` with every hash matching, and
+> `make verify-backups` passed all seven sets there.
+>
+> **Step 7:** the `igc0.40` tripwire, `@205`, read **0 packets** over 251,482
+> evaluations.
+>
+> **Step 8** is this commit: `navidrome-data` is `required` in
+> `NAS_ARCHIVES`. The TrueNAS middleware showed `erebor` ONLINE with 0 errors
+> and no active alerts after the `up`.
 
 ### §6.7 — Turn version collection on
 
@@ -1425,10 +1732,16 @@ A second file beside `smart-state-smaug.prom`: `truenas-version.prom`,
 
 **3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
 
+The **Command** field takes exactly this, one line, nothing after it:
+
+```text
+TEXTFILE_DIR=/mnt/erebor/apps/textfile /bin/bash /mnt/erebor/apps/stack/collect-truenas-version.sh --host smaug
+```
+
 | Field | Value | Why |
 | --- | --- | --- |
 | Description | `homelab truenas-version (#616)` | So the next person finds the issue from the job |
-| Command | the step-2 command line, exactly, without the `ls` | `--host smaug` pins the label to the scrape's `instance`, as §6.4's does; `/bin/bash` so the exec bit is not relied on |
+| Command | the block above, exactly | `--host smaug` pins the label to the scrape's `instance`, as §6.4's does; `/bin/bash` so the exec bit is not relied on |
 | Run As User | `root` | Only because `/mnt/erebor/apps/textfile` is root-owned `0755`; the read itself needs nothing |
 | Schedule | daily, `08:40` | Beside the SMART job and ten minutes after it. The version only changes on an upgrade, but daily means the file is at most a day behind one, well inside the weekly check |
 | Hide Standard Output | **on** | Success is one line and TrueNAS would mail it daily |
@@ -1450,6 +1763,240 @@ day's file carries the new version, and `check-versions` fails until
 
 > **Not yet done.** The date and the two readings from step 4 go here, and
 > [#616](https://github.com/Gerrrt/HomeLab/issues/616) closes on them.
+
+### §6.8 — Turn leaf-state collection on
+
+[#744](https://github.com/Gerrrt/HomeLab/issues/744). On 2026-09-19 a leaf
+of `erebor` FAULTED while `zpool status` and the kstat behind
+`node_zfs_zpool_state` both read the pool **ONLINE**, so `ZpoolNotOnline`
+could not see it, and once the exporter was back nothing paged for a mirror on
+one disk ([`replace-the-nas-disk.md`](replace-the-nas-disk.md)).
+`scripts/collect-zpool-state.sh` reads `zpool status -j` and writes one
+`homelab_zpool_vdev_state` series per leaf of every pool, keyed by the vdev's
+GUID and named by its partuuid, never by `/dev/sdX`, plus its read, write and
+checksum counters and the pool's own state. `ZpoolVdevNotOnline` pages on a
+leaf that is not ONLINE under a pool that is, and `ZpoolVdevErrors` warns on
+any non-zero counter. It runs the way §6.4 and §6.7 do
+([ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)),
+but every **five minutes**: at SMART's daily slot, #558's fault would have
+gone a day unpaged.
+
+**1. The script and a dry run**, from the console shell as root. `--print`
+writes nothing:
+
+```bash
+cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-zpool-state.sh \
+  && chmod 0755 collect-zpool-state.sh
+PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash /mnt/erebor/apps/stack/collect-zpool-state.sh --print --host smaug
+```
+
+Read four things off it. `homelab_zpool_vdev_leaves` is **2** for `erebor`
+and **1** for `boot-pool`. Every `homelab_zpool_vdev_state` line says
+`state="online"`. Each `vdev=` is a partuuid, not `sdX3`: if `boot-pool`'s
+reads as a letter, `/dev/disk/by-partuuid` had no link for it, and that goes
+in the done block. Every `homelab_zpool_vdev_errors` line is **0**. A
+non-zero counter here pages `ZpoolVdevErrors` on the first scrape, so read
+`zpool status -v`, judge it, and `zpool clear` it before step 3 rather than
+after. If the command fails with a usage message, this ZFS has no `-j` and the
+script says so: it needs OpenZFS 2.3, which TrueNAS has shipped since 25.04.
+
+**2. The first real write:**
+
+```bash
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 60 /bin/bash /mnt/erebor/apps/stack/collect-zpool-state.sh --host smaug
+ls -l /mnt/erebor/apps/textfile
+```
+
+A third file beside the other two: `zpool-state-smaug.prom`, `-rw-r--r--`,
+root. The one line it prints includes `not-online=0`.
+
+**3. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
+
+The **Command** field takes exactly this, one line, nothing after it:
+
+```text
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 60 /bin/bash /mnt/erebor/apps/stack/collect-zpool-state.sh --host smaug
+```
+
+On 2026-10-02 step 2's `ls` line was pasted into this field with it.
+TrueNAS joined the two into one line, the script stopped on
+`unknown argument ls` every five minutes, and `ZpoolVdevStateStale` was
+what said so.
+
+| Field | Value | Why |
+| --- | --- | --- |
+| Description | `homelab zpool-state (#744, ADR-0047)` | So the next person finds the issue from the job |
+| Command | the block above, exactly | cron's `PATH` has no `/usr/sbin`, where `zpool` lives; `timeout 60` because a suspended pool can block `zpool status`, and a run that hangs must end and leave the file to go stale; `--host smaug` for the scrape's `instance` |
+| Run As User | `root` | Only because `/mnt/erebor/apps/textfile` is root-owned `0755`; `zpool status` itself needs nothing |
+| Schedule | custom, `*/5 * * * *` | The page is at most one run, one scrape and one minute of `for` behind the fault. `ZpoolVdevStateStale` fires once the file is ten minutes old, twice the period |
+| Hide Standard Output | **on** | Success is one line, 288 times a day |
+| Hide Standard Error | **off** | A failure is the thing worth seeing |
+| Enabled | on | |
+
+**4. Prove it from the monitoring host**, the next time the scrape runs:
+
+```bash
+curl -s http://10.0.40.30:9100/metrics | grep -E '^homelab_zpool_|^node_textfile_scrape_error'
+```
+
+`node_textfile_scrape_error` is **0**, the `homelab_zpool_*` lines match
+step 1, and in Prometheus
+`ALERTS{alertname=~"ZpoolVdev.*"}` is empty.
+
+**5. The fault drill, which is what [#744](https://github.com/Gerrrt/HomeLab/issues/744)
+closes on.** A pulled data cable on one Exos, with the pool still reading
+`ONLINE`, has to page `ZpoolVdevNotOnline` within about seven minutes. Do it
+only with §6.2's newest backup set verified, and with both leaves ONLINE and
+the last scrub clean, because for its duration the mirror is one disk. At the
+console, `zpool status erebor` first, then pull the SATA data cable of one
+Exos (the power cable stays in), following it from a 3.5" caddy and not from
+the boot SSD. Which Exos does not matter: either is a full copy. The caddy
+covers the serial, so name the disk afterwards. The leaf `zpool status`
+marks is the partuuid, and the serial missing from
+`lsblk -o NAME,SERIAL,PARTUUID` is the drive. Watch `zpool status erebor`: record the pool's `state:` line and
+the leaf's state verbatim. **If the pool reads DEGRADED**, `ZpoolNotOnline`
+is the page and `ZpoolVdevNotOnline` correctly stands down. Both outcomes are
+a page, and the reading says which rule this hardware hands the fault to.
+Reseat the cable, `zpool online erebor <partuuid>` if ZFS has not
+brought it back by itself, and let the resilver finish before anything else.
+`zpool offline -t` is **not** a substitute: an offlined leaf takes the pool to
+DEGRADED by definition, so it tests `ZpoolNotOnline`, not this.
+
+**On this hardware a cable pull degrades the pool** (the done block below), so
+it cannot show `ZpoolVdevNotOnline` paging. **Step 5b** shows that, live, with
+a synthetic leaf and nothing real touched. As root at the console:
+
+```bash
+cd /mnt/erebor/apps/textfile && cat > .zpool-drill.tmp <<'EOF'
+# HELP homelab_zpool_state 1 for the state zpool status gives the pool.
+# TYPE homelab_zpool_state gauge
+homelab_zpool_state{host="smaug",pool="drill",state="online"} 1
+# HELP homelab_zpool_vdev_state 1 for the state zpool status gives this leaf vdev.
+# TYPE homelab_zpool_vdev_state gauge
+homelab_zpool_vdev_state{host="smaug",pool="drill",vdev="drill-leaf",guid="744",state="faulted",aux="synthetic drill for #744"} 1
+EOF
+chmod 0644 .zpool-drill.tmp && mv .zpool-drill.tmp zpool-drill-smaug.prom && date
+```
+
+That is 2026-09-19's reading, a FAULTED leaf under an ONLINE pool, for a pool
+named `drill` that does not exist. The HELP and TYPE lines are the
+collector's own, because node_exporter merges a metric across files and a
+mismatch would raise `node_textfile_scrape_error` for the whole directory.
+The name is not `zpool-state-*`, so the stale rule leaves it alone and the
+cron never overwrites it. A critical `ZpoolVdevNotOnline` for `drill` should
+page within about two minutes. Then remove it at once:
+
+```bash
+rm /mnt/erebor/apps/textfile/zpool-drill-smaug.prom && date
+```
+
+> **Done 2026-10-02 (steps 1–4) and 2026-10-03 (step 5).**
+>
+> **Step 1 was the first run against this host's real `zpool status -j`.**
+> The JSON parse had only been built from the OpenZFS 2.3 source. It read
+> `erebor` 2 leaves and `boot-pool` 1, all `online`, every counter 0, and
+> every `vdev=` a partuuid. That includes `boot-pool`'s, which zpool prints
+> as a kernel name and the collector resolved.
+>
+> **Step 3 failed first, and the stale rule caught it.** Step 2's `ls` line
+> went into the Command field with the collector. TrueNAS joined the two
+> lines, and the script stopped on `unknown argument ls` every five minutes
+> (TrueNAS jobs 545 and 559, 14:55 and 15:00). A failed run writes nothing,
+> so the file stopped moving and `ZpoolVdevStateStale` fired. With the field
+> corrected, the 15:15 run wrote it, and from the monitoring host
+> `node_textfile_scrape_error` read **0** with all 17 series matching step 1.
+> The tables in §6.4, §6.7 and here now give each command its own block
+> ([#820](https://github.com/Gerrrt/HomeLab/pull/820)).
+>
+> **smaug rebooted before step 5, and the Exos swapped letters.** The
+> collector's series did not move, because they are keyed on GUID. The file
+> was 118 s old afterwards, so the job survived the reboot. The leaves, read
+> with `lsblk` during the drill:
+>
+> | Partuuid | Serial | Drive |
+> | --- | --- | --- |
+> | `52dfceb0-0c58-476b-be76-ec30184c3781` | `ZVTBS4NL` | Exos, original pair |
+> | `9362abc8-9bc8-4045-9095-f50f03f230c6` | `ZVTLQEZ7` | Exos, fitted 2026-09-29 |
+> | `770066d6-4cf0-47f6-b826-a625335aa556` | `PHDV706401TM240AGN` | S3520, `boot-pool` |
+>
+> **Step 5, 2026-10-03.** Before it: both leaves ONLINE, last scrub
+> 2026-09-29 with 0 errors, newest NAS set `20261003T034255Z` verified with
+> `./data/jellyfin.db present`. `ZVTBS4NL`'s data cable was pulled at
+> **06:08 PDT**. `zpool status erebor` read **`state: DEGRADED`**, with
+> `52dfceb0-…` **REMOVED** and `9362abc8-…` ONLINE. The exporter kept
+> answering: `node_zfs_zpool_state` and `homelab_zpool_state` both read
+> `degraded`, and the leaf series read `removed`. **`ZpoolNotOnline` paged
+> at 06:13**, five minutes after the pull, which is the scrape plus its
+> `for`. **`ZpoolVdevNotOnline` did not fire**, so the stand-down works and
+> one fault gave one page. The cable was reseated and the leaf resilvered at 06:28:21: 392 KiB, the writes it had missed, in under a second with 0 errors. Both leaves are ONLINE with every counter at 0.
+>
+> **What it shows about this hardware.** On the chipset's AHCI ports, a
+> pulled cable is a clean removal, and the pool goes DEGRADED at once. That
+> is `ZpoolNotOnline`'s case. 2026-09-19's FAULTED leaf under an ONLINE pool
+> came through the MegaRAID's sixty-second timeouts, and ADR-0052 took that
+> controller out. So a cable pull cannot reproduce that reading here.
+> `ZpoolVdevNotOnline` stays armed for it, against the unit test built from
+> the 09-19 output, and for anything else that faults a leaf without
+> degrading the pool.
+>
+> **Step 5b, the same morning: `ZpoolVdevNotOnline`'s own live path.** The
+> drill file was written at **06:43:38 PDT**, and the critical page came at
+> **06:45**, the scrape plus the rule's one-minute `for`. The file was
+> removed at 06:46:08. The page was identified by elimination: the file
+> could fire nothing else. `ZpoolNotOnline` reads the kernel's pool state,
+> and there is no pool `drill`. The file carried no error counters for
+> `ZpoolVdevErrors`. Its name is outside `ZpoolVdevStateStale`'s pattern. So
+> both halves of #744 are now read live on this host: a degraded pool pages
+> through `ZpoolNotOnline` with the leaf rule silent, and a faulted leaf
+> under an ONLINE pool pages through `ZpoolVdevNotOnline`, from the textfile
+> through Prometheus and Alertmanager to the phone.
+
+### §6.9 — Turn container-state collection on
+
+Nothing else on this host notices a media container that has stopped and
+stayed stopped: smaug runs no cAdvisor, so `ContainerGone` cannot see it
+([#838](https://github.com/Gerrrt/HomeLab/issues/838)).
+`scripts/collect-container-state.sh` writes one gauge per container of the
+`media` project, with 1 meaning running, into the directory §6.4 made. It runs
+the same way as SMART, as a root cron job in TrueNAS's UI, and the scrape §6.1
+opened carries it. `ContainerNotRunning` fires on a 0, and `ContainerStateStale`
+fires if the job stops.
+
+**1. Fetch it and read one run**, in the TrueNAS shell:
+
+```bash
+cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-container-state.sh \
+  && chmod 0755 collect-container-state.sh
+PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash /mnt/erebor/apps/stack/collect-container-state.sh --print --project media
+```
+
+`--print` prints the metrics to the terminal and writes no file. Expect one
+`homelab_container_running` line per media
+service, each `1`: `media-jellyfin`, `media-audiobookshelf`,
+`media-navidrome` and `media-node-exporter`. A service missing from the list means its container was
+not started from the `media` project. Check `docker ps -a` before going on.
+
+**2. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
+
+```text
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 60 /bin/bash /mnt/erebor/apps/stack/collect-container-state.sh --project media
+```
+
+| Field | Value | Why |
+| --- | --- | --- |
+| Description | `homelab container-state (#838)` | So the next person finds the decision from the job |
+| Command | the block above, exactly | `PATH` because cron's has no `/usr/sbin`; `TEXTFILE_DIR` is the directory node-exporter mounts; `timeout 60` because a wedged Docker daemon would otherwise hang the job |
+| Run As User | `root` | `docker ps` needs the socket |
+| Schedule | every 15 minutes | `ContainerStateStale` fires at 30 minutes, two missed runs |
+
+**3. Confirm.** After the first scheduled run,
+`homelab_container_running{instance="smaug"}` shows the four containers in
+Prometheus. Then stop one deliberately, for example
+`docker stop media-navidrome`. `ContainerNotRunning` should be pending
+within the scrape interval and firing ten minutes later. Start it again with
+`docker start media-navidrome`.
 
 ## §7 — Verify
 
@@ -1485,6 +2032,14 @@ day's file carries the new version, and `check-versions` fails until
 > tray can be touched. The return was opened on 2026-09-20 and the seller's
 > choice is what the swap now waits on.
 > [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries the swap.
+>
+> **2026-09-29: the `zpool status erebor` line is true again.** `ZVTLQEZ7`
+> replaced `ZVTBSDL3` on the chipset's ports, with the MegaRAID out. The
+> resilver ran 1.99 GiB in 23 s, and the scrub repaired 0 B with 0 errors.
+> `up{job="node",instance="smaug"}` reads 1, and no alert or silence is
+> left for the host.
+> [`replace-the-nas-disk.md`](replace-the-nas-disk.md) steps 5 and 6 have
+> the readings.
 
 - A television on CasaBonita finds Jellyfin and plays something **without** any
   firewall rule being involved
@@ -1516,13 +2071,13 @@ day's file carries the new version, and `check-versions` fails until
 
 ## §8 — What this leaves open
 
-- **A faulted disk, one day in.** `ZVTBSDL3` FAULTED on 2026-09-19 and the
-  pool is a mirror of one until it is replaced;
-  [`replace-the-nas-disk.md`](replace-the-nas-disk.md) is the procedure and
-  [#558](https://github.com/Gerrrt/HomeLab/issues/558) carries it. Its step
-  2, the copy off this host, ran on 2026-09-20 (§6.2), and its step 3 opened
-  the return the same day; what is left is the seller's choice, the wipe
-  and the ship, and the swap when a drive arrives.
+- **No spare.** `ZVTBSDL3` FAULTED on 2026-09-19. The mirror was one disk
+  until `ZVTLQEZ7` resilvered in on 2026-09-29
+  ([`replace-the-nas-disk.md`](replace-the-nas-disk.md),
+  [#558](https://github.com/Gerrrt/HomeLab/issues/558)). The next fault
+  takes the same ten days unless a drive is already on the shelf. Two bays
+  is all the chassis gives, so a spare would be a cold one. That is the
+  question the disk runbook's open list leaves unasked.
 - **[#255](https://github.com/Gerrrt/HomeLab/issues/255)**, the residual saying
   this host ships no logs, which is true the day it exists.
 - **[ADR-0027](../adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
@@ -1546,4 +2101,6 @@ day's file carries the new version, and `check-versions` fails until
   [ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),
   which closed [#483](https://github.com/Gerrrt/HomeLab/issues/483). The
   vdev-state textfile [`replace-the-nas-disk.md`](replace-the-nas-disk.md)
-  asks for rides the same mechanism and is its own follow-up.
+  asked for rides the same mechanism. It is §6.8, built under
+  [#744](https://github.com/Gerrrt/HomeLab/issues/744), and runs once that
+  section has been done at the console.

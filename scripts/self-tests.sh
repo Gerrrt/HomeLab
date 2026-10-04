@@ -25,10 +25,19 @@
 #                             the PVE version (#311)
 #   collect-guest-state.sh    qm list, same unreachable host; a stopped guest has
 #                             no PID column and a guest name can contain a space
+#   record-applied.sh         what `make up` applied, kept apart from HEAD; the
+#                             incident it answers (2026-10-01) cannot be staged
+#                             on the deployment host without breaking it
+#   collect-guest-disk-state.sh  get-fsinfo from a guest agent, which is
+#                             hostile input (ADR-0070): a forged mountpoint, bad
+#                             sizes and a flood of filesystems can only be faked
 #   collect-gateway-state.sh  the gateway parse, for morpheus
 #   collect-smart-state.sh    the collector that shipped WITHOUT fixtures and then
 #                             produced a real defect (#483); two fixtures are what
 #                             was read off smaug at the console on 2026-09-21
+#   mark-clean-shutdown.sh    runs only on the way down, as smaug's SHUTDOWN init
+#                             script; a real run counts a clean stop that did not
+#                             happen and forgives a cut for a day (#746)
 #   verify-ca-key-backup.sh   the real run needs a private key on a mounted medium
 #                             and can never happen in CI (#496)
 #   backup-offsite.sh         the real run needs the second recipient's medium
@@ -45,6 +54,9 @@
 #   check_compose_health.py   ghcr.io cannot be asked to rate-limit on demand, and
 #                             the retry that spent all three of its pauses on
 #                             2026-09-21 runs nowhere but CI (#602)
+#   check_close_keywords.py   the phrases that closed issues by accident are
+#                             history; a live PR shows only the one in front of
+#                             it, so each phrase is kept as a fixture (#672)
 #
 # The list above is prose. What runs is DISCOVERED, because a hand-kept list is a
 # second copy of one fact and this repository has already paid for that: when

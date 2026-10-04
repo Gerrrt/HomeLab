@@ -1,0 +1,4 @@
+# What phoenix runs. Exact, so a bump is a deliberate edit with a changelog
+# line, the way packer/versions.pkr.hcl pins its plugin (ADR-0074). Dependabot's
+# pip entry for /ansible proposes the bumps.
+ansible-core==2.21.4

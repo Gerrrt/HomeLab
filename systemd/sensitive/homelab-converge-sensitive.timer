@@ -1,0 +1,19 @@
+[Unit]
+Description=HomeLab: hourly convergence of the sensitive tier onto main
+Documentation=file://@DEPLOY_ROOT@/docs/runbooks/converge-the-host.md
+
+[Timer]
+Unit=homelab-converge-sensitive.service
+# The monitoring host's cadence and reasoning (../homelab-converge.timer): an
+# hour from merge to deployed, at the cost of one fetch on almost every run.
+# :25 keeps it off the 04:30 backup's mark; the one run that does meet it waits
+# on the shared `backups` lock rather than colliding.
+OnCalendar=*-*-* *:25:00
+RandomizedDelaySec=300
+# True, as on the monitoring host: a replayed run deploys what should already
+# be deployed, which is the opposite of a replayed backup stopping the tier.
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

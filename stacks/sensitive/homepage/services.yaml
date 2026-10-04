@@ -137,10 +137,12 @@
 # THE NUMBERS ON TILES OUTSIDE THIS VLAN come from Prometheus, not from the
 # device. trinity cannot reach VLAN 30 or 40 at all, but `prometheus`
 # (10.0.99.20, on this /24) already scrapes the UPS, the firewall and the
-# iLO over SNMP and smaug over node_exporter, and has no authentication
-# (#182) — so a `prometheusmetric` widget shows them with no new rule and no
-# new credential. Each query is one a Grafana dashboard already runs, named
-# beside it. Numbers only, never up/down: uptime is Grafana's question.
+# iLO over SNMP and smaug over node_exporter, so a `prometheusmetric` widget
+# shows them with no new firewall rule and one credential. That credential
+# is the estate's reader token (#182, ADR-0067). It can query and nothing
+# else, and every Prometheus widget sends it as a header. Each query is one a
+# Grafana dashboard already runs, named beside it. Numbers only, never up/down:
+# uptime is Grafana's question.
 
 - 🔴 Winterfell · VLAN 99:
     - Grafana:
@@ -153,12 +155,16 @@
         # No href: 9090 is not reachable from Hicks (the 50→99 rule passes
         # 3000 on prometheus and nothing else), so a link would be a tile
         # that fails when clicked. The widget is read from here, trinity,
-        # which shares the /24 with prometheus and needs no rule. Prometheus
-        # has no authentication at all (#182), so there is no key.
+        # which shares the /24 with prometheus and needs no rule. 9090 there
+        # is the ingest proxy, which wants the reader token (#182); this
+        # widget also calls /api/v1/targets, which the proxy allows the
+        # reader for that reason.
         description: Scrape targets up, as Prometheus sees them
         widget:
           type: prometheus
           url: http://10.0.99.20:9090
+          headers:
+            Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
 
     - AdGuard Home:
         icon: adguard-home.svg
@@ -173,6 +179,8 @@
         widget:
           type: prometheusmetric
           url: http://10.0.99.20:9090
+          headers:
+            Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
           refreshInterval: 60000
           metrics:
             - label: States
@@ -188,6 +196,8 @@
         widget:
           type: prometheusmetric
           url: http://10.0.99.20:9090
+          headers:
+            Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
           refreshInterval: 60000
           metrics:
             - label: Charge
@@ -224,6 +234,8 @@
         widget:
           type: prometheusmetric
           url: http://10.0.99.20:9090
+          headers:
+            Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
           refreshInterval: 60000
           metrics:
             - label: Power
@@ -255,6 +267,8 @@
         widget:
           type: prometheusmetric
           url: http://10.0.99.20:9090
+          headers:
+            Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
           refreshInterval: 300000
           metrics:
             - label: erebor free

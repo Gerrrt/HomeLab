@@ -5,6 +5,8 @@
 #              of #413, running TrueNAS per ADR-0040. DEPLOYED 2026-09-19, from
 #              a copy of this directory's two files at /mnt/erebor/apps/stack,
 #              under TrueNAS's own Docker — docs/runbooks/build-the-nas.md §6.
+#              Audiobookshelf joined it 2026-09-29 (§6.5).
+#              Navidrome joined it 2026-09-30 (§6.6).
 #              Authored on 2026-09-16, before the pool existed, as
 #              stacks/sensitive was authored before trinity was built.
 # Deploy with:  NOT `make up STACK=media`. That target renders a secrets file
@@ -18,7 +20,9 @@
 #              scripts/collect-smart-state.sh, fetched the same way and run
 #              by TrueNAS's cron rather than by this file (§6.4); and a
 #              fourth since #616, scripts/collect-truenas-version.sh, the
-#              same way for the version check-versions compares (§6.7).
+#              same way for the version check-versions compares (§6.7); and a
+#              fifth since #744, scripts/collect-zpool-state.sh, every five
+#              minutes, for ZFS leaf state (§6.8).
 #
 # ---------------------------------------------------------------------------
 # Why this stack is three media services
@@ -254,7 +258,7 @@ services:
   #      node after a scan: **91 MiB**; **119 MiB** with a transcode running.
   audiobookshelf:
     <<: *service-defaults
-    image: ghcr.io/advplyr/audiobookshelf:2.36.1@sha256:3528a93b6442ffe54bd46771bbbab7c97084e1101071586d9dc2254f30bb4358
+    image: ghcr.io/advplyr/audiobookshelf:2.37.1@sha256:581d68b2a6fc7ebf58d81c878a9f387cbbc0d88ac9d37b298b9cee10168af85b
     container_name: media-audiobookshelf
     # See MEASURED (4).
     init: false
@@ -544,6 +548,13 @@ services:
       # Jellyfin's bind mount relies on — but build-the-nas.md §6.4 creates it
       # first so the first scrape after `up` has a file to serve.
       - ${SMART_TEXTFILE_PATH:?}:/textfile:ro
+    # The host's /run masked inside /host (#836): it carries TrueNAS's Docker
+    # socket, and a read-only mount does not stop connect(). Uid 65534 cannot
+    # open a root:docker 0660 socket today, but that rests on one `user:` line;
+    # the mask does not. tmpfs series are excluded from every host.rules.yaml
+    # rule, so the /run filesystem series this changes is read by nothing.
+    tmpfs:
+      - /host/run:size=64k,mode=0755
     # PUBLISHED, with a named off-host consumer as ADR-0012 asks: Prometheus at
     # 10.0.99.20, through the `99 → 40:9100` pass created and verified in
     # position on 2026-09-16 (build-the-nas.md §0.5). That pass is what makes

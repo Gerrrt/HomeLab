@@ -73,8 +73,10 @@
     host: prometheus
     via: address
 
-# Plain http on the management VLAN is an accepted residual with the firewall
-# as the control, not work in progress — docs/security.md. The paths are the
+# Plain http on the management VLAN, and these two answer without a token:
+# the ingest proxy that holds 10.0.99.20:9090 and :3100 passes its health
+# paths through unauthenticated for exactly this probe (#182). A 200 here says
+# the publish, the proxy and the service behind it all work. The paths are the
 # readiness endpoints the compose healthchecks use.
 
 - targets: ["http://10.0.99.20:9090/-/healthy"]
@@ -92,6 +94,29 @@
     role: logs
     host: prometheus
     via: address
+
+# And the opposite question at the same address: is everything else still
+# refused? A query with no token, and Loki's delete API with no token, must each
+# get the ingest proxy's 401. `via: refusal` keeps these out of
+# EndpointUnreachable and the dns/address join, and IngestAuthNotEnforced
+# reads them. The delete path is probed rather than a read because it is the
+# one whose loss would cost data.
+
+- targets: ["http://10.0.99.20:9090/api/v1/query?query=up"]
+  labels:
+    module: http_401_ingest_refused
+    name: prometheus
+    role: metrics
+    host: prometheus
+    via: refusal
+
+- targets: ["http://10.0.99.20:3100/loki/api/v1/delete"]
+  labels:
+    module: http_401_ingest_refused
+    name: loki
+    role: logs
+    host: prometheus
+    via: refusal
 
 # Alertmanager publishes to 127.0.0.1 only (ADR-0012: nothing off-host uses
 # it), so there is no published address to probe and the compose network is
@@ -207,8 +232,8 @@
 #   pfSense  pass tcp from 10.0.99.20 to 10.0.99.1 port 443
 #            "Block HTTPS to pfSense" on igc0.99 is an explicit rule, not a
 #            default: the GUI is reachable from Hicks only. Opening it to the
-#            monitoring host gives a machine with two unauthenticated push
-#            ports a path to the firewall's login page. Worth having — the
+#            monitoring host gives the machine every agent pushes to a path
+#            to the firewall's login page. Worth having — the
 #            default GUI certificate is 398 days and nothing else watches it —
 #            but not worth having by accident.
 #

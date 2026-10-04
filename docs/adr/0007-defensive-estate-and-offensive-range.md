@@ -74,6 +74,14 @@
 > [#485](https://github.com/Gerrrt/HomeLab/issues/485) carries the re-read and
 > [#558](https://github.com/Gerrrt/HomeLab/issues/558) the mirror. The text
 > here is left as written, per ADR-0001.
+>
+> "Lab telemetry stays in the lab" (Decision, below) is narrowed by
+> [ADR-0070](0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md),
+> 2026-10 ([#778](https://github.com/Gerrrt/HomeLab/issues/778)), after
+> `odin`'s root reached 98% with nothing to page on it: how full each guest's
+> filesystems are crosses, read by the hypervisor through the guest agent and
+> sent over `Saruman`'s existing pass. No path is opened, and nothing else a
+> guest produces crosses. The text here is left as written, per ADR-0001.
 
 ## Context
 

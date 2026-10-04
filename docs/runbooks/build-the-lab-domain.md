@@ -19,6 +19,15 @@ has nothing to hunt on, and
 entire placement argument is that the techniques worth detecting are layer 2 and
 only reach a domain sharing their broadcast domain.
 
+**Since [ADR-0077](../adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
+this page is the explanation, and [`ansible/`](../../ansible/README.md) is the
+procedure.** §2–§4 and §7 are applied by `ansible-playbook lab-domain.yml`
+from `phoenix`, and §9's checks by `ansible-playbook verify.yml`. The commands
+under each section still say *what* the role does and *why*. When the two
+disagree, the role is what runs and this page is what is wrong. See
+[*Run it from `phoenix`*](#run-it-from-phoenix) below
+([#448](https://github.com/Gerrrt/HomeLab/issues/448)).
+
 Closes [#265](https://github.com/Gerrrt/HomeLab/issues/265). The stack that
 watches it is already built and running on `alexander`
 ([#262](https://github.com/Gerrrt/HomeLab/issues/262),
@@ -75,6 +84,188 @@ the reason the time estimate at the top of this page says "a day".
 > saturate the array for minutes, and services time out waiting for their own
 > disk. Build them one at a time; do not install two in parallel to save an
 > hour. It will not save an hour.
+
+## Run it from `phoenix`
+
+Ansible goes on `phoenix` once, into a venv of its own. The versions are the
+ones `ansible/` pins, not whatever the distribution has:
+
+```bash
+sudo apt-get install -y python3-venv
+python3 -m venv ~/.venvs/ansible
+~/.venvs/ansible/bin/pip install -r ~/code/Gerrrt/HomeLab/ansible/requirements.txt
+echo 'export PATH="$HOME/.venvs/ansible/bin:$PATH"' >> ~/.bashrc && . ~/.bashrc
+cd ~/code/Gerrrt/HomeLab/ansible && ansible-galaxy collection install -r requirements.yml -p .collections
+```
+
+After a `git pull` that moves a pin, re-run the `pip install` line if
+`requirements.txt` changed, and the `ansible-galaxy` line if
+`requirements.yml` did. Then add the
+two secrets to the file that already holds the token and the build password
+(ADR-0077 decision 3).
+
+For a domain built by hand, `LAB_ADMIN_PASSWORD` must be AD\Administrator's
+**current** password, because the members join and `leviathan` promotes as
+that account. The DSRM password is only used if a DC is promoted again, so any
+long, complex value will do.
+
+`phoenix.env` is *sourced* (`set -a; . phoenix.env`), so each value is
+written single-quoted. Unquoted, a password with a space, `$`, a quote or a
+backslash would be split, expanded or stripped before Ansible saw it. This
+prompts for both without echoing them or leaving them in shell history. It
+refuses empty input, restores the terminal if interrupted, and replaces any
+earlier entries instead of adding a second pair. It works in zsh, phoenix's
+login shell, and in bash:
+
+```bash
+(
+  f=~/.config/proxmox/phoenix.env; umask 077; trap 'stty echo' EXIT INT TERM
+  q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+  printf 'AD\\Administrator password: '; stty -echo; read -r A; echo
+  printf 'New DSRM password: '; read -r D; stty echo; echo
+  [ -n "$A" ] && [ -n "$D" ] || { echo 'empty input: nothing written' >&2; exit 1; }
+  sed -i '/^LAB_ADMIN_PASSWORD=/d; /^LAB_DSRM_PASSWORD=/d' "$f"
+  printf 'LAB_ADMIN_PASSWORD=%s\nLAB_DSRM_PASSWORD=%s\n' "$(q "$A")" "$(q "$D")" >> "$f"
+)
+```
+
+`read -p` is a bash-only spelling: zsh reads `-p` as a coprocess, fails, and
+a `printf` after it still appends two empty entries. Check the file the way
+the playbook will read it, by sourcing it. This prints `ok` only if there is
+exactly one of each entry and both load as non-empty:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; set -a; . "$f"; set +a; [ "$(grep -c '^LAB_ADMIN_PASSWORD=' "$f")" = 1 ] && [ "$(grep -c '^LAB_DSRM_PASSWORD=' "$f")" = 1 ] && [ -n "$LAB_ADMIN_PASSWORD" ] && [ -n "$LAB_DSRM_PASSWORD" ] && echo ok || echo 'NOT ok')
+```
+
+For a rebuild, generate both instead:
+
+```bash
+umask 077
+printf 'LAB_ADMIN_PASSWORD=%s\nLAB_DSRM_PASSWORD=%s\n' \
+  "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-20)Aa1!" \
+  "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-20)Aa1!" \
+  >> ~/.config/proxmox/phoenix.env
+```
+
+The population ([#449](https://github.com/Gerrrt/HomeLab/issues/449)) needs a
+third entry, `LAB_POPULATION_SEED`. Every population password is derived from
+it and the account's name, so it is generated once and never typed. It is the
+one value that gives back every population password, so treat it as one
+(ADR-0078). It replaces any earlier entry:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; sed -i '/^LAB_POPULATION_SEED=/d' "$f"; printf "LAB_POPULATION_SEED='%s'\n" "$(openssl rand -hex 24)" >> "$f")
+```
+
+The skeleton (#448) adds two more. `LAB_TIER_ADMIN_PASSWORD` is the password the
+three tier admins are **created** with on a fresh rebuild (the roles use
+`on_create`, so existing accounts are untouched); generate one. The Wazuh
+enrolment password, `LAB_WAZUH_REGISTRATION_PASSWORD`, is the manager's
+`authd.pass` — the value `make secrets-edit STACK=soc` holds — so copy it
+rather than generating it. Both replace any earlier entry:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; sed -i '/^LAB_TIER_ADMIN_PASSWORD=/d' "$f"; printf "LAB_TIER_ADMIN_PASSWORD='%s'\n" "$(openssl rand -base64 18)Aa1!" >> "$f")
+```
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; printf 'authd.pass: '; stty -echo; read -r W; stty echo; echo; [ -n "$W" ] && { sed -i '/^LAB_WAZUH_REGISTRATION_PASSWORD=/d' "$f"; printf "LAB_WAZUH_REGISTRATION_PASSWORD='%s'\n" "$(printf '%s' "$W" | sed "s/'/'\\\\''/g")" >> "$f"; }; unset W)
+```
+
+Then, every time. **First applied to the hand-built six on 2026-10-03**: a
+run on `main` after #825 reported `changed=0` everywhere, and `verify.yml`
+passed on all six (`changelog.md`, 2026-10-03).
+
+```bash
+cd ansible
+set -a; . ~/.config/proxmox/phoenix.env; set +a
+ansible-playbook lab-domain.yml --check --diff
+ansible-playbook lab-domain.yml
+ansible-playbook lab-domain.yml          # again: must report changed=0
+ansible-playbook verify.yml
+```
+
+**`--check` is only a full preview against a domain that already exists.** On
+a fresh rebuild, check mode cannot create the forest, so every later stage
+looks at a DNS server and a domain that are not there and fails. For a first
+build, preview one stage at a time and apply it before previewing the next:
+`--tags base`, then `forest`, then `replica`, `join`, `exporter` and
+`licence`.
+
+| Tag | This page | What it applies |
+| --- | --- | --- |
+| `base` | §2 | Names, the DCs' static addresses, members' resolvers, and the build password rotated to `LAB_ADMIN_PASSWORD` |
+| `forest` | §3 | `bahamut`'s forest, the forwarder, the root hints removed, and the clock from `10.0.30.1`. It stops if the clock reads anything else |
+| `replica` | §4 | `leviathan` promoted and left on NT5DS, then each DC's resolver set to its partner and loopback |
+| `join` | §5, the join only | `titan`, `ramuh`, `carbuncle` and `siren` joined |
+| `exporter` | §7 | `windows_exporter` at the pinned version, and the 9182 rule admitting `alexander` |
+| `licence` | §7 | The weekly gauge on the four servers, and the rearm count printed in the play output |
+| `population` | §5 | The people in [`population.yaml`](../../ansible/population/population.yaml): an OU per department under `OU=People`, their groups under `OU=Groups`, and the users, `authgen` among them, with passwords derived from `LAB_POPULATION_SEED` |
+| `authgen` | §6 | The batch-logon right and the `Lab-AuthGenerator` task on both endpoints, as `authgen` |
+| `tiers` | §5 | The five tier OUs, the three tier admins, the `Tier 0 Admins` group, and the members placed in `Servers`/`Workstations` |
+| `shares` | §5 | `titan`'s `Public` and `Finance` shares, with the decoy |
+| `soc` | §11 | Wazuh and Velociraptor installed on all six, in place of the deploy GPOs |
+
+The tiers, the shares and the SOC agents (the rest of §5, and §11's deployment)
+are applied by the `tiers`, `shares` and `soc` tags. The SPN account, the Tier 0
+logon GPO and the deliberate weaknesses are still
+[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s, each arriving as a
+further tag on the same playbook. `ansible-playbook population-credentials.yml` prints the
+population's passwords, on `phoenix`, when you need one.
+
+**Start the endpoints first.** `carbuncle` and `siren` are `--onboot 0`, so a
+run against stopped endpoints reports them `UNREACHABLE`, not configured.
+
+The run needs these three in place first:
+
+- **`LAB_ADMIN_PASSWORD` and `LAB_DSRM_PASSWORD` in `phoenix.env`**, as
+  above.
+- **A reservation on `morpheus` for all six, by MAC.** That includes the two
+  DCs at `.50` and `.51`. A rebuilt DC first boots on DHCP, and `base` then
+  makes the same address static. The reservations only survive a rebuild if
+  each guest's MAC is pinned when the six are declared in
+  [`tofu/`](../../tofu/README.md). They are not there yet; see ADR-0077
+  decision 6.
+- **A way in.** Every clone of the templates has `sshd`, key-only, admitting
+  `phoenix` alone ([`openssh.ps1`](../../packer/windows/scripts/openssh.ps1)).
+  The six built by hand on 2026-09-24/25 had none. **Each was given the same
+  on 2026-10-02**, from its console. Repeat it only on a hand-built guest that
+  loses it, for example after a snapshot revert to before that date. Run it as
+  any member of Administrators, with the public half of `phoenix`'s key, never
+  the private:
+
+  ```powershell
+  $env:PHOENIX_PUBKEY = '<the contents of ~/.ssh/id_ed25519.pub on phoenix>'
+  $env:PHOENIX_ADDRESS = '10.0.30.70'
+  Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/Gerrrt/HomeLab/main/packer/windows/scripts/openssh.ps1 -OutFile $env:TEMP\openssh.ps1
+  powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\openssh.ps1
+  Set-Service sshd -StartupType Automatic; Start-Service sshd
+  ```
+
+  It is the script the templates run, not a copy of it, so a hand-built guest
+  and a clone cannot drift apart. What the 2026-10-02 run showed:
+
+  - **`-UseBasicParsing` is required.** Without it, Windows PowerShell 5.1
+    parses a response through Internet Explorer's engine, and neither Server
+    2025 nor Windows 11 ships IE.
+  - **On `carbuncle` and `siren` the fourth line takes minutes.** Windows 11
+    has no OpenSSH server until `Add-WindowsCapability` downloads it. The
+    console looks stuck while it does, and it is not.
+  - **Paste the key itself.** Two guests first received a placeholder, and
+    `sshd` started with a key nothing holds. The script now refuses anything
+    that is not shaped like a public key.
+  - **Windows 11 ships with the built-in Administrator disabled**, and
+    Ansible logs in as `Administrator`. On a disabled account, `sshd` accepts
+    the TCP connection and then drops it during key exchange. `phoenix` sees
+    `Connection reset by … port 22`, and `OpenSSH/Admin` logs
+    `unable to resolve user administrator`. On the two hand-built endpoints,
+    run `Enable-LocalUser -Name Administrator`. The servers and every template
+    clone have it enabled already.
+
+  The licence task §7 registered by hand writes the same file the role's
+  `licence-clock` task does. Delete the hand-made one after the first run, so
+  that only one thing owns the file.
 
 ## 1. Create the six VMs
 
@@ -218,6 +409,10 @@ would add host RAM that nothing backs, on either pool.
 
 ## 2. Install, name and address
 
+> **Applied by `--tags base`** ([`roles/base`](../../ansible/roles/base/tasks/main.yml)),
+> except the installer itself, which a template clone replaces, and the
+> reservations on `morpheus`.
+
 Nothing unusual once the driver is loaded. During each installer:
 
 - **Hostnames** exactly as ADR-0029 names them: `bahamut`, `leviathan`, `titan`,
@@ -256,6 +451,12 @@ ImaginationLAN*, mapping each guest's MAC to its address.
 > what keeps ADR-0010's "the DHCP scopes do not change" literally true.
 
 ## 3. Promote `bahamut`, and set the clock before anything joins
+
+> **Applied by `--tags forest`** ([`roles/dc_forest`](../../ansible/roles/dc_forest/tasks/main.yml)).
+> The play order in `lab-domain.yml` is what enforces "before anything
+> joins". The role refuses to continue while `w32tm /query /source` reads
+> anything but `10.0.30.1`. The `ntpq -p` check on `morpheus` below is still
+> yours.
 
 Order matters here, and it is the reverse of the intuitive one.
 
@@ -327,6 +528,10 @@ too. If you find yourself writing a rule, something has been misunderstood.
 
 ## 4. The second domain controller
 
+> **Applied by `--tags replica`** ([`roles/dc_replica`](../../ansible/roles/dc_replica/tasks/main.yml),
+> then [`roles/dc_resolvers`](../../ansible/roles/dc_resolvers/tasks/main.yml)).
+> `verify.yml` runs the replication check below as `dcdiag /test:Replications`.
+
 ```powershell
 # On leviathan, after joining it to the domain.
 Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
@@ -365,6 +570,15 @@ dcdiag /test:Replications
 
 ## 5. Join the members, and build the tiers
 
+> **The join is applied by `--tags join`** ([`roles/member`](../../ansible/roles/member/tasks/main.yml)),
+> **and the ordinary users by `--tags population`**
+> ([`roles/population`](../../ansible/roles/population/tasks/main.yml)): forty
+> people drawn by `scripts/gen_population.py` into a committed
+> [`population.yaml`](../../ansible/population/population.yaml), in place of
+> "five or so". The rest of this section is still
+> [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s and still done by
+> hand.
+
 Join `titan`, `ramuh`, `carbuncle` and `siren`. Then build the structure that
 makes an intrusion *legible* — three tiers, one admin account each, five or so
 ordinary users, and one service account with an SPN on a real service on
@@ -401,7 +615,7 @@ fifteen minutes:
 
 ```powershell
 klist purge
-New-PSDrive -Name S -PSProvider FileSystem -Root \\titan\share -ErrorAction SilentlyContinue
+New-PSDrive -Name S -PSProvider FileSystem -Root \\titan\Public -ErrorAction SilentlyContinue
 Get-ChildItem S:\ -ErrorAction SilentlyContinue | Out-Null
 Remove-PSDrive S -ErrorAction SilentlyContinue
 ```
@@ -410,12 +624,80 @@ That produces 4768, 4769 and 4624 on the DCs and 5140 on `titan`, continuously,
 for no disk and no measurable IOPS. It is what turns #266's baseline from empty
 into something a deviation can stand out against.
 
-It lives here as a code block rather than as a script in the repository, for the
-same reason [`build-the-playground.md`](build-the-playground.md) carries its
-sysctl file inline: nothing in this repository converges these guests, so a
-tracked file would be one that drifts from the machines with nothing to notice.
+**As built on 2026-10-02**, with three things this section did not say:
+
+- **The user is `AD\authgen`**, in the default `CN=Users` container, a
+  member of `Domain Users` (its primary group) and nothing else. It is the domain's only ordinary user until
+  [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s population arrives,
+  which waits on this domain, so this one was made by hand to break the wait.
+  Its password is kept nowhere: if it is lost, reset it and register the task
+  again. #449 folds it into its population rather than deleting it.
+- **`titan` logs no 5140 until a GPO asks it to.** Server 2025 ships
+  *Audit File Share* off. The `Lab - Audit File Share` GPO, linked to
+  `OU=Servers`, sets it to Success. That is observability, not hardening, and
+  §0's list is untouched. The GPO carries an `audit.csv` under
+  `Machine\Microsoft\Windows NT\Audit` in SYSVOL. **Check that file has two
+  lines.** A console paste fused the header and the row into one on the first
+  attempt, and the extension applied nothing while reporting success.
+- **Windows 11 does not grant the task's user *Log on as a batch job*.**
+  `Register-ScheduledTask` with `-Password` does not add the right, and the
+  task then fails every run with `0x80070569` (event 101/104 in the
+  TaskScheduler log). Grant it on each endpoint before registering:
+
+```powershell
+$sid = (New-Object System.Security.Principal.NTAccount('AD\authgen')).Translate([System.Security.Principal.SecurityIdentifier]).Value
+secedit /export /cfg $env:TEMP\r.inf /areas USER_RIGHTS
+(Get-Content $env:TEMP\r.inf) -replace '^(SeBatchLogonRight = .*)$', "`$1,*$sid" | Set-Content $env:TEMP\r2.inf -Encoding Unicode
+secedit /configure /db $env:TEMP\r.sdb /cfg $env:TEMP\r2.inf /areas USER_RIGHTS
+Remove-Item $env:TEMP\r.inf, $env:TEMP\r2.inf, $env:TEMP\r.sdb
+```
+
+Then the task, on `carbuncle` and `siren`:
+
+```powershell
+$cred   = Get-Credential -UserName 'AD\authgen' -Message 'authgen password'
+$body   = 'klist purge; New-PSDrive -Name S -PSProvider FileSystem -Root \\titan\Public -ErrorAction SilentlyContinue | Out-Null; Get-ChildItem S:\ -ErrorAction SilentlyContinue | Out-Null; Remove-PSDrive S -ErrorAction SilentlyContinue'
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -Command `"$body`""
+$trig   = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 15)
+$set    = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -StartWhenAvailable
+Register-ScheduledTask -TaskName 'Lab-AuthGenerator' -Description 'build-the-lab-domain.md section 6' `
+  -Action $action -Trigger $trig -Settings $set `
+  -User 'AD\authgen' -Password $cred.GetNetworkCredential().Password -RunLevel Limited
+```
+
+`Get-ScheduledTaskInfo Lab-AuthGenerator` should read `LastTaskResult 0`.
+On the DCs, 4769 names the account as `authgen@AD.MATRIX.ELYSIUM`, so match it
+with `-match`, not `-contains`.
+
+**Applied by `--tags authgen` since #449**
+([`roles/authgen`](../../ansible/roles/authgen/tasks/main.yml)), which adopts the
+task above by name, grants the batch right, and stores `authgen`'s derived
+password in it. `authgen` itself moved into `OU=IT` with the population. The
+blocks above are how it was built by hand on 2026-10-02, kept as the record of
+what the role encodes. After changing `LAB_POPULATION_SEED`, run
+`--tags population,authgen` together, so the task gets the password the account
+now has.
 
 ## 7. `windows_exporter`, and the licence clock
+
+**Applied by `--tags exporter` and `--tags licence`**
+([`roles/exporter`](../../ansible/roles/exporter/tasks/main.yml),
+[`roles/licence_clock`](../../ansible/roles/licence_clock/tasks/main.yml)).
+The version, its sha256 and the collector list are pinned in
+[`group_vars/all.yaml`](../../ansible/inventory/group_vars/all.yaml), so a
+bump is one edit there. The MSI is installed with `REMOVE=FirewallException`,
+because its own rule admits any address. The rearm count is printed on every
+run.
+
+> [!TIP]
+> **When the clock runs out, the rebuild does not start from §1.**
+> `tpl-ws2025-eval` (VMID 912) is a generalised Server 2025 image, built by
+> [`build-the-lab-templates.md`](build-the-lab-templates.md). A full clone of
+> it replaces §1 and the install half of §2, and every clone gets its own SID.
+> Rebuild the template first (that runbook's §8). Whether a clone of an older
+> template gets a full 180 days depends on the rearms that template has already
+> spent. A fresh install has not spent any, so the rebuild settles it. Read
+> `slmgr /dlv` on the clone and record it below, as before.
 
 Install `windows_exporter` on all six. The collector list matters:
 
@@ -516,6 +798,17 @@ deliberate reversal of what four files in `stacks/lab` used to say.
 ## 9. Verify — including the things that fail quietly
 
 ```bash
+cd ansible && ansible-playbook verify.yml     # on phoenix
+```
+
+That answers everything on the guests in one pass: the clock source on each DC,
+the forwarder and root hints, replication, the secure channel, `windows_exporter`
+listening, 9182 admitting `alexander` and nothing else, and every item in the
+checklist at the end of this section. It is read-only, so run it whenever you
+like. It does not see the boundary, the tripwire or Prometheus, which are below
+and still yours.
+
+```bash
 make validate     # on alexander; checks both stacks and names which is which
 ```
 
@@ -594,9 +887,36 @@ than merely intended.
 
 ## 10. What a Hicks workstation now reaches on VLAN 30
 
-Six Windows hosts on RDP, two DCs answering LDAP and Kerberos, SMB on `titan`,
-and `9182` on all six — none of it newly permitted, all of it newly *present*,
-because the `50 → 30` rule already grants Hicks the whole segment.
+None of it is newly permitted, and all of it is newly *present*, because the
+`50 → 30` rule already passes Hicks TCP to the whole segment.
+
+**Observed on 2026-10-02** with `nmap -Pn -sT` from a Hicks laptop, against
+the ports a domain answers on plus RDP, WinRM and the exporter:
+
+| Host | Open from Hicks | Filtered |
+| --- | --- | --- |
+| `bahamut` `.50` | 53, 88, 135, 139, 389, 445, 464, 636, 3268, 5985 | 3389, 9182 |
+| `leviathan` `.51` | 53, 88, 135, 139, 389, 445, 464, 636, 3268, 5985 | 3389, 9182 |
+| `titan` `.52` | 135, 445, 5985 | everything else |
+| `ramuh` `.53` | 5985 | everything else, 445 included |
+| `carbuncle` `.54` | 135 | everything else |
+| `siren` `.55` | 135 | everything else |
+
+`morpheus` passes the TCP, so every *filtered* is a guest's own Windows
+Firewall. The prose this table replaces was wrong in three places:
+
+- **RDP is answered by none of the six**, not all six. It is off as Windows
+  ships it: `fDenyTSConnections` is `1` and the *Remote Desktop* firewall rules
+  are disabled. Read on `bahamut` and `carbuncle`.
+- **WinRM (`5985`) is open on the four servers**, as Server 2025 ships it,
+  and closed on the endpoints, as Windows 11 ships it. The old list did not
+  mention it.
+- **`ramuh` serves no SMB.** Only `titan` has shares, so only `titan` opens
+  `445`.
+
+`9182` is filtered from Hicks on all six, because §7's rule admits
+`alexander` alone, as intended. `22` was not scanned: ADR-0077 scopes it to
+`phoenix`.
 
 Recorded here because [#228](https://github.com/Gerrrt/HomeLab/issues/228)
 cannot narrow that rule without a list of what is actually behind it, and
@@ -624,7 +944,11 @@ if you forget:
   residual.
 - **The rearm count from §7, as a number.** ADR-0029 deliberately wrote none,
   because the published sources disagree; this is the commit where the real one
-  goes.
+  goes. **Read on 2026-10-01: 1**, on all four servers, for both *Remaining
+  Windows rearm count* and *Remaining SKU rearm count*. The time-based
+  expiration read 173 days on the DCs and 174 on the members, which lands
+  around 2027-03-23. One rearm is one more 180-day period, not a way to skip
+  the rebuild.
 
 `make check-docs` walks you through the first two.
 
@@ -640,4 +964,8 @@ if you forget:
 | `up{job="windows"}` is short by one | The §7 firewall rule, or a collector list that omitted `time` |
 | Everything is slow for minutes after a `Saruman` reboot | Boot storm. The `--startup order=` values in §1 |
 | A relay attempt does nothing against `titan` | Inbound SMB signing is required. §5's check |
+| `ansible-playbook` reports a guest `UNREACHABLE` | An endpoint that is not started (`--onboot 0`), a hand-built guest that never had *Run it from `phoenix`*'s `sshd` step, or a clone whose template predates `openssh.ps1` |
+| `ansible-playbook` asks for a password, or is refused | The key on the guest is not `phoenix`'s, or `administrators_authorized_keys` grants someone besides Administrators and SYSTEM, which makes `sshd` ignore it. Re-run `openssh.ps1` |
+| `verify.yml` fails on "9182 admits 10.0.30.40 and nothing else" | The MSI's own any-address rule, left by a hand install. The role installs with `REMOVE=FirewallException`, but it does not reinstall a version already present. Delete the MSI's rule; the role's `windows_exporter from alexander` stays |
+| `verify.yml` fails on an item from §0's list | Something hardened the domain. Find what, and turn it back. That item is an exercise, not a hole |
 | `Resolve-DnsName` for an AD name works from `alexander` | Somebody added the Unbound domain override. §9's caution — this is a design regression, not a configuration one |

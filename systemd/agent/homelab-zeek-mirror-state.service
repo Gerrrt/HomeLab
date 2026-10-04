@@ -1,0 +1,36 @@
+# Whether the Zeek mirror on the lab bridge is carrying packets (#437, ADR-0068).
+#
+# WHAT IT IS FOR. homelab_zeek_mirror_active is Zeek's absence detection,
+# inherited from #441: the lab's Loki has no ruler (ADR-0020), so "the sensor
+# went blind" is answered here, on the hypervisor, as guest state crossing
+# under ADR-0028. ZeekMirrorInactive reads the result.
+#
+# SEPARATE FROM homelab-zeek-mirror ON PURPOSE, and read-only: the unit that
+# builds the mirror never reports on it.
+#
+# Root only for the textfile directory; `qm status`, `tc filter show` and
+# /sys/class/net are readable without it. The last packet count is kept in a
+# runtime directory that outlives each run but not a reboot.
+[Unit]
+Description=HomeLab: record whether the Zeek mirror is carrying packets
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/qm
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-zeek-mirror-state
+RuntimeDirectory=homelab-zeek-mirror-state
+RuntimeDirectoryPreserve=yes
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-zeek-mirror-state

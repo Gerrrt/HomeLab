@@ -1,5 +1,24 @@
 # Sensitive stack
 
+[![host: trinity](https://img.shields.io/badge/host-trinity-30363d?style=plastic)](../../docs/network.md#winterfell--vlan-99--management)
+[![VLAN 99: Winterfell](https://img.shields.io/badge/VLAN%2099-Winterfell-f85149?style=plastic)](../../docs/network.md#winterfell--vlan-99--management)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
+[![Caddy](https://img.shields.io/badge/Caddy-1F88C0?style=plastic&logo=caddy&logoColor=white)](https://caddyserver.com)
+[![step-ca](https://img.shields.io/badge/step--ca-2b3a8c?style=plastic)](https://smallstep.com/docs/step-ca/)
+[![AdGuard Home](https://img.shields.io/badge/AdGuard%20Home-68BC71?style=plastic&logo=adguard&logoColor=white)](https://adguard.com/adguard-home/overview.html)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-18BCF2?style=plastic&logo=homeassistant&logoColor=white)](https://www.home-assistant.io)
+[![Immich](https://img.shields.io/badge/Immich-4250AF?style=plastic&logo=immich&logoColor=white)](https://immich.app)
+[![Paperless-ngx](https://img.shields.io/badge/Paperless--ngx-17541F?style=plastic&logo=paperlessngx&logoColor=white)](https://docs.paperless-ngx.com)
+[![Vaultwarden](https://img.shields.io/badge/Vaultwarden-175DDC?style=plastic&logo=vaultwarden&logoColor=white)](https://github.com/dani-garcia/vaultwarden)
+[![ntfy](https://img.shields.io/badge/ntfy-317f6f?style=plastic&logo=ntfy&logoColor=white)](https://ntfy.sh)
+[![Homepage](https://img.shields.io/badge/Homepage-4b5563?style=plastic&logo=homepage&logoColor=white)](https://gethomepage.dev)
+[![Miniflux](https://img.shields.io/badge/Miniflux-33658a?style=plastic)](https://miniflux.app)
+[![Memos](https://img.shields.io/badge/Memos-4b5563?style=plastic)](https://usememos.com)
+[![Mealie](https://img.shields.io/badge/Mealie-E58325?style=plastic&logo=mealie&logoColor=white)](https://mealie.io)
+[![linkding](https://img.shields.io/badge/linkding-5856e0?style=plastic)](https://github.com/sissbruecker/linkding)
+[![Actual](https://img.shields.io/badge/Actual-6B46C1?style=plastic&logo=actualbudget&logoColor=white)](https://actualbudget.org)
+[![Stirling-PDF](https://img.shields.io/badge/Stirling--PDF-b91c1c?style=plastic)](https://github.com/Stirling-Tools/Stirling-PDF)
+
 ADR-0008's sensitive tier — the household's password manager, photos, documents
 and home automation — on `trinity` (`10.0.99.40`, Winterfell / VLAN 99), the
 ProDesk 600 G4 that [ADR-0034] made the tier's host after the firewall restore
@@ -35,7 +54,7 @@ make up STACK=sensitive
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
-| mealie | `ghcr.io/mealie-recipes/mealie` | *internal* (9000) | The household's recipes, meal plans and shopping list at `https://recipes.matrix.elysium`. Beyond ADR-0008's nine, decided by its own ADR, and **authored, not yet deployed** ([#146], [ADR-0060]) |
+| mealie | `ghcr.io/mealie-recipes/mealie` | *internal* (9000) | The household's recipes, meal plans and shopping list at `https://recipes.matrix.elysium`. Beyond ADR-0008's nine, decided by its own ADR, and deployed 2026-09-29 ([#146], [ADR-0060]) |
 | linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The fourth service beyond ADR-0008's nine ([ADR-0061], [#144]) |
 | actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fifth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding, by [ADR-0062] ([#142]) |
 | stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0063]) |
@@ -87,7 +106,8 @@ is here:
 ## Layout
 
 ```text
-compose.yaml               twenty services, one network, health-gated ordering
+compose.yaml               twenty-one services, one network, health-gated ordering;
+                           Immich's machine learning sits behind the `ml` profile
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
                            over the volume Home Assistant writes its state to
@@ -97,6 +117,11 @@ adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists includ
 homepage/                  settings, services, widgets and bookmarks YAML and
                            custom.css — its whole configuration, mounted read-only
 ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
+ntfy/templates/            message templates, mounted read-only
+stirling-pdf/smoke.sh      proves the PDF engine works, not just its status endpoint;
+                           run by check_hardened_boot.sh (#143)
+household.recipients       the age public keys that can open the household's copies
+household-age.sha256       checksums of the age release the household copy is opened with
 consume/                   untracked: drop a scan here and Paperless-ngx imports
                            and deletes it. Created by render-config.sh
 export/                    untracked: where document_exporter writes. Likewise
@@ -214,8 +239,8 @@ time and lives in Caddy's `/data` volume, never on disk here.
   protected by [#404]'s disk-encryption decision and by the encrypted volume
   archive rather than by SOPS. [ADR-0035] records the deviation. A long-lived
   access token minted for another service goes in *that* service's SOPS file
-  — none exists yet — and TOTP is enrolled at first login, as [#404] step 6
-  says.
+  — none exists yet — and TOTP is enrolled at first login, as [ADR-0022]'s
+  floor requires. It is enrolled on the owner account since 2026-09-28.
 - **Automations are YAML in `home-assistant/packages/`, not the UI editor.**
   `configuration.yaml` is mounted read-only from this directory and loads the
   packages directory beside it; there is no `automations.yaml`, because the
@@ -272,11 +297,17 @@ time and lives in Caddy's `/data` volume, never on disk here.
   bind fails on it. The forwarder edit on `morpheus` that makes any of this
   matter is [`forward-dns-to-adguard.md`](../../docs/runbooks/forward-dns-to-adguard.md),
   and it is the whole client-side change.
-- **Nothing converges this stack.** It is deployed by hand, from a checkout
-  on `trinity` ([#533] is the change that would converge it). The one timer
-  here is the nightly backup, `homelab-backup-sensitive`, which
-  `make install-timers PROFILE=sensitive` installs. `make validate` on
-  `trinity` fails until it is installed.
+- **`trinity` converges this stack on a timer, as `prometheus` does its own**
+  ([#533], [ADR-0021]). `homelab-converge-sensitive` fetches `main` hourly,
+  verifies the merge's signature, fast-forwards the checkout on `trinity` and
+  runs `make up STACK=sensitive`, so a merged Dependabot bump lands without
+  anyone at a shell. It was installed report-only
+  (`HOMELAB_CONVERGE_APPLY=0`) and is let act by the step in
+  [`converge-the-host.md`](../../docs/runbooks/converge-the-host.md#on-trinity);
+  `DeployApplyDisabled` fires for `trinity` until then. By hand, it is
+  `make converge STACK=sensitive`, not `git pull`. The timer is installed with
+  the nightly backups by `make install-timers PROFILE=sensitive`, and
+  `make validate` on `trinity` fails until both are.
 - **Memory limits are set from day one, and now a CPU ceiling too.** [#129]'s
   ask, and the one place this file departs from the lab's reasoning — a proxy
   and a CA have working sets a limit can be stated for without a machine to
@@ -375,8 +406,13 @@ One thing this does **not** do, stated rather than implied. It is
 scheduled: `homelab-backup-sensitive` runs it nightly on `trinity` and copies
 each set to `oracle` ([#404] step 9). But **nothing here is the off-estate copy**
 [ADR-0023] requires before the first real document — encrypted, keyed to a
-second holder, with visible freshness. That is the precondition on the data
-arriving, not on the container starting, and it is still open.
+second holder, with visible freshness. That copy is now built: `make
+household-copy` runs the exporter above, archives `export/` into a standard
+set encrypted to [`household.recipients`](household.recipients) as well, and
+carries it to the household drive ([ADR-0073],
+[`carry-the-household-copy.md`](../../docs/runbooks/carry-the-household-copy.md)).
+It refuses a copy of record until there is a household holder, so the
+precondition on the data arriving is still open.
 
 ## Vaultwarden
 
@@ -501,7 +537,8 @@ is kept:
   Paperless-ngx (the token of a view-only `homepage` user) are read from their
   own APIs. Prometheus, the UPS (charge, runtime, load), the firewall (pf
   states), the iLO (watts) and the NAS (pool free) are read from Prometheus,
-  which has no credential ([#182]) and shares a /24 with `trinity`. That is how
+  which shares a /24 with `trinity` and wants the estate's read-only reader
+  token ([#182]), a token that can query and nothing else. That is how
   tiles on VLANs `trinity` cannot reach show numbers with no new rule:
   Prometheus already scrapes them, and each query is one a Grafana dashboard
   already runs. Numbers only, never up/down. Home Assistant, AdGuard, Vaultwarden and Grafana are links,
@@ -929,9 +966,10 @@ unit and its installer are in
 [`schedule-maintenance.md`](../../docs/runbooks/schedule-maintenance.md#on-trinity-the-sensitive-profile).
 What this does **not** give is a copy off the estate. `oracle` is in the same
 room and on the same power, and [ADR-0023] requires that copy before Immich or
-Paperless-ngx hold a real file. It is step 10's.
+Paperless-ngx hold a real file. It is step 10's, and [ADR-0073]'s:
+built, and waiting on a holder.
 And the volumes are not the photographs: the library is a bind mount, and
-no set contains it.
+no volume set contains it. Its own sets are the next section's.
 
 ## What backs Immich up, and what does not yet
 
@@ -939,23 +977,27 @@ The photographs are the household data most likely to be irreplaceable, and
 [ADR-0023] classes Immich as *durable*: it may be down, it may not be lost,
 and an off-estate copy whose staleness is visible was to exist before the
 first real photo arrived. It did not; the warning below is the record. Three
-things hold the data, and they are protected by two different mechanisms —
-one of which, the off-estate copy that covers the first two rows, does not
-exist yet.
+things hold the data. Each is copied off the host now, and none is copied
+off the estate: the copy [ADR-0023] requires, the one that covers the first
+two rows, still does not exist.
 
 > [!WARNING]
 > **The first real photographs arrived before that copy did.** Two accounts
 > uploaded 615 assets between 16:59 and 17:01 UTC on 2026-09-28 — the day the
 > host was built, with [#455] undelivered and [ADR-0022]'s record and
-> [ADR-0023]'s *Independent* test still open. Until [#455] exists, the USB disk
-> is the only copy of the originals anywhere. The restore below proves the
-> metadata comes back; it cannot bring back a photograph that is on no other
-> disk.
+> [ADR-0023]'s *Independent* test still open. For their first day the USB disk
+> was the only copy of the originals anywhere. Since 2026-09-29 a nightly set
+> goes to `oracle` ([ADR-0064]), so losing the disk no longer loses them. That
+> copy is in the same room and on the same power. Since 2026-10-01 it is
+> encrypted to [`household.recipients`](household.recipients) as well as to
+> `trinity`'s key ([ADR-0073]). It does not satisfy [ADR-0023], and this
+> warning stands until [#455] exists.
 
 | What | Where | Protected by |
 | --- | --- | --- |
-| The originals, thumbnails and transcodes | `IMMICH_UPLOAD_LOCATION` — the USB disk | The off-estate copy [ADR-0023] requires. **Not built**: its destination, a WD Elements 5 TB, was bought on 2026-09-22 under [#455] and has not been delivered. [ADR-0023] made it the precondition on the first real photo; the photos came first, as the warning above records |
-| Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | The same copy — it is on the same disk, on purpose, so one copy of the disk is a copy of the metadata beside the originals |
+| The originals | `IMMICH_UPLOAD_LOCATION` — the USB disk | **Off-host, interim:** `make backup-library`, nightly at 05:15 ([ADR-0064]). One encrypted archive of `upload/`, `library/`, `profile/` and `backups/`, two sets kept on `trinity`'s SSD and two on `oracle`, and `ARGS=--prove` hashes each original against `immich-db`. Each set is encrypted to the sensitive rule's recipients and to [`household.recipients`](household.recipients) ([ADR-0073]). **Off-estate: built, waiting on a holder.** `make household-copy` carries the newest set to the household drive, a WD Elements 5 TB under [#455], every ninety days ([ADR-0073], [`carry-the-household-copy.md`](../../docs/runbooks/carry-the-household-copy.md)). It refuses a copy of record until [`household.recipients`](household.recipients) has a household key |
+| Thumbnails and transcodes | The same disk, `thumbs/` and `encoded-video/` | Nothing, on purpose. They are derived from the originals, and a restore regenerates them from Immich's *Jobs* page. Only their `.immich` markers are archived, because the server will not start without them |
+| Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | It sits on the same disk on purpose, so a copy of the disk is also a copy of the metadata. It rides in every library set, three hours old at most, so each set is a restore unit on its own |
 | The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `oracle` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
 
 The restore that [#132] asks to see proven once is Immich's own: a fresh
@@ -968,6 +1010,10 @@ database holds for it. The procedure, what it proved and what it did not are
 [`restore-the-sensitive-tier.md` § Restore Immich](../../docs/runbooks/restore-the-sensitive-tier.md#restore-immich).
 Upstream calls the database-first order a hard rule; on v3.2.2 the rehearsal
 found it is a safety rule instead, and the runbook says why it is kept anyway.
+**On 2026-09-29 it was rehearsed again from a library set pulled back off
+`oracle`**, the case of losing the USB disk. The dump inside the set restored
+into a scratch `immich-db`, `ok=615 bad=0` held, and the thumbnails and
+transcodes regenerated.
 
 ## Validate before deploying
 
@@ -1042,6 +1088,7 @@ it matters:
 [ADR-0007]: ../../docs/adr/0007-defensive-estate-and-offensive-range.md
 [ADR-0008]: ../../docs/adr/0008-place-services-by-data-trust.md
 [ADR-0010]: ../../docs/adr/0010-keep-the-resolver-on-the-gateway.md
+[ADR-0021]: ../../docs/adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md
 [ADR-0022]: ../../docs/adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md
 [ADR-0023]: ../../docs/adr/0023-keep-the-household-recovery-path-outside-the-estate.md
 [ADR-0034]: ../../docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md
@@ -1054,6 +1101,8 @@ it matters:
 [ADR-0060]: ../../docs/adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md
 [ADR-0062]: ../../docs/adr/0062-add-actual-to-the-sensitive-tier.md
 [ADR-0063]: ../../docs/adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
+[ADR-0064]: ../../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
+[ADR-0073]: ../../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131

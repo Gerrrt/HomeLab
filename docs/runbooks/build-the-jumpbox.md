@@ -114,6 +114,36 @@ not the repository package afterwards. There is nothing here for it to run,
 and `deploy-agent.sh` reads the absence as its cue to install the native
 package.
 
+**Then give the root volume the whole disk.** Ubuntu's guided LVM install
+sizes `ubuntu-lv` at half the volume group and leaves the rest unallocated:
+on this 32 GB disk that is a 15 GiB root with 15 GiB idle beside it. `phoenix`
+filled those 15 GiB on 2026-10-03, with toolchains and caches and nothing
+runaway, and a write to `phoenix.env` failed with `No space left on device`
+(#445). Grow it online:
+
+```bash
+sudo lvextend -r -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+df -h /          # about 30G
+```
+
+**Then install the QEMU guest agent.** `--agent enabled=1` in §1 only gives the
+VM the channel. Nothing answers on it until the package is installed in the
+guest:
+
+```bash
+sudo apt-get install -y qemu-guest-agent && sudo systemctl start qemu-guest-agent
+```
+
+The unit is static on Ubuntu, so `systemctl enable` refuses it; it starts
+itself on every boot through the virtio channel, as
+[`build-the-lab-guest.md`](build-the-lab-guest.md) §1 says for `alexander`.
+From `Saruman`, `qm guest cmd 170 ping` returns nothing and exits 0. This was
+missed on the first build and found on 2026-10-02 (#445). Until then, nothing
+on `Saruman` could read `phoenix`, and every step there had to be typed by
+hand. The agent grants nothing new: root on `Saruman` already holds this
+guest's console and disk. It is preferred to trusting `Saruman`'s key for SSH,
+which would open a network login into the host that holds the token.
+
 ## 3. The reservation on `morpheus`
 
 Read the guest's MAC from the hypervisor:
@@ -184,6 +214,14 @@ Five of those are worth knowing rather than copying:
   rotated, not kept. `pveum user token remove phoenix@pve builder` and the
   `token add` line again is the whole rotation.
 
+> [!NOTE]
+> **The role has grown since this section ran.** Packer's builds
+> ([#440](https://github.com/Gerrrt/HomeLab/issues/440)) added
+> `/storage/large_data` and `VM.GuestAgent.Audit`.
+> [`build-the-lab-templates.md`](build-the-lab-templates.md) §2 keeps the list
+> of what was added and why. A rebuilt `phoenix` needs this section and then
+> that one.
+
 **Then the door — which, on the day, had no wall.** ADR-0014 closes `8006`
 on `Saruman` to `10.0.50.0/24` and this guest is not on it. ADR-0043 admits
 one address, on this port and no other. The line is, in
@@ -221,15 +259,23 @@ PROXMOX_TOKEN_ID=phoenix@pve!builder
 PROXMOX_TOKEN_SECRET=<paste the secret>
 EOT
 ssh-keygen -t ed25519 -C phoenix -f ~/.ssh/id_ed25519
-git clone https://github.com/Gerrrt/HomeLab.git ~/HomeLab
+git clone https://github.com/Gerrrt/HomeLab.git ~/code/Gerrrt/HomeLab
 ```
 
 That file is mode 600, on this host, and **not in the repository** — a
 stated deviation from #436's "credential into `secrets/`", and ADR-0043
 records why it is forced: `check_sops_rules.py` proves every `.sops.yaml`
 rule against the stack directories, so a `phoenix` rule fails CI until a
-`stacks/phoenix` exists. The toolchain issue that consumes the token defines
-the encrypted file; this runbook does not guess its shape. The SSH key is the
+`stacks/phoenix` exists. The toolchain issue that consumes the token was to
+define the encrypted file. It decided there is none:
+[ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)
+part 4 keeps this file as the credential, because `phoenix` holds no age key
+to decrypt one with.
+[ADR-0076](../adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)
+adds three lines for OpenTofu: the endpoint, the token in the provider's own
+form, and the state passphrase.
+[`provision-lab-guests.md`](provision-lab-guests.md) §1 writes them, and §3
+escrows the passphrase to the estate's recipients. The SSH key is the
 one the toolchain will inject into every guest it builds. It is generated
 here and goes nowhere else. The checkout holds **no age key**: `make render`
 fails here by design, and this host converges nothing — ADR-0021 owns what
@@ -263,7 +309,7 @@ guest by days so the agent has somewhere to push on first boot.
 What is left is applying it where the stack runs, **on `alexander`**:
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 git pull
 make up STACK=lab
 ss -ltn '( sport = :9090 or sport = :3100 )'
@@ -302,6 +348,18 @@ can build every guest on the segment.
 
 Then from a checkout **on the Mac** — Hicks reaches this segment and
 `prometheus` does not, and the script's header says it is safe from macOS:
+
+The lab's ingest proxy wants `phoenix`'s own token
+([#834](https://github.com/Gerrrt/HomeLab/issues/834)). It is in
+`secrets/lab.sops.yaml`, which only `alexander` can open, so the script
+decrypts nothing for this target. Export two values from that file
+(`make secrets-show STACK=lab` on `alexander`) into the shell first, typed or
+pasted rather than written to a file:
+
+- `INGEST_TOKEN`: the value of `INGEST_TOKEN_PHOENIX`
+- `INGEST_TOKEN_READER`: the lab's reader token, for the arrival check
+
+Then:
 
 ```bash
 ./scripts/deploy-agent.sh --runtime native --monitoring-host 10.0.30.40 <user>@10.0.30.70

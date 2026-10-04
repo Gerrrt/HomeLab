@@ -110,9 +110,10 @@ scrape_configs:
   # decided the other way, for four reasons:
   #
   #   1. A published remote-write receiver on VLAN 30 is unauthenticated, on the
-  #      segment ADR-0014 deliberately fills with attackers. security.md already
-  #      calls the estate's published ingest ports a real residual — but there
-  #      "anything that can reach them" is a host inside Winterfell, and here it
+  #      segment ADR-0014 deliberately fills with attackers. security.md called
+  #      the estate's published ingest ports a real residual until #182 put a
+  #      token in front of them — but there "anything that can reach them" was
+  #      a host inside Winterfell, and here it
   #      is a Kali VM sharing the broadcast domain, handed a delete-series API
   #      pointed at the lab's own evidence. The direction the connection travels
   #      is the control.

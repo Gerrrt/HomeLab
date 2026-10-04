@@ -19,6 +19,14 @@ globs:
 ignores:
   - node_modules/**
   - .venv/**
+  # Installed Ansible collections, for the reason given in .yamllint.yaml.
+  - ansible/.collections/**
+  - ansible/.ansible/**
+  # The provider cache that scripts/lint.sh's tofu `init` writes (gitignored).
+  # Lint runs markdownlint first, so a fresh checkout — CI — never has it, and
+  # the SECOND local `make validate` linted the providers' own CHANGELOG.md and
+  # README.md: 463 findings in 4 files, none of them this repository's.
+  - tofu/.terraform/**
   # Other Claude Code sessions' git worktrees, for the reason spelled out in
   # .yamllint.yaml. `**/*.md` matches dot directories here, so a second
   # checkout doubles the file count — measured at 114 files against 57 tracked.

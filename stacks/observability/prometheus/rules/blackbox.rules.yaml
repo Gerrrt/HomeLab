@@ -29,6 +29,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#blackboxexporterdown"
           summary: "blackbox-exporter is down — every probed endpoint will look reachable"
           description: >-
             No probe is running. This is the failure mode that matters most,
@@ -43,14 +44,18 @@ groups:
       # The lab-CA module verifies the chain and the name, and a leaf that has
       # expired or lost its IP SAN fails the probe outright — there is no
       # separate TLS alert, and the description says where to look.
+      #
+      # `via="refusal"` is excluded: those probes succeed on a 401, and
+      # IngestAuthNotEnforced below owns them.
       - alert: EndpointUnreachable
-        expr: probe_success{job="blackbox"} == 0
+        expr: probe_success{job="blackbox", via!="refusal"} == 0
         for: 5m
         labels:
           component: blackbox
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#endpointunreachable"
           summary: "{{ $labels.name }} is not reachable at {{ $labels.instance }}"
           description: >-
             Probed by {{ $labels.via }} and got no successful response for five
@@ -81,6 +86,38 @@ groups:
             service behind it is fine. Check Unbound on morpheus and the host
             override for this name.
 
+      # The ingest proxy's allowlist, tested from outside (#182, ADR-0067).
+      # The `via: refusal` probes ask 10.0.99.20:9090 and :3100 for something
+      # no token-less client may have, and succeed only on the proxy's own
+      # 401. A failure WITH an HTTP status means something answered and it was
+      # not that refusal: Prometheus or Loki served the request directly, or
+      # the Caddyfile lost a line. That is the whole of #182 undone, so it is
+      # critical and security, not availability.
+      #
+      # A failure with NO status (connection refused, timeout) is excluded by
+      # the `probe_http_status_code > 0` join. That is the proxy being down,
+      # which the `address` health probes of the same ports already page on
+      # as EndpointUnreachable. It is not a claim about authentication.
+      - alert: IngestAuthNotEnforced
+        expr: >-
+          probe_success{job="blackbox", via="refusal"} == 0
+          and on (instance) probe_http_status_code{job="blackbox", via="refusal"} > 0
+        for: 5m
+        labels:
+          component: blackbox
+          severity: critical
+          category: security
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#ingestauthnotenforced"
+          summary: "{{ $labels.name }} at {{ $labels.instance }} did not refuse a request with no token"
+          description: >-
+            The ingest proxy should answer this with 401 and its
+            `realm="homelab-ingest"` challenge. Something else answered.
+            Check what holds the port: `docker ps` for a service published on
+            it directly, and `docker compose logs caddy` for the proxy.
+            Until it is fixed, anything that can route to 10.0.99.20 may read,
+            write or delete without a credential.
+
       # Certificate expiry, read off the handshake by every https module —
       # verified or not, blackbox reports the earliest expiry in the chain the
       # endpoint actually served, so this is never a check of a file on disk.
@@ -100,8 +137,9 @@ groups:
       #
       # NOT FOR ACME LEAVES. A target labelled `renewal: acme` (the sensitive
       # tier's, from its own step-ca) carries a seven-day certificate that is
-      # ALWAYS inside both thresholds, so both rules exclude it and
-      # TlsAcmeRenewalStalled below watches it instead. Learned the loud way:
+      # ALWAYS inside both thresholds, so both rules exclude it and the hours
+      # pair below — TlsAcmeRenewalLate and TlsAcmeRenewalStalled — watches it
+      # instead. Learned the loud way:
       # enabling the ntfy probe paged `urgent` within ten minutes with
       # "ntfy's certificate has 7 days left" on a leaf Caddy had just issued
       # (#136).
@@ -136,6 +174,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/generate-certificates.md#renewal"
           summary: "{{ $labels.name }}'s certificate has {{ $value | printf \"%.0f\" }} days left"
           description: >-
             Under a week, or already expired if the number is negative. A
@@ -145,16 +184,44 @@ groups:
             Reissue now — docs/runbooks/generate-certificates.md — and restart
             whatever serves it.
 
-      # The ACME half of expiry. A seven-day leaf (ADR-0037) is renewed by
-      # Caddy once a third of its life remains, about 56 hours, and retried
-      # from then on, so a healthy leaf never reads below ~2.3 days. Under 36
-      # hours means some twenty hours of failed renewals: step-ca down, the
-      # challenge failing, Caddy stuck. Critical, not warning, and deliberately
-      # so. The first leaf this watches is the in-house ntfy's, and when that
-      # lapses the in-house alert path goes with it, so the page has to reach
-      # `urgent` and its ntfy.sh copy. Every other name Caddy serves renews
-      # through the same step-ca, so one stalled leaf here is evidence about
-      # all of them.
+      # The ACME half of expiry, and the same two-tier shape as the days pair
+      # above with hours in place of days (#426). A seven-day leaf (ADR-0037)
+      # is renewed by Caddy once a third of its life remains, about 56 hours,
+      # and retried from then on — Caddy looks every ten minutes — so a
+      # healthy leaf never reads below ~2.3 days.
+      #
+      # Under 48 hours is the warning: some eight hours of failed renewals,
+      # well clear of any retry jitter, and still two days before anything
+      # stops verifying. It goes to `default`, which is the in-house ntfy whose
+      # leaf this may be — fine, because at 48 hours that leaf still verifies.
+      #
+      # Under 36 hours is the page: some twenty hours of failures — step-ca
+      # down, the challenge failing, Caddy stuck. Critical, not warning, and
+      # deliberately so. The first leaf this watches is the in-house ntfy's,
+      # and when that lapses the in-house alert path goes with it, so the page
+      # has to reach `urgent` and its ntfy.sh copy. Every other name Caddy
+      # serves renews through the same step-ca, so one stalled leaf here is
+      # evidence about all of them. alertmanager.yaml inhibits the warning
+      # under it, so a stalled renewal pages once.
+      - alert: TlsAcmeRenewalLate
+        expr: >-
+          min by (name, role, host)
+            (probe_ssl_earliest_cert_expiry{job="blackbox", renewal="acme"} - time())
+          / 3600 < 48
+        for: 30m
+        labels:
+          component: blackbox
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }}'s ACME certificate has {{ $value | printf \"%.0f\" }}h left"
+          description: >-
+            Caddy on {{ $labels.host }} should have renewed this leaf at about
+            56 hours left and has not. Nothing has stopped verifying yet;
+            TlsAcmeRenewalStalled pages at 36. Read Caddy's log for the renewal
+            error (`docker logs sensitive-caddy 2>&1 | grep -i renew`), then
+            check step-ca is healthy — docs/runbooks/build-the-tier-ca.md.
+
       - alert: TlsAcmeRenewalStalled
         expr: >-
           min by (name, role, host)
@@ -166,6 +233,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-tier-ca.md#5-verify--the-certificate-caddy-is-serving-not-the-files-on-disk"
           summary: "{{ $labels.name }}'s ACME certificate has {{ $value | printf \"%.0f\" }}h left and has not renewed"
           description: >-
             Caddy on {{ $labels.host }} should have renewed this leaf about a day

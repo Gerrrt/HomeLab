@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: keep the lab bridge mirrored to the Zeek sensor
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/build-the-sensor-guest.md
+
+[Timer]
+Unit=homelab-zeek-mirror.service
+# Two minutes after boot, so the guests' taps exist, and then every minute.
+# The minute is the blind spot after a guest or the sensor restarts, and the
+# run costs one `tc filter show` per port when there is nothing to do — so it
+# is short. Not OnCalendar: the gap is measured from the last run, not the
+# clock, and there is nothing to catch up on after downtime.
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

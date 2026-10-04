@@ -1,0 +1,16 @@
+# Weekly, the same slot as the monitoring host's prune (Monday 04:00) so one
+# morning's journals hold every host's reclaimed figure. Persistent, so a host
+# that was off on Monday catches up at its next boot.
+[Unit]
+Description=HomeLab: weekly removal of unused Docker images
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-prune-images.service
+OnCalendar=Mon *-*-* 04:00:00
+RandomizedDelaySec=600
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

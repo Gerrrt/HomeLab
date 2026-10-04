@@ -1,0 +1,19 @@
+---
+# Each DC resolves through its partner first, then itself. Promotion leaves a DC
+# pointing at itself only, so a DC whose own DNS service is down can no longer
+# resolve the domain; this is Microsoft's guidance, and the one place the "every
+# guest points at .50 and .51" rule does not apply (§4). Runs after both DCs
+# exist, because pointing bahamut at a leviathan that is not yet a DC breaks it.
+#
+# IPv4 only, through roles/dns_client. This was win_dns_client, which reported a
+# change on every run against both DCs: promotion sets ::1 as the DC's IPv6
+# resolver, the module counted it as drift, and the ::1 was still there
+# afterwards (#448's first run, 2026-10-03). The IPv6 resolver is promotion's and
+# stays as it shipped, like the rest of §0's list.
+- name: Partner first, then loopback
+  ansible.builtin.import_role:
+    name: dns_client
+  vars:
+    dns_client_servers:
+      - "{{ lab_dc_addresses | reject('equalto', ansible_host) | first }}"
+      - 127.0.0.1

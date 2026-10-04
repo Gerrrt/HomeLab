@@ -35,9 +35,9 @@ What an entry here may contain:
    on the box closes 2026-10-08, and the rehearsal is the step that ends it.
 3. [**NAS**](https://github.com/Gerrrt/HomeLab/milestone/4) and
    [**Saruman: the domain, then the SOC**](https://github.com/Gerrrt/HomeLab/milestone/3)
-   — side by side, with no order between them. Each has one issue that goes
-   first for its own reason: a mirror that is one disk, and a domain that
-   everything else on that host points at.
+   — side by side, with no order between them. The domain, which everything
+   else on `Saruman` points at, is built and closed; the NAS's first issue,
+   the one-disk mirror, is done.
 4. [**automation**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
    pipeline that populates the domain; it runs from `phoenix`, which exists.
 5. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
@@ -60,15 +60,13 @@ Closes when it is empty.
   → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
   Prometheus and Loki ingest ports.** Reopened 2026-09-26: #319 closed it by
-  accident. Nothing authenticates `9090` or `3100`, and `SECURITY.md` names
-  this issue as the work that closes the residual.
-- **[#251](https://github.com/Gerrrt/HomeLab/issues/251) Put `oracle`'s wiki
-  into the repository and back up its database.** Reopened 2026-09-26: #252
-  closed it by accident. ADR-0015 names it as the tracker for that gap.
-- **[#672](https://github.com/Gerrrt/HomeLab/issues/672) Fail a PR whose
-  close keywords sit in prose.** Eight issues have been closed by a keyword
-  inside a sentence saying the issue stays open; three of them sat closed with
-  the work undone until the 2026-09-26 pass found them.
+  accident. Authored 2026-09-30:
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)'s
+  ingest proxy, a token per agent and a reader token. Not yet deployed. The
+  order is the tokens into both SOPS files, the three agents and `trinity`
+  redeployed carrying them, then `make up` on the monitoring host. The issue
+  stays open until `deploy-agent.sh` has shown fresh data from all three agents
+  and the refusal probes are green.
 
 The rest of the milestone has no order between its issues.
 
@@ -105,10 +103,15 @@ has been rehearsed on it.
     *Independent* test. The Immich restore rehearsal is done
     ([#132](https://github.com/Gerrrt/HomeLab/issues/132), →
     [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)). Until
-    [#455](https://github.com/Gerrrt/HomeLab/issues/455) exists, the USB
-    disk is the only copy of the originals.
+    [#455](https://github.com/Gerrrt/HomeLab/issues/455) exists, the
+    originals' only copy beyond the USB disk is the nightly one to `oracle`,
+    in the same room
+    ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
 
-  [#533](https://github.com/Gerrrt/HomeLab/issues/533) follows the build;
+  [#533](https://github.com/Gerrrt/HomeLab/issues/533)'s converge timer is
+  authored and installs report-only; it closes when `trinity` applies and a
+  Dependabot bump to `stacks/sensitive` lands with nobody at a shell
+  (→ [runbook](runbooks/converge-the-host.md#on-trinity)).
   [#534](https://github.com/Gerrrt/HomeLab/issues/534)'s CI re-check is
   already done (#646).
 - **The nine services**, each authored ahead of the hardware and each open
@@ -116,9 +119,8 @@ has been rehearsed on it.
   [#129](https://github.com/Gerrrt/HomeLab/issues/129) Caddy and
   [#130](https://github.com/Gerrrt/HomeLab/issues/130) step-ca first, because
   everything else sits behind the one and is issued by the other
-  ([ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md);
-  [#426](https://github.com/Gerrrt/HomeLab/issues/426)'s expiry rule lands with
-  it — → [runbook](runbooks/build-the-tier-ca.md)); then
+  ([ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
+  — → [runbook](runbooks/build-the-tier-ca.md)); then
   [#135](https://github.com/Gerrrt/HomeLab/issues/135) AdGuard Home, serving
   since 2026-09-28 with `morpheus` forwarding to it alone
   ([ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md),
@@ -146,76 +148,47 @@ has been rehearsed on it.
   rehearsed already:
   → [runbook](runbooks/restore-the-sensitive-tier.md).
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
-  **The drive is bought** — 2026-09-22, in
-  [`hardware.md`](hardware.md) — so what is left is not a purchase. Two
-  conditions
-  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
-  attaches are open and a drive satisfies neither: the copy is encrypted with
-  a key that is **not** the one only the operator holds, and the path is
-  opened once **from the other person's device, without the operator
-  present**. Whether that key is
+  **The drive is here.** It was bought 2026-09-22 and arrived 2026-09-29
+  ([`hardware.md`](hardware.md)). **The key is decided**: on 2026-10-01
+  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
+  settled the first of
+  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)'s
+  two conditions. The copy is encrypted to the household holder's key, with
   [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
-  second recipient or a separate one is the decision this issue still owes.
-  Before the tier holds real data, not after:
+  second recipient as a fallback. The keys are kept in
+  `stacks/sensitive/household.recipients` and not in a sops rule. The drive
+  holds age archives on exFAT. **The copy is built**: `make household-copy`
+  carries it, `HouseholdCopyStale` watches it, and the holder's page is
+  [`open-the-household-copy.md`](runbooks/open-the-household-copy.md).
+  The drive was formatted and rehearsed on 2026-10-01.
+  **What is left is a person**: choosing the
+  holder, and the holder opening the copy once **from their own device,
+  without the operator present**. Both were meant to come before the tier
+  held real data, and they did not.
   [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)'s
-  first trigger is the first real photo or document, so this precedes Immich
-  and Paperless-ngx going live.
+  first trigger, the first real photo, fired on 2026-09-28. Until this lands,
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)'s
+  nightly copy to `oracle` stands in for the library, off-host and not
+  off-estate. When this lands, it supersedes ADR-0064.
 
 ## NAS
 
-Closes when the faulted Exos is replaced and the mirror resilvered, and a
-workstation can mount the share.
-
-- **[#558](https://github.com/Gerrrt/HomeLab/issues/558) Replace the faulted
-  Exos.** First: `erebor` is one disk until the swap and the resilver.
-  → [runbook](runbooks/replace-the-nas-disk.md)
-- **[#571](https://github.com/Gerrrt/HomeLab/issues/571) Decide what stands
-  between ZFS and the pair.** Decided by
-  [ADR-0052](adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md): the chipset's
-  AHCI ports, and the MegaRAID comes out at the swap. Closes with #558, once
-  `hardware.md` describes the path as it is.
-- **[#140](https://github.com/Gerrrt/HomeLab/issues/140) Audiobookshelf** is
-  authored — the service, a fifth Hicks pass it needs and the #140 text said
-  it did not, and its archive in the NAS pull, `pending` until deployed
-  ([ADR-0050](adr/0050-add-audiobookshelf-to-the-media-tier-behind-a-fifth-hicks-pass.md)).
-  What is left is [`build-the-nas.md`](runbooks/build-the-nas.md) §6.5 on
-  `smaug`, gated on the mirror being whole, which is #558.
-  [#141](https://github.com/Gerrrt/HomeLab/issues/141) Navidrome is authored
-  the same way — its archive `pending` beside Audiobookshelf's — and its
-  4533 pass already exists; what is left is the rest of §6.6, behind the
-  same gate.
+Closes when a workstation can mount the share. Its other condition, the
+faulted Exos replaced and the mirror resilvered, is met and is in
+[`changelog.md`](changelog.md).
 
 ## Saruman: the domain, then the SOC
 
-Closes when Wazuh and Velociraptor report the six agents in.
+Closes when it is empty. Both things its name names are done. The domain was
+built by hand on 2026-09-24 and 25, and
+[#414](https://github.com/Gerrrt/HomeLab/issues/414) closed on 2026-10-02 with
+its authentication generator running and §10 read from Hicks. The SOC followed:
+Wazuh and Velociraptor reported the six agents in on 2026-09-27.
 
-- **[#414](https://github.com/Gerrrt/HomeLab/issues/414) Build the lab
-  domain.** First: it is what the SOC, the range and the automation all point
-  at. Sized by
-  [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md),
-  six guests on `large_data`. **Built by hand 2026-09-24 to 2026-09-25**: all
-  six joined and scraped. Open for §6 (the authentication generator), §10 and
-  §11.
-  → [runbook](runbooks/build-the-lab-domain.md)
-- **[#266](https://github.com/Gerrrt/HomeLab/issues/266) Wazuh and
-  [#267](https://github.com/Gerrrt/HomeLab/issues/267) Velociraptor.** After
-  #414: one decision
-  ([ADR-0030](adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md)),
-  `stacks/soc/` authored ahead of the guest, and an agentless Wazuh has
-  nothing to report.
-  [#439](https://github.com/Gerrrt/HomeLab/issues/439)'s removal procedure
-  landed ahead of Velociraptor, as the runbook's §13 (#657);
-  [#438](https://github.com/Gerrrt/HomeLab/issues/438)'s disposable stack
-  follows `odin`. → [runbook](runbooks/build-the-soc-guest.md)
 - **[#671](https://github.com/Gerrrt/HomeLab/issues/671) A second way into
   the lab's secrets.** `secrets/lab.sops.yaml` is in git since #667, and
   encrypted to one key that lives only on `alexander`; a second recipient or
   a proved off-box copy, run on that guest.
-- **[#437](https://github.com/Gerrrt/HomeLab/issues/437) Zeek on a mirror
-  port.** Not gated on the switch: the mirror is an Open vSwitch mirror on
-  `Saruman`'s own bridge, and ADR-0006 keeps the switch's mirroring disabled
-  (ADR-0039). The domain it watches exists as of 2026-09-25, so what is left
-  is the bridge decision and then the build.
 - **[#485](https://github.com/Gerrrt/HomeLab/issues/485) PBS.**
   [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
   trigger has fired — `smaug` answers, `erebor` is online — and its sync job
@@ -224,7 +197,7 @@ Closes when Wazuh and Velociraptor report the six agents in.
   (`10.0.30.80`) with its datastore on `erebor/pbs` over NFSv4, and TrueNAS
   snapshots as the copy it cannot prune. What is left is the build: the
   guest, the dataset and share, the `2049` pass on `morpheus`, and a verify
-  job the lab can see. A whole mirror to send to still waits on #558.
+  job the lab can see.
   → [runbook](runbooks/build-the-backup-guest.md)
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
@@ -239,19 +212,42 @@ Closes when Wazuh and Velociraptor report the six agents in.
 Closes on BloodHound running where nothing attacks it.
 
 - **A chain, in this order:**
-  [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer →
-  [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu →
+  [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer (written,
+  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md);
+  901 built twice and usable, 912 built and to be rebuilt with the
+  `SetupComplete.cmd` fix, 911 not yet built,
+  → [runbook](runbooks/build-the-lab-templates.md); Kali's
+  template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
+  [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (done
+  2026-10-03,
+  [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md):
+  state encrypted, escrowed, and both proofs run against a real apply,
+  → [runbook](runbooks/provision-lab-guests.md)) →
   [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
-  six guests from the pipeline →
+  six guests from the pipeline (written,
+  [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
+  → [`ansible/`](../ansible/README.md); applied to the hand-built six on
+  2026-10-03, with a second run of `changed=0` and `verify.yml` passing on
+  all six; closes on a `tofu destroy` and rebuild,
+  so it waits for the six to be declared in `tofu/` with pinned MACs, and for
+  #440's first build) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
-  weaknesses and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
+  weaknesses (the population and the authentication generator are written as
+  `--tags population,authgen`,
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md),
+  and not yet applied; the weaknesses are not written) and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
   and Pktmon → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
   BloodHound, which closes the milestone. All of it runs from `phoenix`
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
   → [runbook](runbooks/build-the-jumpbox.md)).
-- **[#446](https://github.com/Gerrrt/HomeLab/issues/446) The ISO store on
-  `smaug`** wants the fifth inbound rule ADR-0016 did not write down, and is
-  otherwise independent of the chain.
+  **#440's templates read their installers from `smaug-iso`**, the ISO store
+  [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)
+  put on `erebor/iso`. Every file there is hashed daily on `Saruman` against
+  the list in `scripts/collect-iso-store-state.sh`, and `IsoChecksumMismatch`
+  pages if one changes, because the export trusts an address and Packer does
+  not check an ISO it is handed from storage. Copying the installers there,
+  listing their hashes and installing the check is
+  [`build-the-lab-templates.md`](runbooks/build-the-lab-templates.md) §2b.
 
 ## last
 
@@ -259,8 +255,10 @@ Gated on the domain, on a household observation, or on something to publish.
 
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Buy `ifrit` and build
   the range.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. It is the last purchase on the
-  estate's list, not the next.
+  uninstrumented estate teaches nothing. Both are met — the domain built
+  2026-09-25, #266 and #267 closed 2026-09-27 — so nothing gates the purchase;
+  a shortlist is on the issue. It is still the last purchase on the estate's
+  list.
   → [runbook](runbooks/build-the-playground.md)
 - **[#447](https://github.com/Gerrrt/HomeLab/issues/447) A cloud relay** —
   only if there is ever something to publish; the day it exists it replaces
@@ -278,9 +276,10 @@ none is in the order until one is taken.
 - **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
   [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
   and deployed on `trinity` 2026-09-29, and reachable from Hicks by name the
-  same day. What remains is registration closed at first login, which is
-  open until the admin exists. It holds no real notes until ADR-0023's
-  *Durable* condition is met.
+  same day. The admin registered and closed registration on 2026-10-02.
+  Nothing is left; #145 closes with this. It holds no real notes until
+  ADR-0023's *Durable* condition is met, which is the tier's condition and
+  not this issue's.
 - **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
   `recipes.matrix.elysium`.** Decided by
   [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
@@ -290,8 +289,9 @@ none is in the order until one is taken.
   alongside Immich and AdGuard. The default admin was renamed and
   re-passworded the same day. Nothing is left.
 - **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
-  **Deployed on `trinity` 2026-09-29**, with its host override. What is left
-  is the operator's first login with the superuser password from SOPS.
+  **Deployed on `trinity` 2026-09-29**, with its host override, and the
+  operator's first login with the superuser password from SOPS is done.
+  Nothing is left.
 - **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
   **deployed on `trinity` 2026-09-29** ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): behind Caddy at
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
@@ -333,9 +333,9 @@ to go:
 **One more, later, and it is the last:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
 ([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
-[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain,
-which is built, and on the SOC, which is not; it is the last purchase on this
-list, not the next. 32 GB is a
+[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain
+and the SOC, and both are built (#266 and #267 closed 2026-09-27), so nothing
+gates it now; it is still the last purchase on this list. 32 GB is a
 spec the candidate machines do not meet as shipped — the SFF boxes in that
 class ship with 16 GB in two slots — so a SO-DIMM kit is part of that purchase
 and not a later contingency. The model, the CPU and the disk are chosen at the

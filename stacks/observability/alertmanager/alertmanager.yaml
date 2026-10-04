@@ -88,6 +88,15 @@ route:
       group_wait: 0s
       repeat_interval: 24h
 
+    # The Loki ruler's Watchdog (#837, loki/rules/watchdog.rules.yaml). Its job
+    # is done once the ruler has SENT it: LokiRulerSilent reads the ruler's sent
+    # counter. Delivering it anywhere would add nothing, so it goes nowhere, and
+    # it is matched by name here, above the severity routes, so nothing below
+    # can claim it.
+    - receiver: "null"
+      matchers:
+        - alertname = "LokiRulerWatchdog"
+
     # Power events page immediately and repeat aggressively — a UPS on battery
     # with no spare battery installed is a short fuse.
     - receiver: urgent
@@ -159,6 +168,13 @@ inhibit_rules:
   # URL (#91).
   - source_matchers: [alertname = "TlsCertificateExpiryImminent"]
     target_matchers: [alertname = "TlsCertificateExpiringSoon"]
+    equal: ["name"]
+
+  # The same shape for the sensitive tier's seven-day ACME leaves, in hours:
+  # a leaf inside 36 is still inside 48, and one stalled renewal pages once
+  # (#426).
+  - source_matchers: [alertname = "TlsAcmeRenewalStalled"]
+    target_matchers: [alertname = "TlsAcmeRenewalLate"]
     equal: ["name"]
 
 receivers:

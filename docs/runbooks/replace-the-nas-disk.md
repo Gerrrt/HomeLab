@@ -4,6 +4,18 @@
 anywhere else — so the copy came first, on 2026-09-20, and the tray waits
 for the copy, the wipe and the return label.**
 
+> **Status — 2026-09-29: done. `erebor` is a whole mirror again, on the
+> chipset, with the MegaRAID out.** The replacement is `ZVTLQEZ7`, a
+> refurbished drive bought outright once the return came back as a refund.
+> FARM read 0 power-on hours and 0 on every error count before it was used.
+> `ZVTBS4NL` moved to the chipset first and the pool imported there
+> `DEGRADED`, as it had been on the card. Then Replace resilvered 1.99 GiB in
+> 23 s and the scrub repaired 0 B with 0 errors, at 13:52 and 13:56 PDT.
+> Every line of step 6 reads true. The readings are in the *Done* note under
+> step 5. The long self-test on the new disk is still to run. It waits for
+> `smaug`'s memory to go in, so that no shutdown aborts it, and its result
+> is a line in [`hardware.md`](../hardware.md).
+>
 > **Status — 2026-09-22: steps 1–4 are done and the runbook waits for a
 > drive.** Step 4 ran on 2026-09-22: `ZVTBSDL3` was offlined, wiped by the
 > fallback path (shred stopped at 93 GiB for time, then `dd` over each
@@ -113,7 +125,9 @@ Record the pool's `state:` line verbatim. TrueNAS's alert said the pool is
 `ONLINE` with a `FAULTED` leaf; if `zpool status` says `DEGRADED`, the
 kstat `node_zfs_zpool_state` reads will say so too and `ZpoolNotOnline` can
 see it. If it also says `ONLINE`, the pool-level metric cannot see a faulted
-mirror leaf at all, and that goes in *What is still open*.
+mirror leaf at all, and `ZpoolVdevNotOnline` is the alert that does
+([#744](https://github.com/Gerrrt/HomeLab/issues/744),
+[`build-the-nas.md`](build-the-nas.md) §6.8).
 
 ```bash
 readlink /sys/block/sdb
@@ -257,8 +271,9 @@ The pool is not encrypted (§3 of the build runbook) and the disk held the
 library and Jellyfin's password hashes, so it is wiped — or its refusal to be
 wiped is recorded — before it goes in the box.
 
-In the UI: **Storage → `erebor` → Manage Devices → the disk showing
-FAULTED (`ZVTBSDL3`) → Offline.** Then, at the console, **find the device by
+In the UI: **Storage → `erebor` → Manage VDEVs → the disk showing
+FAULTED (`ZVTBSDL3`) → Offline.** (TrueNAS 25.10 labels the button
+*Manage VDEVs*; this runbook called it *Manage Devices* until 2026-09-29.) Then, at the console, **find the device by
 serial and not by letter**, because a reboot can swap `sda` and `sdb`, and
 `shred` on the wrong one is the pool:
 
@@ -390,8 +405,9 @@ smartctl -l farm /dev/sdX
 
 Serial, firmware, SMART and FARM hours into `hardware.md` — the FARM
 counter is the one a reset cannot touch. Then in the UI: **Storage →
-`erebor` → Manage Devices → the OFFLINE member → Replace → pick the new
-disk → Replace.** `zpool status erebor` shows `resilver in progress`. A
+`erebor` → Manage VDEVs → expand `mirror-0` → the OFFLINE member → Replace
+(in the *ZFS Info* panel) → pick the new disk → Replace Disk**, with Force
+left unticked, because a blank disk does not need it. `zpool status erebor` shows `resilver in progress`. A
 mirror resilver copies allocated blocks only, so it is hours rather than the
 day a full 18 TB would take, and `ZpoolNotOnline` fires for the whole of it
 — that is the intended reading, not a fault. When it completes:
@@ -405,6 +421,58 @@ Wait for the scrub. The status must read `ONLINE` and `errors: No known
 data errors` with `0 0 0` on every row. Start `smartctl -t long /dev/sdX`
 on the new disk; it takes about 28 hours, and the result is a `hardware.md`
 line.
+
+**Then rewrite the SMART textfile by hand**, with the command line in
+[`build-the-nas.md`](build-the-nas.md) §6.4 step 2, and do not wait for the
+daily cron. The file the exporter serves was written before the swap, and
+still describes the old disk. Until
+[ADR-0066](../adr/0066-key-smart-series-on-the-port-not-the-letter.md) the
+baseline was keyed on the drive letter, and a moved letter made the row match
+nothing and page, which is what happened on 2026-09-29 (the note below). It is
+keyed on the port now, so a reboot no longer does that, but a new disk on the
+same port still inherits the old one's readings until the file is rewritten.
+
+> **Done 2026-09-29.** The drive, the seller's refund and the cables were
+> all in hand.
+>
+> - **Surviving drive alone.** `ZVTBS4NL` went to the chipset on the first
+>   new cable, and the card came out with its breakout. At power-on,
+>   `ahci 0000:00:17.0` reported 6/6 ports, `lspci -nn` listed no
+>   `1000:005f`, and `erebor` imported `DEGRADED`, with `52dfceb0…` `ONLINE`
+>   `0 0 0` and `24c4970d…` `OFFLINE`, the same as on the card. The
+>   fallback was not needed.
+> - **The replacement.** It went in the empty tray on the second cable and
+>   was read before the Replace, at 13:46 PDT. `sda` is `ZVTLQEZ7` and
+>   `sdb` is `ZVTBS4NL`: **the letters swapped** from the card's order, and
+>   the boot SSD stayed on `sdc`. The SATA links read `ata1` and `ata2` at
+>   6.0 Gbps for the two Exos and `ata6` at 6.0 for the SSD. `ata5` is at
+>   1.5 Gbps: the optical drive went back into the 5.25" cage the same day,
+>   for burning discs. The cage fan was checked spinning and the SSD's
+>   bracket was checked secure.
+> - **The new drive's readings.** SMART `PASSED`, firmware `SN06`. Every
+>   count is 0: reallocated, pending, offline-uncorrectable, CRC and command
+>   timeouts. The error log is empty and no self-test is logged. FARM reads
+>   **0 power-on, 0 spindle and 0 head-flight hours**, 0 reallocated and 0
+>   candidates on all 20 heads, and 0 sectors written. The full readings are
+>   in [`hardware.md`](../hardware.md).
+> - **Replace, resilver and scrub.** The button was *Manage VDEVs*. The
+>   resilver finished at 13:52:08 PDT: **1.99 GiB in 00:00:23 with 0
+>   errors**. The pool is `ONLINE` on `52dfceb0…` and `9362abc8…` (the new
+>   disk). It holds 1.91 GiB in all (`erebor/apps` 7.64 MiB, `erebor/media`
+>   29.4 MiB, the rest `ix-apps` and `.system`), which is why the resilver
+>   took seconds. The scrub finished at 13:56:01 PDT: **repaired 0 B in
+>   00:00:15 with 0 errors**, `0 0 0` on every row, *No known data errors*.
+> - **One alert this step did not predict.** `SmartDriveBadSectors`
+>   started for `smaug` `/dev/sdb` at 21:06:30 UTC, about 30 minutes (the
+>   rule's `for:`) after the boot. A collector run at the console the same
+>   minute read `sdb` as `ZVTBS4NL` with every count at 0. So the alert was
+>   coming from the textfile served by the exporter, which cron had written
+>   at 08:30 that morning, before the swap. The probable reading is that the
+>   file put the boot SSD, with its four recorded sectors, on a letter that
+>   its baseline row (`sdc`) does not name. That reading is not proven,
+>   because the file was rewritten before the exporter's copy was read. The
+>   hand rewrite at 14:10 PDT (`devices=3`) cleared the alert. The paragraph
+>   above this note is the fix.
 
 ## 6. Verify, and write it down
 
@@ -422,17 +490,38 @@ line.
   readings, the outcome of the return and which wipe path step 4 took;
   [`build-the-nas.md`](build-the-nas.md) §7's `zpool status` line is true
   again
-- The SMART baseline row still names the boot SSD. All three disks are on
-  the chipset now, so the letters may have moved: re-run
+- The SMART baseline row still names the boot SSD. It is keyed on the
+  port, not the letter
+  ([ADR-0066](../adr/0066-key-smart-series-on-the-port-not-the-letter.md)),
+  so only a moved cable changes it: re-run
   `collect-smart-state.sh --print --host smaug` as
-  [`build-the-nas.md`](build-the-nas.md) §6.7 says, check which
-  `/dev/sdX` carries `model="INTEL SSDSC2BB240G7"`, and correct the row if
-  it is no longer `sdc` (ADR-0047's consequences say why it matters)
+  [`build-the-nas.md`](build-the-nas.md) §6.4 says, and check that the line
+  carrying `model="INTEL SSDSC2BB240G7"` has the `slot=` the row names
 - `lspci -nn` has no `1000:005f`, and [`hardware.md`](../hardware.md)
   describes the path from bay to ZFS as the chipset AHCI, or as the card
   if ADR-0052's fallback applied
 - [#558](https://github.com/Gerrrt/HomeLab/issues/558) and
   [#571](https://github.com/Gerrrt/HomeLab/issues/571) close on this list
+
+> **Read 2026-09-29, and every line holds.**
+>
+> - **The scrub and the scrape.** The scrub is as the step-5 note gives
+>   it. The exporter serves `node_zfs_zpool_state{state="online",zpool="erebor"} 1`
+>   and nothing else at 1.
+> - **Alertmanager.** `amtool silence query` lists nothing: the
+>   `ZpoolNotOnline` silence from step 4 had run out, and the shutdown's
+>   `InstanceDown` silence was gone. `amtool alert query instance=smaug`
+>   returned nothing once the textfile had been rewritten.
+> - **The backup pull.** `make backup-nas ARGS=--list` shows five complete
+>   sets, from `20260920T060234Z` (step 2's) to `20260929T043136Z`, and
+>   the same five are complete on `oracle`. `homelab-backup-nas.timer` last
+>   ran Sat 2026-09-26 and next runs Sat 2026-10-03.
+> - **The SMART collector.** It reads three devices, all healthy. The boot
+>   SSD is still `/dev/sdc`, with its 4 reallocated sectors, so the
+>   baseline row stands unedited.
+> - **The card is out.** `lspci -nn` has no `1000:005f`, and
+>   [`hardware.md`](../hardware.md) and
+>   [`build-the-nas.md`](build-the-nas.md) §1 describe the chipset path.
 
 ## What is still open
 
@@ -460,9 +549,17 @@ line.
   850 pending sectors it would have, thirty minutes in, while the pool still
   said `ONLINE`. The faulted disk gets **no** baseline row; only the boot
   SSD's four static sectors are recorded, and that row is confirmed on the
-  day (§6.4). The other half — a
-  periodic task writing `zpool status` vdev states into the same textfile
-  directory — rides the mechanism the ADR built and is its own follow-up.
+  day (§6.4). **Resolved by
+  [#744](https://github.com/Gerrrt/HomeLab/issues/744): the other half.** A
+  five-minute root cron job writes `zpool status -j` leaf states into the same
+  textfile directory, keyed by GUID and named by partuuid, and
+  `ZpoolVdevNotOnline` pages on a leaf that is not ONLINE under a pool that
+  is — this fault, read the way the pool printed it. Live since 2026-10-02
+  ([`build-the-nas.md`](build-the-nas.md) §6.8). The cable pull of
+  2026-10-03 took the pool to DEGRADED on the chipset ports. `ZpoolNotOnline`
+  paged in five minutes, and the leaf rule correctly stood down. A synthetic
+  faulted leaf under an ONLINE pool, this fault's own shape, then paged
+  `ZpoolVdevNotOnline` in under two minutes (§6.8 step 5b).
   TrueNAS's own alert service stays where it is, a mailbox and the web UI,
   by decision rather than by default: the ADR declines it as the paging path.
 - **The exporter's hang was the fault, not a habit.** It came back on a
@@ -491,12 +588,16 @@ line.
   ([ADR-0052](../adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md),
   [#571](https://github.com/Gerrrt/HomeLab/issues/571)). Not IT firmware:
   a crossflash on the pool's only controller, with no spare card.
-- **The replacement decision is the seller's first.** The return is open
-  since 2026-09-20; refund or replacement is chosen after the faulted disk
-  lands with them. A replacement means no purchase; a refund means an 18 TB
-  bought outright and a row in [`roadmap.md`](../roadmap.md)'s buy list in
-  the same commit. Whether a third drive follows as a cold spare is the same
-  question asked once more.
+- **Settled 2026-09-24: a refund, and a drive bought outright.** The
+  seller refunded rather than replaced. `ZVTLQEZ7` was bought the same day
+  and fitted on 2026-09-29 (step 5). It never entered the buy list, and
+  [`roadmap.md`](../roadmap.md) says why. A third drive as a cold spare is
+  still unasked. Two bays and no spare is what the chassis gives. With a
+  refurbished drive in the mirror, the spare question is the next one this
+  pool raises, and it has no issue yet.
+- **Settled 2026-09-29: the MegaRAID is out.** The pool imported on the
+  chipset at the first attempt, so ADR-0052's fallback was not used. The
+  card and its breakout are on the shelf.
 - **Settled 2026-09-22: Seagate's warranty does not cover it.** The lookup
   was done at step 4 from the label's QR code. The drive is genuine and
   "not under warranty", so the "0HR" lot is covered by the seller and by

@@ -1,0 +1,146 @@
+# The ingest proxy: what an off-host client has to prove before Prometheus or
+# Loki serves it (#182, ADR-0067).
+#
+# Prometheus and Loki authenticate nothing. They are published on loopback only
+# and this proxy holds the host's own address on the same two ports. Every
+# consumer inside the stack (Grafana, the local Alloy, the scrapes) uses compose
+# names and never passes through here.
+#
+# WHO GETS WHAT. The Authorization header is looked up in one table below and
+# yields a role. A request is served only if its role is allowed on the path it
+# asked for:
+#
+#   agent   POST the two push endpoints, and nothing else
+#   reader  query endpoints, and nothing else
+#   none    health endpoints, and nothing else
+#
+# Everything else gets a 401, whatever the token: the admin API, /-/reload and
+# /-/quit, Loki's delete and compactor APIs, the UI, and any path added upstream
+# after this file was written. That is an allowlist, not a denylist, on purpose.
+#
+# THE TOKENS come from secrets/observability.sops.yaml through the container's
+# environment. `{$VAR}` is substituted when the Caddyfile is parsed, so a token
+# change is `make up`, which recreates the container. render-config.sh refuses
+# a token shorter than 32 characters, or one that equals another. An empty one
+# would make the literal "Bearer " a credential.
+#
+# A NEW AGENT is one line in the map, a key in the SOPS file, and a guard in
+# compose.yaml (docs/runbooks/add-monitored-device.md). Revoking one host is
+# deleting its line.
+#
+# LOGGING. Served requests are not logged: that would be a line per push,
+# from every agent, into the Loki those pushes are written to. A refused
+# request is logged, with the role its token mapped to, if any. That is the
+# signal worth keeping: a probe with no token, or a known token on the wrong
+# path. Caddy writes the Authorization header as REDACTED unless
+# `log_credentials` is set, and it is not set here.
+{
+	admin off
+	auto_https off
+}
+
+(ingest_auth) {
+	map {http.request.header.Authorization} {ingest_client} {ingest_role} {
+		"Bearer {$INGEST_TOKEN_ORACLE}" oracle agent
+		"Bearer {$INGEST_TOKEN_TRINITY}" trinity agent
+		"Bearer {$INGEST_TOKEN_SARUMAN}" saruman agent
+		"Bearer {$INGEST_TOKEN_READER}" reader reader
+		default - -
+	}
+	log {
+		output stdout
+		format json
+	}
+	log_append ingest_client {ingest_client}
+	log_append ingest_role {ingest_role}
+}
+
+(refuse) {
+	handle {
+		header WWW-Authenticate `Bearer realm="homelab-ingest"`
+		respond 401
+	}
+}
+
+# Prometheus. The blackbox exporter probes /-/healthy at the host's address on
+# purpose, to prove this publish, so health needs no token.
+:9090 {
+	import ingest_auth
+
+	@health path /-/healthy /-/ready
+	handle @health {
+		log_skip
+		reverse_proxy prometheus:9090
+	}
+
+	@push {
+		method POST
+		path /api/v1/write
+		vars {ingest_role} agent
+	}
+	handle @push {
+		log_skip
+		reverse_proxy prometheus:9090
+	}
+
+	# What Homepage's prometheus and prometheusmetric widgets call (targets and
+	# query), what Home Assistant's rack sensor calls (query), and what
+	# scripts/deploy-agent.sh's arrival check calls (query). The label and
+	# series reads are the ones a person debugging with the reader token
+	# reaches for first.
+	@read {
+		method GET POST
+		path /api/v1/query /api/v1/query_range /api/v1/targets /api/v1/series /api/v1/labels /api/v1/label/*
+		vars {ingest_role} reader
+	}
+	handle @read {
+		log_skip
+		reverse_proxy prometheus:9090
+	}
+
+	import refuse
+}
+
+# Loki. Same shape. Its delete API is the reason the allowlist matters most
+# here: auth_enabled is false upstream, so a request that reached Loki's delete
+# endpoint would be obeyed.
+:3100 {
+	import ingest_auth
+
+	@health path /ready
+	handle @health {
+		log_skip
+		reverse_proxy loki:3100
+	}
+
+	@push {
+		method POST
+		path /loki/api/v1/push
+		vars {ingest_role} agent
+	}
+	handle @push {
+		log_skip
+		reverse_proxy loki:3100
+	}
+
+	# deploy-agent.sh's arrival check: which hosts Loki has heard from, and a
+	# line from the one just deployed.
+	@read {
+		method GET POST
+		path /loki/api/v1/query /loki/api/v1/query_range /loki/api/v1/labels /loki/api/v1/label/*
+		vars {ingest_role} reader
+	}
+	handle @read {
+		log_skip
+		reverse_proxy loki:3100
+	}
+
+	import refuse
+}
+
+# The container's own healthcheck. It is not published, and it answers without
+# touching an upstream. "Is the proxy up" and "is Prometheus up" are separate
+# questions, and InstanceDown already answers the second.
+:2020 {
+	respond /healthz 200
+}

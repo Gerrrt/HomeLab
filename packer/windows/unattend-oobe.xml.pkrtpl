@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The answer file a CLONE reads, passed to sysprep /generalize /oobe /unattend:
+  by scripts/sysprep.ps1. Uploaded by the build; never on the answer disc.
+
+  ComputerName * gives each clone a random name, which is a placeholder: the
+  real one (bahamut, carbuncle…) is set by ansible/'s base role (#448).
+  The Administrator password is the build password until that role rotates
+  it. It opens the console and nothing else: the clone's only remote way in is
+  OpenSSH, key-only (scripts/openssh.ps1, ADR-0077).
+
+  As in Autounattend.xml, LLMNR, NetBIOS, IPv6 and WPAD are left alone
+  (ADR-0029).
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <ComputerName>*</ComputerName>
+      <TimeZone>UTC</TimeZone>
+    </component>
+  </settings>
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <InputLocale>en-US</InputLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideLocalAccountScreen>true</HideLocalAccountScreen>
+        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <ProtectYourPC>3</ProtectYourPC>
+      </OOBE>
+      <UserAccounts>
+        <AdministratorPassword>
+          <Value>${build_password}</Value>
+          <PlainText>true</PlainText>
+        </AdministratorPassword>
+      </UserAccounts>
+    </component>
+  </settings>
+</unattend>

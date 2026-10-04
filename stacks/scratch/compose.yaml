@@ -1,0 +1,324 @@
+---
+# The scratch stack: a DISPOSABLE copy of stacks/soc, for the investigation
+# that wants a store it can fill with noise, query hard and then delete —
+# detonating a sample, or working one question over a weekend — without
+# spending odin's shard budget or polluting the record the estate is judged by.
+#
+# Deployed on: diabolos (10.0.30.61, VMID 161, VLAN 30 / ImaginationLAN) — a
+#              guest on `Saruman` that is EXPECTED TO BE DESTROYED. NOT BUILT
+#              YET, and most of the time it will not exist at all: it is
+#              created for one investigation and destroyed at the end of it.
+#              Authored ahead of the guest the way stacks/soc and stacks/sensor
+#              were. The lifecycle is docs/runbooks/run-a-scratch-investigation.md.
+# Decided by:  docs/adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md
+# Deploy with: make up STACK=scratch    (from the repository root, on diabolos)
+#
+# ---------------------------------------------------------------------------
+# DISPOSABLE, and how that is made visible
+# ---------------------------------------------------------------------------
+# A throwaway that quietly stays up for four months is odin with worse
+# retention and nobody watching it (#438). So the lifecycle is not a promise in
+# this file; it is a fact on the hypervisor that the estate reads:
+#
+#   - the guest carries the Proxmox tag `disposable` (qm create --tags);
+#   - scripts/collect-guest-state.sh reports that tag and the guest's creation
+#     time from `qm config`, on the hypervisor that already reports to VLAN 99;
+#   - DisposableGuestOutlived (stacks/observability/prometheus/rules/
+#     host.rules.yaml) fires when a disposable guest is a fortnight old,
+#     running or stopped. Still EXISTING is the thing that gets noticed.
+#
+# `qm destroy 161 --purge` is this stack's retention policy. That is why there
+# is no ISM delete policy here, no backup, and no telemetry leaving the guest.
+#
+# ---------------------------------------------------------------------------
+# On the comments in this file
+# ---------------------------------------------------------------------------
+# Everything here is stacks/soc/compose.yaml's shape, and that file carries the
+# argument for every line of it — the dotted service names, the memory limits,
+# s6 in the manager, the rendered files, root-with-no-capabilities for
+# Velociraptor. Two copies of an argument drift the way two copies of a config
+# do, so what is written out here is only where this stack DIFFERS from soc's,
+# each marked DIFFERENCE, the convention soc's file uses against observability.
+#
+# DIFFERENCE 1: the static config is MOUNTED from ../soc, unchanged, the way
+# soc mounts ../observability/alloy. A disposable copy of the SIEM that has
+# quietly drifted from the SIEM answers a different question from the one
+# asked of it. The exceptions are what has to be this guest's own: the mTLS
+# material in ./wazuh/certs (its own CA, issued on diabolos), Velociraptor's
+# generated config in ./velociraptor/etc (its own CA again), and the user
+# database template ./wazuh/indexer/internal_users.yml, because render-config.sh
+# renders the template it finds under THIS stack's wazuh/ directory.
+#
+# Same images, same digests. Dependabot opens one PR per stack directory, so a
+# release arrives as a PR here and its twin in stacks/soc; merge them together
+# (.github/dependabot.yml).
+
+name: scratch
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging: *default-logging
+  networks: [scratch]
+  init: true
+  pids_limit: 512
+
+services:
+  wazuh.indexer:
+    <<: *service-defaults
+    image: wazuh/wazuh-indexer:4.14.8@sha256:929179d223dc44e40c2e5c8bdbd1df19c6f68ab8f4ac255dfce98d92ee831a17
+    container_name: scratch-wazuh-indexer
+    hostname: wazuh.indexer
+    pids_limit: 4096
+    mem_limit: 3584m
+    memswap_limit: 3584m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    environment:
+      # The same 2 GiB as odin, and the same shard ceiling with it — 25 per GiB
+      # of heap (ADR-0030). DIFFERENCE 2: nothing deletes on a schedule here.
+      # soc's ism-wazuh-alerts.json is not applied; an investigation that runs
+      # into the shard ceiling has outlived the "weekend" this guest is for,
+      # which is the same thing DisposableGuestOutlived says from outside.
+      OPENSEARCH_JAVA_OPTS: "-Xms2g -Xmx2g"
+    volumes:
+      - indexer-data:/var/lib/wazuh-indexer
+      - ./wazuh/certs/root-ca.pem:/usr/share/wazuh-indexer/config/certs/root-ca.pem:ro
+      - ./wazuh/certs/wazuh.indexer.pem:/usr/share/wazuh-indexer/config/certs/wazuh.indexer.pem:ro
+      - ./wazuh/certs/wazuh.indexer-key.pem:/usr/share/wazuh-indexer/config/certs/wazuh.indexer.key:ro
+      - ./wazuh/certs/admin.pem:/usr/share/wazuh-indexer/config/certs/admin.pem:ro
+      - ./wazuh/certs/admin-key.pem:/usr/share/wazuh-indexer/config/certs/admin-key.pem:ro
+      - ../soc/wazuh/indexer/opensearch.yml:/usr/share/wazuh-indexer/config/opensearch.yml:ro
+      # Rendered from secrets/scratch.sops.yaml — which, unlike every other
+      # stack's, is never committed (ADR-0071, secrets/README.md).
+      - ./wazuh/indexer/.rendered/internal_users.yml:/usr/share/wazuh-indexer/config/opensearch-security/internal_users.yml:ro
+    expose:
+      - "9200"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsk
+          --cert /usr/share/wazuh-indexer/config/certs/admin.pem
+          --key /usr/share/wazuh-indexer/config/certs/admin-key.pem
+          https://localhost:9200/_cluster/health | grep -q '"status"'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  wazuh.manager:
+    <<: *service-defaults
+    image: wazuh/wazuh-manager:4.14.8@sha256:6b53d4cc5c013b08157471d11f7a7c2c45f9e8238f3958e3b2f04ec1773ecbd4
+    container_name: scratch-wazuh-manager
+    hostname: wazuh.manager
+    init: false
+    pids_limit: 1024
+    mem_limit: 2048m
+    memswap_limit: 2048m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 655360
+        hard: 655360
+    environment:
+      INDEXER_URL: '"https://wazuh.indexer:9200"'
+      INDEXER_USERNAME: admin
+      INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/scratch.sops.yaml}
+      FILEBEAT_SSL_VERIFICATION_MODE: full
+      SSL_CERTIFICATE_AUTHORITIES: /etc/ssl/root-ca.pem
+      SSL_CERTIFICATE: /etc/ssl/filebeat.pem
+      SSL_KEY: /etc/ssl/filebeat.key
+      API_USERNAME: wazuh-wui
+      API_PASSWORD: ${API_PASSWORD:?set in secrets/scratch.sops.yaml}
+    volumes:
+      - manager-api-configuration:/var/ossec/api/configuration
+      - manager-etc:/var/ossec/etc
+      - manager-logs:/var/ossec/logs
+      - manager-queue:/var/ossec/queue
+      - manager-var-multigroups:/var/ossec/var/multigroups
+      - manager-integrations:/var/ossec/integrations
+      - manager-active-response:/var/ossec/active-response/bin
+      - manager-agentless:/var/ossec/agentless
+      - manager-wodles:/var/ossec/wodles
+      - manager-tmp:/var/ossec/tmp
+      - filebeat-etc:/etc/filebeat
+      - filebeat-var:/var/lib/filebeat
+      - ./wazuh/certs/root-ca-manager.pem:/etc/ssl/root-ca.pem:ro
+      - ./wazuh/certs/wazuh.manager.pem:/etc/ssl/filebeat.pem:ro
+      - ./wazuh/certs/wazuh.manager-key.pem:/etc/ssl/filebeat.key:ro
+      - ../soc/wazuh/manager/ossec.conf:/wazuh-config-mount/etc/ossec.conf:ro
+      - ./wazuh/manager/.rendered/authd.pass:/wazuh-config-mount/etc/authd.pass:ro
+    ports:
+      # The agents of whatever is being investigated. Enrolment still needs the
+      # password (soc's ossec.conf, mounted above): a disposable store is still
+      # one an attacker on the segment should not be able to enrol into.
+      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_AGENT_PORT:-1514}:1514"
+      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_ENROL_PORT:-1515}:1515"
+    expose:
+      - "55000"
+    depends_on:
+      wazuh.indexer:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /var/ossec/bin/wazuh-control status | grep -q 'wazuh-remoted is running'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  wazuh.dashboard:
+    <<: *service-defaults
+    image: wazuh/wazuh-dashboard:4.14.8@sha256:b8e3d43711f29596dad12051a548abd0ed84692544f451d14ac2fc0c0b6a85c8
+    container_name: scratch-wazuh-dashboard
+    hostname: wazuh.dashboard
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    environment:
+      INDEXER_USERNAME: admin
+      INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/scratch.sops.yaml}
+      WAZUH_API_URL: https://wazuh.manager
+      DASHBOARD_USERNAME: kibanaserver
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?set in secrets/scratch.sops.yaml}
+      API_USERNAME: wazuh-wui
+      API_PASSWORD: ${API_PASSWORD:?set in secrets/scratch.sops.yaml}
+      WAZUH_MONITORING_SHARDS: "1"
+      WAZUH_MONITORING_REPLICAS: "0"
+    volumes:
+      - ./wazuh/certs/wazuh.dashboard.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard.pem:ro
+      - ./wazuh/certs/wazuh.dashboard-key.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard-key.pem:ro
+      - ./wazuh/certs/root-ca.pem:/usr/share/wazuh-dashboard/certs/root-ca.pem:ro
+      - ../soc/wazuh/dashboard/opensearch_dashboards.yml:/usr/share/wazuh-dashboard/config/opensearch_dashboards.yml:ro
+      - dashboard-config:/usr/share/wazuh-dashboard/data/wazuh/config
+      - dashboard-custom:/usr/share/wazuh-dashboard/plugins/wazuh/public/assets/custom
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_DASHBOARD_PORT:-443}:5601"
+    depends_on:
+      wazuh.indexer:
+        condition: service_healthy
+      wazuh.manager:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          curl -sk -o /dev/null -w '%{http_code}' https://localhost:5601/app/login
+          | grep -qE '^(200|302)$$'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  velociraptor:
+    <<: *service-defaults
+    image: ghcr.io/velocidex/velociraptor-server:0.77.2@sha256:fa7ecaee0a2861ed4add94c0aa9fc3e62dad6d320b07de63e08776f9104b33d1
+    container_name: scratch-velociraptor
+    pids_limit: 1024
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      # An address, not a name, for soc's reason — and this guest's own, so a
+      # client enrolled here can never be mistaken for one of odin's.
+      VELOCIRAPTOR_HOSTNAME: ${VELOCIRAPTOR_HOSTNAME:-10.0.30.61}
+      VELOCIRAPTOR_DATASTORE_PATH: /datastore/
+      VELOCIRAPTOR_CONFIG_PATH: /etc/velociraptor/server.config.yaml
+      VELOCIRAPTOR_INITIAL_ADMIN_PASSWORD: ${VELOCIRAPTOR_INITIAL_ADMIN_PASSWORD:?set in secrets/scratch.sops.yaml}
+    volumes:
+      - ../soc/velociraptor/init.vql:/bin/init.vql:ro
+      # Holds this guest's own Velociraptor CA. Gitignored, and — DIFFERENCE 3
+      # — NOT backed up: every client pinned to it is part of the same
+      # investigation and dies with it.
+      - ./velociraptor/etc:/etc/velociraptor
+      - velociraptor-datastore:/datastore
+    ports:
+      # DIFFERENCE 4: 8003, the metrics listener, is not published. On odin the
+      # lab's Prometheus scrapes it; nothing scrapes this guest (ADR-0071), and
+      # an unauthenticated listener with no consumer is the ADR-0012 case. The
+      # listener still exists inside the container, which the healthcheck uses.
+      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_FRONTEND_PORT:-8000}:8000"
+      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_GUI_PORT:-8889}:8889"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8003/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+  # DIFFERENCE 5: no Alloy. odin's pushes its journal, container logs and the
+  # indexer's health to the lab's stores on alexander; this guest's would put a
+  # detonation's noise into the lab's Loki, with the lab's retention, after the
+  # guest that produced it is gone. Nothing leaves diabolos as telemetry. Its
+  # lifecycle crosses as hypervisor state instead (the header above).
+
+  wazuh.certs-generator:
+    image: wazuh/wazuh-certs-generator:0.0.4@sha256:369b4d58509aab074b188596870c81584f7120e653d9ef83c591f0f785dcf325
+    container_name: scratch-wazuh-certs-generator
+    profiles: ["certs"]
+    logging: *default-logging
+    environment:
+      CERT_TOOL_VERSION: "4.14"
+    volumes:
+      - ./wazuh/certs:/certificates
+      - ../soc/wazuh/certs.yml:/config/certs.yml:ro
+
+networks:
+  scratch:
+    driver: bridge
+
+volumes:
+  # The things that grow live on the guest's second disk, for soc's reason
+  # (#439) — and here the second disk is also the thing teardown destroys, so
+  # nothing an investigation wrote survives on the OS volume either.
+  indexer-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SCRATCH_DATA_DIR:-/srv/scratch-data}/indexer
+  manager-api-configuration:
+  manager-etc:
+  manager-logs:
+  manager-queue:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SCRATCH_DATA_DIR:-/srv/scratch-data}/manager-queue
+  manager-var-multigroups:
+  manager-integrations:
+  manager-active-response:
+  manager-agentless:
+  manager-wodles:
+  filebeat-etc:
+  filebeat-var:
+  dashboard-config:
+  dashboard-custom:
+  velociraptor-datastore:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SCRATCH_DATA_DIR:-/srv/scratch-data}/velociraptor
+  manager-tmp:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SCRATCH_DATA_DIR:-/srv/scratch-data}/manager-tmp

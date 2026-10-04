@@ -156,6 +156,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#instancedown"
               summary: "integrations/node_exporter target oracle:9100 is down"
               description: >-
                 Prometheus has failed to scrape oracle:9100
@@ -208,6 +209,7 @@ tests:
               severity: critical
               category: availability
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#instancedown"
               summary: "node target smaug is down"
               description: >-
                 Prometheus has failed to scrape smaug
@@ -241,6 +243,7 @@ tests:
               severity: critical
               category: capacity
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostdiskcritical"
               summary: "oracle:/ below 10% free"
 
       # Below threshold, but for: 15m has not elapsed at 10m.
@@ -726,6 +729,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#smartdriveunhealthy"
               summary: "oracle: SMART says /dev/sda is failing"
               description: >-
                 The drive's own overall self-assessment has failed on
@@ -764,6 +768,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#smartdrivesparelow"
               summary: "morpheus: /dev/nvme0 spare capacity below the drive's own threshold"
               description: >-
                 Remaining spare is 8%, under the threshold the drive itself
@@ -898,6 +903,7 @@ tests:
           - exp_labels:
               host: oracle
               device: /dev/sda
+              slot: /dev/sda
               component: host
               severity: warning
               category: hardware
@@ -916,14 +922,14 @@ tests:
   # oracle's real shape, then a change: 32 recorded and 32 measured, then 40.
   # The baseline is rendered on the monitoring host, so it carries
   # instance="prometheus" while the drive carries instance="oracle" — the join
-  # is on(host, device) and must not care. The alert must keep the DRIVE's
+  # is on(host, slot) and must not care. The alert must keep the DRIVE's
   # instance, which is what `group_left()` is for; without it the label is
   # silently dropped (backup.rules.yaml measured this).
   - interval: 1m
     input_series:
       - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda",instance="oracle",job="oracle-metrics"}'
         values: "32x30 40x90"
-      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",device="/dev/sda",instance="prometheus",job="prometheus-metrics"}'
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",slot="/dev/sda",instance="prometheus",job="prometheus-metrics"}'
         values: "32x120"
     alert_rule_test:
       # 32 against a baseline of 32 is not above it.
@@ -936,6 +942,7 @@ tests:
           - exp_labels:
               host: oracle
               device: /dev/sda
+              slot: /dev/sda
               instance: oracle
               job: oracle-metrics
               component: host
@@ -965,7 +972,7 @@ tests:
         values: "0x120"
       - series: 'homelab_smart_uncorrectable_sectors{host="oracle",device="/dev/sda",instance="oracle"}'
         values: "0x120"
-      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",device="/dev/sda",instance="prometheus"}'
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",slot="/dev/sda",instance="prometheus"}'
         values: "32x120"
     alert_rule_test:
       - eval_time: 90m
@@ -979,7 +986,7 @@ tests:
     input_series:
       - series: 'homelab_smart_reallocated_sectors{host="oracle",device="/dev/sda"}'
         values: "32x120"
-      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",device="/dev/sda"}'
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="oracle",slot="/dev/sda"}'
         values: "32x120"
       - series: 'homelab_smart_pending_sectors{host="oracle",device="/dev/sda"}'
         values: "0x30 1x90"
@@ -1006,17 +1013,18 @@ tests:
 
   # --- SmartDriveBadSectors: smaug, whose series arrive by scrape, at and above
   # its recorded baseline. Every other host's SMART series come from Alloy and
-  # carry host + device; smaug's are a textfile under a scraped node_exporter
-  # (ADR-0047), so they also carry the target's instance, job, role and vlan,
-  # while the baseline row rendered on the monitoring host carries
-  # instance="prometheus". The join is on(host, device) and must not care, and
-  # the alert must keep the DRIVE's labels. 4 is the S3520's real, static count
-  # (hardware.md, render-smart-baselines.sh): quiet at 4, firing at 5.
+  # carry host + device + slot; smaug's are a textfile under a scraped
+  # node_exporter (ADR-0047), so they also carry the target's instance, job,
+  # role and vlan, while the baseline row rendered on the monitoring host
+  # carries instance="prometheus". The join is on(host, slot) and must not
+  # care, and the alert must keep the DRIVE's labels. 4 is the S3520's real,
+  # static count (hardware.md, render-smart-baselines.sh): quiet at 4, firing
+  # at 5.
   - interval: 1m
     input_series:
-      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",instance="smaug",job="node",role="nas",vlan="40"}'
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
         values: "4x30 5x90"
-      - series: 'homelab_smart_reallocated_sectors_baseline{host="smaug",device="/dev/sdc",instance="prometheus",job="prometheus-metrics"}'
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="smaug",slot="pci-0000:00:17.0-ata-6",instance="prometheus",job="prometheus-metrics"}'
         values: "4x120"
     alert_rule_test:
       - eval_time: 25m
@@ -1028,6 +1036,7 @@ tests:
           - exp_labels:
               host: smaug
               device: /dev/sdc
+              slot: pci-0000:00:17.0-ata-6
               instance: smaug
               job: node
               role: nas
@@ -1045,6 +1054,87 @@ tests:
                 assessment passes, record it there and this goes quiet; if it is
                 rising, SmartDriveBadSectorsGrowing will say so and the answer is
                 a disk. Check backups first.
+
+  # --- SmartDriveBadSectors: QUIET when the letter moves and the port does not
+  # The page #745 was filed for, and the one that fired again on 2026-09-30.
+  # smaug's boot SSD reads as sdc, then as sdb after a reboot that moved no
+  # disk; the old series goes stale and a new one starts. Keyed on the letter,
+  # the new series matched no row and paged on its recorded four. Keyed on the
+  # port, both match the one row and nothing fires, before or after.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug"}'
+        values: "4x60"
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6",instance="smaug"}'
+        values: "_x60 4x120"
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="smaug",slot="pci-0000:00:17.0-ata-6",instance="prometheus"}'
+        values: "4x180"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: SmartDriveBadSectors
+        exp_alerts: []
+      - eval_time: 170m
+        alertname: SmartDriveBadSectors
+        exp_alerts: []
+
+  # --- SmartDriveBadSectors: a row still naming a LETTER is loud, not silent -
+  # The failure mode ADR-0046 chose and ADR-0066 keeps. A row left keyed on
+  # the old letter, against a collector that now emits the port, matches
+  # nothing, so the drive falls back to `> 0` and pages on its four. The fix
+  # is the row, and the page is how anyone learns the row is wrong.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6"}'
+        values: "4x120"
+      - series: 'homelab_smart_reallocated_sectors_baseline{host="smaug",slot="/dev/sdb"}'
+        values: "4x120"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: SmartDriveBadSectors
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdb
+              slot: pci-0000:00:17.0-ata-6
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdb has unreadable sectors"
+              description: >-
+                4 sector(s) or media error(s) the drive could not read
+                back — above the count recorded for this drive in
+                scripts/render-smart-baselines.sh, or on a drive with no count
+                recorded. Look at it: if the number is static and the drive's own
+                assessment passes, record it there and this goes quiet; if it is
+                rising, SmartDriveBadSectorsGrowing will say so and the answer is
+                a disk. Check backups first.
+
+  # --- SmartDriveBadSectorsGrowing: QUIET when a letter moves ----------------
+  # The half of #745 the issue did not name. The subtraction matches a series
+  # to itself a week earlier. Keyed on host + letter, smaug's S3520 (4) coming
+  # up as sdb, the letter an Exos (0) held a week before, read as growth of 4.
+  # With `slot` in the label set the two are different series, so the moved
+  # drive has no week-old point and says nothing, and the Exos, on its own
+  # port, says nothing either. The offset is 7d, so the eval is past 7d + for.
+  #
+  # 5m steps across the whole week, not 30m. At 30m each series is absent for
+  # most of every step (the lookback is 5m), `for: 1h` restarts each time, and
+  # this case passed against the rule keyed on host + letter, which is the
+  # regression it exists to catch: `- ignoring(slot)` survived it. At 5m that
+  # mutant fires, so the test can fail.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-2"}'
+        values: "0x2015"
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdb",slot="pci-0000:00:17.0-ata-6"}'
+        values: "_x2016 4x24"
+      - series: 'homelab_smart_reallocated_sectors{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-2"}'
+        values: "_x2016 0x24"
+    alert_rule_test:
+      - eval_time: 170h
+        alertname: SmartDriveBadSectorsGrowing
+        exp_alerts: []
 
   # --- SmartDriveBadSectors: quiet on a clean drive -------------------------
   # All four inputs at zero, including the NVMe spelling, so the `or` chain is
@@ -1173,6 +1263,121 @@ tests:
         alertname: HypervisorGuestStopped
         exp_alerts: []
 
+  # --- HypervisorGuestStopped: quiet for a stopped DISPOSABLE guest --------
+  # The same input as the firing case above, plus the tag. Stopped is what a
+  # throwaway guest between sessions is meant to be (ADR-0071).
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_running{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x30 0x120"
+      - series: 'homelab_guest_disposable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: HypervisorGuestStopped
+        exp_alerts: []
+
+  # --- DisposableGuestOutlived: fires for a fortnight-old disposable guest -
+  # The ctime is set in the past rather than the test run for a fortnight:
+  # promtool evaluates every rule in the file at every step, and fifteen days
+  # of steps made this file take minutes. -1292100 is fifteen days less 65
+  # minutes before t=0, so at the 65m evaluation the guest is exactly fifteen
+  # days old, and has been over the threshold (and so pending) since t=0.
+  # STOPPED throughout, on purpose: age, not uptime, is what is measured.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_created_timestamp_seconds{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "-1292100x20"
+      - series: 'homelab_guest_disposable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x20"
+      - series: 'homelab_guest_running{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: DisposableGuestOutlived
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: diabolos
+              vmid: "161"
+              type: qemu
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Saruman: disposable guest diabolos is 15d 0h 0m 0s old"
+              description: >-
+                This guest is tagged `disposable` on the hypervisor and has
+                existed for more than a fortnight. Either the investigation is
+                over and the guest should be gone — export what the case needs,
+                then `qm destroy 161 --purge`, per
+                docs/runbooks/run-a-scratch-investigation.md — or it is no
+                longer disposable, and the tag is the thing to remove,
+                deliberately.
+
+  # --- DisposableGuestOutlived: quiet inside the fortnight -----------------
+  # Thirteen days old at t=0 (-1123200), so just over thirteen at 65m.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_created_timestamp_seconds{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "-1123200x20"
+      - series: 'homelab_guest_disposable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: DisposableGuestOutlived
+        exp_alerts: []
+
+  # --- DisposableGuestOutlived: quiet for an old guest that is not tagged --
+  # alexander is older than a fortnight and meant to be. Without this case the
+  # `and on (...) homelab_guest_disposable == 1` could be deleted unnoticed.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_created_timestamp_seconds{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "-1292100x20"
+      - series: 'homelab_guest_disposable{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: DisposableGuestOutlived
+        exp_alerts: []
+
+  # --- GuestConfigUnreadable: fires an hour after a config read fails ------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_config_readable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x5 0x20"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: GuestConfigUnreadable
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: diabolos
+              vmid: "161"
+              type: qemu
+              component: host
+              severity: warning
+              category: monitoring
+            exp_annotations:
+              summary: "Saruman: cannot read guest diabolos's config"
+              description: >-
+                `qm config 161` (or `pct config`) has failed for an hour, so
+                whether this guest is tagged `disposable`, and how old it is,
+                are unknown — DisposableGuestOutlived cannot fire for it. Its
+                run state is still reported. Run the command on the hypervisor
+                and read its error.
+
+  # --- GuestConfigUnreadable: quiet for a failed read that recovers --------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_config_readable{host="Saruman",guest="diabolos",vmid="161",type="qemu"}'
+        values: "1x5 0x4 1x15"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: GuestConfigUnreadable
+        exp_alerts: []
+
   # --- GuestStateStopped: fires when the collector goes silent -------------
   # `_` is a genuine gap, not a zero: the shape of a collector that stopped
   # writing, as opposed to a hypervisor reporting zero guests.
@@ -1291,6 +1496,7 @@ tests:
               severity: critical
               category: capacity
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#thinpoolwillfillin24h"
               summary: "Saruman: thin pool large_data/large_data data fills within 24h"
               description: >-
                 Over half used and, extrapolating the last six hours, full
@@ -1343,17 +1549,392 @@ tests:
                 `lvs` writes nothing on purpose, so the journal says why.
 
   # --- ThinPoolStateStale: quiet while the timer keeps rewriting it --------
-  # Rewritten every ten minutes. guest-state.prom beside it is old and must not
+  # Rewritten on every sample. guest-state.prom beside it is old and must not
   # match — the regex is the whole scope of the rule.
-  - interval: 10m
+  #
+  # Sampled every 5m, not every 10m like the timer. At 10m each series is
+  # absent for half of every step (the lookback is 5m), `for` restarts each
+  # time, and a regex loosened to `.*state\.prom` survived this test still
+  # pending. At 5m the near miss fires, so the test can fail.
+  - interval: 5m
     input_series:
       - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="thin-pool-state.prom"}'
-        values: "0+600x20"
+        values: "0+300x40"
       - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-state.prom"}'
-        values: "0x20"
+        values: "0x40"
     alert_rule_test:
       - eval_time: 3h
         alertname: ThinPoolStateStale
+        exp_alerts: []
+
+  # --- IsoChecksumMismatch: fires for the one file whose hash moved ---------
+  # windows-11.iso no longer matches; the VirtIO disc beside it does and must
+  # not join it. No `for`, so it is firing at the first evaluation.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_iso_state{host="Saruman",file="windows-11.iso",state="mismatch"}'
+        values: "1x12"
+      - series: 'homelab_iso_state{host="Saruman",file="virtio-win-0.1.302.iso",state="match"}'
+        values: "1x12"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: IsoChecksumMismatch
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              file: windows-11.iso
+              state: mismatch
+              component: host
+              severity: critical
+              category: security
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-lab-templates.md#2b-the-installers-on-smaug-iso-on-saruman"
+              summary: "Saruman: windows-11.iso on the ISO store does not match its checksum"
+              description: >-
+                Do not build a template from smaug-iso until this is explained.
+                The expected hash is the file's line in the list in
+                scripts/collect-iso-store-state.sh, and the comment above that
+                line names what it was checked against. Re-check
+                `sha256sum /mnt/smaug-iso/template/iso/windows-11.iso` on the
+                host against the same source. If the ISO was replaced on
+                purpose, update the list and reinstall the collector. If it was
+                not, any template built from it since the last good reading is
+                suspect (build-the-lab-templates.md §2b).
+
+  # --- IsoChecksumMismatch: quiet for missing and unlisted ------------------
+  # Those are IsoStoreUnexpected's. A selector loosened to state!="match"
+  # would page critical for a stray file, and this is what catches it.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_iso_state{host="Saruman",file="ubuntu.iso",state="missing"}'
+        values: "1x12"
+      - series: 'homelab_iso_state{host="Saruman",file="stray.iso",state="unlisted"}'
+        values: "1x12"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: IsoChecksumMismatch
+        exp_alerts: []
+
+  # --- IsoStoreUnexpected: fires for missing and unlisted, not mismatch -----
+  - interval: 5m
+    input_series:
+      - series: 'homelab_iso_state{host="Saruman",file="ubuntu.iso",state="missing"}'
+        values: "1x12"
+      - series: 'homelab_iso_state{host="Saruman",file="stray.iso",state="unlisted"}'
+        values: "1x12"
+      - series: 'homelab_iso_state{host="Saruman",file="windows-11.iso",state="mismatch"}'
+        values: "1x12"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: IsoStoreUnexpected
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              file: stray.iso
+              state: unlisted
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Saruman: stray.iso on the ISO store is unlisted"
+              description: >-
+                unlisted: on the share but not in the list in
+                scripts/collect-iso-store-state.sh. Check its sha256sum against
+                its source as build-the-lab-templates.md §2b describes, then
+                list it, or delete it. missing: listed but not on the share, so
+                a build that names it will fail. Put it back, or take it off the
+                list.
+          - exp_labels:
+              host: Saruman
+              file: ubuntu.iso
+              state: missing
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Saruman: ubuntu.iso on the ISO store is missing"
+              description: >-
+                unlisted: on the share but not in the list in
+                scripts/collect-iso-store-state.sh. Check its sha256sum against
+                its source as build-the-lab-templates.md §2b describes, then
+                list it, or delete it. missing: listed but not on the share, so
+                a build that names it will fail. Put it back, or take it off the
+                list.
+
+  # --- IsoStoreNotMounted: fires after an hour unmounted --------------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_iso_store_mounted{host="Saruman",mountpoint="/mnt/smaug-iso"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: IsoStoreNotMounted
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              mountpoint: /mnt/smaug-iso
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman: the ISO store is not mounted at /mnt/smaug-iso"
+              description: >-
+                `mount /mnt/smaug-iso` on the host. If it hangs, check that NFS
+                is running on smaug and that `Allow NFS from Saruman to smaug`
+                is still above Block access to CasaBonita on igc0.30
+                (build-the-nas.md §5b).
+
+  # --- IsoStoreNotMounted: quiet while mounted ------------------------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_iso_store_mounted{host="Saruman",mountpoint="/mnt/smaug-iso"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: IsoStoreNotMounted
+        exp_alerts: []
+
+  # --- IsoStoreStateStale: fires when two daily runs are missed -------------
+  # The mtime never moves. Two days old at 48h, held an hour by 49h; at 50h it
+  # has held two. Sampled every 5m, not hourly: the lookback is 5m, so hourly
+  # samples are absent between hours and `for` never holds (ThinPoolStateStale's
+  # quiet case records the same trap).
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="iso-store-state.prom"}'
+        values: "0x620"
+    alert_rule_test:
+      - eval_time: 50h
+        alertname: IsoStoreStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              file: iso-store-state.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman has not verified the ISO store in two days"
+              description: >-
+                The file is 2d 2h 0m 0s old, so IsoChecksumMismatch is reading
+                an old result. Check homelab-iso-store-state.timer on the host
+                and `journalctl -u homelab-iso-store-state`; a failed hash
+                writes nothing on purpose, so the journal says why.
+
+  # --- IsoStoreStateStale: quiet while the timer keeps rewriting it ---------
+  # Rewritten on every sample here; thin-pool-state.prom beside it is old and
+  # must not match, because the regex is the whole scope of the rule. At 55h it
+  # is far past two days, so a loosened regex fires and this test fails.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="iso-store-state.prom"}'
+        values: "0+300x680"
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="thin-pool-state.prom"}'
+        values: "0x680"
+    alert_rule_test:
+      - eval_time: 55h
+        alertname: IsoStoreStateStale
+        exp_alerts: []
+
+  # --- GuestDiskCritical: fires on odin's root as it was on 2026-10-01 -----
+  # The numbers from the changelog: a 30 GB root with 622 MB free, 2.07%. The
+  # data disk beside it at 40% used must not join it, and the labels must say
+  # which guest and which mountpoint, because the estate cannot look itself.
+  #
+  # Mutations this catches: `< 0.10` to `< 0.01` (odin is above 1%); dividing
+  # by used instead of size; dropping `for` (the quiet case below fires).
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "30000000000x10"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "29378000000x10"
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/srv/soc-data",fstype="ext4"}'
+        values: "95000000000x10"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/srv/soc-data",fstype="ext4"}'
+        values: "38000000000x10"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: GuestDiskCritical
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: odin
+              vmid: "160"
+              mountpoint: /
+              fstype: ext4
+              component: host
+              severity: critical
+              category: capacity
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#guestdiskcritical"
+              summary: "Saruman: guest odin:/ below 10% free"
+              description: >-
+                / on odin (VMID 160) has 2.073% free. On a Docker host,
+                `docker system df` first: superseded images are what filled
+                odin. The estate cannot reach the guest; ssh to it from the
+                lab, or `qm guest exec 160 -- df -h` on Saruman.
+
+  # --- GuestDiskCritical: quiet just above the line, and inside `for` ------
+  # alexander at 10.5% free has not crossed; odin at its 2026-10-01 numbers
+  # has, but only for ten minutes of the fifteen.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="alexander",vmid="140",mountpoint="/",fstype="ext4"}'
+        values: "64000000000x12"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="alexander",vmid="140",mountpoint="/",fstype="ext4"}'
+        values: "57280000000x12"
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "30000000000x12"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "20000000000x1 29378000000x10"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: GuestDiskCritical
+        exp_alerts: []
+
+  # --- GuestDiskWillFillIn24h: fires on odin filling from 8 GB free --------
+  # The shape #775's lab test uses: 22 GB used of 30, gaining 50 MB every
+  # five minutes (600 MB/h). At 7h it is 26.2 GB used, 12.7% free, and the
+  # six-hour line reaches 30 GB well inside a day; the alert has held its hour.
+  #
+  # Mutations this catches: `>=` to `<=`; the guard at 0.03 instead of 0.30.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "30000000000x90"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="odin",vmid="160",mountpoint="/",fstype="ext4"}'
+        values: "22000000000+50000000x90"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: GuestDiskWillFillIn24h
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: odin
+              vmid: "160"
+              mountpoint: /
+              fstype: ext4
+              component: host
+              severity: critical
+              category: capacity
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#guestdiskwillfillin24h"
+              summary: "Saruman: guest odin:/ fills within 24h"
+              description: >-
+                / on odin (VMID 160) is below 30% free and, extrapolating the
+                last 6 hours, full within a day. On a Docker host, `docker
+                system df` first: superseded images are what filled odin.
+
+  # --- GuestDiskWillFillIn24h: quiet when stable, and when roomy ----------
+  # alexander with 20 GB free and not moving: no trend. A 100 GB disk taking
+  # 6 GB/h from 10% used predicts full within a day and is still over half
+  # empty — one large write, not a disk running out. The 30% guard is what
+  # keeps it quiet.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="alexander",vmid="140",mountpoint="/",fstype="ext4"}'
+        values: "64000000000x90"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="alexander",vmid="140",mountpoint="/",fstype="ext4"}'
+        values: "44000000000x90"
+      - series: 'homelab_guest_filesystem_size_bytes{host="Saruman",guest="fenrir",vmid="190",mountpoint="/srv/sensor-data",fstype="ext4"}'
+        values: "100000000000x90"
+      - series: 'homelab_guest_filesystem_used_bytes{host="Saruman",guest="fenrir",vmid="190",mountpoint="/srv/sensor-data",fstype="ext4"}'
+        values: "10000000000+500000000x90"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: GuestDiskWillFillIn24h
+        exp_alerts: []
+
+  # --- GuestDiskStateStale: fires when the file stops being rewritten -----
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-disk-state.prom"}'
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: GuestDiskStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              file: guest-disk-state.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman has not rewritten its guests' disk state in an hour"
+              description: >-
+                The file is 1h 20m 0s old, so GuestDiskCritical and
+                GuestDiskWillFillIn24h are reading old numbers. Check
+                homelab-guest-disk-state.timer on the host and its last run in
+                the journal (`journalctl -u homelab-guest-disk-state`); a failed
+                `qm list` writes nothing on purpose, so the journal says why.
+
+  # --- GuestDiskStateStale: quiet while rewritten; guest-state.prom is not it
+  # The regex has to tell guest-disk-state.prom from guest-state.prom, which
+  # sits beside it and is the obvious near miss.
+  #
+  # Sampled every 5m, not every 10m like the timer. At 10m each series is
+  # absent for half of every interval (the lookback is 5m), `for` restarts
+  # each time, and a regex loosened to `.*guest.*state` survived this test
+  # still pending. At 5m the near miss fires, so the test can fail.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-disk-state.prom"}'
+        values: "0+300x40"
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-state.prom"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: GuestDiskStateStale
+        exp_alerts: []
+
+  # --- GuestAgentSilent: fires when an agent that answered stops ----------
+  # odin's agent answers for an hour, then hangs. At 125m it has been silent
+  # for 65 minutes, past the hour's `for`.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_agent_up{host="Saruman",guest="odin",vmid="160"}'
+        values: "1x11 0x30"
+    alert_rule_test:
+      - eval_time: 125m
+        alertname: GuestAgentSilent
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: odin
+              vmid: "160"
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman: guest odin's agent has not answered for an hour"
+              description: >-
+                The guest is running, and `qm guest cmd 160 get-fsinfo` on
+                Saruman has failed or timed out for an hour, so this guest's
+                disks cannot page. `systemctl status qemu-guest-agent` inside
+                the guest; if it has hung, restarting it is safe.
+
+  # --- GuestAgentSilent: quiet for a guest with no agent, and for a blip --
+  # A Windows domain machine has never answered; that is not news, and must
+  # not alert forever. odin's agent hanging for half an hour under load and
+  # coming back is the case the hour exists for.
+  #
+  # Mutation this catches: dropping the `and on ... max_over_time` clause.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_agent_up{host="Saruman",guest="dc01",vmid="200"}'
+        values: "0x40"
+      - series: 'homelab_guest_agent_up{host="Saruman",guest="odin",vmid="160"}'
+        values: "1x11 0x6 1x22"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: GuestAgentSilent
+        exp_alerts: []
+      - eval_time: 100m
+        alertname: GuestAgentSilent
         exp_alerts: []
 
   # --- PveFirewallDisabled: fires when a stop is left in place --------------
@@ -1373,6 +1954,7 @@ tests:
               severity: critical
               category: security
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md#4-close-the-management-plane"
               summary: "Saruman's Proxmox firewall is off"
               description: >-
                 `pve-firewall status` has not read enabled/running for ten
@@ -1415,6 +1997,7 @@ tests:
               severity: critical
               category: security
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md#4-close-the-management-plane"
               summary: "Saruman's Proxmox firewall is on and admits everything"
               description: >-
                 `policy_in` in /etc/pve/firewall/cluster.fw is not DROP, so the
@@ -1485,6 +2068,82 @@ tests:
     alert_rule_test:
       - eval_time: 90m
         alertname: PveFirewallStateStale
+        exp_alerts: []
+
+  # --- ZeekMirrorInactive: fires when the mirror stays down ----------------
+  # #437's reboot proof as a fixture: active, then 0 from 10m (the ensurer
+  # disabled and the host rebooted), still 0 at 25m.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zeek_mirror_active{host="Saruman"}'
+        values: "1x10 0x30"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: ZeekMirrorInactive
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Saruman's Zeek mirror is not delivering packets"
+              description: >-
+                homelab_zeek_mirror_active has read 0 for ten minutes, so Zeek
+                on `fenrir` is not seeing the lab bridge. Check the parts:
+                homelab_zeek_mirror_sensor_running (is VM 190 up),
+                homelab_zeek_mirror_ports_mirrored against
+                homelab_zeek_mirror_ports_expected (is homelab-zeek-mirror.timer
+                running — `journalctl -u homelab-zeek-mirror`), and
+                homelab_zeek_mirror_sensor_tx_packets_total (is anything
+                arriving). If the sensor was powered off on purpose this is
+                expected. build-the-sensor-guest.md has the checks.
+
+  # --- ZeekMirrorInactive: quiet for one sample inside a repair -------------
+  # A guest restarted, the collector read its tap before the ensurer's next
+  # minute, and the one after that read it repaired.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zeek_mirror_active{host="Saruman"}'
+        values: "1x10 0x5 1x30"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ZeekMirrorInactive
+        exp_alerts: []
+
+  # --- ZeekMirrorStateStale: fires when the file stops being rewritten ------
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="zeek-mirror-state.prom"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: ZeekMirrorStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              file: zeek-mirror-state.prom
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "Saruman has not rewritten its Zeek mirror state recently"
+              description: >-
+                The file is 45m 0s old, so ZeekMirrorInactive is reading an old
+                answer and cannot fire. Check homelab-zeek-mirror-state.timer on
+                the host and `journalctl -u homelab-zeek-mirror-state`; an
+                unreadable sensor status writes nothing on purpose, so the
+                journal says why.
+
+  # --- ZeekMirrorStateStale: quiet while the timer keeps rewriting it -------
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="zeek-mirror-state.prom"}'
+        values: "0+300x20"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ZeekMirrorStateStale
         exp_alerts: []
 
   # --- SmartDriveBadSectorsGrowing: fires when the count rises --------------
@@ -1592,13 +2251,13 @@ tests:
             exp_annotations:
               summary: "smaug: /dev/sda lost power uncleanly 1 time(s) in the last day"
               description: >-
-                The drive's unsafe-shutdown counter moved, which means the host
-                stopped without telling the disk — a mains cut that outlasted the
-                UPS with nothing acting on its signal, a crash, or a plug. Find the
-                event: UpsOnBattery and InstanceDown around the same time say
-                which. If a UPS shutdown sequence exists for this host (ADR-0049),
-                it did not run, and runbooks/shut-down-on-the-ups.md says how to
-                check it.
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it.
 
   # --- SmartDriveUnsafeShutdownsGrowing: QUIET on the recorded 509 ---------
   # The count the drive arrived with is history, not an event. A static 509
@@ -1625,6 +2284,197 @@ tests:
       - eval_time: 3d
         alertname: SmartDriveUnsafeShutdownsGrowing
         exp_alerts: []
+
+  # ==========================================================================
+  # SmartDriveUnsafeShutdownsGrowing and smaug's clean stops (#746).
+  #
+  # Settled 2026-10-03 by controlled stops on smaug: two UI Restarts and one UI
+  # Shut Down, left plugged in, all left the S3520 at 523. The 522 -> 523 of
+  # 2026-09-29 was the unplug for the memory install, not the clean shutdown
+  # before it. So the expression is "any tick pages" again, and the clean
+  # count from scripts/mark-clean-shutdown.sh only changes the description:
+  # when a clean power-off was recorded the same day, the page says the likely
+  # cause is mains removed afterwards. These cases pin both halves — a clean
+  # stop that does not tick stays quiet, and no clean stop ever silences a
+  # tick, which is the hole #800/#819 opened and this closes.
+  #
+  # Fixtures carry the real label sets, because the hint's query filters on
+  # `host` and must not pick up another host's count.
+  #
+  # Mutation-tested 2026-10-03, each asserted to apply exactly once; all killed:
+  #
+  #   > 0 -> >= 0 on the expression                  planned Shut Down fires
+  #   offset 1d -> offset 7d on the expression       quiet-again-after-a-day fires
+  #   the hint's `> 0` -> `>= 0`                     restart case gains the hint
+  #   the hint's host=%q filter dropped              oracle's stop hints smaug's page
+  #   _shutdowns_total -> _restarts_total in hint    unplug case loses the hint
+  #   the hint's `or ... * 0` fallback dropped        install-day case loses the hint
+  # ==========================================================================
+
+  # --- planned Shut Down, left plugged in: QUIET. The drive does not tick. ---
+  # 2026-10-03 exactly: clean power-offs 1 -> 2, the S3520 flat at 523.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "523x600"
+      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "1x288 2x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts: []
+
+  # --- Shut Down, then unplugged: FIRES, and says why it probably did. -----
+  # 2026-09-29 exactly: a clean power-off, then mains removed for the memory
+  # install. The drive counts the unplug. It pages, once, with the hint. The
+  # same shape is a planned Shut Down plus a real cut that day, which is why
+  # the hint says "likeliest" and the page still fires.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "522x288 523x300"
+      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "0x288 1x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdc
+              slot: pci-0000:00:17.0-ata-6
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it. smaug recorded 1 clean power-off(s) in the same
+                day, so the likeliest cause is mains removed after a clean shutdown — an
+                unplug, or the UPS output cut after its halt. A recorded clean stop says
+                one began, not that it finished.
+
+  # --- install day: the first power-off ever recorded still earns the line.
+  # The SHUTDOWN hook creates the clean count at 1 on its first run, so there
+  # is no day-old point. Read as zero, it moved by 1 and the page explains
+  # itself; without the fallback the query is empty and the line goes missing.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "522x288 523x300"
+      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "_x288 1x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdc
+              slot: pci-0000:00:17.0-ata-6
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it. smaug recorded 1 clean power-off(s) in the same
+                day, so the likeliest cause is mains removed after a clean shutdown — an
+                unplug, or the UPS output cut after its halt. A recorded clean stop says
+                one began, not that it finished.
+
+  # --- a Restart does not add the hint: FIRES, plain. ----------------------
+  # A restart never removes power, so a tick on a restart day is a cut. Only
+  # clean POWER-OFFS earn the hint; homelab_clean_restarts_total is not read.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "522x288 523x300"
+      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "1x600"
+      - series: 'homelab_clean_restarts_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "0x288 1x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdc
+              slot: pci-0000:00:17.0-ata-6
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it.
+
+  # --- another host's clean power-off does not add the hint: FIRES, plain. -
+  - interval: 5m
+    input_series:
+      - series: 'homelab_smart_unsafe_shutdowns_total{host="smaug",device="/dev/sdc",slot="pci-0000:00:17.0-ata-6",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "522x288 523x300"
+      - series: 'homelab_clean_shutdowns_total{host="smaug",instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "1x600"
+      - series: 'homelab_clean_shutdowns_total{host="oracle",instance="oracle",job="node",role="nas",vlan="40"}'
+        values: "0x288 1x300"
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: SmartDriveUnsafeShutdownsGrowing
+        exp_alerts:
+          - exp_labels:
+              host: smaug
+              device: /dev/sdc
+              slot: pci-0000:00:17.0-ata-6
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: /dev/sdc lost power uncleanly 1 time(s) in the last day"
+              description: >-
+                The drive's unsafe-shutdown counter moved, which means it lost power
+                without being told first — a mains cut that outlasted the UPS, the UPS
+                cutting its output after a halt, a crash, or a plug. Find the event:
+                UpsOnBattery and InstanceDown around the same time say which. Whether a
+                UPS shutdown sequence (ADR-0049) ran, and finished before the power
+                went, is in the host's shutdown log; runbooks/shut-down-on-the-ups.md
+                says how to check it.
+
 
   # --- SmartDriveBadSectorsGrowing: quiet for a clean drive ----------------
   - interval: 5m
@@ -1689,6 +2539,59 @@ tests:
         alertname: SmartStateStale
         exp_alerts: []
 
+  # --- ZpoolVdevStateStale: fires when the five-minute file stops ------------
+  # Written at t=0 and never again. At 10m it is exactly ten minutes old, not
+  # past the line; at 15m it is past it and fires, with no `for` to wait out.
+  # Sampled every 5m, not hourly, because the series lookback is five minutes
+  # (IsoStoreStateStale's lesson). The 10m evaluation is what kills
+  # `> 2 * 300 -> > 2 * 30`, and a `for` added back would silence 15m.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="smaug",job="node",role="nas",vlan="40",file="/textfile/zpool-state-smaug.prom"}'
+        values: "0x12"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ZpoolVdevStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              file: /textfile/zpool-state-smaug.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "smaug has not rewritten /textfile/zpool-state-smaug.prom in ten minutes"
+              description: >-
+                The ZFS leaf-state textfile is 15m 0s old, and node_exporter
+                re-serves its last contents, so every homelab_zpool_vdev_*
+                series is present and stale. ZpoolVdevNotOnline cannot see a
+                faulted leaf on this host until the file is rewritten. The
+                writer is a five-minute root cron job in TrueNAS's UI (System →
+                Advanced Settings → Cron Jobs; build-the-nas.md §6.8). Check
+                the job still exists, then run its command at the console. A
+                failure there prints why.
+      - eval_time: 10m
+        alertname: ZpoolVdevStateStale
+        exp_alerts: []
+
+  # --- ZpoolVdevStateStale: quiet while the cron keeps rewriting it ----------
+  # The mtime moves 300 s every 5 m. Beside it, the SMART file, a day old
+  # and so far past ten minutes, must not match: the regex is the whole scope,
+  # and SmartStateStale owns that file.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="smaug",job="node",role="nas",vlan="40",file="/textfile/zpool-state-smaug.prom"}'
+        values: "0+300x12"
+      - series: 'node_textfile_mtime_seconds{instance="smaug",job="node",role="nas",vlan="40",file="/textfile/smart-state-smaug.prom"}'
+        values: "-86400x12"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: ZpoolVdevStateStale
+        exp_alerts: []
+
   # --- HostOnBattery: fires when the mains adapter reports no input ---------
   # prometheus's adapter is ADP1. The info series is what admits it as Mains.
   - interval: 1m
@@ -1709,6 +2612,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostonbattery"
               summary: "prometheus is running on its own battery"
               description: >-
                 The mains adapter (ADP1) reports no input. Either the shelf has
@@ -1736,6 +2640,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostonbattery"
               summary: "oracle is running on its own battery"
               description: >-
                 The mains adapter (AC) reports no input. Either the shelf has
@@ -1946,6 +2851,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-laptop-cell.md#3-a-thirteen-year-old-lithium-cell-is-the-hazard-not-the-laptop"
               summary: "prometheus: BAT0 reads 48 °C"
               description: >-
                 The cell's own gauge has read above 45 °C for five minutes. The
@@ -1974,6 +2880,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-laptop-cell.md#3-a-thirteen-year-old-lithium-cell-is-the-hazard-not-the-laptop"
               summary: "oracle: BAT0 reads 48 °C"
               description: >-
                 The cell's own gauge has read above 45 °C for five minutes. The
@@ -2147,6 +3054,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostbatteryruntimelow"
               summary: "prometheus has 22m 13s of battery left"
               description: >-
                 The host is on its own cell and, at the draw it is presenting
@@ -2180,6 +3088,7 @@ tests:
               severity: critical
               category: power
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostbatteryruntimelow"
               summary: "oracle has 27m 8s of battery left"
               description: >-
                 The host is on its own cell and, at the draw it is presenting
@@ -2241,6 +3150,7 @@ tests:
               severity: critical
               category: hardware
             exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
               summary: "smaug: zpool erebor is degraded"
               description: >-
                 The pool's own state, read from its kstat, has not been online
@@ -2298,4 +3208,213 @@ tests:
     alert_rule_test:
       - eval_time: 10m
         alertname: ZpoolNotOnline
+        exp_alerts: []
+
+  # ==========================================================================
+  # ZpoolVdevNotOnline, ZpoolVdevErrors — the leaf level (#744).
+  #
+  # The series are what scripts/collect-zpool-state.sh renders, plus the
+  # instance/job the scrape adds. Leaf names and GUIDs are smaug's own, read
+  # from TrueNAS's pool.query on 2026-10-01: ...c3781 is guid
+  # 5271037958598492964, ...230c6 is 1964916359723921467.
+  #
+  # Mutation-tested 2026-10-01; each was killed:
+  #
+  #   ZpoolVdevNotOnline  state!="online" -> state=~".+";  == 1 -> == 0;
+  #                       drop the `unless`;  on(host, pool) -> on(host);
+  #                       for: 1m -> 0m
+  #   ZpoolVdevErrors     > 0 -> >= 0;  > 0 -> > 100;  for: 1m -> 0m
+  #   ZpoolVdevStateStale 2 * 300 -> 2 * 30;  2 * 300 -> 2 * 3000;
+  #                       add for: 10m;  widen the file regex
+  # ==========================================================================
+
+  # --- ZpoolVdevNotOnline: fires on 2026-09-19's reading --------------------
+  # The pool and the mirror ONLINE, one leaf FAULTED with "too many errors".
+  # This is the reading ZpoolNotOnline could not see, and the case #744 is for.
+  # boot-pool is present and healthy, so a rule that lost `state!="online"`
+  # fires on its leaf too.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="erebor",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="boot-pool",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="52dfceb0-0c58-476b-be76-ec30184c3781",guid="5271037958598492964",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",
+          vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="faulted",aux="too many errors"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="boot-pool",vdev="1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10",guid="777",state="online"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts:
+          - exp_labels:
+              instance: smaug
+              job: node
+              host: smaug
+              pool: erebor
+              vdev: 9362abc8-9bc8-4045-9095-f50f03f230c6
+              guid: "1964916359723921467"
+              state: faulted
+              aux: too many errors
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
+              summary: "smaug: a leaf of zpool erebor is faulted while the pool reads online"
+              description: >-
+                Leaf 9362abc8-9bc8-4045-9095-f50f03f230c6 (guid
+                1964916359723921467) of erebor reads faulted (too many errors),
+                and the pool still reads ONLINE, so ZpoolNotOnline cannot see
+                it. On a two-disk mirror that is one disk carrying everything.
+                At the console, `zpool status -v erebor` names it and `lsblk -o
+                NAME,PARTUUID,SERIAL` turns the partuuid into the serial on the
+                drive label. docs/runbooks/replace-the-nas-disk.md is the order
+                to do things in, and copying erebor/apps off comes before
+                touching a tray.
+
+      # The first evaluation sees the fault but has not held it for `for: 1m`.
+      # This read is what kills `for: 1m -> 0m`.
+      - eval_time: 0m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts: []
+
+  # --- ZpoolVdevNotOnline: one pool degraded, the other not -----------------
+  # erebor DEGRADED with a leaf offlined (ZpoolNotOnline's alert), and at the
+  # same time boot-pool ONLINE with its leaf REMOVED — a cable on the boot SSD.
+  # The rule must stand down for erebor and still fire for boot-pool. A rule
+  # that joined on(host) alone would let erebor's state silence boot-pool.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="erebor",state="degraded"}'
+        values: "1x20"
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="boot-pool",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="offline"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="boot-pool",vdev="1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10",guid="777",state="removed"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts:
+          - exp_labels:
+              instance: smaug
+              job: node
+              host: smaug
+              pool: boot-pool
+              vdev: 1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10
+              guid: "777"
+              state: removed
+              component: host
+              severity: critical
+              category: hardware
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
+              summary: "smaug: a leaf of zpool boot-pool is removed while the pool reads online"
+              description: >-
+                Leaf 1f0e7a52-3c11-4d6b-9a0e-6d2b8c4a7e10 (guid 777) of
+                boot-pool reads removed, and the pool still reads ONLINE, so
+                ZpoolNotOnline cannot see it. On a two-disk mirror that is one
+                disk carrying everything. At the console, `zpool status -v
+                boot-pool` names it and `lsblk -o NAME,PARTUUID,SERIAL` turns
+                the partuuid into the serial on the drive label.
+                docs/runbooks/replace-the-nas-disk.md is the order to do things
+                in, and copying erebor/apps off comes before touching a tray.
+
+  # --- ZpoolVdevNotOnline: quiet for the offline leaf of runbook step 4 -----
+  # The leaf offlined on purpose, the pool DEGRADED. ZpoolNotOnline pages for
+  # it, and this must not page again. This is the case that kills dropping
+  # the `unless`.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="erebor",state="degraded"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="52dfceb0-0c58-476b-be76-ec30184c3781",guid="5271037958598492964",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="offline"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts: []
+
+  # --- ZpoolVdevNotOnline: quiet on smaug as it reads today ------------------
+  # Every leaf online, both pools online. The 0-valued leaf series is not
+  # something the collector writes. It is here so a rule that lost its `== 1`
+  # has something to fire on.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_state{instance="smaug",job="node",host="smaug",pool="erebor",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="52dfceb0-0c58-476b-be76-ec30184c3781",guid="5271037958598492964",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",state="online"}'
+        values: "1x20"
+      - series: 'homelab_zpool_vdev_state{instance="smaug",job="node",host="smaug",pool="erebor",vdev="stale",guid="1",state="faulted"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevNotOnline
+        exp_alerts: []
+
+  # --- ZpoolVdevErrors: fires on a leaf with errors ---------------------------
+  # 2026-09-19's 99 write errors, on a leaf whose read and checksum counters are
+  # zero. One alert, for the one non-zero counter.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",kind="write"}'
+        values: "99x20"
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",kind="read"}'
+        values: "0x20"
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",kind="checksum"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevErrors
+        exp_alerts:
+          - exp_labels:
+              instance: smaug
+              job: node
+              host: smaug
+              pool: erebor
+              vdev: 9362abc8-9bc8-4045-9095-f50f03f230c6
+              guid: "1964916359723921467"
+              kind: write
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "smaug: zpool erebor leaf 9362abc8-9bc8-4045-9095-f50f03f230c6 has 99 write errors"
+              description: >-
+                ZFS counted 99 write errors on leaf
+                9362abc8-9bc8-4045-9095-f50f03f230c6 (guid 1964916359723921467)
+                of erebor since import or the last `zpool clear`. Read `zpool
+                status -v erebor` and the drive's SMART series for the same
+                disk. A cable or a reset shows as read or write errors with
+                clean SMART, and a dying disk shows both. Once it is judged,
+                `zpool clear erebor 9362abc8-9bc8-4045-9095-f50f03f230c6`
+                resolves this; if it comes back, the disk or its cable is the
+                answer.
+
+      - eval_time: 0m
+        alertname: ZpoolVdevErrors
+        exp_alerts: []
+
+  # --- ZpoolVdevErrors: quiet on clean counters, and after a zpool clear ----
+  # One leaf all zeros. The other had a checksum error that `zpool clear` reset
+  # at 3m, so the alert was pending at 0m and the counter is zero by 5m. The
+  # rule must not latch.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="52dfceb0-0c58-476b-be76-ec30184c3781",guid="5271037958598492964",kind="checksum"}'
+        values: "0x20"
+      - series: 'homelab_zpool_vdev_errors{instance="smaug",job="node",host="smaug",pool="erebor",vdev="9362abc8-9bc8-4045-9095-f50f03f230c6",guid="1964916359723921467",kind="checksum"}'
+        values: "1x3 0x17"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ZpoolVdevErrors
         exp_alerts: []

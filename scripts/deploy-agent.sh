@@ -57,6 +57,29 @@
 # never — it is the listener morpheus sends to, and it belongs on the
 # monitoring host alone. The header of alloy/config.alloy has the reasoning.
 #
+# The token
+# ---------
+# 9090 and 3100 on the monitoring host are its ingest proxy, which passes a
+# push through only with this host's agent token (#182, ADR-0067). The token is
+# INGEST_TOKEN_<HOST> in secrets/observability.sops.yaml, with <HOST> the
+# target's `hostname` upper-cased and every character that is not a letter or
+# digit mapped to `_`. It is decrypted here with the checkout's SOPS key. Where
+# that key is not present (the Mac, for Saruman), export INGEST_TOKEN yourself
+# from the password manager and it is used instead. It reaches the target on
+# ssh's stdin, never on a command line either side, and lands in a 0600
+# file (native) or the container's environment (docker).
+#
+# The arrival check below reads Prometheus and Loki through the same proxy and
+# needs the READER token: INGEST_TOKEN_READER, decrypted the same way, or
+# exported. Without one it is skipped, with a warning.
+#
+# FOR THE LAB (--monitoring-host 10.0.30.40, phoenix) nothing is decrypted.
+# The lab's proxy has its own tokens, in secrets/lab.sops.yaml on alexander,
+# which no checkout here can open (#834). Export INGEST_TOKEN and
+# INGEST_TOKEN_READER from that file before running this. Decrypting the
+# estate's file instead would hand a lab host the estate's reader token, and
+# send it across the segment built to hold attackers, which ADR-0007 forbids.
+#
 # What it does not do
 # -------------------
 # Firewall rules. A host outside VLAN 99 needs a pass to 10.0.99.20 on 9090
@@ -111,6 +134,9 @@ ALLOY_DIR="${REPO_ROOT}/stacks/observability/alloy"
 # there. `--tag-only` strips the digest for the .deb URL; the docker runtime
 # keeps it, so a remote host runs exactly the bytes the monitoring host does.
 IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" alloy)"
+# The Docker runtime's socket proxy: the estate's, same digest (#193). Resolved
+# whatever the runtime, because a native host simply never uses it.
+PROXY_IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" docker-socket-proxy)"
 tag="$("${REPO_ROOT}/scripts/image-for.sh" --tag-only alloy)"
 VERSION="${tag##*:v}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "could not read a version out of '${tag}'"
@@ -150,6 +176,49 @@ FILES=(config.alloy)
 pass "target ${HOST} · runtime ${RUNTIME} · alloy ${VERSION} · files ${FILES[*]}"
 
 # ---------------------------------------------------------------------------
+# The host's agent token, and the reader token for the arrival check
+# ---------------------------------------------------------------------------
+TOKEN_KEY="INGEST_TOKEN_$(printf '%s' "$HOST" | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z0-9' '_')"
+# An exported INGEST_TOKEN / INGEST_TOKEN_READER wins. Otherwise decrypt, if
+# this checkout can. load_secrets sets shell variables without exporting them,
+# and exits if sops cannot decrypt, so it runs in a subshell and only the two
+# values come back out. Its stderr is left alone: it says why a decrypt
+# failed, and it never prints a value.
+ESTATE_MON="10.0.99.20"
+# Where a refused token's other half lives, for the messages below: the
+# estate's proxy and file, or the lab's (#834).
+if [[ "${MON}" == "${ESTATE_MON}" ]]; then
+  TOKEN_FILE="secrets/observability.sops.yaml"; PROXY_FILE="stacks/observability/Caddyfile"
+else
+  TOKEN_FILE="secrets/lab.sops.yaml"; PROXY_FILE="stacks/lab/Caddyfile"
+fi
+if [[ "${MON}" != "${ESTATE_MON}" ]]; then
+  [[ -n "${INGEST_TOKEN:-}" ]] \
+    || die "no agent token for ${HOST}: ${MON} is not the estate's stack, so nothing is decrypted here. Export INGEST_TOKEN from secrets/lab.sops.yaml on alexander (${TOKEN_KEY}), and INGEST_TOKEN_READER for the arrival check (#834)"
+elif [[ -z "${INGEST_TOKEN:-}" || -z "${INGEST_TOKEN_READER:-}" ]]; then
+  if command -v sops >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/secrets/observability.sops.yaml" ]]; then
+    decrypted="$(
+      # shellcheck source=scripts/secrets-env.sh
+      source "${REPO_ROOT}/scripts/secrets-env.sh" || exit 0
+      load_secrets observability >/dev/null || exit 0
+      printf '%s\n%s\n' "${!TOKEN_KEY:-}" "${INGEST_TOKEN_READER:-}"
+    )" || true
+    { read -r dec_agent; read -r dec_reader; } <<< "${decrypted}" || true
+    INGEST_TOKEN="${INGEST_TOKEN:-${dec_agent:-}}"
+    INGEST_TOKEN_READER="${INGEST_TOKEN_READER:-${dec_reader:-}}"
+    unset decrypted dec_agent dec_reader
+  fi
+fi
+[[ -n "${INGEST_TOKEN:-}" ]] \
+  || die "no agent token for ${HOST}: add ${TOKEN_KEY} to secrets/observability.sops.yaml and a line for it to stacks/observability/Caddyfile, or export INGEST_TOKEN (docs/runbooks/add-monitored-device.md)"
+# The token is written into a shell assignment and an EnvironmentFile on the
+# far side. Refusing anything but a plain token character set keeps both
+# quoting-safe, and every generator the repository names produces this.
+[[ "${INGEST_TOKEN}" =~ ^[A-Za-z0-9._~+/=-]{32,}$ ]] \
+  || die "${TOKEN_KEY} is shorter than 32 characters or contains a character other than letters, digits and ._~+/=-"
+pass "agent token ${TOKEN_KEY} loaded (${#INGEST_TOKEN} characters)"
+
+# ---------------------------------------------------------------------------
 # Stage the config on the host and prove it arrived intact
 # ---------------------------------------------------------------------------
 STAGE="$("${SSH[@]}" 'mktemp -d /tmp/alloy-deploy.XXXXXX')"
@@ -176,11 +245,19 @@ pass "staged ${FILES[*]} in ${STAGE}"
 # The variables are expanded HERE, on purpose, and passed as an environment
 # prefix rather than as positional arguments: scripts/check_image_pins.py reads
 # this heredoc as shell and requires every `docker run`/`docker pull` in it to
-# name $IMAGE, which it traces to image-for.sh above. Rename it and the check
-# fails, which is the check working.
+# name $IMAGE or $PROXY_IMAGE, which it traces to image-for.sh above. Rename
+# either and the check fails, which is the check working. It also refuses a
+# socket mount on anything but $PROXY_IMAGE.
+#
+# The token is the exception, and it travels differently: as the first line of
+# the script itself, on ssh's stdin. The prefix above becomes the remote
+# shell's command line, which any user on the target can read in `ps` while
+# the deploy runs. stdin is not visible that way. The character set was
+# checked above, so the single quotes cannot be broken out of.
 # shellcheck disable=SC2029
-"${SSH[@]}" "IMAGE='${IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' bash -s" <<'REMOTE'
+{ printf "INGEST_TOKEN='%s'\n" "${INGEST_TOKEN}"; cat <<'REMOTE'
 set -euo pipefail
+export INGEST_TOKEN
 info() { printf '\033[0;34m→\033[0m %s\n' "$*" >&2; }
 pass() { printf '\033[0;32m✓\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[0;31m✗\033[0m %s\n' "$*" >&2; exit 1; }
@@ -269,16 +346,49 @@ docker)
   docker run --rm -v /var/lib:/hostvarlib --entrypoint sh "$IMAGE" \
     -c 'mkdir -p /hostvarlib/node_exporter/textfile_collector && chmod 0755 /hostvarlib/node_exporter /hostvarlib/node_exporter/textfile_collector'
 
+  # The socket proxy, before Alloy, and the reason Alloy below has no socket.
+  # `:ro` on the socket does not stop POST /containers/create, so an Alloy
+  # holding it held root on this host. #193 moved the estate's Alloy behind
+  # this proxy and #836 the lab's three; this one was a `docker run` rather
+  # than a compose service, so the compose check could not see it, and it kept
+  # the socket longest. The allowlist is compose.yaml's exactly, flag for flag:
+  # read that file's comment before changing one, especially NETWORKS, whose
+  # absence silently stops container logs. A private network carries the one
+  # client to it, and nothing is published.
+  info "recreating container alloy-socket-proxy (GET-only, #193)"
+  docker pull "$PROXY_IMAGE" >/dev/null
+  docker network inspect alloy >/dev/null 2>&1 || docker network create alloy >/dev/null
+  docker rm -f alloy alloy-socket-proxy >/dev/null 2>&1 || true
+  docker run -d --name alloy-socket-proxy \
+    --network alloy \
+    --restart unless-stopped \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --memory 64m --memory-swap 64m \
+    --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+    -e CONTAINERS=1 -e IMAGES=1 -e INFO=1 -e VERSION=1 -e EVENTS=1 -e NETWORKS=1 \
+    -e POST=0 -e BUILD=0 -e COMMIT=0 -e CONFIGS=0 -e DISTRIBUTION=0 -e EXEC=0 \
+    -e NODES=0 -e PLUGINS=0 -e SECRETS=0 -e SERVICES=0 -e SESSION=0 -e SWARM=0 \
+    -e SYSTEM=0 -e TASKS=0 -e VOLUMES=0 \
+    -v /var/run/docker.sock:/var/run/docker.sock:ro \
+    "$PROXY_IMAGE" >/dev/null
+  require_stable "[[ \$(docker inspect -f '{{.State.Running}}' alloy-socket-proxy 2>/dev/null) == true ]]"
+  pass "alloy-socket-proxy running"
+
   info "recreating container alloy (log gid ${LOG_GID}, alloy gid ${ALLOY_GID}, host label ${HOSTNAME_LABEL})"
-  docker rm -f alloy >/dev/null 2>&1 || true
 
   # compose.yaml's `alloy` service, flag for flag. Read that file's comments
   # before changing anything here; each line below has a measured reason there.
   # No --hostname: ALLOY_HOSTNAME does the labelling, and a container hostname
   # registers a DNS name (config.alloy header). No /var/lib/docker/containers:
   # nothing reads it (#188). 1514/udp is not published: syslog.alloy is not
-  # shipped, so there is nothing listening.
+  # shipped, so there is nothing listening. /rootfs/run is masked, for the
+  # reason compose.yaml's alloy gives: /:/rootfs:ro otherwise carries
+  # /rootfs/run/docker.sock, a read-only mount does not stop connect(), and
+  # Alloy runs as the socket's owner, which would put the API one connect()
+  # away around the proxy above.
   docker run -d --name alloy \
+    --network alloy \
     --restart unless-stopped \
     --init \
     --pids-limit 1024 \
@@ -291,11 +401,13 @@ docker)
     -e ALLOY_HOSTNAME="$HOSTNAME_LABEL" \
     -e LOKI_URL \
     -e PROMETHEUS_REMOTE_WRITE_URL \
+    -e INGEST_TOKEN \
+    -e DOCKER_API=tcp://alloy-socket-proxy:2375 \
     -v alloy-config:/etc/alloy:ro \
     -v alloy-data:/var/lib/alloy/data \
-    -v /var/run/docker.sock:/var/run/docker.sock:ro \
     -v /var/log:/var/log:ro \
     -v /:/rootfs:ro \
+    --tmpfs /rootfs/run:size=64k,mode=0755 \
     -p 127.0.0.1:12345:12345 \
     "$IMAGE" run \
       --server.http.listen-addr=0.0.0.0:12345 \
@@ -327,7 +439,20 @@ native)
     info "installing alloy ${VERSION} (${installed:-not installed}) from ${url}"
     curl -fsSL --retry 3 -o "${STAGE}/alloy.deb" "$url" \
       || die "download failed — check the release page for the asset name; nothing was changed"
-    DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -q "${STAGE}/alloy.deb" >/dev/null
+    # --force-confold: /etc/default/alloy is the package's conffile, and this
+    # script rewrites it below, so on an upgrade dpkg finds it modified and asks
+    # whether to keep it. There is no terminal on this side of ssh, so the
+    # question ends the install with "dpkg returned an error code (1)" and a
+    # half-configured package. Saruman's 1.19.2 -> 1.20.0 upgrade failed with
+    # exactly that line on 2026-09-30, with dpkg's reason thrown away. Keep
+    # ours; it is rewritten a few lines down anyway. apt's output is now kept,
+    # and shown on failure, so the next reason is not a guess.
+    if ! DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -q \
+         -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
+         "${STAGE}/alloy.deb" >"${STAGE}/apt.log" 2>&1; then
+      tail -20 "${STAGE}/apt.log" >&2
+      die "installing alloy ${VERSION} failed — dpkg's last lines are above"
+    fi
     pass "installed $(dpkg-query -W -f='alloy ${Version}' alloy)"
   fi
 
@@ -342,6 +467,11 @@ native)
   # what config.alloy reads from the environment. CONFIG_FILE is the DIRECTORY.
   # The debug UI stays on loopback, as it does everywhere else (ADR-0012).
   # ALLOY_ROOTFS=/ because there is no bind mount; the process reads the host.
+  #
+  # It holds this host's ingest token now, so it is 0600 root before a byte is
+  # written. A file tee truncates keeps the mode it had, and the package's
+  # own copy of this file is 0644. systemd reads an EnvironmentFile as root.
+  $SUDO install -m 0600 -o root -g root /dev/null /etc/default/alloy
   $SUDO tee /etc/default/alloy >/dev/null <<DEFAULTS
 ## Written by scripts/deploy-agent.sh from the HomeLab repository. Edits here
 ## are overwritten on the next deploy; change the repository instead.
@@ -351,6 +481,7 @@ RESTART_ON_UPGRADE=true
 ALLOY_HOSTNAME="${HOSTNAME_LABEL}"
 LOKI_URL="${LOKI_URL}"
 PROMETHEUS_REMOTE_WRITE_URL="${PROMETHEUS_REMOTE_WRITE_URL}"
+INGEST_TOKEN="${INGEST_TOKEN}"
 ALLOY_ROOTFS="/"
 DEFAULTS
 
@@ -376,42 +507,92 @@ DEFAULTS
   ;;
 esac
 REMOTE
+} | "${SSH[@]}" "IMAGE='${IMAGE}' PROXY_IMAGE='${PROXY_IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' bash -s"
 
 # ---------------------------------------------------------------------------
 # Did it arrive? Asked of the monitoring host, not the agent.
 # ---------------------------------------------------------------------------
+# "The host is listed" is not the question. Prometheus keeps a series for five
+# minutes after its last sample and Loki lists a host label for as long as it
+# holds a line from it, so an agent whose every push is being refused (a
+# wrong token, a missing Caddyfile line) passes that check. Alloy retries and
+# buffers quietly (#182), so the agent side looks healthy too. The question
+# is whether data written by the agent that just started has arrived:
+#
+#   - a sample from every expected job, timestamped after the new agent
+#     passed its checks above (the old one was gone by then);
+#   - a Loki line for this host, timestamped after the same moment;
+#   - no rise in the agent's own loki_write_dropped_entries_total, which is
+#     where a refused log push is counted. A refused metric push cannot be
+#     counted this way, because the counter would travel on the refused path.
+#     The first check is what catches that.
+#
+# Timestamps are the agent host's clock. A skew of more than the three-minute
+# wait makes this fail, which is a fault worth hearing about anyway.
+ARRIVED_AFTER="$(date +%s)"
 promql="up{instance=\"${HOST}\"}"
 logql="{host=\"${HOST}\"}"
 expected=2
 [[ "$RUNTIME" == docker ]] && expected=3   # + integrations/cadvisor
 
+# curl with the reader token, read from stdin as a config line so it is never
+# on a command line.
+mon_curl() {
+  printf 'header = "Authorization: Bearer %s"\n' "${INGEST_TOKEN_READER}" \
+    | curl -K - -fsS --max-time 10 "$@"
+}
+
+arrival_failed=0
 if ((VERIFY)); then
-  if curl -fsS --max-time 5 "http://${MON}:9090/-/ready" >/dev/null 2>&1; then
-    info "waiting for ${HOST} to appear in Prometheus and Loki at ${MON} (up to 3 min)"
+  if [[ -z "${INGEST_TOKEN_READER:-}" ]]; then
+    warn "no reader token (INGEST_TOKEN_READER) — skipping the arrival check; run it by hand with the queries below"
+  elif ! curl -fsS --max-time 5 "http://${MON}:9090/-/ready" >/dev/null 2>&1; then
+    warn "${MON}:9090 is not reachable from here; skipping the arrival check"
+  elif ! mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
+    warn "${MON}:9090 refused the reader token — is INGEST_TOKEN_READER the one in ${TOKEN_FILE}? Skipping the arrival check"
+  else
+    info "waiting for data newer than the deploy from ${HOST} in Prometheus and Loki at ${MON} (up to 3 min)"
+    fresh_promql="count by (job) (timestamp(${promql}) > ${ARRIVED_AFTER})"
     deadline=$((SECONDS + 180)); jobs=0; in_loki=0
     while ((SECONDS < deadline)); do
-      jobs="$(curl -fsS --max-time 10 "http://${MON}:9090/api/v1/query" --data-urlencode "query=${promql}" 2>/dev/null \
-              | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ')"
-      if curl -fsS --max-time 10 "http://${MON}:3100/loki/api/v1/label/host/values" 2>/dev/null | grep -q "\"${HOST}\""; then
+      # `|| true`, and it matters: until the first fresh sample lands, grep
+      # matches nothing and exits 1, pipefail makes that the pipeline's
+      # status, and set -e ended the whole script here with no word said
+      # (oracle, 2026-09-30). No match is an answer (0 jobs), not an error.
+      jobs="$(mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
+              | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ' || true)"
+      jobs="${jobs:-0}"
+      if mon_curl -G "http://${MON}:3100/loki/api/v1/query_range" \
+           --data-urlencode "query=${logql}" --data-urlencode "start=${ARRIVED_AFTER}000000000" \
+           --data-urlencode "limit=1" --data-urlencode "direction=forward" 2>/dev/null \
+           | grep -q '"values":\[\['; then
         in_loki=1
       fi
       ((jobs >= expected && in_loki)) && break
       sleep 10
     done
     if ((jobs >= expected)); then
-      pass "Prometheus has ${jobs} job(s) for instance=\"${HOST}\""
+      pass "Prometheus has samples newer than the deploy from ${jobs} job(s) for instance=\"${HOST}\""
     else
-      warn "Prometheus has ${jobs} job(s) for instance=\"${HOST}\" (expected ${expected}) — if this host is on another VLAN, is the pass to ${MON}:9090 in place?"
+      warn "Prometheus has samples newer than the deploy from ${jobs} job(s) for instance=\"${HOST}\" (expected ${expected}). A refused token looks exactly like this: check the agent's log for 401, then ${TOKEN_KEY} in ${TOKEN_FILE} and its line in ${PROXY_FILE}. On another VLAN, check the pass to ${MON}:9090."
+      arrival_failed=1
     fi
     if ((in_loki)); then
-      pass "Loki has host=\"${HOST}\""
+      pass "Loki has a line newer than the deploy for host=\"${HOST}\""
     else
-      warn "Loki does not list host=\"${HOST}\" yet — is the pass to ${MON}:3100 in place?"
+      warn "Loki has no line newer than the deploy for host=\"${HOST}\". Same suspects as above, on ${MON}:3100."
+      arrival_failed=1
     fi
-  else
-    warn "${MON}:9090 is not reachable from here; skipping the arrival check"
+    dropped="$(mon_curl "http://${MON}:9090/api/v1/query" \
+                 --data-urlencode "query=sum(increase(loki_write_dropped_entries_total{job=\"${HOST}-alloy\"}[5m]))" 2>/dev/null \
+               | grep -o '"value":\[[^]]*\]' | grep -o '"[0-9.e+-]*"\]' | tr -d '"]' || true)"
+    if [[ -n "${dropped}" ]] && awk -v d="${dropped}" 'BEGIN { exit !(d > 0) }'; then
+      warn "the agent has dropped ~${dropped} log entries in the last 5 min — see LogEntriesDropped; a 401 from the proxy is counted here"
+      arrival_failed=1
+    fi
   fi
 fi
 
 printf '\n\033[0;32mdeployed\033[0m — alloy %s on %s (%s)\n' "$VERSION" "$HOST" "$RUNTIME" >&2
 printf 'Check by hand:\n  PromQL  %s\n  LogQL   %s\n' "$promql" "$logql" >&2
+((arrival_failed == 0)) || die "the agent is running but its data is not arriving — see the warnings above"

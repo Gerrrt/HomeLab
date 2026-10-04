@@ -24,10 +24,23 @@
 //
 //   LOKI_URL=http://10.0.99.20:3100/loki/api/v1/push
 //   PROMETHEUS_REMOTE_WRITE_URL=http://10.0.99.20:9090/api/v1/write
+//   INGEST_TOKEN=<this host's agent token>
 //   ALLOY_ROOTFS=/   (native package only; the container layout is the default)
 //
 // Inside the observability stack the compose service names are the defaults.
 // See docs/observability.md.
+//
+// INGEST_TOKEN is the bearer token an ingest proxy wants before it passes a
+// push through (#182, ADR-0067). Two proxies, two sets of tokens:
+//   the estate's on 10.0.99.20  deploy-agent.sh sets it from
+//                               secrets/observability.sops.yaml
+//   the lab's on 10.0.30.40     odin's and fenrir's from their own stacks'
+//                               secrets (soc, sensor), phoenix's exported by
+//                               hand (#834)
+// Unset, as it is for the agents inside the observability and lab stacks,
+// which push to compose names directly, the writers send no Authorization
+// header at all. That was measured against a listener on the pinned image,
+// not read from the docs.
 //
 // ALLOY_HOSTNAME is the name this agent labels everything with, and it is read
 // from the environment rather than taken from constants.hostname.
@@ -138,8 +151,8 @@ prometheus.scrape "metrics" {
 // prometheus.yaml scrapes alloy:12345 over the compose network, which reaches
 // exactly one agent: the one on the monitoring host. `oracle` publishes 12345
 // on loopback only (ADR-0012), so there is no address Prometheus could be
-// pointed at, and opening one is the wrong trade — #182 already tracks
-// authenticating the ingest ports that are published. Scraping ourselves and
+// pointed at, and opening one is the wrong trade: it would be one more port
+// needing the authentication the ingest ports got in #182. Scraping ourselves and
 // pushing the result down the pipe that is already open costs nothing and
 // generalises to every future agent without touching the monitoring host.
 //
@@ -385,7 +398,8 @@ loki.process "log_processor" {
 
 loki.write "grafana_loki" {
 	endpoint {
-		url = coalesce(sys.env("LOKI_URL"), "http://loki:3100/loki/api/v1/push")
+		url          = coalesce(sys.env("LOKI_URL"), "http://loki:3100/loki/api/v1/push")
+		bearer_token = sys.env("INGEST_TOKEN")
 	}
 	external_labels = {
 		host = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
@@ -394,7 +408,8 @@ loki.write "grafana_loki" {
 
 prometheus.remote_write "metrics_service" {
 	endpoint {
-		url = coalesce(sys.env("PROMETHEUS_REMOTE_WRITE_URL"), "http://prometheus:9090/api/v1/write")
+		url          = coalesce(sys.env("PROMETHEUS_REMOTE_WRITE_URL"), "http://prometheus:9090/api/v1/write")
+		bearer_token = sys.env("INGEST_TOKEN")
 	}
 	external_labels = {
 		host = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),

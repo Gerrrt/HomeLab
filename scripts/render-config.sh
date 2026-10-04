@@ -311,6 +311,26 @@ for var in "${REQUIRED[@]}"; do
 done
 ((${#missing[@]} == 0)) || die "missing keys in ${SECRETS_FILE}: ${missing[*]}"
 
+# The ingest proxy's tokens (#182). Present is not enough. The Caddyfile
+# compares the whole Authorization header against "Bearer <token>", so a short
+# token is a guessable credential, and two equal tokens make two hosts one:
+# revoking either revokes both, and the proxy's map refuses the duplicate key
+# at start anyway. 32 characters is the floor, and `openssl rand -hex 32` (64)
+# is what secrets/observability.example.yaml says to use.
+ingest_tokens=()
+for var in "${REQUIRED[@]}"; do
+  # INGEST_TOKEN alone is a client's own copy (stacks/soc, stacks/sensor,
+  # #834), held to the same floor as the proxy's.
+  [[ "${var}" == INGEST_TOKEN || "${var}" == INGEST_TOKEN_* ]] || continue
+  value="${!var}"
+  ((${#value} >= 32)) || die "${var} in ${SECRETS_FILE} is ${#value} characters; the floor is 32 (openssl rand -hex 32)"
+  for seen in "${ingest_tokens[@]}"; do
+    [[ "${!seen}" != "${value}" ]] || die "${var} and ${seen} in ${SECRETS_FILE} are the same token; each client needs its own"
+  done
+  ingest_tokens+=("${var}")
+done
+unset value
+
 # ---------------------------------------------------------------------------
 # Render snmp.yaml
 # ---------------------------------------------------------------------------
@@ -518,6 +538,16 @@ COMPOSE_VARS=(
   GRAFANA_ADMIN_USER
   GRAFANA_ADMIN_PASSWORD
   GRAFANA_RENDERER_TOKEN
+  INGEST_TOKEN_ORACLE
+  INGEST_TOKEN_TRINITY
+  INGEST_TOKEN_SARUMAN
+  INGEST_TOKEN_READER
+  INGEST_TOKEN_ODIN
+  INGEST_TOKEN_PHOENIX
+  INGEST_TOKEN_FENRIR
+  INGEST_TOKEN
+  HOMEPAGE_PROMETHEUS_TOKEN
+  HA_PROMETHEUS_AUTHORIZATION
   STEPCA_PASSWORD
   ADGUARD_ADMIN_PASSWORD_HASH
   IMMICH_DB_PASSWORD

@@ -6,18 +6,41 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/ci.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=CI)](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml)
 [![Digest drift](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/digests.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=Digest%20drift)](https://github.com/Gerrrt/HomeLab/actions/workflows/digests.yml)
+[![Last commit](https://img.shields.io/github/last-commit/Gerrrt/HomeLab/main?style=plastic&logo=git&logoColor=white&label=last%20commit)](https://github.com/Gerrrt/HomeLab/commits/main)
+[![Open issues](https://img.shields.io/github/issues/Gerrrt/HomeLab?style=plastic&logo=github&logoColor=white&label=open%20issues)](https://github.com/Gerrrt/HomeLab/issues)
+[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?style=plastic&logo=dependabot&logoColor=white)](.github/dependabot.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=plastic)](LICENSE)
-[![SOPS](https://img.shields.io/badge/SOPS-6f42c1?style=plastic)](https://github.com/getsops/sops)
-[![age](https://img.shields.io/badge/age-6f42c1?style=plastic)](https://github.com/FiloSottile/age)
+
+[![pfSense](https://img.shields.io/badge/pfSense-212121?style=plastic&logo=pfsense&logoColor=white)](https://www.pfsense.org)
+[![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-E57000?style=plastic&logo=proxmox&logoColor=white)](https://www.proxmox.com/en/proxmox-virtual-environment)
+[![TrueNAS](https://img.shields.io/badge/TrueNAS-0095D5?style=plastic&logo=truenas&logoColor=white)](https://www.truenas.com)
+[![Ubuntu Server](https://img.shields.io/badge/Ubuntu%20Server-E95420?style=plastic&logo=ubuntu&logoColor=white)](https://ubuntu.com/server)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![WireGuard](https://img.shields.io/badge/WireGuard-88171A?style=plastic&logo=wireguard&logoColor=white)](https://www.wireguard.com)
+
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io)
 [![Alertmanager](https://img.shields.io/badge/Alertmanager-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://prometheus.io/docs/alerting/latest/alertmanager/)
 [![snmp_exporter](https://img.shields.io/badge/snmp__exporter-E6522C?style=plastic&logo=prometheus&logoColor=white)](https://github.com/prometheus/snmp_exporter)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
 [![Loki](https://img.shields.io/badge/Loki-F5A800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/loki/)
 [![Alloy](https://img.shields.io/badge/Alloy-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/alloy-opentelemetry-collector/)
-[![pfSense](https://img.shields.io/badge/pfSense-FreeBSD%2016-212121?style=plastic&logo=pfsense&logoColor=white)](https://www.pfsense.org)
-[![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-E57000?style=plastic&logo=proxmox&logoColor=white)](https://www.proxmox.com/en/proxmox-virtual-environment)
-[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
+[![SOPS](https://img.shields.io/badge/SOPS-6f42c1?style=plastic)](https://github.com/getsops/sops)
+[![age](https://img.shields.io/badge/age-6f42c1?style=plastic)](https://github.com/FiloSottile/age)
+[![Suricata](https://img.shields.io/badge/Suricata-EF7F1A?style=plastic)](docs/runbooks/enable-suricata.md)
+[![Zeek](https://img.shields.io/badge/Zeek-0a4d84?style=plastic)](stacks/sensor)
+[![Wazuh](https://img.shields.io/badge/Wazuh-3595F7?style=plastic)](stacks/soc)
+[![Velociraptor](https://img.shields.io/badge/Velociraptor-4b7b4b?style=plastic)](stacks/soc)
+[![Caddy](https://img.shields.io/badge/Caddy-1F88C0?style=plastic&logo=caddy&logoColor=white)](https://caddyserver.com)
+[![step-ca](https://img.shields.io/badge/step--ca-2b3a8c?style=plastic)](https://smallstep.com/docs/step-ca/)
+[![gitleaks](https://img.shields.io/badge/gitleaks-d73a49?style=plastic)](https://github.com/gitleaks/gitleaks)
+
+[![OpenTofu](https://img.shields.io/badge/OpenTofu-FFDA18?style=plastic&logo=opentofu&logoColor=black)](tofu)
+[![Packer](https://img.shields.io/badge/Packer-02A8EF?style=plastic&logo=packer&logoColor=white)](packer)
+[![Ansible](https://img.shields.io/badge/Ansible-EE0000?style=plastic&logo=ansible&logoColor=white)](ansible)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-18BCF2?style=plastic&logo=homeassistant&logoColor=white)](stacks/sensitive)
+[![Jellyfin](https://img.shields.io/badge/Jellyfin-00A4DC?style=plastic&logo=jellyfin&logoColor=white)](stacks/media)
+[![Immich](https://img.shields.io/badge/Immich-4250AF?style=plastic&logo=immich&logoColor=white)](stacks/sensitive)
 
 [Start here](docs/runbooks/successor-handover.md) ·
 [Architecture](docs/architecture.md) ·
@@ -56,11 +79,14 @@ documents for different readers.
 - **Network segmented by trust, not by function.** Six VLANs; IoT, media and
   guest segments are terminal **outward** — nothing on them initiates anywhere
   else, and each carries a tripwire that logs anything which gets past that.
-  Inbound is a separate question, and since 2026-09-16 CasaBonita is the one
-  exception: two more-trusted segments reach one host on named ports, so the
-  televisions can have a media server without the segment ceasing to be terminal
-  in the direction that matters
-  ([ADR-0016](docs/adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)).
+  Inbound is a separate question, answered one host at a time: since
+  2026-09-16 more-trusted segments reach `smaug` on CasaBonita on named ports,
+  so the televisions can have a media server without the segment ceasing to be
+  terminal in the direction that matters
+  ([ADR-0016](docs/adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)),
+  and since 2026-09-28 Home Assistant reaches the Hue bridge on Skids and
+  nothing else there
+  ([ADR-0035](docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md)).
   Default deny holds everywhere except the trusted workstation segment and the
   switch LAN, both of which are listed rather than counted.
   [Why](docs/adr/0013-segment-access-as-implemented.md)
@@ -68,8 +94,8 @@ documents for different readers.
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
-- **Dashboards and alerting as code.** 7 provisioned dashboards, 141 panels, and
-  121 alert rules — 103 metric-based in Prometheus, 18 log-based in Loki — sharing
+- **Dashboards and alerting as code.** 7 provisioned dashboards, 144 panels, and
+  156 alert rules — 137 metric-based in Prometheus, 19 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -79,14 +105,15 @@ documents for different readers.
   `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
   dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
   `gitleaks` over the full history.
-- **CI that validates the documentation too.** Ten assertions cross-check
+- **CI that validates the documentation too.** Eleven assertions cross-check
   this prose against the configs it describes — counted claims (rules,
   dashboards, panels, Alloy agents, VLANs, ADRs, runbooks), the SNMP
   inventory and the compute table against `docs/network.md`, the host/stack
   and ports tables against `compose.yaml`, ADR numbering, firewall posture
   against `docs/firewall-claims.yaml`, guest rows against each other, this
-  file's outstanding-purchase count against the roadmap's buy table, and a
-  ban on image versions in prose — Dependabot edits only `compose.yaml`, so
+  file's outstanding-purchase count against the roadmap's buy table, every
+  critical alert's `runbook_url` against the runbook and heading it names, and
+  a ban on image versions in prose — Dependabot edits only `compose.yaml`, so
   a version written anywhere else is stale from the next bump. A document
   that disagrees with the repository fails the build. That opening count is
   now one of the claims, read from the check registry rather than kept by
@@ -98,138 +125,117 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 63 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 36
+- **Documented decisions and runbooks.** 78 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 44
   runbooks for the operations that are easy to get wrong at 1am, one of which
-  is the handover page a successor reads first.
+  is the handover page a successor reads first. Every critical alert links to
+  one.
 
 ## Architecture
 
-```mermaid
-graph TB
-    INET([Internet]) --- FW{{"morpheus · pfSense<br/>HP ProDesk 600 G4"}}
-    FW --- SW[neo · 26-port managed switch]
+[![The home network: the ISP gateway in bridge mode, the pfSense firewall
+morpheus, the core switch neo and the 9U rack across the top; below them one
+panel per VLAN in its patch-cable colour, holding every addressed host —
+Winterfell's monitoring, wiki and household hosts, Hicks' workstations by role,
+CasaBonita's NAS and screens, ImaginationLAN's hypervisor and its ten guests,
+Skids' IoT by class, and the guest
+network.](docs/diagrams/current/network.svg)](docs/diagrams/current/network.svg)
 
-    subgraph V99["VLAN 99 · Winterfell · Management"]
-        MON["<b>prometheus</b><br/>observability stack"]
-        UPS["mjolnir · UPS"]
-    end
-    subgraph V50["VLAN 50 · Hicks · Trusted"]
-        WS["workstations"]
-    end
-    subgraph V30["VLAN 30 · ImaginationLAN · Lab"]
-        HV["Saruman · Proxmox<br/>BMC: shiva"]
-    end
-    subgraph Terminal["VLANs 40 / 20 / 10 · egress only"]
-        TV["40 · CasaBonita<br/>media"]
-        IOT["20 · Skids<br/>IoT"]
-        GUEST["10 · Degens<br/>guest"]
-    end
+<sub>Click for the full-resolution SVG. Drawn from
+[`docs/network.md`](docs/network.md) and
+[`docs/hardware.md`](docs/hardware.md); how to edit it is in
+[`docs/diagrams/`](docs/diagrams/README.md).</sub>
 
-    SW --- V99
-    SW --- V50
-    SW --- V30
-    SW --- Terminal
-    WS -.->|management| V99
-    WS -.->|lab| V30
-
-    %% Fill is the patch-cable colour in the rack. A dashed border means the
-    %% segment is terminal — egress only. Grey carries every VLAN, so it gets
-    %% no colour of its own. See docs/adr/0009.
-    classDef vlan99 fill:#6e2c2c,stroke:#f85149,color:#fff
-    classDef vlan50 fill:#7a3f12,stroke:#db6d28,color:#fff
-    classDef vlan30 fill:#1f6f4a,stroke:#2ea043,color:#fff
-    classDef infra  fill:#30363d,stroke:#8b949e,color:#e6edf3
-    classDef vlan40 fill:#a87f00,stroke:#e3b341,color:#0d1117,stroke-dasharray: 6 4
-    classDef vlan20 fill:#1f4e79,stroke:#388bfd,color:#fff,stroke-dasharray: 6 4
-    classDef vlan10 fill:#4a3f7a,stroke:#a371f7,color:#fff,stroke-dasharray: 6 4
-
-    class MON,UPS vlan99
-    class WS vlan50
-    class HV vlan30
-    class TV vlan40
-    class IOT vlan20
-    class GUEST vlan10
-    class FW,SW infra
-
-    style V99 fill:#161b22,stroke:#f85149,stroke-width:2px,color:#f85149
-    style V50 fill:#161b22,stroke:#db6d28,stroke-width:2px,color:#db6d28
-    style V30 fill:#161b22,stroke:#2ea043,stroke-width:2px,color:#2ea043
-    style Terminal fill:#161b22,stroke:#8b949e,stroke-width:2px,color:#8b949e,stroke-dasharray: 6 4
-```
-
-Dotted lines are the paths this diagram draws, and they are not the whole story.
-Default deny holds for every segment except Hicks and the switch LAN, both of
-which reach further than any diagram of exceptions suggests — so what a segment
-can actually reach is recorded per segment in
-[`network.md`](docs/network.md)'s *Reaches* column, which is the document to
-read for the current state.
+Each panel's footer says what that segment reaches, and that is the short
+version. Default deny holds for every segment except Hicks and the switch LAN,
+both of which reach further than any picture of exceptions suggests.
+[`network.md`](docs/network.md)'s *Reaches* column is the segment-level
+summary. The host-scoped passes underneath it are in each segment's notes in
+the same file, and the two together are the current state. Two examples:
+`Saruman` reaching `prometheus` on 9090/3100, and `smaug` over NFS.
 [ADR-0013](docs/adr/0013-segment-access-as-implemented.md) holds the method and
 the reasoning, and describes the ruleset as it stood on 2026-09-01; the Hicks
 interface was narrowed the day after. A count was the wrong instrument and this
 README carried the wrong count for months. Segment colour matches the patch
-cable in the rack; a dashed border means egress only.
-Full topology and data flow in [`docs/architecture.md`](docs/architecture.md).
+cable in the rack. A dashed border means the segment is terminal outward:
+nothing on it initiates a connection to another internal segment, though named
+inbound passes may still reach it. Data flow and the maintained Mermaid topology are in
+[`docs/architecture.md`](docs/architecture.md).
 
 ## Stack
 
-| Layer | Tool | Role |
-| --- | --- | --- |
-| Firewall / routing | [pfSense on FreeBSD 16](docs/network.md) | VLANs, DHCP, default-deny |
-| Virtualisation | Proxmox VE | Lab hypervisor |
-| Storage | [TrueNAS 25.10](docs/runbooks/build-the-nas.md) | `smaug`: 2× 18 TB ZFS mirror `erebor`, the SMB share, and the Docker the media stack runs under |
-| Media | [Jellyfin, Audiobookshelf, Navidrome](stacks/media) | Quick Sync transcoding on the NAS, audiobooks with synced progress and music over Subsonic (both authored, not yet deployed — [#140](https://github.com/Gerrrt/HomeLab/issues/140), [#141](https://github.com/Gerrrt/HomeLab/issues/141)); the one stack deployed from TrueNAS rather than by `make deploy` |
-| Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | On `alexander`, a guest on `Saruman`, with its own Prometheus; only liveness crosses to the estate's, never telemetry |
-| Metrics | [Prometheus](stacks/observability/prometheus) | 30-day retention capped at 12 GiB, remote-write receiver |
-| Logs | [Loki](stacks/observability/loki) | Single-binary, filesystem storage |
-| Collection | [Grafana Alloy](stacks/observability/alloy) | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
-| Network polling | [snmp_exporter](stacks/observability/snmp-exporter) | pfSense, switch, UPS, iLO |
-| Alerting | [Alertmanager](stacks/observability/alertmanager) | Severity routing, inhibition |
-| Visualisation | [Grafana](stacks/observability/grafana) | 7 provisioned dashboards |
-| Secrets | [SOPS + age](secrets) | Encrypted in-repo |
-| CI | [GitHub Actions](.github/workflows/ci.yml) | Lint, config validation, secret scanning, digest pinning |
+| Layer | Tool | Where | Role |
+| --- | --- | --- | --- |
+| Firewall / routing | [pfSense on FreeBSD 16](docs/network.md) | `morpheus` | VLANs, Kea DHCP, Unbound, Suricata, NUT, default-deny, the one WireGuard `rdr` |
+| Virtualisation | Proxmox VE | `Saruman` | Lab hypervisor; iLO on `shiva` |
+| Storage | [TrueNAS 25.10](docs/runbooks/build-the-nas.md) | `smaug` | 2× 18 TB ZFS mirror `erebor`, the SMB share, and the Docker the media stack runs under |
+| Media | [Jellyfin, Audiobookshelf, Navidrome](stacks/media) | `smaug` | Quick Sync transcoding on the NAS, audiobooks with synced progress and music over Subsonic ([#140](https://github.com/Gerrrt/HomeLab/issues/140), [#141](https://github.com/Gerrrt/HomeLab/issues/141)); the one stack deployed from TrueNAS rather than by `make deploy` |
+| Household services | [Caddy, step-ca, Home Assistant, AdGuard Home, Immich, Paperless-ngx, Vaultwarden and more](stacks/sensitive) | `trinity` | The sensitive tier, behind its own CA, and the house's DNS filter |
+| Wiki | [Wiki.js and Postgres](stacks/wiki) | `oracle` | The household's documentation, and the off-host backup copies |
+| Metrics | [Prometheus](stacks/observability/prometheus) | `prometheus` | 30-day retention capped at 12 GiB, remote-write receiver |
+| Logs | [Loki](stacks/observability/loki) | `prometheus` | Single-binary, filesystem storage |
+| Collection | [Grafana Alloy](stacks/observability/alloy) | every Linux host but `smaug`, which is scraped through node_exporter instead | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
+| Network polling | [snmp_exporter](stacks/observability/snmp-exporter) | `prometheus` | pfSense, switch, UPS, iLO |
+| Alerting | [Alertmanager](stacks/observability/alertmanager) | `prometheus` | Severity routing, inhibition |
+| Visualisation | [Grafana](stacks/observability/grafana) | `prometheus` | 7 provisioned dashboards |
+| Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | `alexander` | The lab's own Prometheus; only liveness crosses to the estate's, never telemetry |
+| Security tooling | [Wazuh, Velociraptor](stacks/soc) | `odin` | SIEM and endpoint forensics for the lab domain |
+| Network sensor | [Zeek](stacks/sensor) | `fenrir` | East-west traffic on the lab bridge, from a `tc` mirror |
+| Lab provisioning | [Packer](packer), [OpenTofu](tofu), [Ansible](ansible) | `phoenix` | VM templates, guests cloned from them, and the `ad.matrix.elysium` domain's configuration |
+| Secrets | [SOPS + age](secrets) | in the repo | Encrypted in-repo, decrypted at deploy time |
+| CI | [GitHub Actions](.github/workflows/ci.yml) | GitHub | Lint, config validation, secret scanning, digest pinning, [close keywords in prose](.github/workflows/close-keywords.yml) |
 
 ## Repository layout
 
 ```text
 .
-├── stacks/observability/     # the deployed stack — one compose file, eight services
-│   ├── compose.yaml
-│   ├── prometheus/           # config, file_sd targets, 103 alert rules
-│   ├── alertmanager/         # routing and inhibition
-│   ├── loki/                 # single-binary config + 18 LogQL rules
-│   ├── alloy/                # the agent config directory, shipped to every host
-│   ├── snmp-exporter/        # generator.yaml is the source of truth
-│   └── grafana/              # provisioning + 7 dashboards
-├── stacks/lab/               # the lab's own stack — four services on alexander,
-│                             #   a guest on Saruman; never remote-writes to
-│                             #   VLAN 99. See its README and ADR-0020
-├── stacks/soc/               # Wazuh and Velociraptor on odin, a second guest —
-│                             #   built 2026-09-27 (ADR-0030, #266, #267)
-├── stacks/sensitive/         # the household's tier — Caddy, step-ca, Home
-│                             #   Assistant, AdGuard Home, Immich, Paperless-ngx,
-│                             #   Vaultwarden, Homepage, ntfy, Miniflux, Memos,
-│                             #   Mealie, linkding, Actual and Stirling-PDF so far; its own CA, leaves over ACME
-│                             #   (ADR-0037); on trinity since 2026-09-28 (ADR-0034, #404)
-├── stacks/media/             # Jellyfin and Navidrome on smaug, under TrueNAS's
-│                             #   own Docker — deployed by hand, no secrets file
-│                             #   by decision (ADR-0040, #528)
+├── stacks/
+│   ├── observability/        # the estate's stack on prometheus — nine services
+│   │   ├── prometheus/       #   config, file_sd targets, 137 alert rules
+│   │   ├── alertmanager/     #   routing and inhibition
+│   │   ├── loki/             #   single-binary config + 19 LogQL rules
+│   │   ├── alloy/            #   the agent config directory, shipped to every host
+│   │   ├── snmp-exporter/    #   generator.yaml is the source of truth
+│   │   └── grafana/          #   provisioning + 7 dashboards
+│   ├── sensitive/            # the household's tier on trinity — its own CA,
+│   │                         #   leaves over ACME (ADR-0034, ADR-0037)
+│   ├── media/                # Jellyfin, Audiobookshelf and Navidrome on smaug,
+│   │                         #   under TrueNAS's own Docker (ADR-0040)
+│   ├── wiki/                 # Wiki.js on oracle (ADR-0011, ADR-0015)
+│   ├── lab/                  # the lab's own stack on alexander — six services,
+│   │                         #   never remote-writes to VLAN 99 (ADR-0020)
+│   ├── soc/                  # Wazuh and Velociraptor on odin (ADR-0030)
+│   ├── sensor/               # Zeek on fenrir, on a mirror of the lab bridge (ADR-0068)
+│   └── scratch/              # a DISPOSABLE copy of soc on diabolos (ADR-0071)
+├── packer/  tofu/  ansible/  # lab templates, guests and domain, run from phoenix
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
-├── scripts/                  # bootstrap, render, validate, pin-digests, purge
+├── scripts/                  # bootstrap, render, validate, check_docs… — see its README
+├── systemd/                  # the timers that back up, verify and converge — see its README
+├── .github/                  # CI, Dependabot, the ruleset on main — see OVERVIEW.md
 ├── SECURITY.md               # disclosure policy and known exposure
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
-│   ├── adr/                  # 49 architecture decision records
-│   └── runbooks/             # successor handover (start here), deploy, converge,
-│                             #   add device, rotate creds, certs, key backup,
-│                             #   copy the backups offsite,
-│                             #   purge, restore the firewall, restore the stack,
-│                             #   ship firewall logs, verify the alert path,
-│                             #   enable suricata, fit the UPS battery,
-│                             #   add a host override, build the lab guest
+│   ├── diagrams/             # the network diagram (SVG) and its predecessors
+│   ├── adr/                  # 78 ADRs — architecture decision records
+│   └── runbooks/             # 44 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
+
+Every directory with more in it than its name says has a page of its own:
+
+- [`stacks/`](stacks): each stack's README covers its host, its services and
+  what it deliberately leaves out.
+- [`scripts/`](scripts/README.md): every script by purpose, with the `make`
+  target that runs it.
+- [`systemd/`](systemd/README.md): every timer, its host and its schedule, and
+  how a job that stops running pages.
+- [`.github/`](.github/OVERVIEW.md): the workflows, the ruleset on `main`,
+  Dependabot and the templates.
+- [`docs/diagrams/`](docs/diagrams/README.md): the network diagram, what it is
+  drawn from, and how to keep it current.
+- [`packer/`](packer/README.md), [`tofu/`](tofu/README.md),
+  [`ansible/`](ansible/README.md) and [`secrets/`](secrets/README.md).
 
 ## Quick start
 
@@ -267,20 +273,25 @@ recording what it deployed and refusing to overwrite anything edited on the host
 ([#99](https://github.com/Gerrrt/HomeLab/issues/99),
 [ADR-0021](docs/adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md),
 [`docs/runbooks/converge-the-host.md`](docs/runbooks/converge-the-host.md)).
+A host is installed with `HOMELAB_CONVERGE_APPLY=0`, which makes the timer
+fetch, verify and report what it *would* deploy without applying it, and that
+runbook has the step that lets it act — so on a host still in that mode, a
+merge reaches the stack only when someone runs `make up` there.
 
 ```console
 $ make help
   up               Render config and start the stack
-  converge         Fetch main, verify it, fast-forward and deploy
+  converge         Fetch main, verify it, fast-forward and deploy (ARGS=--dry-run)
   down             Stop the stack (volumes are preserved)
   reload           Hot-reload Prometheus, Alertmanager and snmp-exporter (no restart)
   secrets-init     Generate an age keypair and create the encrypted secrets file
   secrets-edit     Edit the encrypted secrets in $EDITOR
-  secrets-verify-backup  Check a backup age key decrypts the secrets
   validate         Run every check CI runs
-  backup           Quiesce the stack, archive its volumes to ./backups/ and verify
-  restore          Restore the stack's volumes from a backup set
-  install-timers   Install and enable the systemd timers on this host
+  check-docs       Verify the documents agree with the configs
+  backup           Quiesce the stack, archive its volumes to ./backups/, verify, copy to oracle
+  restore          Restore the stack's volumes from a backup set (ARGS="--from <stamp>")
+  install-timers   Install and enable the systemd timers on this host (needs sudo)
+  secrets-verify-backup  Check a backup age key decrypts the secrets (KEY=/path/to/keys.txt)
   ...
 ```
 
@@ -294,9 +305,10 @@ a ninety-day deadline and an alert instead. See
 
 ## Dashboards
 
-Rendered from the running stack by `make screenshots`, over a 24-hour window.
-Four of the seven provisioned dashboards are here; `docs/images/README.md`
-explains why the Logs and Security dashboards are deliberately not among them.
+Rendered from the running stack by `make screenshots` on 2026-10-04, over a
+24-hour window. Every dashboard but Logs and Security is here;
+`docs/images/README.md` explains why those two are deliberately left out, and
+what in these renders is a known fault rather than the steady state.
 
 ![Host Overview dashboard: CPU, memory, load, storage and network for every host
 running an Alloy agent, with a table of firing host alerts across the
@@ -310,21 +322,34 @@ inventory.](docs/images/docker-containers.png)
 MokerLink switch interface throughput and link status, and HPE iLO chassis power
 draw and hardware health.](docs/images/network-snmp.png)
 
-![UPS & Power dashboard as it read on 2026-08-22: APC power source, output load,
-input and output voltage and runtime, under the banner that stood before a
-battery pack was fitted, when every battery figure was fabricated.](docs/images/ups-power.png)
+![UPS & Power dashboard: APC power source, battery charge, output load,
+runtime, voltage and time on battery, under the banner recording when the pack
+was fitted and proven.](docs/images/ups-power.png)
 
-That capture is from 2026-08-22, before a pack was fitted on 2026-08-28. The
-banner it shows has been rewritten three times since, and the self-test has now
-passed, so the panels read measured values rather than invented ones — re-shoot
-the set with `make screenshots`.
+![Observability Stack dashboard: every scrape target with its staleness, then
+Prometheus, Loki, Alertmanager and the Alloy agents — the collection path
+watching itself.](docs/images/observability-stack.png)
 
 ## What runs it
 
 The entire observability stack runs on a 2012 MacBook Pro with Ubuntu Server on
 it. Four SNMP devices at a 60-second interval, Alloy agents, and 30 days of
-metrics, on hardware that was otherwise going to landfill. Hardware details in
-[`docs/hardware.md`](docs/hardware.md).
+metrics, on hardware that was otherwise going to landfill. The rest of the
+estate is as unglamorous:
+
+| Host | Hardware | Job |
+| --- | --- | --- |
+| `morpheus` | HP ProDesk 600 G4 Mini, a second NIC on an M.2 adapter | pfSense firewall |
+| `neo` | MokerLink 26-port managed switch | Core switching |
+| `Saruman` | HPE ProLiant DL360 Gen9, iLO 4 as `shiva` | Proxmox VE, and the lab's guests |
+| `smaug` | Lenovo ThinkServer TS150 | TrueNAS and the media stack |
+| `trinity` | HP ProDesk 600 G4 DM | The household's tier |
+| `prometheus` | Apple MacBook Pro (2012) | The observability stack |
+| `oracle` | Dell Inspiron 15 | The wiki and the off-host copies |
+| `mjolnir` | APC Smart-UPS X 1500 | Power for the rack and everything on its PDU |
+
+All of it but the two laptops, `trinity` and the NAS sits in a 9U open-frame rack. Details
+in [`docs/hardware.md`](docs/hardware.md).
 
 ## Security posture
 
@@ -352,29 +377,19 @@ one but a missing one, and no amount of grepping finds those.
 ## Roadmap
 
 Open work is tracked in
-[Issues](https://github.com/Gerrrt/HomeLab/issues);
+[Issues](https://github.com/Gerrrt/HomeLab/issues), grouped into
+[milestones](https://github.com/Gerrrt/HomeLab/milestones);
 [`docs/roadmap.md`](docs/roadmap.md) is the shape of it — what is outstanding,
 what gates it, and why it is in that order. What happened, and what it found,
 is [`docs/changelog.md`](docs/changelog.md), dated and never rewritten.
 
-The current top items: rehearse the firewall restore on the ProDesk bought on
-2026-09-08 — on hand since 2026-09-14, with its I226 card fitted since
-2026-09-25, so what the rehearsal waits on is the installer stick alone — and then build the
-sensitive tier on that same box ([#404](https://github.com/Gerrrt/HomeLab/issues/404), [ADR-0034](docs/adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)). **Every purchase still outstanding is in one place**, the
-roadmap's [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
+**Every purchase still outstanding is in one place**, the roadmap's
+[*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
 0 items now, one later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
-ProDesk came to be bought for two jobs.
-The UPS is finished — a pack went into `mjolnir` on 2026-08-28, passed its
-self-test, and the card is set to test itself every fortnight
-([#93](https://github.com/Gerrrt/HomeLab/issues/93)) — and since 2026-09-08 the
-switch between the monitoring host and the network draws from it too, racked in
-U4 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); and the config export
-leaves the monitoring host nightly, the volume backup sets weekly
-([#535](https://github.com/Gerrrt/HomeLab/issues/535)) and the media tier's state
-weekly by way of it ([#484](https://github.com/Gerrrt/HomeLab/issues/484)),
-so the rehearsal is what is left ([#92](https://github.com/Gerrrt/HomeLab/issues/92)).
+ProDesk came to be bought for two jobs. It names no current item for the
+same reason: the roadmap moves faster than a front page is reread.
 
 ## License
 

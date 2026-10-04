@@ -2,6 +2,40 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> "It does not converge anything but this host's stack" (Decision, below) is
+> amended by [#533](https://github.com/Gerrrt/HomeLab/issues/533), 2026-10: a
+> second host pulls. `trinity` converges `stacks/sensitive` with the same
+> script, the same pinned key and the same refusals, as its operator from
+> `~/code/Gerrrt/HomeLab`, under `homelab-converge-sensitive` from
+> `install-timers.sh`'s sensitive profile. It decrypts only
+> `secrets/sensitive.sops.yaml`, with the tier's own age key. The reason this
+> ADR gave for stopping at one host was about hosts with no checkout and no
+> key, and `trinity` has both. The tier with the real data gets no stricter
+> mechanism, only the same rollout: report-only until it is watched, then
+> applying. `oracle` and `saruman` are still pushed to. The text here is left
+> as written, per ADR-0001.
+>
+> "What actually protects `main` today" (Context, below) is amended by
+> [#833](https://github.com/Gerrrt/HomeLab/issues/833), 2026-10.
+>
+> **What the section missed.** It establishes that every merge is signed, and
+> the Decision relies on that. A signature proves a commit came through a
+> GitHub merge. It does not prove the merge was green: the ruleset on `main`
+> required a pull request and no status checks, so a PR with a failing Lint
+> could be merged, signed, and deployed within the hour.
+>
+> **What changes.**
+>
+> - The ruleset now requires the CI checks, and is kept as
+>   `.github/rulesets/main.json`. `scripts/check-ruleset.sh` compares it with
+>   GitHub weekly.
+> - `converge.sh` asks GitHub for the tip's own check-runs before deploying,
+>   and refuses a red tip.
+>
+> So the gate is two facts, the signature and green CI, and neither lives only
+> in a settings page.
+
 ## Context
 
 Deployment is `make up`, typed into an SSH session on `prometheus`

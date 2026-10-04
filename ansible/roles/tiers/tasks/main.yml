@@ -1,0 +1,81 @@
+---
+# ADR-0029's machine tiers, as #414 built them by hand (runbook §5, first half):
+# the OUs, one admin account per tier, the Tier 0 Admins group, and the four
+# members placed in Servers/Workstations. The users and weaknesses on top are
+# #449's; this is only the skeleton the rebuild must not lose.
+#
+# Runs on the PDC emulator (the play targets dc_primary). Every task compares
+# before it acts, so a second run reports nothing changed.
+
+- name: The tier and placement OUs exist, protected
+  microsoft.ad.ou:
+    name: "{{ item }}"
+    path: "{{ lab_domain_dn }}"
+    protect_from_deletion: true
+    state: present
+  loop: "{{ lab_tier_ous }}"
+
+- name: The Tier 0 Admins group exists
+  microsoft.ad.group:
+    name: Tier 0 Admins
+    sam_account_name: Tier 0 Admins
+    path: "OU=Tier0,{{ lab_domain_dn }}"
+    scope: global
+    category: security
+    state: present
+
+# pne/ccp match what #414 set. t0-admin is the only tier admin with rights, via
+# Tier 0 Admins and Domain Admins; t1/t2-admin are accounts with no group, as
+# built. Giving the lower tiers real power is a content decision, so it is left
+# to #449, not assumed here.
+- name: The tier admin accounts exist, each in its OU
+  microsoft.ad.user:
+    name: "{{ item.name }}"
+    sam_account_name: "{{ item.name }}"
+    path: "OU=Tier{{ item.tier }},{{ lab_domain_dn }}"
+    password: "{{ lab_tier_admin_password }}"
+    # on_create, not when_changed: against the live domain these accounts exist
+    # with #414's passwords, which we do not know and must not reset, so this is
+    # a no-op there. On a rebuild they are made fresh and take the managed
+    # password. A distinct password from the domain admin's, so three tier
+    # admins do not all carry Domain Admin's secret.
+    update_password: on_create
+    # add, not set: set makes membership exactly this list, which excludes the
+    # primary group Domain Users and so tries to remove it every run — a no-op
+    # that still reports changed and warns. add only ensures the memberships
+    # that matter and leaves the rest, including anything #449 adds later.
+    groups:
+      add: "{{ item.groups }}"
+    state: present
+  loop:
+    - {name: t0-admin, tier: 0, groups: [Tier 0 Admins, Domain Admins]}
+    - {name: t1-admin, tier: 1, groups: []}
+    - {name: t2-admin, tier: 2, groups: []}
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+# The join put each computer in the default Computers container; #414 moved them
+# to Servers and Workstations. Move-ADObject compares first, so a second run is
+# unchanged. microsoft.ad has no "place an existing computer" that is this plain.
+- name: Place each member in the OU ADR-0029 names
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([hashtable]$Want)
+      $Ansible.Changed = $false
+      Import-Module ActiveDirectory
+      foreach ($name in $Want.Keys) {
+        $c = Get-ADComputer -Identity $name -ErrorAction Stop
+        $parent = ($c.DistinguishedName -split ',', 2)[1]
+        if ($parent -ne $Want[$name]) {
+          if (-not $Ansible.CheckMode) { Move-ADObject -Identity $c.DistinguishedName -TargetPath $Want[$name] }
+          $Ansible.Changed = $true
+        }
+      }
+    parameters:
+      Want:
+        TITAN: "OU=Servers,{{ lab_domain_dn }}"
+        RAMUH: "OU=Servers,{{ lab_domain_dn }}"
+        CARBUNCLE: "OU=Workstations,{{ lab_domain_dn }}"
+        SIREN: "OU=Workstations,{{ lab_domain_dn }}"

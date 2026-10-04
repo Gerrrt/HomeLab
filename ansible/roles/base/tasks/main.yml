@@ -1,0 +1,132 @@
+---
+# The guest itself: name, address, resolver, clock zone, and the build
+# password rotated away. Runbook §2. IPv4 only — nothing here reads or writes an
+# IPv6 setting, because the reflex this role must not have is the one §0 names.
+
+- name: Know whether this guest is a DC already
+  ansible.builtin.import_role:
+    name: domain_role
+
+- name: Name the guest as ADR-0029 names it
+  ansible.windows.win_hostname:
+    name: "{{ inventory_hostname }}"
+  register: base_hostname
+
+- name: Reboot into the new name
+  ansible.windows.win_reboot:
+  when: base_hostname.reboot_required
+
+# The DCs only: "a domain controller that boots without an address has nothing
+# to register into" (§2). A rebuilt DC first comes up on its reservation, at
+# this same address, so dropping DHCP for a static drops the session for a
+# moment and nothing more.
+#
+# The adapter is found as the guest's one connected NIC, not by its default
+# route, because the route is part of what this converges. Converged means all
+# three: DHCP off, the address at the right prefix, and the default route via
+# the gateway.
+- name: Read whether the DC's address is already static
+  ansible.windows.win_powershell:
+    script: |
+      param([string]$Address, [int]$Prefix, [string]$Gateway)
+      $Ansible.Changed = $false
+      $nic = @(Get-NetAdapter -Physical | Where-Object Status -eq 'Up')
+      if ($nic.Count -ne 1) { throw "expected one connected NIC, found $($nic.Count)" }
+      $i = $nic[0].ifIndex
+      $dhcp = (Get-NetIPInterface -InterfaceIndex $i -AddressFamily IPv4).Dhcp
+      $ip = Get-NetIPAddress -InterfaceIndex $i -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object { $_.IPAddress -eq $Address -and $_.PrefixLength -eq $Prefix }
+      $route = Get-NetRoute -InterfaceIndex $i -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
+        Where-Object NextHop -eq $Gateway
+      [bool]($dhcp -eq 'Disabled' -and $ip -and $route)
+    parameters: &base_static_params
+      Address: "{{ ansible_host }}"
+      Prefix: "{{ lab_prefix_length }}"
+      Gateway: "{{ lab_gateway }}"
+  register: base_static_probe
+  check_mode: false
+  when: inventory_hostname in groups['dcs']
+
+- name: Report the static address as a change, in check mode
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }} would move to a static {{ ansible_host }}/{{ lab_prefix_length }}"
+  changed_when: true
+  when:
+    - inventory_hostname in groups['dcs']
+    - not base_static_probe.output[0]
+    - ansible_check_mode
+
+# Async because the session drops when DHCP is turned off; the result is
+# collected below, so a failure in the script still fails the run.
+- name: Give the DC its address statically
+  ansible.windows.win_powershell:
+    script: |
+      param([string]$Address, [int]$Prefix, [string]$Gateway)
+      $i = @(Get-NetAdapter -Physical | Where-Object Status -eq 'Up')[0].ifIndex
+      Set-NetIPInterface -InterfaceIndex $i -AddressFamily IPv4 -Dhcp Disabled
+      Get-NetIPAddress -InterfaceIndex $i -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Remove-NetIPAddress -Confirm:$false
+      Remove-NetRoute -InterfaceIndex $i -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' `
+        -Confirm:$false -ErrorAction SilentlyContinue
+      New-NetIPAddress -InterfaceIndex $i -IPAddress $Address -PrefixLength $Prefix `
+        -DefaultGateway $Gateway | Out-Null
+    parameters: *base_static_params
+  when:
+    - inventory_hostname in groups['dcs']
+    - not base_static_probe.output[0]
+    - not ansible_check_mode
+  async: 60
+  poll: 0
+  register: base_static
+
+- name: Wait for the DC to answer at its static address
+  ansible.builtin.wait_for_connection:
+    delay: 5
+    timeout: 120
+  when: base_static.ansible_job_id is defined
+
+- name: Collect the result of the address change
+  ansible.builtin.async_status:
+    jid: "{{ base_static.ansible_job_id }}"
+  register: base_static_result
+  until: base_static_result.finished
+  retries: 12
+  delay: 5
+  when: base_static.ansible_job_id is defined
+
+# Every guest that is not a DC resolves through the two DCs and nothing else —
+# the one documented exception to ADR-0010. The DCs' own resolvers are set by
+# roles/dc_resolvers, after both exist.
+- name: Point members and endpoints at the two DCs
+  ansible.builtin.import_role:
+    name: dns_client
+  vars:
+    dns_client_servers: "{{ lab_dc_addresses }}"
+  when: inventory_hostname not in groups['dcs']
+
+# UTC on every guest, hand-built or cloned, so that event times line up with
+# Wazuh, Velociraptor, Zeek and Prometheus without converting. The six built by
+# hand were on Pacific; Kerberos and w32time run on UTC internally, so moving
+# the zone changes what is displayed, not what is synchronised.
+- name: Keep the clock zone UTC, as the template set it
+  ansible.windows.win_timezone:
+    timezone: UTC
+
+# The template's build password stays valid until this runs (ADR-0074). A DC
+# has no local SAM to rotate; its Administrator is the domain's, and that one
+# was set from this same variable when the forest was made.
+- name: Rotate the local Administrator away from the build password
+  ansible.windows.win_user:
+    name: Administrator
+    password: "{{ lab_admin_password }}"
+    update_password: always
+    password_never_expires: true
+  when: not domain_role_is_dc
+  no_log: true
+
+# Where the roles after this one put what they download and place, so that
+# everything Ansible owns on a guest is in one directory.
+- name: Make the pipeline's own directory
+  ansible.windows.win_file:
+    path: C:\ProgramData\lab
+    state: directory

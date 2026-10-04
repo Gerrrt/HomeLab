@@ -1,0 +1,49 @@
+---
+# The guest's IPv4 resolvers, in order, and nothing else. Imported with
+# `dns_client_servers` set by the role that needs it (base, dc_replica,
+# dc_resolvers).
+#
+# Not ansible.windows.win_dns_client: given IPv4 servers only, that module
+# treats the adapter's IPv6 resolvers as "should be absent" and clears them,
+# and a DC carries ::1 there from its promotion. IPv6 stays exactly as shipped
+# on every guest, because it is what mitm6 needs (runbook §0). So this reads and
+# writes the IPv4 list alone, through `netsh interface ipv4`, which cannot
+# touch the other family.
+#
+# SupportsShouldProcess is what makes win_powershell run the script in check
+# mode at all; without it the module skips the script and reports changed.
+- name: Set the IPv4 resolvers to {{ dns_client_servers | join(', ') }}
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string[]]$Servers)
+      $Ansible.Changed = $false
+      $nic = @(Get-NetAdapter -Physical | Where-Object Status -eq 'Up')
+      if ($nic.Count -ne 1) { throw "expected one connected NIC, found $($nic.Count)" }
+      $i = $nic[0].ifIndex
+      $before = @((Get-DnsClientServerAddress -InterfaceIndex $i -AddressFamily IPv4).ServerAddresses) -join ','
+      $want = $Servers -join ','
+      if ($before -eq $want) { return }
+      $Ansible.Changed = $true
+      $Ansible.Diff = @{ before = "IPv4 DNS: $before`n"; after = "IPv4 DNS: $want`n" }
+      if ($Ansible.CheckMode) { return }
+      # netsh's `register=` sets the adapter's dynamic-DNS registration as well,
+      # and omitting it means `primary`. Pass back what the adapter has now, so
+      # changing resolvers never changes registration.
+      $c = Get-DnsClient -InterfaceIndex $i
+      $register = if (-not $c.RegisterThisConnectionsAddress) { 'none' }
+        elseif ($c.UseSuffixWhenRegistering) { 'both' } else { 'primary' }
+      netsh interface ipv4 set dnsservers name=$i source=static address=$($Servers[0]) `
+        register=$register validate=no | Out-Null
+      for ($n = 1; $n -lt $Servers.Count; $n++) {
+        netsh interface ipv4 add dnsservers name=$i address=$($Servers[$n]) index=$($n + 1) validate=no | Out-Null
+      }
+      $after = @((Get-DnsClientServerAddress -InterfaceIndex $i -AddressFamily IPv4).ServerAddresses) -join ','
+      if ($after -ne $want) { throw "IPv4 DNS reads '$after' after setting '$want'" }
+      $c2 = Get-DnsClient -InterfaceIndex $i
+      if ($c2.RegisterThisConnectionsAddress -ne $c.RegisterThisConnectionsAddress -or
+          $c2.UseSuffixWhenRegistering -ne $c.UseSuffixWhenRegistering) {
+        throw "DNS registration changed from '$register' while setting resolvers"
+      }
+    parameters:
+      Servers: "{{ dns_client_servers }}"

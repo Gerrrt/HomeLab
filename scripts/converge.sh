@@ -3,7 +3,7 @@
 # Bring the deployment checkout to what `main` says, and record what is
 # deployed (#99).
 #
-#   scripts/converge.sh [--dry-run] [--allow-unsigned]
+#   scripts/converge.sh [--stack observability|sensitive] [--dry-run] [--allow-unsigned]
 #
 # WHY THIS EXISTS
 #
@@ -37,8 +37,18 @@
 # deploy, not the deployment.
 #
 # The no-op path costs one fetch. When the checkout is already at the fetched
-# tip and the tree is clean, nothing is rendered, no container is touched and
-# docker is never called — which is what makes an hourly cadence reasonable.
+# tip, the tree is clean and `make up` last applied that same revision, nothing
+# is rendered, no container is touched and docker is never called — which is
+# what makes an hourly cadence reasonable.
+#
+# "AT THE TIP" IS NOT "DEPLOYED", and the first version treated it as though it
+# were. On 2026-10-01 the checkout reached #781's merge by a `git pull` by hand,
+# with no `make up`. This script then compared HEAD with `main`, found them
+# equal and recorded "converged", behind=0, hourly, while Prometheus served the
+# pre-merge rules — every deploy alert reads HEAD, so none could see it. `make
+# up` now ends by recording the revision it applied (scripts/record-applied.sh),
+# and HEAD is compared with that too: a checkout that moved without a deploy is
+# deployed on the next run, and homelab_deploy_unapplied says so until it is.
 #
 # WHY IT FETCHES A URL AND NOT `origin`
 #
@@ -94,6 +104,10 @@
 #   scripts/converge.sh                    fetch, verify, fast-forward, make up
 #   scripts/converge.sh --dry-run          say what it would do, change nothing
 #   scripts/converge.sh --allow-unsigned   fast-forward past a failed signature
+#   scripts/converge.sh --allow-red        deploy a tip whose CI did not pass (#833)
+#   scripts/converge.sh --self-test        run the CI gate's fixtures
+#   scripts/converge.sh --stack sensitive  converge trinity's tier, not the
+#                                          monitoring host's (default observability)
 #
 # Environment:
 #   TEXTFILE_DIR             where homelab-deploy.prom goes
@@ -109,13 +123,6 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
-# The checkout the stack actually runs from. Same constant, same reasoning and
-# the same refusal as scripts/install-timers.sh: `make render` writes into
-# .rendered/ under the tree it is run from, and no container mounts a worktree's
-# copy — so converging a second clone would report success while changing
-# nothing the stack can see.
-DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 
 # Read-only, credential-free, and not taken from the checkout's own config.
 CANONICAL_URL="https://github.com/Gerrrt/HomeLab.git"
@@ -141,17 +148,209 @@ green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
 
 usage() { sed -n '/^# Usage:/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
+# ---------------------------------------------------------------------------
+# CI: did the tip pass before it is deployed? (#833)
+# ---------------------------------------------------------------------------
+#
+# The signature proves a commit came through a GitHub merge. It does not prove
+# the merge was green: until #833 the ruleset required no status checks, so a
+# pull request with a failing Lint could be merged, signed, and deployed here
+# within the hour. The ruleset now requires them (.github/rulesets/main.json),
+# and this asks again on the host, so the gate does not live only in a GitHub
+# setting that a later edit can loosen without a diff anyone reviews.
+#
+# What is asked is the merge commit's OWN push run, not the pull request's:
+# the commit being deployed is the one that has to have passed.
+#
+# The four ci.yml jobs that run on a push to main. "No close keyword in prose"
+# is required by the ruleset but runs on pull_request only, so a merge commit
+# never carries it and requiring it here would hold every deploy forever.
+# scripts/check-ruleset.sh asserts this list sits inside the ruleset's.
+REQUIRED_CHECKS=("Lint" "Validate configs" "Boot hardened services" "Secret scan")
+
+# Anonymous and read-only, for the reason the fetch below uses an https URL:
+# nothing on this host holds a GitHub credential. 60 requests an hour per
+# address is the anonymous limit; this asks once per run, and only on runs that
+# have something to deploy.
+ci_fetch() {
+  curl -fsS --max-time 20 \
+    -H 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/Gerrrt/HomeLab/commits/$1/check-runs?per_page=100&filter=latest"
+}
+
+# check-runs JSON on stdin -> one line per required check:
+#   <name> TAB <status> TAB <conclusion>
+# status is GitHub's (queued, in_progress, completed) or `missing` when no run of
+# that name exists; conclusion is GitHub's (success, failure, cancelled,
+# timed_out, ...) or `-` until completed. Only runs posted by GitHub Actions
+# count: on a public repository another installed app could post a check named
+# "Lint", and the ruleset pins integration_id for the same reason.
+ci_summarise() {
+  python3 -c '
+import json, sys
+required = sys.argv[1:]
+runs = json.load(sys.stdin).get("check_runs", [])
+latest = {}
+for r in runs:
+    if (r.get("app") or {}).get("slug") != "github-actions":
+        continue
+    name = r.get("name")
+    if name in required and (name not in latest or r.get("id", 0) > latest[name].get("id", 0)):
+        latest[name] = r
+for name in required:
+    r = latest.get(name)
+    if r is None:
+        print("\t".join([name, "missing", "-"]))
+    else:
+        print("\t".join([name, r.get("status") or "-", r.get("conclusion") or "-"]))
+' "${REQUIRED_CHECKS[@]}"
+}
+
+# Decide what the summary means. Prints exactly one word: green, wait or red.
+#
+#   $1  seconds since the tip was committed. Passed for the record and a
+#       future policy; the one below deliberately does not use it
+#   $2  1 if the API answered, 0 if curl or the JSON parse failed
+#   stdin  the lines ci_summarise printed (nothing at all when $2 is 0)
+#
+# What each word does to the run:
+#   green  deploy it
+#   wait   leave the host where it is and exit 0; the next hourly run asks again,
+#          and DeployBehind fires if waiting lasts 3h
+#   red    refuse, exit non-zero (ScheduledJobFailed, DeployTipRed), unless
+#          --allow-red was passed
+#
+# The policy (#833): only a check that FINISHED and FAILED is red. Everything
+# that is merely not-yet-known waits, and a wait that never ends is DeployBehind
+# at 3h, not a silent deploy:
+#
+#   missing     wait. A fresh merge may not have started CI; a renamed job never
+#               will, and holding the host until a human looks is the safe half
+#               of that ambiguity. The commit's age is not used for that reason.
+#   cancelled   wait. ci.yml cancels a run when the next push lands, so a
+#               cancellation is usually "superseded", not "failed". So is stale.
+#   API down    wait. Proceeding would mean an unreachable GitHub disables the
+#               gate; staying keeps the host on configuration that did pass.
+#
+# A red anywhere wins over a wait elsewhere: a failure is final, and waiting on
+# the other checks would only delay saying so. neutral and skipped pass, as they
+# do for the ruleset's required checks.
+ci_verdict() {
+  local api_ok="$2" name status conclusion red=0 wait=0 seen=0
+  # Drain stdin on every path, so the writer never dies of a broken pipe.
+  while IFS=$'\t' read -r name status conclusion; do
+    [[ -n "${name}" ]] || continue
+    seen=$((seen + 1))
+    if [[ "${status}" != "completed" ]]; then
+      wait=1                                    # queued, in_progress, missing
+    else
+      case "${conclusion}" in
+        success|neutral|skipped) ;;
+        cancelled|stale)         wait=1 ;;
+        *)                       red=1 ;;       # failure, timed_out, action_required, ...
+      esac
+    fi
+  done
+  if ((red)); then echo red
+  elif ((api_ok == 0 || seen == 0 || wait)); then echo wait
+  else echo green
+  fi
+}
+
+# Fixtures for the three functions above: the parse against check-runs shaped
+# like GitHub's, and the verdict against each state a tip can be in. The rest of
+# this script needs a deployment checkout and a network, and is #854's.
+self_test() {
+  local fail=0 got
+  check() {
+    if [[ "$2" == "$3" ]]; then printf '\033[0;32m  PASS\033[0m %s\n' "$1"
+    else printf '\033[0;31m  FAIL\033[0m %s\n       got      %s\n       expected %s\n' "$1" "$2" "$3"; fail=1; fi
+  }
+  # One check-run. $1 name, $2 status, $3 conclusion (null for none), $4 app, $5 id.
+  run() { printf '{"id":%s,"name":"%s","status":"%s","conclusion":%s,"app":{"slug":"%s"}}' "$5" "$1" "$2" "$3" "$4"; }
+  runs() { local IFS=,; printf '{"total_count":%s,"check_runs":[%s]}' "$#" "$*"; }
+  # The tip of main on 2026-10-03, as the API returned it, CodeQL included.
+  green_tip() {
+    runs "$(run 'Analyze (python)' completed '"success"' github-actions 1)" \
+         "$(run Lint completed '"success"' github-actions 2)" \
+         "$(run 'Validate configs' completed '"success"' github-actions 3)" \
+         "$(run 'Boot hardened services' completed '"success"' github-actions 4)" \
+         "$(run 'Secret scan' completed '"success"' github-actions 5)"
+  }
+  verdict() { printf '%s' "$1" | ci_summarise | ci_verdict "$2" 1; }
+
+  got="$(green_tip | ci_summarise | cut -f2,3 | sort -u | tr '\t\n' ': ')"
+  check "the four required checks are read, CodeQL is not" "${got}" "completed:success "
+  got="$(runs "$(run Lint completed '"success"' some-other-app 9)" | ci_summarise | head -1)"
+  check "a 'Lint' from another app is not Actions' Lint" "${got}" "$(printf 'Lint\tmissing\t-')"
+  got="$(runs "$(run Lint completed '"failure"' github-actions 1)" "$(run Lint completed '"success"' github-actions 2)" \
+         | ci_summarise | head -1)"
+  check "a re-run supersedes the run it re-ran" "${got}" "$(printf 'Lint\tcompleted\tsuccess')"
+  got="$(runs "$(run Lint in_progress null github-actions 1)" | ci_summarise | head -1)"
+  check "a running check has no conclusion yet" "${got}" "$(printf 'Lint\tin_progress\t-')"
+
+  check "all four green is green" "$(verdict "$(green_tip)" 600)" green
+  check "one failure is red" \
+    "$(verdict "$(green_tip | sed 's/"name":"Lint","status":"completed","conclusion":"success"/"name":"Lint","status":"completed","conclusion":"failure"/')" 600)" red
+  check "one still running is wait" \
+    "$(verdict "$(green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"in_progress","conclusion":null/')" 120)" wait
+  # The policy's three waits, each of which a looser rule would turn into a
+  # deploy or a page.
+  check "a required check with no run at all is wait, however old the tip" \
+    "$(verdict "$(runs "$(run Lint completed '"success"' github-actions 2)")" 86400)" wait
+  check "a cancelled check is wait: superseded, not failed" \
+    "$(verdict "$(green_tip | sed 's/"name":"Lint","status":"completed","conclusion":"success"/"name":"Lint","status":"completed","conclusion":"cancelled"/')" 600)" wait
+  check "an API that did not answer is wait, never green" \
+    "$(ci_verdict 600 0 </dev/null)" wait
+  check "an answer with no lines is wait, never green" \
+    "$(printf '' | ci_verdict 600 1)" wait
+  check "timed_out is a failure" \
+    "$(verdict "$(green_tip | sed 's/"name":"Lint","status":"completed","conclusion":"success"/"name":"Lint","status":"completed","conclusion":"timed_out"/')" 600)" red
+  check "a failure beats a check still running" \
+    "$(verdict "$(runs "$(run Lint completed '"failure"' github-actions 1)" "$(run 'Secret scan' in_progress null github-actions 2)")" 600)" red
+
+  return "${fail}"
+}
+
 DRY_RUN=0
 ALLOW_UNSIGNED=0
+ALLOW_RED=0
+DEPLOY_STACK="observability"
 while (($#)); do
   case "$1" in
+    --self-test)      self_test; exit $? ;;
     --dry-run)        DRY_RUN=1 ;;
     --allow-unsigned) ALLOW_UNSIGNED=1 ;;
+    --allow-red)      ALLOW_RED=1 ;;
+    --stack)          [[ $# -ge 2 ]] || die "--stack needs a value"
+                      DEPLOY_STACK="$2"; shift ;;
+    --stack=*)        DEPLOY_STACK="${1#--stack=}" ;;
     -h|--help)        usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
   esac
   shift
 done
+
+# What `make up` deploys here, named rather than left to the Makefile's default,
+# because the applied-revision record is per stack and must be the one read.
+#
+# And the checkout that stack actually runs from. Same rule, same reasoning and
+# the same refusal as scripts/install-timers.sh: `make render` writes into
+# .rendered/ under the tree it is run from, and no container mounts a worktree's
+# copy — so converging a second clone would report success while changing
+# nothing the stack can see.
+#
+# Two stacks pull, on two hosts (#533). The monitoring host's checkout is robo's
+# and is pinned by name. trinity's operator is written <you> by the build
+# runbook, so its checkout is the one under the running user's home — the same
+# derivation as install-timers.sh's sensitive profile, which renders the unit
+# that runs this. Any other stack is pushed to (ADR-0021), not pulled, and is
+# refused here rather than converged from a root nobody chose.
+case "${DEPLOY_STACK}" in
+  observability) DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab" ;;
+  sensitive)     DEPLOY_ROOT="${HOME:?}/code/Gerrrt/HomeLab" ;;
+  *) die "nothing converges stack '${DEPLOY_STACK}' — only observability (prometheus) and sensitive (trinity) pull" ;;
+esac
 
 # The report-only switch, so the timer can be installed and watched before it is
 # allowed to act. Folded into DRY_RUN rather than given a second code path —
@@ -194,7 +393,7 @@ RECORD=1
 if [[ ! -d "${TEXTFILE_DIR}" ]]; then
   RECORD=0
   warn "no textfile directory at ${TEXTFILE_DIR} — converging without recording what is deployed"
-  warn "on the monitoring host this means the timers were never installed: make install-timers"
+  warn "on a deployment host this means the timers were never installed: make install-timers (PROFILE=sensitive on trinity)"
 elif [[ ! -w "${TEXTFILE_DIR}" ]]; then
   die "${TEXTFILE_DIR} is not writable by $(id -un).
 The host would converge and nothing would record what it converged to, which is
@@ -210,6 +409,12 @@ COMMIT_TS=0
 BEHIND=-1
 DIRTY=0
 VERIFIED=0
+# 1 when HEAD is not the revision `make up` last applied. 0 until measured,
+# which happens right beside HEAD below, before anything can refuse.
+UNAPPLIED=0
+# What CI said about the fetched tip. -1 until asked, and stays -1 on a run with
+# nothing to deploy, because nothing was asked.
+CI_TIP=-1
 
 recorded=0
 record() {
@@ -224,29 +429,35 @@ record() {
 # HELP homelab_deploy_revision_info The commit the deployment checkout is on. Always 1; the revision is the label.
 # TYPE homelab_deploy_revision_info gauge
 homelab_deploy_revision_info{revision="${REVISION}"} 1
-# HELP homelab_deploy_commit_timestamp_seconds Committer time of the deployed revision. time() minus this is how old the running configuration is.
+# HELP homelab_deploy_commit_timestamp_seconds Committer time of the checkout's revision; how old the running configuration is while homelab_deploy_unapplied is 0.
 # TYPE homelab_deploy_commit_timestamp_seconds gauge
 homelab_deploy_commit_timestamp_seconds ${COMMIT_TS}
-# HELP homelab_deploy_behind_commits Commits the fetched branch is ahead of the deployed revision. 0 is converged; -1 means the fetch did not complete.
+# HELP homelab_deploy_behind_commits Commits the fetched branch is ahead of the checkout. 0 is at the tip; -1 means the fetch did not complete.
 # TYPE homelab_deploy_behind_commits gauge
 homelab_deploy_behind_commits ${BEHIND}
 # HELP homelab_deploy_tree_dirty 1 when the deployment checkout has uncommitted or untracked changes.
 # TYPE homelab_deploy_tree_dirty gauge
 homelab_deploy_tree_dirty ${DIRTY}
-# HELP homelab_deploy_verified 1 when the deployed revision carries a good signature from the pinned key.
+# HELP homelab_deploy_verified 1 when the checkout's revision carries a good signature from the pinned key; the deployed one's while homelab_deploy_unapplied is 0.
 # TYPE homelab_deploy_verified gauge
 homelab_deploy_verified ${VERIFIED}
 # HELP homelab_deploy_apply_enabled 1 when this host applies what it fetches. 0 is report-only, set by HOMELAB_CONVERGE_APPLY=0.
 # TYPE homelab_deploy_apply_enabled gauge
 homelab_deploy_apply_enabled ${APPLY_ENABLED}
+# HELP homelab_deploy_unapplied 1 when the checkout's HEAD is not the revision make up last applied: it moved without a deploy, or the deploy failed.
+# TYPE homelab_deploy_unapplied gauge
+homelab_deploy_unapplied ${UNAPPLIED}
+# HELP homelab_deploy_tip_ci What CI said about the fetched tip: 1 passed, 0 did not, -1 not asked (nothing to deploy) or not finished.
+# TYPE homelab_deploy_tip_ci gauge
+homelab_deploy_tip_ci ${CI_TIP}
 EOF
   chmod 0644 "${tmp}"
   mv -f "${tmp}" "${PROM}"
 
   # One structured line for the journal, which Alloy already ships to Loki with
   # a `unit` label — findable with LogQL without parsing anything above it.
-  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s\n' \
-    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}"
+  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s unapplied=%s tip_ci=%s\n' \
+    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}" "${UNAPPLIED}" "${CI_TIP}"
 }
 trap record EXIT
 
@@ -283,6 +494,13 @@ command -v git >/dev/null 2>&1 || die "git is not installed"
 # earlier guards were an oversight to fix.
 REVISION="$(git rev-parse --short=12 HEAD)"
 COMMIT_TS="$(git log -1 --format=%ct HEAD)"
+
+# What the last finished `make up` applied, beside where HEAD is. Empty when no
+# deploy has recorded one — the first run after this check shipped, or a fresh
+# clone — and that counts as unapplied: one redeploy of what is already running
+# is cheap, and assuming a deploy that may never have happened is the bug.
+APPLIED="$(./scripts/record-applied.sh --read "${DEPLOY_STACK}" 2>/dev/null || true)"
+[[ "${APPLIED}" == "$(git rev-parse HEAD)" ]] || UNAPPLIED=1
 
 # ---------------------------------------------------------------------------
 # Signature
@@ -400,8 +618,50 @@ a tip served by something that is not GitHub. Look at it before deploying it:
 ${hint}
 
 The host stays on ${REVISION}. To deploy it anyway, deliberately and by hand:
-  ${DEPLOY_ROOT}/scripts/converge.sh --allow-unsigned"
+  ${DEPLOY_ROOT}/scripts/converge.sh --stack ${DEPLOY_STACK} --allow-unsigned"
   fi
+fi
+
+# ---------------------------------------------------------------------------
+# Ask whether the tip passed CI (#833)
+# ---------------------------------------------------------------------------
+#
+# Only when there is something to deploy. The no-op path stays one fetch and no
+# API call, which is what keeps the hourly cadence free.
+if [[ "${TARGET}" != "$(git rev-parse HEAD)" ]] || ((UNAPPLIED)); then
+  tip_age=$(( $(date +%s) - $(git log -1 --format=%ct "${TARGET}") ))
+  if ci_summary="$(ci_fetch "${TARGET}" | ci_summarise 2>/dev/null)" && [[ -n "${ci_summary}" ]]; then
+    ci_api_ok=1
+  else
+    ci_api_ok=0
+    ci_summary=""
+  fi
+  verdict="$(printf '%s' "${ci_summary}" | ci_verdict "${tip_age}" "${ci_api_ok}")"
+  [[ -n "${ci_summary}" ]] && printf '%s\n' "${ci_summary}" | sed 's/^/     /; s/\t/  /g' >&2
+
+  case "${verdict}" in
+    green)
+      CI_TIP=1
+      info "CI passed on $(git rev-parse --short=12 "${TARGET}")" ;;
+    wait)
+      CI_TIP=-1
+      warn "CI has not finished with $(git rev-parse --short=12 "${TARGET}") — staying on ${REVISION}; the next run asks again"
+      exit 0 ;;
+    red)
+      CI_TIP=0
+      if ((ALLOW_RED)); then
+        warn "CI did not pass on ${TARGET} — continuing because --allow-red was passed"
+      else
+        die "CI did not pass on ${TARGET} (above).
+
+The ruleset should have stopped this merging; that it reached ${BRANCH} at all is
+worth reading .github/rulesets/main.json and the merge's checks for. The host
+stays on ${REVISION}. To deploy it anyway, deliberately and by hand:
+  ${DEPLOY_ROOT}/scripts/converge.sh --stack ${DEPLOY_STACK} --allow-red"
+      fi ;;
+    *)
+      die "ci_verdict said '${verdict}', which is none of green, wait or red" ;;
+  esac
 fi
 
 # ---------------------------------------------------------------------------
@@ -409,9 +669,24 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${TARGET}" == "$(git rev-parse HEAD)" ]]; then
   BEHIND=0
-  green "converged — ${REVISION} is ${BRANCH}"
-  # Nothing rendered, no container touched, docker never called. This is the
-  # path an hourly cadence spends almost all of its time on.
+  if ((UNAPPLIED == 0)); then
+    green "converged — ${REVISION} is ${BRANCH}"
+    # Nothing rendered, no container touched, docker never called. This is the
+    # path an hourly cadence spends almost all of its time on.
+    exit 0
+  fi
+  # At the tip and never deployed from it — the 2026-10-01 shape. Not a
+  # fast-forward, so nothing to verify beyond what was verified above; just
+  # the deploy that the move skipped.
+  warn "the checkout is at ${REVISION}, but make up last applied ${APPLIED:-nothing on record}"
+  if ((DRY_RUN)); then
+    warn "dry run — not applying"
+    exit 0
+  fi
+  info "applying ${REVISION}"
+  make up STACK="${DEPLOY_STACK}"
+  UNAPPLIED=0
+  green "converged — ${REVISION} is ${BRANCH}, and now deployed"
   exit 0
 fi
 
@@ -442,6 +717,9 @@ REVISION="$(git rev-parse --short=12 HEAD)"
 COMMIT_TS="$(git log -1 --format=%ct HEAD)"
 BEHIND=0
 VERIFIED="${target_verified}"
+# Moved and not yet deployed. If `make up` fails below, set -e exits with this
+# still 1, and the record says the checkout is ahead of what is running.
+UNAPPLIED=1
 
 # `make up` and not a narrower command, on purpose. It renders the config,
 # recreates whatever compose says changed, and runs reload-config.sh for the
@@ -449,6 +727,7 @@ VERIFIED="${target_verified}"
 # already tells a human to type, so there is exactly one deployment path and it
 # is exercised both ways.
 info "applying ${REVISION}"
-make up
+make up STACK="${DEPLOY_STACK}"
+UNAPPLIED=0
 
 green "converged to ${REVISION}"

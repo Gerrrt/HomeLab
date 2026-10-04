@@ -14,9 +14,10 @@ backs up the Windows domain ([#414](https://github.com/Gerrrt/HomeLab/issues/414
 and `odin` ([`build-the-soc-guest.md`](build-the-soc-guest.md)), and on
 2026-09-23 neither exists. Built before them, `golem` has nothing to protect
 yet. §9 proves the path with a one-off backup of `phoenix` instead, and §8's
-job gains its guests as they are built. **`erebor` is also one disk until
-[#558](https://github.com/Gerrrt/HomeLab/issues/558)**, so the datastore
-starts on a pool with no redundancy of its own. ADR-0053 accepts that.
+job gains its guests as they are built. `erebor` was one disk when ADR-0053
+was written, and ADR-0053 accepted that. **It has been a whole mirror again
+since 2026-09-29**
+([#558](https://github.com/Gerrrt/HomeLab/issues/558)).
 
 This is ADR-0053 made into steps: one PBS guest, its only datastore an NFSv4
 share on `erebor`, TrueNAS snapshots as the copy PBS cannot prune, and every
@@ -265,7 +266,7 @@ So copy it off now, in two forms. Into the lab's SOPS file, from `alexander`,
 which holds the lab's age key (ADR-0020):
 
 ```bash
-cd ~/HomeLab && make secrets-edit STACK=lab
+cd ~/code/Gerrrt/HomeLab && make secrets-edit STACK=lab
 ```
 
 Add a key `PBS_ENCRYPTION_KEY` whose value is the whole contents of

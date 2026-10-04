@@ -1,0 +1,62 @@
+---
+name: Close keywords
+
+# GitHub closes an issue on merge for a close keyword ANYWHERE in a PR body or
+# a commit that lands on main — mid-sentence, after a colon, across a line
+# break. This repository writes `Refs #N` on purpose for work that closes on a
+# physical act or a deploy, and eight issues were shut by prose anyway; three
+# sat closed with the work undone until a full pass found them (#672).
+# scripts/check_close_keywords.py holds the rules and the phrases that did it.
+#
+# Checking closingIssuesReferences by hand after opening the PR was the
+# mitigation before this, and #780 merged past it the day before this landed.
+#
+# A SEPARATE WORKFLOW, NOT A JOB IN ci.yml
+#
+# The body is what is checked, so the check has to re-run when the body is
+# edited. `edited` on ci.yml would re-run lint, validate and the hardened boots
+# on every wording fix, and its cancel-in-progress concurrency would kill a
+# validate run half way through its six minutes of registry traffic to do it.
+# The same reasoning as digests.yml: one question, its own trigger.
+#
+# The list of issues the merge will close goes to the job summary whether the
+# check passes or fails, so it is one click from the PR before merge.
+#
+# The one thing these triggers cannot see: an issue linked in the PR's sidebar.
+# Linking emits no pull_request event, so a link added after the last run
+# leaves this check green and stale. Nothing here is refreshed by it, and
+# without a merge queue nothing runs at merge time, so the gap is stated
+# rather than closed: re-run this job before merging if the sidebar changed.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  # closingIssuesReferences and the commit list, read over GraphQL.
+  pull-requests: read
+  # The titles of the issues the merge will close, for the summary.
+  issues: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  close-keywords:
+    name: No close keyword in prose
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Through env, not ${{ }} in the script: the number is an integer, but
+      # nothing from the event is interpolated into a shell line here, so that
+      # stays true when someone adds the title or the body later.
+      - name: Check the PR body, title and commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 scripts/check_close_keywords.py --pr "$PR_NUMBER"

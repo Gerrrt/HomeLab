@@ -1,0 +1,30 @@
+---
+# On each DC: forward to the gateway, and remove the root hints. Left on, Windows
+# DNS recurses against the root servers whenever the forwarder is slow, and the
+# domain's resolution path quietly diverges from the rest of the house (§3).
+# No delegation is made on Unbound, ever: ADR-0029.
+- name: Forward to the gateway, with no root hints
+  ansible.windows.win_powershell:
+    script: |
+      # SupportsShouldProcess is what makes win_powershell run this in check mode,
+      # where $Ansible.CheckMode keeps it read-only. Without it --check reported a
+      # change here on every run instead of looking (#448's first run).
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Forwarder)
+      $changed = $false
+      $f = Get-DnsServerForwarder
+      if ((@($f.IPAddress.IPAddressToString) -join ',') -ne $Forwarder -or $f.UseRootHint) {
+        $changed = $true
+        if (-not $Ansible.CheckMode) {
+          Set-DnsServerForwarder -IPAddress $Forwarder -UseRootHint $false
+        }
+      }
+      $hints = Get-DnsServerRootHint
+      if ($hints) {
+        $changed = $true
+        # -InputObject @() does not clear them; piping does (§3).
+        if (-not $Ansible.CheckMode) { $hints | Remove-DnsServerRootHint -Force }
+      }
+      $Ansible.Changed = $changed
+    parameters:
+      Forwarder: "{{ lab_dns_forwarder }}"

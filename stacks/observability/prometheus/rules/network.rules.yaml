@@ -11,6 +11,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#snmpexporterdown"
           summary: "snmp-exporter is down — every SNMP device will appear unreachable"
 
       - alert: SnmpTargetUnreachable
@@ -49,6 +50,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#pfnotrunning"
           summary: "Packet filter is NOT running on {{ $labels.device }}"
           description: >-
             pf is disabled. Inter-VLAN isolation and the default-deny posture
@@ -80,9 +82,16 @@ groups:
       - alert: SwitchInterfaceDown
         # ifOperStatus: 1=up 2=down 3=testing. Only alerts on ports that were
         # up at some point in the last hour, so unused ports stay quiet.
+        #
+        # min_over_time, not max_over_time (#843). "Was up at some point" is
+        # the lowest value in the hour being 1. The original read
+        # max_over_time(...) == 1, which is "never anything but up" for the
+        # hour, and cannot hold beside `ifOperStatus == 2` now: the current
+        # down is in the window, so the max is at least 2. The rule could not
+        # fire from the day it was written; its first test said so.
         expr: |
           ifOperStatus == 2
-          and on (instance, ifIndex) (max_over_time(ifOperStatus[1h]) == 1)
+          and on (instance, ifIndex) (min_over_time(ifOperStatus[1h]) == 1)
         for: 5m
         labels:
           component: network
@@ -180,6 +189,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#ilohardwaredegraded"
           summary: "iLO on {{ $labels.device }} reports degraded or failed hardware"
           description: >-
             CPQ condition code {{ $value }} (3 = degraded, 4 = failed). Check
@@ -358,6 +368,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#gatewaydown"
           summary: >-
             {{ $labels.host }}: {{ $labels.gateway }} is down and
             {{ $labels.family }} does not leave the building
@@ -445,3 +456,44 @@ groups:
             failed, or no enabled Dynamic DNS entry exists. This says nothing
             about whether the record is right; it says nothing is watching it.
             Run `make gateway-state` and read its last line.
+
+      # morpheus's filesystems, over SNMP (#841). The firewall runs no
+      # node_exporter, so HostDiskCritical never saw it, and a full /var
+      # (logs, RRD, blocklists, Suricata's data) is a common way for pfSense
+      # to stop working properly while still passing traffic.
+      #
+      # bsnmpd's hrStorageDescr is "/var, type: zfs, dev: pfSense/var" for a
+      # filesystem and a name such as "Real Memory Metrics" for a memory pool,
+      # so `=~"/.*"` is filesystems only. The exporter's dynamic filter already
+      # drops everything else (generator.yaml); the selector stays so the rule
+      # is right on its own. label_replace cuts the mount point out as
+      # `mountpoint`, for the summary. Memory is deliberately not alerted on:
+      # ZFS's ARC holds memory by design, and "used" says nothing about
+      # pressure there. `> 0` on the size drops a zero-size pseudo-filesystem.
+      #
+      # On ZFS every dataset's size is its own used plus the pool's free
+      # space, so a filling pool raises the dataset doing the filling first
+      # and the tiny ones (/home, /tmp) only when the pool is all but full.
+      #
+      # Same threshold, `for` and severity as HostDiskCritical.
+      - alert: GatewayFilesystemCritical
+        expr: |
+          label_replace(
+            hrStorageUsed{role="firewall", hrStorageDescr=~"/.*"}
+            / (hrStorageSize{role="firewall", hrStorageDescr=~"/.*"} > 0),
+            "mountpoint", "$1", "hrStorageDescr", "([^,]+).*"
+          )
+          > 0.90
+        for: 15m
+        labels:
+          component: network
+          severity: critical
+          category: capacity
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#gatewayfilesystemcritical"
+          summary: "{{ $labels.mountpoint }} on {{ $labels.device }} is {{ $value | humanizePercentage }} full"
+          description: >-
+            pfSense keeps routing with a full filesystem, but logging, the RRD
+            graphs, blocklist updates and Suricata stop writing. Diagnostics >
+            Command Prompt, `du -sh /var/log/* /var/db/* | sort -h | tail`, finds
+            the culprit. Status > System Logs > Settings sets log rotation.

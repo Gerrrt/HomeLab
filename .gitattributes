@@ -6,6 +6,11 @@ stacks/observability/snmp-exporter/snmp.yaml linguist-generated=true -diff
 # Grafana dashboard JSON is exported by Grafana, not hand-maintained line by line.
 stacks/observability/grafana/dashboards/*.json linguist-generated=true
 
+# FoxIO's ja4-zeek-scripts, vendored byte-for-byte by scripts/vendor-ja4.sh
+# (ADR-0069). Upstream's trailing spaces stay, so `git diff --check` is told
+# they are not ours to flag; linguist-vendored keeps it out of language stats.
+stacks/sensor/zeek/ja4/** -whitespace linguist-vendored
+
 # Normalise line endings.
 * text=auto eol=lf
 *.png binary

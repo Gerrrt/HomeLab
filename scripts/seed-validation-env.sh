@@ -43,6 +43,18 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
 {
   echo "GRAFANA_ADMIN_PASSWORD=validation-only"
   echo "GRAFANA_RENDERER_TOKEN=validation-only"
+  # Distinct from each other, because the ingest proxy's map refuses a
+  # duplicate key at start and a boot of it should get past that.
+  echo "INGEST_TOKEN_ORACLE=validation-only-oracle"
+  echo "INGEST_TOKEN_TRINITY=validation-only-trinity"
+  echo "INGEST_TOKEN_SARUMAN=validation-only-saruman"
+  echo "INGEST_TOKEN_READER=validation-only-reader"
+  echo "INGEST_TOKEN_ODIN=validation-only-odin"
+  echo "INGEST_TOKEN_PHOENIX=validation-only-phoenix"
+  echo "INGEST_TOKEN_FENRIR=validation-only-fenrir"
+  echo "INGEST_TOKEN=validation-only-client"
+  echo "HOMEPAGE_PROMETHEUS_TOKEN=validation-only"
+  echo "HA_PROMETHEUS_AUTHORIZATION=Bearer validation-only"
   echo "STEPCA_PASSWORD=validation-only"
   echo "ADGUARD_ADMIN_PASSWORD_HASH=validation-only"
   echo "IMMICH_DB_PASSWORD=validation-only"

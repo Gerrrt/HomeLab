@@ -11,6 +11,7 @@ groups:
           severity: critical
           category: availability
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#instancedown"
           summary: "{{ $labels.job }} target {{ $labels.instance }} is down"
           description: >-
             Prometheus has failed to scrape {{ $labels.instance }}
@@ -45,6 +46,7 @@ groups:
           severity: critical
           category: capacity
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostdiskcritical"
           summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} below 10% free"
 
       - alert: HostMemoryPressure
@@ -330,6 +332,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#smartdriveunhealthy"
           summary: "{{ $labels.host }}: SMART says {{ $labels.device }} is failing"
           description: >-
             The drive's own overall self-assessment has failed on
@@ -351,6 +354,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#smartdrivesparelow"
           summary: "{{ $labels.host }}: {{ $labels.device }} spare capacity below the drive's own threshold"
           description: >-
             Remaining spare is {{ $value }}%, under the threshold the drive
@@ -428,6 +432,21 @@ groups:
         # falls back to `> 0` and pages. A baseline cannot hide growth, because
         # it is a ceiling and growth is above it.
         #
+        # THE JOIN IS ON `slot`, NOT `device` (#745, ADR-0066). `slot` is the
+        # drive's /dev/disk/by-path name, the port it is cabled to; `device` is
+        # the letter this boot handed out. Keyed on the letter, smaug's boot
+        # SSD paged on its recorded four twice on 2026-09-29/30, because the
+        # letter moved on a reboot and the row named the old one. A port moves
+        # only when a cable does.
+        #
+        # A SERIES WITH NO `slot` USES ITS `device`. A collector installed
+        # before #745 — oracle's is a copy installed once — emits no slot, and
+        # `{slot=""}` selects exactly those series; label_replace gives them
+        # their device as the slot, and their row names the device. That
+        # keeps the rule right on every host whatever order the collectors are
+        # updated in, and it is written out twice below because the default of
+        # zero has to see the same keys the comparison does.
+        #
         # `group_left()` on the join, or `instance` and `job` are silently
         # dropped from the alert — measured in backup.rules.yaml, not assumed.
         #
@@ -436,12 +455,18 @@ groups:
         # the day one does, it gets a baseline of its own kind, not a silence.
         expr: >-
           (
-            homelab_smart_reallocated_sectors
-              > on(host, device) group_left() homelab_smart_reallocated_sectors_baseline
+            (
+              label_replace(homelab_smart_reallocated_sectors{slot=""}, "slot", "$1", "device", "(.+)")
+              or homelab_smart_reallocated_sectors{slot!=""}
+            )
+              > on(host, slot) group_left() homelab_smart_reallocated_sectors_baseline
           )
           or (
-            homelab_smart_reallocated_sectors
-              unless on(host, device) homelab_smart_reallocated_sectors_baseline
+            (
+              label_replace(homelab_smart_reallocated_sectors{slot=""}, "slot", "$1", "device", "(.+)")
+              or homelab_smart_reallocated_sectors{slot!=""}
+            )
+              unless on(host, slot) homelab_smart_reallocated_sectors_baseline
           ) > 0
           or homelab_smart_pending_sectors > 0
           or homelab_smart_uncorrectable_sectors > 0
@@ -499,9 +524,8 @@ groups:
       # POOL state, and a two-disk mirror with one faulted leaf is, to the
       # pool, online. So this rule cannot see the fault that produced it; it
       # sees a pool that is degraded, suspended or unavailable as a whole —
-      # a resilver in progress, or the second disk gone. A per-vdev signal
-      # is #558's open line, and until it exists a one-disk mirror pages
-      # nothing here once the exporter is back.
+      # a resilver in progress, or the second disk gone. The per-vdev signal
+      # #558 left open is ZpoolVdevNotOnline below (#744).
       #
       # `state!="online"` == 1 rather than `state="online"` == 0, so the label
       # carries WHICH state the pool is in and a state name the collector
@@ -521,6 +545,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
           summary: "{{ $labels.instance }}: zpool {{ $labels.zpool }} is {{ $labels.state }}"
           description: >-
             The pool's own state, read from its kstat, has not been online for
@@ -530,6 +555,103 @@ groups:
             names the device; docs/runbooks/replace-the-nas-disk.md is the
             order to do things in, and copying erebor/apps off comes before
             touching a tray.
+
+      # --- ZFS leaf state, the level below the pool (#744) ------------------
+      #
+      # scripts/collect-zpool-state.sh runs from root's cron on smaug every
+      # five minutes (build-the-nas.md §6.8) and writes `zpool status -j`
+      # into the textfile media-node-exporter serves: one
+      # homelab_zpool_vdev_state{host, pool, vdev, guid, state} = 1 per leaf,
+      # its read/write/checksum counters, and the pool's own state from the
+      # same read. Leaves are keyed by `guid` and named by partuuid, never by
+      # /dev/sdX — the letter is what made SmartDriveBadSectors fire on a
+      # healthy disk after the 2026-09-29 swap (#745).
+      #
+      # WHAT IT IS FOR: the reading ZpoolNotOnline cannot have. On 2026-09-19
+      # a leaf FAULTED with the pool, the mirror and the kstat all reading
+      # ONLINE. A cable, a controller reset, or a drive that times out
+      # without logging a bad sector looks the same, and SmartDriveBadSectors
+      # does not see those either.
+      #
+      # IT STANDS DOWN WHEN THE POOL IS NOT ONLINE. A pool that reads
+      # DEGRADED is ZpoolNotOnline's, and it already pages critical; this
+      # firing as well would be two pages for one disk. That covers the leaf
+      # replace-the-nas-disk.md step 4 offlines on purpose and the old leaf
+      # during a resilver. The `unless` uses the pool state the collector
+      # wrote in the same run, not node_zfs_zpool_state, so both halves come
+      # from one `zpool status` and carry the same labels. One consequence,
+      # accepted: during a resilver a SECOND leaf faulting is ZpoolNotOnline's
+      # alert already firing, not a new page.
+      #
+      # for: 1m, not ZpoolNotOnline's 5m. One collector reading sits in the
+      # file for five minutes, so a five-minute `for` would sit on the edge of
+      # whether a single reading pages. ZFS does not flap a leaf's state, and a
+      # leaf that read FAULTED or REMOVED once is worth the console. Worst case
+      # from fault to page: up to five minutes for the next cron run, one for
+      # the scrape, one for the `for`.
+      - alert: ZpoolVdevNotOnline
+        expr: >-
+          homelab_zpool_vdev_state{state!="online"} == 1
+          unless on(host, pool) (homelab_zpool_state{state!="online"} == 1)
+        for: 1m
+        labels:
+          component: host
+          severity: critical
+          category: hardware
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-nas-disk.md#1-triage-at-the-console-and-get-the-exporter-back"
+          summary: >-
+            {{ $labels.host }}: a leaf of zpool {{ $labels.pool }} is
+            {{ $labels.state }} while the pool reads online
+          description: >-
+            Leaf {{ $labels.vdev }} (guid {{ $labels.guid }}) of
+            {{ $labels.pool }} reads {{ $labels.state }}{{ with $labels.aux }} ({{ . }}){{ end }},
+            and the pool still reads ONLINE, so ZpoolNotOnline cannot see it.
+            On a two-disk mirror that is one disk carrying everything. At the
+            console, `zpool status -v {{ $labels.pool }}` names it and
+            `lsblk -o NAME,PARTUUID,SERIAL` turns the partuuid into the serial
+            on the drive label. docs/runbooks/replace-the-nas-disk.md is the
+            order to do things in, and copying erebor/apps off comes before
+            touching a tray.
+
+      # A leaf's error counters are not zero (#744).
+      #
+      # `> 0` and not growth over a window. ZFS keeps these counters from
+      # import until `zpool clear` or a reboot. A window would miss a leaf
+      # whose series is new, which is what a renamed or replaced leaf is, and
+      # would resolve by itself an hour after the errors stopped, with
+      # nobody having looked. Here the operator resolves it: read
+      # `zpool status -v`, judge it, then `zpool clear <pool> <vdev>`.
+      # `ZVTBSDL3` had 3 read and 99 write errors when it faulted, so errors
+      # can come before or alongside the state change, and a scrub that
+      # repairs checksum errors leaves the count behind it on purpose.
+      #
+      # Warning, not critical: one checksum error repaired from the other
+      # side of a mirror is worth reading the next morning, not at 3 a.m. A
+      # leaf whose errors fault it pages through ZpoolVdevNotOnline. Not
+      # stood down for a degraded pool: the errors are their own fact, and
+      # Alertmanager's critical-over-warning inhibition applies only to the
+      # same alertname.
+      - alert: ZpoolVdevErrors
+        expr: homelab_zpool_vdev_errors > 0
+        for: 1m
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: >-
+            {{ $labels.host }}: zpool {{ $labels.pool }} leaf {{ $labels.vdev }}
+            has {{ $value }} {{ $labels.kind }} errors
+          description: >-
+            ZFS counted {{ $value }} {{ $labels.kind }} errors on leaf
+            {{ $labels.vdev }} (guid {{ $labels.guid }}) of {{ $labels.pool }}
+            since import or the last `zpool clear`. Read `zpool status -v
+            {{ $labels.pool }}` and the drive's SMART series for the same disk.
+            A cable or a reset shows as read or write errors with clean SMART,
+            and a dying disk shows both. Once it is judged,
+            `zpool clear {{ $labels.pool }} {{ $labels.vdev }}` resolves this;
+            if it comes back, the disk or its cable is the answer.
 
       - alert: SystemUpdateAvailable
         # A pfSense system upgrade has been available for a week (#378).
@@ -588,7 +710,15 @@ groups:
         # The alternative — a table of which guests are expected to be up —
         # was rejected: it is a second copy of a fact that changes whenever a
         # VM is created, and this repository has enough of those.
-        expr: homelab_guest_running == 0
+        #
+        # EXCEPT A DISPOSABLE GUEST (ADR-0071). For a guest tagged `disposable`
+        # on the hypervisor, stopped is the expected state between sessions and
+        # destroyed is the goal, so this rule saying "stopped" is noise in
+        # exactly the direction #438 warns about. DisposableGuestOutlived
+        # watches those guests instead, running or not.
+        expr: >-
+          homelab_guest_running == 0
+          unless on (host, vmid) homelab_guest_disposable == 1
         for: 1h
         labels:
           component: host
@@ -602,6 +732,73 @@ groups:
             estate cannot tell the difference, and says so rather than implying
             it can. If it was not, the guest is down and anything inside it,
             including the lab stack on `alexander`, is down with it.
+
+      - alert: DisposableGuestOutlived
+        # The inverted liveness check #438 asked for: for a guest the hypervisor
+        # marks `disposable`, STILL EXISTING is the thing that gets noticed. A
+        # throwaway investigation store that stays up for four months is `odin`
+        # with worse retention and nobody watching it.
+        #
+        # AGE, NOT UPTIME, and running or stopped alike. A stopped disposable
+        # guest still holds a detonation's output on the segment that exists to
+        # hold attackers; only `qm destroy` ends it. And age is read from the
+        # guest's own config (`meta: ctime=`), so it survives a Prometheus
+        # restart and a retention window that a `for: 14d` would not.
+        #
+        # NOT A TABLE. Which guests are disposable is the tag on the guest,
+        # set by `qm create --tags disposable` where the guest is made, and read
+        # by scripts/collect-guest-state.sh on the hypervisor — the run-state
+        # class of fact ADR-0028 lets cross. Nothing here names diabolos, and a
+        # second throwaway guest is covered the day it is tagged. This is also
+        # the shape ADR-0017 found no rule for, for ifrit: "on when it should
+        # be off" becomes expressible once the guest says it should be off.
+        #
+        # A FORTNIGHT (ADR-0071): a detonation is an afternoon and "a single
+        # question over a weekend" is three days; two weeks is the point past
+        # which it is no longer an investigation but an unmanaged SIEM. Warning,
+        # because the answer is a teardown, not a 3am page.
+        expr: >-
+          (time() - homelab_guest_created_timestamp_seconds) > 14 * 86400
+          and on (host, vmid) homelab_guest_disposable == 1
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: disposable guest {{ $labels.guest }} is {{ $value | humanizeDuration }} old"
+          description: >-
+            This guest is tagged `disposable` on the hypervisor and has existed
+            for more than a fortnight. Either the investigation is over and the
+            guest should be gone — export what the case needs, then `qm destroy
+            {{ $labels.vmid }} --purge`, per
+            docs/runbooks/run-a-scratch-investigation.md — or it is no longer
+            disposable, and the tag is the thing to remove, deliberately.
+
+      - alert: GuestConfigUnreadable
+        # DisposableGuestOutlived's own blind spot (#438). If `qm config` fails
+        # for a guest, the collector keeps that guest's run state and drops its
+        # tag and age, so the age rule silently has nothing to match while
+        # GuestStateStopped stays green. This says so. Every guest, not only
+        # disposable ones: an unreadable config cannot say whether the guest
+        # is disposable, which is the point.
+        #
+        # An hour, for HypervisorGuestStopped's reason: a guest mid-migration
+        # or mid-restore can fail a read or two without anything being wrong.
+        expr: homelab_guest_config_readable == 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "{{ $labels.host }}: cannot read guest {{ $labels.guest }}'s config"
+          description: >-
+            `qm config {{ $labels.vmid }}` (or `pct config`) has failed for an
+            hour, so whether this guest is tagged `disposable`, and how old it
+            is, are unknown — DisposableGuestOutlived cannot fire for it. Its
+            run state is still reported. Run the command on the hypervisor and
+            read its error.
 
       - alert: GuestStateStopped
         # The collector itself stopped reporting. Without this, a hypervisor
@@ -697,6 +894,7 @@ groups:
           severity: critical
           category: capacity
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#thinpoolwillfillin24h"
           summary: >-
             {{ $labels.host }}: thin pool {{ $labels.vg }}/{{ $labels.pool }} {{ $labels.space }} fills within 24h
           description: >-
@@ -727,6 +925,208 @@ groups:
             journal (`journalctl -u homelab-thin-pool-state`); a failed `lvs`
             writes nothing on purpose, so the journal says why.
 
+      # --- The ISO store, verified on the host that mounts it (#440) ---------
+      #
+      # ADR-0072's residual: the NFS export trusts an address, so anything on
+      # VLAN 30 that took Saruman's could replace an installer, and every
+      # template built from it afterwards would carry the change. Packer does
+      # not check an ISO it is handed from storage. So Saruman hashes every
+      # file on smaug-iso once a day against the list in
+      # scripts/collect-iso-store-state.sh, and these read the result.
+
+      - alert: IsoChecksumMismatch
+        # CRITICAL, and the one this block exists for. A listed ISO whose hash
+        # changed is either a replaced installer or a list that was not updated
+        # when one was deliberately swapped, and only the first is safe to
+        # find out about later. No `for`: the reading is a day old already.
+        expr: homelab_iso_state{state="mismatch"} == 1
+        labels:
+          component: host
+          severity: critical
+          category: security
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-lab-templates.md#2b-the-installers-on-smaug-iso-on-saruman"
+          summary: "{{ $labels.host }}: {{ $labels.file }} on the ISO store does not match its checksum"
+          description: >-
+            Do not build a template from smaug-iso until this is explained.
+            The expected hash is the file's line in the list in
+            scripts/collect-iso-store-state.sh, and the comment above that
+            line names what it was checked against. Re-check
+            `sha256sum /mnt/smaug-iso/template/iso/{{ $labels.file }}` on the
+            host against the same source. If the ISO was replaced on purpose,
+            update the list and reinstall the collector. If it was not, any
+            template built from it since the last good reading is suspect
+            (build-the-lab-templates.md §2b).
+
+      - alert: IsoStoreUnexpected
+        # A file the list does not name, or a named file that is gone. Neither
+        # is the attack this block is for, but an unlisted ISO is one nothing
+        # has vouched for, and a missing one is a build that will fail.
+        expr: homelab_iso_state{state=~"missing|unlisted"} == 1
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.file }} on the ISO store is {{ $labels.state }}"
+          description: >-
+            unlisted: on the share but not in the list in
+            scripts/collect-iso-store-state.sh. Check its sha256sum against
+            its source as build-the-lab-templates.md §2b describes, then list
+            it, or delete it. missing: listed but not on the share, so a build
+            that names it will fail. Put it back, or take it off the list.
+
+      - alert: IsoStoreNotMounted
+        # The share is not mounted where the collector looked, so nothing was
+        # verified and a build from smaug-iso would fail. Proxmox's
+        # is_mountpoint keeps uploads off the root disk in the meantime.
+        expr: homelab_iso_store_mounted == 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }}: the ISO store is not mounted at {{ $labels.mountpoint }}"
+          description: >-
+            `mount {{ $labels.mountpoint }}` on the host. If it hangs, check
+            that NFS is running on smaug and that `Allow NFS from Saruman to
+            smaug` is still above Block access to CasaBonita on igc0.30
+            (build-the-nas.md §5b).
+
+      - alert: IsoStoreStateStale
+        # Daily timer, so two days is two missed runs. A timestamp rather than
+        # presence, for ThinPoolStateStale's reason: the .prom is re-served on
+        # every scrape, so a stale "match" looks exactly like a fresh one.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*iso-store-state\\.prom"} > 2 * 86400
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not verified the ISO store in two days"
+          description: >-
+            The file is {{ $value | humanizeDuration }} old, so
+            IsoChecksumMismatch is reading an old result. Check
+            homelab-iso-store-state.timer on the host and
+            `journalctl -u homelab-iso-store-state`; a failed hash writes
+            nothing on purpose, so the journal says why.
+
+      # --- Guest filesystems, read through the hypervisor (#778, ADR-0070) ----
+      #
+      # odin's root reached 98% on 2026-10-01 and nothing paged: the lab
+      # Prometheus has HostDiskCritical for its guests and no Alertmanager
+      # (ADR-0020). ADR-0070 lets a guest's filesystem CAPACITY cross, read on
+      # `Saruman` with `qm guest cmd <vmid> get-fsinfo` by
+      # scripts/collect-guest-disk-state.sh, and these are what it buys.
+      #
+      # BOTH CAPACITY RULES ARE CRITICAL, where HostDiskWillFillIn24h is a
+      # warning. A host on VLAN 99 is one someone is looking at; a lab guest
+      # is not, and a full disk on odin blinds the SOC. The forecast is the
+      # one that gives time to act, so it is the one that has to reach a
+      # phone (#778).
+      #
+      # The numbers come from the guest's own agent, and a compromised guest
+      # can lie about its own disk. ADR-0070 accepts that: the worst it can do
+      # is page about itself, or hide its own fill.
+
+      - alert: GuestDiskCritical
+        # HostDiskCritical's line, on the guest's own view of its disk.
+        # total-bytes from the agent already excludes root-reserved blocks, so
+        # size - used is what `df` calls Avail.
+        expr: >-
+          (homelab_guest_filesystem_size_bytes - homelab_guest_filesystem_used_bytes)
+          / homelab_guest_filesystem_size_bytes < 0.10
+        for: 15m
+        labels:
+          component: host
+          severity: critical
+          category: capacity
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#guestdiskcritical"
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }}:{{ $labels.mountpoint }} below 10% free"
+          description: >-
+            {{ $labels.mountpoint }} on {{ $labels.guest }} (VMID {{ $labels.vmid }})
+            has {{ $value | humanizePercentage }} free. On a Docker host,
+            `docker system df` first: superseded images are what filled odin.
+            The estate cannot reach the guest; ssh to it from the lab, or
+            `qm guest exec {{ $labels.vmid }} -- df -h` on {{ $labels.host }}.
+
+      - alert: GuestDiskWillFillIn24h
+        # HostDiskWillFillIn24h's shape: six hours extrapolated a day ahead,
+        # guarded by 30% free so a roomy disk taking one large write does not
+        # page. Written as used-against-size rather than predict_linear of a
+        # difference, which would need a subquery.
+        expr: >-
+          predict_linear(homelab_guest_filesystem_used_bytes[6h], 24 * 3600)
+          >= homelab_guest_filesystem_size_bytes
+          and
+          (homelab_guest_filesystem_size_bytes - homelab_guest_filesystem_used_bytes)
+          / homelab_guest_filesystem_size_bytes < 0.30
+        for: 1h
+        labels:
+          component: host
+          severity: critical
+          category: capacity
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#guestdiskwillfillin24h"
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }}:{{ $labels.mountpoint }} fills within 24h"
+          description: >-
+            {{ $labels.mountpoint }} on {{ $labels.guest }} (VMID {{ $labels.vmid }})
+            is below 30% free and, extrapolating the last 6 hours, full within
+            a day. On a Docker host, `docker system df` first: superseded images
+            are what filled odin.
+
+      - alert: GuestDiskStateStale
+        # The collector stopped rewriting its file. A timestamp rather than
+        # presence, for ThinPoolStateStale's reason: the .prom persists and is
+        # re-served, so every guest disk would stay plausible after the timer
+        # died.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*guest-disk-state\\.prom"} > 3600
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its guests' disk state in an hour"
+          description: >-
+            The file is {{ $value | humanizeDuration }} old, so GuestDiskCritical
+            and GuestDiskWillFillIn24h are reading old numbers. Check
+            homelab-guest-disk-state.timer on the host and its last run in the
+            journal (`journalctl -u homelab-guest-disk-state`); a failed
+            `qm list` writes nothing on purpose, so the journal says why.
+
+      - alert: GuestAgentSilent
+        # A running guest whose agent answered within the last day and has not
+        # for an hour. Its disks have dropped out of the two rules above, so
+        # they cannot page — this is what says they cannot.
+        #
+        # ANSWERED WITHIN THE DAY, so a guest that never had an agent (the
+        # Windows domain machines, until someone installs one) stays quiet
+        # rather than alerting forever. odin's agent has hung under load; the
+        # hour is what keeps that from paging on every busy spell.
+        expr: >-
+          homelab_guest_agent_up == 0
+          and on (host, guest, vmid)
+          max_over_time(homelab_guest_agent_up[1d]) == 1
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }}'s agent has not answered for an hour"
+          description: >-
+            The guest is running, and `qm guest cmd {{ $labels.vmid }} get-fsinfo`
+            on {{ $labels.host }} has failed or timed out for an hour, so this
+            guest's disks cannot page. `systemctl status qemu-guest-agent` inside
+            the guest; if it has hung, restarting it is safe.
+
       # --- The hypervisor's own firewall (#576) ------------------------------
       #
       # #566 found `Saruman`'s Proxmox firewall disabled while ADR-0014 and
@@ -749,6 +1149,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md#4-close-the-management-plane"
           summary: "{{ $labels.host }}'s Proxmox firewall is off"
           description: >-
             `pve-firewall status` has not read enabled/running for ten minutes,
@@ -779,6 +1180,7 @@ groups:
           severity: critical
           category: security
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md#4-close-the-management-plane"
           summary: "{{ $labels.host }}'s Proxmox firewall is on and admits everything"
           description: >-
             `policy_in` in /etc/pve/firewall/cluster.fw is not DROP, so the
@@ -808,6 +1210,64 @@ groups:
             `journalctl -u homelab-pve-firewall-state`; an unreadable status
             writes nothing on purpose, so the journal says why.
 
+      # --- The Zeek mirror on the lab bridge (#437, ADR-0068) ---------------
+      #
+      # Zeek's absence detection, inherited from #441. The lab's Loki, where
+      # Zeek's logs land, has no ruler (ADR-0020), so the question is asked on
+      # the hypervisor instead, as guest state under ADR-0028:
+      # scripts/collect-zeek-mirror-state.sh. It proves the mirror delivers
+      # packets to the sensor; it cannot see whether Zeek inside the guest is
+      # reading them, and ADR-0068 says so.
+
+      - alert: ZeekMirrorInactive
+        # The sensor is stopped, a bridge port lost its mirror, or the tap has
+        # stopped receiving — any one of which leaves the domain's east-west
+        # traffic unwatched with no other signal anywhere.
+        #
+        # WARNING AFTER TEN MINUTES. The ensurer repairs a port within a minute
+        # of a guest restart, and one collector sample can land in that minute;
+        # two cannot. Warning rather than critical because nothing is exposed
+        # by it — something is unobserved — and a sensor switched off between
+        # sessions reads the same, which the description says.
+        expr: homelab_zeek_mirror_active == 0
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }}'s Zeek mirror is not delivering packets"
+          description: >-
+            homelab_zeek_mirror_active has read 0 for ten minutes, so Zeek on
+            `fenrir` is not seeing the lab bridge. Check the parts:
+            homelab_zeek_mirror_sensor_running (is VM 190 up),
+            homelab_zeek_mirror_ports_mirrored against
+            homelab_zeek_mirror_ports_expected (is homelab-zeek-mirror.timer
+            running — `journalctl -u homelab-zeek-mirror`), and
+            homelab_zeek_mirror_sensor_tx_packets_total (is anything arriving).
+            If the sensor was powered off on purpose this is expected.
+            build-the-sensor-guest.md has the checks.
+
+      - alert: ZeekMirrorStateStale
+        # The collector stopped, which is not the mirror being fine.
+        # Twenty-five minutes of mtime past a five-minute timer is five missed
+        # runs; a reboot of this host is shorter than that.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*zeek-mirror-state\\.prom"} > 25 * 60
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its Zeek mirror state recently"
+          description: >-
+            The file is {{ $value | humanizeDuration }} old, so
+            ZeekMirrorInactive is reading an old answer and cannot fire. Check
+            homelab-zeek-mirror-state.timer on the host and
+            `journalctl -u homelab-zeek-mirror-state`; an unreadable sensor
+            status writes nothing on purpose, so the journal says why.
+
       - alert: SmartDriveBadSectorsGrowing
         # The signal SmartDriveBadSectors cannot give you, and the one worth
         # acting on.
@@ -823,6 +1283,14 @@ groups:
         # effectively, because no label carries the count. The static fact and
         # the trend need different alertnames or the trend cannot survive
         # whatever quiets the fact. That happened on 2026-09-07 (#351).
+        #
+        # THE SUBTRACTION MATCHES ON EVERY LABEL, `slot` INCLUDED (#745). Before
+        # the collector emitted `slot`, a series was its host and its letter,
+        # and a letter can move on reboot: smaug's boot SSD, with 4, landing on
+        # the letter an Exos with 0 held a week earlier would have read as
+        # growth of 4. With `slot` in the label set, a moved letter is a new
+        # series with no week-old point, so it says nothing for seven days
+        # rather than something wrong.
         #
         # SUBTRACTION, NOT increase(). These are gauges, and increase() assumes
         # counter semantics — it extrapolates and handles resets, neither of
@@ -858,24 +1326,52 @@ groups:
             Check backups first.
 
       - alert: SmartDriveUnsafeShutdownsGrowing
-        # The measure of a power cut nobody planned for (#574, ADR-0049).
+        # The measure of a power cut nobody planned for (#574, ADR-0049, #746).
         #
-        # A clean shutdown on the UPS's signal does not move a drive's
-        # unsafe-shutdown counter, and a cut shorter than the pack does not
-        # either, so any growth is a stop that the sequence ADR-0049 decides
-        # did not catch — or, before that sequence exists, a stop nothing
-        # tried to catch. smaug's boot disk arrived carrying 509 of them in 538
-        # power cycles from its previous owner, which is how a box with no
-        # UPS client looks from the disk's side. ADR-0047's cron job under
-        # the scrape carries the counter off smaug and named this rule as the
-        # decision left to #574; the series exists and reads 509.
+        # smaug's boot disk arrived carrying 509 unsafe shutdowns in 538 power
+        # cycles from its previous owner, which is how a box with no UPS client
+        # looks from the disk's side. ADR-0047's cron job under the scrape
+        # carries the counter off smaug and named this rule as the decision
+        # left to #574.
+        #
+        # ANY TICK PAGES, AND A CLEAN STOP DOES NOT TICK (#746, settled
+        # 2026-10-03). #746 read smaug's S3520 going 522 -> 523 across the
+        # 2026-09-29 Shut Down as proof that a clean stop counts, and #800 and
+        # #819 subtracted the host's clean stops from this rule. Controlled
+        # stops disproved the reading: two UI Restarts and one UI Shut Down,
+        # left plugged in, all left the S3520 at 523. On 2026-09-29 the box was
+        # also UNPLUGGED for the memory install, and that is what the drive
+        # counted. The subtraction is gone, because it was a hole: a planned
+        # Shut Down that does not tick the drive would cancel a real cut the
+        # same day, and nothing would page.
+        #
+        # SO MAINS REMOVED AFTER A CLEAN SHUTDOWN STILL PAGES, ONCE. Unplugging
+        # for maintenance, or the UPS cutting its output after ADR-0049's halt,
+        # looks to the drive like what it is: power gone. During a UPS event
+        # UpsOnBattery is already paging, and an operator who unplugged knows
+        # it. That is noise with an explanation, which beats a blind spot.
+        #
+        # THE CLEAN COUNT IS ONLY THE EXPLANATION. scripts/mark-clean-shutdown.sh,
+        # smaug's SHUTDOWN init script, still serves homelab_clean_shutdowns_total
+        # for every stop headed to poweroff.target or halt.target. The
+        # description below asks Prometheus whether that count moved in the same
+        # day, and if it did, says so: a clean power-off came first, so the
+        # likeliest cause is mains removed afterwards. The expression never
+        # reads it. A missing day-old point reads as zero, so the first
+        # power-off after install still earns the line. It is a hint, not
+        # proof either way: an earlier manual stop can supply it, the hook
+        # records a stop as it begins, and a lost file or a stop it could not
+        # classify leaves it out.
         #
         # SUBTRACTION over a day, not a week: a cut is an event with a date,
         # and the day it happened is the thing worth knowing. The same gauge
         # reasoning as SmartDriveBadSectorsGrowing applies — served
         # continuously by the textfile collector, so the point-against-point
-        # comparison is exact. The metric has one name for both drive types
-        # by design: NVMe's health log and ATA attribute 174 both land on it.
+        # comparison is exact. The collector also runs as smaug's POSTINIT
+        # script (build-the-nas.md §6.4), so a cut is read at the boot after
+        # it rather than at the next 08:30. The metric has one name for both
+        # drive types by design: NVMe's health log and ATA attribute 174 both
+        # land on it.
         expr: >-
           (homelab_smart_unsafe_shutdowns_total - homelab_smart_unsafe_shutdowns_total offset 1d) > 0
         for: 1h
@@ -888,13 +1384,20 @@ groups:
             {{ $labels.host }}: {{ $labels.device }} lost power uncleanly
             {{ $value }} time(s) in the last day
           description: >-
-            The drive's unsafe-shutdown counter moved, which means the host
-            stopped without telling the disk — a mains cut that outlasted the
-            UPS with nothing acting on its signal, a crash, or a plug. Find the
-            event: UpsOnBattery and InstanceDown around the same time say
-            which. If a UPS shutdown sequence exists for this host (ADR-0049),
-            it did not run, and runbooks/shut-down-on-the-ups.md says how to
-            check it.
+            The drive's unsafe-shutdown counter moved, which means it lost
+            power without being told first — a mains cut that outlasted the
+            UPS, the UPS cutting its output after a halt, a crash, or a plug.
+            Find the event: UpsOnBattery and InstanceDown around the same time
+            say which. Whether a UPS shutdown sequence (ADR-0049) ran, and
+            finished before the power went, is in the host's shutdown log;
+            runbooks/shut-down-on-the-ups.md says how to check it.{{ $c := printf
+            "homelab_clean_shutdowns_total{host=%q}" $labels.host }}{{ with printf
+            "(%s - (%s offset 1d or %s * 0)) > 0" $c $c $c | query }}
+            {{ $labels.host }} recorded {{ . | first | value }} clean power-off(s)
+            in the same day, so the likeliest cause is mains removed after a
+            clean shutdown — an unplug, or the UPS output cut after its halt.
+            A recorded clean stop says one began, not that it finished.{{ end }}
+
       - alert: SmartStateStale
         # The SMART collector has stopped rewriting its file, on any host.
         #
@@ -943,6 +1446,43 @@ groups:
             on an Alloy host it is homelab-smart-state.timer or, for morpheus,
             homelab-smart-state-remote.timer on the monitoring host. Check the
             job still exists and that its last run wrote the file.
+
+      - alert: ZpoolVdevStateStale
+        # The leaf-state collector has stopped rewriting its file (#744).
+        #
+        # SmartStateStale's reasoning and mechanism, with its own rule rather
+        # than a second filename in that one's regex. A shared rule would share
+        # the two-day threshold, and a five-minute signal that may be two days
+        # stale before anything says so is ZpoolVdevNotOnline blind for two
+        # days: a one-disk mirror for that long with nothing paging, which is
+        # what #744 exists to end.
+        #
+        # Twice the period, the estate's rule: two missed five-minute runs.
+        # `zpool status` answers from kernel memory and returns in well under a
+        # second, so a slow run is not a reason to be late. A failed read
+        # writes nothing on purpose, so a `zpool status -j` that starts
+        # failing ends up here, not as a file that looks healthy.
+        #
+        # NO `for`. The threshold is already the hold: an mtime is a fact, not
+        # a noisy sample, and a `for: 10m` on top would make "ten minutes"
+        # twenty in practice, the blind window this rule exists to bound.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*zpool-state-.*\\.prom"} > 2 * 300
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten {{ $labels.file }} in ten minutes"
+          description: >-
+            The ZFS leaf-state textfile is {{ $value | humanizeDuration }} old,
+            and node_exporter re-serves its last contents, so every
+            homelab_zpool_vdev_* series is present and stale.
+            ZpoolVdevNotOnline cannot see a faulted leaf on this host until the
+            file is rewritten. The writer is a five-minute root cron job in
+            TrueNAS's UI (System → Advanced Settings → Cron Jobs;
+            build-the-nas.md §6.8). Check the job still exists, then run its
+            command at the console. A failure there prints why.
 
       # --- Laptop batteries, the mains-cut path nobody was watching (#454) ---
       #
@@ -1056,6 +1596,7 @@ groups:
           severity: critical
           category: power
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostonbattery"
           summary: "{{ $labels.instance }} is running on its own battery"
           description: >-
             The mains adapter ({{ $labels.power_supply }}) reports no input.
@@ -1147,6 +1688,7 @@ groups:
           severity: critical
           category: hardware
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/replace-the-laptop-cell.md#3-a-thirteen-year-old-lithium-cell-is-the-hazard-not-the-laptop"
           summary: "{{ $labels.instance }}: {{ $labels.power_supply }} reads {{ $value }} °C"
           description: >-
             The cell's own gauge has read above 45 °C for five minutes. The
@@ -1224,6 +1766,7 @@ groups:
           severity: critical
           category: power
         annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#hostbatteryruntimelow"
           summary: "{{ $labels.instance }} has {{ $value | humanizeDuration }} of battery left"
           description: >-
             The host is on its own cell and, at the draw it is presenting now,

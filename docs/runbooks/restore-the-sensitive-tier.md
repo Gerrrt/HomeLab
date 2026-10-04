@@ -71,9 +71,9 @@ run copies it to `oracle` under `backups/volumes/sensitive` — a directory of
 its own, so the estate's prune and the tier's cannot see each other's sets
 ([#535](https://github.com/Gerrrt/HomeLab/issues/535); the key exchange and
 the seed are in [`restore-the-stack.md`](restore-the-stack.md) §0). The archives are
-encrypted to every recipient of `secrets/sensitive.sops.yaml` — `trinity`'s key,
-and the technical second's once it joins that rule — and the manifest records
-which. The stack is stopped for the length of the copy, which is seconds here:
+encrypted to every recipient of `secrets/sensitive.sops.yaml` — `trinity`'s key
+and, since [#835](https://github.com/Gerrrt/HomeLab/issues/835), the technical
+second's — and the manifest records which. The stack is stopped for the length of the copy, which is seconds here:
 a copy of an open SQLite database is a file that looks like a backup.
 
 **A timer takes a set every night at 04:30.** This is
@@ -89,10 +89,12 @@ requires. That copy is step 10, and it is one reason the vault holds nothing
 real yet.
 
 **The key that opens it is not the only one.** A set encrypted to `trinity`'s
-key alone dies with `trinity`'s disk. [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
-second recipient has to be on the `sensitive` rule before the first real item
-goes in — `make secrets-add-recipient PUBKEY=age1... STACK=sensitive` — and the
-backup encrypts to it from the next run.
+key alone dies with `trinity`'s disk, so [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
+second recipient is on the `sensitive` rule
+([#835](https://github.com/Gerrrt/HomeLab/issues/835)), and the backup encrypts
+to it from the first run after that change converged. Sets older than that
+still open with `trinity`'s key alone; read a set's manifest for its
+recipients before relying on the second key to restore it.
 
 And it has been dry-run restored at least once:
 
@@ -321,8 +323,10 @@ Then from a client on Hicks — the checks a shell cannot do:
 ## Restore Immich
 
 Immich is two stores, and §2–§4 restore only one of them. The metadata is in
-`immich-db`; the photographs are a bind mount on the USB disk, in no backup
-set. What protects each is in the stack README's
+`immich-db`. The photographs are a bind mount on the USB disk, in no volume
+set; they have sets of their own, `make backup-library`, nightly to `oracle`
+([ADR-0064](../adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+What protects each is in the stack README's
 [*What backs Immich up*](../../stacks/sensitive/README.md#what-backs-immich-up-and-what-does-not-yet).
 A restore that brings back the database without the files — or the files
 without the database — serves a library of broken thumbnails, or an empty one.
@@ -333,6 +337,31 @@ without the database — serves a library of broken thumbnails, or an empty one.
 Every folder carries a `.immich` marker, and the server refuses to start
 when one is unreadable — that is the check that the mount is the library and
 not an empty directory.
+
+**When the disk itself is gone**, the library comes back from a library set.
+The one on `oracle` survives `trinity`; the one under `backups/immich-library/`
+on the SSD survives only the disk. On a new disk, formatted and mounted per
+[`build-the-sensitive-tier-host.md`](build-the-sensitive-tier-host.md) §5:
+
+```bash
+STAMP=<newest complete set>        # make backup-library ARGS=--list
+ssh atropos@10.0.99.30 "cat 'backups/immich-library/${STAMP}/immich-library.tar.gz.age'" \
+  | tee >(sha256sum) \
+  | age -d -i ~/.config/sops/age/keys.txt \
+  | tar -xz --numeric-owner -C /srv/immich
+```
+
+Compare the printed sha256 with the `immich-library` row of the set's
+`MANIFEST` (the local copy, or `cat` it off `oracle`) before trusting the
+tree. The set holds `upload/`, `library/`, `profile/` and `backups/`, plus the
+markers of `thumbs/` and `encoded-video/`, which are otherwise empty. Its
+`backups/` holds the dump Immich wrote a few hours before the set, so the
+second route below works from the set alone. After the server is up, sign
+in as the admin, open *Jobs*, and run **Generate thumbnails** and **Transcode
+videos** with *All*, not *Missing*. The rows still name the thumbnails, so
+*Missing* finds nothing to do. Assets in the trash are skipped. That is
+upstream's choice, and a restored-from-trash asset shows a grey tile until its
+own thumbnail is regenerated.
 
 **Then the database, by one of two routes.**
 
@@ -448,7 +477,8 @@ Everything was deleted afterwards.
   warnings** (vault items and `rsa_key.pem`, step-ca leaves). That is noise
   on a single-volume restore, not a fault.
 
-**What is still not proven.** Nothing came back from anywhere but `trinity`,
+**What is still not proven** (as of 2026-09-28; the next subsection closes the
+first point). Nothing came back from anywhere but `trinity`,
 and there is no copy of the originals off it. That is [#455](https://github.com/Gerrrt/HomeLab/issues/455),
 and until it exists the checksum pass above proves only that a copy of *this
 disk* restores. The restored server was not reached through Caddy, nor by a
@@ -456,6 +486,66 @@ phone. A phone reconnecting to a restored server is the moment a wrong
 restore would first be noticed, and nobody has watched it. Machine learning
 did not run, so the face and CLIP vectors came back but nothing used them.
 A cross-version restore, the case upstream warns about, was not tried.
+
+### Rehearsed from a library set off `oracle`, 2026-09-29
+
+This is the case of losing the USB disk. The first `make backup-library` set,
+`20260929T232136Z`, was 1.5 GB holding 615 originals. It was written in
+68 s and copied to `oracle` in about three minutes. It was pulled back from
+`oracle`, not from `trinity`'s copy, and streamed through `age -d` into a
+tmpfs. The live stack was not touched. The scratch `immich-db` ran on a tmpfs,
+with scratch Valkey and server, on an `--internal` network with no port and no
+machine learning. Everything was deleted afterwards.
+
+**What it established.**
+
+- **The bytes that came back are the bytes written.** The sha256 of the
+  stream as `oracle` served it equalled the `MANIFEST`'s. It unpacked in
+  136 s, with all six `.immich` markers present.
+- **The set restores on its own.** The dump inside it, Immich's 02:00
+  `v3.2.2` dump, restored into a fresh `immich-db` in 18 s, before the
+  server's first start. `immich-server` v3.2.4 started on it with
+  `isInitialized` and `isOnboarded` both true, both accounts present and all
+  six mount checks passing.
+- **Every photograph checks out.** `ok=615 bad=0`, by the SHA-1 pass above
+  against the restored database. `make backup-library ARGS=--prove` had said
+  the same of the set, streamed, against the live database.
+- **The derived trees regenerate.** *Generate thumbnails* and *Transcode
+  videos*, with *All*, produced 960 thumbnail and preview files and 20
+  transcodes.
+
+**What it found.**
+
+- **A transient schema-drift warning.** The server re-ran the geodata import
+  on this restore; on 2026-09-28's same-version restore it had skipped it. The
+  API worker checked the schema mid-import, while the import had
+  `geodata_places`' indexes dropped, and logged drift. The microservices
+  worker, and `immich-admin schema-check` a minute later, both read
+  `No schema drift detected`. A drift warning within a minute of a restored
+  server's first start is not the finding it looks like. Re-run
+  `schema-check` before acting on it.
+- **121 of the 615 assets are in the trash**, and the thumbnail job skips
+  trashed assets. Their originals are in the set and hash correctly; their
+  tiles regenerate if they are restored from the trash. Immich empties its
+  trash after thirty days, and nothing here keeps a trashed asset longer.
+- **The *Missing* option regenerates nothing after a restore.** It keys on
+  the database's `asset_file` rows, which the restored database still has. Use
+  *All*.
+- **`immich-admin reset-admin-password` needs a TTY.** Piped input hangs it.
+  On a scratch copy the admin's bcrypt hash was set directly instead. On a
+  real restore the admin's own password is the way in.
+
+**What is still not proven.** The key: this set is encrypted to `trinity`'s
+key alone, so it proves a restore on a host that has that key. Losing
+`trinity` as well as the disk is recoverable only if the key has a proven
+copy (`make secrets-verify-backup STACK=sensitive`). Everything the
+2026-09-28 rehearsal left open about phones, Caddy, machine learning and
+cross-version restores is still open. And this is not off the estate. That is
+still [#455](https://github.com/Gerrrt/HomeLab/issues/455). Its copy is built
+([`carry-the-household-copy.md`](carry-the-household-copy.md)) and is waiting
+on a holder. A restore from the household drive copies its set directories back
+into `backups/immich-library/` and `backups/paperless-documents/`, and then
+follows this page.
 
 ---
 

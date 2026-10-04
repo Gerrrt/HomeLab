@@ -49,7 +49,7 @@ what §9 below proves on the real host.
 | Root disk | LUKS2 under LVM; the key enrolled in the TPM against PCR 7 by `systemd-cryptenroll`; the installer's passphrase kept as recovery | [ADR-0054](../adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md) |
 | Photo disk | LUKS2 on the 2 TB USB drive, opened at boot by a keyfile on the root, plus a recovery passphrase | ADR-0054 |
 | Immich's library | `/srv/immich`, the stack's `IMMICH_UPLOAD_LOCATION` default | [#132](https://github.com/Gerrrt/HomeLab/issues/132) |
-| Secrets | `secrets/sensitive.sops.yaml`, encrypted to `trinity`'s own age key | The `sensitive` rule in `.sops.yaml` |
+| Secrets | `secrets/sensitive.sops.yaml`, encrypted to `trinity`'s own age key and the technical second's ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md), [#835](https://github.com/Gerrrt/HomeLab/issues/835)) | The `sensitive` rule in `.sops.yaml` |
 | CA | The tier's own root, minted on `prometheus`; only the bundle travels | [ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md) |
 | Telemetry | An Alloy agent, pushing to `10.0.99.20`, like `oracle` | The stack README |
 | Wireless | Not configured | The box has an Intel Wireless-AC 9560 that pfSense had to be told to ignore. Linux drives it happily, which is exactly why netplan gets no Wi-Fi stanza |
@@ -587,6 +587,16 @@ Then put it on its timer. This is the sensitive profile of `install-timers.sh`,
 a nightly run at 04:30 whose outcome reaches the estate's staleness alerts as
 `backup-sensitive`
 ([`schedule-maintenance.md`](schedule-maintenance.md#on-trinity-the-sensitive-profile)).
+
+**First, the convergence prerequisites.** The same install adds
+`converge-sensitive`, the hourly convergence of the tier onto `main`
+([#533](https://github.com/Gerrrt/HomeLab/issues/533)), and the installer
+primes it by running it once — and applying is the default. So before the
+command below, import GitHub's signing key and put `HOMELAB_CONVERGE_APPLY=0`
+in `/etc/default/homelab-timers`:
+[`converge-the-host.md`](converge-the-host.md#on-trinity) §On trinity steps
+1–3. Its steps 5 and 6 come after: watching it, then letting it act.
+
 From this checkout:
 
 ```bash
@@ -603,16 +613,32 @@ cat /var/lib/node_exporter/textfile_collector/backup-sensitive.prom
 ```
 
 `homelab_job_last_exit_code` must be `0`, and `ARGS=--list` must show the new
-set on both sides. Converging the host is
-[#533](https://github.com/Gerrrt/HomeLab/issues/533), after this.
+set on both sides.
+
+The same install adds `backup-library`, Immich's library copied to `oracle`
+nightly at 05:15
+([ADR-0064](../adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+It stops nothing, so the installer primes it. Read `backup-library.prom` the
+same way, and prove the set against the database:
+
+```bash
+make backup-library ARGS=--prove
+```
 
 ## 13. Before the first real photo, document or vault item
 
-The stack is up and holds nothing. These five are the gate on the data, not
-on the containers, and each is written in a document that already exists:
+These five are the gate on the data, not on the containers, and each is
+written in a document that already exists. The gate was passed with most of it
+open: Immich's first real photographs arrived on 2026-09-28, and the stack
+README's warning records it. Items 1 and 4 are done, and item 3 has an interim
+stand-in, ADR-0064's copy to `oracle`, which does not close it. ADR-0022's
+TOTP floor is met: Home Assistant's owner since 2026-09-28, Stirling-PDF's
+admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
 
 1. **The Immich restore rehearsal.** Upstream's database-before-first-start
-   order, on test photos, as the stack README's Immich section describes.
+   order, as the stack README's Immich section describes. Done on 2026-09-28
+   against the real library, and on 2026-09-29 from a library set off
+   `oracle` ([`restore-the-sensitive-tier.md` § Restore Immich](restore-the-sensitive-tier.md#restore-immich)).
 2. **The second recipient on the `sensitive` rule**
    ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)).
    Run `make secrets-add-recipient STACK=sensitive PUBKEY=age1…`, then one
@@ -624,7 +650,8 @@ on the containers, and each is written in a document that already exists:
    [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)). This covers
    the library disk as well as the volume sets.
 4. **ADR-0022's decision recorded.** Either an identity provider, or the
-   deferral re-accepted with reasons.
+   deferral re-accepted with reasons. Done on 2026-10-02: re-accepted, by
+   [ADR-0075](../adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md).
 5. **ADR-0023's *Independent* test.** The household's own credentials open
    from the other person's device, without the operator present.
 
@@ -660,10 +687,15 @@ parts only the host and the firewall can do.
 
    ```bash
    cd ~/code/Gerrrt/HomeLab
-   git pull
-   make up STACK=sensitive
+   make converge STACK=sensitive
    make check-container-health STACK=sensitive
    ```
+
+   Once the converge timer applies, the merge is deployed within the hour on its
+   own and this is only the way not to wait. While it is report-only it is the
+   deploy. Either way it is `make converge`, not `git pull`: the same fetch,
+   verified, and it runs `make up STACK=sensitive` on what it moved to
+   ([`converge-the-host.md`](converge-the-host.md#on-trinity)).
 
    Caddy is recreated, because its aliases changed. Its log must show
    `certificate obtained` for the new name, and

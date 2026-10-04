@@ -1,0 +1,69 @@
+---
+# --- How phoenix reaches a guest (ADR-0077 decision 2) ----------------------
+# OpenSSH, key only, as the built-in Administrator. The template installs
+# phoenix's public key into administrators_authorized_keys and SetupComplete.cmd
+# starts sshd on every clone (packer/windows/scripts/). After promotion the
+# same name logs in as AD\Administrator, which is a member of Administrators, so
+# the same key file still applies.
+ansible_connection: ssh
+ansible_shell_type: powershell
+ansible_user: Administrator
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+
+# --- ADR-0029, encoded, not re-decided --------------------------------------
+lab_domain: ad.matrix.elysium
+lab_netbios: AD
+lab_gateway: 10.0.30.1
+lab_prefix_length: 24
+# The DCs sync from the gateway, 0x8 = client mode. Set on the PDC emulator
+# before anything joins; everything else stays on NT5DS (§3, §4).
+lab_ntp_peers: "10.0.30.1,0x8"
+lab_dns_forwarder: 10.0.30.1
+lab_dc_addresses: [10.0.30.50, 10.0.30.51]
+lab_functional_level: WinThreshold
+
+# --- Secrets: from phoenix.env, never from this tree (ADR-0077 decision 3) --
+# The local Administrator before promotion and AD\Administrator after it are
+# the same password: Install-ADDSForest makes bahamut's local Administrator the
+# domain's, so one variable is the truth for both.
+lab_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_ADMIN_PASSWORD') }}"
+lab_dsrm_password: "{{ lookup('ansible.builtin.env', 'LAB_DSRM_PASSWORD') }}"
+
+# --- The population (#449) ----------------------------------------------------
+# ansible/population/population.yaml is committed and holds no passwords. Each
+# one is derived here, from this seed and the sAMAccountName, so a rerun sets
+# the same password it set last time, and population-credentials.yml can print
+# them again on phoenix. The task supplies `population_account`. The hex digest
+# is lower case, so the suffix adds the upper case, digit and symbol that the
+# domain's complexity rule asks for. Change the seed and every password moves.
+lab_population_seed: "{{ lookup('ansible.builtin.env', 'LAB_POPULATION_SEED') }}"
+lab_population_password: >-
+  {{ ((lab_population_seed ~ ':' ~ population_account) | hash('sha256'))[:20] ~ 'Aa1!' }}
+lab_domain_dn: "DC={{ lab_domain.split('.') | join(',DC=') }}"
+
+# --- windows_exporter (§7) ---------------------------------------------------
+# The version is pinned here, with the MSI's sha256 beside it, because the
+# collector list below is only known-good against this release: in 0.31.x `cs`
+# no longer exists and `--collectors.time.enabled` is not a flag, and either one
+# stops the service binding 9182. Re-read the collector names when this moves.
+windows_exporter_version: "0.31.8"
+windows_exporter_sha256: 0aadce6afb20182b678bfca9e8f2e8464ef48c469b28b4cf02e99d82158f5d40
+# The MSI's ProductCode for this release, read from Win32_Product on all six
+# hand-built guests (2026-10-02). roles/exporter decides "installed" by it, so
+# it moves with the version: a bump that leaves it stale reinstalls nothing.
+windows_exporter_product_id: "{130B5CF0-5B4F-4E85-AE10-3B9CB3FAB69B}"
+windows_exporter_collectors: cpu,logical_disk,memory,net,os,service,system,time,textfile
+windows_exporter_textfile_dir: C:\ProgramData\windows_exporter\textfile
+# alexander, the lab Prometheus. The only source the 9182 rule admits.
+windows_exporter_scraper: 10.0.30.40
+
+# --- The skeleton #414 built by hand (runbook §5), reproduced so the #448 ------
+# rebuild loses nothing. The population and the switchable weaknesses on top of
+# it are #449's (roles/population); these are the tiers, shares and SOC agents.
+lab_tier_ous: [Tier0, Tier1, Tier2, Servers, Workstations]
+# A distinct password for the three tier admin accounts, set only when they are
+# made on a fresh rebuild (roles/tiers use on_create), never the domain admin's.
+lab_tier_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_TIER_ADMIN_PASSWORD') }}"
+# The Wazuh enrolment password, from phoenix.env rather than readable in SYSVOL
+# as the deploy GPO left it (build-the-soc-guest.md §11, now roles/soc_agents).
+lab_wazuh_registration_password: "{{ lookup('ansible.builtin.env', 'LAB_WAZUH_REGISTRATION_PASSWORD') }}"

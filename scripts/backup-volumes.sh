@@ -123,7 +123,9 @@
 # scripts/backup-nas.sh sources this file rather than running it: it pulls
 # the media tier's state off smaug over ssh (ADR-0045), a job this script's docker-
 # and-quiesce shape cannot do, and it wants the same sentinel table, the same
-# verify() and the same set layout rather than a second copy of them. The
+# verify() and the same set layout rather than a second copy of them.
+# scripts/backup-library.sh does the same on trinity for Immich's library, a
+# bind mount no volume set can hold (ADR-0064). The
 # guard just above the argument parsing returns to the caller, so everything
 # above it is a library and everything below it is this script.
 #
@@ -422,6 +424,33 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # hardening: secretkey.txt is written before the first healthy check, and was
 # byte-identical after a second start and a clean stop. No volume on trinity
 # carries one at its top level.
+#
+# Immich's library (immich-library, #132) is the other ARCHIVE name no compose
+# file declares, and the one on trinity: the originals are a bind mount on the
+# USB disk, so scripts/backup-library.sh sources this file for the table and
+# verify() and tars the directory itself, stopping nothing (ADR-0064). Every
+# folder Immich mounts carries a .immich marker the server writes at start and
+# refuses to boot without; read off trinity's library on 2026-09-29, six of
+# them, each 13 bytes. ./library/.immich is the sentinel because the set is
+# read from the library's root, and no volume here has a ./library at all.
+#
+# wiki-db (#251) is the third ARCHIVE name, and the first that is not a
+# directory at all: scripts/backup-wiki.sh pulls `pg_dump -Ft` off oracle,
+# and a pg_dump tar is a flat listing with no ./ prefix. toc.dat is its table
+# of contents, present in every dump pg_restore can read; restore.sql is
+# written beside it by every pg_dump since 8.x. Read off a dump of the running
+# 17.6 on 2026-09-30. No volume archive here carries a top-level toc.dat.
+#
+# paperless-documents (#455) is the fourth: Paperless-ngx's own
+# document_exporter output, which scripts/carry-household-copy.sh archives for
+# the household's drive (ADR-0073). The volume sets carry paperless-media too,
+# but beside the vault, and only Paperless at the same version can read them.
+# The export is the original files plus manifest.json, the exporter's record
+# of every document, written at the export's root on every run, even an empty
+# one; metadata.json beside it carries the version. Read off an export of the
+# running 3.2.1 on trinity on 2026-10-01, into the container's /tmp and
+# removed after: those two files and nothing else, because no document had
+# been imported yet. No volume here has a top-level manifest.json.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -447,6 +476,9 @@ declare -A SENTINEL=(
   [mealie-data]="./mealie.db"
   [linkding-data]="./secretkey.txt"
   [actual-data]="./server-files/account.sqlite"
+  [immich-library]="./library/.immich"
+  [wiki-db]="toc.dat"
+  [paperless-documents]="./manifest.json"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -491,6 +523,9 @@ declare -A COMPANIONS=(
   [mealie-data]="./.secret ./.session_secret ./recipes ./users"
   [linkding-data]="./db.sqlite3 ./db.sqlite3-wal"
   [actual-data]="./user-files ./.migrate"
+  [immich-library]="./upload/.immich ./profile/.immich ./backups/.immich ./thumbs/.immich ./encoded-video/.immich"
+  [wiki-db]="restore.sql"
+  [paperless-documents]="./metadata.json"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and

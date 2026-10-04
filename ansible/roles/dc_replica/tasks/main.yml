@@ -1,0 +1,41 @@
+---
+# leviathan: the second DC (runbook §4). Its resolver points at bahamut first,
+# because a workgroup server cannot find a domain it cannot resolve; it moves to
+# partner-then-loopback in roles/dc_resolvers once both DCs exist.
+
+- name: Know whether leviathan is a DC already
+  ansible.builtin.import_role:
+    name: domain_role
+
+- name: Resolve through bahamut, to find the domain
+  ansible.builtin.import_role:
+    name: dns_client
+  vars:
+    dns_client_servers: ["{{ lab_dc_addresses[0] }}"]
+  when: not domain_role_is_dc
+
+- name: Install AD DS
+  ansible.windows.win_feature:
+    name: AD-Domain-Services
+    include_management_tools: true
+
+- name: Promote to a second domain controller
+  microsoft.ad.domain_controller:
+    dns_domain_name: "{{ lab_domain }}"
+    domain_admin_user: "Administrator@{{ lab_domain }}"
+    domain_admin_password: "{{ lab_admin_password }}"
+    safe_mode_password: "{{ lab_dsrm_password }}"
+    install_dns: true
+    state: domain_controller
+    reboot: true
+  no_log: true
+
+# The promotion sets the forwarder but leaves the root hints (§4).
+- name: Forward to the gateway, with no root hints
+  ansible.builtin.import_role:
+    name: dns_forwarder
+
+# Its time is deliberately left alone: NT5DS, the domain hierarchy, is the
+# default the moment it joins, and a second manual peer list is a second thing
+# that can disagree with the first (§4). roles/dc_forest set bahamut's; there is
+# no task here, and verify.yml asserts leviathan follows bahamut.

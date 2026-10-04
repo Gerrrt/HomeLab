@@ -68,10 +68,10 @@ quietly swapped.
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
 | `trinity` | HP ProDesk 600 G4 DM | i5-8500T | 32 GB | 512 GB NVMe SSD (LUKS2, TPM unlock) + 2 TB USB HDD (LUKS2, photos) | Ubuntu Server 26.04 LTS |
-| `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 8 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
+| `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 32 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four
-SNMP devices at a 60-second interval, seven Alloy agents, and 30 days of metric
+SNMP devices at a 60-second interval, eight Alloy agents, and 30 days of metric
 retention without complaint — which is a useful thing to know before spending
 money on a monitoring host. Its RAM is soldered at 8 GB and it has no built-in
 Ethernet, so it reaches the network over a USB NIC.
@@ -143,9 +143,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   notice puts the drop-off at 15:05 local on the 14th; the commit that recorded
   it was written that evening and dated by UTC, which had already turned over.
   The opening date is a separate reading and stands.
-  It enters the Compute table when
-  [#404](https://github.com/Gerrrt/HomeLab/issues/404) builds it, after the
-  firewall restore has been rehearsed on it. It ships with the onboard NIC
+  It entered the Compute table when
+  [#404](https://github.com/Gerrrt/HomeLab/issues/404) built it on 2026-09-28,
+  after the firewall restore was rehearsed on it on 2026-09-27. It ships with the onboard NIC
   only; the I226 card the restore depends on was a separate purchase, made
   2026-09-11 and the entry below — fitted 2026-09-25 for the rehearsal, and
   **still fitted**. #686 recorded it as taken out afterwards and back in the
@@ -305,7 +305,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   replacement of all four modules and not an addition, so the board's ceiling
   is reachable only by discarding what is in it. 32 GB is the number ADR-0040's
   workload was sized against, and the second half of the ceiling was never
-  costed. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
+  costed. **Fitted 2026-09-29: 32 GB in all four slots**, trained at 2133 and
+  ECC, with the reading in the memory entry below. Onboard NIC `4c:cc:6a:xx:xx:xx`, recorded as an OUI like every
   other address here. BIOS **`S06KT81L` dated 2024-02-05**, boot block `1.81`, flashed
   2026-09-16 while the box was still empty. It shipped on `S06KT03R` dated
   2017-05-22 with boot block `1.03` — a firmware predating the Spectre and
@@ -386,8 +387,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   at the swap, the Exos pair moves to the chipset's free ports on two plain
   SATA cables, bought for it because the only tray cable is the card's own
   mini-SAS breakout. The card and the breakout go on the shelf as the
-  fallback. Until the swap, everything in this paragraph describes the path
-  as it still is. The driver
+  fallback. **Done 2026-09-29, at the swap:** both Exos are on the
+  chipset's AHCI (`00:17.0`) at 6.0 Gbps, on `ata1` and `ata2`. `lspci -nn`
+  no longer lists `1000:005f`, and `erebor` imported there at the first
+  attempt, so the fallback was not used
+  ([`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md) step 5).
+  Everything else in this paragraph is the record of the card as it was,
+  from 2026-09-18 to 2026-09-29. The driver
   logged a disable/enable of its interrupts at 21:03:51 on 2026-09-19, the
   same second as the target reset in the fault's `dmesg` — the controller
   resetting itself around a disk that had stopped answering, which is the
@@ -400,6 +406,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   A photograph of the open case had been read here as an empty cage and was
   wrong; the BIOS summary is what caught it. The optical drive came out on
   2026-09-16 and the boot disk took its place, its port and both its cables.
+  **It went back in on 2026-09-29**, at the swap, for burning discs. It
+  answers as `sr0` on `ata5` at 1.5 Gbps. The boot disk stays on its bracket
+  in the same place and on `ata6`, and the cage fan was re-checked spinning.
   The bay is a cage carrying its own fan on the board's `AUX1_FAN` header, and
   that fan is **not optional**: it is the airflow over the drive bays, and two
   7200 rpm Exos under a scrub will want it. Reconnected after the swap and
@@ -496,8 +505,9 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   the seller receiving it. So the replacement is a purchase, and it is the
   entry below. `ZVTBSDL3` stays in this entry as the drive that faulted.
 - Seagate Exos X20 18 TB, `ST18000NM003D`[^Exos2] — 3.5" SATA 6 Gb/s,
-  7200 rpm, **eBay Refurbished**, from goharddrive. **Bought 2026-09-24, in
-  transit**, with an estimated delivery of 2026-09-26 to 2026-09-29, under
+  7200 rpm, **eBay Refurbished**, from goharddrive. **Bought 2026-09-24,
+  fitted 2026-09-29**, serial `ZVTLQEZ7`, firmware `SN06` (the pair was on
+  `SN03`). The estimated delivery had been 2026-09-26 to 2026-09-29, under
   [#558](https://github.com/Gerrrt/HomeLab/issues/558). $499.99 and $51.50
   tax, **$551.49 all in**. It replaces `ZVTBSDL3` in `erebor`'s mirror,
   alongside `ZVTBS4NL`. It is the same part number as the pair above but
@@ -516,6 +526,27 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   resilver and scrub. A refurbished drive's hours are the listing's claim
   until SMART reads them. The Compute table still reads a two-disk mirror,
   and the pool is whole again only when the resilver completes.
+  **Checked 2026-09-29, and it is unused by the counter a reset cannot
+  touch.**
+  - **Seagate's lookup, 12:15 PDT:** *"Please contact the place of
+    purchase"*. This is the same answer `ZVTBSDL3` got, and it is what a
+    refurbished listing implies. The eBay/Allstate warranty is the remedy.
+  - **SMART at 13:46 PDT, before the Replace:** `PASSED`. 0 power-on
+    hours, one power cycle, 0 LBAs written, and 0 on every error count:
+    reallocated, pending, offline-uncorrectable, CRC and command timeout.
+    The error log is empty and no self-test is logged. 28 °C.
+  - **FARM:** **0 power-on, 0 spindle and 0 head-flight hours**, two power
+    cycles and three hardware resets. 20 heads, CMR, 18,204 spare sectors,
+    and 0 reallocated and 0 candidates on every head. The 12 V and 5 V
+    rails read 12.146 and 4.949. The assembly-date field reads `6201`,
+    recorded as printed. Read YYWW with its halves swapped, it would be
+    2026 week 01.
+  - **It joined `erebor` the same afternoon.** The resilver ran 23 s and
+    the scrub came back clean
+    ([`replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md) step 5).
+    The pool is whole again.
+  - **Its extended self-test (an estimated 1,658 minutes) is not yet
+    read.** Its result is this entry's next line.
 - Intel DC S3520 240 GB, 2.5" SATA 6 Gb/s enterprise SSD with power-loss
   protection — bought 2026-09-11, **in hand since 2026-09-15**. `smaug`'s boot
   disk, carrying TrueNAS and the media stack it launches
@@ -591,6 +622,35 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   it — worth knowing before reading a slow self-test as a sick disk. TrueNAS's
   scheduled tests take it from here; they run the tests, and ADR-0047
   publishes the attributes.
+  **A clean shutdown counts as unsafe on this drive. Read 2026-09-29**
+  ([#746](https://github.com/Gerrrt/HomeLab/issues/746)). The
+  counter read 522 at 13,508 hours, just before the memory install. The
+  machine was stopped by *System → Shut Down* in the TrueNAS UI, and after
+  the boot the counter read **523** on both attributes. That shutdown was
+  clean, and still added one. So the +3 between 2026-09-21 (519) and that
+  morning were the planned shutdowns of 2026-09-22 and 2026-09-29, not power
+  events. The same likely explains most of the 509 its previous owner left.
+  `SmartDriveUnsafeShutdownsGrowing` assumes the opposite: its comment says
+  a clean shutdown on the UPS's signal does not move the counter. On this
+  drive, then, it cannot tell a planned reboot from a power cut. It did not
+  fire on 2026-09-29 only because the drive's letter moved between the two
+  readings (`sdc` to `sdb`), so its 1-day comparison had nothing to match.
+  *Answered 2026-10-01:* `smaug` now records its clean stops itself
+  (`scripts/mark-clean-shutdown.sh`, a TrueNAS SHUTDOWN init script), and the
+  rule pages only on the unsafe shutdowns those do not account for.
+  **Corrected 2026-10-03: a clean shutdown does not tick this drive.** Two UI
+  Restarts and a UI Shut Down, left plugged in, all left it at 523. On
+  2026-09-29 the machine was also unplugged for the memory install after the
+  Shut Down, and that is what the drive counted. The likeliest reading is
+  that the TS150 keeps the SATA rail on standby power while "off", so mains
+  removal is when the drive loses power; that was not measured. The rule
+  pages on any tick again, and the clean count only explains a page.
+  **Its letter is not stable.** On the chipset the boot SSD read `sdc` after
+  the disk swap and `sdb` after the memory install, a boot with no disk
+  changed. The baseline row moved to `/dev/sdb` the same day, and since
+  [#745](https://github.com/Gerrrt/HomeLab/issues/745) it is keyed on the
+  drive's port, `pci-0000:00:17.0-ata-6`, which a reboot does not move
+  ([ADR-0066](adr/0066-key-smart-series-on-the-port-not-the-letter.md)).
 - 2× Samsung SM863a 960 GB (`MZ-7KM960N`), 2.5" SATA 6 Gb/s enterprise
   SSDs with power-loss protection[^SM863a] — purchased 2026-09-09, delivered
   2026-09-11, fitted 2026-09-18 in bays 3 and 4 of the ProLiant, and **since
@@ -821,7 +881,24 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   what the arrival has to check is what no listing can answer: that three
   strangers and the incumbent train together at 2133 and that the board posts
   with every slot filled. Until then the Compute table reads 8 GB, because
-  memory in a box in transit is not memory in the machine. Ordered the day
+  memory in a box in transit is not memory in the machine.
+  **Arrived and fitted 2026-09-29, and the board takes all four.**
+  - **The fit.** It was a shutdown of its own after the disk swap's scrub,
+    so that a module that would not train could not be confused with the
+    pool. The three new modules went into the empty slots and the
+    incumbent was not reseated.
+  - **POST.** The board read **32768 MB at 2133 MHz**.
+  - **`dmidecode` in TrueNAS.** *Single-bit ECC*, and four 8 GB
+    `M391A1G43EB1-CPB`, one each in ChannelA DIMM 0 and 1 and ChannelB
+    DIMM 0 and 1, all configured at 2133 MT/s. The incumbent's label reads
+    `-CPBQ` and its SPD reports the same part number as the three.
+  - **The rest.** EDAC `mc0` reads 0 corrected and 0 uncorrected errors, and
+    `zpool status -x` reads all pools healthy. `free -g` gives 31 GiB, and
+    `node_memory_MemTotal_bytes` reads 33,379,954,688 from the monitoring
+    host.
+  - **No MemTest86 pass is recorded.** ECC with EDAC watching is the running
+    check instead.
+  - **The Compute table now reads 32 GB.** Ordered the day
   after the label was photographed, which is what settled the part number —
   `PC4-2133P-EE1-11` off the installed module, `EE` being ECC unbuffered, and
   this listing naming `PC4-17000P-E` for the same thing.
@@ -836,27 +913,33 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   [`copy-the-backups-offsite.md`](runbooks/copy-the-backups-offsite.md)) and
   this drive is not that medium. 5 TB against a 2 TB source — Immich's
   originals on `trinity`'s USB disk, plus Paperless's documents — so the
-  capacity question does not come back. **What it cost is not written down
-  here**, which is this entry's one gap and the thing to close when the
-  receipt is to hand; the roadmap's rule is that a purchase is recorded when
-  the money is spent, and the date and the part are what that rule is for.
-  **Delayed in transit.** Amazon moved the delivery estimate on 2026-09-22 and
-  refunded the delivery fee. It had still not arrived on 2026-09-26, and that
-  day the delay went to Amazon customer service. What they answer, and the
-  day it lands, go here.
+  capacity question does not come back. **$236.70**, against the ~$150 #455
+  estimated when it was filed.
+  **Delayed in transit, then arrived 2026-09-29.** Amazon moved the delivery
+  estimate on 2026-09-22 and refunded the delivery fee. On 2026-09-26 the
+  delay went to Amazon customer service. It landed on 2026-09-29.
   **It has no vendor encryption and that is why it qualifies**: ADR-0023
   requires a key that is not the one only the operator holds, and a drive
   password is a single-holder secret behind a vendor utility, which is the
   failure that ADR exists to prevent moved one shelf further away. The
-  encryption is the estate's own, over a filesystem the other person's machine
-  can read — the pairing, and whose key it is, are
-  [#455](https://github.com/Gerrrt/HomeLab/issues/455)'s two open conditions,
-  neither of which a drive satisfies. Three things the fit checks rather than
-  assumes: it ships formatted for Windows and wants reformatting for that
-  pairing; its cable is USB 3.0 Micro-B at the drive end, so **the cable
-  travels with the drive** or the drive is a brick at the other address; and a
-  5 TB 2.5" drive of this class is shingled, which is fine for an archive
+  encryption is the estate's own. Whose key it is and which filesystem were
+  settled on 2026-10-01 by
+  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md):
+  age archives on **exFAT**, which any holder's computer reads, encrypted to
+  the household holder with the technical second as a fallback. The proof
+  from the other person's device is still
+  [#455](https://github.com/Gerrrt/HomeLab/issues/455)'s. Three things the fit
+  checks rather than assumes: it ships formatted for Windows (NTFS,
+  `Elements`); its cable is USB 3.0 Micro-B at the drive end, so **the cable
+  travels with the drive** or the drive is a brick at the other address; and
+  a 5 TB 2.5" drive of this class is shingled, which is fine for an archive
   written in one pass and not fine as a live target.
+  **Formatted and rehearsed on 2026-10-01**, on `trinity`. It reads as
+  `WDC WD50NDZW-11BCSS0`, serial `WD-WXD2D3684F6U`, 4.5 TiB. It now holds one
+  GPT partition, exFAT, labelled `HOUSEHOLD`. It does not report as removable
+  media, so the carry's warning about that is expected on every visit. The
+  first rehearsal wrote 1.7 GB. It holds a rehearsal, not the household's
+  copy, until there is a holder.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]

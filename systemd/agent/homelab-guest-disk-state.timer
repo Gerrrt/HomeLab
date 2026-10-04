@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeLab: hypervisor guest filesystem capacity
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md
+
+[Timer]
+Unit=homelab-guest-disk-state.service
+# Every 10 minutes, like guest-state and thin-pool-state. GuestDiskWillFillIn24h
+# extrapolates six hours of samples, and GuestDiskCritical waits 15 minutes; a
+# slower cadence would make the collection interval, not the disk, the limit.
+OnCalendar=*:0/10
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
