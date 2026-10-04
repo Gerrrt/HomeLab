@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **Template 911 (Windows 11 26H2) builds. Three Windows 11-only faults
+  stood in the way, and one more in 912's clones**
+  ([#440](https://github.com/Gerrrt/HomeLab/issues/440)).
+  - **OpenSSH would not install.** `Add-WindowsCapability : Access is
+    denied`. Windows 11 downloads OpenSSH Server through Windows Update,
+    which refuses Packer's WinRM network logon. `openssh.ps1` now runs
+    elevated, as a scheduled task. Server ships it installed.
+  - **Sysprep never finished.** The build waited 45 minutes for a power-off.
+    On the kept disk, `blkid` read the Windows partition as
+    `TYPE="BitLocker"`: Windows 11 turns on device encryption by itself
+    with a TPM and Secure Boot, and sysprep will not generalise an
+    encrypting volume. `PreventDeviceEncryption` is now set in the answer
+    file's `specialize` pass. `sysprep.ps1` fails at once, while WinRM can
+    say so, if the drive is not `FullyDecrypted`. The next build's sysprep
+    took 2m32s.
+  - **SSH to the clone was reset at the first auth request.** sshd's debug
+    log, switched on through the guest agent, read `LsaLogonUser() failed
+    ... Status 0xC000006E SubStatus 0xC0000072`: the built-in Administrator
+    was disabled. Client Windows disables it by default and generalising
+    restores that, so `SetupComplete.cmd` now enables the RID-500 account
+    before starting sshd. Enabling it by hand on the kept clone let
+    `phoenix`'s key in.
+  - **WinRM's clean-up on a clone had silently done nothing, on 912 as well
+    as 911.** WinRM had not started yet when `SetupComplete.cmd` ran, so
+    deleting the build's HTTP listener and turning off Basic auth both
+    failed "cannot connect". The service was disabled afterwards, but the
+    configuration stayed. The script now runs `net start WinRM` first. 912
+    needs a rebuild to carry it.
 - **The key scripts' verify hints name the stack they acted on.**
   - **The gap.** `add-recipient.sh` closed by telling the operator to run
     `make secrets-verify-backup KEY=…` with no `STACK`, so it defaulted to
@@ -28,7 +56,6 @@ docstring gives: it is a record, not a claim about now.
     `SecretsKeyBackupUnproven` would have kept naming the key for `sensitive`.
   - **The fix.** `add-recipient.sh`, `remove-recipient.sh` and `bootstrap.sh`
     all take a stack, and each now prints `STACK=<that stack>` in its hint.
-
 - **The sensitive tier's secrets open with two keys, its backups will, and CI
   refuses one** ([#835](https://github.com/Gerrrt/HomeLab/issues/835)).
   - **The gap.** `secrets/sensitive.sops.yaml` was created on 2026-09-28
@@ -49,7 +76,6 @@ docstring gives: it is a record, not a claim about now.
     - soc and lab are left out on purpose: their keys open only credentials a
       rebuild regenerates. The lab is #671's question.
     - The guard's first CI run failed on the real file, as it should have.
-
 - **morpheus's resolver and its disks are watched**
   ([#841](https://github.com/Gerrrt/HomeLab/issues/841)).
   - **Unbound.** The house resolves through Unbound on morpheus, and the only
@@ -73,7 +99,6 @@ docstring gives: it is a record, not a claim about now.
     `/`. bsnmpd's description is `/var, type: zfs, dev: pfSense/var`, not the
     bare mount point. So the rule and the dashboard derive `mountpoint` with
     `label_replace`, and the test fixtures use the real strings.
-
 - **A stopped Loki ruler now pages**
   ([#837](https://github.com/Gerrrt/HomeLab/issues/837)).
   - **The gap.** Every security alert is evaluated by Loki's ruler, and the
@@ -88,7 +113,6 @@ docstring gives: it is a record, not a claim about now.
     The heartbeat already proves the path these three use, so no second
     external check is needed. Tests cover all three, including the absent
     metric.
-
 - **`check_docs.py` now checks the deploy runbook's Rules-page figure.**
   - **The gap.** `deploy-stack.md` step 2 says the page "lists 129: the 127
     alert rules ... plus the two recording rules". That sentence has three
@@ -104,7 +128,6 @@ docstring gives: it is a record, not a claim about now.
   - **Proven by mutation.** Three cases each fail with the line named: the
     total left stale, the recording-rule count wrong, and a third recording
     rule added to `ids.rules.yaml` with the prose untouched.
-
 - **The stack's self-monitoring metrics have rules behind them**
   ([#840](https://github.com/Gerrrt/HomeLab/issues/840)). Each of these was
   charted on a dashboard, or exported and read by nothing:
@@ -127,7 +150,6 @@ docstring gives: it is a record, not a claim about now.
   component's embedded storage cannot page as this server's.
   Prometheus having no Alertmanager at all is left to the Watchdog heartbeat,
   because no rule could deliver that page.
-
 - **No Alloy on the lab segment holds the Docker socket any more**
   ([#836](https://github.com/Gerrrt/HomeLab/issues/836)). Authored; it
   lands on each guest at its next `make up`.
@@ -148,7 +170,6 @@ docstring gives: it is a record, not a claim about now.
     unmasked `/`.
   - **Still open.** `oracle`'s agent is a single `docker run` from
     `deploy-agent.sh`, not a compose service, so the guard cannot see it.
-
 - **A container that stops and stays stopped now raises an alert**
   ([#838](https://github.com/Gerrrt/HomeLab/issues/838)).
   - **The gap.** The container rules covered restart loops, OOMs, memory and
@@ -165,7 +186,6 @@ docstring gives: it is a record, not a claim about now.
   - Tests cover all three. Two deliberately broken versions of `ContainerGone`
     were caught by them.
   - trinity's sites from the outside are #855.
-
 - **The ruleset no longer requires a branch to be up to date before it
   merges, or its commits to be signed.** `strict_required_status_checks_policy` is false in
   `.github/rulesets/main.json` and on GitHub.
@@ -186,7 +206,6 @@ docstring gives: it is a record, not a claim about now.
     while protecting nothing: merges are squash-only, so every commit that
     lands on `main` is GitHub's own squash, signed with its web-flow key, and
     `converge.sh` checks that signature before deploying.
-
 - **The lab's Prometheus and Loki stop taking orders from VLAN 30**
   ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Authored, not yet
   deployed. The rollout is ordered, clients first, in `stacks/lab/README.md`.
@@ -279,7 +298,6 @@ docstring gives: it is a record, not a claim about now.
     ntfy and the ntfy.sh copies.
   - **Also.** `docs/observability.md` no longer claims the switch UI is
     probed: those probes were removed on 2026-09-06.
-
 - **A red merge can no longer reach a host**
   ([#833](https://github.com/Gerrrt/HomeLab/issues/833)).
   - **The gap.** The repository review found that the ruleset on `main`
