@@ -72,7 +72,7 @@
     {
       "type": "table",
       "title": "Security alerts",
-      "description": "Firing and pending alerts for the six Loki rules this dashboard charts, plus SuricataStopped and SuricataLogsStopped — the process-table rule that says whether the IDS behind the Suricata panels is running at all, and the nine-hour absence rule that says whether it is still emitting — from the ALERTS series Prometheus exposes for its own rules. Scoped by alertname rather than component=logs, which would also pull in the SSH and auth rules that belong to the Logs dashboard. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
+      "description": "One row per firing or pending alert, always the same columns. Each rule brings its own labels, and shown raw they become a column per label, empty on most rows (#888). So the query keeps alertname, state, severity and category, and folds the rest into two: Host, the first of device, instance; and Subject, the first of classification, interface, written as \"label value\". The full label set is in Alertmanager.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -90,7 +90,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "ALERTS{alertname=~\"TerminalSegmentReachedInternalNetwork|LabSegmentReachedInternalNetwork|IoTAttemptedLateralMovement|FirewallLogsStopped|SuricataHighPriorityAlert|SuricataAlertStorm|SuricataStopped|SuricataLogsStopped\",alertstate=~\"firing|pending\"}",
+          "expr": "max by (alertname, alertstate, severity, category, where, subject) (label_replace(label_join(label_replace(label_join(label_replace(label_join(label_replace(label_join(ALERTS{alertname=~\"TerminalSegmentReachedInternalNetwork|LabSegmentReachedInternalNetwork|IoTAttemptedLateralMovement|FirewallLogsStopped|SuricataHighPriorityAlert|SuricataAlertStorm|SuricataStopped|SuricataLogsStopped\",alertstate=~\"firing|pending\"}, \"coalesce_tmp\", \"|\", \"where\", \"device\"), \"where\", \"$1\", \"coalesce_tmp\", \"\\\\|(.+)\"), \"coalesce_tmp\", \"|\", \"where\", \"instance\"), \"where\", \"$1\", \"coalesce_tmp\", \"\\\\|(.+)\"), \"coalesce_tmp\", \"|\", \"subject\", \"classification\"), \"subject\", \"classification $1\", \"coalesce_tmp\", \"\\\\|(.+)\"), \"coalesce_tmp\", \"|\", \"subject\", \"interface\"), \"subject\", \"interface $1\", \"coalesce_tmp\", \"\\\\|(.+)\"))",
           "legendFormat": "",
           "format": "table",
           "range": false,
@@ -104,23 +104,23 @@
           "options": {
             "excludeByName": {
               "Time": true,
-              "__name__": true,
-              "Value": true,
-              "component": true,
-              "job": true,
-              "monitor": true,
-              "site": true,
-              "role": true
+              "Value": true
             },
-            "indexByName": {},
+            "indexByName": {
+              "alertname": 0,
+              "alertstate": 1,
+              "severity": 2,
+              "category": 3,
+              "where": 4,
+              "subject": 5
+            },
             "renameByName": {
               "alertname": "Alert",
               "alertstate": "State",
               "severity": "Severity",
               "category": "Category",
-              "interface": "Interface",
-              "classification": "Classification",
-              "instance": "Instance"
+              "where": "Host",
+              "subject": "Subject"
             }
           }
         }
