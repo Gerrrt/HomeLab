@@ -732,11 +732,20 @@ groups:
         # guests; a tag on the guest is not that table, which is why ADR-0079
         # takes the other side. Tagging a guest `on-demand` is a statement that
         # its being off is never news — use it for that and nothing else.
+        #
+        # AND A GUEST STILL BEING MADE (#899). Proxmox writes a new guest's
+        # config with `lock: clone` (or `lock: create` for a restore) before it
+        # copies the disks, so a full clone is a stopped, untagged guest for the
+        # length of the copy — packer-smoke.sh's VMID 999 went pending that way.
+        # The clone API takes no tags, so the lock is the only signal there is.
+        # A lock that never clears would hide a stopped guest here for good;
+        # GuestCreationStuck below is what notices that.
         expr: >-
           homelab_guest_running == 0
           unless on (host, vmid) homelab_guest_disposable == 1
           unless on (host, vmid) homelab_guest_template == 1
           unless on (host, vmid) homelab_guest_on_demand == 1
+          unless on (host, vmid) homelab_guest_creating == 1
         for: 1h
         labels:
           component: host
@@ -792,6 +801,29 @@ groups:
             {{ $labels.vmid }} --purge`, per
             docs/runbooks/run-a-scratch-investigation.md — or it is no longer
             disposable, and the tag is the thing to remove, deliberately.
+
+      - alert: GuestCreationStuck
+        # The other half of HypervisorGuestStopped's `creating` exclusion: a
+        # config still locked for clone or create after six hours is not a
+        # clone in progress — a full clone of the largest template takes
+        # minutes — but a task that died and left its lock, and the guest it
+        # hides from the stopped-guest rule. Warning; the fix is `qm unlock`
+        # and a look at why, or destroying the half-made guest.
+        expr: homelab_guest_creating == 1
+        for: 6h
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }} has been locked for clone or create for six hours"
+          description: >-
+            `qm config {{ $labels.vmid }}` still shows `lock: clone` or `lock:
+            create`, so the task that was making this guest has stopped
+            without finishing, and HypervisorGuestStopped is ignoring it. Read
+            the task log on the hypervisor, then either `qm unlock
+            {{ $labels.vmid }}` and finish the job, or destroy the half-made
+            guest.
 
       - alert: GuestConfigUnreadable
         # DisposableGuestOutlived's own blind spot (#438). If `qm config` fails

@@ -1334,6 +1334,87 @@ tests:
                 and anything inside it, including the lab stack on `alexander`,
                 is down with it.
 
+  # --- HypervisorGuestStopped: quiet for a guest still being cloned (#899) --
+  # VMID 999 mid full-clone: config locked, disks copying, no tag yet.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_running{host="Saruman",guest="smoke-911",vmid="999",type="qemu"}'
+        values: "0x150"
+      - series: 'homelab_guest_creating{host="Saruman",guest="smoke-911",vmid="999",type="qemu"}'
+        values: "1x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: HypervisorGuestStopped
+        exp_alerts: []
+
+  # --- HypervisorGuestStopped: still fires when creating == 0 -------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_running{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "1x30 0x120"
+      - series: 'homelab_guest_creating{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "0x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: HypervisorGuestStopped
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: alexander
+              vmid: "140"
+              type: qemu
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman: guest alexander has been stopped for an hour"
+              description: >-
+                The hypervisor reports this guest as not running. If it was
+                powered off deliberately this is expected and there is nothing
+                to do — the estate cannot tell the difference, and says so
+                rather than implying it can. If it was not, the guest is down
+                and anything inside it, including the lab stack on `alexander`,
+                is down with it.
+
+  # --- GuestCreationStuck: fires for a lock that outlives its task ---------
+  # 1m, not the collector's 10m: a test series sampled every 10m is absent
+  # between samples (5m lookback), which resets `for` and hides the alert.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_creating{host="Saruman",guest="smoke-911",vmid="999",type="qemu"}'
+        values: "1x450"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: GuestCreationStuck
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: smoke-911
+              vmid: "999"
+              type: qemu
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman: guest smoke-911 has been locked for clone or create for six hours"
+              description: >-
+                `qm config 999` still shows `lock: clone` or `lock: create`, so
+                the task that was making this guest has stopped without
+                finishing, and HypervisorGuestStopped is ignoring it. Read the
+                task log on the hypervisor, then either `qm unlock 999` and
+                finish the job, or destroy the half-made guest.
+
+  # --- GuestCreationStuck: quiet for a clone that finishes ----------------
+  # Locked for half an hour, as a slow full clone might be, then cleared.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_creating{host="Saruman",guest="smoke-911",vmid="999",type="qemu"}'
+        values: "1x30 0x420"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: GuestCreationStuck
+        exp_alerts: []
+
   # --- HypervisorGuestStopped: still fires when template == 0 -------------
   # Without this case the `== 1` could be dropped and every guest with a
   # template series — that is, every guest — would go quiet.

@@ -343,7 +343,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-156 rules in total: 137 metric-based in `prometheus/rules/`, and 19 log-based in
+157 rules in total: 138 metric-based in `prometheus/rules/`, and 19 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -465,7 +465,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-137 rules across eleven files in `prometheus/rules/`:
+138 rules across eleven files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -500,7 +500,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 137 rules of 137 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all ten
+against the broken rule too. Coverage is 138 rules of 138 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all ten
 in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from
