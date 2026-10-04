@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-03
 
+- **Every Loki rule has a behaviour test, and a second dead branch is fixed.**
+  - **The gap.** #893 tested the 8 critical rules. The other 11 had syntax
+    checks only, and the coverage gate asked only for critical ones.
+  - **The fix.** Fixture cases for all 11, and a gate that requires every
+    rule. `LokiRulerWatchdog` is excused from needing a quiet case, because
+    it is `vector(1)`. Three rules assert an absence over 30m, 2h or 9h, so
+    each case now takes a span to itself. The runner checks every rule's own
+    range against that spacing rather than trusting it.
+  - **What it found.** `NewUserOrGroupCreated` matched
+    `(useradd|groupadd|usermod).*new (user|group)`. Alloy's journal source
+    forwards `MESSAGE` alone, which carries no program name, so the journal
+    branch never matched: a journal-only host could create users unseen.
+    `usermod` never logs either phrase. The rule now matches shadow-utils'
+    own `new (user|group): name=`. The tests' first complete CI run failed
+    on that case alone, 41 of 42, as intended.
+  - **Left alone.** `KernelOomKill` skips cgroup OOMs on purpose, and
+    `ContainerOomKilled` has those. An OOM in a non-container cgroup, such as a
+    systemd service with `MemoryMax`, is seen by neither.
+
 - **The critical Loki rules have behaviour tests, and they found a dead one**
   ([#843](https://github.com/Gerrrt/HomeLab/issues/843)).
   - **The gap.** `check_loki_rules.sh` proves the LogQL parses. Nothing proved
