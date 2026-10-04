@@ -267,6 +267,16 @@ rediscovered.
 
 `HypervisorGuestStopped` is a **warning after an hour, not a page**, because the
 estate cannot tell a deliberate shutdown from a crash and should not pretend to.
+Three kinds of guest are left out because off is their normal state, each
+marked on the guest itself and read by the collector:
+
+- a guest tagged `disposable`
+  ([ADR-0071](../adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md));
+- a template (`template: 1`, [#885](https://github.com/Gerrrt/HomeLab/issues/885));
+- a guest tagged `on-demand`, such as `carbuncle` and `siren`, which run per
+  session
+  ([ADR-0079](../adr/0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)).
+
 `GuestStateStopped` covers the collector itself going silent, since "no guests"
 is a legitimate answer and therefore a dangerous silence.
 

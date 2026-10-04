@@ -44,6 +44,15 @@
 > converted in place, if `DISM /online /Get-TargetEditions` lists the
 > edition. This came from an issue drafted on 2026-09-13 and never filed.
 > #440's templates are what keep the rebuild cheap.
+>
+> **`carbuncle` and `siren` no longer trip `HypervisorGuestStopped`.** Added
+> 2026-10-04. The consequence below accepted their warnings, because the only
+> alternative it saw was a table of expected guests. In the week to 2026-10-04
+> the two of them fired for 51 hours each.
+> [ADR-0079](0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)
+> marks them with the Proxmox tag `on-demand`, set on the guest and read by
+> the collector rather than listed here, and the rule excludes it. The text
+> below is left as written, per ADR-0001.
 
 ## Context
 
