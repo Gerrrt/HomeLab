@@ -540,7 +540,7 @@
     {
       "type": "stat",
       "title": "Firewall uptime",
-      "description": "",
+      "description": "How long pf has been enabled on morpheus. pfStatusRuntime is TimeTicks, in hundredths of a second, so the query divides by 100 for the seconds unit. Read raw, it showed 12 years for 44 days (#886). A reboot resets it, and so does disabling and re-enabling pf.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -591,7 +591,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "pfStatusRuntime",
+          "expr": "pfStatusRuntime / 100",
           "legendFormat": "__auto",
           "range": false,
           "instant": true,
