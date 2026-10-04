@@ -393,8 +393,10 @@ nothing behind it. Two pieces:
    `scripts/collect-pbs-task-state.py` reads them from PBS's own job-state
    API every hour and writes them into the textfile directory: each verify,
    prune and garbage-collection job's last outcome and when it ended, and
-   each datastore's snapshots by verify state, the unencrypted ones, and the
-   newest. Install it from `Saruman`, which can reach `golem` as root:
+   each datastore's snapshots by verify state, the ones not encrypted (by
+   each archive's crypt mode, since a `sign-only` backup has a key
+   fingerprint and readable data), the newest, and how many jobs of each
+   kind exist. Install it from `Saruman`, which can reach `golem` as root:
 
    ```bash
    ./scripts/install-agent-collectors.sh --only pbs-task-state root@10.0.30.80
@@ -402,7 +404,8 @@ nothing behind it. Two pieces:
 
    The installer checks the timer and that the file is written mode 644.
    `stacks/lab/prometheus/rules/lab.rules.yaml` reads it: `PbsJobFailed`,
-   `PbsVerifyOverdue` (no verify for a fortnight), `PbsSnapshotVerifyFailed`,
+   `PbsVerifyOverdue` (no verify for a fortnight), `PbsNoVerifyJob`,
+   `PbsSnapshotVerifyFailed`,
    `PbsBackupStale` (nothing for 36 hours), `PbsSnapshotUnencrypted`, and
    `PbsTaskStateStale` for the collector itself. Like every lab rule they
    page nobody (ADR-0020); they are in the lab Prometheus's `/alerts` and in

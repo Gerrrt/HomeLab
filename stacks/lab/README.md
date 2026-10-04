@@ -64,7 +64,7 @@ prometheus/
                            ADR-0029 sized
   rules/soc.rules.yaml     6 rules — the SOC's indexer on odin, whose health is
                            pushed here by stacks/soc's Alloy (ADR-0030)
-  tests/lab.test.yaml      promtool unit tests; all fifteen rules, firing + quiet
+  tests/lab.test.yaml      promtool unit tests; all sixteen rules, firing + quiet
   tests/soc.test.yaml      the same for the six
 loki/loki-config.yaml      single-binary, filesystem, 15-day retention, no ruler
 grafana/

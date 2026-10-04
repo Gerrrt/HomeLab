@@ -16,8 +16,7 @@ as root on golem, so no token or password is involved:
                                              error) and when it ended
     /admin/datastore                         the datastores
     /admin/datastore/<store>/snapshots       every snapshot: its verify state
-                                             and its encryption key's
-                                             fingerprint
+                                             and each file's crypt mode
 
 WHAT IT WRITES, to pbs-task-state.prom in the textfile directory:
 
@@ -33,8 +32,18 @@ WHAT IT WRITES, to pbs-task-state.prom in the textfile directory:
         three always, at 0 when empty, so a failure appearing is a value
         changing and not a series being born.
     homelab_pbs_snapshots_unencrypted{store}                     snapshots with
-        no key fingerprint. ADR-0053 encrypts every backup on Saruman
-        before it leaves, so this is 0 or the job was set up wrong.
+        any data archive whose crypt mode is not `encrypt`. ADR-0053
+        encrypts every backup on Saruman before it leaves, so this is 0 or
+        the job was set up wrong. Not "has a key fingerprint": PBS writes
+        one for a `sign-only` backup too, whose data is in the clear. The
+        manifest, `index.json.blob`, is `sign-only` in every backup, and
+        `client.log.blob` carries no mode; neither is data, so neither
+        counts. A snapshot with no data archive at all cannot be shown to
+        be encrypted, and counts.
+    homelab_pbs_jobs{store, kind}                                how many jobs
+        of each kind each datastore has, 0 included. A verify job deleted
+        or never made leaves no last-run series to be overdue; this is
+        what PbsNoVerifyJob reads instead.
     homelab_pbs_snapshot_newest_timestamp_seconds{store}         the newest
         backup's time; 0 for an empty store, which is not one being
         backed up.
@@ -49,9 +58,8 @@ so the journal says why and PbsTaskStateStale says that the answer stopped.
 Writing zeros instead would make "PBS is down" read as "PBS has nothing to
 verify".
 
-NO BACKUP CONTENT. Job states, snapshot times, verify states and key
-fingerprints. Nothing reads what is inside a backup, and the fingerprint
-identifies a key without being one.
+NO BACKUP CONTENT. Job states, snapshot times, verify states and crypt
+modes. Nothing reads what is inside a backup.
 
 Usage: scripts/collect-pbs-task-state.py [--print]
        scripts/collect-pbs-task-state.py --self-test
@@ -69,6 +77,9 @@ DEBUG = os.environ.get("PBS_DEBUG", "/usr/sbin/proxmox-backup-debug")
 
 KINDS = (("verify", "/admin/verify"), ("prune", "/admin/prune"), ("gc", "/admin/gc"))
 VERIFY_STATES = ("ok", "failed", "none")
+# In every snapshot and not data: the manifest is signed, never encrypted, and
+# the client log is uploaded without a crypt mode.
+NOT_DATA = ("index.json.blob", "client.log.blob")
 
 
 class ReadError(Exception):
@@ -131,10 +142,19 @@ def snapshot_summary(snapshots):
         state = (s.get("verification") or {}).get("state") or "none"
         # Anything PBS adds later counts as not verified OK, which is what it is.
         counts[state if state in counts else "failed"] += 1
-        if not s.get("fingerprint"):
+        data = [f for f in (s.get("files") or []) if f.get("filename") not in NOT_DATA]
+        if not data or any(f.get("crypt-mode") != "encrypt" for f in data):
             unencrypted += 1
         newest = max(newest, int(s.get("backup-time") or 0))
     return counts, unencrypted, newest
+
+
+def job_counts(jobs, stores):
+    """{(store, kind): n} for every datastore and kind, 0 included."""
+    counts = {(st, k): 0 for st in stores for k, _ in KINDS}
+    for st, k, *_ in jobs:
+        counts[(st, k)] = counts.get((st, k), 0) + 1
+    return counts
 
 
 def render(host, jobs, stores):
@@ -156,8 +176,11 @@ def render(host, jobs, stores):
            "Snapshots in the datastore, by verify state (none is never verified).", "gauge",
            [(dict(store=st, verify=v), c[v]) for st, (c, _, _) in sorted(stores.items()) for v in VERIFY_STATES])
     metric("homelab_pbs_snapshots_unencrypted",
-           "Snapshots with no encryption key fingerprint.", "gauge",
+           "Snapshots with a data archive whose crypt mode is not encrypt.", "gauge",
            [(dict(store=st), u) for st, (_, u, _) in sorted(stores.items())])
+    metric("homelab_pbs_jobs",
+           "Jobs of each kind configured for the datastore.", "gauge",
+           [(dict(store=st, kind=k), n) for (st, k), n in sorted(job_counts(jobs, stores).items())])
     metric("homelab_pbs_snapshot_newest_timestamp_seconds",
            "The newest snapshot's backup time; 0 for an empty datastore.", "gauge",
            [(dict(store=st), n) for st, (_, _, n) in sorted(stores.items())])
@@ -217,12 +240,21 @@ def self_test():
     snap_ok = json.loads(
         '{"backup-id":"152","backup-time":1791087763,"backup-type":"vm","comment":"titan",'
         '"fingerprint":"8d:80:00:ab:90:fc:ea:9a:d6:1a:52:5b:eb:71:d0:e9:d5:dd:d1:85:0e:41:85:51:27:a7:3f:a0:61:b1:a9:50",'
+        '"files":[{"crypt-mode":"encrypt","filename":"qemu-server.conf.blob","size":606},'
+        '{"crypt-mode":"encrypt","filename":"drive-scsi0.img.fidx","size":85899345920},'
+        '{"crypt-mode":"sign-only","filename":"index.json.blob","size":662},'
+        '{"filename":"client.log.blob","size":3216}],'
         '"owner":"pve@pbs!saruman","protected":false,"size":85904082241,'
         '"verification":{"state":"ok","upid":"UPID:golem:000030B1:000082AF:0000000F:6AC223A0:verificationjob:erebor\\\\x3aweekly:root@pam:"}}')
     # The same snapshot before Sunday's verify: PBS omits the key entirely.
     snap_new = {k: v for k, v in snap_ok.items() if k != "verification"} | {"backup-time": 1791093000}
     snap_bad = snap_ok | {"verification": {"state": "failed", "upid": "UPID:x"}}
-    snap_plain = {k: v for k, v in snap_ok.items() if k != "fingerprint"}
+    def with_modes(mode):
+        return snap_ok | {"files": [f | ({"crypt-mode": mode} if "crypt-mode" in f and f["filename"] != "index.json.blob"
+                                        else {}) for f in snap_ok["files"]]}
+    snap_plain = {k: v for k, v in with_modes("none").items() if k != "fingerprint"}
+    # Signed with the key, so it HAS a fingerprint, and its data is in the clear.
+    snap_signed = with_modes("sign-only")
 
     check("verify job that ran OK", [("erebor", "verify", "weekly", 1, 1791110495)], job_rows("verify", verify))
     check("prune job that ran OK", [("erebor", "prune", "daily", 1, 1791097200)], job_rows("prune", prune))
@@ -245,6 +277,12 @@ def self_test():
           ({"ok": 1, "failed": 1, "none": 1}, 0, 1791093000), snapshot_summary([snap_ok, snap_bad, snap_new]))
     check("a snapshot with no fingerprint is unencrypted",
           ({"ok": 1, "failed": 0, "none": 0}, 1, 1791087763), snapshot_summary([snap_plain]))
+    check("sign-only has a fingerprint and is still unencrypted",
+          ({"ok": 1, "failed": 0, "none": 0}, 1, 1791087763), snapshot_summary([snap_signed]))
+    check("the sign-only manifest and mode-less log do not make a backup unencrypted",
+          0, snapshot_summary([snap_ok])[1])
+    check("a snapshot with no data archive counts as unencrypted",
+          1, snapshot_summary([snap_ok | {"files": [{"crypt-mode": "sign-only", "filename": "index.json.blob"}]}])[1])
     check("an unknown verify state counts as not ok",
           ({"ok": 0, "failed": 1, "none": 0}, 0, 1791087763),
           snapshot_summary([snap_ok | {"verification": {"state": "something-new"}}]))
@@ -261,6 +299,9 @@ def self_test():
            'homelab_pbs_snapshots{host="golem",store="erebor",verify="failed"} 0',
            'homelab_pbs_snapshots{host="golem",store="erebor",verify="none"} 1'],
           [l for l in text.splitlines() if l.startswith("homelab_pbs_snapshots{")])
+    check("a datastore with no verify job reads 0, not absent",
+          {("erebor", "verify"): 0, ("erebor", "prune"): 1, ("erebor", "gc"): 1},
+          job_counts(job_rows("prune", prune) + job_rows("gc", gc_never), {"erebor": None}))
     check("a label value is escaped", '{host="a\\"b"}', labels(host='a"b'))
     return failed
 

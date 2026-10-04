@@ -11,7 +11,7 @@
 # input, the second proves it does not produce one for the input production
 # actually supplies.
 #
-# All fifteen rules in lab.rules.yaml are covered here. That is a deliberate
+# All sixteen rules in lab.rules.yaml are covered here. That is a deliberate
 # difference from the estate's tests, where four of the nine stack rules are
 # syntax-checked only: this file is small enough that "test the ones that were
 # hard" has no advantage over testing all of them, and a new stack has no
@@ -468,6 +468,48 @@ tests:
     alert_rule_test:
       - eval_time: 20d
         alertname: PbsVerifyOverdue
+        exp_alerts: []
+
+  # --- PbsNoVerifyJob --------------------------------------------------------
+  # The verify job is deleted at t=10m: the count drops to 0 and, an hour
+  # later, fires. Prune and gc jobs still existing do not keep it quiet.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_jobs{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="verify"}'
+        values: "1x9 0x120"
+      - series: 'homelab_pbs_jobs{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="prune"}'
+        values: "1x130"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PbsNoVerifyJob
+        exp_alerts: []
+      - eval_time: 80m
+        alertname: PbsNoVerifyJob
+        exp_alerts:
+          - exp_labels:
+              instance: golem
+              job: golem-metrics
+              host: golem
+              store: erebor
+              kind: verify
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "golem's erebor has no verify job"
+              description: >-
+                Nothing re-reads its backups, so nothing finds a damaged one
+                before a restore does. Recreate it as build-the-backup-guest.md
+                §6 makes it: weekly, Sunday 03:00, re-verify after 30 days.
+
+  # golem as it is: one verify job.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pbs_jobs{instance="golem",job="golem-metrics",host="golem",store="erebor",kind="verify"}'
+        values: "1x130"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: PbsNoVerifyJob
         exp_alerts: []
 
   # --- PbsSnapshotVerifyFailed -----------------------------------------------

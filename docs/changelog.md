@@ -31,9 +31,12 @@ docstring gives: it is a record, not a claim about now.
     hourly, reads PBS's job-state API as root: each verify, prune and
     garbage-collection job's last outcome and when it ended, and each
     datastore's snapshots by verify state, the unencrypted ones, and the
-    newest. Six lab rules read it: `PbsJobFailed`, `PbsVerifyOverdue`,
-    `PbsSnapshotVerifyFailed`, `PbsBackupStale`, `PbsSnapshotUnencrypted`
-    and `PbsTaskStateStale`, each with a firing and a quiet test. Its
+    newest. Seven lab rules read it: `PbsJobFailed`, `PbsVerifyOverdue`,
+    `PbsNoVerifyJob`, `PbsSnapshotVerifyFailed`, `PbsBackupStale`,
+    `PbsSnapshotUnencrypted` and `PbsTaskStateStale`, each with a firing
+    and a quiet test. "Unencrypted" is read from each archive's crypt mode,
+    not from the key fingerprint, which a `sign-only` backup also has
+    (review on #904). Its
     fixtures are `golem`'s own answers that morning. Installed on `golem`
     with `install-agent-collectors.sh`; the series reach `alexander`, and
     every rule's expression is quiet against them.
@@ -45,7 +48,7 @@ docstring gives: it is a record, not a claim about now.
   - **The label it does not use.** The job's ID is `pbs_job`, not `job`,
     which Prometheus already sets to the scrape job and would have renamed
     the collector's to `exported_job`.
-  - **Not deployed yet.** The six rules reach `alexander` with the next
+  - **Not deployed yet.** The seven rules reach `alexander` with the next
     `make up STACK=lab`, which cannot render while the lab's secrets lack
     #834's four tokens. Until then the collector's series arrive and nothing
     evaluates them.

@@ -1,7 +1,7 @@
 ---
 # The lab stack watching itself.
 #
-# Fifteen rules, and the number is still the point. The estate has 48; ADR-0007
+# Sixteen rules, and the number is still the point. The estate has 48; ADR-0007
 # names giving up "Loki, the dashboards and 40 alert rules" as the price of
 # keeping lab telemetry out of the estate, and this file does not pretend to
 # replace them. Four cover this stack's own working — the things that would make
@@ -9,7 +9,7 @@
 # push here, in the detail only their own node_exporter has; the estate pages on
 # the same disks, read another way (ADR-0070). Three cover the domain ADR-0029 sized,
 # and they are here rather than in a stack of their own because this Prometheus
-# is the only thing on the segment that scrapes it. Six cover golem's backups
+# is the only thing on the segment that scrapes it. Seven cover golem's backups
 # (ADR-0053), because a verify nobody watches is a green check with nothing
 # behind it, and this is where the lab looks.
 #
@@ -251,7 +251,7 @@ groups:
       # ADR-0053 and ADR-0027 require a verify job's outcome to reach where the
       # lab already looks; PBS keeps it in its own task log on golem.
       # scripts/collect-pbs-task-state.py publishes it hourly from golem's
-      # textfile directory, and these six read it. Like everything in this
+      # textfile directory, and these seven read it. Like everything in this
       # file they page nobody: they are in /alerts and Grafana for whoever is
       # looking at the lab.
 
@@ -293,6 +293,24 @@ groups:
             re-read are backups not known to be readable. Check the job's
             schedule on golem (Datastore, Verify Jobs) and its task log.
 
+      # The verify job is gone: deleted, or never made on a rebuilt golem.
+      # PbsVerifyOverdue cannot see that, because a job that does not exist
+      # leaves no last-run series to be old, so the collector counts each
+      # datastore's verify jobs, 0 included, and this reads the 0.
+      - alert: PbsNoVerifyJob
+        expr: homelab_pbs_jobs{kind="verify"} == 0
+        for: 1h
+        labels:
+          component: backup
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}'s {{ $labels.store }} has no verify job"
+          description: >-
+            Nothing re-reads its backups, so nothing finds a damaged one
+            before a restore does. Recreate it as build-the-backup-guest.md
+            §6 makes it: weekly, Sunday 03:00, re-verify after 30 days.
+
       # A snapshot PBS has re-read and found damaged. Verify-job failures say
       # the same once; this says it for as long as the snapshot exists, and
       # also for a verify run by hand.
@@ -329,10 +347,11 @@ groups:
             /var/log/vzdump/), `pvesm status` for golem, and the 2049 pass to
             smaug if golem's datastore is unmounted.
 
-      # A snapshot with no key fingerprint was stored without encryption.
-      # ADR-0053 encrypts everything on Saruman before it leaves, so this is a
-      # storage or job set up without the key, and its data sits on smaug in
-      # the clear.
+      # A snapshot with a data archive not in `encrypt` mode: stored in the
+      # clear, or `sign-only`, which carries the key's fingerprint and leaves
+      # the data readable. ADR-0053 encrypts everything on Saruman before it
+      # leaves, so this is a storage or job set up without the key, and its
+      # data sits on smaug in the clear.
       - alert: PbsSnapshotUnencrypted
         expr: homelab_pbs_snapshots_unencrypted > 0
         for: 5m
