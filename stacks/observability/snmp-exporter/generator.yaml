@@ -41,8 +41,9 @@
 # authPriv only — snmp-targets.sh --check refuses the other two levels — and
 # the device is changed BEFORE this file is, per the runbook's order. Which
 # devices are v3 today is the version: line below, nothing else — the iLO
-# since 2026-09-20 and the UPS card since 2026-09-21; the firewall and the
-# switch stay on v2c for the reasons the ADR gives.
+# since 2026-09-20, the UPS card since 2026-09-21, and the switch since the
+# CRS326 replaced the MokerLink (#444, ADR-0041); the firewall stays on v2c for
+# the reason ADR-0036 gives.
 
 auths:
   # The card's profile was created on 2026-09-20 and this poll switched on
@@ -73,12 +74,21 @@ auths:
     priv_protocol: AES
     version: 3
 
-  auth_mokerlink:
-    community: ${SNMP_COMMUNITY_MOKERLINK}
-    security_level: noAuthNoPriv
-    auth_protocol: MD5
-    priv_protocol: DES
-    version: 2
+  # neo is the CRS326 since the swap (#444). ADR-0041 decision 4: SNMPv3
+  # authPriv and no v2c community at all, so nothing the MokerLink held — a
+  # community that leaked on 2026-08-20 and that its firmware would not delete
+  # (#84) — survives onto the new device. RouterOS keeps v3 users under
+  # /snmp/community with security=private, restricted to 10.0.99.20 there. The
+  # empty community is explained in the header; it is not a leftover.
+  auth_neo:
+    community: ""
+    username: prometheus
+    password: ${SNMP_AUTHPASS_NEO}
+    priv_password: ${SNMP_PRIVPASS_NEO}
+    security_level: authPriv
+    auth_protocol: SHA
+    priv_protocol: AES
+    version: 3
 
   auth_pfsense:
     community: ${SNMP_COMMUNITY_PFSENSE}
