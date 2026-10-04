@@ -110,7 +110,7 @@ creation_rules:
   # secrets-init STACK=sensor`, run ON fenrir, fills the placeholder in.
   - path_regex: secrets/sensor(\..+)?\.sops\.ya?ml$
     age: >-
-      REPLACE_WITH_SENSOR_AGE_PUBLIC_KEY
+      age1er585qkxfqyyjf4zqpaukzlngs06r64gx2ndlnmj24pxw0g22amq40u555
 
   # The disposable investigation guest (ADR-0071), for soc's reason: a guest
   # that holds a detonation's output must not be able to open the estate's
