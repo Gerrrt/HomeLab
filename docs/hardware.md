@@ -762,8 +762,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   management MAC, that the rack ears and the power supply are in the box, and
   a netinstall or factory reset before it touches the network — a used
   RouterOS device arrives with whatever its last owner left on it, users
-  included. Those go here when the bench steps are done; as of 2026-10-04 the
-  switch has not been powered on.
+  included. **Read at the bench on 2026-10-05:** revision r2, serial
+  `CD010CC8FC1F`, management MAC `48:8F:5A:0E:A3:FB` (`ether1`). It booted
+  RouterOS 6.48.6 long-term (factory 6.44.6) with MikroTik's default
+  configuration. It went to 6.49.22, then to 7.23.7, the long-term release
+  that day, with the RouterBOOT firmware to match, and was then reset with
+  no defaults. Its 24 copper ports cover every copper port in use on the
+  MokerLink, so no SFP+ copper module is needed.
 - USB stick holding the pfSense installer — **written 2026-09-27 and used
   for #92's rehearsal; it belongs in the rack beside the KVM.** It holds the
   **Netgate Installer**, which downloads the release during the install:

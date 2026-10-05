@@ -17,6 +17,18 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-05
+
+- **The CRS326 is on RouterOS 7, and reset.** Phase 1 of
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) began at the bench
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). The MokerLink's
+  configuration was exported, and the port map was checked against the wiki;
+  port 15 is `smaug`, and no more than 24 copper ports are in use. The CRS326
+  arrived on RouterOS 6.48.6, which is end of life and older than the fix for
+  CVE-2023-30799. The runbook's commands are written for v7, so it went to
+  6.49.22 and then to 7.23.7 long-term before the reset, so the reset ran on
+  the version it keeps. [`hardware.md`](hardware.md) has the serial and MAC.
+
 ## 2026-10-04
 
 - **The CRS326's 24HPOW was delivered on 2026-09-26**, the evening of the

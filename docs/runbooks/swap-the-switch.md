@@ -114,7 +114,19 @@ Boot RouterOS, not SwOS. ADR-0041 records why at length; briefly, SwOS serves
 HTTP only and speaks SNMP v1 and v2c only, which is both of the firmware limits
 this purchase exists to escape.
 
-Wipe whatever the last owner left:
+**Get it onto v7 long-term first.** The commands here use v7's syntax, and
+the unit bought for this swap arrived on 6.48.6, which is end of life. With no
+internet at the bench, download the ARM `.npk` files on the workstation and
+drop them into WebFig's *Files*, at `192.168.88.1` from a static address on
+that subnet. Go to the last 6.49 first, then to v7, rebooting after each, then
+run `/system/routerboard/upgrade` and reboot once more. Ask the update server
+which v7 is long-term rather than guessing from the download page:
+`curl https://upgrade.mikrotik.com/routeros/NEWESTa7.long-term`. The switch
+has 16 MB of flash. If an upload reports not enough space, the fallback is
+Netinstall, which has no macOS build.
+
+Wipe whatever the last owner left. This also removes `192.168.88.1`, so
+reconnect with WinBox's *Neighbors* tab, by MAC:
 
 ```text
 /system/reset-configuration no-defaults=yes skip-backup=yes
