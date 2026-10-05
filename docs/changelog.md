@@ -28,6 +28,22 @@ docstring gives: it is a record, not a claim about now.
   CVE-2023-30799. The runbook's commands are written for v7, so it went to
   6.49.22 and then to 7.23.7 long-term before the reset, so the reset ran on
   the version it keeps. [`hardware.md`](hardware.md) has the serial and MAC.
+- **Phase 1 is done at the bench, apart from the SNMP proof.**
+  - The identity is `neo`.
+  - `www-ssl` serves the estate-CA leaf, and a browser at `10.7.7.2` showed
+    no warning. That needed `reverse-proxy` disabled, which 7.23 enables on
+    the same port.
+  - `ftp`, `telnet`, `api` and `api-ssl` are off.
+  - SNMP has one v3 user, `prometheus` (SHA1/AES), limited to `10.0.99.20`,
+    and the default `public` community is disabled.
+  - The bridge follows the wiki's 2026-09-17 port map. Port 1 is the trunk,
+    with all six VLANs tagged and management untagged on VLAN 1. Ports 2–24
+    accept untagged frames only, each with its VLAN as PVID. VLAN 1 holds only
+    the bridge and port 1, so management is not reachable from an access port,
+    as it was on the MokerLink. The SFP+ cages are disabled. There is no
+    mirroring.
+  - `snmp-verify.sh` cannot reach a switch on a desk, so the v3-only proof
+    moves to Phase 2.
 
 ## 2026-10-04
 
