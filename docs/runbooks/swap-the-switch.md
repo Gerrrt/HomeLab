@@ -224,7 +224,10 @@ House offline. Alertmanager silenced. The MokerLink stays on the bench, cabled
 and powered, until Phase 3 passes.
 
 1. **Widen the firewall pass to `443`** — the rule in `network.md` that admits
-   `10.7.7.2:80`. Both ports open for the duration of the window.
+   `10.7.7.2:80`. Both ports open for the duration of the window. On
+   `morpheus` it is *Allow HTTP to LAN Switch* on the Hicks interface, read
+   from `pfctl -sr` on 2026-10-05. Copy it beside itself with the destination
+   port set to HTTPS, rather than editing it.
 2. Rack the CRS326 at U9. Cat6 from `morpheus`'s `igc0` to **port 1**, the
    trunk.
 3. Move the patch leads, following the §1.1 map.
@@ -235,7 +238,14 @@ and powered, until Phase 3 passes.
    lab on VLAN 30.
 6. Confirm the SNMP scrape is up and the `switch-ui` probe is green.
 7. **Only now**, disable plain `www` on the switch and narrow the firewall rule
-   from `80` to `443`. Prove the UI again afterwards.
+   from `80` to `443`: delete the HTTP original and keep the HTTPS copy. Prove
+   the UI again afterwards.
+8. **Delete *Allow blackbox probe from Prometheus to Switch*** on the Winterfell
+   interface. It passes `10.0.99.20 → 10.7.7.2:80`. The comment in
+   [`blackbox.yaml`](../../stacks/observability/prometheus/targets/blackbox.yaml)
+   says that rule was dropped and no probe uses it, but `pfctl -sr` on
+   `morpheus` still listed it on 2026-10-05. Once `www` is off it reaches
+   nothing. Leave *Allow SNMP from Prometheus to Switch* beside it.
 
 If any of 4–6 fails and is not fixed within the window's budget, roll back: the
 MokerLink returns to U9, the patch leads go back by the same map, and the
