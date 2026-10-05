@@ -52,8 +52,7 @@ Closes when it is empty.
 - **[#444](https://github.com/Gerrrt/HomeLab/issues/444) Swap the MokerLink
   for the CRS326.** Decided by
   [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md).
-  The switch has been in hand since 2026-09-23, without a power adapter.
-  Gate: the 24HPOW landing, and a rack window outside working hours — `neo`
+  Gate: Phase 1 at the bench, then a rack window outside working hours — `neo`
   carries every VLAN, so the swap cannot share the day with anyone working
   on them. → [runbook](runbooks/swap-the-switch.md)
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink's

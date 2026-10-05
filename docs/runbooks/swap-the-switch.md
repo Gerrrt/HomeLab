@@ -101,10 +101,12 @@ Confirm the OS and version it booted, the serial and the management MAC:
 Check the box for rack ears and a power supply — it is a used listing. **This
 model is DC-only**: a `DC 10–28V` barrel jack and no AC inlet, so "a power
 supply" means MikroTik's 24 V adapter, and the unit bought for this swap
-arrived without one (2026-09-23). A 48 V MikroTik adapter has the same plug
+arrived without one (2026-09-23); a 24HPOW was delivered for it on
+2026-09-26. A 48 V MikroTik adapter has the same plug
 and is outside the jack's range. **These
-facts go into [`hardware.md`](../hardware.md)**, replacing the "in transit"
-line, and that edit can land on its own before the window.
+facts go into [`hardware.md`](../hardware.md)**, replacing its "go here when
+the bench steps are done" line, and that edit can land on its own before the
+window.
 
 ### 1.3 Reset, then RouterOS
 
@@ -112,7 +114,19 @@ Boot RouterOS, not SwOS. ADR-0041 records why at length; briefly, SwOS serves
 HTTP only and speaks SNMP v1 and v2c only, which is both of the firmware limits
 this purchase exists to escape.
 
-Wipe whatever the last owner left:
+**Get it onto v7 long-term first.** The commands here use v7's syntax, and
+the unit bought for this swap arrived on 6.48.6, which is end of life. With no
+internet at the bench, download the ARM `.npk` files on the workstation and
+drop them into WebFig's *Files*, at `192.168.88.1` from a static address on
+that subnet. Go to the last 6.49 first, then to v7, rebooting after each, then
+run `/system/routerboard/upgrade` and reboot once more. Ask the update server
+which v7 is long-term rather than guessing from the download page:
+`curl https://upgrade.mikrotik.com/routeros/NEWESTa7.long-term`. The switch
+has 16 MB of flash. If an upload reports not enough space, the fallback is
+Netinstall, which has no macOS build.
+
+Wipe whatever the last owner left. This also removes `192.168.88.1`, so
+reconnect with WinBox's *Neighbors* tab, by MAC:
 
 ```text
 /system/reset-configuration no-defaults=yes skip-backup=yes
@@ -151,6 +165,20 @@ and the new UI is proven:
 Confirm the browser trusts it without a warning. If it does not, the leaf is
 wrong or the CA is not installed on the workstation — fix that here, where there
 is no outage running.
+
+**RouterOS 7.23 also puts a `reverse-proxy` service on `443`, enabled.** With
+it on, the HTTPS login page loads without a warning and WebFig then sits on
+"Connecting" while plain `http` works (2026-10-05). Disable it, along with the
+other services that a reset to no defaults leaves on and nothing here uses:
+
+```text
+/ip/service/disable reverse-proxy,ftp,telnet,api,api-ssl
+```
+
+That leaves `ssh`, `winbox` (the way back in by MAC), `www` until Phase 2 and
+`www-ssl`. A reset switch has nothing to take time from on the bench and
+keeps whatever date it last had, so set the clock by hand in UTC with
+`/system/clock/set`.
 
 ### 1.5 SNMPv3, and no v2c
 
