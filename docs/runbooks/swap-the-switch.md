@@ -236,7 +236,11 @@ and powered, until Phase 3 passes.
    `morpheus`, which depends on the switch you have just replaced.
 5. Walk the VLANs: internet, wireless, a camera on Skids, a host on VLAN 99, the
    lab on VLAN 30.
-6. Confirm the SNMP scrape is up and the `switch-ui` probe is green.
+6. Confirm the SNMP scrape is up: `up{job="snmp"}` for `10.7.7.2` is `1`, over
+   v3 once the repository half is applied. There is no `switch-ui` probe to
+   check. It was removed on 2026-09-06, as the comment in
+   [`blackbox.yaml`](../../stacks/observability/prometheus/targets/blackbox.yaml)
+   records, and the UI is proven by step 4.
 7. **Only now**, disable plain `www` on the switch and narrow the firewall rule
    from `80` to `443`: delete the HTTP original and keep the HTTPS copy. Prove
    the UI again afterwards.
