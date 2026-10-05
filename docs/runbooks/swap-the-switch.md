@@ -166,6 +166,20 @@ Confirm the browser trusts it without a warning. If it does not, the leaf is
 wrong or the CA is not installed on the workstation — fix that here, where there
 is no outage running.
 
+**RouterOS 7.23 also puts a `reverse-proxy` service on `443`, enabled.** With
+it on, the HTTPS login page loads without a warning and WebFig then sits on
+"Connecting" while plain `http` works (2026-10-05). Disable it, along with the
+other services that a reset to no defaults leaves on and nothing here uses:
+
+```text
+/ip/service/disable reverse-proxy,ftp,telnet,api,api-ssl
+```
+
+That leaves `ssh`, `winbox` (the way back in by MAC), `www` until Phase 2 and
+`www-ssl`. A reset switch has nothing to take time from on the bench and
+keeps whatever date it last had, so set the clock by hand in UTC with
+`/system/clock/set`.
+
 ### 1.5 SNMPv3, and no v2c
 
 Follow §4 of [`rotate-snmp-community.md`](rotate-snmp-community.md) for the
