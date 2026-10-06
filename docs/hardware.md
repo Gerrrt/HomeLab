@@ -59,6 +59,49 @@ Nothing in this repository depended on the order, but the wiki's rack page had
 it right and this table did not, so the correction is recorded rather than
 quietly swapped.
 
+### Planned: an 18U rack
+
+**Not bought, not built.** The 9U frame has no free unit. `trinity` and both
+laptops sit on a shelf beside it, and there is no room for a cable manager or
+for an air gap over the CRS326. This plan, drafted on 2026-10-06, sizes the
+replacement. It becomes the table above on the day the rack is moved.
+
+**The frame:** four-post, open, with adjustable depth reaching at least 30".
+The DL360 Gen9 is about 70 cm deep and its rails need four posts. The UPS
+needs rear support. Open frame suits a fanless switch.
+
+| U | Device | Why here |
+| --- | --- | --- |
+| U18 | *spare* | Headroom: a second server, a 1U console drawer |
+| U17 | *spare* | |
+| U16 | *spare* | |
+| U15 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
+| U14 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built |
+| U13 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped plug was #914's fault |
+| U12 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
+| U11 | *spare* | Space between the network and compute groups |
+| U10 | MT-VIKI 8-port KVM | Middle of the rack, at the console's reach |
+| U9 | ProDesk Mini tray: `trinity` | Off the shelf. Same tray as `morpheus` |
+| U8 | ProDesk Mini tray: `morpheus` | |
+| U7 | Vented shelf: TP-Link 8-port | Feeds the two laptops directly below it |
+| U6 | Vented shelf: `oracle`, flat, lid closed | One laptop per 1U shelf. They do not fit side by side in 19" |
+| U5 | Vented shelf: `prometheus`, flat, lid closed | |
+| U4 | 10-outlet PDU | Fed by the UPS, close to it, so the cords are short |
+| U3 | HPE ProLiant DL360 Gen9 (`shiva`/`Saruman`) | Heavy and deep, so low |
+| U1–U2 | APC Smart-UPS X 1500 (`mjolnir`) | Heaviest, at the bottom |
+
+Fourteen units are used and four are spare. `smaug` stays in the media room
+on its long cord. A TS150 laid on its side needs about 4–5U, which would make
+this a 22–25U rack instead.
+
+**Before either laptop's lid is closed:** both run logind's default, which
+*suspends* on lid close. That was checked on 2026-10-06, with no
+`HandleLidSwitch` set on `prometheus` or `oracle`. Closing `prometheus`'s lid
+as things stand would suspend the whole observability stack. Set
+`HandleLidSwitch=ignore`, plus `HandleLidSwitchExternalPower` and
+`HandleLidSwitchDocked`, on both, and prove it with a closed lid while
+watching `up`, before either goes onto its shelf.
+
 ## Compute
 
 | Host | Hardware | CPU | RAM | Storage | OS |
