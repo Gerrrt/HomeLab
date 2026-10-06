@@ -59,6 +59,87 @@ Nothing in this repository depended on the order, but the wiki's rack page had
 it right and this table did not, so the correction is recorded rather than
 quietly swapped.
 
+### Planned: a 27U rack
+
+**Not bought, not built.** The 9U frame has no free unit. `trinity` and both
+laptops sit on a shelf beside it, the console's screen, keyboard and mouse
+are loose, and there is no room for a cable manager or for an air gap over
+the CRS326. This plan, drafted on 2026-10-06, sizes the replacement. It
+becomes the table above on the day the rack is moved.
+
+**The frame:** four-post, open, with adjustable depth reaching at least 30".
+The DL360 Gen9 is about 70 cm deep and its rails need four posts. The UPS
+needs rear support. Open frame suits a fanless switch.
+
+**Why 27U and not 18U:** the existing ViewSonic N1700W goes into the rack
+rather than a 1U LCD console drawer, chosen 2026-10-06. A VESA rack mount
+for a 17" screen is typically 8U, and its keyboard and mouse need a 1U
+sliding shelf.
+
+**The N1700W: what is settled, and the one figure still open.** It is
+431 × 414 × 172 mm (W × H × D) and 5.6 kg. It takes VGA and DVI inputs, so
+it connects to the VGA KVM directly. It runs from an external 12 V brick
+that needs a PDU outlet and somewhere to sit. 431 mm is inside a 19" rack's
+opening, about 450 mm between the rails.
+
+**It is VESA 100 × 100 mm**, from its manual's wall-mount section, confirmed
+2026-10-06. The four holes sit under rubber plugs once the stand's four
+screws are out. So it takes a standard VESA rack mount with the stand off.
+The spec sheet's 414 mm includes the stand. **The bare panel's height has
+not been measured.** At 355 mm or less it fits the 8U mount tabled below.
+If it is taller, use a 9U mount, and the frame keeps 3 spare units, not 4.
+
+| U | Device | Why here |
+| --- | --- | --- |
+| U20–U27 | ViewSonic N1700W on an 8U VESA rack mount | Top of the rack, at standing eye height. Light, so high is fine |
+| U19 | 1U sliding keyboard and mouse shelf | Directly under the screen, about 90 cm up, a standing-desk height |
+| U18 | MT-VIKI 8-port KVM | Beside the console, so its console cables are short. It was at U6 |
+| U17 | *spare* | Headroom: a second server, more storage |
+| U16 | *spare* | |
+| U15 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
+| U14 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built |
+| U13 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
+| U12 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
+| U11 | *spare* | Space between the network and compute groups, and the next unit to go |
+| U10 | 1U mount for a Lenovo ThinkCentre Tiny: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so buy a mount made for the Tiny and check it fits before reusing `morpheus`'s tray design |
+| U9 | ProDesk Mini tray: `trinity` | Off the shelf. Same tray as `morpheus` |
+| U8 | ProDesk Mini tray: `morpheus` | |
+| U7 | Vented shelf: TP-Link 8-port | Feeds the two laptops directly below it |
+| U6 | Vented shelf: `oracle`, flat, lid closed | One laptop per 1U shelf. They do not fit side by side in 19" |
+| U5 | Vented shelf: `prometheus`, flat, lid closed | |
+| U4 | 10-outlet PDU | Fed by the UPS, close to it, so the cords are short |
+| U3 | HPE ProLiant DL360 Gen9 (`shiva`/`Saruman`) | Heavy and deep, so low |
+| U1–U2 | APC Smart-UPS X 1500 (`mjolnir`) | Heaviest, at the bottom |
+
+Twenty-four units are used and three are spare (U11, U16, U17). A 25U frame
+also fits, with one spare. `smaug` stays in the media room on its long cord. A TS150 laid on
+its side would need about 4–5U more.
+
+**`ifrit` was bought on 2026-10-05:** eBay item 800466163205, "Lenovo
+ThinkCentre M80q Micro i7-10700T 2GHz 8GB 256GB SSD", refurbished. It is a
+1-litre Tiny chassis, so 1U. It is not usable as the range yet. ADR-0017
+asks for 32 GB of socketed RAM and NVMe, and two parts are still to buy:
+
+- 2 × 16 GB DDR4 SO-DIMM, replacing the 8 GB it ships with;
+- a 1 TB NVMe SSD, for the range's snapshot reverts.
+
+It runs from an external power brick, like the ProDesks, which needs a PDU
+outlet and somewhere to sit. Its port goes to the switch on ImaginationLAN
+(ADR-0014). The build is #421.
+
+The rejected alternative was a 1U LCD console drawer: a built-in screen,
+keyboard and touchpad, about $300–500. It would have kept the rack at 18U,
+and some models replace the KVM too. It is the move to make if the rack
+ever runs out of units.
+
+**Before either laptop's lid is closed:** both run logind's default, which
+*suspends* on lid close. That was checked on 2026-10-06, with no
+`HandleLidSwitch` set on `prometheus` or `oracle`. Closing `prometheus`'s lid
+as things stand would suspend the whole observability stack. Set
+`HandleLidSwitch=ignore`, `HandleLidSwitchExternalPower=ignore` and
+`HandleLidSwitchDocked=ignore` on both, and prove it with a closed lid while
+watching `up`, before either goes onto its shelf.
+
 ## Compute
 
 | Host | Hardware | CPU | RAM | Storage | OS |
