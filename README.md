@@ -94,8 +94,8 @@ documents for different readers.
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
-- **Dashboards and alerting as code.** 7 provisioned dashboards, 144 panels, and
-  157 alert rules — 138 metric-based in Prometheus, 19 log-based in Loki — sharing
+- **Dashboards and alerting as code.** 8 provisioned dashboards, 156 panels, and
+  163 alert rules — 144 metric-based in Prometheus, 19 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -177,7 +177,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 | Collection | [Grafana Alloy](stacks/observability/alloy) | every Linux host but `smaug`, which is scraped through node_exporter instead | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
 | Network polling | [snmp_exporter](stacks/observability/snmp-exporter) | `prometheus` | pfSense, switch, UPS, iLO |
 | Alerting | [Alertmanager](stacks/observability/alertmanager) | `prometheus` | Severity routing, inhibition |
-| Visualisation | [Grafana](stacks/observability/grafana) | `prometheus` | 7 provisioned dashboards |
+| Visualisation | [Grafana](stacks/observability/grafana) | `prometheus` | 8 provisioned dashboards |
 | Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | `alexander` | The lab's own Prometheus; only liveness crosses to the estate's, never telemetry |
 | Security tooling | [Wazuh, Velociraptor](stacks/soc) | `odin` | SIEM and endpoint forensics for the lab domain |
 | Network sensor | [Zeek](stacks/sensor) | `fenrir` | East-west traffic on the lab bridge, from a `tc` mirror |
@@ -191,12 +191,12 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 .
 ├── stacks/
 │   ├── observability/        # the estate's stack on prometheus — nine services
-│   │   ├── prometheus/       #   config, file_sd targets, 138 alert rules
+│   │   ├── prometheus/       #   config, file_sd targets, 144 alert rules
 │   │   ├── alertmanager/     #   routing and inhibition
 │   │   ├── loki/             #   single-binary config + 19 LogQL rules
 │   │   ├── alloy/            #   the agent config directory, shipped to every host
 │   │   ├── snmp-exporter/    #   generator.yaml is the source of truth
-│   │   └── grafana/          #   provisioning + 7 dashboards
+│   │   └── grafana/          #   provisioning + 8 dashboards
 │   ├── sensitive/            # the household's tier on trinity — its own CA,
 │   │                         #   leaves over ACME (ADR-0034, ADR-0037)
 │   ├── media/                # Jellyfin, Audiobookshelf and Navidrome on smaug,
@@ -249,6 +249,7 @@ make secrets-init     # generate an age keypair, create the encrypted secrets fi
 make secrets-edit     # fill in real values
 make certs ARGS=--ca  # create the lab CA
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"    # Grafana's leaf
+make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"    # speedtest-tracker's
 make validate         # everything CI runs
 make up               # render config and start the stack
 ```

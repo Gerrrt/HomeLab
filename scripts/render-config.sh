@@ -114,6 +114,10 @@ the stack cannot start without them. Generate them with:
 
   make certs ARGS=--ca
   make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\"
+  make certs ARGS=\"--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker\"
+
+The speedtest leaf serves speedtest-tracker's UI (#914); the CA already exists
+by then, so it is the one line to run.
 
 Full procedure in docs/runbooks/generate-certificates.md.
 
@@ -537,6 +541,7 @@ COMPOSE_VARS=(
   GRAFANA_ADMIN_USER
   GRAFANA_ADMIN_PASSWORD
   GRAFANA_RENDERER_TOKEN
+  SPEEDTEST_APP_KEY
   INGEST_TOKEN_ORACLE
   INGEST_TOKEN_TRINITY
   INGEST_TOKEN_SARUMAN

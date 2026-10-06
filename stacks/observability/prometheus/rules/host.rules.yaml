@@ -4,7 +4,10 @@ groups:
     interval: 30s
     rules:
       - alert: InstanceDown
-        expr: up == 0
+        # speedtest-tracker is excluded: a measurement tool being unreachable
+        # is not worth a page. SpeedtestTrackerDown in internet.rules.yaml is
+        # the same condition at warning (#914).
+        expr: up{job!="speedtest-tracker"} == 0
         for: 5m
         labels:
           component: host

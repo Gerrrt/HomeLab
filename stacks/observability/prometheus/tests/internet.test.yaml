@@ -1,0 +1,286 @@
+---
+# Unit tests for internet.rules.yaml (#914).
+#
+# Every firing case is paired with a quiet near-miss, per containers.test.yaml.
+# The speed-test fixtures are the first two results speedtest-tracker recorded
+# on 2026-10-05 (2,186,960 and 36,456,280 bit/s down; ~297 Mbit/s up); the
+# error fixture is em0's measured rate under load that day. So a green run
+# means these fire against the fault that motivated them.
+#
+# What these prove beyond `promtool check rules`:
+#   - the WAN recording rule joins on the interface NAME: a decoy interface
+#     carrying more traffic than em0 must not be what the alert sees;
+#   - the speed rules need three slow tests, not one: one good test in three
+#     keeps them quiet;
+#   - SpeedtestStale is one alert however many of its branches are true, and
+#     stays out of the way while SpeedtestTrackerDown owns the outage.
+
+rule_files:
+  - ../rules/internet.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- InternetDownloadSlow: three slow tests in a row ----------------------
+  - interval: 1m
+    input_series:
+      - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "2186960x120"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: InternetDownloadSlow
+        exp_alerts:
+          - exp_labels:
+              component: internet
+              severity: warning
+              category: performance
+            exp_annotations:
+              summary: "Three speed tests in a row measured under 400 Mbit/s down"
+              description: >-
+                The best download in the last 35 minutes was
+                2.187Mbit/s, and it has stayed under 400M for an
+                hour. Open the Internet dashboard: if WAN receive was near its
+                ~940M ceiling while the tests ran, something in the house is using
+                the link; if it was quiet, the shortfall is the ISP's.
+      # One slow test is not three.
+      - eval_time: 40m
+        alertname: InternetDownloadSlow
+        exp_alerts: []
+
+  # --- InternetDownloadSlow: quiet when one test in three is good ------------
+  # The gauge holds each result for the 30 minutes until the next test. Two
+  # slow tests and then a good one, repeated: every 35m window reaches back to
+  # a good result, so the rule never holds for its hour.
+  - interval: 1m
+    input_series:
+      - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "2186960x59 900000000x29 2186960x59 900000000x29"
+    alert_rule_test:
+      - eval_time: 170m
+        alertname: InternetDownloadSlow
+        exp_alerts: []
+
+  # --- InternetUploadSlow ----------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'speedtest_tracker_upload_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "50000000x120"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: InternetUploadSlow
+        exp_alerts:
+          - exp_labels:
+              component: internet
+              severity: warning
+              category: performance
+            exp_annotations:
+              summary: "Three speed tests in a row measured under 100 Mbit/s up"
+              description: >-
+                The best upload in the last 35 minutes was
+                50Mbit/s, and it has stayed under 100M for an
+                hour. Compare WAN transmit on the Internet dashboard: a backup or
+                a cloud sync saturating the upstream looks exactly like this.
+
+  # The measured upload, ~297 Mbit/s, is nowhere near the line.
+  - interval: 1m
+    input_series:
+      - series: 'speedtest_tracker_upload_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "297262912x120"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: InternetUploadSlow
+        exp_alerts: []
+
+  # --- WanLinkSaturated: em0 at 92% of its ~940M, a busier decoy beside it --
+  # 6.5e9 bytes a minute is 866.7 Mbit/s. Index 3 (enc0) carries more than
+  # em0 does; if the join matched by position or not at all, the sum would
+  # include it and the value would be wrong.
+  - interval: 1m
+    input_series:
+      - series: 'pfInterfacesIf4BytesInPass{job="snmp",instance="10.0.99.1",pfInterfacesIfIndex="2"}'
+        values: "0+6500000000x30"
+      - series: 'pfInterfacesIf6BytesInPass{job="snmp",instance="10.0.99.1",pfInterfacesIfIndex="2"}'
+        values: "0+0x30"
+      - series: 'pfInterfacesIfDescr{job="snmp",instance="10.0.99.1",pfInterfacesIfIndex="2",pfInterfacesIfDescr="0x656D30"}'
+        values: "1x30"
+      - series: 'pfInterfacesIf4BytesInPass{job="snmp",instance="10.0.99.1",pfInterfacesIfIndex="3"}'
+        values: "0+9000000000x30"
+      - series: 'pfInterfacesIf6BytesInPass{job="snmp",instance="10.0.99.1",pfInterfacesIfIndex="3"}'
+        values: "0+0x30"
+      - series: 'pfInterfacesIfDescr{job="snmp",instance="10.0.99.1",pfInterfacesIfIndex="3",pfInterfacesIfDescr="0x656E6330"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WanLinkSaturated
+        exp_alerts:
+          - exp_labels:
+              direction: receive
+              component: internet
+              severity: info
+              category: saturation
+            exp_annotations:
+              summary: "The WAN receive direction has been over 85% full for ten minutes"
+              description: >-
+                WAN receive is at 92.2%
+                of capacity. Everything else on the link is competing with whatever
+                this is; the switch's per-port throughput on the Network dashboard
+                names the device.
+
+  # 5.5e9 bytes a minute is 733 Mbit/s, 78%: busy, and not saturated.
+  - interval: 1m
+    input_series:
+      - series: 'pfInterfacesIf4BytesInPass{job="snmp",instance="10.0.99.1",pfInterfacesIfIndex="2"}'
+        values: "0+5500000000x30"
+      - series: 'pfInterfacesIf6BytesInPass{job="snmp",instance="10.0.99.1",pfInterfacesIfIndex="2"}'
+        values: "0+0x30"
+      - series: 'pfInterfacesIfDescr{job="snmp",instance="10.0.99.1",pfInterfacesIfIndex="2",pfInterfacesIfDescr="0x656D30"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WanLinkSaturated
+        exp_alerts: []
+
+  # --- WanReceiveErrors: em0 as it read on 2026-10-05 ------------------------
+  # Ten errors a minute is 150 in fifteen minutes. igc0 beside it reads 0, as
+  # every other interface on morpheus did.
+  - interval: 1m
+    input_series:
+      - series: 'ifInErrors{job="snmp",instance="10.0.99.1",ifIndex="2",ifDescr="em0"}'
+        values: "570172+10x60"
+      - series: 'ifInErrors{job="snmp",instance="10.0.99.1",ifIndex="1",ifDescr="igc0"}'
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WanReceiveErrors
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.1
+              ifIndex: "2"
+              ifDescr: em0
+              component: internet
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "morpheus's WAN port is receiving corrupted frames"
+              description: >-
+                em0 counted 150 receive errors in fifteen
+                minutes; a healthy wired link counts none. Every dropped frame is a
+                TCP retransmit, so downloads crawl while uploads stay fast. In
+                order: replace the patch cable between the XB7 and morpheus, move
+                it to another XB7 port, then suspect the I219's port.
+                `ssh admin@10.0.99.1 sysctl dev.em.0.mac_stats.crc_errs` shows the
+                counter directly.
+
+  # A stray error every two minutes, 7.5 in fifteen: under the line.
+  - interval: 1m
+    input_series:
+      - series: 'ifInErrors{job="snmp",instance="10.0.99.1",ifIndex="2",ifDescr="em0"}'
+        values: "570172+0.5x60"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WanReceiveErrors
+        exp_alerts: []
+
+  # --- SpeedtestStale: the latest test failed --------------------------------
+  # A failed result exports only result_id. Both branches are true here — no
+  # download metric, and an id that has not moved — and it is one alert.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="speedtest-tracker",instance="speedtest-tracker:80"}'
+        values: "1x120"
+      - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="failed"}'
+        values: "3x120"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: SpeedtestStale
+        exp_alerts:
+          - exp_labels:
+              component: internet
+              severity: warning
+              category: monitoring
+            exp_annotations:
+              summary: "speedtest-tracker has not recorded a completed test in over an hour"
+              description: >-
+                Either the latest test failed or the scheduler has stopped
+                producing new results.
+                Open the tracker's UI (https://speedtest.matrix.elysium) and read
+                the latest result's status, then
+                `docker logs speedtest-tracker 2>&1 | tail -50`.
+
+  # --- SpeedtestStale: the scheduler stopped, the last good result lingers --
+  - interval: 1m
+    input_series:
+      - series: 'up{job="speedtest-tracker",instance="speedtest-tracker:80"}'
+        values: "1x200"
+      - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "7x200"
+      - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "900000000x200"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: SpeedtestStale
+        exp_alerts:
+          - exp_labels:
+              component: internet
+              severity: warning
+              category: monitoring
+            exp_annotations:
+              summary: "speedtest-tracker has not recorded a completed test in over an hour"
+              description: >-
+                Either the latest test failed or the scheduler has stopped
+                producing new results.
+                Open the tracker's UI (https://speedtest.matrix.elysium) and read
+                the latest result's status, then
+                `docker logs speedtest-tracker 2>&1 | tail -50`.
+
+  # --- SpeedtestStale: quiet while a new result lands every 30 minutes -------
+  # The id moves; the server, and so the series, changes with it, as it does
+  # in production.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="speedtest-tracker",instance="speedtest-tracker:80"}'
+        values: "1x150"
+      - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "1x29 _x30 3x29 _x30 5x29"
+      - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="56795",status="completed"}'
+        values: "_x30 2x29 _x30 4x29 _x30"
+      - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "900000000x29 _x30 900000000x29 _x30 900000000x29"
+      - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="56795",status="completed"}'
+        values: "_x30 900000000x29 _x30 900000000x29 _x30"
+    alert_rule_test:
+      - eval_time: 145m
+        alertname: SpeedtestStale
+        exp_alerts: []
+
+  # --- SpeedtestTrackerDown, and SpeedtestStale standing aside ---------------
+  - interval: 1m
+    input_series:
+      - series: 'up{job="speedtest-tracker",instance="speedtest-tracker:80"}'
+        values: "0x120"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SpeedtestTrackerDown
+        exp_alerts:
+          - exp_labels:
+              job: speedtest-tracker
+              instance: speedtest-tracker:80
+              component: internet
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Prometheus cannot scrape speedtest-tracker"
+              description: >-
+                speedtest-tracker:80 has not answered a scrape for 15 minutes.
+                No speed tests are being recorded. `docker ps -a --filter
+                name=speedtest-tracker` and its logs.
+      # Not yet fifteen minutes.
+      - eval_time: 10m
+        alertname: SpeedtestTrackerDown
+        exp_alerts: []
+      # Nothing exported and the id not moving are both true, and both are
+      # the outage SpeedtestTrackerDown already names.
+      - eval_time: 90m
+        alertname: SpeedtestStale
+        exp_alerts: []

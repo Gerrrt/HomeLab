@@ -672,6 +672,82 @@ services:
       start_period: 20s
 
   # ---------------------------------------------------------------------------
+  # Scheduled internet speed tests (#914). Runs Ookla's CLI every 30 minutes,
+  # keeps the history in its own UI, and serves the latest result at
+  # /prometheus for internet.rules.yaml and the Internet dashboard. One test
+  # source, two views: a second scheduler would double the traffic and the
+  # two would interfere with each other's measurements.
+  # ---------------------------------------------------------------------------
+  speedtest-tracker:
+    <<: *service-defaults
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.0@sha256:3f8a2d06703bde3a6d04dcc8178fcd6251b601ce3b8b52958779d5335b5719d1
+    container_name: speedtest-tracker
+    # No docker-init. The linuxserver image is built on s6-overlay, whose
+    # suexec refuses to start anywhere but PID 1 — "s6-overlay-suexec: fatal:
+    # can only run as pid 1", exit 100, measured with the default above. s6
+    # is itself a reaping init, so what #71 put `init: true` there for is
+    # still true of this container.
+    init: false
+    # No `user:`. s6 starts as root, chowns /config and drops every process
+    # that does work (nginx, php-fpm, the queue worker that runs the test) to
+    # PUID/PGID. Those are the operator's, for the same reason grafana takes
+    # RENDER_GID: the leaf key below is 0640 and nginx has to read it. This is
+    # the stack's one image that cannot run under a non-root uid from the
+    # start; docs/security.md says so.
+    environment:
+      PUID: "${RENDER_UID:?run make render}"
+      PGID: "${RENDER_GID:?run make render}"
+      TZ: America/New_York
+      APP_KEY: ${SPEEDTEST_APP_KEY:?set in secrets/observability.sops.yaml}
+      APP_URL: https://speedtest.matrix.elysium:${SPEEDTEST_PORT:-8443}
+      DB_CONNECTION: sqlite
+      # Every 30 minutes. The plan's data is unlimited, so the cost is ~20
+      # seconds of saturated link per test, not a cap.
+      SPEEDTEST_SCHEDULE: "*/30 * * * *"
+      # Prometheus holds the long history; the UI needs a year.
+      PRUNE_RESULTS_OLDER_THAN: "365"
+    # 3x the 130 MiB RSS peak, measured 2026-10-05 across a scheduled test
+    # with these exact settings (cgroup memory.peak 177 MiB, page cache
+    # included). Those tests ran over a faulty link at ~2 Mbit/s down, so the
+    # Ookla CLI never buffered at full rate — re-measure once WanReceiveErrors
+    # is quiet before trusting the margin.
+    mem_limit: 384m
+    memswap_limit: 384m
+    # Measured, not guessed: CapEff 0x4cb with these, and the container came
+    # up healthy and ran two complete tests. s6 needs CHOWN, FOWNER and
+    # DAC_OVERRIDE to prepare /config and SETUID/SETGID to drop to PUID;
+    # nginx binds 80 and 443. no-new-privileges holds because s6 drops with
+    # setuid(2), not a setuid binary.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID, NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # SQLite database, nginx and php config the image writes on first
+      # boot, and its logs. A writable root is required for the same reason.
+      - speedtest-data:/config
+      # The lab CA's leaf, mounted over the self-signed pair the image would
+      # otherwise generate ("using keys found in /config/keys"). Never the CA
+      # key. Read-only inside the writable volume, and s6's first-boot chown
+      # of /config did not trip over them: measured healthy with this shape.
+      - ../../certificates/speedtest.matrix.elysium.pem:/config/keys/cert.crt:ro
+      - ../../certificates/speedtest.matrix.elysium-key.pem:/config/keys/cert.key:ro
+    # 80 for Prometheus on the compose network; 443 is the UI, published
+    # for the operator's browser and behind the app's own login.
+    expose:
+      - "80"
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${SPEEDTEST_PORT:-8443}:443"
+    healthcheck:
+      # curl ships in the image; check_compose_health.py --probe proves it.
+      # /api/healthcheck answers 200 without a login, on plain HTTP.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost/api/healthcheck"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
   # Visualisation. Datasources and dashboards are provisioned from files, so a
   # wiped volume costs nothing but annotations — the dashboards are in git.
   # ---------------------------------------------------------------------------
@@ -1351,3 +1427,4 @@ volumes:
   loki-data:
   grafana-data:
   alloy-data:
+  speedtest-data:

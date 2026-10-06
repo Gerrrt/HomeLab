@@ -122,7 +122,8 @@ tests:
   #
   # All 14 were killed. If you change a rule here, re-run them:
   #
-  #   InstanceDown        up == 0 -> up == 1;  for: 5m -> 0m
+  #   InstanceDown        up == 0 -> up == 1;  for: 5m -> 0m;
+  #                       job!= -> job=  (the speedtest-tracker case below)
   #   HostDiskCritical    < 0.10 -> < 0.01;  drop fstype!~"tmpfs|overlay";
   #                       for: 15m -> 0m
   #   HostMemoryPressure  < 0.10 -> < 0.01;  for: 15m -> 0m
@@ -177,6 +178,19 @@ tests:
         values: "0 0 0 1 1 1 1 1 1 1 1 1"
     alert_rule_test:
       - eval_time: 10m
+        alertname: InstanceDown
+        exp_alerts: []
+
+  # --- InstanceDown: quiet for speedtest-tracker, which does not page -------
+  # Down for twenty minutes, well past `for: 5m`. SpeedtestTrackerDown in
+  # internet.rules.yaml owns this job at warning (#914); a measurement tool
+  # being unreachable is not worth waking anyone for.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="speedtest-tracker:80",job="speedtest-tracker"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 15m
         alertname: InstanceDown
         exp_alerts: []
 
