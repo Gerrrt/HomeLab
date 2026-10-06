@@ -451,6 +451,14 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # running 3.2.1 on trinity on 2026-10-01, into the container's /tmp and
 # removed after: those two files and nothing else, because no document had
 # been imported yet. No volume here has a top-level manifest.json.
+#
+# speedtest-data (#914) is speedtest-tracker's /config: the SQLite database
+# with every result and the app's settings, including the Prometheus switch
+# the scrape depends on. Read off a first boot of the pinned 1.15.0 on
+# 2026-10-05: database.sqlite, .migrations, keys, log, nginx, php and www at
+# the top level. database.sqlite is created by the first boot's migrations and
+# no other volume carries one. keys/ holds only the mount points of the
+# read-only leaf; the leaf itself lives in certificates/ and is not archived.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -479,6 +487,7 @@ declare -A SENTINEL=(
   [immich-library]="./library/.immich"
   [wiki-db]="toc.dat"
   [paperless-documents]="./manifest.json"
+  [speedtest-data]="./database.sqlite"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -526,6 +535,7 @@ declare -A COMPANIONS=(
   [immich-library]="./upload/.immich ./profile/.immich ./backups/.immich ./thumbs/.immich ./encoded-video/.immich"
   [wiki-db]="restore.sql"
   [paperless-documents]="./metadata.json"
+  [speedtest-data]="./.migrations ./nginx ./php"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and

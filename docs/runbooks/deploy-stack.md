@@ -24,6 +24,7 @@ make secrets-edit     # replace every change-me value
 # CA — see generate-certificates.md. Both are required before the stack starts.
 make certs ARGS=--ca
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"
+make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"
 
 make validate         # confirm the configs are sound before starting anything
 make up
@@ -53,6 +54,32 @@ a bind-mount source is missing, so Grafana got directories where its cert and
 key belong and Prometheus got one where its `ca_file` belongs. `make render`
 now refuses to run in that state and names the step that was missed
 ([#69](https://github.com/Gerrrt/HomeLab/issues/69)).
+
+### speedtest-tracker's first boot
+
+`SPEEDTEST_APP_KEY` must be in the secrets before `make render`; its shape is
+not one `make gen-secret` produces, so set it directly — the value never
+reaches the terminal:
+
+```bash
+sops set secrets/observability.sops.yaml '["SPEEDTEST_APP_KEY"]' "\"base64:$(openssl rand -base64 32)\""
+```
+
+The tracker boots with a default login and with its Prometheus endpoint
+switched off, and both live in its database, not in compose. Until the
+second is done `/prometheus` is a 404 and `SpeedtestTrackerDown` fires
+after 15 minutes (#914):
+
+1. Open `https://speedtest.matrix.elysium:8443`, sign in with the default
+   account the [upstream docs](https://docs.speedtest-tracker.dev/security/authentication#default-user-account)
+   name, and change its email and password at once. The UI is published on
+   `BIND_ADDR`; this login is all that stands in front of it.
+2. **Settings → Data integration → Prometheus**: enable it. Leave the allowed
+   IPs empty — Prometheus reaches it on the compose network, from an address
+   that changes with the network.
+3. Confirm the scrape: `curl -s localhost:9090/api/v1/query?query=up%7Bjob%3D%22speedtest-tracker%22%7D`
+   reads `1`, and after the next :00 or :30, `speedtest_tracker_download_bits`
+   has a value.
 
 > **Back up `~/.config/sops/age/keys.txt` off this machine now.** Without it the
 > encrypted secrets in the repository cannot be decrypted by anything, including
@@ -119,12 +146,13 @@ Then in the UI:
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
 2. **Prometheus → Status → Rules.** Every rule loaded, none in error. The
-   page lists 140: the 138 alert rules this repository counts everywhere
-   else, plus the two recording rules,
-   `homelab_suricata_expected_interface` and
-   `homelab_battery_runtime_seconds`. The page's number is always the
+   page lists 150: the 144 alert rules this repository counts everywhere
+   else, plus the six recording rules:
+   `homelab_suricata_expected_interface`,
+   `homelab_battery_runtime_seconds`, and the two directions each of
+   `homelab_wan_bits_per_second` and `homelab_wan_capacity_bits_per_second`. The page's number is always the
    alert-rule count plus the recording rules.
-3. **Grafana → Dashboards → HomeLab.** Seven dashboards, populated.
+3. **Grafana → Dashboards → HomeLab.** Eight dashboards, populated.
 4. **Grafana → Explore → Loki**, run `{host=~".+"}`. Logs should be arriving.
 5. Confirm level normalisation is working — this has been silently broken
    twice:
