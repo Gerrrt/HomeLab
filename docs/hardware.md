@@ -76,21 +76,18 @@ rather than a 1U LCD console drawer, chosen 2026-10-06. A VESA rack mount
 for a 17" screen is typically 8U, and its keyboard and mouse need a 1U
 sliding shelf.
 
-**What the N1700W's spec sheet settles, and what it leaves open.** It is
+**The N1700W: what is settled, and the one figure still open.** It is
 431 × 414 × 172 mm (W × H × D) and 5.6 kg. It takes VGA and DVI inputs, so
 it connects to the VGA KVM directly. It runs from an external 12 V brick
 that needs a PDU outlet and somewhere to sit. 431 mm is inside a 19" rack's
-opening, about 450 mm between the rails. The sheet lists no VESA pattern,
-and 414 mm is almost certainly the height with the stand. So the screen's
-units depend on its back:
+opening, about 450 mm between the rails.
 
-| The back has… | Mounted as | Screen units | 27U leaves |
-| --- | --- | --- | --- |
-| VESA holes (usually 100 × 100 mm) | Stand off, on a VESA rack mount | 8U, if the bare panel is ≤ 355 mm | 4 spare, as tabled below |
-| No VESA holes | Stand on, on a 1U shelf | 10U + the 1U shelf = 11U | 1 spare, and 25U no longer fits |
-
-Look at the back, and measure the panel without its stand, before buying
-the frame or the mount.
+**It is VESA 100 × 100 mm**, from its manual's wall-mount section, confirmed
+2026-10-06. The four holes sit under rubber plugs once the stand's four
+screws are out. So it takes a standard VESA rack mount with the stand off.
+The spec sheet's 414 mm includes the stand. **The bare panel's height has
+not been measured.** At 355 mm or less it fits the 8U mount tabled below.
+If it is taller, use a 9U mount, and the frame keeps 3 spare units, not 4.
 
 | U | Device | Why here |
 | --- | --- | --- |
