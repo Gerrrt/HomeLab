@@ -21,13 +21,19 @@ rule_files:
 evaluation_interval: 1m
 
 tests:
-  # --- InternetDownloadSlow: three slow tests in a row ----------------------
+  # --- InternetDownloadSlow: a good result, then three slow ones ---------
+  # The transition the #915 review asked for. Results land every 30 minutes:
+  # id 1 good at t0, ids 2, 3 and 4 slow at t30, t60 and t90. The 65m window
+  # clears the good result at t95 and `for: 5m` fires at t100 — ten minutes
+  # after the third slow test, not after a fourth.
   - interval: 1m
     input_series:
+      - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "1x29 2x29 3x29 4x29 5x29"
       - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
-        values: "2186960x120"
+        values: "900000000x29 2186960x119"
     alert_rule_test:
-      - eval_time: 70m
+      - eval_time: 100m
         alertname: InternetDownloadSlow
         exp_alerts:
           - exp_labels:
@@ -37,36 +43,59 @@ tests:
             exp_annotations:
               summary: "Three speed tests in a row measured under 400 Mbit/s down"
               description: >-
-                The best download in the last 35 minutes was
-                2.187Mbit/s, and it has stayed under 400M for an
-                hour. Open the Internet dashboard: if WAN receive was near its
-                ~940M ceiling while the tests ran, something in the house is using
-                the link; if it was quiet, the shortfall is the ISP's.
-      # One slow test is not three.
-      - eval_time: 40m
+                The best download across the last three tests was
+                2.187Mbit/s. Open the Internet dashboard: if WAN
+                receive was near its ~940M ceiling while the tests ran, something
+                in the house is using the link; if it was quiet, check WAN errors
+                before blaming the ISP.
+      # Two slow tests and the third just in: the good one is still in the
+      # window.
+      - eval_time: 92m
+        alertname: InternetDownloadSlow
+        exp_alerts: []
+      - eval_time: 60m
         alertname: InternetDownloadSlow
         exp_alerts: []
 
   # --- InternetDownloadSlow: quiet when one test in three is good ------------
-  # The gauge holds each result for the 30 minutes until the next test. Two
-  # slow tests and then a good one, repeated: every 35m window reaches back to
-  # a good result, so the rule never holds for its hour.
+  # Two slow tests and then a good one, repeated: no 65m window is all slow.
   - interval: 1m
     input_series:
+      - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "1x29 2x29 3x29 4x29 5x29 6x29"
       - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
         values: "2186960x59 900000000x29 2186960x59 900000000x29"
     alert_rule_test:
-      - eval_time: 170m
+      - eval_time: 80m
+        alertname: InternetDownloadSlow
+        exp_alerts: []
+      - eval_time: 145m
         alertname: InternetDownloadSlow
         exp_alerts: []
 
-  # --- InternetUploadSlow ----------------------------------------------------
+  # --- InternetDownloadSlow: quiet on a fresh deploy -------------------------
+  # One slow result and no history before it. Without the result_id clause the
+  # whole (short) window is slow and it would fire on a single test.
   - interval: 1m
     input_series:
-      - series: 'speedtest_tracker_upload_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
-        values: "50000000x120"
+      - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "1x40"
+      - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "2186960x40"
     alert_rule_test:
-      - eval_time: 70m
+      - eval_time: 25m
+        alertname: InternetDownloadSlow
+        exp_alerts: []
+
+  # --- InternetUploadSlow: a good result, then three slow ones ---------------
+  - interval: 1m
+    input_series:
+      - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "1x29 2x29 3x29 4x29 5x29"
+      - series: 'speedtest_tracker_upload_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "297262912x29 50000000x119"
+    alert_rule_test:
+      - eval_time: 100m
         alertname: InternetUploadSlow
         exp_alerts:
           - exp_labels:
@@ -76,10 +105,10 @@ tests:
             exp_annotations:
               summary: "Three speed tests in a row measured under 100 Mbit/s up"
               description: >-
-                The best upload in the last 35 minutes was
-                50Mbit/s, and it has stayed under 100M for an
-                hour. Compare WAN transmit on the Internet dashboard: a backup or
-                a cloud sync saturating the upstream looks exactly like this.
+                The best upload across the last three tests was
+                50Mbit/s. Compare WAN transmit on the Internet
+                dashboard: a backup or a cloud sync saturating the upstream looks
+                exactly like this.
 
   # The measured upload, ~297 Mbit/s, is nowhere near the line.
   - interval: 1m
@@ -162,15 +191,16 @@ tests:
               severity: warning
               category: hardware
             exp_annotations:
-              summary: "morpheus's WAN port is receiving corrupted frames"
+              summary: "morpheus's WAN port is counting receive errors"
               description: >-
                 em0 counted 150 receive errors in fifteen
-                minutes; a healthy wired link counts none. Every dropped frame is a
-                TCP retransmit, so downloads crawl while uploads stay fast. In
-                order: replace the patch cable between the XB7 and morpheus, move
-                it to another XB7 port, then suspect the I219's port.
-                `ssh admin@10.0.99.1 sysctl dev.em.0.mac_stats.crc_errs` shows the
-                counter directly.
+                minutes; a healthy wired link counts none. ifInErrors is the
+                generic counter, so name the cause before acting on it:
+                `ssh admin@10.0.99.1 sysctl dev.em.0.mac_stats | grep -E
+                'crc|align|symbol|jabber|fragment'`. If crc_errs is what is
+                climbing, it is the physical link: reseat the plug in the XB7
+                (#914), then re-terminate or replace that cable, then try another
+                XB7 port, then suspect the I219's port.
 
   # A stray error every two minutes, 7.5 in fifteen: under the line.
   - interval: 1m
@@ -182,9 +212,11 @@ tests:
         alertname: WanReceiveErrors
         exp_alerts: []
 
-  # --- SpeedtestStale: the latest test failed --------------------------------
+  # --- SpeedtestStale: tests keep failing ----------------------------------
   # A failed result exports only result_id. Both branches are true here — no
-  # download metric, and an id that has not moved — and it is one alert.
+  # download metric, and an id that has not moved — and it is one alert. The
+  # absent branch needs 75 minutes of no download metric: one failed test
+  # holds the endpoint for 30, so it takes a third failure.
   - interval: 1m
     input_series:
       - series: 'up{job="speedtest-tracker",instance="speedtest-tracker:80"}'
@@ -192,7 +224,7 @@ tests:
       - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="failed"}'
         values: "3x120"
     alert_rule_test:
-      - eval_time: 70m
+      - eval_time: 75m
         alertname: SpeedtestStale
         exp_alerts:
           - exp_labels:
@@ -200,25 +232,32 @@ tests:
               severity: warning
               category: monitoring
             exp_annotations:
-              summary: "speedtest-tracker has not recorded a completed test in over an hour"
+              summary: "speedtest-tracker has not recorded a completed test in over 90 minutes"
               description: >-
-                Either the latest test failed or the scheduler has stopped
-                producing new results.
-                Open the tracker's UI (https://speedtest.matrix.elysium) and read
-                the latest result's status, then
+                Either the last three tests failed or the scheduler has stopped
+                producing new results. Open the tracker's UI
+                (https://speedtest.matrix.elysium:8443) and read the latest
+                result's status, then
                 `docker logs speedtest-tracker 2>&1 | tail -50`.
+      - eval_time: 65m
+        alertname: SpeedtestStale
+        exp_alerts: []
 
-  # --- SpeedtestStale: the scheduler stopped, the last good result lingers --
+  # --- SpeedtestStale: the scheduler stops after real results ---------------
+  # The case the #915 review found unexercised. Ids 1, 2 and 3 land at t0,
+  # t30 and t60, then nothing new while the endpoint keeps serving id 3. The
+  # 35m window holds only id 3 from t95; `for: 70m` fires at t165, 105
+  # minutes after the last result — not three hours.
   - interval: 1m
     input_series:
       - series: 'up{job="speedtest-tracker",instance="speedtest-tracker:80"}'
         values: "1x200"
       - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="completed"}'
-        values: "7x200"
+        values: "1x29 2x29 3x140"
       - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
         values: "900000000x200"
     alert_rule_test:
-      - eval_time: 70m
+      - eval_time: 170m
         alertname: SpeedtestStale
         exp_alerts:
           - exp_labels:
@@ -226,13 +265,41 @@ tests:
               severity: warning
               category: monitoring
             exp_annotations:
-              summary: "speedtest-tracker has not recorded a completed test in over an hour"
+              summary: "speedtest-tracker has not recorded a completed test in over 90 minutes"
               description: >-
-                Either the latest test failed or the scheduler has stopped
-                producing new results.
-                Open the tracker's UI (https://speedtest.matrix.elysium) and read
-                the latest result's status, then
+                Either the last three tests failed or the scheduler has stopped
+                producing new results. Open the tracker's UI
+                (https://speedtest.matrix.elysium:8443) and read the latest
+                result's status, then
                 `docker logs speedtest-tracker 2>&1 | tail -50`.
+      # Before `for` has run out.
+      - eval_time: 160m
+        alertname: SpeedtestStale
+        exp_alerts: []
+      # While results are still arriving: the first 30 minutes hold one id
+      # and are true, but never for 70.
+      - eval_time: 55m
+        alertname: SpeedtestStale
+        exp_alerts: []
+
+  # --- SpeedtestStale: quiet on a fresh deploy waiting for its first test ----
+  # The endpoint says "# no data available" for up to 30 minutes, then serves
+  # one id for 30 more until the second test: ~60 minutes true, under `for`.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="speedtest-tracker",instance="speedtest-tracker:80"}'
+        values: "1x120"
+      - series: 'speedtest_tracker_result_id{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "_x29 1x29 2x29 3x30"
+      - series: 'speedtest_tracker_download_bits{job="speedtest-tracker",server_id="70888",status="completed"}'
+        values: "_x29 900000000x90"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: SpeedtestStale
+        exp_alerts: []
+      - eval_time: 115m
+        alertname: SpeedtestStale
+        exp_alerts: []
 
   # --- SpeedtestStale: quiet while a new result lands every 30 minutes -------
   # The id moves; the server, and so the series, changes with it, as it does

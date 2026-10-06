@@ -109,7 +109,11 @@ correct fix for a bad window, not cropping.
 ## What is not captured, and why
 
 There are eight dashboards and five screenshots. `homelab-logs` and
-`homelab-security` are excluded on purpose and always will be.
+`homelab-security` are excluded on purpose and always will be. `homelab-internet`
+is not captured yet, for a reason that expires: it has no data until
+speedtest-tracker is deployed, and a screenshot of empty panels documents
+nothing. Add it to `scripts/capture-screenshots.sh` after its first day of
+results ([#914](https://github.com/Gerrrt/HomeLab/issues/914)).
 
 ### `homelab-logs` is excluded on purpose
 

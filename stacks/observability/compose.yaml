@@ -697,7 +697,7 @@ services:
     environment:
       PUID: "${RENDER_UID:?run make render}"
       PGID: "${RENDER_GID:?run make render}"
-      TZ: America/New_York
+      TZ: America/Los_Angeles
       APP_KEY: ${SPEEDTEST_APP_KEY:?set in secrets/observability.sops.yaml}
       APP_URL: https://speedtest.matrix.elysium:${SPEEDTEST_PORT:-8443}
       DB_CONNECTION: sqlite

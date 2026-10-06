@@ -44,7 +44,7 @@ to `BIND_ADDR`. Reasoning in
 ## Layout
 
 ```text
-compose.yaml               all nine services, one network, health-gated ordering
+compose.yaml               all ten services, one network, health-gated ordering
 Caddyfile                  the ingest proxy's policy: which token may reach which path
 .env.example               non-sensitive tunables (ports, retention, bind address)
                            edit this, not .env — .env is regenerated on `make up`

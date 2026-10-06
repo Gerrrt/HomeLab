@@ -190,7 +190,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 ```text
 .
 ├── stacks/
-│   ├── observability/        # the estate's stack on prometheus — nine services
+│   ├── observability/        # the estate's stack on prometheus — ten services
 │   │   ├── prometheus/       #   config, file_sd targets, 144 alert rules
 │   │   ├── alertmanager/     #   routing and inhibition
 │   │   ├── loki/             #   single-binary config + 19 LogQL rules

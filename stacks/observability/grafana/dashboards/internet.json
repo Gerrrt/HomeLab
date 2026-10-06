@@ -504,7 +504,7 @@
     {
       "type": "timeseries",
       "title": "WAN throughput",
-      "description": "Everything crossing morpheus's WAN port, from pf's own counters (3-minute rate, so a 20-second test shows as a short bump). Near the dashed line at the time of a slow test means the house was using the link.",
+      "description": "Everything crossing morpheus's WAN port, from pf's own counters (3-minute rate, so a 20-second test shows as a short bump). Near its dashed ceiling — ~940 down, 250 up — at the time of a slow test means the house was using the link.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -550,6 +550,35 @@
             "matcher": {
               "id": "byName",
               "options": "download ceiling"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "upload ceiling"
             },
             "properties": [
               {
@@ -630,6 +659,18 @@
           "range": true,
           "instant": false,
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "homelab_wan_capacity_bits_per_second{direction=\"transmit\"}",
+          "legendFormat": "upload ceiling",
+          "range": true,
+          "instant": false,
+          "refId": "D"
         }
       ]
     },
