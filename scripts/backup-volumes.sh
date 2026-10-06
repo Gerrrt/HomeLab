@@ -1203,12 +1203,29 @@ verify() {
   return 0
 }
 
+# Without --only, a set is held to what its own MANIFEST says it archived, as
+# verify_remote_archives already does — not to today's VOLUMES. The two
+# differ for every set taken before a volume existed: speedtest-data (#914)
+# arrived on 2026-10-06, and the next --verify-only --all called every
+# retained set before it incomplete ("no archive in …"), raising
+# ScheduledJobFailed over backups that were whole. A current volume a set does
+# not list is said, not failed: the backup run that writes a set verifies
+# every volume it was given, so absence from a MANIFEST is "taken before",
+# and the next `make backup` takes it.
 verify_set() {
   local d="$1"; shift
   local lenient=0 vol failed=0
-  local -a want=("$@")
-  ((${#want[@]})) || want=("${VOLUMES[@]}")
+  local -a want=("$@") listed=()
   [[ -d ${d} ]] || die "no such set: ${d}"
+  if ((${#want[@]} == 0)); then
+    mapfile -t listed < <(manifest_volumes "${d}")
+    ((${#listed[@]})) || { red "$(basename "${d}"): the MANIFEST lists no volumes"; return 1; }
+    want=("${listed[@]}")
+    for vol in "${VOLUMES[@]}"; do
+      [[ " ${listed[*]} " == *" ${vol} "* ]] \
+        || info "${vol}: not in $(basename "${d}") — the set predates it; the next backup takes it"
+    done
+  fi
   [[ "$(manifest_field "${d}" mode)" == hot ]] && lenient=1
   info "verifying $(basename "${d}")"
   for vol in "${want[@]}"; do
