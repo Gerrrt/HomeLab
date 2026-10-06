@@ -74,10 +74,23 @@ needs rear support. Open frame suits a fanless switch.
 **Why 27U and not 18U:** the existing ViewSonic N1700W goes into the rack
 rather than a 1U LCD console drawer, chosen 2026-10-06. A VESA rack mount
 for a 17" screen is typically 8U, and its keyboard and mouse need a 1U
-sliding shelf. **8U is an assumption until the N1700W is measured.** Measure
-its height without the stand and check its back for VESA holes before
-buying the mount. With no VESA pattern it has to sit on a shelf with its
-stand, which is taller.
+sliding shelf.
+
+**What the N1700W's spec sheet settles, and what it leaves open.** It is
+431 × 414 × 172 mm (W × H × D) and 5.6 kg. It takes VGA and DVI inputs, so
+it connects to the VGA KVM directly. It runs from an external 12 V brick
+that needs a PDU outlet and somewhere to sit. 431 mm is inside a 19" rack's
+opening, about 450 mm between the rails. The sheet lists no VESA pattern,
+and 414 mm is almost certainly the height with the stand. So the screen's
+units depend on its back:
+
+| The back has… | Mounted as | Screen units | 27U leaves |
+| --- | --- | --- | --- |
+| VESA holes (usually 100 × 100 mm) | Stand off, on a VESA rack mount | 8U, if the bare panel is ≤ 355 mm | 4 spare, as tabled below |
+| No VESA holes | Stand on, on a 1U shelf | 10U + the 1U shelf = 11U | 1 spare, and 25U no longer fits |
+
+Look at the back, and measure the panel without its stand, before buying
+the frame or the mount.
 
 | U | Device | Why here |
 | --- | --- | --- |
