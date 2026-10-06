@@ -336,7 +336,7 @@ units (§1.2), then the next one up.
   manager on the left and power cords down the rear right, or the reverse,
   but never bundled together.
 - **Every patch lead is factory-made.** A hand-crimped plug in the XB7 was
-  [#914](https://github.com/Gerrrt/HomeLab/issues/914)'s fault: it cost two
+  the fault [#914](https://github.com/Gerrrt/HomeLab/issues/914) traced ([#923](https://github.com/Gerrrt/HomeLab/issues/923)): it cost two
   days of 2 Mbit/s downloads before reseating it fixed them.
 - **Leave a small service loop** behind each device, enough to slide it out
   10 cm without unplugging anything.

@@ -98,7 +98,7 @@ If it is taller, use a 9U mount, and the frame keeps 3 spare units, not 4.
 | U16 | *spare* | |
 | U15 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
 | U14 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built |
-| U13 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped plug was #914's fault |
+| U13 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
 | U12 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
 | U11 | *spare* | Space between the network and compute groups, and the next unit to go |
 | U10 | 1U mount for a Lenovo ThinkCentre Tiny: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so buy a mount made for the Tiny and check it fits before reusing `morpheus`'s tray design |
@@ -136,8 +136,8 @@ ever runs out of units.
 *suspends* on lid close. That was checked on 2026-10-06, with no
 `HandleLidSwitch` set on `prometheus` or `oracle`. Closing `prometheus`'s lid
 as things stand would suspend the whole observability stack. Set
-`HandleLidSwitch=ignore`, plus `HandleLidSwitchExternalPower` and
-`HandleLidSwitchDocked`, on both, and prove it with a closed lid while
+`HandleLidSwitch=ignore`, `HandleLidSwitchExternalPower=ignore` and
+`HandleLidSwitchDocked=ignore` on both, and prove it with a closed lid while
 watching `up`, before either goes onto its shelf.
 
 ## Compute
