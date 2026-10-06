@@ -664,8 +664,6 @@ admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
   counted in the named list.
 - [`architecture.md`](../architecture.md) and the stack README: not "not
   built".
-- `docs/firewall-claims.yaml`: the count of Hicks passes in its comment. It
-  states postures, not rule bodies.
 - `blackbox-dns.yaml`: the forwarder runbook's two targets.
 - The issue: #129–#135 close by hand once §9–§11 verify (their PRs said
   `Refs`), and #404 closes on §13.

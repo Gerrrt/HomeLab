@@ -1203,15 +1203,24 @@ verify() {
   return 0
 }
 
+# When a volume joined the stack, as the first set stamp that must hold it.
+# A volume with no row here has been in every retained set and must be in
+# every one. verify_set() excuses a set for lacking a volume only when the
+# set is older than that volume's row — absence from a MANIFEST alone is not
+# proof of age, because a damaged MANIFEST that kept some rows reads the same
+# (#917 review). Add a row when a volume is added to compose.yaml; stamps
+# compare as strings because is_stamp() fixes their shape.
+declare -A VOLUME_SINCE=(
+  [speedtest-data]="20261006T000000Z"   # #915, deployed 2026-10-06 02:13Z
+)
+
 # Without --only, a set is held to what its own MANIFEST says it archived, as
-# verify_remote_archives already does — not to today's VOLUMES. The two
-# differ for every set taken before a volume existed: speedtest-data (#914)
-# arrived on 2026-10-06, and the next --verify-only --all called every
-# retained set before it incomplete ("no archive in …"), raising
-# ScheduledJobFailed over backups that were whole. A current volume a set does
-# not list is said, not failed: the backup run that writes a set verifies
-# every volume it was given, so absence from a MANIFEST is "taken before",
-# and the next `make backup` takes it.
+# verify_remote_archives already does, plus every current volume the set is
+# not older than. The first half is the fix for speedtest-data (#914): it
+# arrived on 2026-10-06, and the next --verify-only --all called every set
+# before it incomplete ("no archive in …"), raising ScheduledJobFailed over
+# backups that were whole. The second half keeps that from becoming a hole:
+# a set missing a volume it should hold — by VOLUME_SINCE — still fails.
 verify_set() {
   local d="$1"; shift
   local lenient=0 vol failed=0
@@ -1222,8 +1231,13 @@ verify_set() {
     ((${#listed[@]})) || { red "$(basename "${d}"): the MANIFEST lists no volumes"; return 1; }
     want=("${listed[@]}")
     for vol in "${VOLUMES[@]}"; do
-      [[ " ${listed[*]} " == *" ${vol} "* ]] \
-        || info "${vol}: not in $(basename "${d}") — the set predates it; the next backup takes it"
+      [[ " ${listed[*]} " == *" ${vol} "* ]] && continue
+      if [[ -n ${VOLUME_SINCE[${vol}]:-} && "$(basename "${d}")" < "${VOLUME_SINCE[${vol}]}" ]]; then
+        info "${vol}: not in $(basename "${d}") — the set predates it (${VOLUME_SINCE[${vol}]}); the next backup takes it"
+      else
+        red "${vol}: missing from $(basename "${d}")'s MANIFEST, and the set is not older than the volume"
+        failed=1
+      fi
     done
   fi
   [[ "$(manifest_field "${d}" mode)" == hot ]] && lenient=1
